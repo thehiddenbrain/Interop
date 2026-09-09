@@ -19,18 +19,40 @@ claim sent by TIBCO, appends the claim's attachments from the shared drive and w
    one page per image, fitted to letter size.
 5. Answers with where the bundle is (or an error); a `GET` endpoint also streams it for download.
 
-## Build and run
+## Quick start
 
-Requires Java 21 and Maven.
+Only Java 17 or newer is required (`java -version` to check). Maven is not needed: the Maven
+wrapper (`mvnw` / `mvnw.cmd`) downloads it on first use.
 
 ```bash
-mvn verify                                   # builds and runs 96 tests
-java -jar target/cms1500-claim-service-0.1.0-SNAPSHOT.jar          # dev profile, ./data/...
-SPRING_PROFILES_ACTIVE=prod java -jar target/cms1500-claim-service-0.1.0-SNAPSHOT.jar
+./run.sh          # Mac / Linux
+run.cmd           # Windows
 ```
 
-The attachments folder must already exist (it is the shared drive); the output folder is created
-if missing. Effective folders and policies are logged at startup.
+The script uses the prebuilt jar in `target/` when present, otherwise builds it, creates
+`data/attachments` and `data/bundles` next to the project, and starts the service on port 8080
+(dev profile). Then, from another terminal:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/claims/cms1500 \
+     -H 'Content-Type: application/json' --data-binary @samples/claim-full.json
+```
+
+Drop files named `CLM-2026-000123_1.pdf`, `CLM-2026-000123_2.png`, ... into `data/attachments`
+first and they are bundled behind the form; the result lands in `data/bundles/CLM-2026-000123.pdf`.
+Swagger UI: `http://localhost:8080/swagger-ui.html`. WSDL: `http://localhost:8080/ws/cms1500.wsdl`.
+
+## Build and run manually
+
+```bash
+./mvnw verify                                                    # builds and runs 96 tests
+java -jar target/cms1500-claim-service-0.1.0-SNAPSHOT.jar        # dev profile, ./data/...
+SPRING_PROFILES_ACTIVE=prod java -jar target/cms1500-claim-service-0.1.0-SNAPSHOT.jar
+java -jar target/cms1500-claim-service-0.1.0-SNAPSHOT.jar --server.port=9090   # any Spring option
+```
+
+The attachments folder must already exist in prod (it is the shared drive); the output folder is
+created if missing. Effective folders and policies are logged at startup.
 
 ## Configuration per environment
 

@@ -18,7 +18,7 @@
   <description>Fills the CMS-1500 (02/12) claim form from a REST or SOAP request and bundles it with the claim's attachments into one PDF</description>
 
   <properties>
-    <java.version>21</java.version>
+    <java.version>17</java.version>
     <pdfbox.version>3.0.8</pdfbox.version>
     <springdoc.version>2.8.9</springdoc.version>
     <jaxb2-maven-plugin.version>3.2.0</jaxb2-maven-plugin.version>
