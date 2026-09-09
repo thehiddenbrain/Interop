@@ -1,0 +1,10 @@
+# Local development: everything under ./data next to the working directory.
+cms1500:
+  attachments:
+    root: ${CMS1500_ATTACHMENTS_DIR:./data/attachments}
+  output:
+    root: ${CMS1500_OUTPUT_DIR:./data/bundles}
+
+logging:
+  level:
+    com.thehiddenbrain.interop.cms1500: DEBUG

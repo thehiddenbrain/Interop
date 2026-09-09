@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: cms1500-claim-service
+  profiles:
+    default: dev
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: true   # a misspelled JSON property is an error, not silently ignored
+  mvc:
+    problemdetails:
+      enabled: false
+
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+cms1500:
+  # PDF template with the NUCC 02/12 AcroForm field names. classpath: or file: URL.
+  template: classpath:forms/cms1500-02-12.pdf
+  attachments:
+    # Shared-drive folder holding <claimNumber>_1.<ext>, <claimNumber>_2.<ext>, ...
+    root: ${CMS1500_ATTACHMENTS_DIR:./data/attachments}
+    # Lower-case extensions accepted as attachments. pdf is merged; the rest are images rendered one page each.
+    allowed-extensions: [pdf, jpg, jpeg, png, tif, tiff, bmp, gif]
+    # What to do with a matching file whose extension is not allowed: FAIL the request or SKIP it with a warning.
+    unsupported: FAIL
+    # What to do when no attachment matches the claim number: WARN (bundle holds the form only) or FAIL.
+    when-none: WARN
+  output:
+    # Shared-drive folder that receives <claimNumber>.pdf.
+    root: ${CMS1500_OUTPUT_DIR:./data/bundles}
+    # true replaces an existing bundle for the same claim number; false rejects with BUNDLE_EXISTS.
+    overwrite: true
+  form:
+    # Print text in upper case (payer OCR preference).
+    uppercase: true
+    # Remove the period from diagnosis codes in item 21 (NUCC instruction).
+    strip-diagnosis-periods: true
+    # Text placed in item 28 on every page except the last of a multi-page claim ("" leaves it blank).
+    continuation-marker: ""

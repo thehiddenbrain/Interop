@@ -1,0 +1,15 @@
+# Production: the shared drive is mounted on the host. Override with environment
+# variables (CMS1500_ATTACHMENTS_DIR / CMS1500_OUTPUT_DIR) or edit the paths here.
+cms1500:
+  attachments:
+    root: ${CMS1500_ATTACHMENTS_DIR:/mnt/claims/attachments}
+  output:
+    root: ${CMS1500_OUTPUT_DIR:/mnt/claims/bundles}
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    com.thehiddenbrain.interop.cms1500: INFO

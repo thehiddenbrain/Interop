@@ -1,0 +1,148 @@
+{
+  "claimNumber": "CLM-2026-000123",
+  "carrier": {
+    "name": "Cigna Healthcare",
+    "street": "PO Box 188061",
+    "city": "Chattanooga",
+    "state": "TN",
+    "zip": "37422"
+  },
+  "insuranceType": "GROUP_HEALTH_PLAN",
+  "insuredId": "U12345678",
+  "patient": {
+    "name": { "lastName": "Doe", "firstName": "John", "middleInitial": "A" },
+    "dateOfBirth": "1980-05-17",
+    "sex": "M",
+    "address": {
+      "street": "123 Main St",
+      "city": "Springfield",
+      "state": "IL",
+      "zip": "62704",
+      "phoneAreaCode": "217",
+      "phoneNumber": "5551234"
+    },
+    "relationshipToInsured": "SPOUSE",
+    "signatureOnFile": true,
+    "signatureDate": "2026-08-01"
+  },
+  "insured": {
+    "name": { "lastName": "Doe", "firstName": "Mary", "middleInitial": "K" },
+    "address": {
+      "street": "123 Main St",
+      "city": "Springfield",
+      "state": "IL",
+      "zip": "62704",
+      "phoneAreaCode": "217",
+      "phoneNumber": "5551234"
+    },
+    "policyGroupNumber": "GRP-4471",
+    "dateOfBirth": "1982-11-03",
+    "sex": "F",
+    "otherClaimIdQualifier": "Y4",
+    "otherClaimId": "PC-778",
+    "planName": "Cigna Open Access Plus",
+    "anotherHealthBenefitPlan": true,
+    "signatureOnFile": true
+  },
+  "otherInsured": {
+    "name": { "lastName": "Doe", "firstName": "Jane", "middleInitial": "B" },
+    "policyGroupNumber": "OTH-2231",
+    "planName": "Aetna PPO"
+  },
+  "condition": {
+    "employmentRelated": false,
+    "autoAccident": true,
+    "autoAccidentState": "IL",
+    "otherAccident": false,
+    "claimCodes": "W2"
+  },
+  "dateOfCurrentIllness": "2026-07-15",
+  "dateOfCurrentIllnessQualifier": "431",
+  "otherDate": "2026-07-20",
+  "otherDateQualifier": "454",
+  "unableToWorkFrom": "2026-07-15",
+  "unableToWorkTo": "2026-07-30",
+  "referringProvider": {
+    "qualifier": "DN",
+    "name": "Smith, Alice MD",
+    "otherIdQualifier": "G2",
+    "otherId": "REF-991",
+    "npi": "1111111112"
+  },
+  "hospitalizationFrom": "2026-07-16",
+  "hospitalizationTo": "2026-07-18",
+  "additionalClaimInfo": "PWK OZ 1234",
+  "outsideLab": true,
+  "outsideLabCharges": 45.00,
+  "icdIndicator": "ICD10",
+  "diagnoses": ["S82.101A", "M54.5", "E11.9", "I10"],
+  "resubmissionCode": "7",
+  "originalReferenceNumber": "ORIG-555",
+  "priorAuthorizationNumber": "PA-2026-001",
+  "serviceLines": [
+    {
+      "dateFrom": "2026-07-16",
+      "placeOfService": "11",
+      "emergency": true,
+      "procedureCode": "99213",
+      "modifiers": ["25"],
+      "diagnosisPointers": "AB",
+      "charges": 150.00,
+      "units": 1,
+      "renderingProviderIdQualifier": "G2",
+      "renderingProviderOtherId": "RP-100",
+      "renderingProviderNpi": "9876543213",
+      "supplementalInfo": "N4 12345678901 UN 1"
+    },
+    {
+      "dateFrom": "2026-07-16",
+      "placeOfService": "11",
+      "procedureCode": "73590",
+      "modifiers": ["RT", "26"],
+      "diagnosisPointers": "A",
+      "charges": 85.50,
+      "units": 1,
+      "renderingProviderNpi": "9876543213"
+    },
+    {
+      "dateFrom": "2026-07-18",
+      "dateTo": "2026-07-18",
+      "placeOfService": "22",
+      "procedureCode": "29405",
+      "modifiers": ["LT"],
+      "diagnosisPointers": "AC",
+      "charges": 300.00,
+      "units": 2,
+      "epsdt": "AV",
+      "familyPlanning": true,
+      "renderingProviderNpi": "9876543213"
+    }
+  ],
+  "federalTaxId": "123456789",
+  "federalTaxIdType": "EIN",
+  "patientAccountNumber": "ACCT-0099",
+  "acceptAssignment": true,
+  "totalCharge": 535.50,
+  "amountPaid": 100.00,
+  "physicianSignature": { "name": "Robert Jones MD", "date": "2026-08-02" },
+  "serviceFacility": {
+    "name": "Springfield Ortho Center",
+    "street": "500 Clinic Dr",
+    "city": "Springfield",
+    "state": "IL",
+    "zip": "62704",
+    "npi": "1000000004",
+    "otherId": "FAC-77"
+  },
+  "billingProvider": {
+    "name": "Springfield Orthopedics LLC",
+    "street": "500 Clinic Dr Ste 200",
+    "city": "Springfield",
+    "state": "IL",
+    "zip": "62704-1234",
+    "phoneAreaCode": "217",
+    "phoneNumber": "5559876",
+    "npi": "1234567893",
+    "otherId": "BP-12"
+  }
+}

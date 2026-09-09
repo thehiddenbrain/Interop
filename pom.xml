@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.thehiddenbrain.interop</groupId>
+  <artifactId>cms1500-claim-service</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <name>CMS-1500 Claim Bundle Service</name>
+  <description>Fills the CMS-1500 (02/12) claim form from a REST or SOAP request and bundles it with the claim's attachments into one PDF</description>
+
+  <properties>
+    <java.version>21</java.version>
+    <pdfbox.version>3.0.8</pdfbox.version>
+    <springdoc.version>2.8.9</springdoc.version>
+    <jaxb2-maven-plugin.version>3.2.0</jaxb2-maven-plugin.version>
+    <contract.package>com.thehiddenbrain.interop.cms1500.contract</contract.package>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web-services</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.module</groupId>
+      <artifactId>jackson-module-jakarta-xmlbind-annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.glassfish.jaxb</groupId>
+      <artifactId>jaxb-runtime</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>wsdl4j</groupId>
+      <artifactId>wsdl4j</artifactId>
+      <version>1.6.3</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>${pdfbox.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.ws</groupId>
+      <artifactId>spring-ws-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>jaxb2-maven-plugin</artifactId>
+        <version>${jaxb2-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>generate-claim-contract</id>
+            <goals>
+              <goal>xjc</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <sources>
+            <source>src/main/resources/xsd/cms1500-claim.xsd</source>
+          </sources>
+          <xjbSources>
+            <xjbSource>src/main/resources/xjb/java-time-bindings.xjb</xjbSource>
+          </xjbSources>
+          <packageName>${contract.package}</packageName>
+          <extension>true</extension>
+          <noPackageLevelAnnotations>true</noPackageLevelAnnotations>
+          <clearOutputDir>true</clearOutputDir>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

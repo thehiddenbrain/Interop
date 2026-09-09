@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jaxb:bindings xmlns:jaxb="https://jakarta.ee/xml/ns/jaxb"
+               xmlns:xs="http://www.w3.org/2001/XMLSchema"
+               xmlns:xjc="http://java.sun.com/xml/ns/jaxb/xjc"
+               jaxb:extensionBindingPrefixes="xjc"
+               version="3.0">
+  <jaxb:globalBindings>
+    <xjc:javaType name="java.time.LocalDate" xmlType="xs:date"
+                  adapter="com.thehiddenbrain.interop.cms1500.xml.LocalDateXmlAdapter"/>
+    <xjc:javaType name="java.time.OffsetDateTime" xmlType="xs:dateTime"
+                  adapter="com.thehiddenbrain.interop.cms1500.xml.OffsetDateTimeXmlAdapter"/>
+  </jaxb:globalBindings>
+</jaxb:bindings>

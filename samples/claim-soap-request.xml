@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:c="http://interop.thehiddenbrain.com/cms1500/v1">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <c:generateClaimBundleRequest>
+      <c:claim>
+        <c:claimNumber>CLM-2026-000124</c:claimNumber>
+        <c:carrier>
+          <c:name>Cigna Healthcare</c:name>
+          <c:street>PO Box 188061</c:street>
+          <c:city>Chattanooga</c:city>
+          <c:state>TN</c:state>
+          <c:zip>37422</c:zip>
+        </c:carrier>
+        <c:insuranceType>GROUP_HEALTH_PLAN</c:insuranceType>
+        <c:insuredId>U12345678</c:insuredId>
+        <c:patient>
+          <c:name>
+            <c:lastName>Doe</c:lastName>
+            <c:firstName>John</c:firstName>
+            <c:middleInitial>A</c:middleInitial>
+          </c:name>
+          <c:dateOfBirth>1980-05-17</c:dateOfBirth>
+          <c:sex>M</c:sex>
+          <c:address>
+            <c:street>123 Main St</c:street>
+            <c:city>Springfield</c:city>
+            <c:state>IL</c:state>
+            <c:zip>62704</c:zip>
+            <c:phoneAreaCode>217</c:phoneAreaCode>
+            <c:phoneNumber>5551234</c:phoneNumber>
+          </c:address>
+          <c:relationshipToInsured>SELF</c:relationshipToInsured>
+          <c:signatureOnFile>true</c:signatureOnFile>
+          <c:signatureDate>2026-08-01</c:signatureDate>
+        </c:patient>
+        <c:insured>
+          <c:policyGroupNumber>GRP-4471</c:policyGroupNumber>
+          <c:planName>Cigna Open Access Plus</c:planName>
+          <c:anotherHealthBenefitPlan>false</c:anotherHealthBenefitPlan>
+          <c:signatureOnFile>true</c:signatureOnFile>
+        </c:insured>
+        <c:condition>
+          <c:employmentRelated>false</c:employmentRelated>
+          <c:autoAccident>false</c:autoAccident>
+          <c:otherAccident>false</c:otherAccident>
+        </c:condition>
+        <c:dateOfCurrentIllness>2026-07-15</c:dateOfCurrentIllness>
+        <c:dateOfCurrentIllnessQualifier>431</c:dateOfCurrentIllnessQualifier>
+        <c:icdIndicator>ICD10</c:icdIndicator>
+        <c:diagnoses>M54.5</c:diagnoses>
+        <c:diagnoses>E11.9</c:diagnoses>
+        <c:serviceLines>
+          <c:dateFrom>2026-07-16</c:dateFrom>
+          <c:placeOfService>11</c:placeOfService>
+          <c:procedureCode>99213</c:procedureCode>
+          <c:modifiers>25</c:modifiers>
+          <c:diagnosisPointers>AB</c:diagnosisPointers>
+          <c:charges>150.00</c:charges>
+          <c:units>1</c:units>
+          <c:renderingProviderNpi>9876543213</c:renderingProviderNpi>
+        </c:serviceLines>
+        <c:serviceLines>
+          <c:dateFrom>2026-07-16</c:dateFrom>
+          <c:placeOfService>11</c:placeOfService>
+          <c:procedureCode>73590</c:procedureCode>
+          <c:modifiers>RT</c:modifiers>
+          <c:modifiers>26</c:modifiers>
+          <c:diagnosisPointers>A</c:diagnosisPointers>
+          <c:charges>85.50</c:charges>
+          <c:units>1</c:units>
+          <c:renderingProviderNpi>9876543213</c:renderingProviderNpi>
+        </c:serviceLines>
+        <c:federalTaxId>123456789</c:federalTaxId>
+        <c:federalTaxIdType>EIN</c:federalTaxIdType>
+        <c:patientAccountNumber>ACCT-0100</c:patientAccountNumber>
+        <c:acceptAssignment>true</c:acceptAssignment>
+        <c:amountPaid>0</c:amountPaid>
+        <c:physicianSignature>
+          <c:onFile>true</c:onFile>
+          <c:date>2026-08-02</c:date>
+        </c:physicianSignature>
+        <c:billingProvider>
+          <c:name>Springfield Orthopedics LLC</c:name>
+          <c:street>500 Clinic Dr Ste 200</c:street>
+          <c:city>Springfield</c:city>
+          <c:state>IL</c:state>
+          <c:zip>62704</c:zip>
+          <c:phoneAreaCode>217</c:phoneAreaCode>
+          <c:phoneNumber>5559876</c:phoneNumber>
+          <c:npi>1234567893</c:npi>
+        </c:billingProvider>
+      </c:claim>
+    </c:generateClaimBundleRequest>
+  </soapenv:Body>
+</soapenv:Envelope>
