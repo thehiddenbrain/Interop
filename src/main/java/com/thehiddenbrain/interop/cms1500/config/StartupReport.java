@@ -15,19 +15,23 @@ public class StartupReport implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(StartupReport.class);
 
-    private final Cms1500Properties properties;
+    private final RuntimeSettings settings;
 
-    public StartupReport(Cms1500Properties properties) {
-        this.properties = properties;
+    public StartupReport(RuntimeSettings settings) {
+        this.settings = settings;
     }
 
     @Override
     public void run(ApplicationArguments args) {
+        Cms1500Properties properties = settings.current();
         Path attachments = properties.attachments().rootPath();
         Path output = properties.output().rootPath();
+        log.info("settings source: {}{}", settings.overridden() ? "overrides file " + settings.overridesFile() : "application.yaml",
+                settings.view().note() == null ? "" : " (" + settings.view().note() + ")");
         log.info("attachments folder: {} ({})", attachments, Files.isDirectory(attachments) ? "present" : "MISSING - claims will fail with STORAGE_ERROR until it exists");
         log.info("bundle output folder: {} ({}, overwrite={})", output, Files.isDirectory(output) ? "present" : "will be created", properties.output().overwrite());
         log.info("attachment policy: allowed={}, unsupported={}, when-none={}", properties.attachments().allowedExtensionSet().stream().sorted().toList(),
                 properties.attachments().unsupported(), properties.attachments().whenNone());
+        log.info("test UI: {}", properties.ui().enabled() ? "enabled at /ui/" : "disabled");
     }
 }

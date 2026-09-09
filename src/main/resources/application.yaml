@@ -46,6 +46,11 @@ cms1500:
     root: ${CMS1500_OUTPUT_DIR:./data/bundles}
     # true replaces an existing bundle for the same claim number; false rejects with BUNDLE_EXISTS.
     overwrite: true
+  # JSON file holding settings changed through the test UI / settings API; deleted by "reset".
+  settings-file: ${CMS1500_SETTINGS_FILE:./data/cms1500-settings.json}
+  ui:
+    # Browser test UI at /ui/ and the settings API. Off in the prod profile.
+    enabled: true
   form:
     # Print text in upper case (payer OCR preference).
     uppercase: true

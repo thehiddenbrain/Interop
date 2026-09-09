@@ -1,6 +1,5 @@
 package com.thehiddenbrain.interop.cms1500.service;
 
-import com.thehiddenbrain.interop.cms1500.attachments.AttachmentLocator;
 import com.thehiddenbrain.interop.cms1500.config.Cms1500Properties;
 import com.thehiddenbrain.interop.cms1500.contract.ClaimBundleResult;
 import com.thehiddenbrain.interop.cms1500.contract.Cms1500Claim;
@@ -9,11 +8,9 @@ import com.thehiddenbrain.interop.cms1500.contract.ResultStatus;
 import com.thehiddenbrain.interop.cms1500.contract.ViolationDetail;
 import com.thehiddenbrain.interop.cms1500.domain.ClaimException;
 import com.thehiddenbrain.interop.cms1500.domain.ClaimValidationException;
-import com.thehiddenbrain.interop.cms1500.domain.ClaimValidator;
-import com.thehiddenbrain.interop.cms1500.pdf.PdfBundler;
 import com.thehiddenbrain.interop.cms1500.support.ClaimFixtures;
 import com.thehiddenbrain.interop.cms1500.support.TestFiles;
-import com.thehiddenbrain.interop.cms1500.support.TestTemplate;
+import com.thehiddenbrain.interop.cms1500.support.TestSettings;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,14 +32,13 @@ class ClaimBundleServiceTest {
     @TempDir
     Path output;
 
+    @TempDir
+    Path settingsDir;
+
     private ClaimBundleService service(Cms1500Properties.UnsupportedPolicy unsupported,
                                        Cms1500Properties.WhenNonePolicy whenNone, boolean overwrite) {
-        Cms1500Properties props = new Cms1500Properties("classpath:forms/cms1500-02-12.pdf",
-                new Cms1500Properties.Attachments(attachments.toString(),
-                        List.of("pdf", "jpg", "jpeg", "png", "tif", "tiff", "bmp", "gif"), unsupported, whenNone),
-                new Cms1500Properties.Output(output.toString(), overwrite),
-                new Cms1500Properties.Form(true, true, ""));
-        return new ClaimBundleService(props, new ClaimValidator(), TestTemplate.filler(), new AttachmentLocator(), new PdfBundler());
+        return TestSettings.service(TestSettings.properties(attachments, output,
+                settingsDir.resolve("settings.json"), unsupported, whenNone, overwrite));
     }
 
     @BeforeEach

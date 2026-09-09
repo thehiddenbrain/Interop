@@ -42,10 +42,45 @@ Drop files named `CLM-2026-000123_1.pdf`, `CLM-2026-000123_2.png`, ... into `dat
 first and they are bundled behind the form; the result lands in `data/bundles/CLM-2026-000123.pdf`.
 Swagger UI: `http://localhost:8080/swagger-ui.html`. WSDL: `http://localhost:8080/ws/cms1500.wsdl`.
 
+## Test console (browser UI)
+
+Open `http://localhost:8080/ui/` (the root `/` redirects there). It exists for testing: it is on
+in the dev profile and off in prod (`cms1500.ui.enabled`, which also removes the settings API).
+
+- **Claim tab.** A form with every field of the contract, grouped by CMS-1500 item, with
+  repeatable diagnoses (A-L) and service lines. *Load sample* fills it from
+  `samples/claim-full.json`. *Validate* runs the rules only. *Preview form* fills whatever is
+  entered, shows the PDF in the viewer and writes nothing (attachments are not included).
+  *Generate bundle* is the real call: the receipt is shown and the bundle loads in the viewer.
+  Validation errors link to the field they refer to. The *JSON* mode shows the exact request
+  body and lets you edit or paste it; the request is sent verbatim from there.
+- **Bundles tab.** Bundles present in the output folder (view inline, download) and a lookup
+  showing which files in the attachments folder match a claim number and whether they would
+  be bundled.
+- **Settings tab.** Pick-up folder, drop folder, attachment policies, template and form
+  options. *Save* validates, applies the change immediately (no restart) and stores it in the
+  settings file (`cms1500.settings-file`, default `./data/cms1500-settings.json`) so it
+  survives a restart. *Reset to application.yaml* deletes that file. A template that cannot be
+  loaded or lacks form fields is refused without changing anything.
+
+The UI only uses public endpoints, which TIBCO or scripts can use as well:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/claims/cms1500/validate` | Errors and warnings for a claim; nothing is written |
+| `POST /api/v1/claims/cms1500/preview` | Filled form page(s) as inline PDF; no validation, nothing written |
+| `GET /api/v1/claims` | Bundles in the output folder, newest first |
+| `GET /api/v1/claims/{claimNumber}/attachments` | Files matching `<claimNumber>_<n>.<ext>` with type and whether they would be bundled |
+| `GET /api/v1/claims/{claimNumber}/bundle?inline=true` | The bundle for viewing in the browser instead of downloading |
+| `GET`, `PUT /api/v1/settings`, `DELETE /api/v1/settings/overrides` | Live settings (only when the UI is enabled) |
+
+Browser tests for the console live in `ui-tests/` (see its README); they drive Chromium against
+a running service and are run separately from `mvn test`.
+
 ## Build and run manually
 
 ```bash
-./mvnw verify                                                    # builds and runs 96 tests
+./mvnw verify                                                    # builds and runs 115 tests
 java -jar target/cms1500-claim-service-0.1.0-SNAPSHOT.jar        # dev profile, ./data/...
 SPRING_PROFILES_ACTIVE=prod java -jar target/cms1500-claim-service-0.1.0-SNAPSHOT.jar
 java -jar target/cms1500-claim-service-0.1.0-SNAPSHOT.jar --server.port=9090   # any Spring option

@@ -14,7 +14,10 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** Everything under the {@code cms1500} prefix of application.yaml. */
+/**
+ * Everything under the {@code cms1500} prefix of application.yaml. These are the startup
+ * defaults; {@link RuntimeSettings} holds the live values, which the test UI can change.
+ */
 @ConfigurationProperties(prefix = "cms1500")
 @Validated
 public record Cms1500Properties(
@@ -22,7 +25,14 @@ public record Cms1500Properties(
         @NotBlank String template,
         @Valid @NotNull Attachments attachments,
         @Valid @NotNull Output output,
-        @Valid @NotNull Form form) {
+        @Valid @NotNull Form form,
+        /** JSON file that stores settings changed at runtime; absent until something is changed. */
+        @DefaultValue("./data/cms1500-settings.json") String settingsFile,
+        @Valid @DefaultValue Ui ui) {
+
+    public Path settingsFilePath() {
+        return Path.of(settingsFile).toAbsolutePath().normalize();
+    }
 
     public record Attachments(
             /** Shared-drive folder that holds {@code <claimNumber>_<n>.<ext>} files. */
@@ -37,7 +47,7 @@ public record Cms1500Properties(
 
         public Set<String> allowedExtensionSet() {
             return allowedExtensions.stream()
-                    .map(e -> e.trim().toLowerCase(Locale.ROOT).replaceFirst("^\\.", ""))
+                    .map(Cms1500Properties::normalizeExtension)
                     .collect(Collectors.toUnmodifiableSet());
         }
     }
@@ -59,9 +69,18 @@ public record Cms1500Properties(
             @DefaultValue("") String continuationMarker) {
     }
 
+    /** The browser test UI and the settings API it uses. */
+    public record Ui(@DefaultValue("true") boolean enabled) {
+    }
+
     /** What to do with an attachment whose extension is not allowed. */
     public enum UnsupportedPolicy { FAIL, SKIP }
 
     /** What to do when no attachment matches the claim number. */
     public enum WhenNonePolicy { WARN, FAIL }
+
+    /** {@code .PDF } becomes {@code pdf}. */
+    public static String normalizeExtension(String extension) {
+        return extension == null ? "" : extension.trim().toLowerCase(Locale.ROOT).replaceFirst("^\\.", "");
+    }
 }

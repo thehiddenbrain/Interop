@@ -5,6 +5,9 @@ cms1500:
     root: ${CMS1500_ATTACHMENTS_DIR:/mnt/claims/attachments}
   output:
     root: ${CMS1500_OUTPUT_DIR:/mnt/claims/bundles}
+  settings-file: ${CMS1500_SETTINGS_FILE:/mnt/claims/config/cms1500-settings.json}
+  ui:
+    enabled: ${CMS1500_UI_ENABLED:false}
 
 springdoc:
   swagger-ui:

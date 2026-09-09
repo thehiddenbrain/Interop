@@ -8,29 +8,64 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
-/** Loads the configured template once at startup and refuses to start if a field the filler needs is missing. */
-@Configuration
+/**
+ * Holds the form filler built from the current template and form options. A template is read
+ * and verified (every field the filler writes must exist) before it replaces the previous one,
+ * so a bad template path never takes the service down.
+ */
+@Component
 public class TemplateSource {
 
     private static final Logger log = LoggerFactory.getLogger(TemplateSource.class);
 
-    @Bean
-    public Cms1500FormFiller cms1500FormFiller(Cms1500Properties properties, ResourceLoader resourceLoader) {
-        byte[] template = load(properties.template(), resourceLoader);
-        verify(template, properties.template());
-        Cms1500Properties.Form form = properties.form();
-        return new Cms1500FormFiller(template,
-                new FormText(form.uppercase(), form.stripDiagnosisPeriods()), form.continuationMarker());
+    private final ResourceLoader resourceLoader;
+    private final AtomicReference<Cms1500FormFiller> filler = new AtomicReference<>();
+    private String loadedTemplate;
+    private byte[] loadedBytes;
+    private Cms1500Properties.Form loadedForm;
+
+    public TemplateSource(ResourceLoader resourceLoader) {
+        this.resourceLoader = resourceLoader;
+    }
+
+    /** The filler for the current template and form options. */
+    public Cms1500FormFiller current() {
+        Cms1500FormFiller current = filler.get();
+        if (current == null) {
+            throw new IllegalStateException("CMS-1500 template has not been loaded");
+        }
+        return current;
+    }
+
+    public String loadedTemplate() {
+        return loadedTemplate;
+    }
+
+    /** Loads and verifies the template if it (or the form options) changed; otherwise a no-op. */
+    public synchronized void load(String template, Cms1500Properties.Form form) {
+        boolean sameTemplate = template.equals(loadedTemplate) && loadedBytes != null;
+        if (sameTemplate && form.equals(loadedForm)) {
+            return;
+        }
+        byte[] bytes = sameTemplate ? loadedBytes : load(template, resourceLoader);
+        if (!sameTemplate) {
+            verify(bytes, template);
+        }
+        filler.set(new Cms1500FormFiller(bytes, new FormText(form.uppercase(), form.stripDiagnosisPeriods()),
+                form.continuationMarker()));
+        loadedTemplate = template;
+        loadedBytes = bytes;
+        loadedForm = form;
     }
 
     static byte[] load(String location, ResourceLoader resourceLoader) {

@@ -72,6 +72,32 @@ class JsonContractTest {
     }
 
     @Test
+    void recordDtosWorkWithTheJaxbAwareMapper() throws Exception {
+        com.thehiddenbrain.interop.cms1500.config.SettingsUpdate update = mapper.readValue(
+                "{\"outputRoot\":\"/x\",\"allowedExtensions\":[\"pdf\"],\"overwrite\":false,\"unsupported\":\"SKIP\"}",
+                com.thehiddenbrain.interop.cms1500.config.SettingsUpdate.class);
+        assertThat(update.outputRoot()).isEqualTo("/x");
+        assertThat(update.overwrite()).isFalse();
+        assertThat(update.unsupported()).isEqualTo(com.thehiddenbrain.interop.cms1500.config.Cms1500Properties.UnsupportedPolicy.SKIP);
+        assertThat(update.template()).isNull();
+
+        com.thehiddenbrain.interop.cms1500.service.ValidationReport report =
+                new com.thehiddenbrain.interop.cms1500.service.ValidationReport(false,
+                        java.util.List.of(com.thehiddenbrain.interop.cms1500.domain.ClaimException.detail("f", "m")), java.util.List.of("w"));
+        JsonNode tree = mapper.readTree(mapper.writeValueAsString(report));
+        assertThat(tree.get("valid").asBoolean()).isFalse();
+        assertThat(tree.get("errors").get(0).get("field").asText()).isEqualTo("f");
+        assertThat(tree.get("warnings").get(0).asText()).isEqualTo("w");
+
+        com.thehiddenbrain.interop.cms1500.service.BundleInfo info = new com.thehiddenbrain.interop.cms1500.service.BundleInfo(
+                "C1", "C1.pdf", 12, OffsetDateTime.of(2026, 9, 9, 10, 0, 0, 0, ZoneOffset.UTC));
+        JsonNode infoTree = mapper.readTree(mapper.writeValueAsString(info));
+        assertThat(infoTree.get("claimNumber").asText()).isEqualTo("C1");
+        assertThat(infoTree.get("sizeBytes").asLong()).isEqualTo(12);
+        assertThat(infoTree.get("modifiedAt").asText()).startsWith("2026-09-09T10:00");
+    }
+
+    @Test
     void resultSerializesTimestampsAsIso() throws Exception {
         ClaimBundleResult result = new ClaimBundleResult();
         result.setStatus(ResultStatus.GENERATED);

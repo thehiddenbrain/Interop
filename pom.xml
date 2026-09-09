@@ -79,6 +79,19 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <resource>
+        <!-- the sample claim is served to the test UI from the same file the README refers to -->
+        <directory>samples</directory>
+        <targetPath>ui/samples</targetPath>
+        <includes>
+          <include>claim-full.json</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>

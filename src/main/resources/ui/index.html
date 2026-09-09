@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CMS-1500 Test Console</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>CMS-1500 Test Console</h1>
+  <nav class="tabs" role="tablist">
+    <button type="button" class="tab-btn active" data-tab="claim" role="tab">Claim</button>
+    <button type="button" class="tab-btn" data-tab="bundles" role="tab">Bundles</button>
+    <button type="button" class="tab-btn" data-tab="settings" role="tab">Settings</button>
+  </nav>
+  <span id="health" class="pill">checking…</span>
+  <a class="link" href="/swagger-ui.html" target="_blank" rel="noopener">API docs</a>
+  <a class="link" href="/ws/cms1500.wsdl" target="_blank" rel="noopener">WSDL</a>
+</header>
+
+<main>
+  <!-- ============ Claim ============ -->
+  <section id="tab-claim" class="tab active" role="tabpanel">
+    <div class="split">
+      <div class="pane left">
+        <div class="toolbar">
+          <button type="button" id="btn-sample">Load sample</button>
+          <button type="button" id="btn-clear">Clear</button>
+          <span class="spacer"></span>
+          <label class="mode"><input type="radio" name="mode" value="form" checked> Form</label>
+          <label class="mode"><input type="radio" name="mode" value="json"> JSON</label>
+        </div>
+        <div class="toolbar actions">
+          <button type="button" id="btn-validate">Validate</button>
+          <button type="button" id="btn-preview">Preview form</button>
+          <button type="button" id="btn-generate" class="primary">Generate bundle</button>
+          <span id="busy" class="busy" hidden>working…</span>
+        </div>
+        <form id="claim-form" autocomplete="off" novalidate></form>
+        <div id="json-editor" hidden>
+          <textarea id="json-text" spellcheck="false" aria-label="Claim JSON"></textarea>
+          <div class="toolbar">
+            <button type="button" id="btn-json-apply">Apply JSON to form</button>
+            <button type="button" id="btn-json-format">Format</button>
+            <span id="json-status" class="status"></span>
+          </div>
+        </div>
+      </div>
+      <div class="pane right">
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <div class="viewer-head">
+          <span id="viewer-title">No PDF loaded. Preview the form or generate a bundle.</span>
+          <a id="viewer-open" target="_blank" rel="noopener" hidden>Open in new tab</a>
+        </div>
+        <iframe id="viewer" class="viewer" title="PDF viewer"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Bundles ============ -->
+  <section id="tab-bundles" class="tab" role="tabpanel">
+    <div class="split">
+      <div class="pane left">
+        <div class="toolbar">
+          <button type="button" id="btn-refresh-bundles">Refresh</button>
+          <span id="bundles-folder" class="muted"></span>
+        </div>
+        <table id="bundles-table" class="grid-table">
+          <thead><tr><th>Claim</th><th>File</th><th>Size</th><th>Modified</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="toolbar">
+          <label>Attachments for claim
+            <input id="att-claim" placeholder="CLM-2026-000123" size="24">
+          </label>
+          <button type="button" id="btn-att-lookup">Look up</button>
+          <span id="att-status" class="status"></span>
+        </div>
+        <table id="attachments-table" class="grid-table">
+          <thead><tr><th>#</th><th>File</th><th>Type</th><th>Bundled?</th><th>Size</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pane right">
+        <div class="viewer-head">
+          <span id="bundle-viewer-title">Select a bundle to view it.</span>
+          <a id="bundle-viewer-open" target="_blank" rel="noopener" hidden>Open in new tab</a>
+        </div>
+        <iframe id="bundle-viewer" class="viewer" title="Bundle viewer"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Settings ============ -->
+  <section id="tab-settings" class="tab" role="tabpanel">
+    <form id="settings-form" class="settings" autocomplete="off" novalidate>
+      <fieldset>
+        <legend>Attachments (pick-up folder)</legend>
+        <label class="field wide"><span>Folder holding &lt;claimNumber&gt;_1.&lt;ext&gt;, _2… <b id="s-attachments-status" class="badge"></b></span>
+          <input id="s-attachmentsRoot" data-setting="attachmentsRoot"></label>
+        <label class="field wide"><span>Allowed extensions (comma separated)</span>
+          <input id="s-allowedExtensions" data-setting="allowedExtensions"></label>
+        <label class="field"><span>Unsupported file type</span>
+          <select id="s-unsupported" data-setting="unsupported"><option value="FAIL">FAIL the request</option><option value="SKIP">SKIP with a warning</option></select></label>
+        <label class="field"><span>No attachments found</span>
+          <select id="s-whenNone" data-setting="whenNone"><option value="WARN">WARN, bundle the form only</option><option value="FAIL">FAIL the request</option></select></label>
+      </fieldset>
+      <fieldset>
+        <legend>Bundles (drop folder)</legend>
+        <label class="field wide"><span>Folder that receives &lt;claimNumber&gt;.pdf <b id="s-output-status" class="badge"></b></span>
+          <input id="s-outputRoot" data-setting="outputRoot"></label>
+        <label class="check"><input type="checkbox" id="s-overwrite" data-setting="overwrite"> Replace an existing bundle for the same claim number</label>
+      </fieldset>
+      <fieldset>
+        <legend>Form</legend>
+        <label class="field wide"><span>Template PDF (classpath:, file: or a path; verified before it is used)</span>
+          <input id="s-template" data-setting="template"></label>
+        <label class="check"><input type="checkbox" id="s-uppercase" data-setting="uppercase"> Print text in upper case</label>
+        <label class="check"><input type="checkbox" id="s-stripDiagnosisPeriods" data-setting="stripDiagnosisPeriods"> Remove periods from diagnosis codes</label>
+        <label class="field"><span>Item 28 text on pages before the last (multi-page claims)</span>
+          <input id="s-continuationMarker" data-setting="continuationMarker" maxlength="20"></label>
+      </fieldset>
+      <div class="toolbar">
+        <button type="submit" id="btn-settings-save" class="primary">Save</button>
+        <button type="button" id="btn-settings-reload">Reload</button>
+        <button type="button" id="btn-settings-reset">Reset to application.yaml</button>
+        <span id="settings-status" class="status"></span>
+      </div>
+      <p class="muted">Stored in <code id="s-file"></code> <b id="s-overridden" class="badge"></b> <span id="s-note" class="warn"></span></p>
+      <div id="settings-errors" class="messages"></div>
+    </form>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

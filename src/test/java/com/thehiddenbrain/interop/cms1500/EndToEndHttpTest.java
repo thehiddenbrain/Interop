@@ -116,6 +116,18 @@ class EndToEndHttpTest {
     }
 
     @Test
+    void testUiIsServedAtItsRoot() {
+        ResponseEntity<String> ui = http.getForEntity("/ui/", String.class);
+        assertThat(ui.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(ui.getHeaders().getContentType()).isNotNull();
+        assertThat(ui.getHeaders().getContentType().toString()).startsWith("text/html");
+        assertThat(ui.getBody()).contains("CMS-1500 Test Console").contains("app.js");
+        ResponseEntity<String> settings = http.getForEntity("/api/v1/settings", String.class);
+        assertThat(settings.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(settings.getBody()).contains("\"overridden\":false");
+    }
+
+    @Test
     void healthAndOpenApiAreAvailable() {
         assertThat(http.getForEntity("/actuator/health", String.class).getBody()).contains("UP");
         ResponseEntity<String> docs = http.getForEntity("/api-docs", String.class);

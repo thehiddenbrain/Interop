@@ -160,6 +160,85 @@ class ClaimRestControllerTest {
     }
 
     @Test
+    void validateReportsErrorsAndWarningsWithoutWriting() throws Exception {
+        Cms1500Claim claim = ClaimFixtures.minimalClaim("CLM-V1");
+        mvc.perform(post("/api/v1/claims/cms1500/validate").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(claim)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.errors").isEmpty())
+                .andExpect(jsonPath("$.warnings[0]").value(containsString("insured omitted")));
+        claim.getBillingProvider().setNpi("1");
+        claim.getServiceLines().get(0).setDiagnosisPointers("AB");
+        mvc.perform(post("/api/v1/claims/cms1500/validate").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(claim)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.errors", hasSize(2)))
+                .andExpect(jsonPath("$.errors[*].field").value(org.hamcrest.Matchers.containsInAnyOrder(
+                        "billingProvider.npi", "serviceLines[0].diagnosisPointers")));
+        assertThat(DIRS.output.resolve("CLM-V1.pdf")).doesNotExist();
+    }
+
+    @Test
+    void previewReturnsTheFormInlineWithoutValidationOrWriting() throws Exception {
+        Cms1500Claim claim = ClaimFixtures.withServiceLines(ClaimFixtures.fullClaim("CLM-PV"), 8);
+        MvcResult full = mvc.perform(post("/api/v1/claims/cms1500/preview").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(claim)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", containsString("inline")))
+                .andExpect(header().string("Content-Disposition", containsString("CLM-PV-form-preview.pdf")))
+                .andReturn();
+        try (org.apache.pdfbox.pdmodel.PDDocument doc = org.apache.pdfbox.Loader.loadPDF(full.getResponse().getContentAsByteArray())) {
+            assertThat(doc.getNumberOfPages()).as("8 lines = 2 form pages, no attachments").isEqualTo(2);
+        }
+        assertThat(DIRS.output.resolve("CLM-PV.pdf")).doesNotExist();
+
+        // a partial claim previews too: the tester sees the layout while composing
+        MvcResult partial = mvc.perform(post("/api/v1/claims/cms1500/preview").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"patient\":{\"name\":{\"lastName\":\"Only\",\"firstName\":\"Partial\"}}}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("claim-form-preview.pdf")))
+                .andReturn();
+        try (org.apache.pdfbox.pdmodel.PDDocument doc = org.apache.pdfbox.Loader.loadPDF(partial.getResponse().getContentAsByteArray())) {
+            assertThat(new org.apache.pdfbox.text.PDFTextStripper().getText(doc)).contains("ONLY, PARTIAL");
+        }
+    }
+
+    @Test
+    void listsBundlesAndAttachments() throws Exception {
+        mvc.perform(post("/api/v1/claims/cms1500").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(ClaimFixtures.minimalClaim("CLM-LIST")))).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/claims"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.claimNumber == 'CLM-LIST')].fileName").value("CLM-LIST.pdf"))
+                .andExpect(jsonPath("$[?(@.claimNumber == 'CLM-LIST')].sizeBytes").exists())
+                .andExpect(jsonPath("$[?(@.claimNumber == 'CLM-LIST')].modifiedAt").exists());
+        mvc.perform(get("/api/v1/claims/CLM-LIST/bundle").param("inline", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("inline")))
+                .andExpect(header().string("Cache-Control", "no-store"));
+
+        mvc.perform(get("/api/v1/claims/CLM-R1/attachments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].index").value(1))
+                .andExpect(jsonPath("$[0].fileName").value("CLM-R1_1.pdf"))
+                .andExpect(jsonPath("$[0].type").value("PDF"))
+                .andExpect(jsonPath("$[0].supported").value(true))
+                .andExpect(jsonPath("$[1].type").value("IMAGE"))
+                .andExpect(jsonPath("$[1].extension").value("jpg"));
+        mvc.perform(get("/api/v1/claims/CLM-R2/attachments"))
+                .andExpect(jsonPath("$[0].type").value("UNSUPPORTED"))
+                .andExpect(jsonPath("$[0].supported").value(false));
+        mvc.perform(get("/api/v1/claims/NOTHING-HERE/attachments"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
+        mvc.perform(get("/api/v1/claims/bad claim/attachments"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void sampleRequestFromTheRepositoryIsAccepted() throws Exception {
         String sample = Files.readString(Path.of("samples/claim-full.json"));
         mvc.perform(post("/api/v1/claims/cms1500").contentType(MediaType.APPLICATION_JSON).content(sample))
