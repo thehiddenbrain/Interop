@@ -18,6 +18,7 @@ public record EnvironmentInput(
         List<HeaderInput> headers,
         List<IdentifierSystem> identifierSystems,
         FhirOptions fhir,
+        Map<String, String> igBaseUrls,
         List<String> implementationGuides,
         String notes,
         Boolean enabled,

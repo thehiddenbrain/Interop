@@ -67,6 +67,20 @@ public class EnvironmentProbe {
                     Map.of("authorizationEndpoint", nz(d.endpoints().authorizationEndpoint()), "tokenEndpoint", nz(d.endpoints().tokenEndpoint()))));
         }
 
+        for (Map.Entry<String, String> base : env.igBaseUrls().entrySet()) {
+            try {
+                HttpResult r = gateway.get(env, base.getValue().replaceAll("/+$", "") + "/metadata",
+                        FhirGateway.Options.of(FhirGateway.PURPOSE_DISCOVERY, correlation).unauthenticated());
+                boolean isCs = r.ok() && "CapabilityStatement".equals(r.resourceType());
+                steps.add(new Step("metadata:" + base.getKey(), isCs ? "PASS" : "FAIL", (isCs ? "CapabilityStatement received from " : "no CapabilityStatement at ")
+                        + base.getValue(), r.status(), r.durationMs(), r.requestId(), isCs ? capabilityDetails(r.json()) : Map.of()));
+                ok = ok && isCs;
+            } catch (WorkbenchException e) {
+                ok = false;
+                steps.add(new Step("metadata:" + base.getKey(), "FAIL", e.getMessage(), upstreamStatus(e), null, upstreamRequest(e), Map.of()));
+            }
+        }
+
         switch (env.auth().mode()) {
             case NONE -> steps.add(new Step("token", "SKIP", "no authorization configured", null, null, null, Map.of()));
             case STATIC_TOKEN -> steps.add(new Step("token", tokens.status(env).present() ? "PASS" : "FAIL",

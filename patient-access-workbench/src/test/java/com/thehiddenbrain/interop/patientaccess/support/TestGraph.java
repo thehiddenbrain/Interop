@@ -91,7 +91,7 @@ public final class TestGraph {
         EnvironmentView v = environments.create(new EnvironmentInput(name, null, EnvironmentTier.SANDBOX, baseUrl,
                 new EnvironmentInput.AuthInput(AuthMode.NONE, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 List.of(), List.of(new IdentifierSystem("Member ID", "http://example.org/member-id", "MB", true)), FhirOptions.defaults(),
-                null, null, true, null));
+                null, null, null, true, null));
         return environments.require(v.id());
     }
 
@@ -99,7 +99,7 @@ public final class TestGraph {
     public Environment environment(String name, String baseUrl, EnvironmentInput.AuthInput auth, List<EnvironmentInput.HeaderInput> headers) {
         EnvironmentView v = environments.create(new EnvironmentInput(name, null, EnvironmentTier.SANDBOX, baseUrl, auth,
                 headers == null ? List.of() : headers, List.of(new IdentifierSystem("Member ID", "http://example.org/member-id", "MB", true)),
-                FhirOptions.defaults(), null, null, true, null));
+                FhirOptions.defaults(), null, null, null, true, null));
         return environments.require(v.id());
     }
 

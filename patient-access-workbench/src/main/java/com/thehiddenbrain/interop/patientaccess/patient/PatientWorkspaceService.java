@@ -239,7 +239,25 @@ public class PatientWorkspaceService {
 
     public ResourceDetail resource(Environment env, String resourceType, String id) {
         String url = UrlBuilder.readUrl(env, resourceType, id);
-        HttpResult r = gateway.getOrThrow(env, url, FhirGateway.Options.of(FhirGateway.PURPOSE_READ));
+        HttpResult r = gateway.get(env, url, FhirGateway.Options.of(FhirGateway.PURPOSE_READ));
+        if (r.status() == 404 && env.igBaseUrls().size() > 0) {
+            // vendors that split the API per IG: the resource may live on another base (e.g. a PA EOB on the PDex base)
+            for (String key : com.thehiddenbrain.interop.patientaccess.fhir.IgRouting.KEYS) {
+                String alt = UrlBuilder.readUrl(env, resourceType, id, key);
+                if (alt.equals(url)) {
+                    continue;
+                }
+                HttpResult r2 = gateway.get(env, alt, FhirGateway.Options.of(FhirGateway.PURPOSE_READ));
+                if (r2.ok()) {
+                    r = r2;
+                    url = alt;
+                    break;
+                }
+            }
+        }
+        if (!r.ok()) {
+            throw FhirGateway.upstream(r);
+        }
         JsonNode resource = r.json();
         if (resource == null || !resourceType.equals(resource.path("resourceType").asText())) {
             throw new WorkbenchException(ErrorCode.UPSTREAM_ERROR, url + " did not return a " + resourceType);

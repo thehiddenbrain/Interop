@@ -73,7 +73,7 @@ public class EnvironmentService {
         Environment source = store.require(id);
         String name = newName == null || newName.isBlank() ? source.name() + " (copy)" : newName.trim();
         Environment copy = new Environment(Ids.next(), name, source.vendor(), source.tier(), source.fhirBaseUrl(), source.auth(),
-                source.headers(), source.identifierSystems(), source.fhir(), source.implementationGuides(), source.notes(),
+                source.headers(), source.identifierSystems(), source.fhir(), source.igBaseUrls(), source.implementationGuides(), source.notes(),
                 source.enabled(), 0, null, null);
         validate(copy, null);
         return view(store.insert(copy));
@@ -105,7 +105,7 @@ public class EnvironmentService {
         List<EnvironmentView.HeaderView> headers = e.headers().stream().map(h -> new EnvironmentView.HeaderView(h.name(),
                 h.secret() ? null : h.value(), h.secret(), h.secret() ? crypto.view(h.secretValue()) : SecretView.unset())).toList();
         return new EnvironmentView(e.id(), e.name(), e.vendor(), e.tier(), e.fhirBaseUrl(), auth, headers, e.identifierSystems(),
-                e.fhir(), e.implementationGuides(), e.notes(), e.enabled(), e.version(), e.createdAt(), e.updatedAt());
+                e.fhir(), e.igBaseUrls(), e.implementationGuides(), e.notes(), e.enabled(), e.version(), e.createdAt(), e.updatedAt());
     }
 
     Environment merge(Environment current, EnvironmentInput in) {
@@ -128,6 +128,7 @@ public class EnvironmentService {
                 headers,
                 or(in.identifierSystems(), current == null ? List.of() : current.identifierSystems()),
                 or(in.fhir(), current == null ? FhirOptions.defaults() : current.fhir()),
+                cleanBases(or(in.igBaseUrls(), current == null ? Map.of() : current.igBaseUrls())),
                 or(in.implementationGuides(), current == null ? DEFAULT_IGS : current.implementationGuides()),
                 or(in.notes(), current == null ? null : current.notes()),
                 in.enabled() != null ? in.enabled() : current == null || current.enabled(),
@@ -188,6 +189,13 @@ public class EnvironmentService {
             problems.add(WorkbenchException.detail("name", "another environment has this name"));
         }
         checkUrl(e.fhirBaseUrl(), "fhirBaseUrl", true, e.tier(), problems);
+        for (Map.Entry<String, String> base : e.igBaseUrls().entrySet()) {
+            if (!com.thehiddenbrain.interop.patientaccess.fhir.IgRouting.KEYS.contains(base.getKey())) {
+                problems.add(WorkbenchException.detail("igBaseUrls." + base.getKey(), "unknown IG key; use one of "
+                        + com.thehiddenbrain.interop.patientaccess.fhir.IgRouting.KEYS));
+            }
+            checkUrl(base.getValue(), "igBaseUrls." + base.getKey(), false, e.tier(), problems);
+        }
         AuthConfig a = e.auth();
         switch (a.mode()) {
             case NONE -> { }
@@ -295,6 +303,19 @@ public class EnvironmentService {
     static boolean isLoopback(String host) {
         String h = host.toLowerCase(Locale.ROOT);
         return h.equals("localhost") || h.equals("127.0.0.1") || h.equals("::1") || h.equals("[::1]") || h.equals("host.docker.internal");
+    }
+
+    /** Drops blank entries so "" clears an IG base. */
+    static Map<String, String> cleanBases(Map<String, String> bases) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (bases != null) {
+            bases.forEach((k, v) -> {
+                if (k != null && !k.isBlank() && v != null && !v.isBlank()) {
+                    out.put(k.trim(), v.trim());
+                }
+            });
+        }
+        return out;
     }
 
     private static boolean isBlank(String s) {

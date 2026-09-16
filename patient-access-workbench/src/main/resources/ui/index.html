@@ -74,9 +74,19 @@
               <label class="field"><span>Name *</span><input name="name" required maxlength="80"></label>
               <label class="field"><span>Vendor</span><input name="vendor" placeholder="Onyx SAFHIR"></label>
               <label class="field"><span>Tier</span><select name="tier"><option>SANDBOX</option><option selected>UAT</option><option>PROD</option><option>OTHER</option></select></label>
-              <label class="field wide"><span>FHIR base URL * (e.g. https://&lt;payer&gt;.safhir.io/fhir/R4)</span><input name="fhirBaseUrl" required placeholder="https://"></label>
+              <label class="field wide"><span>FHIR base URL * (default base; e.g. https://api-&lt;tenant&gt;-uat.safhir.io/v1/api/pdex)</span><input name="fhirBaseUrl" required placeholder="https://"></label>
               <label class="field wide"><span>Notes</span><input name="notes"></label>
               <label class="check"><input type="checkbox" name="enabled" checked> Enabled</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>IG-specific base URLs (vendors such as Onyx SAFHIR serve each implementation guide under its own base)</legend>
+            <div class="toolbar"><button type="button" id="btn-env-onyx" class="small">Onyx SAFHIR preset from tenant host…</button><span class="muted">Leave blank when everything is served from the default base.</span></div>
+            <div class="grid">
+              <label class="field wide"><span>CARIN Blue Button base (Patient, Coverage, claim EOBs)</span><input name="ig.c4bb" placeholder="https://api-<tenant>-uat.safhir.io/v1/api/carin-bb"></label>
+              <label class="field wide"><span>PDex base (clinical data, prior authorization EOBs)</span><input name="ig.pdex" placeholder="https://api-<tenant>-uat.safhir.io/v1/api/pdex"></label>
+              <label class="field wide"><span>Formulary base</span><input name="ig.usdf" placeholder="https://api-<tenant>-uat.safhir.io/v1/api/formulary"></label>
+              <label class="field wide"><span>Plan-Net / provider directory base</span><input name="ig.plannet" placeholder="https://api-<tenant>-uat.safhir.io/v1/api/provider-directory"></label>
             </div>
           </fieldset>
           <fieldset>

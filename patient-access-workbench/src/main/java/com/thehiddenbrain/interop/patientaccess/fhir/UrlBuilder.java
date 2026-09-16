@@ -70,11 +70,16 @@ public final class UrlBuilder {
 
     public static String searchUrl(Environment env, String resourceType, MultiValueMap<String, String> params) {
         String q = query(params);
-        return env.baseUrl() + "/" + resourceType + (q.isEmpty() ? "" : "?" + q);
+        return env.baseUrlFor(IgRouting.igFor(resourceType, params)) + "/" + resourceType + (q.isEmpty() ? "" : "?" + q);
     }
 
     public static String readUrl(Environment env, String resourceType, String id) {
-        return env.baseUrl() + "/" + resourceType + "/" + encodePath(id);
+        return readUrl(env, resourceType, id, IgRouting.igFor(resourceType, null));
+    }
+
+    /** Read URL on the base of a specific IG (a prior-auth EOB lives on the PDex base). */
+    public static String readUrl(Environment env, String resourceType, String id, String igKey) {
+        return env.baseUrlFor(igKey) + "/" + resourceType + "/" + encodePath(id);
     }
 
     public static String encodePath(String segment) {
@@ -95,12 +100,10 @@ public final class UrlBuilder {
         return target;
     }
 
-    /** Throws unless {@code target} is under the environment's base URL (host mismatch allowed only when configured). */
+    /** Throws unless {@code target} is under one of the environment's base URLs (host mismatch allowed only when configured). */
     public static void guard(Environment env, String target) {
-        URI base;
         URI t;
         try {
-            base = new URI(sanitize(env.baseUrl()));
             t = new URI(sanitize(target));
         } catch (URISyntaxException e) {
             throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "not a valid URL: " + target);
@@ -108,24 +111,35 @@ public final class UrlBuilder {
         if (t.getScheme() == null || t.getHost() == null) {
             throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "not an absolute URL: " + target);
         }
-        boolean sameHost = t.getScheme().equalsIgnoreCase(base.getScheme())
-                && t.getHost().equalsIgnoreCase(base.getHost())
-                && port(t) == port(base);
-        if (!sameHost) {
-            if (env.fhir().allowNextLinkHostMismatch()) {
+        boolean anyHost = false;
+        for (String baseUrl : env.allBaseUrls()) {
+            URI base;
+            try {
+                base = new URI(sanitize(baseUrl));
+            } catch (URISyntaxException e) {
+                continue;
+            }
+            boolean sameHost = t.getScheme().equalsIgnoreCase(base.getScheme())
+                    && t.getHost().equalsIgnoreCase(base.getHost())
+                    && port(t) == port(base);
+            if (!sameHost) {
+                continue;
+            }
+            anyHost = true;
+            String basePath = base.getRawPath() == null ? "" : base.getRawPath();
+            String path = t.getRawPath() == null ? "" : t.getRawPath();
+            if (path.equals(basePath) || path.startsWith(basePath.endsWith("/") ? basePath : basePath + "/")) {
                 return;
             }
-            throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "URL " + target + " is not on the environment's host "
-                    + base.getHost() + " (enable fhir.allowNextLinkHostMismatch if the server pages through another host)");
         }
-        String basePath = base.getRawPath() == null ? "" : base.getRawPath();
-        String path = t.getRawPath() == null ? "" : t.getRawPath();
-        if (!(path.equals(basePath) || path.startsWith(basePath.endsWith("/") ? basePath : basePath + "/"))) {
-            if (env.fhir().allowNextLinkHostMismatch()) {
-                return;
-            }
-            throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "URL " + target + " is outside the FHIR base path " + basePath);
+        if (env.fhir().allowNextLinkHostMismatch()) {
+            return;
         }
+        if (!anyHost) {
+            throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "URL " + target + " is not on the environment's host(s) "
+                    + env.allBaseUrls() + " (enable fhir.allowNextLinkHostMismatch if the server pages through another host)");
+        }
+        throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "URL " + target + " is outside the FHIR base path(s) " + env.allBaseUrls());
     }
 
     private static int port(URI u) {

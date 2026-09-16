@@ -80,7 +80,7 @@ public class EnvironmentStore {
         Instant now = clock.instant();
         Environment stored = new Environment(environment.id(), environment.name(), environment.vendor(), environment.tier(),
                 environment.fhirBaseUrl(), environment.auth(), environment.headers(), environment.identifierSystems(),
-                environment.fhir(), environment.implementationGuides(), environment.notes(), environment.enabled(), 1, now, now);
+                environment.fhir(), environment.igBaseUrls(), environment.implementationGuides(), environment.notes(), environment.enabled(), 1, now, now);
         byId.put(stored.id(), stored);
         persist();
         return stored;
@@ -95,7 +95,7 @@ public class EnvironmentStore {
         }
         Environment stored = new Environment(environment.id(), environment.name(), environment.vendor(), environment.tier(),
                 environment.fhirBaseUrl(), environment.auth(), environment.headers(), environment.identifierSystems(),
-                environment.fhir(), environment.implementationGuides(), environment.notes(), environment.enabled(),
+                environment.fhir(), environment.igBaseUrls(), environment.implementationGuides(), environment.notes(), environment.enabled(),
                 current.version() + 1, current.createdAt(), clock.instant());
         byId.put(stored.id(), stored);
         persist();

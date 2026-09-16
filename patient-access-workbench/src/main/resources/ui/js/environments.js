@@ -101,6 +101,7 @@
     field('fhirBaseUrl').value = v.fhirBaseUrl || '';
     field('notes').value = v.notes || '';
     field('enabled').checked = v.enabled !== false;
+    ['c4bb', 'pdex', 'usdf', 'plannet'].forEach(k => { field('ig.' + k).value = (v.igBaseUrls && v.igBaseUrls[k]) || ''; });
     const a = v.auth || {};
     field('auth.mode').value = a.mode || 'NONE';
     field('auth.discoverEndpoints').checked = a.discoverEndpoints !== false;
@@ -180,6 +181,7 @@
       },
       headers,
       identifierSystems,
+      igBaseUrls: Object.fromEntries(['c4bb', 'pdex', 'usdf', 'plannet'].map(k => [k, field('ig.' + k).value.trim()])),
       fhir: {
         pageSize: num('fhir.pageSize'), maxPages: num('fhir.maxPages'),
         acceptHeader: field('fhir.acceptHeader').value.trim() || 'application/fhir+json',
@@ -337,6 +339,33 @@
     } catch (e) { showError('#env-form-messages', e); }
   }
 
+  /** Fills the form from the documented Onyx SAFHIR layout: one host per tier, one base per IG, /v1/authorize + /v1/token. */
+  async function onyxPreset() {
+    const host = await P.prompt('Onyx SAFHIR preset', 'Tenant host of this tier (e.g. https://api-<tenant>-uat.safhir.io)', field('fhirBaseUrl').value.replace(/\/v1.*$/, '') || 'https://api-');
+    if (host == null) return;
+    const root = host.trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//.test(root)) { msg('#env-form-messages', 'error', 'Enter the tenant host including https://'); return; }
+    field('fhirBaseUrl').value = root + '/v1/api/pdex';
+    field('ig.c4bb').value = root + '/v1/api/carin-bb';
+    field('ig.pdex').value = root + '/v1/api/pdex';
+    field('ig.usdf').value = root + '/v1/api/formulary';
+    field('ig.plannet').value = root + '/v1/api/provider-directory';
+    if (!field('vendor').value) field('vendor').value = 'Onyx SAFHIR';
+    if (/-prd\./.test(root)) field('tier').value = 'PROD'; else if (/-uat\./.test(root)) field('tier').value = 'UAT';
+    field('auth.mode').value = 'SMART_AUTHORIZATION_CODE';
+    field('auth.discoverEndpoints').checked = false;
+    field('auth.authorizationEndpoint').value = root + '/v1/authorize';
+    field('auth.tokenEndpoint').value = root + '/v1/token';
+    field('auth.audience').value = root + '/v1';
+    field('auth.clientAuthMethod').value = 'CLIENT_SECRET_POST';
+    if (!field('auth.scopes').value) field('auth.scopes').value = 'launch/patient openid fhirUser offline_access patient/*.read';
+    field('fhir.allowNextLinkHostMismatch').checked = true;
+    if (!field('fhir.pageSize').value) field('fhir.pageSize').value = '50';
+    applyModeVisibility();
+    clearMsgs('#env-form-messages');
+    msg('#env-form-messages', 'info', 'Preset applied from the public SAFHIR documentation. Confirm the token endpoint, client id/secret, redirect URI and scopes against the Application Credentials in the Onyx developer portal, then Save and Test connection. See docs/onyx-safhir.md.');
+  }
+
   async function addDemo() {
     clearMsgs('#global-messages');
     try {
@@ -357,6 +386,7 @@
       $('#btn-env-new').addEventListener('click', () => edit(null));
       $('#btn-env-refresh').addEventListener('click', () => P.refreshEnvironments(state.envId));
       $('#btn-env-demo').addEventListener('click', addDemo);
+      $('#btn-env-onyx').addEventListener('click', onyxPreset);
       $('#btn-env-test').addEventListener('click', test);
       $('#btn-env-delete').addEventListener('click', remove);
       $('#btn-env-duplicate').addEventListener('click', duplicate);

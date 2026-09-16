@@ -17,6 +17,7 @@ public record EnvironmentView(
         List<HeaderView> headers,
         List<IdentifierSystem> identifierSystems,
         FhirOptions fhir,
+        Map<String, String> igBaseUrls,
         List<String> implementationGuides,
         String notes,
         boolean enabled,
