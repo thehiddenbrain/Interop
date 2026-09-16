@@ -9,7 +9,8 @@ RUN ./mvnw -q -B -DskipTests package
 
 # Runtime stage
 FROM eclipse-temurin:17-jre
-RUN useradd --system --uid 10001 --create-home workbench \
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --uid 10001 --create-home workbench \
  && mkdir -p /var/lib/patient-access-workbench /opt/workbench/packages \
  && chown -R workbench:workbench /var/lib/patient-access-workbench /opt/workbench
 WORKDIR /opt/workbench

@@ -55,7 +55,9 @@ class UrlBuilderTest {
                 .isEqualTo("https://fhir.example.org/r4/Patient?identifier=http://sys%7CM1&_lastUpdated=ge2024-01-01T00:00:00%2B00:00&_count=50&_count=60");
         assertThat(UrlBuilder.searchUrl(ENV, "Patient", null)).isEqualTo("https://fhir.example.org/r4/Patient");
         assertThat(UrlBuilder.searchUrl(ENV, "Patient", new LinkedMultiValueMap<>())).isEqualTo("https://fhir.example.org/r4/Patient");
-        assertThat(UrlBuilder.readUrl(ENV, "Patient", "a/b c")).isEqualTo("https://fhir.example.org/r4/Patient/a%2Fb%20c");
+        assertThat(UrlBuilder.readUrl(ENV, "Patient", "a-b.1")).isEqualTo("https://fhir.example.org/r4/Patient/a-b.1");
+        assertThatThrownBy(() -> UrlBuilder.readUrl(ENV, "Patient", "a/b c")).isInstanceOf(WorkbenchException.class).hasMessageContaining("resource id");
+        assertThatThrownBy(() -> UrlBuilder.readUrl(ENV, "..", "x")).isInstanceOf(WorkbenchException.class).hasMessageContaining("resource type");
         MultiValueMap<String, String> modifier = new LinkedMultiValueMap<>();
         modifier.add("identifier:of-type", "sys|MB|1");
         assertThat(UrlBuilder.query(modifier)).isEqualTo("identifier:of-type=sys%7CMB%7C1");

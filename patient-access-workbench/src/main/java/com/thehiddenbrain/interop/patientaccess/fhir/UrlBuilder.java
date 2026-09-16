@@ -68,7 +68,27 @@ public final class UrlBuilder {
         return sb.toString();
     }
 
+    private static final java.util.regex.Pattern RESOURCE_TYPE = java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9]{0,63}");
+    private static final java.util.regex.Pattern RESOURCE_ID = java.util.regex.Pattern.compile("[A-Za-z0-9\\-\\.]{1,64}");
+
+    /** FHIR resource type names are plain identifiers; anything else (e.g. '..') could escape the base path on the server. */
+    public static String checkResourceType(String resourceType) {
+        if (resourceType == null || !RESOURCE_TYPE.matcher(resourceType).matches()) {
+            throw new WorkbenchException(ErrorCode.MALFORMED_REQUEST, "'" + resourceType + "' is not a FHIR resource type name");
+        }
+        return resourceType;
+    }
+
+    /** FHIR logical ids: letters, digits, '-' and '.', at most 64 characters (R4 id type). */
+    public static String checkResourceId(String id) {
+        if (id == null || !RESOURCE_ID.matcher(id).matches()) {
+            throw new WorkbenchException(ErrorCode.MALFORMED_REQUEST, "'" + id + "' is not a valid FHIR resource id");
+        }
+        return id;
+    }
+
     public static String searchUrl(Environment env, String resourceType, MultiValueMap<String, String> params) {
+        checkResourceType(resourceType);
         String q = query(params);
         return env.baseUrlFor(IgRouting.igFor(resourceType, params)) + "/" + resourceType + (q.isEmpty() ? "" : "?" + q);
     }
@@ -79,7 +99,7 @@ public final class UrlBuilder {
 
     /** Read URL on the base of a specific IG (a prior-auth EOB lives on the PDex base). */
     public static String readUrl(Environment env, String resourceType, String id, String igKey) {
-        return env.baseUrlFor(igKey) + "/" + resourceType + "/" + encodePath(id);
+        return env.baseUrlFor(igKey) + "/" + checkResourceType(resourceType) + "/" + encodePath(checkResourceId(id));
     }
 
     public static String encodePath(String segment) {
