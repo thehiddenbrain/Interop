@@ -19,13 +19,37 @@ public final class UrlBuilder {
     private UrlBuilder() {
     }
 
-    /** Encodes a query value: reserved FHIR characters (| , : /) stay readable, everything else is percent-encoded. */
+    /** Encodes a query value: , : / stay readable, | becomes %7C (java.net.URI rejects a bare pipe), the rest is percent-encoded. */
     public static String encode(String value) {
         if (value == null) {
             return "";
         }
         String enc = URLEncoder.encode(value, StandardCharsets.UTF_8);
-        return enc.replace("+", "%20").replace("%7C", "|").replace("%2C", ",").replace("%3A", ":").replace("%2F", "/");
+        return enc.replace("+", "%20").replace("%2C", ",").replace("%3A", ":").replace("%2F", "/");
+    }
+
+    /** Percent-encodes the characters java.net.URI refuses in URLs a server handed us (next links, references). */
+    public static String sanitize(String url) {
+        if (url == null) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder(url.length() + 8);
+        for (char c : url.toCharArray()) {
+            switch (c) {
+                case ' ' -> sb.append("%20");
+                case '|' -> sb.append("%7C");
+                case '"' -> sb.append("%22");
+                case '<' -> sb.append("%3C");
+                case '>' -> sb.append("%3E");
+                case '{' -> sb.append("%7B");
+                case '}' -> sb.append("%7D");
+                case '^' -> sb.append("%5E");
+                case '`' -> sb.append("%60");
+                case '\\' -> sb.append("%5C");
+                default -> sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     public static String query(MultiValueMap<String, String> params) {
@@ -66,6 +90,7 @@ public final class UrlBuilder {
         } else {
             target = base + (url.startsWith("/") ? url : "/" + url);
         }
+        target = sanitize(target);
         guard(env, target);
         return target;
     }
@@ -75,8 +100,8 @@ public final class UrlBuilder {
         URI base;
         URI t;
         try {
-            base = new URI(env.baseUrl());
-            t = new URI(target);
+            base = new URI(sanitize(env.baseUrl()));
+            t = new URI(sanitize(target));
         } catch (URISyntaxException e) {
             throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "not a valid URL: " + target);
         }

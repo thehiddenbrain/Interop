@@ -90,7 +90,7 @@ public class HttpExecutor {
         if (call.headers() != null) {
             headers.putAll(call.headers());
         }
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(call.url()))
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(UrlBuilder.sanitize(call.url())))
                 .timeout(clients.readTimeout(env));
         headers.forEach((k, v) -> {
             if (v != null) {

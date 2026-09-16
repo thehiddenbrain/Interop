@@ -21,6 +21,7 @@ public final class Secret {
         return enc;
     }
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public boolean isSet() {
         return enc != null && !enc.isBlank();
     }
