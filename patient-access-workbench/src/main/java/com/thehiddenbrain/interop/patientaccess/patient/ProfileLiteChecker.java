@@ -154,9 +154,16 @@ public class ProfileLiteChecker {
             if (choice) {
                 name = name.substring(0, name.length() - 3);
             }
+            // a type slice of a choice element (value[x]:valueString) is named after the JSON property it selects
+            boolean typeSlice = choice && slice != null && slice.startsWith(name);
             List<JsonNode> next = new ArrayList<>();
             for (JsonNode node : current) {
-                if (choice) {
+                if (typeSlice) {
+                    JsonNode child = node.get(slice);
+                    if (child != null) {
+                        addAll(next, child);
+                    }
+                } else if (choice) {
                     Iterator<Map.Entry<String, JsonNode>> it = node.fields();
                     while (it.hasNext()) {
                         Map.Entry<String, JsonNode> e = it.next();
@@ -171,7 +178,7 @@ public class ProfileLiteChecker {
                     }
                 }
             }
-            if (slice != null) {
+            if (slice != null && !typeSlice) {
                 String sliceId = prefix.toString();
                 String elementName = name;
                 next = next.stream().filter(n -> sliceMatches(n, sliceId, elementName, byId)).toList();
@@ -192,12 +199,14 @@ public class ProfileLiteChecker {
         }
     }
 
-    /** A candidate belongs to a slice when every fixed discriminator of the slice (own or child rules) matches. */
+    /**
+     * A candidate belongs to a slice when every fixed discriminator of the slice (own or child rules) matches.
+     * A slice the catalog holds no fixed discriminator for (e.g. C4BB's adjudicationamounttype, discriminated
+     * by a value-set binding) accepts every candidate: a lite check cannot tell them apart.
+     */
     boolean sliceMatches(JsonNode candidate, String sliceId, String elementName, Map<String, IgCatalog.ProfileRule> byId) {
         IgCatalog.ProfileRule own = byId.get(sliceId);
-        boolean anyDiscriminator = false;
         if (own != null && own.fixed() != null) {
-            anyDiscriminator = true;
             if (!matchesFixed(candidate, own.fixed())) {
                 return false;
             }
@@ -224,13 +233,12 @@ public class ProfileLiteChecker {
             if (rel.contains(":")) {
                 continue;
             }
-            anyDiscriminator = true;
             JsonNode value = walk(candidate, rel);
             if (value == null || !matchesFixed(value, e.getValue().fixed())) {
                 return false;
             }
         }
-        return anyDiscriminator;
+        return true;
     }
 
     private static JsonNode walk(JsonNode node, String relativePath) {

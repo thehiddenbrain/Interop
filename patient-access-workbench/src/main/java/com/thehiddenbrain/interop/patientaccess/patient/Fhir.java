@@ -143,7 +143,8 @@ public final class Fhir {
         if (v.has("coding") || v.has("text")) {
             return concept(v);
         }
-        if (v.has("value") && (v.has("unit") || v.has("code") || v.has("system"))) {
+        // Quantity / Money / Identifier; a Quantity may carry nothing but its value (PDex PriorAuthorizationUtilization)
+        if (v.has("value") && v.get("value").isValueNode()) {
             return v.has("currency") ? money(v) : quantity(v);
         }
         if (v.has("reference") || v.has("display")) {
