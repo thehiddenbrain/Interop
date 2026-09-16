@@ -15,6 +15,17 @@ public class StartupReport implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(StartupReport.class);
 
+    /** Fails startup when the data folder cannot be written: better than a green readiness probe and a failing first save. */
+    static void ensureWritable(java.nio.file.Path dir) {
+        try {
+            Files.createDirectories(dir);
+            java.nio.file.Path probe = Files.createTempFile(dir, ".write-check", ".tmp");
+            Files.deleteIfExists(probe);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("data folder " + dir + " is not writable (" + e.getMessage() + "); set PAW_DATA_DIR to a writable location", e);
+        }
+    }
+
     private final WorkbenchProperties properties;
     private final SecretCrypto crypto;
     private final BasicAuthFilter basicAuth;
@@ -27,6 +38,7 @@ public class StartupReport implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        ensureWritable(properties.dataDirPath());
         log.info("data folder: {} ({})", properties.dataDirPath(), Files.isDirectory(properties.dataDirPath()) ? "present" : "will be created");
         log.info("master key: {}", crypto.keySource());
         log.info("public base URL: {}", properties.publicBaseUrl().isBlank() ? "derived from requests" : properties.publicBaseUrl());

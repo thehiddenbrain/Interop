@@ -5,7 +5,9 @@
   const { $, $$, h, api, state, msg, clearMsgs, showError, badge, fmt } = P;
 
   let overview = null;
+  let overviewEnvId = null;
   let activeClass = null;
+  let loadSeq = 0;
 
   function checksBadge(c) {
     if (!c || !c.profile) return badge('no rules', 'SKIP');
@@ -27,12 +29,17 @@
     $('#patient-summary').innerHTML = '';
     $('#patient-summary').append(h('span.busy', {}, 'loading patient…'));
     $('#patient-classes').innerHTML = '';
+    const seq = ++loadSeq;
     try {
-      overview = await api.get(`/environments/${envId}/patients/${encodeURIComponent(pid)}/overview`);
+      const o = await api.get(`/environments/${envId}/patients/${encodeURIComponent(pid)}/overview`);
+      if (seq !== loadSeq) return; // a newer load superseded this one
+      overview = o;
+      overviewEnvId = envId;
       renderHead(overview);
       renderCards(overview);
       if (activeClass) selectClass(activeClass);
     } catch (e) {
+      if (seq !== loadSeq) return;
       $('#patient-summary').innerHTML = '';
       showError('#patient-checks', e);
     }
@@ -51,7 +58,7 @@
     if (iss) s.append(h('details', {}, h('summary', {}, 'Profile issues'), iss));
     $('#patient-json').textContent = fmt.json(o.patientResource);
     $('#patient-json').hidden = true;
-    P.setPatient(p.id, p);
+    if (state.patientId !== p.id || !state.patient) P.setPatient(p.id, p);
   }
 
   function renderCards(o) {
@@ -200,8 +207,13 @@
     } else if (query.startsWith('http')) {
       path = `/environments/${envId}/fhir/page?url=${encodeURIComponent(query)}&authenticated=${auth}`;
     } else {
-      if (query && !query.includes('patient=') && state.patientId && !query.includes('_id=')) query = 'patient=' + encodeURIComponent(state.patientId) + '&' + query;
-      if (!query && state.patientId) query = 'patient=' + encodeURIComponent(state.patientId);
+      const spec = state.resources && state.resources[type];
+      const hasPatientParam = !!(spec && spec.searchParams.some(p => p.name === 'patient'));
+      if (hasPatientParam && state.patientId && !query.includes('patient=') && !query.includes('_id=')) {
+        query = 'patient=' + encodeURIComponent(state.patientId) + (query ? '&' + query : '');
+      } else if (type === 'Patient' && !query && state.patientId) {
+        query = '_id=' + encodeURIComponent(state.patientId);
+      }
       const params = new URLSearchParams(query);
       params.set('authenticated', String(auth));
       path = `/environments/${envId}/fhir/${type}?` + params;
@@ -240,10 +252,10 @@
       P.on('tab', (t) => {
         if (t !== 'patient') return;
         fillTypes().catch(console.error);
-        if (state.patientId && (!overview || overview.patient.id !== state.patientId)) load(state.patientId);
+        if (state.patientId && (!overview || overview.patient.id !== state.patientId || overviewEnvId !== state.envId)) load(state.patientId);
         else if (!state.patientId) { $('#patient-empty').hidden = false; $('#patient-view').hidden = true; }
       });
-      P.on('env-changed', () => { overview = null; if (P.currentTab() === 'patient' && state.patientId) load(state.patientId); });
+      P.on('env-changed', () => { if (overviewEnvId !== state.envId) { overview = null; if (P.currentTab() === 'patient' && state.patientId) load(state.patientId); } });
     },
     reload: () => load(state.patientId),
   };

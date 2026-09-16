@@ -53,15 +53,50 @@ public final class ClientAssertions {
                     .issueTime(Date.from(now))
                     .expirationTime(Date.from(now.plusSeconds(240)))
                     .build();
-            JWSHeader.Builder header = new JWSHeader.Builder(alg).type(com.nimbusds.jose.JOSEObjectType.JWT);
-            if (jwk.getKeyID() != null) {
-                header.keyID(jwk.getKeyID());
-            }
+            JWSHeader.Builder header = new JWSHeader.Builder(alg).type(com.nimbusds.jose.JOSEObjectType.JWT).keyID(keyId(jwk));
             SignedJWT jwt = new SignedJWT(header.build(), claims);
             jwt.sign(signer);
             return jwt.serialize();
         } catch (JOSEException e) {
             throw new WorkbenchException(ErrorCode.AUTH_FAILED, "cannot sign the client assertion: " + e.getMessage(), e);
+        }
+    }
+
+    /** The JWK's kid, or its RFC 7638 thumbprint when it has none, so the assertion header and the published JWKS agree. */
+    static String keyId(JWK jwk) {
+        if (jwk.getKeyID() != null && !jwk.getKeyID().isBlank()) {
+            return jwk.getKeyID();
+        }
+        try {
+            return jwk.computeThumbprint().toString();
+        } catch (JOSEException e) {
+            throw new WorkbenchException(ErrorCode.VALIDATION_ERROR, "cannot compute the key thumbprint: " + e.getMessage());
+        }
+    }
+
+    /** Null when the key can sign with the algorithm; else what is wrong (used at save time). */
+    public static String checkKey(String jwkJson, String algorithm) {
+        try {
+            JWK jwk = parsePrivateKey(jwkJson);
+            String alg = algorithm == null ? "RS384" : algorithm;
+            if (jwk instanceof RSAKey && !(alg.startsWith("RS") || alg.startsWith("PS"))) {
+                return "an RSA key needs an RS*/PS* signing algorithm, not " + alg;
+            }
+            if (jwk instanceof ECKey ec) {
+                if (!alg.startsWith("ES")) {
+                    return "an EC key needs an ES* signing algorithm, not " + alg;
+                }
+                String curve = ec.getCurve() == null ? "" : ec.getCurve().getName();
+                if ((alg.equals("ES384") && !curve.equals("P-384")) || (alg.equals("ES256") && !curve.equals("P-256"))) {
+                    return alg + " needs a " + (alg.equals("ES384") ? "P-384" : "P-256") + " key, this key uses " + curve;
+                }
+            }
+            if (!(jwk instanceof RSAKey) && !(jwk instanceof ECKey)) {
+                return "unsupported key type " + jwk.getKeyType();
+            }
+            return null;
+        } catch (WorkbenchException e) {
+            return e.getMessage();
         }
     }
 
@@ -91,6 +126,17 @@ public final class ClientAssertions {
     /** Public JWK Set for the configured key, to register with the authorization server. */
     public static String publicJwks(String jwkJson) {
         JWK jwk = parsePrivateKey(jwkJson);
-        return new JWKSet(jwk.toPublicJWK()).toString();
+        JWK pub = jwk.toPublicJWK();
+        try {
+            if (pub.getKeyID() == null || pub.getKeyID().isBlank()) {
+                pub = JWK.parse(pub.toJSONObject()).toPublicJWK();
+                java.util.Map<String, Object> json = pub.toJSONObject();
+                json.put("kid", keyId(jwk));
+                pub = JWK.parse(json);
+            }
+        } catch (ParseException e) {
+            throw new WorkbenchException(ErrorCode.VALIDATION_ERROR, "cannot render the public JWK: " + e.getMessage());
+        }
+        return new JWKSet(pub).toString();
     }
 }

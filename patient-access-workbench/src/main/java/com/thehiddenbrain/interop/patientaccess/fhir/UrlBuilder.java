@@ -131,6 +131,11 @@ public final class UrlBuilder {
         if (t.getScheme() == null || t.getHost() == null) {
             throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "not an absolute URL: " + target);
         }
+        String rawPath = t.getRawPath() == null ? "" : t.getRawPath();
+        if (rawPath.contains("\\") || rawPath.toLowerCase(Locale.ROOT).contains("%2e") || !t.normalize().getRawPath().equals(rawPath)
+                || java.util.Arrays.asList(rawPath.split("/")).contains(".") || java.util.Arrays.asList(rawPath.split("/")).contains("..")) {
+            throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "URL " + target + " contains dot segments or backslashes");
+        }
         boolean anyHost = false;
         for (String baseUrl : env.allBaseUrls()) {
             URI base;

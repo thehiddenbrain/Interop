@@ -62,13 +62,17 @@ public final class Redaction {
         return MASK;
     }
 
-    /** Masks token-like fields in a JSON or form-encoded body (token endpoint traffic). */
+    private static final java.util.regex.Pattern TOKEN_FIELD = java.util.regex.Pattern.compile(
+            "(\"(?:access_token|refresh_token|id_token|client_secret|client_assertion|code|code_verifier)\"\\s*:\\s*\")[^\"]*(\")");
+
+    /** Masks token-like fields in a JSON or form-encoded body (token endpoint traffic), whatever the declared content type. */
     public static String body(String body, String contentType) {
         if (body == null || body.isEmpty()) {
             return body;
         }
         String ct = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
-        if (ct.contains("json")) {
+        String trimmed = body.stripLeading();
+        if (ct.contains("json") || trimmed.startsWith("{")) {
             try {
                 JsonNode node = MAPPER.readTree(body);
                 if (node instanceof ObjectNode obj) {
@@ -82,11 +86,11 @@ public final class Redaction {
                     return changed ? MAPPER.writeValueAsString(obj) : body;
                 }
             } catch (Exception ignored) {
-                // not JSON after all
+                // not JSON after all: fall through to the regex mask
             }
-            return body;
+            return TOKEN_FIELD.matcher(body).replaceAll("$1" + MASK + "$2");
         }
-        if (ct.contains("x-www-form-urlencoded")) {
+        if (ct.contains("x-www-form-urlencoded") || (!ct.contains("html") && body.contains("=") && !body.contains(" ") && !trimmed.startsWith("<"))) {
             StringBuilder sb = new StringBuilder();
             for (String pair : body.split("&")) {
                 int eq = pair.indexOf('=');

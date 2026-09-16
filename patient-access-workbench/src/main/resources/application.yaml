@@ -80,6 +80,8 @@ paw:
     # Bodies longer than this are truncated in the history (the live response is never truncated).
     max-body-bytes: 262144
     persist: true
+    # History files older than this are deleted once a day (they hold member data); 0 keeps them forever.
+    retention-days: 30
   search:
     # _count sent with searches and the maximum number of pages followed when collecting all results.
     page-size: 50

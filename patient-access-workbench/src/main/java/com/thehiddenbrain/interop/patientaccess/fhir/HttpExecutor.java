@@ -35,6 +35,8 @@ public class HttpExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(HttpExecutor.class);
     private static final long MAX_RETRY_WAIT_MS = 10_000;
+    /** Responses larger than this are refused so a hostile or runaway server cannot exhaust the heap. */
+    static final int MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 
     private final HttpClientFactory clients;
     private final RequestLog history;
@@ -106,9 +108,10 @@ public class HttpExecutor {
         long start = System.nanoTime();
         String requestBodyForLog = call.redactBody() ? Redaction.body(call.body(), call.contentType()) : call.body();
         try {
-            HttpResponse<byte[]> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
+            HttpResponse<java.io.InputStream> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+            byte[] bytes = readBounded(response.body(), call.url());
             long duration = (System.nanoTime() - start) / 1_000_000;
-            String body = new String(response.body(), charsetOf(response.headers().firstValue("Content-Type").orElse(null)));
+            String body = new String(bytes, charsetOf(response.headers().firstValue("Content-Type").orElse(null)));
             String contentType = response.headers().firstValue("Content-Type").orElse(null);
             HttpResult result = new HttpResult(call.url(), response.statusCode(), response.headers().map(), body, duration, id);
             String loggedBody = call.redactBody() ? Redaction.body(body, contentType) : body;
@@ -144,6 +147,22 @@ public class HttpExecutor {
         log.warn("{} {} failed: {}", call.method(), call.url(), error);
         throw new WorkbenchException(ErrorCode.UPSTREAM_UNREACHABLE, call.method() + " " + call.url() + " failed: " + error,
                 List.of(), new com.thehiddenbrain.interop.patientaccess.common.ApiError.Upstream(null, call.url(), null, id), cause);
+    }
+
+    /** Reads at most {@link #MAX_RESPONSE_BYTES}; a longer body fails the call instead of filling memory. */
+    static byte[] readBounded(java.io.InputStream in, String url) throws IOException {
+        try (in) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                if (out.size() + n > MAX_RESPONSE_BYTES) {
+                    throw new IOException("response from " + url + " exceeds " + MAX_RESPONSE_BYTES + " bytes");
+                }
+                out.write(buf, 0, n);
+            }
+            return out.toByteArray();
+        }
     }
 
     static String summarize(HttpResult r) {

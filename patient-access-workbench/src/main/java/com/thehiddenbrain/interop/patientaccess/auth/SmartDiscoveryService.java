@@ -75,8 +75,9 @@ public class SmartDiscoveryService {
             }
         }
         String authorize = !isBlank(a.authorizationEndpoint()) ? a.authorizationEndpoint()
-                : discovered != null ? discovered.authorizationEndpoint() : null;
-        String token = !isBlank(a.tokenEndpoint()) ? a.tokenEndpoint() : discovered != null ? discovered.tokenEndpoint() : null;
+                : discovered != null ? validateDiscovered(env, discovered.authorizationEndpoint(), "authorization_endpoint") : null;
+        String token = !isBlank(a.tokenEndpoint()) ? a.tokenEndpoint()
+                : discovered != null ? validateDiscovered(env, discovered.tokenEndpoint(), "token_endpoint") : null;
         if (discovered == null) {
             return new OAuthEndpoints(authorize, token, null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), List.of(), "configured");
         }
@@ -195,6 +196,30 @@ public class SmartDiscoveryService {
         }
         return new OAuthEndpoints(authorize, token, issuer, jwks, registration, introspection, revocation, capabilities, scopes,
                 pkce, grants, authMethods, source);
+    }
+
+    /**
+     * A discovered endpoint receives the client secret, assertion or refresh token, so it gets the same
+     * rules as a configured one (https for PROD, no query/fragment) and may not point at a private or
+     * metadata address unless the environment itself is a local one. Configured endpoints win over discovery.
+     */
+    static String validateDiscovered(Environment env, String url, String field) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        List<com.thehiddenbrain.interop.patientaccess.common.ApiError.Detail> problems = new ArrayList<>();
+        com.thehiddenbrain.interop.patientaccess.environment.EnvironmentService.checkUrl(url, field, false, env.tier(), problems);
+        String host = com.thehiddenbrain.interop.patientaccess.fhir.UrlBuilder.hostOf(url);
+        boolean localEnvironment = com.thehiddenbrain.interop.patientaccess.environment.EnvironmentService.isPrivateAddress(
+                com.thehiddenbrain.interop.patientaccess.fhir.UrlBuilder.hostOf(env.baseUrl()));
+        if (!localEnvironment && com.thehiddenbrain.interop.patientaccess.environment.EnvironmentService.isPrivateAddress(host)) {
+            problems.add(new com.thehiddenbrain.interop.patientaccess.common.ApiError.Detail(field, "points at a private or metadata address"));
+        }
+        if (!problems.isEmpty()) {
+            throw new WorkbenchException(ErrorCode.TARGET_NOT_ALLOWED, "discovered " + field + " " + url + " rejected: "
+                    + problems.stream().map(d -> d.message()).toList() + "; enter the endpoint in the environment's auth settings to use it");
+        }
+        return url;
     }
 
     static String text(JsonNode n, String field) {

@@ -25,9 +25,12 @@
     health();
     setInterval(health, 30000);
     const hash = readHash();
-    await refreshEnvironments(hash.env || null);
     if (hash.patient) window.PAW.setPatient(hash.patient, null);
+    try {
+      await refreshEnvironments(hash.env || null);
+    } catch (e) {
+      window.PAW.showError('#global-messages', e);
+    }
     showTab(hash.tab || (state.environments.length ? 'search' : 'environments'));
-    on('env-changed', () => {}); // keeps the hash in sync through setEnvironment
   });
 })();

@@ -192,7 +192,7 @@
       sel.append(h('option', { value: e.id }, `${e.name} (${e.tier})`));
     }
     const exists = state.environments.some(e => e.id === wanted);
-    setEnvironment(exists ? wanted : (state.environments.length === 1 ? state.environments[0].id : null), true);
+    await setEnvironment(exists ? wanted : (state.environments.length === 1 ? state.environments[0].id : null), true);
   }
   function currentEnv() {
     return state.environments.find(e => e.id === state.envId) || null;

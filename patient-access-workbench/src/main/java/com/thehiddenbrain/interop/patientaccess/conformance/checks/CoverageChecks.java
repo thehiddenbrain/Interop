@@ -50,7 +50,7 @@ public class CoverageChecks {
     Check coverageSearchByPatient() {
         return SimpleCheck.of("coverage.search.patient", "coverage", "Coverage search by patient", Severity.SHALL,
                 "GET Coverage?patient={id} returns a searchset of Coverage resources whose beneficiary is the patient",
-                C4BB_CS + " patient SHALL; PDex 2.1.0 CapabilityStatement Coverage patient SHALL", true, (b, ctx) -> {
+                "PDex 2.1.0 CapabilityStatement pdex-server Coverage patient SHALL; US Core Coverage patient SHALL (C4BB 2.1.0 declares _id and _lastUpdated only)", true, (b, ctx) -> {
             String pid = ctx.patientId().orElseThrow();
             SearchPage page = CheckSupport.record(b, CheckSupport.patientSearch(ctx, "Coverage"));
             String problem = CheckSupport.bundleProblem(page, "Coverage");
@@ -77,9 +77,9 @@ public class CoverageChecks {
 
     @Bean
     Check coverageSearchByBeneficiary() {
-        return SimpleCheck.of("coverage.search.beneficiary", "coverage", "Coverage search by beneficiary", Severity.SHOULD,
+        return SimpleCheck.of("coverage.search.beneficiary", "coverage", "Coverage search by beneficiary", Severity.MAY,
                 "GET Coverage?beneficiary=Patient/{id} returns the same coverages (the standard FHIR reference parameter behind 'patient')",
-                "FHIR R4 Coverage search parameter beneficiary; US Core Coverage patient", true, (b, ctx) -> {
+                "FHIR R4 Coverage search parameter beneficiary (no Patient Access IG requires it; informational)", true, (b, ctx) -> {
             String pid = ctx.patientId().orElseThrow();
             SearchPage page = CheckSupport.search(ctx, b, "Coverage", CheckContext.params("beneficiary", "Patient/" + pid));
             String problem = CheckSupport.bundleProblem(page, "Coverage");

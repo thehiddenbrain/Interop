@@ -59,9 +59,23 @@ public record WorkbenchProperties(
                        @DefaultValue("1") int maxRetries) {
     }
 
-    public record History(@DefaultValue("1000") int maxEntries,
-                          @DefaultValue("262144") int maxBodyBytes,
-                          @DefaultValue("true") boolean persist) {
+    public record History(int maxEntries, int maxBodyBytes, boolean persist, int retentionDays) {
+
+        @org.springframework.boot.context.properties.bind.ConstructorBinding
+        public History(@DefaultValue("1000") int maxEntries,
+                       @DefaultValue("262144") int maxBodyBytes,
+                       @DefaultValue("true") boolean persist,
+                       @DefaultValue("30") int retentionDays) {
+            this.maxEntries = maxEntries;
+            this.maxBodyBytes = maxBodyBytes;
+            this.persist = persist;
+            this.retentionDays = retentionDays;
+        }
+
+        /** Test-friendly constructor with the default retention. */
+        public History(int maxEntries, int maxBodyBytes, boolean persist) {
+            this(maxEntries, maxBodyBytes, persist, 30);
+        }
     }
 
     public record Search(@DefaultValue("50") int pageSize,

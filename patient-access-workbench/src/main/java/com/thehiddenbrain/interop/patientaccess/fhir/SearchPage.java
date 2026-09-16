@@ -6,13 +6,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** One page of a FHIR search: the Bundle, its resources, total and the next link. */
-public record SearchPage(JsonNode bundle, List<JsonNode> resources, List<JsonNode> included, Integer total, String selfUrl,
-                         String nextUrl, HttpResult response, List<String> warnings) {
+public record SearchPage(JsonNode bundle, List<JsonNode> resources, List<JsonNode> included, List<JsonNode> outcomes, Integer total,
+                         String selfUrl, String nextUrl, HttpResult response, List<String> warnings) {
 
     public static SearchPage of(HttpResult response, List<String> warnings) {
         JsonNode bundle = response.json();
         List<JsonNode> matches = new ArrayList<>();
         List<JsonNode> included = new ArrayList<>();
+        List<JsonNode> outcomes = new ArrayList<>();
         Integer total = null;
         String self = null;
         String next = null;
@@ -28,6 +29,8 @@ public record SearchPage(JsonNode bundle, List<JsonNode> resources, List<JsonNod
                 String mode = entry.path("search").path("mode").asText("match");
                 if ("include".equals(mode)) {
                     included.add(resource);
+                } else if ("outcome".equals(mode) || "OperationOutcome".equals(resource.path("resourceType").asText())) {
+                    outcomes.add(resource); // search-related warnings the server adds (e.g. an ignored parameter); never a match
                 } else {
                     matches.add(resource);
                 }
@@ -41,7 +44,7 @@ public record SearchPage(JsonNode bundle, List<JsonNode> resources, List<JsonNod
                 }
             }
         }
-        return new SearchPage(bundle, matches, included, total, self, next, response, warnings == null ? List.of() : warnings);
+        return new SearchPage(bundle, matches, included, outcomes, total, self, next, response, warnings == null ? List.of() : warnings);
     }
 
     public boolean isBundle() {

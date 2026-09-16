@@ -124,7 +124,7 @@ class EnvironmentServiceTest {
                 .isInstanceOf(WorkbenchException.class)
                 .satisfies(t -> assertThat(fields(t)).containsExactlyInAnyOrder("auth.privateKeyJwk", "auth.signingAlgorithm"));
         EnvironmentView bs = g.environments.create(input("bs", null, base,
-                auth(AuthMode.BACKEND_SERVICES, false, null, "https://as.example.org/token", "client", null, null, "{\"kty\":\"RSA\"}", null), null, null, null));
+                auth(AuthMode.BACKEND_SERVICES, false, null, "https://as.example.org/token", "client", null, null, rsaJwk(), null), null, null, null));
         assertThat(bs.auth().signingAlgorithm()).isEqualTo("RS384");
         assertThat(bs.auth().privateKeyJwk().set()).isTrue();
 
@@ -256,5 +256,13 @@ class EnvironmentServiceTest {
         assertThat(g.crypto.reveal(e.headers().get(0).secretValue())).isEqualTo("api-key-value-1234");
         assertThatThrownBy(() -> reloaded.delete("missing")).isInstanceOf(WorkbenchException.class)
                 .satisfies(t -> assertThat(((WorkbenchException) t).getCode()).isEqualTo(ErrorCode.NOT_FOUND));
+    }
+
+    private static String rsaJwk() {
+        try {
+            return new com.nimbusds.jose.jwk.gen.RSAKeyGenerator(2048).keyID("test").generate().toJSONString();
+        } catch (com.nimbusds.jose.JOSEException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

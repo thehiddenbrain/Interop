@@ -364,12 +364,47 @@ final class CheckSupport {
 
     /** Runs a search through the context and records it on the builder. */
     static SearchPage search(CheckContext ctx, CheckResult.Builder b, String type, MultiValueMap<String, String> params) {
+        SearchPage page = searchQuietly(ctx, b, type, params);
+        if (page != null && page.isBundle() && page.response().ok()) {
+            List<String> ignored = paramsMissingFromSelfLink(page, params);
+            if (!ignored.isEmpty()) {
+                b.detail("self link of the " + type + " search omits " + String.join(", ", ignored) + ": the server may have ignored the parameter (FHIR R4 3.1.1.6)");
+            }
+            if (!page.outcomes().isEmpty()) {
+                b.detail("server added " + page.outcomes().size() + " OperationOutcome entr" + (page.outcomes().size() == 1 ? "y" : "ies") + " (search.mode=outcome) to the Bundle");
+            }
+        }
+        return page;
+    }
+
+    private static SearchPage searchQuietly(CheckContext ctx, CheckResult.Builder b, String type, MultiValueMap<String, String> params) {
         SearchPage page = ctx.searchPage(type, params);
         record(b, page.response());
         return page;
     }
 
     /** Records an already-fetched page (e.g. one shared through the cache). */
+    /** Parameters that the server's self link does not echo: the server may have ignored them (FHIR R4 3.1.1.6). */
+    static List<String> paramsMissingFromSelfLink(SearchPage page, MultiValueMap<String, String> params) {
+        List<String> missing = new ArrayList<>();
+        if (page == null || page.selfUrl() == null || params == null) {
+            return missing;
+        }
+        String self = page.selfUrl();
+        int q = self.indexOf('?');
+        String query = q < 0 ? "" : self.substring(q + 1);
+        for (String name : params.keySet()) {
+            if (name.startsWith("_count") || name.startsWith("_format")) {
+                continue;
+            }
+            String bare = name.contains(":") ? name.substring(0, name.indexOf(':')) : name;
+            if (!query.contains(bare + "=") && !query.contains(java.net.URLEncoder.encode(bare, java.nio.charset.StandardCharsets.UTF_8) + "=")) {
+                missing.add(name);
+            }
+        }
+        return missing;
+    }
+
     static SearchPage record(CheckResult.Builder b, SearchPage page) {
         record(b, page.response());
         return page;

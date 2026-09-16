@@ -119,24 +119,41 @@ public class ProfileLiteChecker {
         if (parents.isEmpty()) {
             return; // the parent is absent: a required child cannot be judged
         }
-        List<JsonNode> values = matches(resource, id, byId);
         String path = rule.path();
-        if (rule.min() > 0) {
-            if (values.isEmpty() && rule.slice() == null) {
-                issues.add(new Issue("error", path, "required element (" + rule.min() + ".." + rule.max() + ") is missing"));
-            } else if (values.isEmpty()) {
-                issues.add(new Issue("error", path, "required slice '" + rule.slice() + "' (" + rule.min() + ".." + rule.max() + ") not found"));
+        String lastSegment = id.substring(id.lastIndexOf('.') + 1);
+        int lacking = 0;
+        int present = 0;
+        boolean fixedMismatch = false;
+        // cardinality is judged per parent repetition: one item without a required child is a defect even when others carry it
+        for (JsonNode parent : parents) {
+            List<JsonNode> values = step(List.of(parent), lastSegment, id, byId);
+            if (values.isEmpty()) {
+                lacking++;
+                continue;
             }
-        } else if (rule.mustSupport() && values.isEmpty()) {
-            issues.add(new Issue("info", path, "must-support element" + (rule.slice() == null ? "" : " (slice " + rule.slice() + ")") + " not populated"));
-        }
-        if (rule.fixed() != null && !values.isEmpty() && rule.slice() == null) {
-            for (JsonNode v : values) {
-                if (!matchesFixed(v, rule.fixed())) {
-                    issues.add(new Issue("error", path, "value does not match the fixed/pattern value " + rule.fixed().toString()));
-                    break;
+            present++;
+            if (rule.fixed() != null && rule.slice() == null) {
+                for (JsonNode v : values) {
+                    if (!matchesFixed(v, rule.fixed())) {
+                        fixedMismatch = true;
+                        break;
+                    }
                 }
             }
+        }
+        String where = parents.size() > 1 && lacking > 0 ? " in " + lacking + " of " + parents.size() + " repetitions of "
+                + parentId.substring(parentId.lastIndexOf('.') + 1).replaceAll(":.*", "") : "";
+        if (rule.min() > 0 && lacking > 0) {
+            if (rule.slice() == null) {
+                issues.add(new Issue("error", path, "required element (" + rule.min() + ".." + rule.max() + ") is missing" + where));
+            } else {
+                issues.add(new Issue("error", path, "required slice '" + rule.slice() + "' (" + rule.min() + ".." + rule.max() + ") not found" + where));
+            }
+        } else if (rule.mustSupport() && present == 0) {
+            issues.add(new Issue("info", path, "must-support element" + (rule.slice() == null ? "" : " (slice " + rule.slice() + ")") + " not populated"));
+        }
+        if (fixedMismatch) {
+            issues.add(new Issue("error", path, "value does not match the fixed/pattern value " + rule.fixed().toString()));
         }
     }
 
@@ -148,47 +165,51 @@ public class ProfileLiteChecker {
         for (int i = 1; i < segments.length; i++) {
             String seg = segments[i];
             prefix.append('.').append(seg);
-            String name = seg.contains(":") ? seg.substring(0, seg.indexOf(':')) : seg;
-            String slice = seg.contains(":") ? seg.substring(seg.indexOf(':') + 1) : null;
-            boolean choice = name.endsWith("[x]");
-            if (choice) {
-                name = name.substring(0, name.length() - 3);
-            }
-            // a type slice of a choice element (value[x]:valueString) is named after the JSON property it selects
-            boolean typeSlice = choice && slice != null && slice.startsWith(name);
-            List<JsonNode> next = new ArrayList<>();
-            for (JsonNode node : current) {
-                if (typeSlice) {
-                    JsonNode child = node.get(slice);
-                    if (child != null) {
-                        addAll(next, child);
-                    }
-                } else if (choice) {
-                    Iterator<Map.Entry<String, JsonNode>> it = node.fields();
-                    while (it.hasNext()) {
-                        Map.Entry<String, JsonNode> e = it.next();
-                        if (e.getKey().startsWith(name) && e.getKey().length() > name.length() && Character.isUpperCase(e.getKey().charAt(name.length()))) {
-                            addAll(next, e.getValue());
-                        }
-                    }
-                } else {
-                    JsonNode child = node.get(name);
-                    if (child != null) {
-                        addAll(next, child);
-                    }
-                }
-            }
-            if (slice != null && !typeSlice) {
-                String sliceId = prefix.toString();
-                String elementName = name;
-                next = next.stream().filter(n -> sliceMatches(n, sliceId, elementName, byId)).toList();
-            }
-            current = next;
+            current = step(current, seg, prefix.toString(), byId);
             if (current.isEmpty()) {
                 break;
             }
         }
         return current;
+    }
+
+    /** One path segment (element name, optional slice, choice type) applied to a set of nodes. */
+    private List<JsonNode> step(List<JsonNode> current, String seg, String sliceId, Map<String, IgCatalog.ProfileRule> byId) {
+        String name = seg.contains(":") ? seg.substring(0, seg.indexOf(':')) : seg;
+        String slice = seg.contains(":") ? seg.substring(seg.indexOf(':') + 1) : null;
+        boolean choice = name.endsWith("[x]");
+        if (choice) {
+            name = name.substring(0, name.length() - 3);
+        }
+        // a type slice of a choice element (value[x]:valueString) is named after the JSON property it selects
+        boolean typeSlice = choice && slice != null && slice.startsWith(name);
+        List<JsonNode> next = new ArrayList<>();
+        for (JsonNode node : current) {
+            if (typeSlice) {
+                JsonNode child = node.get(slice);
+                if (child != null) {
+                    addAll(next, child);
+                }
+            } else if (choice) {
+                Iterator<Map.Entry<String, JsonNode>> it = node.fields();
+                while (it.hasNext()) {
+                    Map.Entry<String, JsonNode> e = it.next();
+                    if (e.getKey().startsWith(name) && e.getKey().length() > name.length() && Character.isUpperCase(e.getKey().charAt(name.length()))) {
+                        addAll(next, e.getValue());
+                    }
+                }
+            } else {
+                JsonNode child = node.get(name);
+                if (child != null) {
+                    addAll(next, child);
+                }
+            }
+        }
+        if (slice != null && !typeSlice) {
+            String elementName = name;
+            next = next.stream().filter(n -> sliceMatches(n, sliceId, elementName, byId)).toList();
+        }
+        return next;
     }
 
     private static void addAll(List<JsonNode> out, JsonNode value) {
@@ -244,9 +265,15 @@ public class ProfileLiteChecker {
         }
         if (!anyDiscriminator) {
             String base = sliceId.substring(0, sliceId.lastIndexOf(':'));
-            for (String sibling : byId.keySet()) {
-                if (sibling.startsWith(base + ":") && !sibling.equals(sliceId) && sibling.indexOf('.', base.length()) < 0
-                        && hasFixedDiscriminator(sibling, byId) && sliceMatches(candidate, sibling, elementName, byId)) {
+            java.util.Set<String> siblings = new java.util.LinkedHashSet<>();
+            for (String key : byId.keySet()) {
+                if (key.startsWith(base + ":")) {
+                    int dot = key.indexOf('.', base.length());
+                    siblings.add(dot < 0 ? key : key.substring(0, dot)); // slice roots may only exist through their child rules
+                }
+            }
+            for (String sibling : siblings) {
+                if (!sibling.equals(sliceId) && hasFixedDiscriminator(sibling, byId) && sliceMatches(candidate, sibling, elementName, byId)) {
                     return false;
                 }
             }

@@ -11,8 +11,8 @@ plus an optional us-core-server-master.json (the US Core server CapabilityStatem
     name=${p%@*}; ver=${p#*@}; mkdir -p pkgs/$name
     curl -sSL "https://registry.npmjs.org/$name/-/$name-$ver.tgz" | tar -xz -C pkgs/$name
   done
-  curl -sSL -o pkgs/us-core-server-master.json \
-    https://raw.githubusercontent.com/HL7/US-Core/master/input/resources/CapabilityStatement-us-core-server.json
+  curl -sSL -o pkgs/us-core-server-6.1.0.json \
+    https://raw.githubusercontent.com/HL7/US-Core/6.1.0/input/resources/capabilitystatement-us-core-server.json
 
 The output drives the workbench's search-option catalog, profile-lite checks and conformance suite.
 """
@@ -30,7 +30,7 @@ IGS = OrderedDict([
     ('pdex', dict(package='hl7.fhir.us.davinci-pdex', name='Da Vinci Payer Data Exchange (PDex)',
                   canonical='http://hl7.org/fhir/us/davinci-pdex', capability='CapabilityStatement-pdex-server.json')),
     ('uscore', dict(package=None, name='US Core', canonical='http://hl7.org/fhir/us/core',
-                    capability='us-core-server-master.json')),
+                    capability='us-core-server-6.1.0.json')),
     ('usdf', dict(package='hl7.fhir.us.davinci-drug-formulary', name='Da Vinci US Drug Formulary',
                   canonical='http://hl7.org/fhir/us/davinci-drug-formulary', capability='CapabilityStatement-usdf-server.json')),
     ('pas', dict(package='hl7.fhir.us.davinci-pas', name='Da Vinci Prior Authorization Support (PAS)',
@@ -253,7 +253,10 @@ def main():
                 print('  package not found:', pkgdir, file=sys.stderr)
         elif ig['capability'] and os.path.exists(os.path.join(root, ig['capability'])):
             cs = read_capability(os.path.join(root, ig['capability']), key, catalog, sp_descriptions)
-            version = cs.get('version') or 'master'
+            # the release tag is authoritative (the file inside a tag may still carry the previous build's version)
+            version = ig['capability'].replace('us-core-server-', '').replace('.json', '')
+            if not version or version == 'master':
+                raise SystemExit('US Core CapabilityStatement version could not be determined; pin a released file')
         igs_out[key] = OrderedDict(name=ig['name'], canonical=ig['canonical'], version=version)
 
     # IG-defined SearchParameters that the CapabilityStatements do not list (e.g. PDex ExplanationOfBenefit.use)

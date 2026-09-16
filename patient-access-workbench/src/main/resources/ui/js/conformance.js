@@ -60,23 +60,31 @@
 
   async function show(id) {
     if (timer) { clearInterval(timer); timer = null; }
-    await refresh(id);
-    if (current && current.status === 'RUNNING') {
+    const ok = await refresh(id);
+    if (ok && current && current.status === 'RUNNING') {
       $('#conf-busy').hidden = false;
-      timer = setInterval(async () => {
-        await refresh(id);
-        if (!current || current.status !== 'RUNNING') { clearInterval(timer); timer = null; $('#conf-busy').hidden = true; loadRuns(); }
+      const t = setInterval(async () => {
+        const alive = await refresh(id);
+        if (t !== timer) { clearInterval(t); return; } // another run was selected meanwhile
+        if (!alive || !current || current.id !== id || current.status !== 'RUNNING') {
+          clearInterval(t); timer = null; $('#conf-busy').hidden = true; loadRuns().catch(() => {});
+        }
       }, 1500);
+      timer = t;
     } else {
       $('#conf-busy').hidden = true;
     }
   }
 
+  /** Loads a run; false when it cannot be loaded (polling stops, the error is shown once). */
   async function refresh(id) {
     try {
-      current = await api.get('/conformance/runs/' + id);
-    } catch (e) { showError('#conf-messages', e); return; }
+      const run = await api.get('/conformance/runs/' + id);
+      if (current && current.id !== id && timer) { return true; }
+      current = run;
+    } catch (e) { clearMsgs('#conf-messages'); showError('#conf-messages', e); return false; }
     render(current);
+    return true;
   }
 
   function render(run) {

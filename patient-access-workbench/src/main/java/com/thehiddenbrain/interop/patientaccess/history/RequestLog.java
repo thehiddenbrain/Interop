@@ -64,6 +64,38 @@ public class RequestLog {
         return folder;
     }
 
+    /** Deletes history files older than the retention (request bodies hold member data, so they must not live forever). */
+    public synchronized int purgeOlderThan(int retentionDays) {
+        if (retentionDays <= 0 || !Files.isDirectory(folder)) {
+            return 0;
+        }
+        LocalDate cutoff = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC).minusDays(retentionDays);
+        int deleted = 0;
+        try (java.util.stream.Stream<Path> files = Files.list(folder)) {
+            for (Path p : files.toList()) {
+                String name = p.getFileName().toString();
+                if (!name.startsWith("requests-") || !name.endsWith(".jsonl")) {
+                    continue;
+                }
+                try {
+                    LocalDate day = LocalDate.parse(name.substring("requests-".length(), name.length() - ".jsonl".length()));
+                    if (day.isBefore(cutoff)) {
+                        Files.deleteIfExists(p);
+                        deleted++;
+                    }
+                } catch (RuntimeException ignored) {
+                    // not one of ours
+                }
+            }
+        } catch (IOException e) {
+            log.warn("cannot purge request history in {}: {}", folder, e.getMessage());
+        }
+        if (deleted > 0) {
+            log.info("purged {} request history file(s) older than {} days", deleted, retentionDays);
+        }
+        return deleted;
+    }
+
     public synchronized void record(RequestRecord record) {
         ring.addFirst(record);
         while (ring.size() > maxEntries) {

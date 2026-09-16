@@ -55,8 +55,12 @@
   function secretState(name, view) {
     const el = $(`em.secret-state[data-secret="${name}"]`, form());
     if (!el) return;
-    el.textContent = view && view.set ? `(set ${view.hint || ''})` : '(not set)';
+    el.innerHTML = '';
+    el.textContent = view && view.set ? `(set ${view.hint || ''}) ` : '(not set)';
     el.style.color = view && view.set ? 'var(--ok)' : 'var(--muted)';
+    if (view && view.set) {
+      el.append(h('label', { style: 'color:var(--muted);font-weight:normal;margin-left:6px' }, h('input', { type: 'checkbox', name: 'clear:' + name }), ' clear'));
+    }
   }
 
   function headerRow(hd = {}) {
@@ -142,7 +146,8 @@
   function collect() {
     const f = form();
     const num = (n) => field(n).value === '' ? null : Number(field(n).value);
-    const secret = (n) => field(n).value === '' ? null : field(n).value; // blank keeps the stored secret
+    // blank keeps the stored secret; the "clear" checkbox next to the field sends "" so the API removes it
+    const secret = (n) => { const clear = form().querySelector(`input[name="clear:${n}"]`); if (clear && clear.checked) return ''; return field(n).value === '' ? null : field(n).value; };
     const headers = $$('#env-headers tbody tr').map(tr => ({
       name: tr.querySelector('[name=h-name]').value.trim(),
       value: tr.querySelector('[name=h-value]').value === '' && tr.querySelector('[name=h-secret]').checked ? null : tr.querySelector('[name=h-value]').value,
@@ -156,7 +161,7 @@
     })).filter(x => x.system);
     return {
       name: field('name').value.trim(),
-      vendor: field('vendor').value.trim() || null,
+      vendor: field('vendor').value.trim(),
       tier: field('tier').value,
       fhirBaseUrl: field('fhirBaseUrl').value.trim(),
       notes: field('notes').value,
@@ -202,7 +207,7 @@
     const input = collect();
     try {
       const saved = editing ? await api.put(`/environments/${editing.id}`, input) : await api.post('/environments', input);
-      await P.refreshEnvironments(saved.id);
+      await P.refreshEnvironments(editing ? state.envId : (state.envId || saved.id));
       edit(state.environments.find(e => e.id === saved.id));
       msg('#env-form-messages', 'ok', `Saved "${saved.name}" (version ${saved.version}).`);
     } catch (e) {
@@ -271,9 +276,10 @@
     box.innerHTML = '';
     try {
       const r = await api.post(`/environments/${editing.id}/auth/smart/start`);
-      msg(box, 'info', `Opening the authorization server. Redirect URI registered with the vendor must be: ${r.redirectUri}`);
+      const m = msg(box, 'info', 'Sign in at the vendor\'s authorization server (opens in a new tab): ');
+      m.append(h('a.link', { href: r.authorizeUrl, target: '_blank', rel: 'noopener' }, 'open the login page'), h('div.muted', {}, `Redirect URI registered with the vendor must be: ${r.redirectUri}`));
       window.open(r.authorizeUrl, '_blank', 'noopener');
-      msg(box, 'info', 'After you sign in, come back here and press "Refresh" in the token panel (the callback page shows the outcome).');
+      msg(box, 'info', 'After signing in, the callback page shows the outcome; the token panel here refreshes when you return to this tab (or press "Refresh status").');
     } catch (e) { showError(box, e); }
   }
 
@@ -387,16 +393,19 @@
       $('#btn-env-refresh').addEventListener('click', () => P.refreshEnvironments(state.envId));
       $('#btn-env-demo').addEventListener('click', addDemo);
       $('#btn-env-onyx').addEventListener('click', onyxPreset);
-      $('#btn-env-test').addEventListener('click', test);
-      $('#btn-env-delete').addEventListener('click', remove);
-      $('#btn-env-duplicate').addEventListener('click', duplicate);
+      const guarded = (fn) => () => Promise.resolve().then(fn).catch(e => { clearMsgs('#env-form-messages'); showError('#env-form-messages', e); });
+      $('#btn-env-test').addEventListener('click', guarded(test));
+      $('#btn-env-delete').addEventListener('click', guarded(remove));
+      $('#btn-env-duplicate').addEventListener('click', guarded(duplicate));
       $('#btn-header-add').addEventListener('click', () => headerRow());
       $('#btn-idsystem-add').addEventListener('click', () => idSystemRow());
-      $('#btn-token-obtain').addEventListener('click', obtainToken);
-      $('#btn-token-smart').addEventListener('click', smartLogin);
-      $('#btn-token-paste').addEventListener('click', pasteToken);
-      $('#btn-token-forget').addEventListener('click', forgetToken);
+      $('#btn-token-obtain').addEventListener('click', guarded(obtainToken));
+      $('#btn-token-smart').addEventListener('click', guarded(smartLogin));
+      $('#btn-token-paste').addEventListener('click', guarded(pasteToken));
+      $('#btn-token-forget').addEventListener('click', guarded(forgetToken));
       $('#btn-env-endpoints').addEventListener('click', showEndpoints);
+      $('#btn-token-status').addEventListener('click', () => { P.refreshToken().then(renderTokenPanel).catch(console.error); });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden && editing && !$('#env-token-panel').hidden) P.refreshToken().then(renderTokenPanel).catch(() => {}); });
       P.on('env-changed', (env) => { renderList(); if (env && (!editing || editing.id !== env.id) && !form().hidden) edit(env); else if (env && form().hidden) edit(env); });
       P.on('tab', (t) => { if (t === 'environments') { renderList(); if (editing) renderTokenPanel(); } });
     },

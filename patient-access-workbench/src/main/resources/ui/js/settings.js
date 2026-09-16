@@ -26,7 +26,7 @@
     try {
       const members = await api.get('/demo/members');
       demo.append(h('p', {}, 'Enabled at ', h('code', {}, location.origin + '/demo/fhir'), '. Client credentials: demo-client / demo-secret. Demo members:'));
-      demo.append(P.table([{ key: 'id', label: 'Patient id' }, { key: 'name', label: 'Name' }, { label: 'Identifiers', render: m => (m.identifiers || []).map(i => `${i.type || ''} ${i.value} (${i.system})`).join('; ') },
+      demo.append(P.table([{ key: 'patientId', label: 'Patient id' }, { key: 'name', label: 'Name' }, { label: 'Identifiers', render: m => (m.identifiers || []).map(i => `${i.type || ''} ${i.value} (${i.system})`).join('; ') },
         { label: 'Data', render: m => [m.coverages ? 'coverage' : null, m.claims ? 'claims' : null, m.priorAuths ? 'prior auth' : null].filter(Boolean).join(', ') }], members));
     } catch (e) {
       demo.append(h('p.muted', {}, 'Enabled; member list unavailable: ' + e.message));

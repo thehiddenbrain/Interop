@@ -63,9 +63,13 @@ resources/
 
 ## Key decisions
 - Outbound calls never leave the configured environment: FhirGateway only calls URLs under the
-  environment's fhirBaseUrl, the token/authorize endpoints in its auth config, and next links that
-  start with the base URL (or the same host when the server returns absolute links on another path,
-  allowed only when `fhirOptions.allowNextLinkHostMismatch`).
+  environment's base URLs (default plus per-IG bases), and next links that start with one of them
+  (other hosts only when `fhirOptions.allowNextLinkHostMismatch`); resource types and ids in paths are
+  validated and dot segments refused. Token and authorize endpoints come from the auth config or, when
+  discovery is on, from the vendor's smart-configuration; discovered endpoints must be absolute http(s),
+  https for PROD, and may not point at private or metadata addresses.
+- The workbench UI and demo server are disabled by the prod profile only for the demo; the UI stays on
+  behind basic auth (`PAW_UI_ENABLED=false` turns it off).
 - Secrets (client secret, static token, private key JWK, secret header values, refresh tokens) are
   AES-GCM encrypted at rest and never returned by the API (masked view). Logs and request history
   redact Authorization headers and any header marked secret; token responses are stored redacted.
@@ -81,7 +85,7 @@ resources/
   total submitted/eligible/utilized + PriorAuthorizationUtilization, preAuthRefPeriod, item extension
   preAuthPeriod/preAuthIssueDate/itemTraceNumber/authorizationNumber, when-adjudicated).
 - The workbench UI/API can be protected with basic auth (paw.security.basic.*) and always sends
-  security headers; the UI and demo server are disabled by default in the prod profile.
+  security headers; the demo server is disabled by default in the prod profile.
 
 ## REST API (all JSON under /api/v1)
 - `GET/POST /environments`, `GET/PUT/DELETE /environments/{id}`, `POST /environments/{id}/test`,

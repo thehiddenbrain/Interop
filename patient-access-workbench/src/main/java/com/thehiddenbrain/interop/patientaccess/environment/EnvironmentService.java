@@ -28,12 +28,24 @@ public class EnvironmentService {
     public static final List<String> DEFAULT_IGS = List.of("c4bb", "pdex", "uscore", "usdf");
     static final Set<String> SIGNING_ALGORITHMS = Set.of("RS384", "ES384", "RS256", "ES256");
 
+    /** Notified when an environment's auth settings or base URLs change, or it is deleted (tokens and discovery caches depend on them). */
+    public interface Listener {
+        void authChanged(Environment before, Environment after);
+
+        void deleted(String environmentId);
+    }
+
     private final EnvironmentStore store;
     private final SecretCrypto crypto;
+    private final List<Listener> listeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     public EnvironmentService(EnvironmentStore store, SecretCrypto crypto) {
         this.store = store;
         this.crypto = crypto;
+    }
+
+    public void addListener(Listener listener) {
+        listeners.add(listener);
     }
 
     public List<EnvironmentView> list() {
@@ -62,11 +74,16 @@ public class EnvironmentService {
         Environment current = store.require(id);
         Environment candidate = merge(current, input);
         validate(candidate, id);
-        return view(store.update(candidate, input.version()));
+        Environment stored = store.update(candidate, input.version());
+        if (!current.auth().equals(stored.auth()) || !current.baseUrl().equals(stored.baseUrl()) || !current.igBaseUrls().equals(stored.igBaseUrls())) {
+            listeners.forEach(l -> l.authChanged(current, stored));
+        }
+        return view(stored);
     }
 
     public void delete(String id) {
         store.delete(id);
+        listeners.forEach(l -> l.deleted(id));
     }
 
     public EnvironmentView duplicate(String id, String newName) {
@@ -218,6 +235,11 @@ public class EnvironmentService {
                 }
                 if (!SIGNING_ALGORITHMS.contains(a.signingAlgorithm())) {
                     problems.add(WorkbenchException.detail("auth.signingAlgorithm", "must be one of " + SIGNING_ALGORITHMS));
+                } else if (a.privateKeyJwk() != null) {
+                    String keyProblem = com.thehiddenbrain.interop.patientaccess.auth.ClientAssertions.checkKey(crypto.reveal(a.privateKeyJwk()), a.signingAlgorithm());
+                    if (keyProblem != null) {
+                        problems.add(WorkbenchException.detail("auth.privateKeyJwk", keyProblem));
+                    }
                 }
                 requireTokenEndpointOrDiscovery(a, e.tier(), problems);
             }
@@ -271,7 +293,7 @@ public class EnvironmentService {
         }
     }
 
-    static void checkUrl(String url, String field, boolean required, EnvironmentTier tier, List<ApiError.Detail> problems) {
+    public static void checkUrl(String url, String field, boolean required, EnvironmentTier tier, List<ApiError.Detail> problems) {
         if (isBlank(url)) {
             if (required) {
                 problems.add(WorkbenchException.detail(field, "is required"));
@@ -300,7 +322,31 @@ public class EnvironmentService {
         }
     }
 
-    static boolean isLoopback(String host) {
+    /** IP literals of private, link-local (cloud metadata) and loopback ranges. */
+    public static boolean isPrivateAddress(String host) {
+        if (host == null) {
+            return false;
+        }
+        String h = host.toLowerCase(Locale.ROOT).replace("[", "").replace("]", "");
+        if (isLoopback(h)) {
+            return true;
+        }
+        if (h.startsWith("169.254.") || h.startsWith("10.") || h.startsWith("192.168.") || h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) {
+            return true;
+        }
+        if (h.startsWith("172.")) {
+            String[] parts = h.split("\\.");
+            try {
+                int second = Integer.parseInt(parts[1]);
+                return second >= 16 && second <= 31;
+            } catch (RuntimeException e) {
+                return false;
+            }
+        }
+        return h.equals("metadata.google.internal") || h.equals("0.0.0.0");
+    }
+
+    public static boolean isLoopback(String host) {
         String h = host.toLowerCase(Locale.ROOT);
         return h.equals("localhost") || h.equals("127.0.0.1") || h.equals("::1") || h.equals("[::1]") || h.equals("host.docker.internal");
     }

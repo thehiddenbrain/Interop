@@ -189,7 +189,7 @@ public class DemoAuthController {
     @GetMapping(value = "/authorize", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> authorizePage(HttpServletRequest request) {
         Map<String, String> q = firstValues(request);
-        String problem = clientProblem(q);
+        String problem = clientProblem(request, q);
         if (problem != null) {
             return ResponseEntity.badRequest().contentType(MediaType.TEXT_HTML).body(errorPage(problem));
         }
@@ -220,7 +220,7 @@ public class DemoAuthController {
     @PostMapping("/authorize")
     public ResponseEntity<String> authorizeSubmit(HttpServletRequest request) {
         Map<String, String> form = firstValues(request);
-        String problem = clientProblem(form);
+        String problem = clientProblem(request, form);
         if (problem != null) {
             return ResponseEntity.badRequest().contentType(MediaType.TEXT_HTML).body(errorPage(problem));
         }
@@ -241,7 +241,7 @@ public class DemoAuthController {
     }
 
     /** Null when client_id and redirect_uri are acceptable, else what is wrong. */
-    private String clientProblem(Map<String, String> q) {
+    private String clientProblem(HttpServletRequest request, Map<String, String> q) {
         String clientId = q.get("client_id");
         if (clientId == null || !clientId.equals(auth.clientId())) {
             return "unknown client_id" + (clientId == null ? "" : " '" + clientId + "'") + "; the demo client id is '" + auth.clientId() + "'";
@@ -256,10 +256,18 @@ public class DemoAuthController {
                     || !(uri.getScheme().equalsIgnoreCase("http") || uri.getScheme().equalsIgnoreCase("https"))) {
                 return "redirect_uri must be an absolute http(s) URL without fragment";
             }
-        } catch (URISyntaxException e) {
+            // Demo clients are not registered, so the only redirect targets accepted are this workbench and loopback
+            // hosts (a real authorization server matches the URIs registered for the client).
+            String host = uri.getHost().toLowerCase(java.util.Locale.ROOT);
+            String own = java.net.URI.create(serverBase(request)).getHost();
+            boolean allowed = host.equals("localhost") || host.equals("127.0.0.1") || host.equals("::1") || host.equals("[::1]")
+                    || (own != null && host.equalsIgnoreCase(own));
+            if (!allowed) {
+                return "redirect_uri must point at this workbench (" + own + ") or a loopback host";
+            }
+        } catch (URISyntaxException | IllegalArgumentException e) {
             return "redirect_uri is not a valid URL";
         }
-        // Any absolute URI is accepted because demo clients are not registered; a real server matches the registered URIs.
         return null;
     }
 

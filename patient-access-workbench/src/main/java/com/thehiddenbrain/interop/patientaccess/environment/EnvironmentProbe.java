@@ -106,7 +106,7 @@ public class EnvironmentProbe {
             }
             default -> {
                 try {
-                    AccessToken t = tokens.obtain(env, tokens.stored(env.id()).orElse(null), correlation);
+                    AccessToken t = tokens.obtain(env, correlation);
                     steps.add(new Step("token", "PASS", "token obtained, valid until " + t.expiresAt(), null, null, null,
                             Map.of("scope", nz(t.scope()), "tokenType", nz(t.tokenType()), "source", nz(t.source()))));
                 } catch (WorkbenchException e) {

@@ -23,5 +23,5 @@ ENV SPRING_PROFILES_ACTIVE=prod \
 VOLUME ["/var/lib/patient-access-workbench"]
 EXPOSE 8090
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
-  CMD curl -fsS http://localhost:8090/actuator/health/readiness || exit 1
+  CMD curl -fsS "http://localhost:${SERVER_PORT:-8090}/actuator/health/readiness" || exit 1
 ENTRYPOINT ["java", "-jar", "/opt/workbench/app.jar"]

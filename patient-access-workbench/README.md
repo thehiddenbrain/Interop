@@ -108,7 +108,8 @@ can be exported as a self-contained HTML report or JSON.
 
 Every FHIR, discovery and token request is kept in memory (`paw.history.max-entries`) and appended to
 `<data-dir>/history/requests-<date>.jsonl`. Authorization headers, secret headers and token bodies are
-redacted before they are stored. Any entry can be copied as a cURL command (`$TOKEN` placeholder).
+redacted before they are stored; response bodies contain member data, so the files are purged after
+`paw.history.retention-days` (30 by default). Any entry can be copied as a cURL command (`$TOKEN` placeholder).
 
 ## Configuration
 
@@ -126,7 +127,7 @@ overrides. Everything can be set with environment variables.
 | `paw.security.basic.username/password` | `PAW_BASIC_AUTH_USERNAME/PASSWORD` | `workbench` / (none) | credentials (password required when enabled) |
 | `paw.http.connect-timeout`, `read-timeout` | – | 10s / 60s | outbound timeouts (per environment overrides) |
 | `paw.http.max-retries` | – | 1 | retries on 429/503 honouring `Retry-After` |
-| `paw.history.max-entries`, `max-body-bytes`, `persist` | – | 1000 / 262144 / true | request history |
+| `paw.history.max-entries`, `max-body-bytes`, `persist`, `retention-days` | – | 1000 / 262144 / true / 30 | request history; files older than the retention are purged daily |
 | `paw.search.page-size`, `max-pages` | – | 50 / 20 | `_count` and pages followed |
 | `paw.conformance.max-pages`, `concurrency`, `slow-warn-ms`, `slow-fail-ms` | – | 5 / 4 / 3000 / 10000 | conformance runs |
 | `paw.validation.packages-dir` | `PAW_PACKAGES_DIR` | `./packages` | FHIR IG npm packages for optional full validation |
@@ -146,7 +147,10 @@ docker run -d --name paw -p 8090:8090 \
   patient-access-workbench
 ```
 
-The image runs with the `prod` profile: basic auth on, demo server off, Swagger off, data on the volume.
+The image runs with the `prod` profile: basic auth on, demo server off, Swagger off, UI on (set
+`PAW_UI_ENABLED=false` for an API-only deployment), data on the volume. Size the heap for the history
+ring (`max-entries` × `max-body-bytes` worst case) and, when IG packages are loaded for full validation,
+allow 1.5 GB or more.
 Put TLS on a reverse proxy in front (the app honours `X-Forwarded-*`). Keep the master key outside the
 volume (a secret manager or the orchestrator's secret store): losing it means re-entering every secret.
 Readiness/liveness probes: `/actuator/health/readiness` and `/actuator/health/liveness`.

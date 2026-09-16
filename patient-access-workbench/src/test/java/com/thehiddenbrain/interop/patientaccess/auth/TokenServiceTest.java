@@ -288,10 +288,10 @@ class TokenServiceTest {
         assertThat(jwt.verify(new ECDSAVerifier(ec.toECPublicKey()))).isTrue();
         assertThat(jwt.getJWTClaimsSet().getAudience()).containsExactly(tokenUrl);
 
-        Environment mismatched = backendServices(ec.toJSONString(), "RS384");
-        assertThatThrownBy(() -> g.tokens.obtain(mismatched, null, null)).isInstanceOf(WorkbenchException.class)
+        // a key/algorithm mismatch is refused when the environment is saved, before any token request
+        assertThatThrownBy(() -> backendServices(ec.toJSONString(), "RS384")).isInstanceOf(WorkbenchException.class)
                 .satisfies(t -> assertThat(((WorkbenchException) t).getCode()).isEqualTo(ErrorCode.VALIDATION_ERROR))
-                .hasMessageContaining("EC key needs an ES* algorithm");
+                .hasMessageContaining("EC key needs an ES* signing algorithm");
         assertThatThrownBy(() -> ClientAssertions.build("c", tokenUrl, ec.toPublicJWK().toJSONString(), "ES384", Instant.now()))
                 .isInstanceOf(WorkbenchException.class).hasMessageContaining("public key");
         assertThatThrownBy(() -> ClientAssertions.build("c", tokenUrl, "{not json", "ES384", Instant.now()))

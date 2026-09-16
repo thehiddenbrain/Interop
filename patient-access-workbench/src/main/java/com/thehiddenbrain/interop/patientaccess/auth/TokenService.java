@@ -50,6 +50,22 @@ public class TokenService {
         this.discovery = discovery;
         this.environments = environments;
         this.clock = clock;
+        environments.addListener(new EnvironmentService.Listener() {
+            @Override
+            public void authChanged(Environment before, Environment after) {
+                if (store.find(after.id()).isPresent()) {
+                    log.info("environment '{}' changed its auth settings or base URL; forgetting its token", after.name());
+                    store.remove(after.id());
+                }
+                discovery.evict(after.id());
+            }
+
+            @Override
+            public void deleted(String environmentId) {
+                store.remove(environmentId);
+                discovery.evict(environmentId);
+            }
+        });
     }
 
     /** The token to send, obtaining or refreshing it when needed; empty for AuthMode.NONE. */
@@ -69,9 +85,32 @@ public class TokenService {
         }
     }
 
+    /** Obtains a token, reading the previous one inside the lock (a rotated refresh token is never reused). */
+    public synchronized AccessToken obtain(Environment env, String correlationId) {
+        return obtain(env, usable(env.id()).orElse(null), correlationId);
+    }
+
+    /** The stored token, unless it cannot be decrypted any more (master key changed): then it is dropped. */
+    private Optional<AccessToken> usable(String environmentId) {
+        Optional<AccessToken> stored = store.find(environmentId);
+        if (stored.isPresent()) {
+            try {
+                crypto.reveal(stored.get().accessToken());
+                if (stored.get().hasRefreshToken()) {
+                    crypto.reveal(stored.get().refreshToken());
+                }
+            } catch (WorkbenchException e) {
+                log.warn("stored token of environment {} cannot be decrypted (master key changed?); forgetting it", environmentId);
+                store.remove(environmentId);
+                return Optional.empty();
+            }
+        }
+        return stored;
+    }
+
     /** Valid cached token, or a freshly obtained one. */
     public synchronized AccessToken current(Environment env) {
-        Optional<AccessToken> cached = store.find(env.id());
+        Optional<AccessToken> cached = usable(env.id());
         Instant now = clock.instant();
         if (cached.isPresent() && !cached.get().expired(now, SKEW_SECONDS)) {
             return cached.get();
@@ -95,7 +134,7 @@ public class TokenService {
     }
 
     public TokenStatus status(Environment env) {
-        Optional<AccessToken> t = store.find(env.id());
+        Optional<AccessToken> t = usable(env.id());
         Instant now = clock.instant();
         if (env.auth().mode() == AuthMode.STATIC_TOKEN) {
             boolean set = env.auth().staticToken() != null && env.auth().staticToken().isSet();
@@ -154,8 +193,7 @@ public class TokenService {
             form.put("client_id", auth.clientId());
             form.put("client_secret", secret == null ? "" : secret);
         } else {
-            headers.put("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                    (UrlBuilder.encode(auth.clientId()) + ":" + UrlBuilder.encode(secret == null ? "" : secret)).getBytes(StandardCharsets.UTF_8)));
+            headers.put("Authorization", basicCredentials(auth.clientId(), secret == null ? "" : secret));
         }
         form.putAll(auth.extraTokenParams());
         HttpResult r = postForm(env, tokenEndpoint, headers, form, correlationId);
@@ -229,9 +267,14 @@ public class TokenService {
             form.put("client_id", auth.clientId());
             form.put("client_secret", secret);
         } else {
-            headers.put("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                    (UrlBuilder.encode(auth.clientId()) + ":" + UrlBuilder.encode(secret)).getBytes(StandardCharsets.UTF_8)));
+            headers.put("Authorization", basicCredentials(auth.clientId(), secret));
         }
+    }
+
+    /** client_secret_basic: id and secret are form-url-encoded before the Base64 (RFC 6749 section 2.3.1). */
+    static String basicCredentials(String clientId, String secret) {
+        String pair = java.net.URLEncoder.encode(clientId, StandardCharsets.UTF_8) + ":" + java.net.URLEncoder.encode(secret, StandardCharsets.UTF_8);
+        return "Basic " + Base64.getEncoder().encodeToString(pair.getBytes(StandardCharsets.UTF_8));
     }
 
     public String tokenEndpoint(Environment env, String correlationId) {

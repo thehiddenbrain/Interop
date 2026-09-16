@@ -100,7 +100,9 @@ public class PriorAuthSummarizer {
         List<PriorAuthSummary.Item> items = new ArrayList<>();
         Set<String> denialReasons = new LinkedHashSet<>();
         Set<String> decisions = new LinkedHashSet<>();
-        String decisionDate = null;
+        String decisionDate = null;      // when-adjudicated of an adjudication that carries the review action
+        String issueDate = null;         // item preAuthIssueDate
+        String anyActionDate = null;     // any other when-adjudicated (e.g. a utilization update)
         String validFrom = null;
         String validTo = null;
         JsonNode refPeriod = eob.get("preAuthRefPeriod");
@@ -126,16 +128,27 @@ public class PriorAuthSummarizer {
                 } else if ("denialreason".equals(a.category()) && a.reason() != null) {
                     itemDenials.add(a.reason());
                 }
-                if (a.reviewAction() != null && a.reviewAction().code() != null && itemDecision == null) {
-                    itemDecision = a.reviewAction().code();
-                }
-                if (a.actionDate() != null && decisionDate == null) {
-                    decisionDate = a.actionDate();
+                if (a.reviewAction() != null && a.reviewAction().code() != null) {
+                    if (itemDecision == null) {
+                        itemDecision = a.reviewAction().code();
+                    }
+                    if ("A3".equals(a.reviewAction().code())) {
+                        for (String reason : a.reviewAction().reasons()) {
+                            if (reason != null) {
+                                itemDenials.add("review reason: " + reason);
+                            }
+                        }
+                    }
+                    if (a.actionDate() != null && decisionDate == null) {
+                        decisionDate = a.actionDate();
+                    }
+                } else if (a.actionDate() != null && anyActionDate == null) {
+                    anyActionDate = a.actionDate();
                 }
             }
             String preAuthIssue = Fhir.extensionValue(it, EXT_ITEM_PREAUTH_ISSUE);
-            if (preAuthIssue != null && decisionDate == null) {
-                decisionDate = preAuthIssue;
+            if (preAuthIssue != null && issueDate == null) {
+                issueDate = preAuthIssue;
             }
             JsonNode preAuthPeriodExt = Fhir.extension(it, EXT_ITEM_PREAUTH_PERIOD);
             String preAuthPeriod = preAuthPeriodExt == null ? null : Fhir.period(preAuthPeriodExt.get("valuePeriod"));
@@ -178,10 +191,18 @@ public class PriorAuthSummarizer {
             }
             if (a.reviewAction() != null && a.reviewAction().code() != null) {
                 decisions.add(display(a.reviewAction().code()));
+                if ("A3".equals(a.reviewAction().code())) {
+                    a.reviewAction().reasons().stream().filter(java.util.Objects::nonNull).forEach(r -> denialReasons.add("review reason: " + r));
+                }
+                if (a.actionDate() != null && decisionDate == null) {
+                    decisionDate = a.actionDate();
+                }
+            } else if (a.actionDate() != null && anyActionDate == null) {
+                anyActionDate = a.actionDate();
             }
-            if (a.actionDate() != null && decisionDate == null) {
-                decisionDate = a.actionDate();
-            }
+        }
+        if (decisionDate == null) {
+            decisionDate = issueDate != null ? issueDate : anyActionDate;
         }
         List<PriorAuthSummary.Total> totals = new ArrayList<>();
         for (JsonNode t : eob.path("total")) {

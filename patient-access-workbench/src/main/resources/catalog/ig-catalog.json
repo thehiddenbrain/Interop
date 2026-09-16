@@ -14,7 +14,7 @@
   "uscore": {
    "name": "US Core",
    "canonical": "http://hl7.org/fhir/us/core",
-   "version": "master"
+   "version": "6.1.0"
   },
   "usdf": {
    "name": "Da Vinci US Drug Formulary",
@@ -140,7 +140,8 @@
      "type": "token",
      "expectation": "MAY",
      "igs": [
-      "pdex"
+      "pdex",
+      "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-patient-gender",
      "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
@@ -176,7 +177,8 @@
      ],
      "expectation": "SHALL",
      "igs": [
-      "pdex"
+      "pdex",
+      "uscore"
      ]
     },
     {
@@ -208,7 +210,8 @@
      ],
      "expectation": "SHOULD",
      "igs": [
-      "pdex"
+      "pdex",
+      "uscore"
      ]
     }
    ],
@@ -758,8 +761,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-relatedperson-patient|10.0.0-ballot",
-     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-relatedperson-patient",
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "_lastUpdated",
@@ -778,7 +781,7 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-relatedperson-name|10.0.0-ballot",
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-relatedperson-name",
      "description": ""
     }
    ],
@@ -1224,16 +1227,6 @@
      "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
-     "name": "_lastUpdated",
-     "type": "date",
-     "expectation": "MAY",
-     "igs": [
-      "uscore"
-     ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-lastupdated|10.0.0-ballot",
-     "description": "A server SHALL document the types of changes that can be detected using this parameter.\n\n\nA client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
-    },
-    {
      "name": "abatement-date",
      "type": "date",
      "expectation": "MAY",
@@ -1331,16 +1324,6 @@
      "expectation": "SHALL",
      "igs": [
       "pdex",
-      "uscore"
-     ]
-    },
-    {
-     "params": [
-      "_lastUpdated",
-      "patient"
-     ],
-     "expectation": "SHOULD",
-     "igs": [
       "uscore"
      ]
     },
@@ -1444,11 +1427,6 @@
   "Device": {
    "profiles": [
     {
-     "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-device",
-     "name": "us-core-device",
-     "ig": "uscore"
-    },
-    {
      "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-implantable-device",
      "name": "us-core-implantable-device",
      "ig": "uscore"
@@ -1473,8 +1451,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-device-patient|10.0.0-ballot",
-     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-device-patient",
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -1483,8 +1461,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-device-status|10.0.0-ballot",
-     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-device-status",
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "type",
@@ -1493,8 +1471,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-device-type|10.0.0-ballot",
-     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-device-type",
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -1560,16 +1538,6 @@
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-diagnosticreport-patient",
      "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
-    },
-    {
-     "name": "_lastUpdated",
-     "type": "date",
-     "expectation": "MAY",
-     "igs": [
-      "uscore"
-     ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-diagnosticreport-lastupdated|10.0.0-ballot",
-     "description": "A server SHALL document the types of changes that can be detected using this parameter.\n\n\nA client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "category",
@@ -1650,17 +1618,6 @@
     },
     {
      "params": [
-      "_lastUpdated",
-      "category",
-      "patient"
-     ],
-     "expectation": "SHOULD",
-     "igs": [
-      "uscore"
-     ]
-    },
-    {
-     "params": [
       "code",
       "date",
       "patient"
@@ -1704,11 +1661,6 @@
      "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-documentreference",
      "name": "us-core-documentreference",
      "ig": "pdex"
-    },
-    {
-     "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-adi-documentreference",
-     "name": "us-core-adi-documentreference",
-     "ig": "uscore"
     }
    ],
    "interactions": [
@@ -1926,16 +1878,6 @@
      "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
-     "name": "_lastUpdated",
-     "type": "date",
-     "expectation": "MAY",
-     "igs": [
-      "uscore"
-     ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-lastupdated|10.0.0-ballot",
-     "description": "A server SHALL document the types of changes that can be detected using this parameter.\n\n\nA client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
-    },
-    {
      "name": "class",
      "type": "token",
      "expectation": "MAY",
@@ -2011,16 +1953,6 @@
      "expectation": "SHALL",
      "igs": [
       "pdex",
-      "uscore"
-     ]
-    },
-    {
-     "params": [
-      "_lastUpdated",
-      "patient"
-     ],
-     "expectation": "SHOULD",
-     "igs": [
       "uscore"
      ]
     },
@@ -2564,11 +2496,6 @@
      "ig": "pdex"
     },
     {
-     "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-adi-documentation",
-     "name": "us-core-observation-adi-documentation",
-     "ig": "uscore"
-    },
-    {
      "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-pregnancystatus",
      "name": "us-core-observation-pregnancystatus",
      "ig": "uscore"
@@ -2591,16 +2518,6 @@
     {
      "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-simple-observation",
      "name": "us-core-simple-observation",
-     "ig": "uscore"
-    },
-    {
-     "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-treatment-intervention-preference",
-     "name": "us-core-treatment-intervention-preference",
-     "ig": "uscore"
-    },
-    {
-     "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-care-experience-preference",
-     "name": "us-core-care-experience-preference",
      "ig": "uscore"
     },
     {
@@ -2636,11 +2553,6 @@
     {
      "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-screening-assessment",
      "name": "us-core-observation-screening-assessment",
-     "ig": "uscore"
-    },
-    {
-     "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-average-blood-pressure",
-     "name": "us-core-average-blood-pressure",
      "ig": "uscore"
     },
     {
@@ -2686,16 +2598,6 @@
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-observation-patient",
      "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
-    },
-    {
-     "name": "_lastUpdated",
-     "type": "date",
-     "expectation": "MAY",
-     "igs": [
-      "uscore"
-     ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-observation-lastupdated|10.0.0-ballot",
-     "description": "A server SHALL document the types of changes that can be detected using this parameter.\n\n\nA client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "category",
@@ -2774,17 +2676,6 @@
      "expectation": "SHALL",
      "igs": [
       "pdex",
-      "uscore"
-     ]
-    },
-    {
-     "params": [
-      "_lastUpdated",
-      "category",
-      "patient"
-     ],
-     "expectation": "SHOULD",
-     "igs": [
       "uscore"
      ]
     },
@@ -2983,7 +2874,7 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-id|10.0.0-ballot",
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-id",
      "description": ""
     },
     {
@@ -2993,8 +2884,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-patient|10.0.0-ballot",
-     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-patient",
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "authored",
@@ -3003,8 +2894,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-authored|10.0.0-ballot",
-     "description": "A client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-authored",
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "category",
@@ -3013,8 +2904,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-category|10.0.0-ballot",
-     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-category",
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "code",
@@ -3023,8 +2914,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-code|10.0.0-ballot",
-     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-code",
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -3033,8 +2924,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-status|10.0.0-ballot",
-     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-status",
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -3124,7 +3015,7 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-specimen-id|10.0.0-ballot",
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-specimen-id",
      "description": ""
     },
     {
@@ -3134,7 +3025,7 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-specimen-patient|10.0.0-ballot",
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-specimen-patient",
      "description": ""
     }
    ],
@@ -3170,7 +3061,7 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-id|10.0.0-ballot",
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-id",
      "description": ""
     },
     {
@@ -3180,8 +3071,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-patient|10.0.0-ballot",
-     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-patient",
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "authored",
@@ -3190,8 +3081,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-authored|10.0.0-ballot",
-     "description": "A client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-authored",
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "questionnaire",
@@ -3200,8 +3091,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-questionnaire|10.0.0-ballot",
-     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-questionnaire",
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -3210,8 +3101,8 @@
      "igs": [
       "uscore"
      ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-status|10.0.0-ballot",
-     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
+     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-status",
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -3260,55 +3151,11 @@
      "ig": "uscore"
     }
    ],
-   "interactions": [
-    "create",
-    "search-type",
-    "read",
-    "vread",
-    "update",
-    "patch",
-    "delete",
-    "history-instance",
-    "history-type"
-   ],
-   "searchParams": [
-    {
-     "name": "patient",
-     "type": "reference",
-     "expectation": "SHALL",
-     "igs": [
-      "uscore"
-     ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-familymemberhistory-patient|10.0.0-ballot",
-     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
-    },
-    {
-     "name": "code",
-     "type": "token",
-     "expectation": "MAY",
-     "igs": [
-      "uscore"
-     ],
-     "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-familymemberhistory-code|10.0.0-ballot",
-     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
-    }
-   ],
-   "combos": [
-    {
-     "params": [
-      "code",
-      "patient"
-     ],
-     "expectation": "SHOULD",
-     "igs": [
-      "uscore"
-     ]
-    }
-   ],
+   "interactions": [],
+   "searchParams": [],
+   "combos": [],
    "includes": [],
-   "revIncludes": [
-    "Provenance:target"
-   ],
+   "revIncludes": [],
    "operations": []
   },
   "Consent": {
@@ -3788,6 +3635,25 @@
    "operations": []
   },
   "HealthcareService": {
+   "profiles": [],
+   "interactions": [
+    "create",
+    "search-type",
+    "read",
+    "vread",
+    "update",
+    "patch",
+    "delete",
+    "history-instance",
+    "history-type"
+   ],
+   "searchParams": [],
+   "combos": [],
+   "includes": [],
+   "revIncludes": [],
+   "operations": []
+  },
+  "Media": {
    "profiles": [],
    "interactions": [
     "create",

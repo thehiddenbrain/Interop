@@ -62,8 +62,7 @@ public class AuthController {
     @PostMapping("/token")
     public TokenStatus obtain(@PathVariable String id) {
         Environment env = environments.require(id);
-        AccessToken previous = tokens.stored(id).orElse(null);
-        tokens.obtain(env, previous, null);
+        tokens.obtain(env, null);
         return tokens.status(env);
     }
 
@@ -97,7 +96,7 @@ public class AuthController {
     @PostMapping("/smart/start")
     public SmartStart smartStart(@PathVariable String id, @RequestParam(required = false) String loginHint, HttpServletRequest request) {
         Environment env = environments.require(id);
-        String base = ServletUriComponentsBuilder.fromRequestUri(request).replacePath(null).build().toUriString();
+        String base = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
         return new SmartStart(smartFlow.start(env, base, loginHint), smartFlow.redirectUri(env, base));
     }
 
@@ -105,7 +104,7 @@ public class AuthController {
     @GetMapping("/smart/redirect-uri")
     public Map<String, String> redirectUri(@PathVariable String id, HttpServletRequest request) {
         Environment env = environments.require(id);
-        String base = ServletUriComponentsBuilder.fromRequestUri(request).replacePath(null).build().toUriString();
+        String base = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
         return Map.of("redirectUri", smartFlow.redirectUri(env, base));
     }
 

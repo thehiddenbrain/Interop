@@ -107,8 +107,11 @@ public class SecretCrypto {
         if (secret == null || !secret.isSet()) {
             return SecretView.unset();
         }
-        String plain = reveal(secret);
-        return new SecretView(true, hint(plain));
+        try {
+            return new SecretView(true, hint(reveal(secret)));
+        } catch (WorkbenchException e) {
+            return new SecretView(true, "(cannot be decrypted: was the master key changed? re-enter it)");
+        }
     }
 
     static String hint(String plain) {

@@ -119,7 +119,7 @@ public class PriorAuthChecks {
 
     @Bean
     Check priorAuthSearchByUse() {
-        return SimpleCheck.of("priorauth.search.use", "priorauth", "EOB search by use=preauthorization", Severity.SHALL,
+        return SimpleCheck.of("priorauth.search.use", "priorauth", "EOB search by use=preauthorization", Severity.SHOULD,
                 "GET ExplanationOfBenefit?patient={id}&use=preauthorization returns HTTP 200 with a searchset whose entries all have "
                         + "use=preauthorization (PDex defines the 'use' search parameter so apps can separate prior authorizations from claims); "
                         + "400/404 fails, a server that ignores the parameter and returns claims is a warning",
@@ -262,9 +262,9 @@ public class PriorAuthChecks {
     @Bean
     Check priorAuthQuantities() {
         return SimpleCheck.of("priorauth.quantities", "priorauth", "Approved PA carries quantities", Severity.SHOULD,
-                "Approved prior authorizations carry allowedunits and consumedunits adjudications on their items, or the "
-                        + "PriorAuthorizationUtilization extension on a total, so the member sees the quantity approved and used to date; "
-                        + "skipped when no prior authorization is approved",
+                "Approved prior authorizations carry an allowedunits adjudication on their items (consumedunits or the "
+                        + "PriorAuthorizationUtilization extension on a total once units were used), so the member sees the quantity "
+                        + "approved and used to date; skipped when no prior authorization is approved",
                 RULE + " ('quantity used to date'); PDex 2.1.0 PDexAdjudicationDiscriminator allowedunits/consumedunits, PriorAuthorizationUtilization",
                 true, (b, ctx) -> {
             Optional<CheckResult> none = noPriorAuth(b, ctx);
@@ -277,14 +277,16 @@ public class PriorAuthChecks {
             }
             List<String> problems = new ArrayList<>();
             for (PriorAuthSummary s : approved) {
-                boolean units = s.items().stream().anyMatch(i -> i.allowedUnits() != null && i.consumedUnits() != null);
+                boolean units = s.items().stream().anyMatch(i -> i.allowedUnits() != null);
                 boolean utilization = s.totals().stream().anyMatch(t -> t.utilization() != null);
                 String have = (s.items().stream().anyMatch(i -> i.allowedUnits() != null) ? "allowedunits " : "")
                         + (s.items().stream().anyMatch(i -> i.consumedUnits() != null) ? "consumedunits " : "")
                         + (utilization ? "utilization" : "");
                 b.detail(EOB + "/" + s.id() + ": " + (have.isBlank() ? "no quantities" : have.trim()));
                 if (!units && !utilization) {
-                    problems.add(EOB + "/" + s.id() + ": neither allowedunits+consumedunits nor PriorAuthorizationUtilization");
+                    problems.add(EOB + "/" + s.id() + ": neither an allowedunits adjudication nor PriorAuthorizationUtilization");
+                } else if (s.items().stream().noneMatch(i -> i.consumedUnits() != null) && !utilization) {
+                    b.detail(EOB + "/" + s.id() + ": no consumedunits / utilization yet (quantity used to date not expressed)");
                 }
             }
             if (!problems.isEmpty()) {
@@ -365,7 +367,8 @@ public class PriorAuthChecks {
                 return none.get();
             }
             String id = Fhir.idOf(priorAuths(ctx).get(0));
-            SearchPage page = CheckSupport.search(ctx, b, EOB, CheckContext.params("_id", id));
+            // use=preauthorization routes the search to the PDex base on vendors that serve each IG separately
+            SearchPage page = CheckSupport.search(ctx, b, EOB, CheckContext.params("_id", id, "use", "preauthorization"));
             String problem = CheckSupport.bundleProblem(page, EOB);
             if (problem != null) {
                 return b.fail(problem);
@@ -387,7 +390,8 @@ public class PriorAuthChecks {
                 return none.get();
             }
             String id = Fhir.idOf(priorAuths(ctx).get(0));
-            HttpResult r = ctx.get(ctx.readUrl(EOB, id));
+            HttpResult r = ctx.get(com.thehiddenbrain.interop.patientaccess.fhir.UrlBuilder.readUrl(ctx.environment(), EOB, id,
+                    com.thehiddenbrain.interop.patientaccess.fhir.IgRouting.PDEX));
             CheckSupport.record(b, r);
             if (r.ok() && r.isResource(EOB) && id.equals(Fhir.idOf(r.json()))) {
                 return b.pass(EOB + "/" + id + " read");

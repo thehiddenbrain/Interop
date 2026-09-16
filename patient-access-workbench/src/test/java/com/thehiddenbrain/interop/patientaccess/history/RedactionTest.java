@@ -67,7 +67,10 @@ class RedactionTest {
                 .isEqualTo("grant_type=authorization_code&code=***&client_secret=***&code_verifier=***&client_id=app&redirect_uri=http%3A%2F%2Flocalhost%2Fcb");
         assertThat(Redaction.body("client_assertion=eyJ&client_assertion_type=urn", "application/x-www-form-urlencoded"))
                 .isEqualTo("client_assertion=***&client_assertion_type=urn");
-        assertThat(Redaction.body("access_token=leaked", "text/plain")).isEqualTo("access_token=leaked");
+        // token-shaped bodies are masked whatever the declared content type (servers mislabel token responses)
+        assertThat(Redaction.body("access_token=leaked", "text/plain")).isEqualTo("access_token=***");
+        assertThat(Redaction.body("{\"access_token\":\"leaked\",\"x\":1}", "text/plain")).doesNotContain("leaked");
+        assertThat(Redaction.body("plain words without secrets", "text/plain")).isEqualTo("plain words without secrets");
         assertThat(Redaction.body("", "application/json")).isEmpty();
         assertThat(Redaction.body(null, null)).isNull();
     }
