@@ -1,0 +1,36 @@
+name: patient-access-workbench
+
+on:
+  push:
+    paths:
+      - 'patient-access-workbench/**'
+      - '.github/workflows/patient-access-workbench.yml'
+  pull_request:
+    paths:
+      - 'patient-access-workbench/**'
+      - '.github/workflows/patient-access-workbench.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: patient-access-workbench
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: patient-access-workbench/pom.xml
+      - name: Build and test
+        run: ./mvnw -B verify
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: patient-access-workbench
+          path: patient-access-workbench/target/patient-access-workbench-*.jar
+          if-no-files-found: error
+      - name: Docker build
+        run: docker build -t patient-access-workbench:ci .
