@@ -59,9 +59,11 @@ wrapper, which downloads Gradle and the dependencies (internet needed once, a fe
 window closes or shows an error, run it from a command prompt so the message stays visible, or use the
 wrapper directly:
 
-`run.bat` finds a JDK 17 or newer by itself (it checks `PAW_JAVA_HOME`, `JAVA_HOME`, the `PATH` and the
-usual install folders, and skips a Java 8 that happens to come first) and uses it for both Gradle and the
-app. Gradle 9.5 refuses to start on an older Java, so when you call `gradlew.bat` yourself and see
+`run.bat` finds a JDK 17 or newer by itself (it checks `PAW_JAVA_HOME`, `JAVA_HOME`, the `PATH`, the
+registry, the usual install and dev folders, the JRE bundled inside an STS/Eclipse install and finally
+the whole C: drive, and skips a Java 8 that happens to come first) and uses it for both Gradle and the
+app. It prints which Java it picked. When the PC has no JDK 17+ at all, only STS's own bundled runtime
+(see below), the simplest route is to run the workbench from STS like the EPA Workbench. Gradle 9.5 refuses to start on an older Java, so when you call `gradlew.bat` yourself and see
 *"Gradle requires JVM 17 or later to run. Your build is currently configured to use JVM 8"*, set
 `JAVA_HOME` to a JDK 17+ for that command prompt (`set "JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.9-hotspot"`),
 or put `org.gradle.java.home=C:/path/to/jdk-17` into `%USERPROFILE%\.gradle\gradle.properties` once for
@@ -77,7 +79,8 @@ java -jar build\libs\patient-access-workbench-1.0.0.jar
 **Spring Tool Suite 4 / Eclipse**:
 
 1. *File > Import > Gradle > Existing Gradle Project*, root directory `patient-access-workbench`, keep
-   the wrapper selected, finish. Buildship downloads Gradle and the dependencies (progress in the
+   the wrapper selected, finish. The same workspace as the EPA Workbench is fine: Buildship then builds
+   this project with the same JDK it already uses for `epa-ui`, whatever the command line has on its PATH. Buildship downloads Gradle and the dependencies (progress in the
    bottom-right corner).
 2. Make sure the project uses a JDK 17 or newer (*Project > Properties > Java Build Path > Libraries*),
    and that *Project > Properties > Java Compiler* is set to 17. Buildship runs Gradle on the JDK from

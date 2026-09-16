@@ -17,30 +17,53 @@ cd /d "%~dp0"
 
 set "JAVA_EXE="
 set "JAVA_MAJOR="
+set "JAVA_IS_JDK="
 set "JAVA_SEEN="
+set "PF86=%ProgramFiles(x86)%"
+rem 1. explicit choices
 if defined PAW_JAVA_HOME call :try "%PAW_JAVA_HOME%\bin\java.exe"
-if not defined JAVA_EXE if defined JAVA_HOME call :try "%JAVA_HOME%\bin\java.exe"
-if not defined JAVA_EXE for /f "delims=" %%p in ('where java 2^>nul') do if not defined JAVA_EXE call :try "%%~p"
-if not defined JAVA_EXE for %%d in (
-    "%ProgramFiles%\Java" "%ProgramFiles%\Eclipse Adoptium" "%ProgramFiles%\Eclipse Foundation"
-    "%ProgramFiles%\Microsoft" "%ProgramFiles%\Amazon Corretto" "%ProgramFiles%\Zulu" "%ProgramFiles%\BellSoft"
-    "%ProgramFiles%\RedHat" "%ProgramFiles%\Semeru"
-    "%LOCALAPPDATA%\Programs\Eclipse Adoptium" "%USERPROFILE%\.jdks" "%USERPROFILE%\scoop\apps"
-    "C:\devTools" "C:\devTools\java" "C:\Java" "C:\tools"
+if not defined JAVA_IS_JDK if defined JAVA_HOME call :try "%JAVA_HOME%\bin\java.exe"
+rem 2. every java on the PATH
+if not defined JAVA_IS_JDK for /f "delims=" %%p in ('where java 2^>nul') do if not defined JAVA_IS_JDK call :try "%%~p"
+rem 3. JDKs registered by their installer (Oracle, Adoptium, Microsoft, Corretto, Zulu, ...)
+if not defined JAVA_IS_JDK for %%k in ("HKLM\SOFTWARE\JavaSoft\JDK" "HKLM\SOFTWARE\JavaSoft\Java Development Kit" "HKLM\SOFTWARE\JavaSoft\JRE" "HKCU\SOFTWARE\JavaSoft\JDK") do (
+  if not defined JAVA_IS_JDK for /f "tokens=2,*" %%a in ('reg query %%k /s /v JavaHome 2^>nul ^| findstr /i "JavaHome"') do if not defined JAVA_IS_JDK call :try "%%~b\bin\java.exe"
+)
+if not defined JAVA_IS_JDK for %%k in ("HKLM\SOFTWARE\Eclipse Adoptium" "HKLM\SOFTWARE\Eclipse Foundation" "HKLM\SOFTWARE\Azul Systems" "HKLM\SOFTWARE\Microsoft\JDK" "HKLM\SOFTWARE\Amazon") do (
+  if not defined JAVA_IS_JDK for /f "tokens=2,*" %%a in ('reg query %%k /s /v Path 2^>nul ^| findstr /i "REG_SZ"') do if not defined JAVA_IS_JDK call :try "%%~b\bin\java.exe"
+)
+rem 4. deep scan of the usual install and dev folders, including the JRE that ships inside STS / Eclipse
+if not defined JAVA_IS_JDK for %%d in (
+    "C:\devTools" "C:\dev" "C:\tools" "C:\Java" "C:\jdk" "C:\opt" "C:\sts" "C:\eclipse" "D:\devTools" "D:\dev"
+    "%ProgramFiles%" "!PF86!" "%LOCALAPPDATA%\Programs" "%USERPROFILE%\.jdks" "%USERPROFILE%\scoop\apps"
+    "%USERPROFILE%\Downloads" "%USERPROFILE%\Desktop" "%USERPROFILE%\Documents"
   ) do (
-  if not defined JAVA_EXE if exist "%%~d\" for /d %%j in ("%%~d\*") do (
-    if not defined JAVA_EXE if exist "%%~j\bin\java.exe" call :try "%%~j\bin\java.exe"
-    if not defined JAVA_EXE if exist "%%~j\current\bin\java.exe" call :try "%%~j\current\bin\java.exe"
-  )
+  if not defined JAVA_IS_JDK if exist "%%~d\" for /f "delims=" %%j in ('dir /s /b "%%~d\java.exe" 2^>nul') do if not defined JAVA_IS_JDK call :try "%%~j"
+)
+rem 5. STS / Eclipse installs anywhere on C: (their plugins folder carries a full JRE 17 or 21)
+if not defined JAVA_IS_JDK for /d %%s in ("C:\*sts*" "C:\*eclipse*" "C:\*spring*" "%USERPROFILE%\*sts*" "%USERPROFILE%\*eclipse*") do (
+  if not defined JAVA_IS_JDK for /f "delims=" %%j in ('dir /s /b "%%~s\java.exe" 2^>nul') do if not defined JAVA_IS_JDK call :try "%%~j"
+)
+rem 6. last resort: the whole C: drive (one time, can take a minute)
+if not defined JAVA_EXE (
+  echo  No Java 17+ in the usual places, scanning the whole C: drive for one ^(can take a minute^)...
+  for /f "delims=" %%j in ('dir /s /b "C:\java.exe" 2^>nul') do if not defined JAVA_IS_JDK call :try "%%~j"
 )
 if not defined JAVA_EXE (
   echo.
-  echo  No Java 17 or newer was found. Javas that were checked and skipped:!JAVA_SEEN!
+  echo  No Java 17 or newer was found on this PC. Javas that were checked and skipped:
+  echo   !JAVA_SEEN!
   echo.
-  echo  Install a JDK 17 or newer from https://adoptium.net, or point PAW_JAVA_HOME at one:
-  echo     set PAW_JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.9-hotspot
+  echo  The workbench needs a JDK 17 or newer, the same as the EPA Workbench. Either install one from
+  echo  https://adoptium.net, or point PAW_JAVA_HOME at the JDK the EPA Workbench uses, e.g.
+  echo     set "PAW_JAVA_HOME=C:\devTools\jdk-17.0.9"
   echo     run.bat
+  echo  Inside STS the path is under Window ^> Preferences ^> Java ^> Installed JREs.
   goto :fail
+)
+if not defined JAVA_IS_JDK (
+  echo  Note: "!JAVA_EXE!" is a runtime without javac. Running the prebuilt jar works; if the build
+  echo  fails with "no compiler", install a JDK 17+ or set PAW_JAVA_HOME to one.
 )
 echo Using Java !JAVA_MAJOR! at "!JAVA_EXE!"
 rem gradlew.bat and the app must use the same JDK, whatever JAVA_HOME says.
@@ -89,10 +112,11 @@ if errorlevel 1 goto :fail
 endlocal
 exit /b 0
 
-rem ---- :try <path to java.exe>  sets JAVA_EXE / JAVA_MAJOR when that Java is 17 or newer
+rem ---- :try <path to java.exe>  remembers the first Java 17+ found, and prefers one that has javac (a JDK)
 :try
 set "CANDIDATE=%~1"
 if not exist "!CANDIDATE!" exit /b 0
+if /i "!CANDIDATE!"=="!JAVA_EXE!" exit /b 0
 set "VERSION_FILE=%TEMP%\paw-java-version-%RANDOM%.txt"
 "!CANDIDATE!" -version > "!VERSION_FILE!" 2>&1
 set "VERSION="
@@ -105,7 +129,13 @@ for /f "tokens=1,2 delims=.-_+" %%a in ("!VERSION!") do (
 )
 if not defined MAJOR exit /b 0
 set "JAVA_SEEN=!JAVA_SEEN! [!VERSION! at !CANDIDATE!]"
-if !MAJOR! GEQ 17 (
+if !MAJOR! LSS 17 exit /b 0
+for %%j in ("!CANDIDATE!") do set "CANDIDATE_JAVAC=%%~dpjjavac.exe"
+if exist "!CANDIDATE_JAVAC!" (
+  set "JAVA_EXE=!CANDIDATE!"
+  set "JAVA_MAJOR=!VERSION!"
+  set "JAVA_IS_JDK=1"
+) else if not defined JAVA_EXE (
   set "JAVA_EXE=!CANDIDATE!"
   set "JAVA_MAJOR=!VERSION!"
 )
