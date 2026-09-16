@@ -45,8 +45,8 @@ class SecretCryptoTest {
     void tamperedCiphertextAndWrongKeyAreDetected() {
         Secret s = crypto.seal("integrity");
         String enc = s.enc();
-        // flip one character of the GCM tag (the last base64 block) so the ciphertext no longer authenticates
-        int i = enc.length() - 3;
+        // flip one character inside the GCM tag (away from the final base64 quantum, whose padding bits a decoder ignores)
+        int i = enc.length() - 8;
         String flipped = enc.substring(0, i) + (enc.charAt(i) == 'A' ? 'B' : 'A') + enc.substring(i + 1);
         assertThatThrownBy(() -> crypto.reveal(new Secret(flipped)))
                 .isInstanceOf(WorkbenchException.class)

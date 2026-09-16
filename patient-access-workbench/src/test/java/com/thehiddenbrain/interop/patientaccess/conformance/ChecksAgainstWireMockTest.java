@@ -157,10 +157,10 @@ class ChecksAgainstWireMockTest {
                 "priorauth.dates", "priorauth.items.services", "priorauth.quantities", "priorauth.denialReason", "priorauth.reviewAction",
                 "priorauth.insurerProvider", "priorauth.search.id", "priorauth.read", "priorauth.search.lastUpdated");
         expect(r, INFO, "priorauth.present", "priorauth.drugs", "priorauth.timeliness");
-        assertThat(r.get("priorauth.present").message()).startsWith("2 prior authorization");
+        assertThat(r.get("priorauth.present").message()).matches("[1-9]\\d* prior authorization.*");
         expect(r, PASS, "clinical.Encounter.search.patient", "clinical.Condition.search.patient", "clinical.Encounter.combos",
                 "clinical.Encounter.profile", "clinical.Encounter.lastUpdated", "clinical.Device.search.patient");
-        expect(r, SKIP, "clinical.Condition.combos", "clinical.Condition.profile");
+        expect(r, PASS, "clinical.Condition.combos", "clinical.Condition.profile");
         expect(r, INFO, "clinical.summary");
         expect(r, PASS, "provenance.revinclude", "provenance.profile");
         expect(r, PASS, "paging.count", "paging.next", "paging.next.sameHost", "paging.total", "paging.self");

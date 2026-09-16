@@ -221,20 +221,24 @@ public class PriorAuthChecks {
     @Bean
     Check priorAuthDates() {
         return SimpleCheck.of("priorauth.dates", "priorauth", "PA decision date and validity period", Severity.SHALL,
-                "Each prior authorization carries a decision date (item preAuthIssueDate or adjudication when-adjudicated extension) and a "
-                        + "validity period (preAuthRefPeriod or item preAuthPeriod extension)",
+                "Each decided prior authorization carries a decision date (item preAuthIssueDate or adjudication when-adjudicated "
+                        + "extension); approved or partially approved ones also carry a validity period (preAuthRefPeriod or item "
+                        + "preAuthPeriod extension). Pended requests have no decision date yet; denied ones have no period to end",
                 RULE + " ('date of approval or denial', 'date or circumstance under which the authorization ends'); PDex 2.1.0 preAuthRefPeriod, "
                         + "PAS extension-itemPreAuthPeriod / extension-itemPreAuthIssueDate, PDex base-ext-when-adjudicated", true, (b, ctx) ->
                 perPriorAuth(b, ctx, s -> {
                     List<String> missing = new ArrayList<>();
-                    if (s.decisionDate() == null) {
+                    String decision = s.decision() == null ? "" : s.decision();
+                    boolean pending = decision.startsWith("PENDING");
+                    boolean authorized = decision.startsWith("APPROVED") || decision.startsWith("PARTIAL");
+                    if (s.decisionDate() == null && !pending) {
                         missing.add("no decision date");
                     }
-                    if (s.validFrom() == null && s.validTo() == null) {
-                        missing.add("no validity period");
+                    if (authorized && s.validFrom() == null && s.validTo() == null) {
+                        missing.add("no validity period although the authorization was granted");
                     }
                     return missing.isEmpty() ? null : String.join(", ", missing);
-                }, "decision date and validity period present"));
+                }, "decision dates present; validity periods present on granted authorizations"));
     }
 
     @Bean

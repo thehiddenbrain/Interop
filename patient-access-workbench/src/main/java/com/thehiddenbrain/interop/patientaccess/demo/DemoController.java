@@ -97,7 +97,7 @@ public class DemoController {
                 demo.clientSecret(), ClientAuthMethod.CLIENT_SECRET_BASIC, DemoAuthService.DEFAULT_SYSTEM_SCOPE, null, null, null, null, null,
                 true, Map.of(), Map.of());
         EnvironmentInput input = new EnvironmentInput(ENVIRONMENT_NAME, VENDOR, EnvironmentTier.SANDBOX, fhirBase, auth, List.of(),
-                identifierSystems(), FhirOptions.defaults(), null, notes(fhirBase), true, null);
+                identifierSystems(), FhirOptions.defaults(), null, null, notes(fhirBase), true, null);
         return ResponseEntity.status(HttpStatus.CREATED).body(environments.create(input));
     }
 

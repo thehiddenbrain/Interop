@@ -23,9 +23,9 @@ h3 { font-size: 14px; margin: 12px 0 6px; }
 main { padding: 12px 16px; }
 .tab { display: none; }
 .tab.active { display: block; }
-.split { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(420px, 1fr); gap: 16px; align-items: start; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
-.pane, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.pane, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; min-width: 0; overflow-x: auto; }
 .pane { margin-bottom: 0; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
 .toolbar .spacer, .spacer { flex: 1; }

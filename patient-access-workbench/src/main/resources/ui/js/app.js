@@ -24,7 +24,7 @@
       for (const [k, v] of Object.entries(attrs)) {
         if (v == null || v === false) continue;
         if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
-        else if (k === 'class') el.className = v;
+        else if (k === 'class') String(v).split(/\s+/).filter(Boolean).forEach(c => el.classList.add(c));
         else if (k === 'html') el.innerHTML = v;
         else if (k === 'text') el.textContent = v;
         else if (k === 'hidden') el.hidden = !!v;
