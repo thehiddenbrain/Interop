@@ -201,12 +201,15 @@ public class ProfileLiteChecker {
 
     /**
      * A candidate belongs to a slice when every fixed discriminator of the slice (own or child rules) matches.
-     * A slice the catalog holds no fixed discriminator for (e.g. C4BB's adjudicationamounttype, discriminated
-     * by a value-set binding) accepts every candidate: a lite check cannot tell them apart.
+     * A slice without any fixed discriminator (discriminated by a value-set binding or by type, e.g. C4BB
+     * adjudicationamounttype or timing[x]:timingPeriod) takes every candidate that no sibling slice with a
+     * fixed discriminator claims: a lite check cannot tell such slices apart any further.
      */
     boolean sliceMatches(JsonNode candidate, String sliceId, String elementName, Map<String, IgCatalog.ProfileRule> byId) {
         IgCatalog.ProfileRule own = byId.get(sliceId);
+        boolean anyDiscriminator = false;
         if (own != null && own.fixed() != null) {
+            anyDiscriminator = true;
             if (!matchesFixed(candidate, own.fixed())) {
                 return false;
             }
@@ -233,12 +236,36 @@ public class ProfileLiteChecker {
             if (rel.contains(":")) {
                 continue;
             }
+            anyDiscriminator = true;
             JsonNode value = walk(candidate, rel);
             if (value == null || !matchesFixed(value, e.getValue().fixed())) {
                 return false;
             }
         }
+        if (!anyDiscriminator) {
+            String base = sliceId.substring(0, sliceId.lastIndexOf(':'));
+            for (String sibling : byId.keySet()) {
+                if (sibling.startsWith(base + ":") && !sibling.equals(sliceId) && sibling.indexOf('.', base.length()) < 0
+                        && hasFixedDiscriminator(sibling, byId) && sliceMatches(candidate, sibling, elementName, byId)) {
+                    return false;
+                }
+            }
+        }
         return true;
+    }
+
+    private static boolean hasFixedDiscriminator(String sliceId, Map<String, IgCatalog.ProfileRule> byId) {
+        IgCatalog.ProfileRule own = byId.get(sliceId);
+        if (own != null && own.fixed() != null) {
+            return true;
+        }
+        for (Map.Entry<String, IgCatalog.ProfileRule> e : byId.entrySet()) {
+            String cid = e.getKey();
+            if (cid.startsWith(sliceId + ".") && e.getValue().fixed() != null && !cid.substring(sliceId.length() + 1).contains(":")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static JsonNode walk(JsonNode node, String relativePath) {
