@@ -164,8 +164,26 @@
       cell.append(h('div.muted', {}, r.checks.issues[0].message));
     }
     if (r.profiles && r.profiles.length) cell.append(h('div', {}, 'meta.profile: ', r.profiles.map(p => h('code', {}, p + ' '))));
+    const fullBox = h('div');
+    cell.append(h('div.toolbar', {}, h('button.small', { onclick: () => fullValidate(r, fullBox) }, 'Full HL7 validation'),
+      h('span.muted', {}, 'HAPI validator; profiles need the IG packages in the packages folder')), fullBox);
     cell.append(P.jsonBlock(r.resource));
     tr.after(h('tr.detail-row', {}, cell));
+  }
+
+  async function fullValidate(r, box) {
+    box.innerHTML = '';
+    box.append(h('span.busy', {}, 'validating…'));
+    try {
+      const profile = r.checks && r.checks.profile ? r.checks.profile : (r.profiles && r.profiles[0]) || '';
+      const res = await api.post('/validation', { resource: r.resource, profile: profile || null });
+      box.innerHTML = '';
+      box.append(h('div', {}, res.valid ? badge('valid', 'PASS') : badge(`${res.errors} error(s)`, 'FAIL'), ` ${res.warnings} warning(s), ${res.infos} info · profile ${res.profile || '(base)'} · packages: ${(res.packages || []).join(', ') || 'none'}`));
+      if (res.issues.length) box.append(h('ul.issues', {}, res.issues.map(i => h('li', { class: i.severity === 'error' || i.severity === 'fatal' ? 'error' : i.severity }, `${i.severity}: ${i.location || ''} – ${i.message}`))));
+    } catch (e) {
+      box.innerHTML = '';
+      showError(box, e);
+    }
   }
 
   async function rawRequest(ev) {

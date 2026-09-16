@@ -60,6 +60,12 @@
       <artifactId>hapi-fhir-validation-resources-r4</artifactId>
       <version>${hapi.version}</version>
     </dependency>
+    <dependency>
+      <!-- cache implementation the validation support chain needs -->
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-caching-caffeine</artifactId>
+      <version>${hapi.version}</version>
+    </dependency>
 
     <!-- JWT client assertions for SMART Backend Services and id_token inspection -->
     <dependency>
