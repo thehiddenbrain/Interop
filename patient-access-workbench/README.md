@@ -59,6 +59,15 @@ wrapper, which downloads Gradle and the dependencies (internet needed once, a fe
 window closes or shows an error, run it from a command prompt so the message stays visible, or use the
 wrapper directly:
 
+`run.bat` finds a JDK 17 or newer by itself (it checks `PAW_JAVA_HOME`, `JAVA_HOME`, the `PATH` and the
+usual install folders, and skips a Java 8 that happens to come first) and uses it for both Gradle and the
+app. Gradle 9.5 refuses to start on an older Java, so when you call `gradlew.bat` yourself and see
+*"Gradle requires JVM 17 or later to run. Your build is currently configured to use JVM 8"*, set
+`JAVA_HOME` to a JDK 17+ for that command prompt (`set "JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.9-hotspot"`),
+or put `org.gradle.java.home=C:/path/to/jdk-17` into `%USERPROFILE%\.gradle\gradle.properties` once for
+every Gradle build on the machine (see `gradle.properties` in the project). A daemon that was started
+with the wrong Java is dropped with `gradlew.bat --stop`.
+
 ```
 gradlew.bat bootRun                 # build and run from the sources (Windows)
 gradlew.bat bootJar                 # just build build\libs\patient-access-workbench-1.0.0.jar
@@ -71,7 +80,9 @@ java -jar build\libs\patient-access-workbench-1.0.0.jar
    the wrapper selected, finish. Buildship downloads Gradle and the dependencies (progress in the
    bottom-right corner).
 2. Make sure the project uses a JDK 17 or newer (*Project > Properties > Java Build Path > Libraries*),
-   and that *Project > Properties > Java Compiler* is set to 17.
+   and that *Project > Properties > Java Compiler* is set to 17. Buildship runs Gradle on the JDK from
+   *Window > Preferences > Gradle > Java home* (or `JAVA_HOME` when that is empty): point it at the same
+   JDK 17+ the EPA Workbench uses if the import fails with *Gradle requires JVM 17 or later*.
 3. In the *Boot Dashboard* select `patient-access-workbench` and press *(Re)start*, or right-click
    `PatientAccessWorkbenchApplication.java` > *Run As > Spring Boot App*. The `dev` profile is the
    default: data goes to `./data` inside the project, the demo server and the UI are on.
