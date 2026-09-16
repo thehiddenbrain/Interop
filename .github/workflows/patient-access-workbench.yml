@@ -22,15 +22,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: maven
-          cache-dependency-path: patient-access-workbench/pom.xml
+      - uses: gradle/actions/setup-gradle@v4
       - name: Build and test
-        run: ./mvnw -B verify
+        run: ./gradlew build --no-daemon
       - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
           name: patient-access-workbench
-          path: patient-access-workbench/target/patient-access-workbench-*.jar
+          path: patient-access-workbench/build/libs/patient-access-workbench-*.jar
           if-no-files-found: error
       - name: Docker build
         run: docker build -t patient-access-workbench:ci .

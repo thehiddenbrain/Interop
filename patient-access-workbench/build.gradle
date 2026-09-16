@@ -1,0 +1,71 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.16'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.thehiddenbrain.interop'
+version = '0.1.0-SNAPSHOT'
+description = 'Test workbench for a payer\'s CMS-9115-F / CMS-0057-F Patient Access API (FHIR R4: CARIN Blue Button, Da Vinci PDex incl. prior authorization, US Core, SMART App Launch) against vendor environments'
+
+java {
+    // compiled for Java 17 with whichever JDK 17+ runs the build (no toolchain download needed)
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+ext {
+    hapiVersion = '8.12.1'
+    nimbusVersion = '10.9.1'
+    springdocVersion = '2.8.9'
+    wiremockVersion = '3.13.1'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // FHIR R4 model, parsers and FHIRPath; the validation module also provides the optional full profile validator
+    implementation "ca.uhn.hapi.fhir:hapi-fhir-base:${hapiVersion}"
+    implementation "ca.uhn.hapi.fhir:hapi-fhir-structures-r4:${hapiVersion}"
+    implementation "ca.uhn.hapi.fhir:hapi-fhir-validation:${hapiVersion}"
+    implementation "ca.uhn.hapi.fhir:hapi-fhir-validation-resources-r4:${hapiVersion}"
+    // cache implementation the validation support chain needs
+    implementation "ca.uhn.hapi.fhir:hapi-fhir-caching-caffeine:${hapiVersion}"
+
+    // JWT client assertions for SMART Backend Services and id_token inspection
+    implementation "com.nimbusds:nimbus-jose-jwt:${nimbusVersion}"
+
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation "org.wiremock:wiremock-standalone:${wiremockVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+springBoot {
+    buildInfo()
+}
+
+bootJar {
+    archiveFileName = "patient-access-workbench-${project.version}.jar"
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    maxHeapSize = '1g'
+    testLogging {
+        events 'failed'
+        exceptionFormat 'full'
+    }
+}

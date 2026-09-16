@@ -1,11 +1,11 @@
 # Build stage
 FROM eclipse-temurin:17-jdk AS build
 WORKDIR /src
-COPY .mvn .mvn
-COPY mvnw pom.xml ./
-RUN ./mvnw -q -B dependency:go-offline
+COPY gradlew build.gradle settings.gradle ./
+COPY gradle gradle
+RUN ./gradlew --no-daemon -q dependencies > /dev/null || true
 COPY src src
-RUN ./mvnw -q -B -DskipTests package
+RUN ./gradlew --no-daemon -q bootJar -x test
 
 # Runtime stage
 FROM eclipse-temurin:17-jre
@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
  && mkdir -p /var/lib/patient-access-workbench /opt/workbench/packages \
  && chown -R workbench:workbench /var/lib/patient-access-workbench /opt/workbench
 WORKDIR /opt/workbench
-COPY --from=build /src/target/patient-access-workbench-*.jar app.jar
+COPY --from=build /src/build/libs/patient-access-workbench-*.jar app.jar
 USER workbench
 ENV SPRING_PROFILES_ACTIVE=prod \
     PAW_DATA_DIR=/var/lib/patient-access-workbench \

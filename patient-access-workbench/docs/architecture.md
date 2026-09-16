@@ -1,7 +1,7 @@
 # Patient Access Workbench – architecture
 
-Separate Maven project at `patient-access-workbench/` in the Interop repo (self-contained: own pom,
-Maven wrapper, README, run scripts, Dockerfile). Package root `com.thehiddenbrain.interop.patientaccess`.
+Separate Gradle project at `patient-access-workbench/` in the Interop repo (self-contained: own Gradle build,
+Gradle wrapper, README, run scripts, Dockerfile). Package root `com.thehiddenbrain.interop.patientaccess`.
 Spring Boot 3.5.x, Java 17, HAPI FHIR 8.x (structures R4 + validation for FHIRPath / optional profile
 validation), Jackson for generic JSON handling, java.net.http.HttpClient for outbound FHIR/OAuth calls,
 nimbus-jose-jwt for SMART Backend Services client assertions. Plain HTML/JS/CSS browser UI at /ui/.

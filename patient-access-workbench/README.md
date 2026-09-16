@@ -1,6 +1,6 @@
 # Patient Access API Workbench
 
-Spring Boot application for testing a payer's **CMS-9115-F Patient Access API**, including the prior
+Spring Boot 3.5 / Java 17 / Gradle application for testing a payer's **CMS-9115-F Patient Access API**, including the prior
 authorization content added by **CMS-0057-F**, against vendor FHIR environments such as Onyx SAFHIR
 UAT and Prod. It manages environments and their OAuth/SMART credentials, finds members with the
 search parameters the HL7 implementation guides define, browses claims, prior authorizations, coverage
@@ -47,15 +47,17 @@ cd patient-access-workbench
 ```
 
 or download the branch as a zip from GitHub (`Code` > `Download ZIP` on that branch) and unzip the
-`patient-access-workbench` folder anywhere. Only Java 17+ is needed; the Maven wrapper downloads Maven
-and the dependencies on first use (about 150 MB, needs internet once).
+`patient-access-workbench` folder anywhere. Only Java 17+ is needed; the Gradle wrapper downloads Gradle
+8.14 and the dependencies on first use (about 250 MB, needs internet once). The build is Gradle
+(`build.gradle`, Spring Boot plugin 3.5.16, Java toolchain 17).
 
 **Command line**: `run.cmd` (Windows) or `./run.sh` (Mac/Linux), then open `http://localhost:8090/ui/`.
 
 **Spring Tool Suite 4 / Eclipse**:
 
-1. *File > Import > Maven > Existing Maven Projects*, root directory `patient-access-workbench`, finish.
-   Let m2e download the dependencies (progress in the bottom-right corner).
+1. *File > Import > Gradle > Existing Gradle Project*, root directory `patient-access-workbench`, keep
+   the wrapper selected, finish. Buildship downloads Gradle and the dependencies (progress in the
+   bottom-right corner).
 2. Make sure the project uses a JDK 17 or newer (*Project > Properties > Java Build Path > Libraries*),
    and that *Project > Properties > Java Compiler* is set to 17.
 3. In the *Boot Dashboard* select `patient-access-workbench` and press *(Re)start*, or right-click
@@ -64,9 +66,10 @@ and the dependencies on first use (about 150 MB, needs internet once).
 4. Open `http://localhost:8090/ui/` and press *Add demo environment*. To change the port or the data
    folder, add `--server.port=9090` / `--paw.data-dir=C:\paw-data` as program arguments or set the
    `SERVER_PORT` / `PAW_DATA_DIR` environment variables in the run configuration.
-5. Tests: right-click the project > *Run As > JUnit Test* (or `mvnw test`); they need no network.
+5. Tests: right-click the project > *Run As > JUnit Test* (or `gradlew test`); they need no network
+   after the first build.
 
-IntelliJ IDEA: *File > Open* the `pom.xml` as a project and run the same main class.
+IntelliJ IDEA: *File > Open* the `build.gradle` as a project and run the same main class.
 
 ## Working with environments
 
@@ -191,9 +194,10 @@ Readiness/liveness probes: `/actuator/health/readiness` and `/actuator/health/li
 ## Build and test
 
 ```bash
-./mvnw verify                                             # build + tests
-java -jar target/patient-access-workbench-0.1.0-SNAPSHOT.jar
-SPRING_PROFILES_ACTIVE=prod PAW_MASTER_KEY=... PAW_BASIC_AUTH_PASSWORD=... java -jar target/patient-access-workbench-0.1.0-SNAPSHOT.jar
+./gradlew build                                           # build + tests (gradlew.bat build on Windows)
+./gradlew bootRun                                         # run from sources with the dev profile
+java -jar build/libs/patient-access-workbench-0.1.0-SNAPSHOT.jar
+SPRING_PROFILES_ACTIVE=prod PAW_MASTER_KEY=... PAW_BASIC_AUTH_PASSWORD=... java -jar build/libs/patient-access-workbench-0.1.0-SNAPSHOT.jar
 ```
 
 Regenerate the IG catalog after upgrading a package: download the packages as described in

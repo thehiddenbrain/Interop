@@ -8,14 +8,14 @@ if errorlevel 1 (
   exit /b 1
 )
 set JAR=
-for %%f in (target\patient-access-workbench-*.jar) do (
-  echo %%f | findstr /v ".original" >nul && set JAR=%%f
+for %%f in (build\libs\patient-access-workbench-*.jar) do (
+  echo %%f | findstr /v "\-plain.jar" >nul && set JAR=%%f
 )
 if "%JAR%"=="" (
-  echo No prebuilt jar in target\, building ^(first build downloads dependencies^)...
-  call mvnw.cmd -q -DskipTests package
-  for %%f in (target\patient-access-workbench-*.jar) do (
-    echo %%f | findstr /v ".original" >nul && set JAR=%%f
+  echo No prebuilt jar in build\libs\, building ^(first build downloads Gradle and the dependencies^)...
+  call gradlew.bat -q bootJar
+  for %%f in (build\libs\patient-access-workbench-*.jar) do (
+    echo %%f | findstr /v "\-plain.jar" >nul && set JAR=%%f
   )
 )
 if "%PAW_DATA_DIR%"=="" set PAW_DATA_DIR=.\data

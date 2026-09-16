@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Starts the Patient Access API workbench. Needs Java 17 or newer on the PATH.
-# Uses the prebuilt jar in target/ when present, otherwise builds it with the Maven wrapper.
+# Uses the prebuilt jar in build/libs/ when present, otherwise builds it with the Gradle wrapper.
 set -e
 cd "$(dirname "$0")"
 if ! command -v java >/dev/null 2>&1; then
@@ -12,11 +12,11 @@ if [ -n "$JAVA_MAJOR" ] && [ "$JAVA_MAJOR" -lt 17 ]; then
   echo "Java $JAVA_MAJOR found; Java 17 or newer is required." >&2
   exit 1
 fi
-JAR=$(ls target/patient-access-workbench-*.jar 2>/dev/null | grep -v '\.original$' | head -n 1 || true)
+JAR=$(ls build/libs/patient-access-workbench-*.jar 2>/dev/null | grep -v '\-plain\.jar$' | head -n 1 || true)
 if [ -z "$JAR" ]; then
-  echo "No prebuilt jar in target/, building (first build downloads dependencies)..."
-  ./mvnw -q -DskipTests package
-  JAR=$(ls target/patient-access-workbench-*.jar | grep -v '\.original$' | head -n 1)
+  echo "No prebuilt jar in build/libs/, building (first build downloads Gradle and the dependencies)..."
+  ./gradlew -q bootJar
+  JAR=$(ls build/libs/patient-access-workbench-*.jar | grep -v '\-plain\.jar$' | head -n 1)
 fi
 mkdir -p "${PAW_DATA_DIR:-./data}"
 echo "Starting $JAR (profile: ${SPRING_PROFILES_ACTIVE:-dev}, data: ${PAW_DATA_DIR:-./data}) -> http://localhost:${SERVER_PORT:-8090}/ui/"

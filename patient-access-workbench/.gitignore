@@ -1,4 +1,6 @@
 target/
+build/
+.gradle/
 data/
 packages/
 *.log
@@ -7,3 +9,7 @@ packages/
 .vscode/
 .DS_Store
 ui-tests/screenshots/
+bin/
+.settings/
+.classpath
+.project
