@@ -1,0 +1,90 @@
+spring:
+  application:
+    name: patient-access-workbench
+  profiles:
+    default: dev
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: false
+  mvc:
+    problemdetails:
+      enabled: false
+  servlet:
+    multipart:
+      max-file-size: 5MB
+
+server:
+  port: 8090
+  error:
+    include-message: never
+    include-stacktrace: never
+  forward-headers-strategy: framework   # honour X-Forwarded-* from a reverse proxy (OAuth redirect URI)
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    build:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+paw:
+  # Folder holding environments.json, tokens, request history and conformance runs. Mount a volume in prod.
+  data-dir: ${PAW_DATA_DIR:./data}
+  # 32 random bytes, base64. Encrypts secrets at rest (client secrets, tokens, private keys).
+  # When empty a key is generated once and stored in <data-dir>/master.key (fine for a laptop, not for prod).
+  master-key: ${PAW_MASTER_KEY:}
+  # External URL of this workbench, used to build the SMART redirect URI (<public-base-url>/oauth/callback).
+  # Empty: derived from the incoming request (works behind a proxy that sets X-Forwarded-* headers).
+  public-base-url: ${PAW_PUBLIC_BASE_URL:}
+  ui:
+    # Browser UI at /ui/. Off in the prod profile unless PAW_UI_ENABLED=true.
+    enabled: true
+  demo:
+    # In-process sample Patient Access API at /demo/fhir (HL7 IG example data) for trying the workbench offline.
+    enabled: true
+  security:
+    basic:
+      # Protect the API and UI with HTTP basic auth. Always enable this when the workbench is reachable by others.
+      enabled: ${PAW_BASIC_AUTH_ENABLED:false}
+      username: ${PAW_BASIC_AUTH_USERNAME:workbench}
+      password: ${PAW_BASIC_AUTH_PASSWORD:}
+  http:
+    connect-timeout: 10s
+    read-timeout: 60s
+    user-agent: patient-access-workbench
+    # Retries on 429/503 with Retry-After (0 disables).
+    max-retries: 1
+  history:
+    # Requests kept in memory for the History tab; everything is also appended to <data-dir>/history/*.jsonl.
+    max-entries: 1000
+    # Bodies longer than this are truncated in the history (the live response is never truncated).
+    max-body-bytes: 262144
+    persist: true
+  search:
+    # _count sent with searches and the maximum number of pages followed when collecting all results.
+    page-size: 50
+    max-pages: 20
+  conformance:
+    # Pages followed by conformance checks that page through results.
+    max-pages: 5
+    # Parallel checks per run.
+    concurrency: 4
+    # Response-time thresholds (ms) for the informational performance checks.
+    slow-warn-ms: 3000
+    slow-fail-ms: 10000
+  validation:
+    # Folder with FHIR IG npm packages (*.tgz) for the optional full profile validation. Empty folder = lite checks only.
+    packages-dir: ${PAW_PACKAGES_DIR:./packages}

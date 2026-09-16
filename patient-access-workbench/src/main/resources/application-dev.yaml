@@ -1,0 +1,9 @@
+# Local development: data under ./data, demo server and UI on, verbose logging.
+paw:
+  data-dir: ${PAW_DATA_DIR:./data}
+  demo:
+    enabled: ${PAW_DEMO_ENABLED:true}
+
+logging:
+  level:
+    com.thehiddenbrain.interop.patientaccess: DEBUG

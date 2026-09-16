@@ -1,0 +1,18 @@
+# Production: state on a mounted volume, master key from the environment, UI/demo off unless enabled explicitly.
+paw:
+  data-dir: ${PAW_DATA_DIR:/var/lib/patient-access-workbench}
+  ui:
+    enabled: ${PAW_UI_ENABLED:true}
+  demo:
+    enabled: ${PAW_DEMO_ENABLED:false}
+  security:
+    basic:
+      enabled: ${PAW_BASIC_AUTH_ENABLED:true}
+
+springdoc:
+  swagger-ui:
+    enabled: ${PAW_SWAGGER_ENABLED:false}
+
+logging:
+  level:
+    com.thehiddenbrain.interop.patientaccess: INFO

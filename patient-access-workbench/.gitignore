@@ -1,0 +1,9 @@
+target/
+data/
+packages/
+*.log
+.idea/
+*.iml
+.vscode/
+.DS_Store
+ui-tests/screenshots/
