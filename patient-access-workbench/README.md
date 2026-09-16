@@ -25,7 +25,7 @@ Java 17 or newer is required; Maven is downloaded by the wrapper on first use.
 
 ```bash
 cd patient-access-workbench
-./run.sh            # Mac / Linux  (run.cmd on Windows)
+./run.sh            # Mac / Linux  (run.bat on Windows)
 ```
 
 Open `http://localhost:8090/ui/`. The first time, press **Add demo environment**: the workbench ships
@@ -51,7 +51,17 @@ or download the branch as a zip from GitHub (`Code` > `Download ZIP` on that bra
 8.14 and the dependencies on first use (about 250 MB, needs internet once). The build is Gradle
 (`build.gradle`, Spring Boot plugin 3.5.16, Java toolchain 17).
 
-**Command line**: `run.cmd` (Windows) or `./run.sh` (Mac/Linux), then open `http://localhost:8090/ui/`.
+**Command line**: double-click `run.bat` (Windows; `run.cmd` is the same script) or run `./run.sh`
+(Mac/Linux), then open `http://localhost:8090/ui/`. The first start builds the jar with the Gradle
+wrapper, which downloads Gradle and the dependencies (internet needed once, a few minutes). If the
+window closes or shows an error, run it from a command prompt so the message stays visible, or use the
+wrapper directly:
+
+```
+gradlew.bat bootRun                 # build and run from the sources (Windows)
+gradlew.bat bootJar                 # just build build\libs\patient-access-workbench-0.1.0-SNAPSHOT.jar
+java -jar build\libs\patient-access-workbench-0.1.0-SNAPSHOT.jar
+```
 
 **Spring Tool Suite 4 / Eclipse**:
 
