@@ -1,0 +1,52 @@
+{
+  "resourceType": "Procedure",
+  "id": "pdex1-procedure-1",
+  "meta": {
+    "lastUpdated": "2026-05-20T16:30:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-procedure"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Colonoscopy, flexible, diagnostic (CPT 45378).</p></div>"
+  },
+  "status": "completed",
+  "code": {
+    "coding": [
+      {
+        "system": "http://www.ama-assn.org/go/cpt",
+        "code": "45378",
+        "display": "Colonoscopy, flexible; diagnostic"
+      }
+    ]
+  },
+  "subject": {
+    "reference": "Patient/1",
+    "display": "Johnny Appleseed"
+  },
+  "performedDateTime": "2023-09-12T09:00:00Z",
+  "performer": [
+    {
+      "actor": {
+        "reference": "Practitioner/4",
+        "display": "Susan Smith MD"
+      },
+      "onBehalfOf": {
+        "reference": "Organization/ProviderOrg1",
+        "display": "Provider 1"
+      }
+    }
+  ],
+  "reasonCode": [
+    {
+      "coding": [
+        {
+          "system": "http://snomed.info/sct",
+          "code": "275978004",
+          "display": "Screening for colonic cancer"
+        }
+      ]
+    }
+  ]
+}

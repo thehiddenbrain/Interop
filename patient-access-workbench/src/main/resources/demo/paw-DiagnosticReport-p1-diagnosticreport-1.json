@@ -1,0 +1,56 @@
+{
+  "resourceType": "DiagnosticReport",
+  "id": "p1-diagnosticreport-1",
+  "meta": {
+    "lastUpdated": "2026-03-12T09:00:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-diagnosticreport-lab"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Comprehensive metabolic panel: glucose 104 mg/dL (high), other analytes within range.</p></div>"
+  },
+  "status": "final",
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+          "code": "LAB",
+          "display": "Laboratory"
+        }
+      ]
+    }
+  ],
+  "code": {
+    "coding": [
+      {
+        "system": "http://loinc.org",
+        "code": "24323-8",
+        "display": "Comprehensive metabolic 2000 panel - Serum or Plasma"
+      }
+    ]
+  },
+  "subject": {
+    "reference": "Patient/Patient1",
+    "display": "Johnny Example1"
+  },
+  "encounter": {
+    "reference": "Encounter/p1-encounter-1"
+  },
+  "effectiveDateTime": "2026-03-11T08:15:00Z",
+  "issued": "2026-03-11T14:00:00Z",
+  "performer": [
+    {
+      "reference": "Organization/ProviderOrganization1",
+      "display": "Orange Medical Group"
+    }
+  ],
+  "result": [
+    {
+      "reference": "Observation/p1-observation-lab-1",
+      "display": "Glucose"
+    }
+  ]
+}

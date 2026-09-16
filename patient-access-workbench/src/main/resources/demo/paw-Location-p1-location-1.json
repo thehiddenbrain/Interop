@@ -1,0 +1,35 @@
+{
+  "resourceType": "Location",
+  "id": "p1-location-1",
+  "meta": {
+    "lastUpdated": "2026-03-12T09:00:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-location"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Orange Medical Group main office, Pittsburgh PA.</p></div>"
+  },
+  "status": "active",
+  "name": "Orange Medical Group main office",
+  "telecom": [
+    {
+      "system": "phone",
+      "value": "(412) 555-0140"
+    }
+  ],
+  "address": {
+    "line": [
+      "200 Lothrop Street"
+    ],
+    "city": "Pittsburgh",
+    "state": "PA",
+    "postalCode": "15213",
+    "country": "US"
+  },
+  "managingOrganization": {
+    "reference": "Organization/ProviderOrganization1",
+    "display": "Orange Medical Group"
+  }
+}

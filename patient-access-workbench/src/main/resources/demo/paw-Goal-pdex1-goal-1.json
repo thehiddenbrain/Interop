@@ -1,0 +1,81 @@
+{
+  "resourceType": "Goal",
+  "id": "pdex1-goal-1",
+  "meta": {
+    "lastUpdated": "2026-05-20T16:30:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-goal"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Blood pressure below 130/80 within 6 months.</p></div>"
+  },
+  "lifecycleStatus": "active",
+  "achievementStatus": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/goal-achievement",
+        "code": "in-progress",
+        "display": "In Progress"
+      }
+    ]
+  },
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/goal-category",
+          "code": "physiologic",
+          "display": "Physiologic"
+        }
+      ]
+    }
+  ],
+  "description": {
+    "coding": [
+      {
+        "system": "http://snomed.info/sct",
+        "code": "1078229009",
+        "display": "Blood pressure target achieved"
+      }
+    ],
+    "text": "Blood pressure below 130/80 mmHg"
+  },
+  "subject": {
+    "reference": "Patient/1",
+    "display": "Johnny Appleseed"
+  },
+  "startDate": "2026-05-18",
+  "target": [
+    {
+      "measure": {
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "8480-6",
+            "display": "Systolic blood pressure"
+          }
+        ]
+      },
+      "detailRange": {
+        "high": {
+          "value": 130,
+          "unit": "mmHg",
+          "system": "http://unitsofmeasure.org",
+          "code": "mm[Hg]"
+        }
+      },
+      "dueDate": "2026-11-18"
+    }
+  ],
+  "expressedBy": {
+    "reference": "Practitioner/4",
+    "display": "Susan Smith MD"
+  },
+  "addresses": [
+    {
+      "reference": "Condition/pdex1-condition-1"
+    }
+  ]
+}

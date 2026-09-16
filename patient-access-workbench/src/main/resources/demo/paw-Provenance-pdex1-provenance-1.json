@@ -1,0 +1,93 @@
+{
+  "resourceType": "Provenance",
+  "id": "pdex1-provenance-1",
+  "meta": {
+    "lastUpdated": "2026-05-20T16:30:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-provenance"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Clinical data received from Provider 1 (C-CDA) and transmitted by Organization Payer 1.</p></div>"
+  },
+  "target": [
+    {
+      "reference": "Condition/pdex1-condition-1"
+    },
+    {
+      "reference": "Condition/pdex1-condition-2"
+    },
+    {
+      "reference": "Observation/pdex1-observation-lab-1"
+    },
+    {
+      "reference": "Observation/pdex1-observation-bp-1"
+    },
+    {
+      "reference": "MedicationRequest/pdex1-medicationrequest-1"
+    },
+    {
+      "reference": "AllergyIntolerance/pdex1-allergyintolerance-1"
+    }
+  ],
+  "recorded": "2026-05-20T16:30:00Z",
+  "agent": [
+    {
+      "type": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type",
+            "code": "author",
+            "display": "Author"
+          }
+        ]
+      },
+      "who": {
+        "reference": "Practitioner/4",
+        "display": "Susan Smith MD"
+      },
+      "onBehalfOf": {
+        "reference": "Organization/ProviderOrg1",
+        "display": "Provider 1"
+      }
+    },
+    {
+      "type": {
+        "coding": [
+          {
+            "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-provenance-participant-type",
+            "code": "transmitter",
+            "display": "Transmitter"
+          }
+        ]
+      },
+      "who": {
+        "reference": "Organization/Payer1",
+        "display": "Organization Payer 1"
+      }
+    }
+  ],
+  "entity": [
+    {
+      "role": "source",
+      "what": {
+        "display": "C-CDA document received 2026-05-20"
+      },
+      "extension": [
+        {
+          "url": "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/ProvenanceSourceFrom",
+          "valueCodeableConcept": {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/davinci-pdex/CodeSystem/ProvenancePayerDataSource",
+                "code": "hl7ccda",
+                "display": "HL7 C-CDA"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

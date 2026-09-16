@@ -1,0 +1,72 @@
+{
+  "resourceType": "AllergyIntolerance",
+  "id": "p1-allergyintolerance-1",
+  "meta": {
+    "lastUpdated": "2026-03-12T09:00:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-allergyintolerance"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Penicillin G allergy (confirmed): hives.</p></div>"
+  },
+  "clinicalStatus": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+        "code": "active",
+        "display": "Active"
+      }
+    ]
+  },
+  "verificationStatus": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+        "code": "confirmed",
+        "display": "Confirmed"
+      }
+    ]
+  },
+  "type": "allergy",
+  "category": [
+    "medication"
+  ],
+  "criticality": "high",
+  "code": {
+    "coding": [
+      {
+        "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+        "code": "7980",
+        "display": "penicillin G"
+      }
+    ]
+  },
+  "patient": {
+    "reference": "Patient/Patient1",
+    "display": "Johnny Example1"
+  },
+  "onsetDateTime": "2010-05-01",
+  "recordedDate": "2021-03-15T10:05:00Z",
+  "recorder": {
+    "reference": "Practitioner/Practitioner1",
+    "display": "Dr. John Smith"
+  },
+  "reaction": [
+    {
+      "manifestation": [
+        {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "247472004",
+              "display": "Hives"
+            }
+          ]
+        }
+      ],
+      "severity": "moderate"
+    }
+  ]
+}
