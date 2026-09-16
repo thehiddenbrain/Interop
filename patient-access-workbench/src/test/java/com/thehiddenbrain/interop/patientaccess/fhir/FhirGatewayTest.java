@@ -68,7 +68,7 @@ class FhirGatewayTest {
     private Environment envWith(String name, FhirOptions fhir, EnvironmentInput.AuthInput auth, List<EnvironmentInput.HeaderInput> headers) {
         return g.environments.require(g.environments.create(new EnvironmentInput(name, null, EnvironmentTier.SANDBOX, base,
                 auth == null ? new EnvironmentInput.AuthInput(AuthMode.NONE, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null) : auth,
-                headers, List.of(), fhir, null, null, true, null)).id());
+                headers, List.of(), fhir, null, null, null, true, null)).id());
     }
 
     @Test

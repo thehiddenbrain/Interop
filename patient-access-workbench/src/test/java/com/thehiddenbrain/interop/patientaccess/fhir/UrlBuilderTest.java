@@ -20,7 +20,7 @@ class UrlBuilderTest {
     private static Environment env(String baseUrl, boolean allowHostMismatch) {
         FhirOptions fhir = new FhirOptions(null, null, null, true, false, allowHostMismatch, null, null, false);
         return new Environment("e1", "test", "vendor", EnvironmentTier.UAT, baseUrl, AuthConfig.none(), List.of(), List.of(), fhir,
-                List.of(), null, true, 1, null, null);
+                null, List.of(), null, true, 1, null, null);
     }
 
     private static final Environment ENV = env("https://fhir.example.org/r4/", false);

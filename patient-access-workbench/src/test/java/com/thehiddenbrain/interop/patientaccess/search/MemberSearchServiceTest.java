@@ -53,7 +53,7 @@ class MemberSearchServiceTest {
         env = g.environments.require(g.environments.create(new EnvironmentInput("search", null, EnvironmentTier.SANDBOX, base,
                 new EnvironmentInput.AuthInput(AuthMode.NONE, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 List.of(), List.of(new IdentifierSystem("Member ID", SYS_A, "MB", true), new IdentifierSystem("MBI", SYS_B, "MC", true),
-                        new IdentifierSystem("Medicaid", SYS_C, "MA", false)), FhirOptions.defaults(), null, null, true, null)).id());
+                        new IdentifierSystem("Medicaid", SYS_C, "MA", false)), FhirOptions.defaults(), null, null, null, true, null)).id());
     }
 
     @AfterEach
@@ -245,7 +245,7 @@ class MemberSearchServiceTest {
 
         Environment bare = g.environments.require(g.environments.create(new EnvironmentInput("bare", null, EnvironmentTier.SANDBOX, base,
                 new EnvironmentInput.AuthInput(AuthMode.NONE, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
-                List.of(), List.of(), FhirOptions.defaults(), null, null, true, null)).id());
+                List.of(), List.of(), FhirOptions.defaults(), null, null, null, true, null)).id());
         stubPatientSearch("M8", Fixtures.bundle(Fixtures.demo("c4bb-Patient-Patient1")));
         MemberSearchResult result = g.memberSearch.search(bare, request("M8", null, null, null, null, null, null, false, null));
         assertThat(result.patients()).hasSize(1);

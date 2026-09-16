@@ -161,7 +161,7 @@ class HttpExecutorTest {
         FhirOptions quick = new FhirOptions(null, null, null, true, false, false, null, 200, false);
         Environment slowEnv = g.environments.require(g.environments.create(new EnvironmentInput("slow", null, EnvironmentTier.SANDBOX, base,
                 new EnvironmentInput.AuthInput(AuthMode.NONE, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
-                List.of(), List.of(), quick, null, null, true, null)).id());
+                List.of(), List.of(), quick, null, null, null, true, null)).id());
         wiremock.stubFor(get(urlPathEqualTo("/fhir/Patient/slow")).willReturn(Fixtures.fhir(Fixtures.resource("Patient", "slow")).withFixedDelay(1500)));
 
         assertThatThrownBy(() -> g.http.execute(slowEnv, HttpExecutor.Call.get(base + "/Patient/slow", Map.of(), "read", "t", Set.of())))

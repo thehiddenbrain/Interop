@@ -44,7 +44,7 @@ class OAuthCallbackControllerTest extends ApiTestSupport {
         String id = environments.create(new EnvironmentInput("callback <env>", null, EnvironmentTier.SANDBOX, "https://fhir.example.org/r4",
                 new EnvironmentInput.AuthInput(AuthMode.SMART_AUTHORIZATION_CODE, false, "https://as.example.org/authorize", "https://as.example.org/token",
                         "app", null, null, null, null, null, null, null, null, true, Map.of(), Map.of()),
-                List.of(), List.of(), null, null, null, true, null)).id();
+                List.of(), List.of(), null, null, null, null, true, null)).id();
         Environment env = environments.require(id);
         String state = Forms.query(flow.start(env, "http://localhost:8090", null)).get("state");
 

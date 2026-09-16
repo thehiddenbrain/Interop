@@ -32,7 +32,7 @@ class EnvironmentServiceTest {
 
     private static EnvironmentInput input(String name, EnvironmentTier tier, String baseUrl, EnvironmentInput.AuthInput auth,
                                           List<EnvironmentInput.HeaderInput> headers, FhirOptions fhir, Long version) {
-        return new EnvironmentInput(name, null, tier, baseUrl, auth, headers, null, fhir, null, null, null, version);
+        return new EnvironmentInput(name, null, tier, baseUrl, auth, headers, null, fhir, null, null, null, null, version);
     }
 
     private static EnvironmentInput.AuthInput auth(AuthMode mode, Boolean discover, String authorize, String token, String clientId,
@@ -142,7 +142,7 @@ class EnvironmentServiceTest {
         List<EnvironmentInput.HeaderInput> headers = List.of(new EnvironmentInput.HeaderInput("Authorization", "Bearer x", false));
         assertRejected(() -> g.environments.create(input("h", null, "https://fhir.example.org", null, headers, null, null)), "headers[0].name", "Authorization");
         EnvironmentInput withBadSystem = new EnvironmentInput("i", null, null, "https://fhir.example.org", null, null,
-                List.of(new IdentifierSystem("Member", " ", "MB", true)), null, null, null, null, null);
+                List.of(new IdentifierSystem("Member", " ", "MB", true)), null, null, null, null, null, null);
         assertRejected(() -> g.environments.create(withBadSystem), "identifierSystems[0].system", "required");
     }
 

@@ -151,7 +151,7 @@ class SmartDiscoveryServiceTest {
         g.discovery.discover(env, true, null);
         wiremock.verify(2, getRequestedFor(urlPathEqualTo("/fhir/metadata")));
 
-        g.environments.update(env.id(), new EnvironmentInput(null, null, null, null, null, null, null, null, null, "edited", null, null));
+        g.environments.update(env.id(), new EnvironmentInput(null, null, null, null, null, null, null, null, null, null, "edited", null, null));
         Environment edited = g.environments.require(env.id());
         assertThat(edited.version()).isEqualTo(2);
         g.discovery.discover(edited, false, null);
