@@ -1,0 +1,69 @@
+{
+  "resourceType": "CareTeam",
+  "id": "p1-careteam-1",
+  "meta": {
+    "lastUpdated": "2026-03-12T09:00:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-careteam"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Primary care team.</p></div>"
+  },
+  "status": "active",
+  "name": "Primary care team",
+  "subject": {
+    "reference": "Patient/Patient1",
+    "display": "Johnny Example1"
+  },
+  "encounter": {
+    "reference": "Encounter/p1-encounter-1"
+  },
+  "participant": [
+    {
+      "role": [
+        {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "446050000",
+              "display": "Primary care physician"
+            }
+          ]
+        }
+      ],
+      "member": {
+        "reference": "Practitioner/Practitioner1",
+        "display": "Dr. John Smith"
+      },
+      "onBehalfOf": {
+        "reference": "Organization/ProviderOrganization1",
+        "display": "Orange Medical Group"
+      }
+    },
+    {
+      "role": [
+        {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "116154003",
+              "display": "Patient"
+            }
+          ]
+        }
+      ],
+      "member": {
+        "reference": "Patient/Patient1",
+        "display": "Johnny Example1"
+      }
+    }
+  ],
+  "managingOrganization": [
+    {
+      "reference": "Organization/ProviderOrganization1",
+      "display": "Orange Medical Group"
+    }
+  ]
+}

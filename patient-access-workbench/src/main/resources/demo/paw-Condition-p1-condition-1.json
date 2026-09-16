@@ -1,0 +1,62 @@
+{
+  "resourceType": "Condition",
+  "id": "p1-condition-1",
+  "meta": {
+    "lastUpdated": "2026-03-12T09:00:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-condition-problems-health-concerns"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Essential hypertension (active problem).</p></div>"
+  },
+  "clinicalStatus": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+        "code": "active",
+        "display": "Active"
+      }
+    ]
+  },
+  "verificationStatus": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+        "code": "confirmed",
+        "display": "Confirmed"
+      }
+    ]
+  },
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+          "code": "problem-list-item",
+          "display": "Problem List Item"
+        }
+      ]
+    }
+  ],
+  "code": {
+    "coding": [
+      {
+        "system": "http://snomed.info/sct",
+        "code": "59621000",
+        "display": "Essential hypertension"
+      }
+    ]
+  },
+  "subject": {
+    "reference": "Patient/Patient1",
+    "display": "Johnny Example1"
+  },
+  "onsetDateTime": "2021-03-15",
+  "recordedDate": "2021-03-15T10:00:00Z",
+  "recorder": {
+    "reference": "Practitioner/Practitioner1",
+    "display": "Dr. John Smith"
+  }
+}

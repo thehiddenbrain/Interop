@@ -1,6 +1,7 @@
 package com.thehiddenbrain.interop.patientaccess.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import java.nio.file.Path;
@@ -24,7 +25,25 @@ public record WorkbenchProperties(
     public record Ui(@DefaultValue("true") boolean enabled) {
     }
 
-    public record Demo(@DefaultValue("true") boolean enabled) {
+    /**
+     * The in-process demo Patient Access API ({@code /demo/fhir} + {@code /demo/auth}). {@code requireToken}
+     * off lets a plain browser hit the FHIR endpoints; the client id / secret are what the demo token
+     * endpoint accepts for client credentials.
+     */
+    public record Demo(@DefaultValue("true") boolean enabled,
+                       @DefaultValue("true") boolean requireToken,
+                       @DefaultValue("demo-client") String clientId,
+                       @DefaultValue("demo-secret") String clientSecret) {
+
+        /** Marks the canonical constructor for Spring's binding; the record also has the short one below. */
+        @ConstructorBinding
+        public Demo {
+        }
+
+        /** Only the on/off switch, with the default credentials (used by callers that predate the other fields). */
+        public Demo(boolean enabled) {
+            this(enabled, true, "demo-client", "demo-secret");
+        }
     }
 
     public record Security(@DefaultValue Basic basic) {

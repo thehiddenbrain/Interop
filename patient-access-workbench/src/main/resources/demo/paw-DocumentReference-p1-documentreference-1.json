@@ -1,0 +1,83 @@
+{
+  "resourceType": "DocumentReference",
+  "id": "p1-documentreference-1",
+  "meta": {
+    "lastUpdated": "2026-03-12T09:00:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-documentreference"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Progress note of the office visit on 2026-03-10.</p></div>"
+  },
+  "identifier": [
+    {
+      "system": "urn:ietf:rfc:3986",
+      "value": "urn:uuid:5d1a0c77-8c2b-4a7e-9d5c-7b1f2c3e4a10"
+    }
+  ],
+  "status": "current",
+  "type": {
+    "coding": [
+      {
+        "system": "http://loinc.org",
+        "code": "11506-3",
+        "display": "Progress note"
+      }
+    ]
+  },
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category",
+          "code": "clinical-note",
+          "display": "Clinical Note"
+        }
+      ]
+    }
+  ],
+  "subject": {
+    "reference": "Patient/Patient1",
+    "display": "Johnny Example1"
+  },
+  "date": "2026-03-10T11:20:00Z",
+  "author": [
+    {
+      "reference": "Practitioner/Practitioner1",
+      "display": "Dr. John Smith"
+    }
+  ],
+  "custodian": {
+    "reference": "Organization/ProviderOrganization1",
+    "display": "Orange Medical Group"
+  },
+  "content": [
+    {
+      "attachment": {
+        "contentType": "text/plain",
+        "language": "en-US",
+        "data": "UHJvZ3Jlc3Mgbm90ZSAyMDI2LTAzLTEwOiBlc3RhYmxpc2hlZCBwYXRpZW50IHdpdGggbG93IGJhY2sgcGFpbiBhbmQgaHlwZXJ0ZW5zaW9uLiBCUCAxMzgvODguIENvbnRpbnVlIGFtbG9kaXBpbmUgNSBtZy4gUGh5c2ljYWwgdGhlcmFweSByZWZlcnJhbC4=",
+        "title": "Progress note 2026-03-10",
+        "creation": "2026-03-10T11:20:00Z"
+      },
+      "format": {
+        "system": "http://ihe.net/fhir/ihe.formatcode.fhir/CodeSystem/formatcode",
+        "code": "urn:ihe:iti:xds:2017:mimeTypeSufficient",
+        "display": "mimeType Sufficient"
+      }
+    }
+  ],
+  "context": {
+    "encounter": [
+      {
+        "reference": "Encounter/p1-encounter-1"
+      }
+    ],
+    "period": {
+      "start": "2026-03-10T10:30:00Z",
+      "end": "2026-03-10T11:15:00Z"
+    }
+  }
+}

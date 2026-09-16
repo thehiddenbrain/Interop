@@ -1,0 +1,69 @@
+{
+  "resourceType": "CareTeam",
+  "id": "pdex1-careteam-1",
+  "meta": {
+    "lastUpdated": "2026-05-20T16:30:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-careteam"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Primary care team.</p></div>"
+  },
+  "status": "active",
+  "name": "Primary care team",
+  "subject": {
+    "reference": "Patient/1",
+    "display": "Johnny Appleseed"
+  },
+  "encounter": {
+    "reference": "Encounter/6"
+  },
+  "participant": [
+    {
+      "role": [
+        {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "446050000",
+              "display": "Primary care physician"
+            }
+          ]
+        }
+      ],
+      "member": {
+        "reference": "Practitioner/4",
+        "display": "Susan Smith MD"
+      },
+      "onBehalfOf": {
+        "reference": "Organization/ProviderOrg1",
+        "display": "Provider 1"
+      }
+    },
+    {
+      "role": [
+        {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "116154003",
+              "display": "Patient"
+            }
+          ]
+        }
+      ],
+      "member": {
+        "reference": "Patient/1",
+        "display": "Johnny Appleseed"
+      }
+    }
+  ],
+  "managingOrganization": [
+    {
+      "reference": "Organization/ProviderOrg1",
+      "display": "Provider 1"
+    }
+  ]
+}

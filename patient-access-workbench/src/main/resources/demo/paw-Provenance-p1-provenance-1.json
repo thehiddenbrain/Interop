@@ -1,0 +1,68 @@
+{
+  "resourceType": "Provenance",
+  "id": "p1-provenance-1",
+  "meta": {
+    "lastUpdated": "2026-03-12T09:00:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-provenance"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Authored by Dr. John Smith (Orange Medical Group) during the 2026-03-10 visit.</p></div>"
+  },
+  "target": [
+    {
+      "reference": "Condition/p1-condition-1"
+    },
+    {
+      "reference": "Condition/p1-condition-2"
+    },
+    {
+      "reference": "Observation/p1-observation-bp-1"
+    },
+    {
+      "reference": "MedicationRequest/p1-medicationrequest-1"
+    },
+    {
+      "reference": "Encounter/p1-encounter-1"
+    }
+  ],
+  "recorded": "2026-03-10T11:20:00Z",
+  "agent": [
+    {
+      "type": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type",
+            "code": "author",
+            "display": "Author"
+          }
+        ]
+      },
+      "who": {
+        "reference": "Practitioner/Practitioner1",
+        "display": "Dr. John Smith"
+      },
+      "onBehalfOf": {
+        "reference": "Organization/ProviderOrganization1",
+        "display": "Orange Medical Group"
+      }
+    },
+    {
+      "type": {
+        "coding": [
+          {
+            "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-provenance-participant-type",
+            "code": "transmitter",
+            "display": "Transmitter"
+          }
+        ]
+      },
+      "who": {
+        "reference": "Organization/Payer2",
+        "display": "UPMC Health Plan"
+      }
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "resourceType": "CarePlan",
+  "id": "pdex1-careplan-1",
+  "meta": {
+    "lastUpdated": "2026-05-20T16:30:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-careplan"
+    ]
+  },
+  "text": {
+    "status": "additional",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Hypertension management: daily amlodipine, home blood pressure log, low-sodium diet, follow-up in 3 months.</p></div>"
+  },
+  "status": "active",
+  "intent": "plan",
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://hl7.org/fhir/us/core/CodeSystem/careplan-category",
+          "code": "assess-plan",
+          "display": "Assessment and Plan of Treatment"
+        }
+      ]
+    }
+  ],
+  "title": "Hypertension management plan",
+  "subject": {
+    "reference": "Patient/1",
+    "display": "Johnny Appleseed"
+  },
+  "encounter": {
+    "reference": "Encounter/6"
+  },
+  "period": {
+    "start": "2026-05-18",
+    "end": "2026-11-18"
+  },
+  "created": "2026-05-18",
+  "author": {
+    "reference": "Practitioner/4",
+    "display": "Susan Smith MD"
+  },
+  "addresses": [
+    {
+      "reference": "Condition/pdex1-condition-1",
+      "display": "Essential hypertension"
+    }
+  ],
+  "goal": [
+    {
+      "reference": "Goal/pdex1-goal-1"
+    }
+  ],
+  "activity": [
+    {
+      "detail": {
+        "kind": "ServiceRequest",
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "135840009",
+              "display": "Blood pressure monitoring"
+            }
+          ]
+        },
+        "status": "in-progress",
+        "description": "Home blood pressure twice weekly"
+      }
+    }
+  ]
+}

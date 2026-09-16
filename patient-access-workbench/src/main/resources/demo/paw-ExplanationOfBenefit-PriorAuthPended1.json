@@ -1,0 +1,335 @@
+{
+  "resourceType": "ExplanationOfBenefit",
+  "id": "PriorAuthPended1",
+  "meta": {
+    "lastUpdated": "2026-09-11T08:20:00Z",
+    "profile": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/pdex-priorauthorization"
+    ]
+  },
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Prior authorization PA-2026-000342 for physical therapy (CPT 97110) and adalimumab (NDC 0074-4339-02): pended (A4), awaiting clinical documentation.</p></div>"
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-levelOfServiceCode",
+      "valueCodeableConcept": {
+        "coding": [
+          {
+            "system": "https://codesystem.x12.org/005010/1338",
+            "code": "U",
+            "display": "Urgent"
+          }
+        ]
+      }
+    }
+  ],
+  "identifier": [
+    {
+      "system": "https://www.exampleplan.com/fhir/EOBIdentifier",
+      "value": "PA-2026-000342"
+    }
+  ],
+  "status": "active",
+  "type": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+        "code": "professional",
+        "display": "Professional"
+      }
+    ]
+  },
+  "use": "preauthorization",
+  "patient": {
+    "reference": "Patient/1"
+  },
+  "billablePeriod": {
+    "start": "2026-09-15",
+    "end": "2026-12-15"
+  },
+  "created": "2026-09-10T16:45:00+00:00",
+  "insurer": {
+    "reference": "Organization/Payer1",
+    "display": "Organization Payer 1"
+  },
+  "provider": {
+    "reference": "Organization/ProviderOrg2",
+    "display": "Provider 2"
+  },
+  "priority": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/processpriority",
+        "code": "stat",
+        "display": "Immediate"
+      }
+    ]
+  },
+  "outcome": "queued",
+  "careTeam": [
+    {
+      "sequence": 1,
+      "provider": {
+        "reference": "Practitioner/4",
+        "display": "Susan Smith MD"
+      },
+      "responsible": true,
+      "role": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/claimcareteamrole",
+            "code": "primary",
+            "display": "Primary provider"
+          }
+        ]
+      }
+    }
+  ],
+  "diagnosis": [
+    {
+      "sequence": 1,
+      "diagnosisCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://hl7.org/fhir/sid/icd-10-cm",
+            "code": "M06.9",
+            "display": "Rheumatoid arthritis, unspecified"
+          }
+        ]
+      },
+      "type": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/ex-diagnosistype",
+              "code": "principal",
+              "display": "Principal Diagnosis"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sequence": 2,
+      "diagnosisCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://hl7.org/fhir/sid/icd-10-cm",
+            "code": "M54.50",
+            "display": "Low back pain, unspecified"
+          }
+        ]
+      }
+    }
+  ],
+  "insurance": [
+    {
+      "focal": true,
+      "coverage": {
+        "reference": "Coverage/883210"
+      }
+    }
+  ],
+  "item": [
+    {
+      "extension": [
+        {
+          "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+          "valueIdentifier": {
+            "system": "https://www.exampleplan.com/fhir/traceNumber",
+            "value": "TRC-342-1"
+          }
+        }
+      ],
+      "sequence": 1,
+      "careTeamSequence": [
+        1
+      ],
+      "diagnosisSequence": [
+        2
+      ],
+      "category": {
+        "coding": [
+          {
+            "system": "https://x12.org/codes/service-type-codes",
+            "code": "PT",
+            "display": "Physical Therapy"
+          }
+        ]
+      },
+      "productOrService": {
+        "coding": [
+          {
+            "system": "http://www.ama-assn.org/go/cpt",
+            "code": "97110",
+            "display": "Therapeutic exercises, each 15 minutes"
+          }
+        ]
+      },
+      "servicedPeriod": {
+        "start": "2026-09-15",
+        "end": "2026-12-15"
+      },
+      "quantity": {
+        "value": 12
+      },
+      "adjudication": [
+        {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction",
+              "extension": [
+                {
+                  "url": "number",
+                  "valueString": "AUTH-2026-000342"
+                },
+                {
+                  "url": "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewActionCode",
+                  "valueCodeableConcept": {
+                    "coding": [
+                      {
+                        "system": "https://codesystem.x12.org/005010/306",
+                        "code": "A4",
+                        "display": "Pended"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "url": "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated",
+              "valueDateTime": "2026-09-11T08:15:00+00:00"
+            }
+          ],
+          "category": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                "code": "submitted",
+                "display": "Submitted Amount"
+              }
+            ]
+          },
+          "amount": {
+            "value": 1080.0,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "extension": [
+        {
+          "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+          "valueIdentifier": {
+            "system": "https://www.exampleplan.com/fhir/traceNumber",
+            "value": "TRC-342-2"
+          }
+        }
+      ],
+      "sequence": 2,
+      "careTeamSequence": [
+        1
+      ],
+      "diagnosisSequence": [
+        1
+      ],
+      "category": {
+        "coding": [
+          {
+            "system": "https://x12.org/codes/service-type-codes",
+            "code": "88",
+            "display": "Pharmacy"
+          }
+        ]
+      },
+      "productOrService": {
+        "coding": [
+          {
+            "system": "http://hl7.org/fhir/sid/ndc",
+            "code": "0074-4339-02",
+            "display": "adalimumab 40 MG/0.8 ML pen injector [Humira]"
+          }
+        ]
+      },
+      "servicedPeriod": {
+        "start": "2026-09-15",
+        "end": "2026-12-15"
+      },
+      "quantity": {
+        "value": 6
+      },
+      "adjudication": [
+        {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction",
+              "extension": [
+                {
+                  "url": "number",
+                  "valueString": "AUTH-2026-000342"
+                },
+                {
+                  "url": "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewActionCode",
+                  "valueCodeableConcept": {
+                    "coding": [
+                      {
+                        "system": "https://codesystem.x12.org/005010/306",
+                        "code": "A4",
+                        "display": "Pended"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "url": "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated",
+              "valueDateTime": "2026-09-11T08:15:00+00:00"
+            }
+          ],
+          "category": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                "code": "submitted",
+                "display": "Submitted Amount"
+              }
+            ]
+          },
+          "amount": {
+            "value": 18900.0,
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ],
+  "total": [
+    {
+      "category": {
+        "coding": [
+          {
+            "system": "http://hl7.org/fhir/us/davinci-pdex/CodeSystem/PriorAuthorizationValueCodes",
+            "code": "submitted",
+            "display": "Submitted"
+          }
+        ]
+      },
+      "amount": {
+        "value": 19980.0,
+        "currency": "USD"
+      }
+    }
+  ],
+  "processNote": [
+    {
+      "number": 1,
+      "type": "display",
+      "text": "Pended: additional clinical documentation requested from the provider on 2026-09-11. Item 2 is a drug (NDC); drug prior authorizations are outside the CMS-0057-F Patient Access API requirement and are shown here only to illustrate the exclusion."
+    }
+  ]
+}

@@ -55,6 +55,13 @@ paw:
   demo:
     # In-process sample Patient Access API at /demo/fhir (HL7 IG example data) for trying the workbench offline.
     enabled: true
+    # The demo FHIR endpoints require a bearer token from /demo/auth/token (or the fixed token "demo-static-token").
+    # Set to false to browse /demo/fhir without a token, e.g. from a browser tab.
+    require-token: true
+    # Client credentials the demo token endpoint accepts (client_secret_basic, client_secret_post; backend-services
+    # JWT assertions are accepted for this client id without signature verification).
+    client-id: demo-client
+    client-secret: demo-secret
   security:
     basic:
       # Protect the API and UI with HTTP basic auth. Always enable this when the workbench is reachable by others.
