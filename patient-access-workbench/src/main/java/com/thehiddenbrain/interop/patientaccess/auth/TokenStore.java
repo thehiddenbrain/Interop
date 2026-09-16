@@ -3,6 +3,7 @@ package com.thehiddenbrain.interop.patientaccess.auth;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.thehiddenbrain.interop.patientaccess.common.JsonFile;
 import com.thehiddenbrain.interop.patientaccess.config.WorkbenchProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
@@ -21,6 +22,7 @@ public class TokenStore {
     private final JsonFile file;
     private final Map<String, AccessToken> byEnvironment = new LinkedHashMap<>();
 
+    @Autowired
     public TokenStore(WorkbenchProperties properties) {
         this(properties.dataDirPath().resolve("tokens.json"));
     }

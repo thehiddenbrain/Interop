@@ -6,6 +6,7 @@ import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
 import com.thehiddenbrain.interop.patientaccess.config.WorkbenchProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedWriter;
@@ -44,6 +45,7 @@ public class RequestLog {
     private BufferedWriter writer;
     private LocalDate writerDay;
 
+    @Autowired
     public RequestLog(WorkbenchProperties properties, Clock clock) {
         this(properties.dataDirPath().resolve("history"), properties.history().maxEntries(), properties.history().persist(), clock);
     }

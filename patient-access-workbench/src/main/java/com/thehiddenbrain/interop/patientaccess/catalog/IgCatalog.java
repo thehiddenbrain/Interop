@@ -57,7 +57,7 @@ public class IgCatalog {
     }
 
     public record ProfileRule(String id, String path, int min, String max, boolean mustSupport, String slice, JsonNode fixed,
-                              List<String> types, Binding binding, String shortDescription) {
+                              List<String> types, List<String> typeProfiles, Binding binding, String shortDescription) {
     }
 
     public record ProfileSpec(String url, String name, String title, String ig, String version, String type, String base,
@@ -126,8 +126,8 @@ public class IgCatalog {
         for (JsonNode e : n.path("elements")) {
             Binding b = e.has("binding") ? new Binding(e.path("binding").path("strength").asText(), e.path("binding").path("valueSet").asText()) : null;
             rules.add(new ProfileRule(e.path("id").asText(), e.path("path").asText(), e.path("min").asInt(0), e.path("max").asText("*"),
-                    e.path("mustSupport").asBoolean(false), e.path("slice").asText(null), e.get("fixed"), strings(e.path("types")), b,
-                    e.path("short").asText(null)));
+                    e.path("mustSupport").asBoolean(false), e.path("slice").asText(null), e.get("fixed"), strings(e.path("types")),
+                    strings(e.path("typeProfiles")), b, e.path("short").asText(null)));
         }
         return new ProfileSpec(url, n.path("name").asText(), n.path("title").asText(null), n.path("ig").asText(), n.path("version").asText(null),
                 n.path("type").asText(), n.path("base").asText(null), n.path("description").asText(null), rules);

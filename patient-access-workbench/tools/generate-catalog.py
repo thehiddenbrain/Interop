@@ -169,6 +169,9 @@ def element_rules(sd):
         types = [t.get('code') for t in e.get('type', [])]
         if types:
             rule['types'] = types
+        type_profiles = [p for t in e.get('type', []) for p in t.get('profile', [])]
+        if type_profiles:
+            rule['typeProfiles'] = type_profiles
         b = e.get('binding')
         if b and b.get('strength') in ('required', 'extensible') and b.get('valueSet'):
             rule['binding'] = OrderedDict(strength=b['strength'], valueSet=b['valueSet'])

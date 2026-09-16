@@ -4654,6 +4654,9 @@
       "Quantity",
       "Money"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/StructureDefinition/SimpleQuantity"
+     ],
      "short": "The amount or percentage due from the beneficiary"
     },
     {
@@ -7275,6 +7278,9 @@
      "types": [
       "Quantity"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/StructureDefinition/SimpleQuantity"
+     ],
      "short": "Count of products or services"
     },
     {
@@ -8978,6 +8984,9 @@
      "mustSupport": true,
      "types": [
       "Quantity"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/StructureDefinition/SimpleQuantity"
      ],
      "short": "Count of products or services"
     },
@@ -12384,6 +12393,9 @@
      "types": [
       "Quantity"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/StructureDefinition/SimpleQuantity"
+     ],
      "short": "Count of products or services"
     },
     {
@@ -12558,6 +12570,9 @@
      "mustSupport": true,
      "types": [
       "Quantity"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/StructureDefinition/SimpleQuantity"
      ],
      "short": "Count of products or services"
     },
@@ -14866,6 +14881,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-levelOfServiceCode"
+     ],
      "short": "A code specifying the level of service being requested (UM06)"
     },
     {
@@ -15141,6 +15159,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber"
+     ],
      "short": "Uniquely identifies this claim item. (2000F-TRN)"
     },
     {
@@ -15152,6 +15173,9 @@
      "slice": "preAuthIssueDate",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemPreAuthIssueDate"
      ],
      "short": "The date when this item's preauthorization was issued."
     },
@@ -15165,6 +15189,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemPreAuthPeriod"
+     ],
      "short": "The date/period when this item's preauthorization is valid."
     },
     {
@@ -15176,6 +15203,9 @@
      "slice": "previousAuthorizationNumber",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-authorizationNumber"
      ],
      "short": "A string assigned by the UMO to an authorized review outcome associated with this service item."
     },
@@ -15189,6 +15219,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-administrationReferenceNumber"
+     ],
      "short": "A string assigned by the UMO to the original disallowed review outcome associated with this service item."
     },
     {
@@ -15201,6 +15234,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemAuthorizedDetail"
+     ],
      "short": "The details of what has been authorized for this item if different from what was requested."
     },
     {
@@ -15212,6 +15248,9 @@
      "slice": "authorizedProvider",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemAuthorizedProvider"
      ],
      "short": "The specific provider who has been authorized to provide this item."
     },
@@ -15266,6 +15305,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction"
+     ],
      "short": "The details of the review action that is necessary for the authorization at the line level."
     },
     {
@@ -15277,6 +15319,9 @@
      "slice": "adjudicationActionDate",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated"
      ],
      "short": "The date/time when an Adjudication Action occured."
     },
@@ -15317,6 +15362,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction"
+     ],
      "short": "The details of the review action that is necessary for the authorization at the line level."
     },
     {
@@ -15328,6 +15376,9 @@
      "slice": "adjudicationActionDate",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated"
      ],
      "short": "The date/time when an Adjudication Action occured."
     },
@@ -15379,6 +15430,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction"
+     ],
      "short": "The details of the review action that is necessary for the authorization at the line level."
     },
     {
@@ -15390,6 +15444,9 @@
      "slice": "adjudicationActionDate",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated"
      ],
      "short": "The date/time when an Adjudication Action occured."
     },
@@ -15451,6 +15508,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction"
+     ],
      "short": "The details of the review action that is necessary for the authorization at the line level."
     },
     {
@@ -15462,6 +15522,9 @@
      "slice": "adjudicationActionDate",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated"
      ],
      "short": "The date/time when an Adjudication Action occured."
     },
@@ -15515,6 +15578,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction"
+     ],
      "short": "The details of the review action that is necessary for the authorization at the line level."
     },
     {
@@ -15526,6 +15592,9 @@
      "slice": "adjudicationActionDate",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated"
      ],
      "short": "The date/time when an Adjudication Action occured."
     },
@@ -15663,6 +15732,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction"
+     ],
      "short": "The details of the review action that is necessary for the authorization for the entire request."
     },
     {
@@ -15674,6 +15746,9 @@
      "slice": "adjudicationActionDate",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated"
      ],
      "short": "The date/time when an Adjudication Action occured."
     },
@@ -15714,6 +15789,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction"
+     ],
      "short": "The details of the review action that is necessary for the authorization for the entire request."
     },
     {
@@ -15725,6 +15803,9 @@
      "slice": "adjudicationActionDate",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated"
      ],
      "short": "The date/time when an Adjudication Action occured."
     },
@@ -15776,6 +15857,9 @@
      "types": [
       "Extension"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/extension-reviewAction"
+     ],
      "short": "The details of the review action that is necessary for the authorization for the entire request."
     },
     {
@@ -15787,6 +15871,9 @@
      "slice": "adjudicationActionDate",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/base-ext-when-adjudicated"
      ],
      "short": "The date/time when an Adjudication Action occured."
     },
@@ -15839,6 +15926,9 @@
      "slice": "priorauth-utilization",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/PriorAuthorizationUtilization"
      ],
      "short": "An attribute to express the amount of a service or item that has been utilized"
     },
@@ -16026,6 +16116,9 @@
      "types": [
       "Quantity"
      ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/StructureDefinition/SimpleQuantity"
+     ],
      "short": "Billing, service, product, or drug code"
     },
     {
@@ -16092,6 +16185,9 @@
      "types": [
       "Quantity",
       "Range"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/StructureDefinition/SimpleQuantity"
      ],
      "short": "Amount of medication per dose"
     },
@@ -16314,6 +16410,9 @@
      "slice": "sourceFormat",
      "types": [
       "Extension"
+     ],
+     "typeProfiles": [
+      "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/ProvenanceSourceFrom"
      ],
      "short": "Entity Source format that target resource was created from"
     },

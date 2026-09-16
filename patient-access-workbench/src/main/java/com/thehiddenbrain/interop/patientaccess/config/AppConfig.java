@@ -1,6 +1,5 @@
 package com.thehiddenbrain.interop.patientaccess.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,9 +34,4 @@ public class AppConfig {
         return builder -> builder.featuresToDisable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
-    /** ObjectMapper used for FHIR JSON bodies (kept separate from the API mapper: no null-dropping surprises). */
-    @Bean(name = "fhirJsonMapper")
-    public ObjectMapper fhirJsonMapper() {
-        return new ObjectMapper();
-    }
 }

@@ -5,6 +5,7 @@ import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
 import com.thehiddenbrain.interop.patientaccess.config.WorkbenchProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Cipher;
@@ -37,6 +38,7 @@ public class SecretCrypto {
     private final SecretKey key;
     private final String keySource;
 
+    @Autowired
     public SecretCrypto(WorkbenchProperties properties) {
         this(properties.masterKey(), properties.dataDirPath().resolve("master.key"));
     }

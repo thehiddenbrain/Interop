@@ -7,6 +7,7 @@ import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
 import com.thehiddenbrain.interop.patientaccess.config.WorkbenchProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
@@ -38,6 +39,7 @@ public class EnvironmentStore {
     private final Clock clock;
     private final Map<String, Environment> byId = new LinkedHashMap<>();
 
+    @Autowired
     public EnvironmentStore(WorkbenchProperties properties, Clock clock) {
         this(properties.dataDirPath().resolve("environments.json"), clock);
     }
