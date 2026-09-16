@@ -6,3 +6,4 @@ data/
 .vscode/
 .DS_Store
 ui-tests/screenshots/
+.claude/worktrees/
