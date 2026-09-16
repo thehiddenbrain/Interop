@@ -35,6 +35,39 @@ tried offline. Then create real environments for the vendor's UAT and Prod tiers
 
 Swagger UI: `http://localhost:8090/swagger-ui.html` (spec at `/api-docs`). Health: `/actuator/health`.
 
+## Running on your PC or in Spring Tool Suite / Eclipse
+
+Get the code either way:
+
+```bash
+git clone https://github.com/thehiddenbrain/Interop.git
+cd Interop
+git checkout claude/cms-9115-f-api-workbench-2dw36s
+cd patient-access-workbench
+```
+
+or download the branch as a zip from GitHub (`Code` > `Download ZIP` on that branch) and unzip the
+`patient-access-workbench` folder anywhere. Only Java 17+ is needed; the Maven wrapper downloads Maven
+and the dependencies on first use (about 150 MB, needs internet once).
+
+**Command line**: `run.cmd` (Windows) or `./run.sh` (Mac/Linux), then open `http://localhost:8090/ui/`.
+
+**Spring Tool Suite 4 / Eclipse**:
+
+1. *File > Import > Maven > Existing Maven Projects*, root directory `patient-access-workbench`, finish.
+   Let m2e download the dependencies (progress in the bottom-right corner).
+2. Make sure the project uses a JDK 17 or newer (*Project > Properties > Java Build Path > Libraries*),
+   and that *Project > Properties > Java Compiler* is set to 17.
+3. In the *Boot Dashboard* select `patient-access-workbench` and press *(Re)start*, or right-click
+   `PatientAccessWorkbenchApplication.java` > *Run As > Spring Boot App*. The `dev` profile is the
+   default: data goes to `./data` inside the project, the demo server and the UI are on.
+4. Open `http://localhost:8090/ui/` and press *Add demo environment*. To change the port or the data
+   folder, add `--server.port=9090` / `--paw.data-dir=C:\paw-data` as program arguments or set the
+   `SERVER_PORT` / `PAW_DATA_DIR` environment variables in the run configuration.
+5. Tests: right-click the project > *Run As > JUnit Test* (or `mvnw test`); they need no network.
+
+IntelliJ IDEA: *File > Open* the `pom.xml` as a project and run the same main class.
+
 ## Working with environments
 
 An environment is one FHIR endpoint with its own credentials, e.g. *Onyx UAT* and *Onyx Prod*:
