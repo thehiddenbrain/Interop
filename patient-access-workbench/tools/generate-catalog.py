@@ -109,6 +109,7 @@ def read_capability(path, ig, catalog, sp_descriptions):
                         existing['igs'].append(ig)
                 else:
                     doc = sp.get('documentation') or sp_descriptions.get((rtype, sp['name'])) or sp_descriptions.get(('*', sp['name'])) or ''
+                    doc = doc.replace('**', '').replace('*', '')
                     entry['searchParams'].append(OrderedDict(name=sp['name'], type=sp.get('type', 'string'), expectation=exp,
                                                              igs=[ig], definition=sp.get('definition'), description=doc.strip()))
             for ext in res.get('extension', []):

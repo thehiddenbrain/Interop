@@ -79,7 +79,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-patient-identifier",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "name",
@@ -111,7 +111,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-patient-birthdate",
-     "description": "A client **SHALL** provide a value precise to the *day*.\n\nA server **SHALL** support a value a value precise to the *day*."
+     "description": "A client SHALL provide a value precise to the day.\n\nA server SHALL support a value a value precise to the day."
     },
     {
      "name": "death-date",
@@ -122,7 +122,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-patient-death-date",
-     "description": "A client **SHALL** provide a value precise to the *day*.\n\nA server **SHALL** support a value a value precise to the *day*."
+     "description": "A client SHALL provide a value precise to the day.\n\nA server SHALL support a value a value precise to the day."
     },
     {
      "name": "family",
@@ -133,7 +133,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-patient-family",
-     "description": "A server **SHALL** support a value precise to the *day*."
+     "description": "A server SHALL support a value precise to the day."
     },
     {
      "name": "gender",
@@ -143,7 +143,7 @@
       "pdex"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-patient-gender",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "given",
@@ -273,7 +273,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-coverage-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "_lastUpdated",
@@ -624,7 +624,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-practitioner-identifier",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "name",
@@ -682,7 +682,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-practitionerrole-practitioner",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "specialty",
@@ -759,7 +759,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-relatedperson-patient|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
     },
     {
      "name": "_lastUpdated",
@@ -939,7 +939,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-allergyintolerance-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "clinical-status",
@@ -950,7 +950,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-allergyintolerance-clinical-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -1001,7 +1001,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-careplan-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "category",
@@ -1012,7 +1012,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-careplan-category",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "date",
@@ -1023,7 +1023,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-careplan-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "status",
@@ -1034,7 +1034,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-careplan-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -1122,7 +1122,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-careteam-role",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "patient",
@@ -1133,7 +1133,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-careteam-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -1144,7 +1144,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-careteam-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -1221,7 +1221,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "_lastUpdated",
@@ -1231,7 +1231,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-lastupdated|10.0.0-ballot",
-     "description": "A server **SHALL** document the types of changes that can be detected using this parameter.\n\n\nA client **SHALL** provide a value precise to the *second + time offset*.\n\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A server SHALL document the types of changes that can be detected using this parameter.\n\n\nA client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "abatement-date",
@@ -1242,7 +1242,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-abatement-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "asserted-date",
@@ -1253,7 +1253,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-asserted-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "category",
@@ -1264,7 +1264,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-category",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "clinical-status",
@@ -1275,7 +1275,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-clinical-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "code",
@@ -1286,7 +1286,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-code",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "encounter",
@@ -1297,7 +1297,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-encounter",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "onset-date",
@@ -1308,7 +1308,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-onset-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "recorded-date",
@@ -1319,7 +1319,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-condition-recorded-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     }
    ],
    "combos": [
@@ -1474,7 +1474,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-device-patient|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -1484,7 +1484,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-device-status|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
     },
     {
      "name": "type",
@@ -1494,7 +1494,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-device-type|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -1559,7 +1559,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-diagnosticreport-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "_lastUpdated",
@@ -1569,7 +1569,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-diagnosticreport-lastupdated|10.0.0-ballot",
-     "description": "A server **SHALL** document the types of changes that can be detected using this parameter.\n\n\nA client **SHALL** provide a value precise to the *second + time offset*.\n\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A server SHALL document the types of changes that can be detected using this parameter.\n\n\nA client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "category",
@@ -1580,7 +1580,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-diagnosticreport-category",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "code",
@@ -1591,7 +1591,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-diagnosticreport-code",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "date",
@@ -1602,7 +1602,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-diagnosticreport-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "status",
@@ -1613,7 +1613,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-diagnosticreport-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -1743,7 +1743,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-documentreference-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "category",
@@ -1754,7 +1754,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-documentreference-category",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "date",
@@ -1765,7 +1765,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-documentreference-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "period",
@@ -1776,7 +1776,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-documentreference-period",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "status",
@@ -1787,7 +1787,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-documentreference-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "type",
@@ -1798,7 +1798,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-documentreference-type",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -1912,7 +1912,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "identifier",
@@ -1923,7 +1923,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-identifier",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "_lastUpdated",
@@ -1933,7 +1933,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-lastupdated|10.0.0-ballot",
-     "description": "A server **SHALL** document the types of changes that can be detected using this parameter.\n\n\nA client **SHALL** provide a value precise to the *second + time offset*.\n\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A server SHALL document the types of changes that can be detected using this parameter.\n\n\nA client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "class",
@@ -1944,7 +1944,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-class",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "date",
@@ -1955,7 +1955,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "discharge-disposition",
@@ -1966,7 +1966,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-discharge-disposition",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "location",
@@ -1977,7 +1977,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-location",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -1988,7 +1988,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "type",
@@ -1999,7 +1999,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-encounter-type",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -2115,7 +2115,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-goal-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "description",
@@ -2137,7 +2137,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-goal-lifecycle-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "target-date",
@@ -2148,7 +2148,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-goal-target-date",
-     "description": "A client **SHALL** provide a value precise to the *day*.\n\nA server **SHALL** support a value a value precise to the *day*."
+     "description": "A client SHALL provide a value precise to the day.\n\nA server SHALL support a value a value precise to the day."
     }
    ],
    "combos": [
@@ -2221,7 +2221,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-immunization-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "date",
@@ -2232,7 +2232,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-immunization-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "status",
@@ -2243,7 +2243,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-immunization-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -2335,7 +2335,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-medicationdispense-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -2346,7 +2346,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-medicationdispense-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "type",
@@ -2357,7 +2357,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-medicationdispense-type",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -2422,7 +2422,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-medicationrequest-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "authoredon",
@@ -2433,7 +2433,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-medicationrequest-authoredon",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "encounter",
@@ -2444,7 +2444,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-medicationrequest-encounter",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "intent",
@@ -2455,7 +2455,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-medicationrequest-intent",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -2466,7 +2466,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-medicationrequest-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -2685,7 +2685,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-observation-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "_lastUpdated",
@@ -2695,7 +2695,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-observation-lastupdated|10.0.0-ballot",
-     "description": "A server **SHALL** document the types of changes that can be detected using this parameter.\n\n\nA client **SHALL** provide a value precise to the *second + time offset*.\n\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A server SHALL document the types of changes that can be detected using this parameter.\n\n\nA client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "category",
@@ -2706,7 +2706,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-observation-category",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "code",
@@ -2717,7 +2717,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-observation-code",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "date",
@@ -2728,7 +2728,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-observation-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "status",
@@ -2739,7 +2739,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-observation-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -2848,7 +2848,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-procedure-patient",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\nThe server SHALL support both."
     },
     {
      "name": "code",
@@ -2859,7 +2859,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-procedure-code",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "date",
@@ -2870,7 +2870,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-procedure-date",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "status",
@@ -2881,7 +2881,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-procedure-status",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -2994,7 +2994,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-patient|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
     },
     {
      "name": "authored",
@@ -3004,7 +3004,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-authored|10.0.0-ballot",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "category",
@@ -3014,7 +3014,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-category|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
     },
     {
      "name": "code",
@@ -3024,7 +3024,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-code|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -3034,7 +3034,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-servicerequest-status|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -3181,7 +3181,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-patient|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
     },
     {
      "name": "authored",
@@ -3191,7 +3191,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-authored|10.0.0-ballot",
-     "description": "A client **SHALL** provide a value precise to the *second + time offset*.\n\n\nA server **SHALL** support a value precise to the *second + time offset*."
+     "description": "A client SHALL provide a value precise to the second + time offset.\n\n\nA server SHALL support a value precise to the second + time offset."
     },
     {
      "name": "questionnaire",
@@ -3201,7 +3201,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-questionnaire|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
     },
     {
      "name": "status",
@@ -3211,7 +3211,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-questionnaireresponse-status|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -3280,7 +3280,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-familymemberhistory-patient|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a id value and **MAY** provide both the Type and id values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a id value and MAY provide both the Type and id values.\n\n\nThe server SHALL support both."
     },
     {
      "name": "code",
@@ -3290,7 +3290,7 @@
       "uscore"
      ],
      "definition": "http://hl7.org/fhir/us/core/SearchParameter/us-core-familymemberhistory-code|10.0.0-ballot",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\n\nThe server SHALL support both."
     }
    ],
    "combos": [
@@ -3728,7 +3728,7 @@
       "pdex"
      ],
      "definition": "http://hl7.org/fhir/SearchParameter/Group-identifier",
-     "description": "The client **SHALL** provide at least a code value and **MAY** provide both the system and code values.\n\nThe server **SHALL** support both."
+     "description": "The client SHALL provide at least a code value and MAY provide both the system and code values.\n\nThe server SHALL support both."
     },
     {
      "name": "characteristic",

@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patient Access API Workbench</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Patient Access API Workbench</h1>
+  <nav class="tabs" role="tablist">
+    <button type="button" class="tab-btn active" data-tab="environments" role="tab">Environments</button>
+    <button type="button" class="tab-btn" data-tab="search" role="tab">Search</button>
+    <button type="button" class="tab-btn" data-tab="patient" role="tab">Patient</button>
+    <button type="button" class="tab-btn" data-tab="priorauth" role="tab">Prior auth</button>
+    <button type="button" class="tab-btn" data-tab="conformance" role="tab">Conformance</button>
+    <button type="button" class="tab-btn" data-tab="history" role="tab">History</button>
+    <button type="button" class="tab-btn" data-tab="settings" role="tab">Settings</button>
+  </nav>
+  <label class="env-pick">Environment
+    <select id="env-select" aria-label="Active environment"><option value="">— none —</option></select>
+  </label>
+  <span id="token-pill" class="pill" title="Token status">no token</span>
+  <span id="health" class="pill">checking…</span>
+  <a class="link" href="/swagger-ui.html" target="_blank" rel="noopener">API docs</a>
+</header>
+
+<main>
+  <div id="global-messages" class="messages" aria-live="polite"></div>
+
+  <!-- ============ Environments ============ -->
+  <section id="tab-environments" class="tab active" role="tabpanel">
+    <div class="split">
+      <div class="pane left">
+        <div class="toolbar">
+          <button type="button" id="btn-env-new" class="primary">New environment</button>
+          <button type="button" id="btn-env-demo">Add demo environment</button>
+          <button type="button" id="btn-env-refresh">Refresh</button>
+        </div>
+        <table id="env-table" class="grid-table">
+          <thead><tr><th>Name</th><th>Tier</th><th>Auth</th><th>FHIR base URL</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="muted">Environments are stored in the workbench's data folder; secrets are encrypted at rest and never shown again.</p>
+        <div id="env-test-result" class="messages"></div>
+        <div id="env-token-panel" class="panel" hidden>
+          <h3>Token</h3>
+          <div id="env-token-status" class="kv"></div>
+          <div class="toolbar">
+            <button type="button" id="btn-token-obtain">Obtain / refresh token</button>
+            <button type="button" id="btn-token-smart">SMART login (browser)</button>
+            <button type="button" id="btn-token-paste">Paste a token</button>
+            <button type="button" id="btn-token-forget">Forget token</button>
+            <button type="button" id="btn-env-endpoints">Show OAuth endpoints</button>
+          </div>
+          <div id="env-endpoints" class="kv"></div>
+        </div>
+      </div>
+      <div class="pane right">
+        <form id="env-form" autocomplete="off" novalidate hidden>
+          <div class="toolbar">
+            <strong id="env-form-title">New environment</strong>
+            <span class="spacer"></span>
+            <button type="button" id="btn-env-test">Test connection</button>
+            <button type="button" id="btn-env-duplicate">Duplicate</button>
+            <button type="button" id="btn-env-delete" class="danger">Delete</button>
+            <button type="submit" class="primary">Save</button>
+          </div>
+          <div id="env-form-messages" class="messages"></div>
+          <fieldset>
+            <legend>General</legend>
+            <div class="grid">
+              <label class="field"><span>Name *</span><input name="name" required maxlength="80"></label>
+              <label class="field"><span>Vendor</span><input name="vendor" placeholder="Onyx SAFHIR"></label>
+              <label class="field"><span>Tier</span><select name="tier"><option>SANDBOX</option><option selected>UAT</option><option>PROD</option><option>OTHER</option></select></label>
+              <label class="field wide"><span>FHIR base URL * (e.g. https://&lt;payer&gt;.safhir.io/fhir/R4)</span><input name="fhirBaseUrl" required placeholder="https://"></label>
+              <label class="field wide"><span>Notes</span><input name="notes"></label>
+              <label class="check"><input type="checkbox" name="enabled" checked> Enabled</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Authorization</legend>
+            <div class="grid">
+              <label class="field"><span>Mode</span>
+                <select name="auth.mode">
+                  <option value="NONE">None (open server)</option>
+                  <option value="STATIC_TOKEN">Static bearer token</option>
+                  <option value="CLIENT_CREDENTIALS">OAuth 2.0 client credentials</option>
+                  <option value="BACKEND_SERVICES">SMART Backend Services (JWT assertion)</option>
+                  <option value="SMART_AUTHORIZATION_CODE">SMART App Launch (member login, PKCE)</option>
+                </select></label>
+              <label class="check auth-not-none"><input type="checkbox" name="auth.discoverEndpoints" checked> Discover endpoints from /.well-known/smart-configuration</label>
+              <label class="field wide auth-not-none"><span>Token endpoint (blank = discovered)</span><input name="auth.tokenEndpoint" placeholder="https://"></label>
+              <label class="field wide auth-code"><span>Authorization endpoint (blank = discovered)</span><input name="auth.authorizationEndpoint" placeholder="https://"></label>
+              <label class="field auth-client"><span>Client id</span><input name="auth.clientId"></label>
+              <label class="field auth-secret"><span>Client secret <em class="secret-state" data-secret="auth.clientSecret"></em></span><input name="auth.clientSecret" type="password" placeholder="leave blank to keep"></label>
+              <label class="field auth-secret"><span>Client authentication</span><select name="auth.clientAuthMethod"><option value="CLIENT_SECRET_BASIC">client_secret_basic (Authorization header)</option><option value="CLIENT_SECRET_POST">client_secret_post (form fields)</option></select></label>
+              <label class="field wide auth-not-none"><span>Scopes (space separated)</span><input name="auth.scopes" placeholder="patient/*.rs openid fhirUser offline_access"></label>
+              <label class="field auth-not-none"><span>Audience (aud / audience parameter; blank = base URL)</span><input name="auth.audience"></label>
+              <label class="field wide auth-static"><span>Static token <em class="secret-state" data-secret="auth.staticToken"></em></span><input name="auth.staticToken" type="password" placeholder="leave blank to keep"></label>
+              <label class="field wide auth-jwk"><span>Private key (JWK or JWK Set JSON) <em class="secret-state" data-secret="auth.privateKeyJwk"></em></span><textarea name="auth.privateKeyJwk" rows="4" placeholder='{"kty":"RSA", ... leave blank to keep}'></textarea></label>
+              <label class="field auth-jwk"><span>Signing algorithm</span><select name="auth.signingAlgorithm"><option>RS384</option><option>ES384</option><option>RS256</option><option>ES256</option></select></label>
+              <label class="field wide auth-code"><span>Redirect URI override (blank = this workbench's /oauth/callback)</span><input name="auth.redirectUri"></label>
+              <label class="check auth-code"><input type="checkbox" name="auth.usePkce" checked> Use PKCE (S256)</label>
+              <label class="field wide auth-not-none"><span>Extra token parameters (key=value per line)</span><textarea name="auth.extraTokenParams" rows="2"></textarea></label>
+              <label class="field wide auth-code"><span>Extra authorize parameters (key=value per line)</span><textarea name="auth.extraAuthorizeParams" rows="2"></textarea></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Extra HTTP headers (API keys, subscription keys)</legend>
+            <table class="grid-table" id="env-headers"><thead><tr><th>Name</th><th>Value</th><th>Secret</th><th></th></tr></thead><tbody></tbody></table>
+            <button type="button" id="btn-header-add" class="small">Add header</button>
+          </fieldset>
+          <fieldset>
+            <legend>Member identifier systems (Patient.identifier.system used for member-id searches)</legend>
+            <table class="grid-table" id="env-idsystems"><thead><tr><th>Label</th><th>System URI</th><th>Type code</th><th>Default</th><th></th></tr></thead><tbody></tbody></table>
+            <button type="button" id="btn-idsystem-add" class="small">Add identifier system</button>
+          </fieldset>
+          <fieldset>
+            <legend>FHIR options</legend>
+            <div class="grid">
+              <label class="field"><span>Page size (_count)</span><input name="fhir.pageSize" type="number" min="1" max="1000" placeholder="50"></label>
+              <label class="field"><span>Max pages to follow</span><input name="fhir.maxPages" type="number" min="1" max="500" placeholder="20"></label>
+              <label class="field"><span>Accept header</span><input name="fhir.acceptHeader" placeholder="application/fhir+json"></label>
+              <label class="field"><span>Connect timeout (ms)</span><input name="fhir.connectTimeoutMs" type="number" min="100"></label>
+              <label class="field"><span>Read timeout (ms)</span><input name="fhir.readTimeoutMs" type="number" min="100"></label>
+              <label class="check"><input type="checkbox" name="fhir.sendCountParam" checked> Send _count with searches</label>
+              <label class="check"><input type="checkbox" name="fhir.preferHandlingLenient"> Send Prefer: handling=lenient</label>
+              <label class="check"><input type="checkbox" name="fhir.allowNextLinkHostMismatch"> Allow next links on another host</label>
+              <label class="check"><input type="checkbox" name="fhir.trustAllCertificates"> Trust all TLS certificates (never for PROD)</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Implementation guides this environment claims</legend>
+            <div class="grid">
+              <label class="check"><input type="checkbox" name="ig" value="c4bb" checked> CARIN Blue Button 2.1</label>
+              <label class="check"><input type="checkbox" name="ig" value="pdex" checked> Da Vinci PDex 2.1 (incl. prior auth)</label>
+              <label class="check"><input type="checkbox" name="ig" value="uscore" checked> US Core</label>
+              <label class="check"><input type="checkbox" name="ig" value="usdf" checked> US Drug Formulary</label>
+            </div>
+          </fieldset>
+          <input type="hidden" name="id"><input type="hidden" name="version">
+        </form>
+        <div id="env-empty" class="muted">Select an environment on the left or create one. For Onyx SAFHIR, create one entry per tier (UAT, Prod) with that tier's FHIR base URL and credentials.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Search ============ -->
+  <section id="tab-search" class="tab" role="tabpanel">
+    <div class="split">
+      <div class="pane left">
+        <form id="search-form" autocomplete="off" novalidate>
+          <fieldset>
+            <legend>Find a member</legend>
+            <div class="grid">
+              <label class="field"><span>Member ID (Patient.identifier)</span><input name="memberId" placeholder="e.g. 1234567890"></label>
+              <label class="field"><span>Identifier system</span><select name="identifierSystem"><option value="">all configured for the environment</option></select></label>
+              <label class="field"><span>Name (name=)</span><input name="name"></label>
+              <label class="field"><span>Family name</span><input name="family"></label>
+              <label class="field"><span>Given name</span><input name="given"></label>
+              <label class="field"><span>Birth date</span><input name="birthDate" type="date"></label>
+              <label class="field"><span>Gender</span><select name="gender"><option value="">any</option><option>male</option><option>female</option><option>other</option><option>unknown</option></select></label>
+              <label class="field"><span>Patient id (_id / read)</span><input name="id"></label>
+              <label class="check"><input type="checkbox" name="coverageFallback" checked> Fall back to Coverage?identifier= when no Patient matches</label>
+            </div>
+            <div class="sub">
+              <span class="muted">Extra Patient search parameters (any parameter from the IGs, e.g. <code>_lastUpdated</code>, <code>death-date</code>):</span>
+              <table class="grid-table" id="search-extra"><tbody></tbody></table>
+              <button type="button" id="btn-search-extra" class="small">Add parameter</button>
+            </div>
+          </fieldset>
+          <div class="toolbar">
+            <button type="submit" class="primary">Search</button>
+            <button type="button" id="btn-search-clear">Clear</button>
+            <span id="search-busy" class="busy" hidden>searching…</span>
+          </div>
+        </form>
+        <div id="search-messages" class="messages"></div>
+        <table id="search-results" class="grid-table" hidden>
+          <thead><tr><th>Name</th><th>Birth date</th><th>Gender</th><th>Identifiers</th><th>Id</th><th>Found by</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <details id="search-queries" hidden><summary>Queries sent</summary><table class="grid-table"><thead><tr><th>Query</th><th>URL</th><th>Status</th><th>Matches</th><th>ms</th></tr></thead><tbody></tbody></table></details>
+      </div>
+      <div class="pane right">
+        <h3>Search options the IGs define for Patient</h3>
+        <p class="muted">From CARIN BB 2.1, PDex 2.1 and US Core. SHALL = every server must support it; SHOULD/MAY = optional.</p>
+        <div id="search-catalog"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Patient ============ -->
+  <section id="tab-patient" class="tab" role="tabpanel">
+    <div id="patient-empty" class="muted">Search for a member and open it, or enter a patient id:
+      <form id="patient-open-form" class="inline-form"><input name="pid" placeholder="Patient id"><button type="submit">Open</button></form>
+    </div>
+    <div id="patient-view" hidden>
+      <div class="patient-head panel">
+        <div id="patient-summary"></div>
+        <div class="toolbar">
+          <button type="button" id="btn-patient-refresh">Refresh</button>
+          <button type="button" id="btn-patient-priorauth">Prior authorizations</button>
+          <button type="button" id="btn-patient-conformance">Run conformance for this member</button>
+          <button type="button" id="btn-patient-json" class="small">Patient JSON</button>
+        </div>
+        <div id="patient-checks" class="messages"></div>
+        <pre id="patient-json" class="json" hidden></pre>
+      </div>
+      <div id="patient-classes" class="cards"></div>
+      <div class="panel">
+        <div class="toolbar">
+          <strong id="patient-class-title">Select a data class above</strong>
+          <span class="spacer"></span>
+          <span id="patient-class-filters"></span>
+          <span id="patient-busy" class="busy" hidden>loading…</span>
+        </div>
+        <div id="patient-class-messages" class="messages"></div>
+        <div id="patient-table-wrap"></div>
+      </div>
+      <details class="panel">
+        <summary>Advanced request (any FHIR search or read against the environment)</summary>
+        <form id="raw-form" class="inline-form">
+          <select name="type" id="raw-type"></select>
+          <input name="query" id="raw-query" placeholder="patient=&lt;id&gt;&amp;_count=10 or a resource id after a slash" size="60">
+          <label class="check"><input type="checkbox" name="authenticated" checked> with token</label>
+          <button type="submit">Send</button>
+        </form>
+        <div id="raw-messages" class="messages"></div>
+        <div id="raw-meta" class="muted"></div>
+        <pre id="raw-json" class="json"></pre>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ Prior auth ============ -->
+  <section id="tab-priorauth" class="tab" role="tabpanel">
+    <div class="toolbar">
+      <strong id="pa-title">Prior authorizations</strong>
+      <span class="spacer"></span>
+      <label class="field inline"><span>Changed since</span><input type="date" id="pa-since"></label>
+      <button type="button" id="btn-pa-refresh">Refresh</button>
+      <span id="pa-busy" class="busy" hidden>loading…</span>
+    </div>
+    <div id="pa-messages" class="messages"></div>
+    <div id="pa-checklist" class="panel" hidden></div>
+    <div id="pa-list"></div>
+  </section>
+
+  <!-- ============ Conformance ============ -->
+  <section id="tab-conformance" class="tab" role="tabpanel">
+    <div class="split">
+      <div class="pane left">
+        <form id="conf-form">
+          <fieldset>
+            <legend>Run the suite</legend>
+            <div class="grid">
+              <label class="field"><span>Patient id (for member-level checks)</span><input name="patientId" id="conf-patient"></label>
+            </div>
+            <div id="conf-groups" class="grid checks"></div>
+            <div class="toolbar">
+              <button type="submit" class="primary">Start run</button>
+              <button type="button" id="btn-conf-all" class="small">All groups</button>
+              <button type="button" id="btn-conf-none" class="small">No groups</button>
+              <span id="conf-busy" class="busy" hidden>running…</span>
+            </div>
+          </fieldset>
+        </form>
+        <div id="conf-messages" class="messages"></div>
+        <h3>Previous runs</h3>
+        <table id="conf-runs" class="grid-table"><thead><tr><th>Started</th><th>Environment</th><th>Patient</th><th>Status</th><th>Results</th><th></th></tr></thead><tbody></tbody></table>
+        <details><summary>All checks in the suite</summary><div id="conf-checklist"></div></details>
+      </div>
+      <div class="pane right">
+        <div class="toolbar">
+          <strong id="conf-run-title">No run selected</strong>
+          <span class="spacer"></span>
+          <label class="field inline"><span>Show</span><select id="conf-filter"><option value="">all</option><option>FAIL</option><option>WARN</option><option>PASS</option><option>INFO</option><option>SKIP</option><option>ERROR</option></select></label>
+          <a id="conf-report" class="link" target="_blank" rel="noopener" hidden>HTML report</a>
+          <a id="conf-json" class="link" target="_blank" rel="noopener" hidden>JSON</a>
+          <button type="button" id="btn-conf-cancel" class="small" hidden>Cancel</button>
+        </div>
+        <div id="conf-progress" class="progress" hidden><div></div></div>
+        <div id="conf-summary" class="summary"></div>
+        <div id="conf-results"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ History ============ -->
+  <section id="tab-history" class="tab" role="tabpanel">
+    <div class="split">
+      <div class="pane left">
+        <div class="toolbar">
+          <label class="field inline"><span>Purpose</span><select id="hist-purpose"><option value="">all</option><option>search</option><option>read</option><option>discovery</option><option>auth</option><option>conformance</option></select></label>
+          <label class="field inline"><span>Run / correlation</span><input id="hist-correlation" size="18"></label>
+          <label class="check"><input type="checkbox" id="hist-env-only" checked> Active environment only</label>
+          <button type="button" id="btn-hist-refresh">Refresh</button>
+          <button type="button" id="btn-hist-clear" class="small">Clear</button>
+        </div>
+        <table id="hist-table" class="grid-table"><thead><tr><th>Time</th><th>Method</th><th>URL</th><th>Status</th><th>ms</th><th>Purpose</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="pane right">
+        <div id="hist-detail" class="muted">Select a request to see headers, bodies and the cURL command.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Settings ============ -->
+  <section id="tab-settings" class="tab" role="tabpanel">
+    <div class="split">
+      <div class="pane left">
+        <h3>Workbench</h3>
+        <div id="settings-info" class="kv"></div>
+        <p class="muted">Settings come from <code>application.yaml</code> and environment variables (<code>PAW_*</code>); see the README for the full table.</p>
+      </div>
+      <div class="pane right">
+        <h3>Implementation guides in the catalog</h3>
+        <div id="settings-igs" class="kv"></div>
+        <h3>Demo server</h3>
+        <div id="settings-demo"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-box">
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+    <div class="toolbar"><span class="spacer"></span><button type="button" id="modal-cancel">Cancel</button><button type="button" id="modal-ok" class="primary">OK</button></div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script src="js/environments.js"></script>
+<script src="js/search.js"></script>
+<script src="js/patient.js"></script>
+<script src="js/priorauth.js"></script>
+<script src="js/conformance.js"></script>
+<script src="js/history.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
