@@ -90,7 +90,7 @@ class IgCatalogTest {
         assertThat(pa.type()).isEqualTo("ExplanationOfBenefit");
         assertThat(pa.elements()).anySatisfy(e -> {
             assertThat(e.id()).isEqualTo("ExplanationOfBenefit.use");
-            assertThat(e.fixed().path("patternCode").asText()).isEqualTo("preauthorization");
+            assertThat(e.fixed().path("patternCode").asString("")).isEqualTo("preauthorization");
         });
         assertThat(pa.elements()).anySatisfy(e -> {
             assertThat(e.id()).isEqualTo("ExplanationOfBenefit.item.adjudication:denialreason.category");
@@ -123,7 +123,7 @@ class IgCatalogTest {
         assertThat(CATALOG.display("c4bbAdjudication", "paidbypatient")).isEqualTo("Paid by patient");
         assertThat(CATALOG.display("c4bbAdjudication", "unknown-code")).isNull();
         assertThat(CATALOG.display("noSuchSystem", "x")).isNull();
-        assertThat(CATALOG.codeSystems().path("pdexPayerAdjudicationStatus").path("codes").path("innetwork").asText()).isEqualTo("In Network");
+        assertThat(CATALOG.codeSystems().path("pdexPayerAdjudicationStatus").path("codes").path("innetwork").asString("")).isEqualTo("In Network");
         assertThat(CATALOG.valueSets()).isNotNull();
     }
 }

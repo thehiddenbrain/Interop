@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.patient;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.Ids;
@@ -93,7 +93,7 @@ public class PatientWorkspaceService {
         String correlation = "patient-" + Ids.next(8);
         FhirGateway.Options options = FhirGateway.Options.of(FhirGateway.PURPOSE_READ, correlation);
         JsonNode patient = gateway.read(env, "Patient", patientId, options);
-        if (!"Patient".equals(patient.path("resourceType").asText())) {
+        if (!"Patient".equals(patient.path("resourceType").asString(""))) {
             throw new WorkbenchException(ErrorCode.UPSTREAM_ERROR, "Patient/" + patientId + " did not return a Patient");
         }
         List<CompletableFuture<DataClassCount>> futures = new ArrayList<>();
@@ -259,7 +259,7 @@ public class PatientWorkspaceService {
             throw FhirGateway.upstream(r);
         }
         JsonNode resource = r.json();
-        if (resource == null || !resourceType.equals(resource.path("resourceType").asText())) {
+        if (resource == null || !resourceType.equals(resource.path("resourceType").asString(""))) {
             throw new WorkbenchException(ErrorCode.UPSTREAM_ERROR, url + " did not return a " + resourceType);
         }
         ResourceRow row = ResourceSummaries.row(resource, checker.check(resource));

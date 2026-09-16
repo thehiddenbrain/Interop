@@ -1,8 +1,9 @@
 package com.thehiddenbrain.interop.patientaccess.history;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.thehiddenbrain.interop.patientaccess.common.Json;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,7 +15,7 @@ import java.util.Set;
 public final class Redaction {
 
     public static final String MASK = "***";
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = Json.MAPPER;
     private static final Set<String> ALWAYS = Set.of("authorization", "proxy-authorization", "cookie", "set-cookie",
             "x-api-key", "api-key", "apikey", "ocp-apim-subscription-key", "x-auth-token", "client_secret");
     private static final Set<String> BODY_FIELDS = Set.of("access_token", "refresh_token", "id_token", "client_secret",

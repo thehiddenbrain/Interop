@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.patient;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,40 +21,40 @@ public record PatientSummary(String id, String display, String family, String gi
         if (names.isArray() && names.size() > 0) {
             JsonNode best = names.get(0);
             for (JsonNode n : names) {
-                if ("official".equals(n.path("use").asText())) {
+                if ("official".equals(n.path("use").asString(""))) {
                     best = n;
                     break;
                 }
             }
-            family = best.path("family").asText(null);
+            family = best.path("family").asString(null);
             List<String> givens = new ArrayList<>();
             for (JsonNode g : best.path("given")) {
-                givens.add(g.asText());
+                givens.add(g.asString(""));
             }
             given = givens.isEmpty() ? null : String.join(" ", givens);
-            display = best.hasNonNull("text") ? best.get("text").asText()
+            display = best.hasNonNull("text") ? best.get("text").asString("")
                     : ((given == null ? "" : given + " ") + (family == null ? "" : family)).trim();
         }
         List<IdentifierView> ids = new ArrayList<>();
         for (JsonNode i : patient.path("identifier")) {
             String typeCode = null;
-            String typeText = i.path("type").path("text").asText(null);
+            String typeText = i.path("type").path("text").asString(null);
             JsonNode codings = i.path("type").path("coding");
             if (codings.isArray() && codings.size() > 0) {
-                typeCode = codings.get(0).path("code").asText(null);
+                typeCode = codings.get(0).path("code").asString(null);
                 if (typeText == null) {
-                    typeText = codings.get(0).path("display").asText(null);
+                    typeText = codings.get(0).path("display").asString(null);
                 }
             }
-            ids.add(new IdentifierView(i.path("system").asText(null), i.path("value").asText(null), typeCode, typeText));
+            ids.add(new IdentifierView(i.path("system").asString(null), i.path("value").asString(null), typeCode, typeText));
         }
         List<String> profiles = new ArrayList<>();
         for (JsonNode p : patient.path("meta").path("profile")) {
-            profiles.add(p.asText());
+            profiles.add(p.asString(""));
         }
-        return new PatientSummary(patient.path("id").asText(null), display == null || display.isBlank() ? "(no name)" : display, family, given,
-                patient.path("birthDate").asText(null), patient.path("gender").asText(null), ids,
-                patient.path("meta").path("lastUpdated").asText(null), profiles,
+        return new PatientSummary(patient.path("id").asString(null), display == null || display.isBlank() ? "(no name)" : display, family, given,
+                patient.path("birthDate").asString(null), patient.path("gender").asString(null), ids,
+                patient.path("meta").path("lastUpdated").asString(null), profiles,
                 patient.hasNonNull("active") ? patient.get("active").asBoolean() : null, foundBy);
     }
 }

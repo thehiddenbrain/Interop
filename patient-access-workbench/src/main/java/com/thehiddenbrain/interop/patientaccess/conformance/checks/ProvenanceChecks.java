@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.conformance.checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.conformance.Check;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckContext;
 import com.thehiddenbrain.interop.patientaccess.conformance.Severity;
@@ -41,12 +41,12 @@ public class ProvenanceChecks {
             return out;
         }
         for (JsonNode r : page.included()) {
-            if ("Provenance".equals(r.path("resourceType").asText())) {
+            if ("Provenance".equals(r.path("resourceType").asString(""))) {
                 out.add(r);
             }
         }
         for (JsonNode r : page.resources()) {
-            if ("Provenance".equals(r.path("resourceType").asText())) {
+            if ("Provenance".equals(r.path("resourceType").asString(""))) {
                 out.add(r);
             }
         }
@@ -73,10 +73,10 @@ public class ProvenanceChecks {
             }
             List<JsonNode> provenance = provenances(page);
             if (provenance.isEmpty()) {
-                return b.fail("no Provenance entry returned for " + page.count() + " " + page.resources().get(0).path("resourceType").asText() + " resource(s)");
+                return b.fail("no Provenance entry returned for " + page.count() + " " + page.resources().get(0).path("resourceType").asString("") + " resource(s)");
             }
             return b.pass(provenance.size() + " Provenance resource(s) for " + page.count() + " "
-                    + page.resources().get(0).path("resourceType").asText() + " resource(s)");
+                    + page.resources().get(0).path("resourceType").asString("") + " resource(s)");
         });
     }
 

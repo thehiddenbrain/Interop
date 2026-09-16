@@ -63,7 +63,7 @@ public final class TestGraph {
     public final PatientWorkspaceService workspace;
 
     public TestGraph(Path dataDir) {
-        this(dataDir, new WorkbenchProperties(dataDir.toString(), "", "", new WorkbenchProperties.Ui(true), new WorkbenchProperties.Demo(false),
+        this(dataDir, new WorkbenchProperties(dataDir.toString(), "", "", "vendors.yaml", new WorkbenchProperties.Ui(true), new WorkbenchProperties.Demo(false),
                 new WorkbenchProperties.Security(new WorkbenchProperties.Security.Basic(false, "workbench", "")),
                 new WorkbenchProperties.Http(Duration.ofSeconds(5), Duration.ofSeconds(10), "paw-test", 1),
                 new WorkbenchProperties.History(200, 65536, false), new WorkbenchProperties.Search(50, 5),

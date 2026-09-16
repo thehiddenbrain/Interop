@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.fhir;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +17,7 @@ public record SearchPage(JsonNode bundle, List<JsonNode> resources, List<JsonNod
         Integer total = null;
         String self = null;
         String next = null;
-        if (bundle != null && "Bundle".equals(bundle.path("resourceType").asText())) {
+        if (bundle != null && "Bundle".equals(bundle.path("resourceType").asString(""))) {
             if (bundle.hasNonNull("total")) {
                 total = bundle.get("total").asInt();
             }
@@ -26,21 +26,21 @@ public record SearchPage(JsonNode bundle, List<JsonNode> resources, List<JsonNod
                 if (resource == null) {
                     continue;
                 }
-                String mode = entry.path("search").path("mode").asText("match");
+                String mode = entry.path("search").path("mode").asString("match");
                 if ("include".equals(mode)) {
                     included.add(resource);
-                } else if ("outcome".equals(mode) || "OperationOutcome".equals(resource.path("resourceType").asText())) {
+                } else if ("outcome".equals(mode) || "OperationOutcome".equals(resource.path("resourceType").asString(""))) {
                     outcomes.add(resource); // search-related warnings the server adds (e.g. an ignored parameter); never a match
                 } else {
                     matches.add(resource);
                 }
             }
             for (JsonNode link : bundle.path("link")) {
-                String rel = link.path("relation").asText();
+                String rel = link.path("relation").asString("");
                 if ("next".equals(rel)) {
-                    next = link.path("url").asText(null);
+                    next = link.path("url").asString(null);
                 } else if ("self".equals(rel)) {
-                    self = link.path("url").asText(null);
+                    self = link.path("url").asString(null);
                 }
             }
         }
@@ -48,7 +48,7 @@ public record SearchPage(JsonNode bundle, List<JsonNode> resources, List<JsonNod
     }
 
     public boolean isBundle() {
-        return bundle != null && "Bundle".equals(bundle.path("resourceType").asText());
+        return bundle != null && "Bundle".equals(bundle.path("resourceType").asString(""));
     }
 
     public int count() {

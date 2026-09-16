@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.patient;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -22,7 +22,7 @@ public final class ResourceSummaries {
 
     public static Map<String, String> columns(JsonNode r) {
         Map<String, String> c = new LinkedHashMap<>();
-        String type = r.path("resourceType").asText("");
+        String type = r.path("resourceType").asString("");
         switch (type) {
             case "Patient" -> {
                 PatientSummary p = PatientSummary.of(r, null);
@@ -46,7 +46,7 @@ public final class ResourceSummaries {
                 for (JsonNode cls : r.path("class")) {
                     String code = Fhir.code(cls.path("type"), null);
                     if (code != null) {
-                        c.put("class." + code, text(cls.get("value")) + (cls.hasNonNull("name") ? " (" + cls.get("name").asText() + ")" : ""));
+                        c.put("class." + code, text(cls.get("value")) + (cls.hasNonNull("name") ? " (" + cls.get("name").asString("") + ")" : ""));
                     }
                 }
             }
@@ -241,7 +241,7 @@ public final class ResourceSummaries {
     }
 
     public static ResourceRow row(JsonNode resource, ProfileLiteChecker.Report checks) {
-        return new ResourceRow(resource.path("resourceType").asText(null), Fhir.idOf(resource), Fhir.profiles(resource),
+        return new ResourceRow(resource.path("resourceType").asString(null), Fhir.idOf(resource), Fhir.profiles(resource),
                 Fhir.lastUpdated(resource), columns(resource), checks, resource);
     }
 
@@ -304,7 +304,7 @@ public final class ResourceSummaries {
     static String strings(JsonNode arr) {
         List<String> out = new ArrayList<>();
         for (JsonNode c : arr) {
-            out.add(c.asText());
+            out.add(c.asString(""));
         }
         return out.isEmpty() ? null : String.join(", ", out);
     }

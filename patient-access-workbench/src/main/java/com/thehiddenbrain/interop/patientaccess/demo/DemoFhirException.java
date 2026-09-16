@@ -1,7 +1,8 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.thehiddenbrain.interop.patientaccess.common.Json;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
 
 import java.util.Map;
@@ -13,7 +14,7 @@ import java.util.Map;
  */
 public class DemoFhirException extends RuntimeException {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = Json.MAPPER;
 
     private final HttpStatus status;
     private final String issueCode;

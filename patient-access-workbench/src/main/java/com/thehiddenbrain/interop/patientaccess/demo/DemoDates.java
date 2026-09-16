@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -79,12 +79,12 @@ final class DemoDates {
             return null;
         }
         try {
-            if (node.isTextual()) {
-                return parse(node.asText());
+            if (node.isString()) {
+                return parse(node.asString(""));
             }
             if (node.isObject() && (node.has("start") || node.has("end"))) {
-                Range start = node.hasNonNull("start") ? parse(node.get("start").asText()) : null;
-                Range end = node.hasNonNull("end") ? parse(node.get("end").asText()) : null;
+                Range start = node.hasNonNull("start") ? parse(node.get("start").asString("")) : null;
+                Range end = node.hasNonNull("end") ? parse(node.get("end").asString("")) : null;
                 return new Range(start == null ? null : start.start(), end == null ? null : end.end());
             }
         } catch (IllegalArgumentException malformedData) {

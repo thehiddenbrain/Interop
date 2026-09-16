@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.auth;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.nimbusds.jwt.JWTParser;
 import com.thehiddenbrain.interop.patientaccess.common.ApiError;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
@@ -26,33 +26,33 @@ final class TokenResponseParser {
         JsonNode json = r.json();
         if (!r.ok() || json == null || !json.hasNonNull("access_token")) {
             String detail = json != null && json.hasNonNull("error")
-                    ? json.get("error").asText() + (json.hasNonNull("error_description") ? ": " + json.get("error_description").asText() : "")
+                    ? json.get("error").asString("") + (json.hasNonNull("error_description") ? ": " + json.get("error_description").asString("") : "")
                     : r.errorSummary();
             throw new WorkbenchException(ErrorCode.AUTH_FAILED, "token endpoint " + r.url() + " answered " + r.status() + ": " + detail,
                     List.of(), new ApiError.Upstream(r.status(), r.url(), json != null ? "(token response redacted)" : r.errorSummary(), r.requestId()), null);
         }
-        String access = json.get("access_token").asText();
-        String refresh = json.hasNonNull("refresh_token") ? json.get("refresh_token").asText()
+        String access = json.get("access_token").asString("");
+        String refresh = json.hasNonNull("refresh_token") ? json.get("refresh_token").asString("")
                 : previous != null && previous.hasRefreshToken() ? crypto.reveal(previous.refreshToken()) : null;
-        String idToken = json.hasNonNull("id_token") ? json.get("id_token").asText() : null;
+        String idToken = json.hasNonNull("id_token") ? json.get("id_token").asString("") : null;
         long lifetime = json.hasNonNull("expires_in") ? json.get("expires_in").asLong(DEFAULT_LIFETIME_SECONDS) : DEFAULT_LIFETIME_SECONDS;
         Map<String, Object> context = new LinkedHashMap<>();
-        Iterator<Map.Entry<String, JsonNode>> fields = json.fields();
+        Iterator<Map.Entry<String, JsonNode>> fields = json.properties().iterator();
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> f = fields.next();
             String k = f.getKey();
             if (k.equals("access_token") || k.equals("refresh_token") || k.equals("id_token")) {
                 continue;
             }
-            context.put(k, f.getValue().isValueNode() ? f.getValue().asText() : f.getValue().toString());
+            context.put(k, f.getValue().isValueNode() ? f.getValue().asString("") : f.getValue().toString());
         }
         if (idToken != null) {
             context.put("id_token_claims", idTokenClaims(idToken));
         }
         context.put("access_token_claims", accessTokenClaims(access));
         return new AccessToken(environmentId, crypto.seal(access), refresh == null ? null : crypto.seal(refresh),
-                idToken == null ? null : crypto.seal(idToken), json.path("token_type").asText("Bearer"), json.path("scope").asText(null),
-                json.path("patient").asText(null), now, now.plusSeconds(lifetime), source, context);
+                idToken == null ? null : crypto.seal(idToken), json.path("token_type").asString("Bearer"), json.path("scope").asString(null),
+                json.path("patient").asString(null), now, now.plusSeconds(lifetime), source, context);
     }
 
     /** Standard OIDC claims of the id_token (no signature check: this is diagnostics, not authentication). */

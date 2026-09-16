@@ -1,6 +1,6 @@
 # Patient Access API Workbench
 
-Spring Boot 3.5 / Java 17 / Gradle application for testing a payer's **CMS-9115-F Patient Access API**, including the prior
+Spring Boot 4 / Java 17 / Gradle application for testing a payer's **CMS-9115-F Patient Access API**, including the prior
 authorization content added by **CMS-0057-F**, against vendor FHIR environments such as Onyx SAFHIR
 UAT and Prod. It manages environments and their OAuth/SMART credentials, finds members with the
 search parameters the HL7 implementation guides define, browses claims, prior authorizations, coverage
@@ -21,7 +21,7 @@ Standards covered (bundled as a generated catalog, see `tools/generate-catalog.p
 
 ## Quick start
 
-Java 17 or newer is required; Maven is downloaded by the wrapper on first use.
+Java 17 or newer is required; the Gradle wrapper downloads Gradle and the dependencies on first use.
 
 ```bash
 cd patient-access-workbench
@@ -48,8 +48,10 @@ cd patient-access-workbench
 
 or download the branch as a zip from GitHub (`Code` > `Download ZIP` on that branch) and unzip the
 `patient-access-workbench` folder anywhere. Only Java 17+ is needed; the Gradle wrapper downloads Gradle
-8.14 and the dependencies on first use (about 250 MB, needs internet once). The build is Gradle
-(`build.gradle`, Spring Boot plugin 3.5.16, Java toolchain 17).
+9.5 and the dependencies on first use (about 250 MB, needs internet once). The build is the same shape
+as the EPA Workbench: Gradle 9.5.0 wrapper, Spring Boot 4.0.7 (Spring Framework 7, Jackson 3), no
+toolchain block, `options.release = 17` plus `-parameters`, `springBoot { buildInfo() }`, and an
+`internalRepoUrl` Gradle property that swaps Maven Central for an internal mirror.
 
 **Command line**: double-click `run.bat` (Windows; `run.cmd` is the same script) or run `./run.sh`
 (Mac/Linux), then open `http://localhost:8090/ui/`. The first start builds the jar with the Gradle
@@ -59,8 +61,8 @@ wrapper directly:
 
 ```
 gradlew.bat bootRun                 # build and run from the sources (Windows)
-gradlew.bat bootJar                 # just build build\libs\patient-access-workbench-0.1.0-SNAPSHOT.jar
-java -jar build\libs\patient-access-workbench-0.1.0-SNAPSHOT.jar
+gradlew.bat bootJar                 # just build build\libs\patient-access-workbench-1.0.0.jar
+java -jar build\libs\patient-access-workbench-1.0.0.jar
 ```
 
 **Spring Tool Suite 4 / Eclipse**:
@@ -84,6 +86,12 @@ IntelliJ IDEA: *File > Open* the `build.gradle` as a project and run the same ma
 ## Working with environments
 
 An environment is one FHIR endpoint with its own credentials, e.g. *Onyx UAT* and *Onyx Prod*:
+
+**Vendor presets** (`vendors.yaml`): the editor has a *Vendor preset* list that fills the URL layout,
+IG bases, SMART endpoints and auth defaults of a platform from the tenant host you type (Onyx SAFHIR is
+bundled). The presets are configuration, not code: copy `src/main/resources/vendors.yaml` next to the jar
+(or point `PAW_VENDORS_FILE` at it) and edit it to add a vendor or change a layout; a broken file stops
+the start with the file name and the error rather than falling back silently.
 
 * **General**: name, vendor, tier (`SANDBOX`, `UAT`, `PROD`, `OTHER`), FHIR base URL. PROD refuses
   plain http and "trust all certificates".
@@ -177,6 +185,7 @@ overrides. Everything can be set with environment variables.
 | `paw.search.page-size`, `max-pages` | – | 50 / 20 | `_count` and pages followed |
 | `paw.conformance.max-pages`, `concurrency`, `slow-warn-ms`, `slow-fail-ms` | – | 5 / 4 / 3000 / 10000 | conformance runs |
 | `paw.validation.packages-dir` | `PAW_PACKAGES_DIR` | `./packages` | FHIR IG npm packages for optional full validation |
+| `paw.vendors-file` | `PAW_VENDORS_FILE` | `./vendors.yaml` | Vendor presets for the Environments form; when the file is absent the copy bundled in the jar is used |
 | `server.port` | `SERVER_PORT` | 8090 | HTTP port |
 
 Generate a master key: `openssl rand -base64 32`.
@@ -206,8 +215,8 @@ Readiness/liveness probes: `/actuator/health/readiness` and `/actuator/health/li
 ```bash
 ./gradlew build                                           # build + tests (gradlew.bat build on Windows)
 ./gradlew bootRun                                         # run from sources with the dev profile
-java -jar build/libs/patient-access-workbench-0.1.0-SNAPSHOT.jar
-SPRING_PROFILES_ACTIVE=prod PAW_MASTER_KEY=... PAW_BASIC_AUTH_PASSWORD=... java -jar build/libs/patient-access-workbench-0.1.0-SNAPSHOT.jar
+java -jar build/libs/patient-access-workbench-1.0.0.jar
+SPRING_PROFILES_ACTIVE=prod PAW_MASTER_KEY=... PAW_BASIC_AUTH_PASSWORD=... java -jar build/libs/patient-access-workbench-1.0.0.jar
 ```
 
 Regenerate the IG catalog after upgrading a package: download the packages as described in
@@ -228,11 +237,13 @@ src/main/java/com/thehiddenbrain/interop/patientaccess/
   search/        member search strategies
   patient/       summaries per resource type, prior-auth summarizer, profile-lite checker, workspace
   conformance/   check framework, runner, run store, HTML report, checks/ (the suite)
+  vendor/        vendor presets (vendors.yaml next to the jar, or the bundled copy)
   demo/          in-process sample Patient Access API + OAuth server
   api/           REST controllers
 src/main/resources/catalog/ig-catalog.json   generated catalog
 src/main/resources/demo/*.json               sample data (HL7 IG examples, CC0, plus synthetic records)
-src/main/resources/ui/                       browser UI (plain HTML/CSS/JS)
+src/main/resources/ui/                       browser UI (plain HTML/CSS/JS); brand/brand.css holds the palette and fonts
+src/main/resources/vendors.yaml              bundled vendor presets
 docs/                                        architecture and reference notes
 tools/generate-catalog.py                    catalog generator
 ```

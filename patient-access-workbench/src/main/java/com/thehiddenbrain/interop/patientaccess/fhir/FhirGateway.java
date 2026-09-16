@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.fhir;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.auth.TokenService;
 import com.thehiddenbrain.interop.patientaccess.common.ApiError;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;

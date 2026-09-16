@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.conformance.checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 import com.thehiddenbrain.interop.patientaccess.conformance.Check;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckContext;

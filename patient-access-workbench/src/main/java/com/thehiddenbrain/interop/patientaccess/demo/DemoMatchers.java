@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
@@ -42,21 +42,21 @@ final class DemoMatchers {
         }
         for (JsonNode n : nodes) {
             if (n.isValueNode()) {
-                if (!systemGiven && code.equals(n.asText())) {
+                if (!systemGiven && code.equals(n.asString(""))) {
                     return true;
                 }
             } else if (n.has("coding")) {
                 for (JsonNode c : n.get("coding")) {
-                    if (codingMatches(c.path("system").asText(null), c.path("code").asText(null), system, code, systemGiven)) {
+                    if (codingMatches(c.path("system").asString(null), c.path("code").asString(null), system, code, systemGiven)) {
                         return true;
                     }
                 }
             } else if (n.has("code")) {
-                if (codingMatches(n.path("system").asText(null), n.path("code").asText(null), system, code, systemGiven)) {
+                if (codingMatches(n.path("system").asString(null), n.path("code").asString(null), system, code, systemGiven)) {
                     return true;
                 }
             } else if (n.has("value")) {
-                if (codingMatches(n.path("system").asText(null), n.path("value").asText(null), system, code, systemGiven)) {
+                if (codingMatches(n.path("system").asString(null), n.path("value").asString(null), system, code, systemGiven)) {
                     return true;
                 }
             }
@@ -83,7 +83,7 @@ final class DemoMatchers {
         }
         String wantKey = DemoDataStore.referenceKey(want);
         for (JsonNode n : nodes) {
-            String ref = n.isValueNode() ? n.asText() : n.path("reference").asText(null);
+            String ref = n.isValueNode() ? n.asString("") : n.path("reference").asString(null);
             String key = DemoDataStore.referenceKey(ref);
             if (key == null) {
                 continue;
@@ -119,12 +119,12 @@ final class DemoMatchers {
         if (node == null || node.isNull()) {
             return;
         }
-        if (node.isTextual()) {
-            out.add(node.asText());
+        if (node.isString()) {
+            out.add(node.asString(""));
         } else if (node.isArray()) {
             node.forEach(n -> collectTexts(n, out));
         } else if (node.isObject()) {
-            node.fields().forEachRemaining(e -> {
+            node.properties().forEach(e -> {
                 if (!STRING_SKIP.contains(e.getKey())) {
                     collectTexts(e.getValue(), out);
                 }

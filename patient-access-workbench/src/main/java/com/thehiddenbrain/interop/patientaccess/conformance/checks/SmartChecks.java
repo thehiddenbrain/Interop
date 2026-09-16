@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.conformance.checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.auth.OAuthEndpoints;
 import com.thehiddenbrain.interop.patientaccess.auth.SmartDiscoveryService;
 import com.thehiddenbrain.interop.patientaccess.conformance.Check;
@@ -63,8 +63,8 @@ public class SmartChecks {
             if (s.has("grant_types_supported") && !contains(s.get("grant_types_supported"), "authorization_code")) {
                 missing.add("grant_types_supported: authorization_code");
             }
-            b.detail("authorization_endpoint: " + s.path("authorization_endpoint").asText("-"));
-            b.detail("token_endpoint: " + s.path("token_endpoint").asText("-"));
+            b.detail("authorization_endpoint: " + s.path("authorization_endpoint").asString("-"));
+            b.detail("token_endpoint: " + s.path("token_endpoint").asString("-"));
             if (!missing.isEmpty()) {
                 return b.fail("missing or incomplete: " + String.join(", ", missing));
             }
@@ -88,7 +88,7 @@ public class SmartChecks {
             JsonNode caps = s.path("capabilities");
             List<String> present = new ArrayList<>();
             for (JsonNode c : caps) {
-                present.add(c.asText());
+                present.add(c.asString(""));
             }
             b.detail("capabilities: " + String.join(", ", present));
             List<String> missing = new ArrayList<>();
@@ -124,7 +124,7 @@ public class SmartChecks {
             }
             List<String> scopes = new ArrayList<>();
             for (JsonNode c : s.get("scopes_supported")) {
-                scopes.add(c.asText());
+                scopes.add(c.asString(""));
             }
             CheckSupport.list(b, "scope: ", scopes);
             List<String> missing = new ArrayList<>();
@@ -193,12 +193,12 @@ public class SmartChecks {
             String csAuthorize = null;
             String csToken = null;
             for (JsonNode ext : security.path("extension")) {
-                if (SmartDiscoveryService.OAUTH_URIS_EXTENSION.equals(ext.path("url").asText())) {
+                if (SmartDiscoveryService.OAUTH_URIS_EXTENSION.equals(ext.path("url").asString(""))) {
                     for (JsonNode inner : ext.path("extension")) {
-                        String value = inner.hasNonNull("valueUri") ? inner.get("valueUri").asText() : inner.path("valueUrl").asText(null);
-                        if ("authorize".equals(inner.path("url").asText())) {
+                        String value = inner.hasNonNull("valueUri") ? inner.get("valueUri").asString("") : inner.path("valueUrl").asString(null);
+                        if ("authorize".equals(inner.path("url").asString(""))) {
                             csAuthorize = value;
-                        } else if ("token".equals(inner.path("url").asText())) {
+                        } else if ("token".equals(inner.path("url").asString(""))) {
                             csToken = value;
                         }
                     }
@@ -208,8 +208,8 @@ public class SmartChecks {
                 return b.skip("CapabilityStatement has no oauth-uris extension to compare with");
             }
             List<String> diffs = new ArrayList<>();
-            compare(b, diffs, "authorize", s.path("authorization_endpoint").asText(null), csAuthorize);
-            compare(b, diffs, "token", s.path("token_endpoint").asText(null), csToken);
+            compare(b, diffs, "authorize", s.path("authorization_endpoint").asString(null), csAuthorize);
+            compare(b, diffs, "token", s.path("token_endpoint").asString(null), csToken);
             if (!diffs.isEmpty()) {
                 return b.fail("endpoints differ: " + String.join("; ", diffs));
             }
@@ -226,7 +226,7 @@ public class SmartChecks {
 
     private static boolean contains(JsonNode array, String value) {
         for (JsonNode n : array) {
-            if (value.equals(n.asText())) {
+            if (value.equals(n.asString(""))) {
                 return true;
             }
         }

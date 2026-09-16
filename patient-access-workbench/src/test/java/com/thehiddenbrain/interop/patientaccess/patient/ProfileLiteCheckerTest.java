@@ -1,7 +1,7 @@
 package com.thehiddenbrain.interop.patientaccess.patient;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 import com.thehiddenbrain.interop.patientaccess.support.Fixtures;
 import org.junit.jupiter.api.Test;
@@ -132,34 +132,34 @@ class ProfileLiteCheckerTest {
         Map<String, IgCatalog.ProfileRule> patientRules = rules(C4BB_PATIENT);
         assertThat(CHECKER.matches(patient, "Patient.identifier", patientRules)).hasSize(2);
         assertThat(CHECKER.matches(patient, "Patient.identifier:memberid", patientRules)).singleElement()
-                .satisfies(n -> assertThat(n.path("value").asText()).isEqualTo("1234-234-1243-12345678901"));
+                .satisfies(n -> assertThat(n.path("value").asString("")).isEqualTo("1234-234-1243-12345678901"));
         assertThat(CHECKER.matches(patient, "Patient.identifier:memberid.value", patientRules)).singleElement()
-                .satisfies(n -> assertThat(n.asText()).isEqualTo("1234-234-1243-12345678901"));
+                .satisfies(n -> assertThat(n.asString("")).isEqualTo("1234-234-1243-12345678901"));
         assertThat(CHECKER.matches(patient, "Patient.identifier:uniquememberid", patientRules)).singleElement()
-                .satisfies(n -> assertThat(n.path("value").asText()).endsWith("u"));
-        assertThat(CHECKER.matches(patient, "Patient.name.given", patientRules)).singleElement().satisfies(n -> assertThat(n.asText()).isEqualTo("Johnny"));
+                .satisfies(n -> assertThat(n.path("value").asString("")).endsWith("u"));
+        assertThat(CHECKER.matches(patient, "Patient.name.given", patientRules)).singleElement().satisfies(n -> assertThat(n.asString("")).isEqualTo("Johnny"));
         assertThat(CHECKER.matches(patient, "Patient.deceased[x]", patientRules)).isEmpty();
 
         JsonNode pa = Fixtures.demo("pdex-ExplanationOfBenefit-PDexPriorAuth1");
         Map<String, IgCatalog.ProfileRule> paRules = rules(PriorAuthSummarizer.PDEX_PA_PROFILE);
         assertThat(CHECKER.matches(pa, "ExplanationOfBenefit.extension:levelOfServiceType", paRules)).singleElement()
-                .satisfies(n -> assertThat(n.path("url").asText()).isEqualTo(PriorAuthSummarizer.EXT_LEVEL_OF_SERVICE));
+                .satisfies(n -> assertThat(n.path("url").asString("")).isEqualTo(PriorAuthSummarizer.EXT_LEVEL_OF_SERVICE));
         assertThat(CHECKER.matches(pa, "ExplanationOfBenefit.item.adjudication.extension:reviewAction", paRules)).singleElement()
-                .satisfies(n -> assertThat(n.path("url").asText()).isEqualTo(PriorAuthSummarizer.EXT_REVIEW_ACTION));
+                .satisfies(n -> assertThat(n.path("url").asString("")).isEqualTo(PriorAuthSummarizer.EXT_REVIEW_ACTION));
         assertThat(CHECKER.matches(pa, "ExplanationOfBenefit.item.adjudication.extension:adjudicationActionDate", paRules)).hasSize(1);
         assertThat(CHECKER.matches(pa, "ExplanationOfBenefit.item.extension:preAuthPeriod", paRules)).isEmpty();
         assertThat(CHECKER.matches(pa, "ExplanationOfBenefit.item.adjudication:allowedunits", paRules)).isEmpty();
         assertThat(CHECKER.matches(pa, "ExplanationOfBenefit.diagnosis.diagnosis[x]", paRules)).singleElement()
-                .satisfies(n -> assertThat(n.path("coding").get(0).path("code").asText()).isEqualTo("G89.4"));
+                .satisfies(n -> assertThat(n.path("coding").get(0).path("code").asString("")).isEqualTo("G89.4"));
         assertThat(CHECKER.matches(pa, "ExplanationOfBenefit.total.extension:priorauth-utilization", paRules)).hasSize(1);
 
         // type slices of choice elements select the property named by the slice; binding-only slices accept every candidate
         JsonNode inpatient = Fixtures.demo("c4bb-ExplanationOfBenefit-EOBInpatient1");
         Map<String, IgCatalog.ProfileRule> inpatientRules = rules(C4BB_INPATIENT);
         assertThat(CHECKER.matches(inpatient, "ExplanationOfBenefit.supportingInfo:admissionperiod.timing[x]:timingPeriod", inpatientRules)).singleElement()
-                .satisfies(n -> assertThat(n.path("start").asText()).isEqualTo("2011-05-23"));
+                .satisfies(n -> assertThat(n.path("start").asString("")).isEqualTo("2011-05-23"));
         assertThat(CHECKER.matches(inpatient, "ExplanationOfBenefit.supportingInfo:clmrecvddate.timing[x]", inpatientRules)).singleElement()
-                .satisfies(n -> assertThat(n.isTextual()).isTrue());
+                .satisfies(n -> assertThat(n.isString()).isTrue());
         assertThat(CHECKER.matches(inpatient, "ExplanationOfBenefit.total:adjudicationamounttype", inpatientRules)).hasSize(3);
         assertThat(CHECKER.matches(inpatient, "ExplanationOfBenefit.item.adjudication:allowedunits", inpatientRules)).isEmpty();
     }
@@ -171,8 +171,8 @@ class ProfileLiteCheckerTest {
         assertThat(ProfileLiteChecker.matchesFixed(cc, Fixtures.parse("{\"patternCodeableConcept\":{\"coding\":[{\"system\":\"other\",\"code\":\"b\"}]}}"))).isFalse();
         assertThat(ProfileLiteChecker.matchesFixed(cc.withArray("coding").get(0), Fixtures.parse("{\"fixedCoding\":{\"code\":\"a\"}}"))).isTrue();
         assertThat(ProfileLiteChecker.matchesFixed(Fixtures.parse("{\"system\":\"urn:x\",\"value\":\"1\"}"), Fixtures.parse("{\"patternIdentifier\":{\"system\":\"urn:x\"}}"))).isTrue();
-        assertThat(ProfileLiteChecker.matchesFixed(Fixtures.MAPPER.getNodeFactory().textNode("http://p|1.0"), Fixtures.parse("{\"patternCanonical\":\"http://p\"}"))).isTrue();
-        assertThat(ProfileLiteChecker.matchesFixed(Fixtures.MAPPER.getNodeFactory().textNode("claim"), Fixtures.parse("{\"patternCode\":\"preauthorization\"}"))).isFalse();
+        assertThat(ProfileLiteChecker.matchesFixed(Fixtures.MAPPER.getNodeFactory().stringNode("http://p|1.0"), Fixtures.parse("{\"patternCanonical\":\"http://p\"}"))).isTrue();
+        assertThat(ProfileLiteChecker.matchesFixed(Fixtures.MAPPER.getNodeFactory().stringNode("claim"), Fixtures.parse("{\"patternCode\":\"preauthorization\"}"))).isFalse();
         assertThat(ProfileLiteChecker.matchesFixed(cc, Fixtures.parse("{\"patternCode\":\"x\"}"))).isFalse();
     }
 }

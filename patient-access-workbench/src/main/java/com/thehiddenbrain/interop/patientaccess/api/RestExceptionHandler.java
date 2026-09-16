@@ -1,8 +1,9 @@
 package com.thehiddenbrain.interop.patientaccess.api;
 
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
 import com.thehiddenbrain.interop.patientaccess.common.ApiError;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
@@ -46,7 +47,7 @@ public class RestExceptionHandler {
     public ResponseEntity<ApiError> unreadable(HttpMessageNotReadableException e) {
         List<ApiError.Detail> details = new ArrayList<>();
         Throwable cause = e.getCause();
-        if (cause instanceof JsonMappingException jme) {
+        if (cause instanceof DatabindException jme) {
             String path = jsonPath(jme);
             String message;
             if (jme instanceof UnrecognizedPropertyException upe) {
@@ -100,11 +101,11 @@ public class RestExceptionHandler {
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(error);
     }
 
-    static String jsonPath(JsonMappingException e) {
+    static String jsonPath(DatabindException e) {
         List<String> parts = new ArrayList<>();
-        for (JsonMappingException.Reference ref : e.getPath()) {
-            if (ref.getFieldName() != null) {
-                parts.add(ref.getFieldName());
+        for (JacksonException.Reference ref : e.getPath()) {
+            if (ref.getPropertyName() != null) {
+                parts.add(ref.getPropertyName());
             } else if (ref.getIndex() >= 0 && !parts.isEmpty()) {
                 parts.set(parts.size() - 1, parts.get(parts.size() - 1) + "[" + ref.getIndex() + "]");
             }

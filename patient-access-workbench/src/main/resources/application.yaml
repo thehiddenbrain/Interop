@@ -7,6 +7,8 @@ spring:
     default-property-inclusion: non_null
     deserialization:
       fail-on-unknown-properties: false
+      # Jackson 3 default is true; absent booleans/ints in partial JSON bodies keep their record defaults instead.
+      fail-on-null-for-primitives: false
   mvc:
     problemdetails:
       enabled: false
@@ -49,6 +51,9 @@ paw:
   # External URL of this workbench, used to build the SMART redirect URI (<public-base-url>/oauth/callback).
   # Empty: derived from the incoming request (works behind a proxy that sets X-Forwarded-* headers).
   public-base-url: ${PAW_PUBLIC_BASE_URL:}
+  # Vendor presets for the Environments form (see the bundled src/main/resources/vendors.yaml). A copy next to
+  # the jar replaces the bundled one; adding a vendor is an edit there, never code.
+  vendors-file: ${PAW_VENDORS_FILE:./vendors.yaml}
   ui:
     # Browser UI at /ui/. Off in the prod profile unless PAW_UI_ENABLED=true.
     enabled: true

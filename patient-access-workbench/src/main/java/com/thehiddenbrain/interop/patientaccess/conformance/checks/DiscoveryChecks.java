@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.conformance.checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.auth.SmartDiscoveryService;
 import com.thehiddenbrain.interop.patientaccess.conformance.Check;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckContext;
@@ -45,8 +45,8 @@ public class DiscoveryChecks {
                 return b.fail("no CapabilityStatement at " + ctx.environment().baseUrl() + "/metadata (HTTP " + d.metadataStatus() + ")");
             }
             JsonNode cs = d.capabilityStatement();
-            b.detail("software: " + cs.path("software").path("name").asText("?") + " " + cs.path("software").path("version").asText(""));
-            b.detail("fhirVersion: " + cs.path("fhirVersion").asText("?"));
+            b.detail("software: " + cs.path("software").path("name").asString("?") + " " + cs.path("software").path("version").asString(""));
+            b.detail("fhirVersion: " + cs.path("fhirVersion").asString("?"));
             return b.pass("CapabilityStatement received in " + d.metadataMs() + " ms");
         });
     }
@@ -61,7 +61,7 @@ public class DiscoveryChecks {
             if (d.capabilityStatement() == null) {
                 return b.skip("no CapabilityStatement");
             }
-            String v = d.capabilityStatement().path("fhirVersion").asText("");
+            String v = d.capabilityStatement().path("fhirVersion").asString("");
             if (v.startsWith("4.0")) {
                 return b.pass("fhirVersion " + v);
             }
@@ -80,7 +80,7 @@ public class DiscoveryChecks {
                 return b.skip("no CapabilityStatement");
             }
             for (JsonNode f : d.capabilityStatement().path("format")) {
-                String t = f.asText();
+                String t = f.asString("");
                 if (t.equals("json") || t.contains("json")) {
                     return b.pass("format includes " + t);
                 }
@@ -214,7 +214,7 @@ public class DiscoveryChecks {
             boolean smart = false;
             for (JsonNode service : security.path("service")) {
                 for (JsonNode c : service.path("coding")) {
-                    if (SMART_SECURITY_CODE.equals(c.path("code").asText())) {
+                    if (SMART_SECURITY_CODE.equals(c.path("code").asString(""))) {
                         smart = true;
                     }
                 }
@@ -222,12 +222,12 @@ public class DiscoveryChecks {
             String authorize = null;
             String token = null;
             for (JsonNode ext : security.path("extension")) {
-                if (SmartDiscoveryService.OAUTH_URIS_EXTENSION.equals(ext.path("url").asText())) {
+                if (SmartDiscoveryService.OAUTH_URIS_EXTENSION.equals(ext.path("url").asString(""))) {
                     for (JsonNode inner : ext.path("extension")) {
-                        String value = inner.hasNonNull("valueUri") ? inner.get("valueUri").asText() : inner.path("valueUrl").asText(null);
-                        if ("authorize".equals(inner.path("url").asText())) {
+                        String value = inner.hasNonNull("valueUri") ? inner.get("valueUri").asString("") : inner.path("valueUrl").asString(null);
+                        if ("authorize".equals(inner.path("url").asString(""))) {
                             authorize = value;
-                        } else if ("token".equals(inner.path("url").asText())) {
+                        } else if ("token".equals(inner.path("url").asString(""))) {
                             token = value;
                         }
                     }
@@ -268,7 +268,7 @@ public class DiscoveryChecks {
             Set<String> refs = new LinkedHashSet<>();
             for (String field : List.of("instantiates", "implementationGuide", "imports")) {
                 for (JsonNode v : d.capabilityStatement().path(field)) {
-                    refs.add(v.asText());
+                    refs.add(v.asString(""));
                 }
             }
             CheckSupport.list(b, "referenced: ", new ArrayList<>(refs));

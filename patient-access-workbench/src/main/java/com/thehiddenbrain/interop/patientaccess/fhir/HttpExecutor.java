@@ -174,12 +174,12 @@ public class HttpExecutor {
             var n = r.json();
             int entries = n.has("entry") ? n.get("entry").size() : 0;
             String total = n.has("total") ? " of " + n.get("total").asInt() : "";
-            return "Bundle " + n.path("type").asText("") + ": " + entries + " entries" + total;
+            return "Bundle " + n.path("type").asString("") + ": " + entries + " entries" + total;
         }
         if ("OperationOutcome".equals(type)) {
             return "OperationOutcome: " + r.errorSummary();
         }
-        return type + "/" + r.json().path("id").asText("");
+        return type + "/" + r.json().path("id").asString("");
     }
 
     static long retryAfterMs(String header) {

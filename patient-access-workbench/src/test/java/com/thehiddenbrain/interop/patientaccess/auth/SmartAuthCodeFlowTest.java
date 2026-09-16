@@ -94,7 +94,7 @@ class SmartAuthCodeFlowTest {
 
     @Test
     void redirectUriPrefersThePublicBaseUrlProperty() {
-        WorkbenchProperties props = new WorkbenchProperties(dir.toString(), "", "https://workbench.example.org/", new WorkbenchProperties.Ui(true),
+        WorkbenchProperties props = new WorkbenchProperties(dir.toString(), "", "https://workbench.example.org/", "vendors.yaml", new WorkbenchProperties.Ui(true),
                 new WorkbenchProperties.Demo(false), new WorkbenchProperties.Security(new WorkbenchProperties.Security.Basic(false, "workbench", "")),
                 new WorkbenchProperties.Http(Duration.ofSeconds(5), Duration.ofSeconds(10), "paw-test", 1), new WorkbenchProperties.History(200, 65536, false),
                 new WorkbenchProperties.Search(50, 5), new WorkbenchProperties.Conformance(3, 2, 3000, 10000), new WorkbenchProperties.Validation(dir.toString()));

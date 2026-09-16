@@ -13,6 +13,7 @@ public record WorkbenchProperties(
         @DefaultValue("./data") String dataDir,
         @DefaultValue("") String masterKey,
         @DefaultValue("") String publicBaseUrl,
+        @DefaultValue("./vendors.yaml") String vendorsFile,
         @DefaultValue Ui ui,
         @DefaultValue Demo demo,
         @DefaultValue Security security,
@@ -93,6 +94,11 @@ public record WorkbenchProperties(
 
     public Path dataDirPath() {
         return Path.of(dataDir).toAbsolutePath().normalize();
+    }
+
+    /** The vendor presets file next to the jar; when absent the copy bundled in the jar is used. */
+    public Path vendorsFilePath() {
+        return Path.of(vendorsFile).toAbsolutePath().normalize();
     }
 
     public Path packagesDirPath() {

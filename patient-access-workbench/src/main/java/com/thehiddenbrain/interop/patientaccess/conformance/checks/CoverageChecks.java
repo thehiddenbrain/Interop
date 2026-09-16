@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.conformance.checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.conformance.Check;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckContext;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckResult;
@@ -224,7 +224,7 @@ public class CoverageChecks {
             if (problem != null) {
                 return b.fail(problem);
             }
-            long orgs = page.included().stream().filter(r -> "Organization".equals(r.path("resourceType").asText())).count();
+            long orgs = page.included().stream().filter(r -> "Organization".equals(r.path("resourceType").asString(""))).count();
             if (orgs == 0) {
                 return b.fail("no Organization entry with search.mode=include (" + page.included().size() + " included entries)");
             }
@@ -290,7 +290,7 @@ public class CoverageChecks {
             Set<String> statuses = new LinkedHashSet<>();
             boolean active = false;
             for (JsonNode c : coverages(ctx)) {
-                String s = c.path("status").asText("(absent)");
+                String s = c.path("status").asString("(absent)");
                 statuses.add(s);
                 active |= "active".equals(s);
                 b.detail(CheckSupport.label(c) + ": " + s + ", period " + (Fhir.period(c.get("period")) == null ? "-" : Fhir.period(c.get("period"))));

@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.patient;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 import org.springframework.stereotype.Component;
 
@@ -52,14 +52,14 @@ public class PriorAuthSummarizer {
     }
 
     public static boolean isPriorAuth(JsonNode eob) {
-        if (!"ExplanationOfBenefit".equals(eob.path("resourceType").asText())) {
+        if (!"ExplanationOfBenefit".equals(eob.path("resourceType").asString(""))) {
             return false;
         }
-        if ("preauthorization".equals(eob.path("use").asText())) {
+        if ("preauthorization".equals(eob.path("use").asString(""))) {
             return true;
         }
         for (JsonNode p : eob.path("meta").path("profile")) {
-            if (p.asText().startsWith(PDEX_PA_PROFILE)) {
+            if (p.asString("").startsWith(PDEX_PA_PROFILE)) {
                 return true;
             }
         }
@@ -84,7 +84,7 @@ public class PriorAuthSummarizer {
         }
         List<String> preAuthRef = new ArrayList<>();
         for (JsonNode p : eob.path("preAuthRef")) {
-            preAuthRef.add(p.asText());
+            preAuthRef.add(p.asString(""));
         }
         List<String> diagnoses = new ArrayList<>();
         for (JsonNode d : eob.path("diagnosis")) {
@@ -165,7 +165,7 @@ public class PriorAuthSummarizer {
             for (JsonNode p : Fhir.extensions(it, EXT_AUTHORIZED_PROVIDER)) {
                 String who = null;
                 for (JsonNode inner : p.path("extension")) {
-                    if ("provider".equals(inner.path("url").asText())) {
+                    if ("provider".equals(inner.path("url").asString(""))) {
                         who = reference(inner.get("valueReference"));
                     }
                 }
@@ -269,7 +269,7 @@ public class PriorAuthSummarizer {
         Boolean second = null;
         List<String> reasons = new ArrayList<>();
         for (JsonNode inner : ext.path("extension")) {
-            String url = inner.path("url").asText();
+            String url = inner.path("url").asString("");
             if (url.equals("code") || url.equals(EXT_REVIEW_ACTION_CODE)) {
                 JsonNode cc = inner.get("valueCodeableConcept");
                 code = cc != null ? Fhir.code(cc, null) : Fhir.choiceText(inner, "value");

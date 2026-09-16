@@ -1,6 +1,7 @@
 package com.thehiddenbrain.interop.patientaccess.history;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.thehiddenbrain.interop.patientaccess.common.JsonFile;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
 import com.thehiddenbrain.interop.patientaccess.config.WorkbenchProperties;
@@ -181,7 +182,7 @@ public class RequestLog {
                     }
                     try {
                         loaded.add(MAPPER.readValue(line, RequestRecord.class));
-                    } catch (IOException bad) {
+                    } catch (JacksonException bad) {
                         log.debug("skipping unreadable history line in {}", file);
                     }
                 }

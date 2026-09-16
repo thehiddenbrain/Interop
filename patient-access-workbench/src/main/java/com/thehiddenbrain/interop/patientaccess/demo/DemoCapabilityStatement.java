@@ -1,8 +1,9 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.thehiddenbrain.interop.patientaccess.common.Json;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.thehiddenbrain.interop.patientaccess.auth.SmartDiscoveryService;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 import org.springframework.stereotype.Component;
@@ -28,7 +29,7 @@ public class DemoCapabilityStatement {
     /** The catalog was generated from the US Core master branch; the demo declares the STU the Patient Access API cites. */
     static final Map<String, String> IG_VERSION_FALLBACK = Map.of("uscore", "6.1.0");
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = Json.MAPPER;
 
     private final IgCatalog catalog;
     private final DemoSearchEngine engine;

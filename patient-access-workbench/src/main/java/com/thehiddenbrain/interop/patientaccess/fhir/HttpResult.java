@@ -1,7 +1,8 @@
 package com.thehiddenbrain.interop.patientaccess.fhir;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.thehiddenbrain.interop.patientaccess.common.Json;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Locale;
@@ -10,7 +11,7 @@ import java.util.Map;
 /** Outcome of one outbound HTTP call: status, headers, body and the history entry it was recorded as. */
 public final class HttpResult {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = Json.MAPPER;
 
     private final String url;
     private final int status;
@@ -97,7 +98,7 @@ public final class HttpResult {
 
     public String resourceType() {
         JsonNode n = json();
-        return n != null && n.hasNonNull("resourceType") ? n.get("resourceType").asText() : null;
+        return n != null && n.hasNonNull("resourceType") ? n.get("resourceType").asString("") : null;
     }
 
     public boolean isResource(String type) {
@@ -113,10 +114,10 @@ public final class HttpResult {
                 if (sb.length() > 0) {
                     sb.append("; ");
                 }
-                sb.append(issue.path("severity").asText("?")).append('/').append(issue.path("code").asText("?"));
-                String text = issue.path("diagnostics").asText(null);
+                sb.append(issue.path("severity").asString("?")).append('/').append(issue.path("code").asString("?"));
+                String text = issue.path("diagnostics").asString(null);
                 if (text == null && issue.has("details")) {
-                    text = issue.get("details").path("text").asText(null);
+                    text = issue.get("details").path("text").asString(null);
                 }
                 if (text != null) {
                     sb.append(": ").append(text);

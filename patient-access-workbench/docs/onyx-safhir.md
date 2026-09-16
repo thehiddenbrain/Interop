@@ -18,7 +18,7 @@ vendor documentation.
 * In the workbench set **FHIR base URL** to the PDex base and fill the **IG-specific base URLs** (CARIN BB,
   PDex, Formulary, Plan-Net). Searches are routed by resource type: EOB claims and C4BB Patient/Coverage go
   to the CARIN BB base, `ExplanationOfBenefit?use=preauthorization` and US Core clinical resources to the
-  PDex base, formulary resources to the Formulary base. The *Onyx SAFHIR preset* button in the environment
+  PDex base, formulary resources to the Formulary base. The *Onyx SAFHIR* vendor preset (from `vendors.yaml`) in the environment
   editor fills all of this from the tenant host.
 
 ## Authorization

@@ -1,7 +1,7 @@
 package com.thehiddenbrain.interop.patientaccess.conformance;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;

@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.fhir;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.thehiddenbrain.interop.patientaccess.support.Fixtures;
 import org.junit.jupiter.api.Test;
 
@@ -25,8 +25,8 @@ class SearchPageTest {
 
         SearchPage page = SearchPage.of(result(200, Fixtures.FHIR_JSON, Fixtures.json(bundle)), List.of("w1"));
         assertThat(page.isBundle()).isTrue();
-        assertThat(page.resources()).extracting(r -> r.path("id").asText()).containsExactly("c1", "c2", "c3");
-        assertThat(page.included()).extracting(r -> r.path("id").asText()).containsExactly("payer");
+        assertThat(page.resources()).extracting(r -> r.path("id").asString("")).containsExactly("c1", "c2", "c3");
+        assertThat(page.included()).extracting(r -> r.path("id").asString("")).containsExactly("payer");
         assertThat(page.count()).isEqualTo(3);
         assertThat(page.total()).isEqualTo(17);
         assertThat(page.selfUrl()).isEqualTo("http://example.org/fhir/self");
@@ -49,7 +49,7 @@ class SearchPageTest {
     void nonBundleAndNonJsonBodiesAreNotBundles() {
         SearchPage outcome = SearchPage.of(result(400, Fixtures.FHIR_JSON, Fixtures.json(Fixtures.operationOutcome("error", "invalid", "bad"))), List.of());
         assertThat(outcome.isBundle()).isFalse();
-        assertThat(outcome.bundle().path("resourceType").asText()).isEqualTo("OperationOutcome");
+        assertThat(outcome.bundle().path("resourceType").asString("")).isEqualTo("OperationOutcome");
         assertThat(outcome.resources()).isEmpty();
 
         SearchPage html = SearchPage.of(result(200, "text/html", "<html>login</html>"), List.of());

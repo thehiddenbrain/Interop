@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.patient;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
@@ -66,7 +66,7 @@ class PatientWorkspaceServiceTest {
 
         PatientWorkspaceService.Overview overview = g.workspace.overview(env, "1");
         assertThat(overview.patient().display()).isEqualTo("Johnny Appleseed");
-        assertThat(overview.patientResource().path("id").asText()).isEqualTo("1");
+        assertThat(overview.patientResource().path("id").asString("")).isEqualTo("1");
         assertThat(overview.patientChecks()).isNotNull();
         assertThat(overview.correlationId()).startsWith("patient-");
         assertThat(overview.dataClasses()).hasSize(PatientWorkspaceService.DATA_CLASSES.size());

@@ -1,9 +1,10 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.thehiddenbrain.interop.patientaccess.common.Json;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.thehiddenbrain.interop.patientaccess.common.Ids;
 import com.thehiddenbrain.interop.patientaccess.config.WorkbenchProperties;
 import com.thehiddenbrain.interop.patientaccess.fhir.UrlBuilder;
@@ -43,7 +44,7 @@ public class DemoFhirController {
 
     public static final String BASE_PATH = "/demo/fhir";
     public static final MediaType FHIR_JSON = new MediaType("application", "fhir+json");
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = Json.MAPPER;
     private static final DateTimeFormatter HTTP_DATE = DateTimeFormatter.RFC_1123_DATE_TIME.withZone(ZoneOffset.UTC);
 
     private final DemoDataStore store;
@@ -120,7 +121,7 @@ public class DemoFhirController {
         requireType(type);
         ObjectNode resource = store.find(type, id).orElseThrow(() -> DemoFhirException.notFound(type + "/" + id + " is not known to this server"));
         requireVisible(resource, scope);
-        if (!vid.equals(resource.path("meta").path("versionId").asText())) {
+        if (!vid.equals(resource.path("meta").path("versionId").asString(""))) {
             throw DemoFhirException.notFound(type + "/" + id + " has no version " + vid);
         }
         return withVersionHeaders(resource);
@@ -154,7 +155,7 @@ public class DemoFhirController {
     private void requireVisible(ObjectNode resource, String scope) {
         if (!engine.visible(resource, scope)) {
             throw DemoFhirException.forbidden("the token is bound to Patient/" + scope + " and cannot read "
-                    + resource.path("resourceType").asText() + "/" + resource.path("id").asText());
+                    + resource.path("resourceType").asString("") + "/" + resource.path("id").asString(""));
         }
     }
 
@@ -194,7 +195,7 @@ public class DemoFhirController {
 
     private static void entry(ArrayNode entries, String fhirBase, ObjectNode resource, String mode) {
         ObjectNode e = entries.addObject();
-        e.put("fullUrl", fhirBase + "/" + resource.path("resourceType").asText() + "/" + resource.path("id").asText());
+        e.put("fullUrl", fhirBase + "/" + resource.path("resourceType").asString("") + "/" + resource.path("id").asString(""));
         e.set("resource", resource);
         e.putObject("search").put("mode", mode);
     }
@@ -216,9 +217,9 @@ public class DemoFhirController {
 
     private ResponseEntity<JsonNode> withVersionHeaders(ObjectNode resource) {
         ResponseEntity.BodyBuilder b = ResponseEntity.ok().contentType(FHIR_JSON)
-                .eTag("W/\"" + resource.path("meta").path("versionId").asText("1") + "\"");
+                .eTag("W/\"" + resource.path("meta").path("versionId").asString("1") + "\"");
         try {
-            b.header(HttpHeaders.LAST_MODIFIED, HTTP_DATE.format(Instant.parse(resource.path("meta").path("lastUpdated").asText())));
+            b.header(HttpHeaders.LAST_MODIFIED, HTTP_DATE.format(Instant.parse(resource.path("meta").path("lastUpdated").asString(""))));
         } catch (RuntimeException ignored) {
             // lastUpdated of an HL7 example may carry an offset Instant.parse rejects; the header is optional
         }

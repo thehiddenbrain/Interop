@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.auth;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
 import com.thehiddenbrain.interop.patientaccess.environment.AuthConfig;
@@ -167,12 +167,12 @@ public class SmartDiscoveryService {
         if ((authorize == null || token == null) && capability != null) {
             for (JsonNode rest : capability.path("rest")) {
                 for (JsonNode ext : rest.path("security").path("extension")) {
-                    if (OAUTH_URIS_EXTENSION.equals(ext.path("url").asText())) {
+                    if (OAUTH_URIS_EXTENSION.equals(ext.path("url").asString(""))) {
                         for (JsonNode inner : ext.path("extension")) {
-                            String url = inner.path("url").asText();
-                            String value = inner.path("valueUri").asText(null);
+                            String url = inner.path("url").asString("");
+                            String value = inner.path("valueUri").asString(null);
                             if (value == null) {
-                                value = inner.path("valueUrl").asText(null);
+                                value = inner.path("valueUrl").asString(null);
                             }
                             if ("authorize".equals(url) && authorize == null) {
                                 authorize = value;
@@ -224,13 +224,13 @@ public class SmartDiscoveryService {
 
     static String text(JsonNode n, String field) {
         JsonNode v = n.get(field);
-        return v == null || v.isNull() ? null : v.asText();
+        return v == null || v.isNull() ? null : v.asString("");
     }
 
     static List<String> strings(JsonNode n, String field) {
         List<String> out = new ArrayList<>();
         for (JsonNode v : n.path(field)) {
-            out.add(v.asText());
+            out.add(v.asString(""));
         }
         return out;
     }

@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.search;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;

@@ -1,0 +1,37 @@
+# Vendor presets for the Environments form. Adding or changing a vendor is an edit here, never code.
+#
+# A copy of this file next to the jar (./vendors.yaml, or PAW_VENDORS_FILE / paw.vendors-file) replaces the
+# bundled one. "{host}" is replaced with the tenant host the user types when applying the preset. Keys under
+# auth and fhir are the environment fields of the same name (see /api-docs, EnvironmentInput).
+vendors:
+  - key: onyx-safhir
+    name: Onyx SAFHIR
+    docs: docs/onyx-safhir.md
+    hostHint: https://api-<tenant>-uat.safhir.io
+    # Regular expressions on the host that pick the tier; the first match wins.
+    tierPatterns:
+      PROD: "-prd\\."
+      UAT: "-uat\\."
+    # One host per tier, one base URL per implementation guide, SMART endpoints under /v1.
+    fhirBaseUrl: "{host}/v1/api/pdex"
+    igBaseUrls:
+      c4bb: "{host}/v1/api/carin-bb"
+      pdex: "{host}/v1/api/pdex"
+      usdf: "{host}/v1/api/formulary"
+      plannet: "{host}/v1/api/provider-directory"
+    auth:
+      mode: SMART_AUTHORIZATION_CODE
+      discoverEndpoints: false
+      authorizationEndpoint: "{host}/v1/authorize"
+      tokenEndpoint: "{host}/v1/token"
+      audience: "{host}/v1"
+      clientAuthMethod: CLIENT_SECRET_POST
+      scopes: launch/patient openid fhirUser offline_access patient/*.read
+    fhir:
+      allowNextLinkHostMismatch: true
+      pageSize: 50
+    identifierSystems: []
+    note: >-
+      Preset applied from the public SAFHIR documentation. Confirm the token endpoint, client id/secret,
+      redirect URI and scopes against the Application Credentials in the Onyx developer portal, then Save
+      and Test connection. See docs/onyx-safhir.md.

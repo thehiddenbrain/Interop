@@ -111,7 +111,7 @@ class HttpExecutorTest {
 
     @Test
     void truncatesLongBodiesInTheHistoryButNotInTheResult() {
-        WorkbenchProperties small = new WorkbenchProperties(dir.toString(), "", "", new WorkbenchProperties.Ui(true), new WorkbenchProperties.Demo(false),
+        WorkbenchProperties small = new WorkbenchProperties(dir.toString(), "", "", "vendors.yaml", new WorkbenchProperties.Ui(true), new WorkbenchProperties.Demo(false),
                 new WorkbenchProperties.Security(new WorkbenchProperties.Security.Basic(false, "workbench", "")),
                 new WorkbenchProperties.Http(Duration.ofSeconds(5), Duration.ofSeconds(10), "paw-test", 0),
                 new WorkbenchProperties.History(200, 100, false), new WorkbenchProperties.Search(50, 5),
@@ -197,7 +197,7 @@ class HttpExecutorTest {
         HttpResult r = g.http.execute(tokenEnv, HttpExecutor.Call.postForm(wiremock.baseUrl() + "/oauth/token", headers("Accept", "application/json"),
                 "grant_type=client_credentials&client_id=c&client_secret=S3CRET&scope=system%2F*.rs", "auth", null, Set.of()));
         assertThat(r.status()).isEqualTo(200);
-        assertThat(r.json().path("access_token").asText()).isEqualTo("AT-SECRET");
+        assertThat(r.json().path("access_token").asString("")).isEqualTo("AT-SECRET");
         wiremock.verify(postRequestedFor(urlPathEqualTo("/oauth/token"))
                 .withHeader("Content-Type", equalTo("application/x-www-form-urlencoded"))
                 .withRequestBody(equalTo("grant_type=client_credentials&client_id=c&client_secret=S3CRET&scope=system%2F*.rs")));

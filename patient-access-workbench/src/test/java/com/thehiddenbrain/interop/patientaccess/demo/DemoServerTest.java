@@ -1,7 +1,7 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -11,7 +11,7 @@ import com.thehiddenbrain.interop.patientaccess.auth.Pkce;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -72,41 +72,41 @@ class DemoServerTest {
         MvcResult r = mvc.perform(get(FHIR + "/metadata")).andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("application/fhir+json"))).andReturn();
         JsonNode cs = JSON.readTree(r.getResponse().getContentAsString());
-        assertEquals("CapabilityStatement", cs.path("resourceType").asText());
-        assertEquals("4.0.1", cs.path("fhirVersion").asText());
-        assertEquals("instance", cs.path("kind").asText());
+        assertEquals("CapabilityStatement", cs.path("resourceType").asString(""));
+        assertEquals("4.0.1", cs.path("fhirVersion").asString(""));
+        assertEquals("instance", cs.path("kind").asString(""));
         assertTrue(texts(cs.path("format")).contains("application/fhir+json"));
         assertTrue(texts(cs.path("instantiates")).contains(DemoCapabilityStatement.C4BB_CAPABILITY));
         assertTrue(texts(cs.path("implementationGuide")).contains("http://hl7.org/fhir/us/carin-bb|2.1.0"), cs.path("implementationGuide").toString());
         assertTrue(texts(cs.path("implementationGuide")).contains("http://hl7.org/fhir/us/core|6.1.0"));
-        assertEquals(DemoCapabilityStatement.SOFTWARE_NAME, cs.path("software").path("name").asText());
+        assertEquals(DemoCapabilityStatement.SOFTWARE_NAME, cs.path("software").path("name").asString(""));
         JsonNode security = cs.path("rest").path(0).path("security");
-        assertEquals("SMART-on-FHIR", security.path("service").path(0).path("coding").path(0).path("code").asText());
+        assertEquals("SMART-on-FHIR", security.path("service").path(0).path("coding").path(0).path("code").asString(""));
         JsonNode oauth = security.path("extension").path(0);
-        assertEquals("http://fhir-registry.smarthealthit.org/StructureDefinition/oauth-uris", oauth.path("url").asText());
+        assertEquals("http://fhir-registry.smarthealthit.org/StructureDefinition/oauth-uris", oauth.path("url").asString(""));
         Set<String> uris = new HashSet<>();
         for (JsonNode e : oauth.path("extension")) {
-            uris.add(e.path("url").asText() + "=" + e.path("valueUri").asText());
+            uris.add(e.path("url").asString("") + "=" + e.path("valueUri").asString(""));
         }
         assertTrue(uris.contains("token=http://localhost/demo/auth/token"), uris.toString());
         assertTrue(uris.contains("authorize=http://localhost/demo/auth/authorize"));
         JsonNode eob = null;
         for (JsonNode res : cs.path("rest").path(0).path("resource")) {
-            if ("ExplanationOfBenefit".equals(res.path("type").asText())) {
+            if ("ExplanationOfBenefit".equals(res.path("type").asString(""))) {
                 eob = res;
             }
         }
         assertNotNull(eob, "ExplanationOfBenefit resource");
         Set<String> params = new HashSet<>();
         for (JsonNode p : eob.path("searchParam")) {
-            params.add(p.path("name").asText());
+            params.add(p.path("name").asString(""));
         }
         assertTrue(params.containsAll(List.of("_id", "_lastUpdated", "patient", "identifier", "type", "use", "service-date", "billable-period-start")), params.toString());
         assertTrue(texts(eob.path("supportedProfile")).contains("http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/pdex-priorauthorization"));
         assertTrue(texts(eob.path("searchInclude")).contains("ExplanationOfBenefit:*"));
         Set<String> interactions = new HashSet<>();
         for (JsonNode i : eob.path("interaction")) {
-            interactions.add(i.path("code").asText());
+            interactions.add(i.path("code").asString(""));
         }
         assertEquals(Set.of("read", "vread", "search-type"), interactions);
     }
@@ -114,9 +114,9 @@ class DemoServerTest {
     @Test
     void smartConfigurationHasTheRequiredFields() throws Exception {
         JsonNode doc = json(mvc.perform(get(FHIR + "/.well-known/smart-configuration")).andExpect(status().isOk()).andReturn());
-        assertEquals("http://localhost/demo/auth/authorize", doc.path("authorization_endpoint").asText());
-        assertEquals("http://localhost/demo/auth/token", doc.path("token_endpoint").asText());
-        assertEquals("http://localhost/demo/auth/jwks", doc.path("jwks_uri").asText());
+        assertEquals("http://localhost/demo/auth/authorize", doc.path("authorization_endpoint").asString(""));
+        assertEquals("http://localhost/demo/auth/token", doc.path("token_endpoint").asString(""));
+        assertEquals("http://localhost/demo/auth/jwks", doc.path("jwks_uri").asString(""));
         assertTrue(doc.hasNonNull("issuer") && doc.hasNonNull("registration_endpoint"));
         assertTrue(texts(doc.path("capabilities")).containsAll(List.of("launch-standalone", "client-confidential-asymmetric", "permission-v2", "context-standalone-patient")));
         assertEquals(List.of("S256"), texts(doc.path("code_challenge_methods_supported")));
@@ -133,44 +133,44 @@ class DemoServerTest {
         MvcResult r = mvc.perform(get(FHIR + "/Patient")).andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate", "Bearer realm=\"demo\"")).andReturn();
         JsonNode outcome = json(r);
-        assertEquals("OperationOutcome", outcome.path("resourceType").asText());
-        assertEquals("login", outcome.path("issue").path(0).path("code").asText());
-        assertEquals("missing or invalid bearer token", outcome.path("issue").path(0).path("diagnostics").asText());
+        assertEquals("OperationOutcome", outcome.path("resourceType").asString(""));
+        assertEquals("login", outcome.path("issue").path(0).path("code").asString(""));
+        assertEquals("missing or invalid bearer token", outcome.path("issue").path(0).path("diagnostics").asString(""));
         mvc.perform(get(FHIR + "/Patient").header("Authorization", "Bearer not-a-token")).andExpect(status().isUnauthorized());
         mvc.perform(get(FHIR + "/Patient/Patient1").header("Authorization", "Bearer " + DemoAuthService.STATIC_TOKEN)).andExpect(status().isOk());
 
         JsonNode bundle = search("/Patient", systemToken());
-        assertEquals("searchset", bundle.path("type").asText());
+        assertEquals("searchset", bundle.path("type").asString(""));
         assertEquals(4, bundle.path("total").asInt());
-        assertEquals("http://localhost/demo/fhir/Patient", bundle.path("link").path(0).path("url").asText());
-        assertEquals("http://localhost/demo/fhir/Patient/Patient1", bundle.path("entry").path(0).path("fullUrl").asText());
-        assertEquals("match", bundle.path("entry").path(0).path("search").path("mode").asText());
+        assertEquals("http://localhost/demo/fhir/Patient", bundle.path("link").path(0).path("url").asString(""));
+        assertEquals("http://localhost/demo/fhir/Patient/Patient1", bundle.path("entry").path(0).path("fullUrl").asString(""));
+        assertEquals("match", bundle.path("entry").path(0).path("search").path("mode").asString(""));
     }
 
     @Test
     void clientCredentialsAcceptBasicPostAndJwtAssertionAndRejectBadSecrets() throws Exception {
         JsonNode basic = json(mvc.perform(tokenRequest().param("grant_type", "client_credentials")
                 .header("Authorization", basic("demo-client", "demo-secret"))).andExpect(status().isOk()).andReturn());
-        assertEquals("Bearer", basic.path("token_type").asText());
+        assertEquals("Bearer", basic.path("token_type").asString(""));
         assertEquals(3600, basic.path("expires_in").asInt());
-        assertEquals("system/*.rs", basic.path("scope").asText());
+        assertEquals("system/*.rs", basic.path("scope").asString(""));
         assertFalse(basic.has("patient"));
 
         JsonNode post = json(mvc.perform(tokenRequest().param("grant_type", "client_credentials").param("client_id", "demo-client")
                 .param("client_secret", "demo-secret").param("scope", "system/Patient.rs")).andExpect(status().isOk()).andReturn());
-        assertEquals("system/Patient.rs", post.path("scope").asText());
+        assertEquals("system/Patient.rs", post.path("scope").asString(""));
 
         JsonNode wrong = json(mvc.perform(tokenRequest().param("grant_type", "client_credentials")
                 .header("Authorization", basic("demo-client", "nope"))).andExpect(status().isUnauthorized()).andReturn());
-        assertEquals("invalid_client", wrong.path("error").asText());
+        assertEquals("invalid_client", wrong.path("error").asString(""));
 
         JsonNode noAuth = json(mvc.perform(tokenRequest().param("grant_type", "client_credentials").param("client_id", "demo-client"))
                 .andExpect(status().isUnauthorized()).andReturn());
-        assertEquals("invalid_client", noAuth.path("error").asText());
+        assertEquals("invalid_client", noAuth.path("error").asString(""));
 
         JsonNode badGrant = json(mvc.perform(tokenRequest().param("grant_type", "password").header("Authorization", basic("demo-client", "demo-secret")))
                 .andExpect(status().isBadRequest()).andReturn());
-        assertEquals("unsupported_grant_type", badGrant.path("error").asText());
+        assertEquals("unsupported_grant_type", badGrant.path("error").asString(""));
 
         SignedJWT assertion = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), new JWTClaimsSet.Builder().issuer("demo-client").subject("demo-client")
                 .audience("http://localhost/demo/auth/token").jwtID(UUID.randomUUID().toString()).expirationTime(Date.from(Instant.now().plusSeconds(300))).build());
@@ -179,7 +179,7 @@ class DemoServerTest {
                 .param("client_assertion_type", DemoAuthController.JWT_BEARER).param("client_assertion", assertion.serialize())
                 .param("scope", "system/*.rs")).andExpect(status().isOk()).andReturn());
         assertTrue(jwt.hasNonNull("access_token"));
-        search("/Coverage", jwt.path("access_token").asText());
+        search("/Coverage", jwt.path("access_token").asString(""));
 
         SignedJWT other = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), new JWTClaimsSet.Builder().issuer("someone-else").audience("x")
                 .expirationTime(Date.from(Instant.now().plusSeconds(300))).build());
@@ -211,22 +211,22 @@ class DemoServerTest {
         JsonNode wrongVerifier = json(mvc.perform(tokenRequest().param("grant_type", "authorization_code").param("code", code)
                 .param("redirect_uri", redirect).param("code_verifier", "not-the-verifier").param("client_id", "demo-client"))
                 .andExpect(status().isBadRequest()).andReturn());
-        assertEquals("invalid_grant", wrongVerifier.path("error").asText());
+        assertEquals("invalid_grant", wrongVerifier.path("error").asString(""));
 
         code = newCode(verifier, redirect, "1");
         JsonNode token = json(mvc.perform(tokenRequest().param("grant_type", "authorization_code").param("code", code)
                 .param("redirect_uri", redirect).param("code_verifier", verifier).param("client_id", "demo-client")).andExpect(status().isOk()).andReturn());
-        assertEquals("1", token.path("patient").asText());
+        assertEquals("1", token.path("patient").asString(""));
         assertTrue(token.hasNonNull("refresh_token"));
-        assertTrue(token.path("scope").asText().contains("patient/*.rs"));
-        String[] idToken = token.path("id_token").asText().split("\\.");
+        assertTrue(token.path("scope").asString("").contains("patient/*.rs"));
+        String[] idToken = token.path("id_token").asString("").split("\\.");
         assertEquals(3, idToken.length, "compact JWT");
         JsonNode claims = JSON.readTree(Base64.getUrlDecoder().decode(idToken[1]));
-        assertEquals("demo-client", claims.path("aud").asText());
-        assertEquals("http://localhost/demo/auth", claims.path("iss").asText());
-        assertEquals("http://localhost/demo/fhir/Patient/1", claims.path("fhirUser").asText());
+        assertEquals("demo-client", claims.path("aud").asString(""));
+        assertEquals("http://localhost/demo/auth", claims.path("iss").asString(""));
+        assertEquals("http://localhost/demo/fhir/Patient/1", claims.path("fhirUser").asString(""));
 
-        String bearer = token.path("access_token").asText();
+        String bearer = token.path("access_token").asString("");
         mvc.perform(tokenRequest().param("grant_type", "authorization_code").param("code", code).param("redirect_uri", redirect)
                 .param("code_verifier", verifier).param("client_id", "demo-client")).andExpect(status().isBadRequest());
 
@@ -234,20 +234,20 @@ class DemoServerTest {
         assertEquals(4, own.path("total").asInt());
         JsonNode forbidden = json(mvc.perform(get(FHIR + "/ExplanationOfBenefit").param("patient", "Patient/Patient2").header("Authorization", "Bearer " + bearer))
                 .andExpect(status().isForbidden()).andReturn());
-        assertEquals("forbidden", forbidden.path("issue").path(0).path("code").asText());
+        assertEquals("forbidden", forbidden.path("issue").path(0).path("code").asString(""));
         mvc.perform(get(FHIR + "/Patient/Patient1").header("Authorization", "Bearer " + bearer)).andExpect(status().isForbidden());
         mvc.perform(get(FHIR + "/Coverage/Coverage1").header("Authorization", "Bearer " + bearer)).andExpect(status().isForbidden());
         mvc.perform(get(FHIR + "/Organization/Payer2").header("Authorization", "Bearer " + bearer)).andExpect(status().isOk());
         JsonNode patients = search("/Patient", bearer);
         assertEquals(1, patients.path("total").asInt());
-        assertEquals("1", patients.path("entry").path(0).path("resource").path("id").asText());
+        assertEquals("1", patients.path("entry").path(0).path("resource").path("id").asString(""));
         assertEquals(4, search("/ExplanationOfBenefit", bearer).path("total").asInt(), "unscoped search is limited to the token's patient");
 
-        JsonNode refreshed = json(mvc.perform(tokenRequest().param("grant_type", "refresh_token").param("refresh_token", token.path("refresh_token").asText())
+        JsonNode refreshed = json(mvc.perform(tokenRequest().param("grant_type", "refresh_token").param("refresh_token", token.path("refresh_token").asString(""))
                 .param("client_id", "demo-client")).andExpect(status().isOk()).andReturn());
-        assertEquals("1", refreshed.path("patient").asText());
-        assertFalse(refreshed.path("access_token").asText().equals(bearer));
-        mvc.perform(get(FHIR + "/Patient/1").header("Authorization", "Bearer " + refreshed.path("access_token").asText())).andExpect(status().isOk());
+        assertEquals("1", refreshed.path("patient").asString(""));
+        assertFalse(refreshed.path("access_token").asString("").equals(bearer));
+        mvc.perform(get(FHIR + "/Patient/1").header("Authorization", "Bearer " + refreshed.path("access_token").asString(""))).andExpect(status().isOk());
     }
 
     @Test
@@ -295,7 +295,7 @@ class DemoServerTest {
         JsonNode pa = search("/ExplanationOfBenefit?patient=1&use=preauthorization", token);
         assertEquals(4, pa.path("total").asInt());
         for (JsonNode e : pa.path("entry")) {
-            assertEquals("preauthorization", e.path("resource").path("use").asText());
+            assertEquals("preauthorization", e.path("resource").path("use").asString(""));
         }
         assertEquals(List.of("PriorAuthApproved1"), ids(search("/ExplanationOfBenefit?patient=Patient1&use=preauthorization", token)));
         assertEquals(10, search("/ExplanationOfBenefit?use=claim", token).path("total").asInt());
@@ -394,9 +394,9 @@ class DemoServerTest {
         assertEquals(1, bundle.path("total").asInt());
         Set<String> included = new HashSet<>();
         for (JsonNode e : bundle.path("entry")) {
-            if ("include".equals(e.path("search").path("mode").asText())) {
-                included.add(e.path("resource").path("resourceType").asText() + "/" + e.path("resource").path("id").asText());
-                assertTrue(e.path("fullUrl").asText().startsWith("http://localhost/demo/fhir/"));
+            if ("include".equals(e.path("search").path("mode").asString(""))) {
+                included.add(e.path("resource").path("resourceType").asString("") + "/" + e.path("resource").path("id").asString(""));
+                assertTrue(e.path("fullUrl").asString("").startsWith("http://localhost/demo/fhir/"));
             }
         }
         assertTrue(included.containsAll(List.of("Patient/Patient1", "Organization/Payer2", "Organization/ProviderOrganization1", "Coverage/Coverage1", "Practitioner/Practitioner1")), included.toString());
@@ -404,8 +404,8 @@ class DemoServerTest {
         JsonNode patientOnly = search("/ExplanationOfBenefit?patient=Patient1&_include=ExplanationOfBenefit:patient&_include=ExplanationOfBenefit:insurer", token);
         Set<String> types = new HashSet<>();
         for (JsonNode e : patientOnly.path("entry")) {
-            if ("include".equals(e.path("search").path("mode").asText())) {
-                types.add(e.path("resource").path("resourceType").asText() + "/" + e.path("resource").path("id").asText());
+            if ("include".equals(e.path("search").path("mode").asString(""))) {
+                types.add(e.path("resource").path("resourceType").asString("") + "/" + e.path("resource").path("id").asString(""));
             }
         }
         assertEquals(Set.of("Patient/Patient1", "Organization/Payer2"), types);
@@ -418,15 +418,15 @@ class DemoServerTest {
         assertEquals(2, prov.path("total").asInt());
         List<String> provenances = new ArrayList<>();
         for (JsonNode e : prov.path("entry")) {
-            if ("Provenance".equals(e.path("resource").path("resourceType").asText())) {
-                assertEquals("include", e.path("search").path("mode").asText());
-                provenances.add(e.path("resource").path("id").asText());
+            if ("Provenance".equals(e.path("resource").path("resourceType").asString(""))) {
+                assertEquals("include", e.path("search").path("mode").asString(""));
+                provenances.add(e.path("resource").path("id").asString(""));
             }
         }
         assertEquals(List.of("p1-provenance-1"), provenances);
         JsonNode enc = search("/Encounter?_id=6&_revinclude=Provenance:target", token);
         assertEquals(2, enc.path("entry").size());
-        assertEquals("1000002", enc.path("entry").path(1).path("resource").path("id").asText());
+        assertEquals("1000002", enc.path("entry").path(1).path("resource").path("id").asString(""));
     }
 
     // ------------------------------------------------------------------ errors, read, vread
@@ -435,21 +435,21 @@ class DemoServerTest {
     void errorsAreOperationOutcomes() throws Exception {
         String token = systemToken();
         JsonNode unknownType = json(mvc.perform(get(FHIR + "/Foo").header("Authorization", "Bearer " + token)).andExpect(status().isNotFound()).andReturn());
-        assertEquals("not-found", unknownType.path("issue").path(0).path("code").asText());
+        assertEquals("not-found", unknownType.path("issue").path(0).path("code").asString(""));
         JsonNode unknownId = json(mvc.perform(get(FHIR + "/Patient/nope").header("Authorization", "Bearer " + token)).andExpect(status().isNotFound()).andReturn());
-        assertEquals("OperationOutcome", unknownId.path("resourceType").asText());
-        assertEquals("not-found", unknownId.path("issue").path(0).path("code").asText());
+        assertEquals("OperationOutcome", unknownId.path("resourceType").asString(""));
+        assertEquals("not-found", unknownId.path("issue").path(0).path("code").asString(""));
 
         mvc.perform(get(FHIR + "/Patient").param("bogus", "1").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
         JsonNode strict = json(mvc.perform(get(FHIR + "/Patient").param("bogus", "1").header("Prefer", "handling=strict").header("Authorization", "Bearer " + token))
                 .andExpect(status().isBadRequest()).andReturn());
-        assertEquals("not-supported", strict.path("issue").path(0).path("code").asText());
-        assertTrue(strict.path("issue").path(0).path("diagnostics").asText().contains("bogus"));
+        assertEquals("not-supported", strict.path("issue").path(0).path("code").asString(""));
+        assertTrue(strict.path("issue").path(0).path("diagnostics").asString("").contains("bogus"));
         mvc.perform(get(FHIR + "/Patient").param("name", "x").header("Prefer", "handling=strict").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
 
         JsonNode badDate = json(mvc.perform(get(FHIR + "/Patient").param("birthdate", "not-a-date").header("Authorization", "Bearer " + token))
                 .andExpect(status().isBadRequest()).andReturn());
-        assertEquals("invalid", badDate.path("issue").path(0).path("code").asText());
+        assertEquals("invalid", badDate.path("issue").path(0).path("code").asString(""));
         mvc.perform(get(FHIR + "/ExplanationOfBenefit").param("_lastUpdated", "ge2026-13-01").header("Authorization", "Bearer " + token)).andExpect(status().isBadRequest());
         mvc.perform(get(FHIR + "/Patient").param("_count", "abc").header("Authorization", "Bearer " + token)).andExpect(status().isBadRequest());
     }
@@ -460,14 +460,14 @@ class DemoServerTest {
         MvcResult read = mvc.perform(get(FHIR + "/Patient/Patient1").header("Authorization", "Bearer " + token)).andExpect(status().isOk())
                 .andExpect(header().string("ETag", "W/\"1\"")).andReturn();
         JsonNode patient = json(read);
-        assertEquals("Patient1", patient.path("id").asText());
-        assertEquals("1", patient.path("meta").path("versionId").asText());
+        assertEquals("Patient1", patient.path("id").asString(""));
+        assertEquals("1", patient.path("meta").path("versionId").asString(""));
         JsonNode vread = json(mvc.perform(get(FHIR + "/Patient/Patient1/_history/1").header("Authorization", "Bearer " + token)).andExpect(status().isOk()).andReturn());
-        assertEquals("Patient1", vread.path("id").asText());
+        assertEquals("Patient1", vread.path("id").asString(""));
         JsonNode missing = json(mvc.perform(get(FHIR + "/Patient/Patient1/_history/2").header("Authorization", "Bearer " + token)).andExpect(status().isNotFound()).andReturn());
-        assertEquals("not-found", missing.path("issue").path(0).path("code").asText());
+        assertEquals("not-found", missing.path("issue").path(0).path("code").asString(""));
         JsonNode doc = json(mvc.perform(get(FHIR + "/DocumentReference/123456").header("Authorization", "Bearer " + token)).andExpect(status().isOk()).andReturn());
-        assertEquals(DemoDataStore.DEFAULT_LAST_UPDATED, doc.path("meta").path("lastUpdated").asText(), "example without lastUpdated gets the fixed instant");
+        assertEquals(DemoDataStore.DEFAULT_LAST_UPDATED, doc.path("meta").path("lastUpdated").asString(""), "example without lastUpdated gets the fixed instant");
     }
 
     // ------------------------------------------------------------------ workbench helpers
@@ -479,38 +479,38 @@ class DemoServerTest {
         JsonNode c4bb = null;
         JsonNode pdex = null;
         for (JsonNode m : members) {
-            if ("Patient1".equals(m.path("patientId").asText())) {
+            if ("Patient1".equals(m.path("patientId").asString(""))) {
                 c4bb = m;
-            } else if ("1".equals(m.path("patientId").asText())) {
+            } else if ("1".equals(m.path("patientId").asString(""))) {
                 pdex = m;
             }
         }
         assertNotNull(c4bb);
         assertNotNull(pdex);
-        assertEquals("Johnny Example1", c4bb.path("name").asText());
+        assertEquals("Johnny Example1", c4bb.path("name").asString(""));
         assertTrue(c4bb.path("hasCoverage").asBoolean() && c4bb.path("hasClaims").asBoolean() && c4bb.path("hasPriorAuths").asBoolean());
-        assertEquals("1234-234-1243-12345678901", c4bb.path("identifiers").path(0).path("value").asText());
-        assertEquals("MB", c4bb.path("identifiers").path(0).path("type").asText());
+        assertEquals("1234-234-1243-12345678901", c4bb.path("identifiers").path(0).path("value").asString(""));
+        assertEquals("MB", c4bb.path("identifiers").path(0).path("type").asString(""));
         assertEquals(4, pdex.path("priorAuths").asInt());
 
         MvcResult created = mvc.perform(post("/api/v1/demo/environment")).andExpect(status().isCreated()).andReturn();
         JsonNode env = json(created);
-        assertEquals(DemoController.ENVIRONMENT_NAME, env.path("name").asText());
-        assertEquals("http://localhost/demo/fhir", env.path("fhirBaseUrl").asText());
-        assertEquals("CLIENT_CREDENTIALS", env.path("auth").path("mode").asText());
-        assertEquals("demo-client", env.path("auth").path("clientId").asText());
+        assertEquals(DemoController.ENVIRONMENT_NAME, env.path("name").asString(""));
+        assertEquals("http://localhost/demo/fhir", env.path("fhirBaseUrl").asString(""));
+        assertEquals("CLIENT_CREDENTIALS", env.path("auth").path("mode").asString(""));
+        assertEquals("demo-client", env.path("auth").path("clientId").asString(""));
         assertTrue(env.path("auth").path("clientSecret").path("set").asBoolean());
         assertTrue(env.path("auth").path("discoverEndpoints").asBoolean());
-        assertEquals("SANDBOX", env.path("tier").asText());
+        assertEquals("SANDBOX", env.path("tier").asString(""));
         boolean memberDefault = false;
         for (JsonNode s : env.path("identifierSystems")) {
-            if ("https://www.xxxhealthplan.com/fhir/memberidentifier".equals(s.path("system").asText()) && "MB".equals(s.path("typeCode").asText())) {
+            if ("https://www.xxxhealthplan.com/fhir/memberidentifier".equals(s.path("system").asString("")) && "MB".equals(s.path("typeCode").asString(""))) {
                 memberDefault = s.path("defaultForMemberId").asBoolean();
             }
         }
         assertTrue(memberDefault, env.path("identifierSystems").toString());
         JsonNode again = json(mvc.perform(post("/api/v1/demo/environment")).andExpect(status().isOk()).andReturn());
-        assertEquals(env.path("id").asText(), again.path("id").asText());
+        assertEquals(env.path("id").asString(""), again.path("id").asString(""));
         assertEquals(1, json(mvc.perform(get("/api/v1/environments")).andReturn()).size());
     }
 
@@ -523,7 +523,7 @@ class DemoServerTest {
     private String systemToken() throws Exception {
         JsonNode t = json(mvc.perform(tokenRequest().param("grant_type", "client_credentials").header("Authorization", basic("demo-client", "demo-secret")))
                 .andExpect(status().isOk()).andReturn());
-        return t.path("access_token").asText();
+        return t.path("access_token").asString("");
     }
 
     private String newCode(String verifier, String redirect, String patient) throws Exception {
@@ -543,8 +543,8 @@ class DemoServerTest {
         MvcResult r = mvc.perform(get(uri).header("Authorization", "Bearer " + token)).andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("application/fhir+json"))).andReturn();
         JsonNode bundle = json(r);
-        assertEquals("Bundle", bundle.path("resourceType").asText());
-        assertEquals("searchset", bundle.path("type").asText());
+        assertEquals("Bundle", bundle.path("resourceType").asString(""));
+        assertEquals("searchset", bundle.path("type").asString(""));
         return bundle;
     }
 
@@ -556,8 +556,8 @@ class DemoServerTest {
     private static List<String> ids(JsonNode bundle) {
         List<String> out = new ArrayList<>();
         for (JsonNode e : bundle.path("entry")) {
-            if (!"include".equals(e.path("search").path("mode").asText())) {
-                out.add(e.path("resource").path("id").asText());
+            if (!"include".equals(e.path("search").path("mode").asString(""))) {
+                out.add(e.path("resource").path("id").asString(""));
             }
         }
         return out.stream().sorted().toList();
@@ -565,8 +565,8 @@ class DemoServerTest {
 
     private static String link(JsonNode bundle, String relation) {
         for (JsonNode l : bundle.path("link")) {
-            if (relation.equals(l.path("relation").asText())) {
-                return l.path("url").asText();
+            if (relation.equals(l.path("relation").asString(""))) {
+                return l.path("url").asString("");
             }
         }
         return null;
@@ -574,7 +574,7 @@ class DemoServerTest {
 
     private static List<String> texts(JsonNode array) {
         List<String> out = new ArrayList<>();
-        array.forEach(n -> out.add(n.asText()));
+        array.forEach(n -> out.add(n.asString("")));
         return out;
     }
 

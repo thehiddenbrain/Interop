@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.patient;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 import org.springframework.stereotype.Component;
 
@@ -39,13 +39,13 @@ public class ProfileLiteChecker {
     public Report check(JsonNode resource) {
         Optional<IgCatalog.ProfileSpec> declared = Fhir.profiles(resource).stream()
                 .map(catalog::profile).filter(Optional::isPresent).map(Optional::get)
-                .filter(p -> p.type().equals(resource.path("resourceType").asText())).findFirst();
+                .filter(p -> p.type().equals(resource.path("resourceType").asString(""))).findFirst();
         if (declared.isPresent()) {
             return check(resource, declared.get(), true);
         }
         Optional<IgCatalog.ProfileSpec> fallback = defaultProfile(resource);
         return fallback.map(p -> check(resource, p, false))
-                .orElseGet(() -> Report.none("no C4BB / PDex profile rules for " + resource.path("resourceType").asText()
+                .orElseGet(() -> Report.none("no C4BB / PDex profile rules for " + resource.path("resourceType").asString("")
                         + " in this catalog (US Core profiles are checked by the full validator only)"));
     }
 
@@ -55,7 +55,7 @@ public class ProfileLiteChecker {
     }
 
     Optional<IgCatalog.ProfileSpec> defaultProfile(JsonNode resource) {
-        String type = resource.path("resourceType").asText();
+        String type = resource.path("resourceType").asString("");
         String url = switch (type) {
             case "Patient" -> "http://hl7.org/fhir/us/carin-bb/StructureDefinition/C4BB-Patient";
             case "Coverage" -> "http://hl7.org/fhir/us/carin-bb/StructureDefinition/C4BB-Coverage";
@@ -191,7 +191,7 @@ public class ProfileLiteChecker {
                     addAll(next, child);
                 }
             } else if (choice) {
-                Iterator<Map.Entry<String, JsonNode>> it = node.fields();
+                Iterator<Map.Entry<String, JsonNode>> it = node.properties().iterator();
                 while (it.hasNext()) {
                     Map.Entry<String, JsonNode> e = it.next();
                     if (e.getKey().startsWith(name) && e.getKey().length() > name.length() && Character.isUpperCase(e.getKey().charAt(name.length()))) {
@@ -245,7 +245,7 @@ public class ProfileLiteChecker {
                 url = own.typeProfiles().get(0);
             }
             if (url != null) {
-                return url.equals(candidate.path("url").asText());
+                return url.equals(candidate.path("url").asString(""));
             }
         }
         for (Map.Entry<String, IgCatalog.ProfileRule> e : byId.entrySet()) {
@@ -307,7 +307,7 @@ public class ProfileLiteChecker {
             }
             JsonNode next = cur.get(name);
             if (next == null && seg.endsWith("[x]")) {
-                Iterator<Map.Entry<String, JsonNode>> it = cur.fields();
+                Iterator<Map.Entry<String, JsonNode>> it = cur.properties().iterator();
                 while (it.hasNext()) {
                     Map.Entry<String, JsonNode> e = it.next();
                     if (e.getKey().startsWith(name) && e.getKey().length() > name.length()) {
@@ -326,7 +326,7 @@ public class ProfileLiteChecker {
 
     /** fixed/pattern object from the catalog: {"patternCodeableConcept": {...}} etc. */
     static boolean matchesFixed(JsonNode value, JsonNode fixed) {
-        Iterator<Map.Entry<String, JsonNode>> it = fixed.fields();
+        Iterator<Map.Entry<String, JsonNode>> it = fixed.properties().iterator();
         while (it.hasNext()) {
             Map.Entry<String, JsonNode> e = it.next();
             String kind = e.getKey();
@@ -350,17 +350,17 @@ public class ProfileLiteChecker {
                 return sameCoding(value, expected);
             }
             if (kind.endsWith("Identifier")) {
-                return expected.path("system").asText().equals(value.path("system").asText());
+                return expected.path("system").asString("").equals(value.path("system").asString(""));
             }
             if (expected.isValueNode()) {
-                String actual = value.isValueNode() ? value.asText() : null;
+                String actual = value.isValueNode() ? value.asString("") : null;
                 if (actual == null) {
                     return false;
                 }
                 if (kind.endsWith("Canonical") || kind.endsWith("Uri")) {
-                    return actual.equals(expected.asText()) || actual.startsWith(expected.asText() + "|");
+                    return actual.equals(expected.asString("")) || actual.startsWith(expected.asString("") + "|");
                 }
-                return actual.equals(expected.asText());
+                return actual.equals(expected.asString(""));
             }
             return true;
         }
@@ -368,12 +368,12 @@ public class ProfileLiteChecker {
     }
 
     private static boolean sameCoding(JsonNode actual, JsonNode expected) {
-        return (!expected.has("system") || expected.path("system").asText().equals(actual.path("system").asText()))
-                && (!expected.has("code") || expected.path("code").asText().equals(actual.path("code").asText()));
+        return (!expected.has("system") || expected.path("system").asString("").equals(actual.path("system").asString("")))
+                && (!expected.has("code") || expected.path("code").asString("").equals(actual.path("code").asString("")));
     }
 
     private static String firstText(JsonNode fixed) {
-        Iterator<JsonNode> it = fixed.elements();
-        return it.hasNext() ? it.next().asText() : null;
+        Iterator<JsonNode> it = fixed.values().iterator();
+        return it.hasNext() ? it.next().asString("") : null;
     }
 }

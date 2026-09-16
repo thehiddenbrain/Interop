@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.conformance.checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.conformance.Check;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckContext;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckResult;
@@ -93,8 +93,8 @@ public class PatientChecks {
                 return b.fail("returned Patient/" + Fhir.idOf(r.json()) + " for a read of Patient/" + pid);
             }
             JsonNode p = r.json();
-            b.detail("name: " + (p.path("name").path(0).path("given").path(0).asText("") + " " + (family(p) == null ? "" : family(p))).trim()
-                    + ", birthDate " + p.path("birthDate").asText("-") + ", gender " + p.path("gender").asText("-"));
+            b.detail("name: " + (p.path("name").path(0).path("given").path(0).asString("") + " " + (family(p) == null ? "" : family(p))).trim()
+                    + ", birthDate " + p.path("birthDate").asString("-") + ", gender " + p.path("gender").asString("-"));
             return b.pass("Patient/" + pid + " read in " + r.durationMs() + " ms");
         });
     }
@@ -288,7 +288,7 @@ public class PatientChecks {
             if (problem != null) {
                 return b.fail(problem);
             }
-            long provenance = page.included().stream().filter(r -> "Provenance".equals(r.path("resourceType").asText())).count();
+            long provenance = page.included().stream().filter(r -> "Provenance".equals(r.path("resourceType").asString(""))).count();
             if (provenance == 0) {
                 return b.info("search accepted, no Provenance returned for Patient/" + pid);
             }

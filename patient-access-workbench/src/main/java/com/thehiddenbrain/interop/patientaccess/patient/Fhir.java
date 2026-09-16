@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.patient;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +12,7 @@ public final class Fhir {
     }
 
     public static String text(JsonNode node) {
-        return node == null || node.isMissingNode() || node.isNull() ? null : node.asText();
+        return node == null || node.isMissingNode() || node.isNull() ? null : node.asString("");
     }
 
     /** CodeableConcept: text, else first coding's display, else "system|code". */
@@ -21,7 +21,7 @@ public final class Fhir {
             return null;
         }
         if (cc.hasNonNull("text")) {
-            return cc.get("text").asText();
+            return cc.get("text").asString("");
         }
         JsonNode coding = cc.path("coding");
         if (coding.isArray() && coding.size() > 0) {
@@ -45,7 +45,7 @@ public final class Fhir {
     /** First code of a CodeableConcept, optionally restricted to a system. */
     public static String code(JsonNode cc, String system) {
         for (JsonNode c : cc.path("coding")) {
-            if (system == null || system.equals(c.path("system").asText())) {
+            if (system == null || system.equals(c.path("system").asString(""))) {
                 return text(c.get("code"));
             }
         }
@@ -54,7 +54,7 @@ public final class Fhir {
 
     public static boolean hasCoding(JsonNode cc, String system, String code) {
         for (JsonNode c : cc.path("coding")) {
-            if ((system == null || system.equals(c.path("system").asText())) && code.equals(c.path("code").asText())) {
+            if ((system == null || system.equals(c.path("system").asString(""))) && code.equals(c.path("code").asString(""))) {
                 return true;
             }
         }
@@ -118,7 +118,7 @@ public final class Fhir {
         if (parent == null) {
             return null;
         }
-        var it = parent.fields();
+        var it = parent.properties().iterator();
         while (it.hasNext()) {
             var e = it.next();
             if (e.getKey().startsWith(prefix) && e.getKey().length() > prefix.length()
@@ -135,7 +135,7 @@ public final class Fhir {
             return null;
         }
         if (v.isValueNode()) {
-            return v.asText();
+            return v.asString("");
         }
         if (v.has("start") || v.has("end")) {
             return period(v);
@@ -159,7 +159,7 @@ public final class Fhir {
     public static List<String> profiles(JsonNode resource) {
         List<String> out = new ArrayList<>();
         for (JsonNode p : resource.path("meta").path("profile")) {
-            out.add(p.asText());
+            out.add(p.asString(""));
         }
         return out;
     }
@@ -169,7 +169,7 @@ public final class Fhir {
             return null;
         }
         for (JsonNode ext : element.path("extension")) {
-            if (url.equals(ext.path("url").asText())) {
+            if (url.equals(ext.path("url").asString(""))) {
                 return ext;
             }
         }
@@ -182,7 +182,7 @@ public final class Fhir {
             return out;
         }
         for (JsonNode ext : element.path("extension")) {
-            if (url.equals(ext.path("url").asText())) {
+            if (url.equals(ext.path("url").asString(""))) {
                 out.add(ext);
             }
         }

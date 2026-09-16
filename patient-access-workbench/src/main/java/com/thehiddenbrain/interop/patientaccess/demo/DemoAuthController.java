@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.JWTParser;
@@ -292,10 +292,10 @@ public class DemoAuthController {
         for (JsonNode patient : store.patients()) {
             html.append("<form method=\"post\" action=\"").append(HtmlUtils.htmlEscape(BASE_PATH + "/authorize")).append("\">");
             hidden(html, q);
-            html.append("<input type=\"hidden\" name=\"patient\" value=\"").append(HtmlUtils.htmlEscape(patient.path("id").asText())).append("\">")
+            html.append("<input type=\"hidden\" name=\"patient\" value=\"").append(HtmlUtils.htmlEscape(patient.path("id").asString(""))).append("\">")
                     .append("<button type=\"submit\">Sign in as ").append(HtmlUtils.htmlEscape(displayName(patient)))
-                    .append("<small>Patient/").append(HtmlUtils.htmlEscape(patient.path("id").asText()))
-                    .append(" &middot; born ").append(HtmlUtils.htmlEscape(patient.path("birthDate").asText("?")))
+                    .append("<small>Patient/").append(HtmlUtils.htmlEscape(patient.path("id").asString("")))
+                    .append(" &middot; born ").append(HtmlUtils.htmlEscape(patient.path("birthDate").asString("?")))
                     .append(" &middot; member id ").append(HtmlUtils.htmlEscape(memberId(patient))).append("</small></button></form>");
         }
         html.append("<form method=\"post\" action=\"").append(HtmlUtils.htmlEscape(BASE_PATH + "/authorize")).append("\">");
@@ -327,22 +327,22 @@ public class DemoAuthController {
         JsonNode name = patient.path("name").path(0);
         StringBuilder sb = new StringBuilder();
         for (JsonNode g : name.path("given")) {
-            sb.append(g.asText()).append(' ');
+            sb.append(g.asString("")).append(' ');
         }
-        sb.append(name.path("family").asText(""));
+        sb.append(name.path("family").asString(""));
         String s = sb.toString().trim();
-        return s.isEmpty() ? name.path("text").asText("Patient " + patient.path("id").asText()) : s;
+        return s.isEmpty() ? name.path("text").asString("Patient " + patient.path("id").asString("")) : s;
     }
 
     static String memberId(JsonNode patient) {
         for (JsonNode id : patient.path("identifier")) {
             for (JsonNode c : id.path("type").path("coding")) {
-                if ("MB".equals(c.path("code").asText())) {
-                    return id.path("value").asText("?");
+                if ("MB".equals(c.path("code").asString(""))) {
+                    return id.path("value").asString("?");
                 }
             }
         }
-        return patient.path("identifier").path(0).path("value").asText("-");
+        return patient.path("identifier").path(0).path("value").asString("-");
     }
 
     // ------------------------------------------------------------------ jwks / register

@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 import com.thehiddenbrain.interop.patientaccess.environment.Environment;
 import com.thehiddenbrain.interop.patientaccess.environment.EnvironmentService;

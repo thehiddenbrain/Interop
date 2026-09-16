@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.conformance.checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.conformance.Check;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckContext;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckResult;
@@ -447,8 +447,8 @@ public class PriorAuthChecks {
             for (JsonNode e : priorAuths(ctx)) {
                 for (JsonNode it : e.path("item")) {
                     for (JsonNode c : it.path("productOrService").path("coding")) {
-                        if (NDC.equals(c.path("system").asText())) {
-                            drugs.add(CheckSupport.label(e) + " item " + it.path("sequence").asText("?") + ": NDC " + c.path("code").asText());
+                        if (NDC.equals(c.path("system").asString(""))) {
+                            drugs.add(CheckSupport.label(e) + " item " + it.path("sequence").asString("?") + ": NDC " + c.path("code").asString(""));
                         }
                     }
                 }

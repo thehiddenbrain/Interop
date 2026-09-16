@@ -1,11 +1,8 @@
 package com.thehiddenbrain.interop.patientaccess.common;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,12 +16,7 @@ import java.util.Optional;
  */
 public final class JsonFile {
 
-    public static final ObjectMapper MAPPER = JsonMapper.builder()
-            .addModule(new JavaTimeModule())
-            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-            .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
-            .build();
+    public static final ObjectMapper MAPPER = Json.MAPPER;
 
     private final Path path;
 
@@ -46,7 +38,7 @@ public final class JsonFile {
         }
         try {
             return Optional.ofNullable(MAPPER.readValue(path.toFile(), type));
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new WorkbenchException(ErrorCode.STORAGE_ERROR, "cannot read " + path + ": " + e.getMessage(), e);
         }
     }
@@ -57,7 +49,7 @@ public final class JsonFile {
         }
         try {
             return Optional.ofNullable(MAPPER.readValue(path.toFile(), type));
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new WorkbenchException(ErrorCode.STORAGE_ERROR, "cannot read " + path + ": " + e.getMessage(), e);
         }
     }
@@ -72,7 +64,7 @@ public final class JsonFile {
             } catch (IOException atomicUnsupported) {
                 Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
             }
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
             throw new WorkbenchException(ErrorCode.STORAGE_ERROR, "cannot write " + path + ": " + e.getMessage(), e);
         }
     }

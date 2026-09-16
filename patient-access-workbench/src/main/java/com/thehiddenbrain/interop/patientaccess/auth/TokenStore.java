@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.auth;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import tools.jackson.core.type.TypeReference;
 import com.thehiddenbrain.interop.patientaccess.common.JsonFile;
 import com.thehiddenbrain.interop.patientaccess.config.WorkbenchProperties;
 import org.springframework.beans.factory.annotation.Autowired;

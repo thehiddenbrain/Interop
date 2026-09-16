@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.conformance.checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.conformance.Check;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckContext;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckResult;
@@ -314,7 +314,7 @@ public class EobChecks {
     static Map<String, Integer> includedCounts(SearchPage page) {
         Map<String, Integer> counts = new TreeMap<>();
         for (JsonNode r : page.included()) {
-            counts.merge(r.path("resourceType").asText("?"), 1, Integer::sum);
+            counts.merge(r.path("resourceType").asString("?"), 1, Integer::sum);
         }
         return counts;
     }

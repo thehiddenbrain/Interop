@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Patient Access API Workbench</title>
+  <link rel="stylesheet" href="brand/brand.css">
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -82,7 +83,7 @@
           </fieldset>
           <fieldset>
             <legend>IG-specific base URLs (vendors such as Onyx SAFHIR serve each implementation guide under its own base)</legend>
-            <div class="toolbar"><button type="button" id="btn-env-onyx" class="small">Onyx SAFHIR preset from tenant host…</button><span class="muted">Leave blank when everything is served from the default base.</span></div>
+            <div class="toolbar"><label class="field inline"><span>Vendor preset</span><select id="env-preset"><option value="">choose…</option></select></label><button type="button" id="btn-env-preset" class="small">Apply preset from tenant host…</button><span class="muted">Presets come from vendors.yaml. Leave the bases blank when everything is served from the default base.</span></div>
             <div class="grid">
               <label class="field wide"><span>CARIN Blue Button base (Patient, Coverage, claim EOBs)</span><input name="ig.c4bb" placeholder="https://api-<tenant>-uat.safhir.io/v1/api/carin-bb"></label>
               <label class="field wide"><span>PDex base (clinical data, prior authorization EOBs)</span><input name="ig.pdex" placeholder="https://api-<tenant>-uat.safhir.io/v1/api/pdex"></label>

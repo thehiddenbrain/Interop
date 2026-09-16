@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.environment;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.auth.AccessToken;
 import com.thehiddenbrain.interop.patientaccess.auth.SmartDiscoveryService;
 import com.thehiddenbrain.interop.patientaccess.auth.TokenService;
@@ -135,29 +135,29 @@ public class EnvironmentProbe {
         List<String> security = new ArrayList<>();
         for (JsonNode rest : cs.path("rest")) {
             for (JsonNode r : rest.path("resource")) {
-                types.add(r.path("type").asText());
+                types.add(r.path("type").asString(""));
             }
             for (JsonNode svc : rest.path("security").path("service")) {
                 for (JsonNode c : svc.path("coding")) {
-                    security.add(c.path("code").asText());
+                    security.add(c.path("code").asString(""));
                 }
             }
         }
         List<String> formats = new ArrayList<>();
         for (JsonNode f : cs.path("format")) {
-            formats.add(f.asText());
+            formats.add(f.asString(""));
         }
         List<String> instantiates = new ArrayList<>();
         for (JsonNode f : cs.path("instantiates")) {
-            instantiates.add(f.asText());
+            instantiates.add(f.asString(""));
         }
         for (JsonNode f : cs.path("implementationGuide")) {
-            instantiates.add(f.asText());
+            instantiates.add(f.asString(""));
         }
         return Map.of(
-                "fhirVersion", cs.path("fhirVersion").asText(""),
-                "software", cs.path("software").path("name").asText("") + " " + cs.path("software").path("version").asText(""),
-                "implementation", cs.path("implementation").path("description").asText(""),
+                "fhirVersion", cs.path("fhirVersion").asString(""),
+                "software", cs.path("software").path("name").asString("") + " " + cs.path("software").path("version").asString(""),
+                "implementation", cs.path("implementation").path("description").asString(""),
                 "formats", formats,
                 "securityServices", security,
                 "resourceTypes", types,

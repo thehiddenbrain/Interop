@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.environment;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import tools.jackson.core.type.TypeReference;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.JsonFile;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;

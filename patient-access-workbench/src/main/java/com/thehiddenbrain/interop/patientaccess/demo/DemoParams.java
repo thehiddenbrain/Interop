@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 
 import java.util.ArrayList;
@@ -188,13 +188,13 @@ final class DemoParams {
         if (segment.startsWith("ext:")) {
             String url = segment.substring(4);
             for (JsonNode ext : node.path("extension")) {
-                if (url.equals(ext.path("url").asText())) {
+                if (url.equals(ext.path("url").asString(""))) {
                     out.addAll(select(ext, path, index + 1));
                 }
             }
         } else if (segment.endsWith("[x]")) {
             String prefix = segment.substring(0, segment.length() - 3);
-            node.fields().forEachRemaining(e -> {
+            node.properties().forEach(e -> {
                 String key = e.getKey();
                 if (key.startsWith(prefix) && key.length() > prefix.length() && Character.isUpperCase(key.charAt(prefix.length()))) {
                     out.addAll(select(e.getValue(), path, index + 1));
@@ -215,7 +215,7 @@ final class DemoParams {
         } else {
             String element = camel(field);
             nodes = new ArrayList<>();
-            resource.fields().forEachRemaining(e -> {
+            resource.properties().forEach(e -> {
                 if (e.getKey().equals(element) || (e.getKey().startsWith(element) && e.getKey().length() > element.length()
                         && Character.isUpperCase(e.getKey().charAt(element.length())))) {
                     nodes.add(e.getValue());
@@ -231,7 +231,7 @@ final class DemoParams {
 
     static List<String> allReferences(JsonNode resource) {
         List<String> refs = new ArrayList<>();
-        resource.fields().forEachRemaining(e -> {
+        resource.properties().forEach(e -> {
             if (!"contained".equals(e.getKey())) {
                 collectReferences(e.getValue(), refs);
             }
@@ -246,10 +246,10 @@ final class DemoParams {
         if (node.isArray()) {
             node.forEach(n -> collectReferences(n, out));
         } else if (node.isObject()) {
-            if (node.hasNonNull("reference") && node.get("reference").isTextual()) {
-                out.add(node.get("reference").asText());
+            if (node.hasNonNull("reference") && node.get("reference").isString()) {
+                out.add(node.get("reference").asString(""));
             }
-            node.fields().forEachRemaining(e -> {
+            node.properties().forEach(e -> {
                 if (!"reference".equals(e.getKey())) {
                     collectReferences(e.getValue(), out);
                 }

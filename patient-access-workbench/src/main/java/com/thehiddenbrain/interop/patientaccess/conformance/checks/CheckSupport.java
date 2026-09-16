@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.conformance.checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
 import com.thehiddenbrain.interop.patientaccess.conformance.CheckContext;
@@ -57,13 +57,13 @@ final class CheckSupport {
     }
 
     static Optional<JsonNode> restResource(JsonNode capabilityStatement, String type) {
-        return restResources(capabilityStatement).stream().filter(r -> type.equals(r.path("type").asText())).findFirst();
+        return restResources(capabilityStatement).stream().filter(r -> type.equals(r.path("type").asString(""))).findFirst();
     }
 
     static Set<String> declaredTypes(JsonNode capabilityStatement) {
         Set<String> out = new LinkedHashSet<>();
         for (JsonNode r : restResources(capabilityStatement)) {
-            out.add(r.path("type").asText());
+            out.add(r.path("type").asString(""));
         }
         return out;
     }
@@ -77,7 +77,7 @@ final class CheckSupport {
         Set<String> out = new LinkedHashSet<>();
         restResource(capabilityStatement, type).ifPresent(r -> {
             for (JsonNode p : r.path("searchParam")) {
-                out.add(p.path("name").asText());
+                out.add(p.path("name").asString(""));
             }
         });
         return out;
@@ -88,10 +88,10 @@ final class CheckSupport {
         Set<String> out = new LinkedHashSet<>();
         restResource(capabilityStatement, type).ifPresent(r -> {
             if (r.hasNonNull("profile")) {
-                out.add(bare(r.get("profile").asText()));
+                out.add(bare(r.get("profile").asString("")));
             }
             for (JsonNode p : r.path("supportedProfile")) {
-                out.add(bare(p.asText()));
+                out.add(bare(p.asString("")));
             }
         });
         return out;
@@ -156,13 +156,13 @@ final class CheckSupport {
     }
 
     static String label(JsonNode resource) {
-        return resource.path("resourceType").asText("?") + "/" + resource.path("id").asText("?");
+        return resource.path("resourceType").asString("?") + "/" + resource.path("id").asString("?");
     }
 
     static List<String> ids(Collection<JsonNode> resources) {
         List<String> out = new ArrayList<>();
         for (JsonNode r : resources) {
-            out.add(r.path("id").asText(null));
+            out.add(r.path("id").asString(null));
         }
         return out;
     }
@@ -238,7 +238,7 @@ final class CheckSupport {
             return system == null ? code : system + "|" + code;
         }
         if (cc.has("code") && cc.has("system")) { // a Coding (Encounter.class)
-            return cc.get("system").asText() + "|" + cc.get("code").asText();
+            return cc.get("system").asString("") + "|" + cc.get("code").asString("");
         }
         return Fhir.text(cc.get("text"));
     }
@@ -253,7 +253,7 @@ final class CheckSupport {
             return null;
         }
         if (cc.has("code") && !cc.has("coding")) {
-            return cc.get("code").asText();
+            return cc.get("code").asString("");
         }
         return Fhir.code(cc, null);
     }
@@ -316,8 +316,8 @@ final class CheckSupport {
         if (value == null || value.isMissingNode() || value.isNull()) {
             return null;
         }
-        if (value.isTextual()) {
-            String t = value.asText();
+        if (value.isString()) {
+            String t = value.asString("");
             return t.length() >= 4 && Character.isDigit(t.charAt(0)) ? date(t) : null;
         }
         if (value.isObject()) {
@@ -339,7 +339,7 @@ final class CheckSupport {
         String type = r.resourceType();
         if ("Bundle".equals(type)) {
             JsonNode b = r.json();
-            sb.append(" Bundle ").append(b.path("type").asText("?")).append(" (").append(b.path("entry").size()).append(" entries");
+            sb.append(" Bundle ").append(b.path("type").asString("?")).append(" (").append(b.path("entry").size()).append(" entries");
             if (b.hasNonNull("total")) {
                 sb.append(", total ").append(b.get("total").asInt());
             }
@@ -347,7 +347,7 @@ final class CheckSupport {
         } else if ("OperationOutcome".equals(type)) {
             sb.append(" OperationOutcome: ").append(r.errorSummary());
         } else if (type != null) {
-            sb.append(' ').append(type).append('/').append(r.json().path("id").asText(""));
+            sb.append(' ').append(type).append('/').append(r.json().path("id").asString(""));
         } else if (r.body().isBlank()) {
             sb.append(" (empty body)");
         } else {
@@ -420,8 +420,8 @@ final class CheckSupport {
             return "response is not a Bundle (" + (r.resourceType() == null ? "non-FHIR content" : r.resourceType()) + ")";
         }
         for (JsonNode m : page.resources()) {
-            if (!type.equals(m.path("resourceType").asText())) {
-                return "match entry of type " + m.path("resourceType").asText("?") + " in a " + type + " search";
+            if (!type.equals(m.path("resourceType").asString(""))) {
+                return "match entry of type " + m.path("resourceType").asString("?") + " in a " + type + " search";
             }
         }
         return null;

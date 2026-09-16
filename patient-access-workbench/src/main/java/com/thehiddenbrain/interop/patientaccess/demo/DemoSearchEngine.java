@@ -1,7 +1,7 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 import org.springframework.stereotype.Component;
 
@@ -177,7 +177,7 @@ public class DemoSearchEngine {
     /** {@code _profile=url} matches any version of the canonical; {@code url|version} needs that version. */
     static boolean profileMatches(List<JsonNode> profiles, String value) {
         for (JsonNode p : profiles) {
-            String declared = p.asText();
+            String declared = p.asString("");
             if (declared.equals(value) || (!value.contains("|") && bare(declared).equals(value))) {
                 return true;
             }
@@ -220,7 +220,7 @@ public class DemoSearchEngine {
         Map<String, ObjectNode> out = new LinkedHashMap<>();
         Set<String> matched = new LinkedHashSet<>();
         for (ObjectNode m : slice) {
-            matched.add(type + "/" + m.get("id").asText());
+            matched.add(type + "/" + m.get("id").asString(""));
         }
         for (String spec : includes) {
             String[] parts = spec.split(":");
@@ -246,7 +246,7 @@ public class DemoSearchEngine {
                 continue;
             }
             for (ObjectNode candidate : store.all(parts[0])) {
-                String key = parts[0] + "/" + candidate.get("id").asText();
+                String key = parts[0] + "/" + candidate.get("id").asString("");
                 if (matched.contains(key) || out.containsKey(key) || !visible(candidate, scope)) {
                     continue;
                 }

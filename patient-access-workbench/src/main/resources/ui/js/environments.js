@@ -345,31 +345,65 @@
     } catch (e) { showError('#env-form-messages', e); }
   }
 
-  /** Fills the form from the documented Onyx SAFHIR layout: one host per tier, one base per IG, /v1/authorize + /v1/token. */
-  async function onyxPreset() {
-    const host = await P.prompt('Onyx SAFHIR preset', 'Tenant host of this tier (e.g. https://api-<tenant>-uat.safhir.io)', field('fhirBaseUrl').value.replace(/\/v1.*$/, '') || 'https://api-');
-    if (host == null) return;
-    const root = host.trim().replace(/\/+$/, '');
-    if (!/^https?:\/\//.test(root)) { msg('#env-form-messages', 'error', 'Enter the tenant host including https://'); return; }
-    field('fhirBaseUrl').value = root + '/v1/api/pdex';
-    field('ig.c4bb').value = root + '/v1/api/carin-bb';
-    field('ig.pdex').value = root + '/v1/api/pdex';
-    field('ig.usdf').value = root + '/v1/api/formulary';
-    field('ig.plannet').value = root + '/v1/api/provider-directory';
-    if (!field('vendor').value) field('vendor').value = 'Onyx SAFHIR';
-    if (/-prd\./.test(root)) field('tier').value = 'PROD'; else if (/-uat\./.test(root)) field('tier').value = 'UAT';
-    field('auth.mode').value = 'SMART_AUTHORIZATION_CODE';
-    field('auth.discoverEndpoints').checked = false;
-    field('auth.authorizationEndpoint').value = root + '/v1/authorize';
-    field('auth.tokenEndpoint').value = root + '/v1/token';
-    field('auth.audience').value = root + '/v1';
-    field('auth.clientAuthMethod').value = 'CLIENT_SECRET_POST';
-    if (!field('auth.scopes').value) field('auth.scopes').value = 'launch/patient openid fhirUser offline_access patient/*.read';
-    field('fhir.allowNextLinkHostMismatch').checked = true;
-    if (!field('fhir.pageSize').value) field('fhir.pageSize').value = '50';
-    applyModeVisibility();
+  let presets = [];
+
+  async function loadPresets() {
+    const sel = $('#env-preset');
+    try {
+      const res = await api.get('/vendors');
+      presets = res.vendors || [];
+    } catch (e) {
+      presets = [];
+      sel.append(h('option', { value: '', disabled: true }, 'presets unavailable: ' + (e.message || e)));
+      return;
+    }
+    for (const p of presets) sel.append(h('option', { value: p.key }, p.name));
+    if (presets.length === 1) sel.value = presets[0].key;
+  }
+
+  /** Sets a form field by name; checkboxes from booleans, everything else as text. Unknown names are reported, not skipped silently. */
+  function setField(name, value, unknown) {
+    const el = field(name);
+    if (!el) { unknown.push(name); return; }
+    if (el.type === 'checkbox') el.checked = value === true || value === 'true';
+    else el.value = value == null ? '' : String(value);
+  }
+
+  /**
+   * Fills the form from a vendor preset (vendors.yaml): every "{host}" becomes the tenant host the user
+   * enters, auth.* and fhir.* keys map onto the fields of the same name, igBaseUrls onto the IG bases.
+   */
+  async function applyPreset() {
     clearMsgs('#env-form-messages');
-    msg('#env-form-messages', 'info', 'Preset applied from the public SAFHIR documentation. Confirm the token endpoint, client id/secret, redirect URI and scopes against the Application Credentials in the Onyx developer portal, then Save and Test connection. See docs/onyx-safhir.md.');
+    const key = $('#env-preset').value;
+    const p = presets.find(x => x.key === key);
+    if (!p) { msg('#env-form-messages', 'error', 'Choose a vendor preset first (they come from vendors.yaml).'); return; }
+    const usesHost = JSON.stringify(p).includes('{host}');
+    let root = '';
+    if (usesHost) {
+      const current = field('fhirBaseUrl').value.replace(/\/v1.*$/, '').replace(/\/fhir.*$/, '');
+      const host = await P.prompt(p.name + ' preset', 'Tenant host of this tier (e.g. ' + (p.hostHint || 'https://fhir.example.org') + ')', current || 'https://');
+      if (host == null) return;
+      root = host.trim().replace(/\/+$/, '');
+      if (!/^https?:\/\//.test(root)) { msg('#env-form-messages', 'error', 'Enter the tenant host including https://'); return; }
+    }
+    const fill = (v) => typeof v === 'string' ? v.split('{host}').join(root) : v;
+    const unknown = [];
+    if (!field('vendor').value) field('vendor').value = p.name;
+    for (const [tier, pattern] of Object.entries(p.tierPatterns || {})) {
+      let re = null;
+      try { re = new RegExp(pattern); } catch (e) { unknown.push('tierPatterns.' + tier + ' (bad regex)'); }
+      if (re && re.test(root)) { field('tier').value = tier; break; }
+    }
+    if (p.fhirBaseUrl) field('fhirBaseUrl').value = fill(p.fhirBaseUrl);
+    for (const [ig, url] of Object.entries(p.igBaseUrls || {})) setField('ig.' + ig, fill(url), unknown);
+    for (const [k, v] of Object.entries(p.auth || {})) setField('auth.' + k, fill(v), unknown);
+    for (const [k, v] of Object.entries(p.fhir || {})) setField('fhir.' + k, fill(v), unknown);
+    if ((p.identifierSystems || []).length && !$$('#env-idsystems tbody tr').length) p.identifierSystems.forEach(s => idSystemRow(s));
+    if ((p.headers || []).length && !$$('#env-headers tbody tr').length) p.headers.forEach(hd => headerRow(hd));
+    applyModeVisibility();
+    if (unknown.length) msg('#env-form-messages', 'warn', 'Preset "' + p.key + '" names fields this form does not have: ' + unknown.join(', ') + '. Fix vendors.yaml.');
+    msg('#env-form-messages', 'info', p.note || ('Preset "' + p.name + '" applied. Add the credentials, then Save and Test connection.'));
   }
 
   async function addDemo() {
@@ -392,8 +426,9 @@
       $('#btn-env-new').addEventListener('click', () => edit(null));
       $('#btn-env-refresh').addEventListener('click', () => P.refreshEnvironments(state.envId));
       $('#btn-env-demo').addEventListener('click', addDemo);
-      $('#btn-env-onyx').addEventListener('click', onyxPreset);
       const guarded = (fn) => () => Promise.resolve().then(fn).catch(e => { clearMsgs('#env-form-messages'); showError('#env-form-messages', e); });
+      $('#btn-env-preset').addEventListener('click', guarded(applyPreset));
+      loadPresets();
       $('#btn-env-test').addEventListener('click', guarded(test));
       $('#btn-env-delete').addEventListener('click', guarded(remove));
       $('#btn-env-duplicate').addEventListener('click', guarded(duplicate));

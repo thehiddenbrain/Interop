@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.search;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.catalog.IgCatalog;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
@@ -94,7 +94,7 @@ public class MemberSearchService {
                     }
                     Set<String> beneficiaries = new LinkedHashSet<>();
                     for (JsonNode cov : page.resources()) {
-                        String ref = cov.path("beneficiary").path("reference").asText(null);
+                        String ref = cov.path("beneficiary").path("reference").asString(null);
                         if (ref != null) {
                             beneficiaries.add(ref);
                         }
@@ -169,7 +169,7 @@ public class MemberSearchService {
         SearchPage page = runPage(env, type, params, description, options, queries, warnings);
         if (page != null) {
             for (JsonNode p : page.resources()) {
-                if ("Patient".equals(p.path("resourceType").asText())) {
+                if ("Patient".equals(p.path("resourceType").asString(""))) {
                     add(found, p, description);
                 }
             }
@@ -193,7 +193,7 @@ public class MemberSearchService {
     }
 
     private static void add(Map<String, PatientSummary> found, JsonNode patient, String foundBy) {
-        String id = patient.path("id").asText(null);
+        String id = patient.path("id").asString(null);
         String key = id == null ? "anonymous-" + found.size() : id;
         found.putIfAbsent(key, PatientSummary.of(patient, foundBy));
     }

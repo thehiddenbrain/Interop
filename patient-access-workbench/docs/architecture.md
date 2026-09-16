@@ -2,8 +2,9 @@
 
 Separate Gradle project at `patient-access-workbench/` in the Interop repo (self-contained: own Gradle build,
 Gradle wrapper, README, run scripts, Dockerfile). Package root `com.thehiddenbrain.interop.patientaccess`.
-Spring Boot 3.5.x, Java 17, HAPI FHIR 8.x (structures R4 + validation for FHIRPath / optional profile
-validation), Jackson for generic JSON handling, java.net.http.HttpClient for outbound FHIR/OAuth calls,
+Spring Boot 4.0.x (Spring Framework 7, Jackson 3 `tools.jackson.*`), Java 17 (`options.release = 17`,
+Gradle 9.5 wrapper), HAPI FHIR 8.x (structures R4 + validation for FHIRPath / optional profile
+validation), Jackson for generic JSON handling (one shared mapper in `common/Json`), java.net.http.HttpClient for outbound FHIR/OAuth calls,
 nimbus-jose-jwt for SMART Backend Services client assertions. Plain HTML/JS/CSS browser UI at /ui/.
 
 ## Purpose
@@ -22,6 +23,8 @@ patientaccess/
                  persistence with optimistic version), Ids, Clock
   secrets/       SecretCrypto (AES-256-GCM, master key from PAW_MASTER_KEY or data/master.key),
                  Secret (encrypted-at-rest value; masked view {set, hint})
+  vendor/        VendorPreset, VendorCatalog: vendors.yaml (next to the jar or bundled) with per-vendor
+                 URL layouts and auth defaults; adding a vendor is a yaml edit, never code
   environment/   Environment, AuthConfig, IdentifierSystem, FhirOptions, EnvironmentTier,
                  EnvironmentStore, EnvironmentService (validation, CRUD, connectivity test), EnvironmentView
   auth/          AuthMode, AccessToken, TokenCache, TokenService, SmartDiscoveryService (well-known +

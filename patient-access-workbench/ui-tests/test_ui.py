@@ -28,8 +28,20 @@ def main():
         page.goto(BASE + "/ui/", wait_until="networkidle")
         expect(page.locator("#health")).to_have_class("pill up", timeout=15000)
 
-        # --- environments: add the demo environment and test it
+        # --- environments: vendor preset from vendors.yaml fills a new environment from the tenant host
         page.click('button[data-tab="environments"]')
+        page.click("#btn-env-new")
+        expect(page.locator("#env-form")).to_be_visible(timeout=15000)
+        page.select_option("#env-preset", "onyx-safhir")
+        page.click("#btn-env-preset")
+        page.fill("#modal-body input", "https://api-acme-uat.safhir.io")
+        page.click("#modal-ok")
+        expect(page.locator('#env-form [name="ig.c4bb"]')).to_have_value("https://api-acme-uat.safhir.io/v1/api/carin-bb")
+        expect(page.locator('#env-form [name="auth.tokenEndpoint"]')).to_have_value("https://api-acme-uat.safhir.io/v1/token")
+        expect(page.locator('#env-form [name="tier"]')).to_have_value("UAT")
+        shot(page, "00-vendor-preset")
+
+        # --- environments: add the demo environment and test it
         page.click("#btn-env-demo")
         expect(page.locator("#env-form")).to_be_visible(timeout=15000)
         expect(page.locator("#env-form-title")).to_contain_text("Demo (local)")

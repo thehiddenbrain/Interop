@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
@@ -28,19 +28,19 @@ class EnvironmentControllerTest extends ApiTestSupport {
     @Test
     void createReturns201WithSecretsMasked() throws Exception {
         JsonNode env = create("api-create");
-        assertThat(env.path("id").asText()).hasSize(20);
+        assertThat(env.path("id").asString("")).hasSize(20);
         assertThat(env.path("version").asInt()).isEqualTo(1);
-        assertThat(env.path("vendor").asText()).isEqualTo("Onyx SAFHIR");
-        assertThat(env.path("auth").path("mode").asText()).isEqualTo("CLIENT_CREDENTIALS");
+        assertThat(env.path("vendor").asString("")).isEqualTo("Onyx SAFHIR");
+        assertThat(env.path("auth").path("mode").asString("")).isEqualTo("CLIENT_CREDENTIALS");
         assertThat(env.path("auth").path("clientSecret").path("set").asBoolean()).isTrue();
-        assertThat(env.path("auth").path("clientSecret").path("hint").asText()).isEqualTo("***ABCD");
+        assertThat(env.path("auth").path("clientSecret").path("hint").asString("")).isEqualTo("***ABCD");
         assertThat(env.path("auth").path("staticToken").path("set").asBoolean()).isFalse();
         assertThat(env.path("headers").get(0).path("secret").asBoolean()).isTrue();
-        assertThat(env.path("headers").get(0).path("secretValue").path("hint").asText()).isEqualTo("***1234");
+        assertThat(env.path("headers").get(0).path("secretValue").path("hint").asString("")).isEqualTo("***1234");
         assertThat(env.path("headers").get(0).has("value")).isFalse();
         assertThat(env.toString()).doesNotContain("client-secret-value").doesNotContain("api-key-value").doesNotContain("\"enc\"");
 
-        String id = env.path("id").asText();
+        String id = env.path("id").asString("");
         mvc.perform(get("/api/v1/environments/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("api-create"))
@@ -80,7 +80,7 @@ class EnvironmentControllerTest extends ApiTestSupport {
 
     @Test
     void updateHonoursVersionsAndSecretMergeRules() throws Exception {
-        String id = create("api-update").path("id").asText();
+        String id = create("api-update").path("id").asString("");
 
         mvc.perform(put("/api/v1/environments/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"notes\":\"stale\",\"version\":42}"))
                 .andExpect(status().isConflict())
@@ -125,7 +125,7 @@ class EnvironmentControllerTest extends ApiTestSupport {
 
     @Test
     void duplicateAndDeleteRoundTrip() throws Exception {
-        String id = create("api-copy-source").path("id").asText();
+        String id = create("api-copy-source").path("id").asString("");
 
         mvc.perform(post("/api/v1/environments/" + id + "/duplicate"))
                 .andExpect(status().isCreated())
@@ -138,7 +138,7 @@ class EnvironmentControllerTest extends ApiTestSupport {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("api-copy-prod"))
                 .andReturn();
-        String copyId = mapper.readTree(named.getResponse().getContentAsString()).path("id").asText();
+        String copyId = mapper.readTree(named.getResponse().getContentAsString()).path("id").asString("");
 
         mvc.perform(delete("/api/v1/environments/" + copyId)).andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/environments/" + copyId)).andExpect(status().isNotFound());

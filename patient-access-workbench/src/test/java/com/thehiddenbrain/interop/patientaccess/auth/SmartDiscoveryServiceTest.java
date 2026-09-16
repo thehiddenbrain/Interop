@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.auth;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.thehiddenbrain.interop.patientaccess.environment.AuthMode;
 import com.thehiddenbrain.interop.patientaccess.environment.Environment;
@@ -77,7 +77,7 @@ class SmartDiscoveryServiceTest {
         assertThat(d.smartConfiguration()).isNotNull();
         assertThat(d.smartConfigurationStatus()).isEqualTo(200);
         assertThat(d.smartConfigurationUrl()).isEqualTo(base + "/.well-known/smart-configuration");
-        assertThat(d.capabilityStatement().path("fhirVersion").asText()).isEqualTo("4.0.1");
+        assertThat(d.capabilityStatement().path("fhirVersion").asString("")).isEqualTo("4.0.1");
         assertThat(d.metadataStatus()).isEqualTo(200);
         assertThat(d.metadataRequestId()).isNotBlank();
         assertThat(d.notes()).isEmpty();

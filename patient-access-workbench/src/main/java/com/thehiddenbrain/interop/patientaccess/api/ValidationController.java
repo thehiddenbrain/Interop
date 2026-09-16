@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.conformance.FullValidator;
 import com.thehiddenbrain.interop.patientaccess.environment.EnvironmentService;
 import com.thehiddenbrain.interop.patientaccess.fhir.FhirGateway;

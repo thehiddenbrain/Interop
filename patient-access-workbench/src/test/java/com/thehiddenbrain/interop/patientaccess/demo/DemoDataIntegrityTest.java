@@ -3,7 +3,7 @@ package com.thehiddenbrain.interop.patientaccess.demo;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import ca.uhn.fhir.parser.StrictErrorHandler;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.thehiddenbrain.interop.patientaccess.patient.PriorAuthSummarizer;
 import org.junit.jupiter.api.Test;
 
@@ -34,14 +34,14 @@ class DemoDataIntegrityTest {
         int checked = 0;
         for (String type : STORE.types()) {
             for (ObjectNode resource : STORE.all(type)) {
-                String key = type + "/" + resource.get("id").asText();
+                String key = type + "/" + resource.get("id").asString("");
                 String file = STORE.sources().get(key);
                 try {
                     parser.parseResource(resource.toString());
                 } catch (Exception e) {
                     problems.add(file + ": " + e.getMessage());
                 }
-                assertEquals(DemoDataStore.DEFAULT_VERSION, resource.path("meta").path("versionId").asText(), file + " versionId");
+                assertEquals(DemoDataStore.DEFAULT_VERSION, resource.path("meta").path("versionId").asString(""), file + " versionId");
                 assertTrue(resource.path("meta").hasNonNull("lastUpdated"), file + " lastUpdated");
                 for (String ref : DemoParams.allReferences(resource)) {
                     String target = DemoDataStore.referenceKey(ref);

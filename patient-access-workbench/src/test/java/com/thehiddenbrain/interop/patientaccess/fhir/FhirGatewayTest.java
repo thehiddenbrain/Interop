@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.fhir;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
@@ -141,15 +141,15 @@ class FhirGatewayTest {
         assertThat(limited.pages()).isEqualTo(2);
         assertThat(limited.truncated()).isTrue();
         assertThat(limited.total()).isEqualTo(3);
-        assertThat(limited.resources()).extracting(r -> r.path("id").asText()).containsExactly("a", "b");
-        assertThat(limited.included()).extracting(r -> r.path("id").asText()).containsExactly("o1");
+        assertThat(limited.resources()).extracting(r -> r.path("id").asString("")).containsExactly("a", "b");
+        assertThat(limited.included()).extracting(r -> r.path("id").asString("")).containsExactly("o1");
         assertThat(limited.requestIds()).hasSize(2).doesNotContainNull();
 
         // no explicit limit: the environment's maxPages, else paw.search.max-pages (5 in the test graph)
         FhirGateway.Collected all = g.gateway.searchAll(env, "Patient", params("name", "x"), options, null);
         assertThat(all.pages()).isEqualTo(3);
         assertThat(all.truncated()).isFalse();
-        assertThat(all.resources()).extracting(r -> r.path("id").asText()).containsExactly("a", "b", "c");
+        assertThat(all.resources()).extracting(r -> r.path("id").asString("")).containsExactly("a", "b", "c");
 
         Environment onePage = envWith("onepage", new FhirOptions(null, 1, null, true, false, false, null, null, false), null, null);
         FhirGateway.Collected single = g.gateway.searchAll(onePage, "Patient", params("name", "x"), options, null);
@@ -164,7 +164,7 @@ class FhirGatewayTest {
         wiremock.stubFor(get(urlPathEqualTo("/fhir/Patient/missing")).willReturn(Fixtures.fhir(404, Fixtures.operationOutcome("error", "not-found", "no Patient/missing"))));
 
         JsonNode patient = g.gateway.read(env, "Patient", "p1", options);
-        assertThat(patient.path("id").asText()).isEqualTo("p1");
+        assertThat(patient.path("id").asString("")).isEqualTo("p1");
 
         assertThatThrownBy(() -> g.gateway.read(env, "Patient", "html", options))
                 .isInstanceOf(WorkbenchException.class)

@@ -1,7 +1,8 @@
 package com.thehiddenbrain.interop.patientaccess.catalog;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.thehiddenbrain.interop.patientaccess.common.Json;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -79,13 +80,13 @@ public class IgCatalog {
     }
 
     public IgCatalog(JsonNode root) {
-        root.path("igs").fields().forEachRemaining(e -> igs.put(e.getKey(), new IgInfo(e.getKey(), e.getValue().path("name").asText(),
-                e.getValue().path("canonical").asText(), e.getValue().path("version").asText(null))));
-        root.path("resources").fields().forEachRemaining(e -> resources.put(e.getKey(), resource(e.getKey(), e.getValue())));
-        root.path("profiles").fields().forEachRemaining(e -> profiles.put(e.getKey(), profile(e.getKey(), e.getValue())));
+        root.path("igs").properties().forEach(e -> igs.put(e.getKey(), new IgInfo(e.getKey(), e.getValue().path("name").asString(""),
+                e.getValue().path("canonical").asString(""), e.getValue().path("version").asString(null))));
+        root.path("resources").properties().forEach(e -> resources.put(e.getKey(), resource(e.getKey(), e.getValue())));
+        root.path("profiles").properties().forEach(e -> profiles.put(e.getKey(), profile(e.getKey(), e.getValue())));
         for (JsonNode p : root.path("eobProfiles")) {
-            eobProfiles.add(new EobProfile(p.path("url").asText(), p.path("name").asText(), p.path("claimType").asText(null),
-                    p.path("subType").asText(null), p.path("use").asText(null)));
+            eobProfiles.add(new EobProfile(p.path("url").asString(""), p.path("name").asString(""), p.path("claimType").asString(null),
+                    p.path("subType").asString(null), p.path("use").asString(null)));
         }
         codeSystems = root.path("codeSystems");
         valueSets = root.path("valueSets");
@@ -93,8 +94,8 @@ public class IgCatalog {
 
     private static JsonNode load() {
         try (InputStream in = new ClassPathResource("catalog/ig-catalog.json").getInputStream()) {
-            return new ObjectMapper().readTree(in);
-        } catch (IOException e) {
+            return Json.MAPPER.readTree(in);
+        } catch (IOException | JacksonException e) {
             throw new IllegalStateException("cannot load catalog/ig-catalog.json", e);
         }
     }
@@ -102,20 +103,20 @@ public class IgCatalog {
     private static ResourceSpec resource(String type, JsonNode n) {
         List<ProfileRef> profiles = new ArrayList<>();
         for (JsonNode p : n.path("profiles")) {
-            profiles.add(new ProfileRef(p.path("url").asText(), p.path("name").asText(), p.path("ig").asText()));
+            profiles.add(new ProfileRef(p.path("url").asString(""), p.path("name").asString(""), p.path("ig").asString("")));
         }
         List<SearchParamSpec> params = new ArrayList<>();
         for (JsonNode p : n.path("searchParams")) {
-            params.add(new SearchParamSpec(p.path("name").asText(), p.path("type").asText("string"), p.path("expectation").asText("MAY"),
-                    strings(p.path("igs")), p.path("definition").asText(null), p.path("description").asText(""), p.path("expression").asText(null)));
+            params.add(new SearchParamSpec(p.path("name").asString(""), p.path("type").asString("string"), p.path("expectation").asString("MAY"),
+                    strings(p.path("igs")), p.path("definition").asString(null), p.path("description").asString(""), p.path("expression").asString(null)));
         }
         List<ComboSpec> combos = new ArrayList<>();
         for (JsonNode c : n.path("combos")) {
-            combos.add(new ComboSpec(strings(c.path("params")), c.path("expectation").asText("MAY"), strings(c.path("igs"))));
+            combos.add(new ComboSpec(strings(c.path("params")), c.path("expectation").asString("MAY"), strings(c.path("igs"))));
         }
         List<OperationSpec> ops = new ArrayList<>();
         for (JsonNode o : n.path("operations")) {
-            ops.add(new OperationSpec(o.path("name").asText(), o.path("definition").asText(null), o.path("ig").asText(null)));
+            ops.add(new OperationSpec(o.path("name").asString(""), o.path("definition").asString(null), o.path("ig").asString(null)));
         }
         return new ResourceSpec(type, profiles, strings(n.path("interactions")), params, combos, strings(n.path("includes")),
                 strings(n.path("revIncludes")), ops);
@@ -124,19 +125,19 @@ public class IgCatalog {
     private static ProfileSpec profile(String url, JsonNode n) {
         List<ProfileRule> rules = new ArrayList<>();
         for (JsonNode e : n.path("elements")) {
-            Binding b = e.has("binding") ? new Binding(e.path("binding").path("strength").asText(), e.path("binding").path("valueSet").asText()) : null;
-            rules.add(new ProfileRule(e.path("id").asText(), e.path("path").asText(), e.path("min").asInt(0), e.path("max").asText("*"),
-                    e.path("mustSupport").asBoolean(false), e.path("slice").asText(null), e.get("fixed"), strings(e.path("types")),
-                    strings(e.path("typeProfiles")), b, e.path("short").asText(null)));
+            Binding b = e.has("binding") ? new Binding(e.path("binding").path("strength").asString(""), e.path("binding").path("valueSet").asString("")) : null;
+            rules.add(new ProfileRule(e.path("id").asString(""), e.path("path").asString(""), e.path("min").asInt(0), e.path("max").asString("*"),
+                    e.path("mustSupport").asBoolean(false), e.path("slice").asString(null), e.get("fixed"), strings(e.path("types")),
+                    strings(e.path("typeProfiles")), b, e.path("short").asString(null)));
         }
-        return new ProfileSpec(url, n.path("name").asText(), n.path("title").asText(null), n.path("ig").asText(), n.path("version").asText(null),
-                n.path("type").asText(), n.path("base").asText(null), n.path("description").asText(null), rules);
+        return new ProfileSpec(url, n.path("name").asString(""), n.path("title").asString(null), n.path("ig").asString(""), n.path("version").asString(null),
+                n.path("type").asString(""), n.path("base").asString(null), n.path("description").asString(null), rules);
     }
 
     private static List<String> strings(JsonNode arr) {
         List<String> out = new ArrayList<>();
         for (JsonNode v : arr) {
-            out.add(v.asText());
+            out.add(v.asString(""));
         }
         return out;
     }
@@ -182,7 +183,7 @@ public class IgCatalog {
     /** Display text for a code of a catalog code system (e.g. {@code c4bbAdjudication}), or null. */
     public String display(String codeSystemKey, String code) {
         JsonNode cs = codeSystems.path(codeSystemKey).path("codes");
-        return cs.hasNonNull(code) ? cs.get(code).asText() : null;
+        return cs.hasNonNull(code) ? cs.get(code).asString("") : null;
     }
 
     /** Warnings for parameters the IGs do not declare for this resource type (the search is still sent). */

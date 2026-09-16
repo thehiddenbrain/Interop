@@ -1,9 +1,9 @@
 package com.thehiddenbrain.interop.patientaccess.conformance;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.github.tomakehurst.wiremock.extension.ResponseDefinitionTransformerV2;
 import com.github.tomakehurst.wiremock.http.Request;
 import com.github.tomakehurst.wiremock.http.ResponseDefinition;
@@ -119,7 +119,7 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
     }
 
     private void put(ObjectNode resource) {
-        store.computeIfAbsent(resource.path("resourceType").asText(), k -> new LinkedHashMap<>()).put(resource.path("id").asText(), resource);
+        store.computeIfAbsent(resource.path("resourceType").asString(""), k -> new LinkedHashMap<>()).put(resource.path("id").asString(""), resource);
     }
 
     /** A copy of the approved example turned into a denial with an X12 CARC denial reason. */
@@ -132,7 +132,7 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
         ObjectNode adjudication = (ObjectNode) denied.path("item").get(0).path("adjudication").get(0);
         for (JsonNode ext : adjudication.path("extension")) {
             for (JsonNode inner : ext.path("extension")) {
-                if (inner.path("url").asText().endsWith("extension-reviewActionCode")) {
+                if (inner.path("url").asString("").endsWith("extension-reviewActionCode")) {
                     ObjectNode coding = (ObjectNode) inner.path("valueCodeableConcept").path("coding").get(0);
                     coding.put("code", "A3").put("display", "Not certified");
                 }
@@ -152,10 +152,10 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
     static void rewriteReferences(JsonNode node, String from, String to) {
         if (node.isObject()) {
             ObjectNode o = (ObjectNode) node;
-            if (o.has("reference") && from.equals(o.get("reference").asText())) {
+            if (o.has("reference") && from.equals(o.get("reference").asString(""))) {
                 o.put("reference", to);
             }
-            o.fields().forEachRemaining(e -> rewriteReferences(e.getValue(), from, to));
+            o.properties().forEach(e -> rewriteReferences(e.getValue(), from, to));
         } else if (node.isArray()) {
             node.forEach(n -> rewriteReferences(n, from, to));
         }
@@ -207,7 +207,7 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
             return faults.contains(Fault.PLAIN_404) ? text(404, "Not found") : outcome(404, "not-found", type + "/" + segments[1] + " is not known");
         }
         if (segments.length == 4 && segments[2].equals("_history")) {
-            if (!segments[3].equals(found.path("meta").path("versionId").asText())) {
+            if (!segments[3].equals(found.path("meta").path("versionId").asString(""))) {
                 return outcome(404, "not-found", "no version " + segments[3] + " of " + type + "/" + segments[1]);
             }
         }
@@ -267,8 +267,8 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
             for (ObjectNode prov : store.getOrDefault("Provenance", Map.of()).values()) {
                 for (JsonNode t : prov.path("target")) {
                     for (ObjectNode r : page) {
-                        String key = r.path("resourceType").asText() + "/" + r.path("id").asText();
-                        if (key.equals(t.path("reference").asText()) && seen.add("Provenance/" + prov.path("id").asText())) {
+                        String key = r.path("resourceType").asString("") + "/" + r.path("id").asString("");
+                        if (key.equals(t.path("reference").asString("")) && seen.add("Provenance/" + prov.path("id").asString(""))) {
                             entry(entries, base, prov, "include");
                         }
                     }
@@ -293,7 +293,7 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
     private boolean matchesOne(ObjectNode r, String param, String value) {
         switch (param) {
             case "_id":
-                return List.of(value.split(",")).contains(r.path("id").asText());
+                return List.of(value.split(",")).contains(r.path("id").asString(""));
             case "patient":
             case "beneficiary":
             case "subject":
@@ -307,8 +307,8 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
                 return false;
             case "identifier":
                 for (JsonNode i : r.path("identifier")) {
-                    String token = i.path("system").asText("") + "|" + i.path("value").asText("");
-                    if (token.equals(value) || i.path("value").asText("").equals(value)) {
+                    String token = i.path("system").asString("") + "|" + i.path("value").asString("");
+                    if (token.equals(value) || i.path("value").asString("").equals(value)) {
                         return true;
                     }
                 }
@@ -317,7 +317,7 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
             case "family":
             case "given":
                 for (JsonNode n : r.path("name")) {
-                    String hay = (param.equals("given") ? "" : n.path("family").asText("")) + " "
+                    String hay = (param.equals("given") ? "" : n.path("family").asString("")) + " "
                             + (param.equals("family") ? "" : n.path("given").toString());
                     if (hay.toLowerCase(Locale.ROOT).contains(value.toLowerCase(Locale.ROOT))) {
                         return true;
@@ -327,17 +327,17 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
             case "gender":
             case "status":
             case "intent":
-                return value.equals(r.path(param).asText());
+                return value.equals(r.path(param).asString(""));
             case "use":
-                return faults.contains(Fault.IGNORE_USE_PARAM) || value.equals(r.path("use").asText());
+                return faults.contains(Fault.IGNORE_USE_PARAM) || value.equals(r.path("use").asString(""));
             case "birthdate":
-                return dateMatches(r.path("birthDate").asText(null), value);
+                return dateMatches(r.path("birthDate").asString(null), value);
             case "_lastUpdated":
-                return dateMatches(r.path("meta").path("lastUpdated").asText(null), value);
+                return dateMatches(r.path("meta").path("lastUpdated").asString(null), value);
             case "service-date":
             case "service-start-date":
             case "billable-period-start":
-                return dateMatches(r.path("billablePeriod").path("start").asText(null), value);
+                return dateMatches(r.path("billablePeriod").path("start").asString(null), value);
             case "date":
                 return dateMatches(firstDate(r), value);
             case "type":
@@ -356,7 +356,7 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
         if (ref == null) {
             return false;
         }
-        String r = ref.path("reference").asText("");
+        String r = ref.path("reference").asString("");
         return r.equals(value) || r.equals("Patient/" + value) || r.endsWith("/" + value);
     }
 
@@ -376,24 +376,24 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
         String code = value.contains("|") ? value.substring(value.indexOf('|') + 1) : value;
         if (element.has("coding")) {
             for (JsonNode c : element.path("coding")) {
-                if (code.equals(c.path("code").asText()) && (system == null || system.equals(c.path("system").asText()))) {
+                if (code.equals(c.path("code").asString("")) && (system == null || system.equals(c.path("system").asString("")))) {
                     return true;
                 }
             }
             return false;
         }
-        return code.equals(element.path("code").asText()) && (system == null || system.equals(element.path("system").asText()));
+        return code.equals(element.path("code").asString("")) && (system == null || system.equals(element.path("system").asString("")));
     }
 
     static String firstDate(JsonNode r) {
         for (String f : List.of("effectiveDateTime", "performedDateTime", "occurrenceDateTime", "date", "onsetDateTime", "issued")) {
             if (r.hasNonNull(f)) {
-                return r.get(f).asText();
+                return r.get(f).asString("");
             }
         }
         for (String f : List.of("period", "effectivePeriod", "performedPeriod")) {
             if (r.path(f).hasNonNull("start")) {
-                return r.path(f).get("start").asText();
+                return r.path(f).get("start").asString("");
             }
         }
         return null;
@@ -441,7 +441,7 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
         }
         if (i == path.length) {
             if (node.has("reference")) {
-                out.add(node.get("reference").asText());
+                out.add(node.get("reference").asString(""));
             }
             return;
         }
@@ -462,7 +462,7 @@ final class FakePatientAccessApi implements ResponseDefinitionTransformerV2 {
 
     private static void entry(ArrayNode entries, String base, ObjectNode r, String mode) {
         ObjectNode e = entries.addObject();
-        e.put("fullUrl", base + "/" + r.path("resourceType").asText() + "/" + r.path("id").asText());
+        e.put("fullUrl", base + "/" + r.path("resourceType").asString("") + "/" + r.path("id").asString(""));
         e.set("resource", r);
         e.putObject("search").put("mode", mode);
     }

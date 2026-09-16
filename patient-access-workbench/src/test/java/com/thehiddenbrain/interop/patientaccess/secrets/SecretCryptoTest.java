@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.patientaccess.secrets;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.thehiddenbrain.interop.patientaccess.common.ErrorCode;
 import com.thehiddenbrain.interop.patientaccess.common.JsonFile;
 import com.thehiddenbrain.interop.patientaccess.common.WorkbenchException;
@@ -106,7 +106,7 @@ class SecretCryptoTest {
         Secret s = crypto.seal("plain-text-value");
         String json = JsonFile.MAPPER.writeValueAsString(s);
         JsonNode node = JsonFile.MAPPER.readTree(json);
-        assertThat(node.fieldNames()).toIterable().containsExactly("enc");
+        assertThat(node.propertyNames()).containsExactly("enc");
         assertThat(json).doesNotContain("plain-text-value");
         assertThat(JsonFile.MAPPER.readValue(json, Secret.class)).isEqualTo(s);
         assertThat(s.toString()).isEqualTo("Secret[***]").doesNotContain(s.enc());

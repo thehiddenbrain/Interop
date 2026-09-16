@@ -1,10 +1,13 @@
 package com.thehiddenbrain.interop.patientaccess.config;
 
-import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import tools.jackson.core.json.JsonWriteFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
 
 import java.time.Clock;
 
@@ -29,9 +32,15 @@ public class AppConfig {
         return executor;
     }
 
+    /**
+     * ISO-8601 strings for Instant/LocalDate in API responses (Jackson 3 defaults to timestamps) and plain
+     * {@code /} in output: the API and the demo FHIR server carry many URLs and Jackson 3 escapes slashes by default.
+     */
     @Bean
-    public Jackson2ObjectMapperBuilderCustomizer jacksonCustomizer() {
-        return builder -> builder.featuresToDisable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    public JsonMapperBuilderCustomizer jacksonCustomizer() {
+        return builder -> builder
+                .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .disable(JsonWriteFeature.ESCAPE_FORWARD_SLASHES);
     }
 
 }

@@ -1,7 +1,7 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.thehiddenbrain.interop.patientaccess.config.WorkbenchProperties;
 import com.thehiddenbrain.interop.patientaccess.environment.AuthMode;
 import com.thehiddenbrain.interop.patientaccess.environment.ClientAuthMethod;
@@ -69,16 +69,16 @@ public class DemoController {
     public List<Member> members() {
         List<Member> out = new ArrayList<>();
         for (ObjectNode p : store.patients()) {
-            String id = p.path("id").asText();
+            String id = p.path("id").asString("");
             List<IdentifierView> ids = new ArrayList<>();
             for (JsonNode i : p.path("identifier")) {
-                ids.add(new IdentifierView(i.path("system").asText(null), i.path("value").asText(null), typeCode(i)));
+                ids.add(new IdentifierView(i.path("system").asString(null), i.path("value").asString(null), typeCode(i)));
             }
             int coverages = (int) store.all("Coverage").stream().filter(c -> id.equals(store.patientOf(c).orElse(null))).count();
             List<ObjectNode> eobs = store.all("ExplanationOfBenefit").stream().filter(e -> id.equals(store.patientOf(e).orElse(null))).toList();
             int priorAuths = (int) eobs.stream().filter(PriorAuthSummarizer::isPriorAuth).count();
             int claims = eobs.size() - priorAuths;
-            out.add(new Member(id, DemoAuthController.displayName(p), p.path("birthDate").asText(null), p.path("gender").asText(null), ids,
+            out.add(new Member(id, DemoAuthController.displayName(p), p.path("birthDate").asString(null), p.path("gender").asString(null), ids,
                     coverages > 0, claims > 0, priorAuths > 0, coverages, claims, priorAuths));
         }
         return out;
@@ -107,7 +107,7 @@ public class DemoController {
         Set<String> seen = new LinkedHashSet<>();
         for (ObjectNode p : store.patients()) {
             for (JsonNode i : p.path("identifier")) {
-                String system = i.path("system").asText(null);
+                String system = i.path("system").asString(null);
                 if (system == null || system.isBlank()) {
                     continue;
                 }
@@ -141,7 +141,7 @@ public class DemoController {
 
     private static String typeCode(JsonNode identifier) {
         JsonNode coding = identifier.path("type").path("coding");
-        return coding.isArray() && coding.size() > 0 ? coding.get(0).path("code").asText(null) : null;
+        return coding.isArray() && coding.size() > 0 ? coding.get(0).path("code").asString(null) : null;
     }
 
     private static String host(String system) {

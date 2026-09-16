@@ -1,8 +1,10 @@
 package com.thehiddenbrain.interop.patientaccess.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.thehiddenbrain.interop.patientaccess.common.Json;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
@@ -38,7 +40,7 @@ public class DemoDataStore {
     static final String LOCATION_PATTERN = "classpath*:demo/*.json";
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataStore.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = Json.MAPPER;
 
     private final Map<String, Map<String, ObjectNode>> byType = new TreeMap<>();
     /** "Type/id" to the file it came from, in load order (for diagnostics and the data-integrity test). */
@@ -58,12 +60,12 @@ public class DemoDataStore {
         Arrays.sort(resources, Comparator.comparing(r -> String.valueOf(r.getFilename())));
         for (Resource r : resources) {
             ObjectNode resource = read(r);
-            String key = resource.get("resourceType").asText() + "/" + resource.get("id").asText();
+            String key = resource.get("resourceType").asString("") + "/" + resource.get("id").asString("");
             if (sources.containsKey(key)) {
                 throw new IllegalStateException("duplicate demo resource " + key + " in " + r.getFilename() + " and " + sources.get(key));
             }
             sources.put(key, String.valueOf(r.getFilename()));
-            byType.computeIfAbsent(resource.get("resourceType").asText(), t -> new LinkedHashMap<>()).put(resource.get("id").asText(), resource);
+            byType.computeIfAbsent(resource.get("resourceType").asString(""), t -> new LinkedHashMap<>()).put(resource.get("id").asString(""), resource);
         }
         if (sources.isEmpty()) {
             throw new IllegalStateException("no demo resources found at " + locationPattern);
@@ -75,7 +77,7 @@ public class DemoDataStore {
         JsonNode node;
         try (InputStream in = r.getInputStream()) {
             node = MAPPER.readTree(in);
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
             throw new IllegalStateException("cannot parse demo resource " + r.getFilename() + ": " + e.getMessage(), e);
         }
         if (!(node instanceof ObjectNode obj) || !obj.hasNonNull("resourceType") || !obj.hasNonNull("id")) {
@@ -88,10 +90,10 @@ public class DemoDataStore {
     static ObjectNode withMeta(ObjectNode obj) {
         JsonNode existing = obj.path("meta");
         ObjectNode meta = MAPPER.createObjectNode();
-        meta.put("versionId", existing.hasNonNull("versionId") ? existing.get("versionId").asText() : DEFAULT_VERSION);
-        meta.put("lastUpdated", existing.hasNonNull("lastUpdated") ? existing.get("lastUpdated").asText() : DEFAULT_LAST_UPDATED);
+        meta.put("versionId", existing.hasNonNull("versionId") ? existing.get("versionId").asString("") : DEFAULT_VERSION);
+        meta.put("lastUpdated", existing.hasNonNull("lastUpdated") ? existing.get("lastUpdated").asString("") : DEFAULT_LAST_UPDATED);
         if (existing.isObject()) {
-            existing.fields().forEachRemaining(e -> {
+            existing.properties().forEach(e -> {
                 if (!meta.has(e.getKey())) {
                     meta.set(e.getKey(), e.getValue());
                 }
@@ -101,7 +103,7 @@ public class DemoDataStore {
         out.set("resourceType", obj.get("resourceType"));
         out.set("id", obj.get("id"));
         out.set("meta", meta);
-        obj.fields().forEachRemaining(e -> {
+        obj.properties().forEach(e -> {
             if (!out.has(e.getKey())) {
                 out.set(e.getKey(), e.getValue());
             }
@@ -151,20 +153,20 @@ public class DemoDataStore {
      * such as Organization, Practitioner, Location or the formulary.
      */
     public Optional<String> patientOf(JsonNode resource) {
-        String type = resource.path("resourceType").asText();
+        String type = resource.path("resourceType").asString("");
         if ("Patient".equals(type)) {
-            return Optional.ofNullable(resource.path("id").asText(null));
+            return Optional.ofNullable(resource.path("id").asString(null));
         }
         for (String field : List.of("patient", "subject", "beneficiary")) {
-            String key = referenceKey(resource.path(field).path("reference").asText(null));
+            String key = referenceKey(resource.path(field).path("reference").asString(null));
             if (key != null && key.startsWith("Patient/")) {
                 return Optional.of(key.substring("Patient/".length()));
             }
         }
         if ("Provenance".equals(type)) {
             for (JsonNode t : resource.path("target")) {
-                Optional<ObjectNode> target = resolve(t.path("reference").asText(null));
-                if (target.isPresent() && !"Provenance".equals(target.get().path("resourceType").asText())) {
+                Optional<ObjectNode> target = resolve(t.path("reference").asString(null));
+                if (target.isPresent() && !"Provenance".equals(target.get().path("resourceType").asString(""))) {
                     Optional<String> patient = patientOf(target.get());
                     if (patient.isPresent()) {
                         return patient;
