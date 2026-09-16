@@ -21,8 +21,9 @@ if errorlevel 1 (
   echo  and make sure "java -version" works in a new command prompt, or set JAVA_HOME.
   goto :fail
 )
-for /f "tokens=3" %%v in ('"%JAVA_EXE%" -version 2^>^&1 ^| findstr /i "version"') do set "JAVA_VERSION=%%~v"
-echo Using Java !JAVA_VERSION! (%JAVA_EXE%)
+echo Using %JAVA_EXE% :
+echo.
+"%JAVA_EXE%" -version
 
 set "JAR="
 if exist "build\libs\" (
