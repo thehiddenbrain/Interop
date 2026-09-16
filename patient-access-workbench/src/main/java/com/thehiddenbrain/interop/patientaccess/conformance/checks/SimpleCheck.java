@@ -19,6 +19,12 @@ public final class SimpleCheck implements Check {
     private final boolean needsPatient;
     private final Function<CheckContext, CheckResult> body;
 
+    /** A check body that receives a result builder for its own check (so lambdas need not re-create the bean). */
+    @FunctionalInterface
+    public interface Body {
+        CheckResult run(CheckResult.Builder result, CheckContext ctx);
+    }
+
     public SimpleCheck(String id, String group, String title, Severity severity, String description, String citation, boolean needsPatient,
                        Function<CheckContext, CheckResult> body) {
         this.id = id;
@@ -29,6 +35,14 @@ public final class SimpleCheck implements Check {
         this.citation = citation;
         this.needsPatient = needsPatient;
         this.body = body;
+    }
+
+    /** Same as the constructor, but the body gets a builder bound to the check it belongs to. */
+    public static SimpleCheck of(String id, String group, String title, Severity severity, String description, String citation,
+                                 boolean needsPatient, Body body) {
+        SimpleCheck[] self = new SimpleCheck[1];
+        self[0] = new SimpleCheck(id, group, title, severity, description, citation, needsPatient, ctx -> body.run(self[0].result(), ctx));
+        return self[0];
     }
 
     @Override

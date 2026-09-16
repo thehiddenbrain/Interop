@@ -104,6 +104,9 @@ public class PriorAuthSummarizer {
         String validFrom = null;
         String validTo = null;
         JsonNode refPeriod = eob.get("preAuthRefPeriod");
+        if (refPeriod != null && refPeriod.isArray()) { // 0..* in R4; the first period is the authorization's validity
+            refPeriod = refPeriod.size() > 0 ? refPeriod.get(0) : null;
+        }
         if (refPeriod != null) {
             validFrom = text(refPeriod.get("start"));
             validTo = text(refPeriod.get("end"));
