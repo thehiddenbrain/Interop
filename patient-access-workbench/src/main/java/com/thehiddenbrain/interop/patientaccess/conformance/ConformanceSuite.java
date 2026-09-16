@@ -39,8 +39,11 @@ public class ConformanceSuite {
 
     private final Map<String, Check> checks = new LinkedHashMap<>();
 
-    public ConformanceSuite(Collection<Check> registered) {
+    public ConformanceSuite(Collection<Check> registered, Collection<CheckProvider> providers) {
         List<Check> sorted = new ArrayList<>(registered);
+        for (CheckProvider p : providers) {
+            sorted.addAll(p.checks());
+        }
         List<String> order = new ArrayList<>(GROUPS.keySet());
         sorted.sort((a, b) -> {
             int ga = order.indexOf(a.group());
