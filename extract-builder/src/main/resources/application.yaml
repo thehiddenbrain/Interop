@@ -1,0 +1,32 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: extract-builder
+  servlet:
+    multipart:
+      max-file-size: 5MB
+  jackson:
+    default-property-inclusion: non_null
+
+extract:
+  data-dir: data
+  engine-version: 1.0.0
+  axway-simulator: true
+  axway-pickup-seconds: 8
+  hours-per-hand-built-extract: 40
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+logging:
+  level:
+    root: INFO
+    com.thehiddenbrain.interop.extract: INFO
+    org.springframework.web: WARN

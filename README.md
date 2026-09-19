@@ -1,5 +1,10 @@
 # CMS-1500 Claim Bundle Service
 
+> **Also in this repository:** [`extract-builder/`](extract-builder/README.md), the Vendor Extract
+> Builder demo (Spring Boot 3, Gradle, Java 17). Analysts build vendor file layouts from a data
+> catalog, sample them masked, get them approved and productionalize them into scheduled MFT feeds.
+> Start it with `extract-builder/run.bat` or `extract-builder/run.sh`; it runs on port 8090.
+
 Spring Boot service that fills the CMS-1500 (NUCC 02/12) health insurance claim form from a
 claim sent by TIBCO, appends the claim's attachments from the shared drive and writes one PDF,
 `<claimNumber>.pdf`, back to the shared drive. The same operation is exposed twice, over

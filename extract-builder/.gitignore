@@ -1,0 +1,16 @@
+.gradle/
+build/
+bin/
+out/
+.settings/
+.classpath
+.project
+.idea/
+*.iml
+# the repo root ignores every data/ folder; this one holds the catalog, source data and seed and is part of the demo
+!/data/
+data/state/
+data/samples/
+data/staging/
+data/mft/
+data/api-keys/

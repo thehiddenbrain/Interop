@@ -1,0 +1,62 @@
+[
+ {
+  "taxonomy_code": "207Q00000X",
+  "description": "Family Medicine",
+  "classification": "Allopathic & Osteopathic Physicians"
+ },
+ {
+  "taxonomy_code": "207R00000X",
+  "description": "Internal Medicine",
+  "classification": "Allopathic & Osteopathic Physicians"
+ },
+ {
+  "taxonomy_code": "208000000X",
+  "description": "Pediatrics",
+  "classification": "Allopathic & Osteopathic Physicians"
+ },
+ {
+  "taxonomy_code": "1223G0001X",
+  "description": "General Practice Dentistry",
+  "classification": "Dental Providers"
+ },
+ {
+  "taxonomy_code": "1223P0221X",
+  "description": "Pediatric Dentistry",
+  "classification": "Dental Providers"
+ },
+ {
+  "taxonomy_code": "152W00000X",
+  "description": "Optometrist",
+  "classification": "Eye and Vision Services Providers"
+ },
+ {
+  "taxonomy_code": "207W00000X",
+  "description": "Ophthalmology",
+  "classification": "Allopathic & Osteopathic Physicians"
+ },
+ {
+  "taxonomy_code": "2084P0800X",
+  "description": "Psychiatry",
+  "classification": "Allopathic & Osteopathic Physicians"
+ },
+ {
+  "taxonomy_code": "103T00000X",
+  "description": "Psychologist",
+  "classification": "Behavioral Health & Social Service Providers"
+ },
+ {
+  "taxonomy_code": "363L00000X",
+  "description": "Nurse Practitioner",
+  "classification": "Physician Assistants & Advanced Practice Nursing Providers"
+ },
+ {
+  "taxonomy_code": "261QU0200X",
+  "description": "Urgent Care Clinic",
+  "classification": "Ambulatory Health Care Facilities"
+ },
+ {
+  "taxonomy_code": "282N00000X",
+  "description": "General Acute Care Hospital",
+  "classification": "Hospitals"
+ }
+]

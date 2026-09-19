@@ -1,0 +1,38 @@
+[
+ {
+  "plan_code": "DENT01",
+  "plan_name": "Dental Basic",
+  "product_line": "DENTAL",
+  "line_of_business": "COMMERCIAL"
+ },
+ {
+  "plan_code": "DENT02",
+  "plan_name": "Dental Plus",
+  "product_line": "DENTAL",
+  "line_of_business": "COMMERCIAL"
+ },
+ {
+  "plan_code": "VIS01",
+  "plan_name": "Vision Select",
+  "product_line": "VISION",
+  "line_of_business": "COMMERCIAL"
+ },
+ {
+  "plan_code": "MED01",
+  "plan_name": "HMO Silver",
+  "product_line": "MEDICAL",
+  "line_of_business": "COMMERCIAL"
+ },
+ {
+  "plan_code": "MED02",
+  "plan_name": "PPO Gold",
+  "product_line": "MEDICAL",
+  "line_of_business": "COMMERCIAL"
+ },
+ {
+  "plan_code": "MED03",
+  "plan_name": "Medicare Advantage Core",
+  "product_line": "MEDICAL",
+  "line_of_business": "MEDICARE"
+ }
+]

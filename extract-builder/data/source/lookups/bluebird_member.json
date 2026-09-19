@@ -1,0 +1,1662 @@
+[
+ {
+  "member_id": "M100001",
+  "vendor_member_id": "BB8093681",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100002",
+  "vendor_member_id": "BB7133828",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100003",
+  "vendor_member_id": "BB1291655",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100004",
+  "vendor_member_id": "BB3667205",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100005",
+  "vendor_member_id": "BB9144949",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100006",
+  "vendor_member_id": "BB4125085",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100007",
+  "vendor_member_id": "BB2880317",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100008",
+  "vendor_member_id": "BB8749634",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100009",
+  "vendor_member_id": "BB5026779",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100011",
+  "vendor_member_id": "BB8615065",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100012",
+  "vendor_member_id": "BB6263231",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100013",
+  "vendor_member_id": "BB6479165",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100014",
+  "vendor_member_id": "BB1892316",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100015",
+  "vendor_member_id": "BB8083125",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100016",
+  "vendor_member_id": "BB6513954",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100017",
+  "vendor_member_id": "BB5032264",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100018",
+  "vendor_member_id": "BB1899563",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100019",
+  "vendor_member_id": "BB4472734",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100020",
+  "vendor_member_id": "BB9030522",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100021",
+  "vendor_member_id": "BB2516092",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100022",
+  "vendor_member_id": "BB1394486",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100024",
+  "vendor_member_id": "BB5615571",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100025",
+  "vendor_member_id": "BB5056373",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100026",
+  "vendor_member_id": "BB1394768",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100027",
+  "vendor_member_id": "BB3279071",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100028",
+  "vendor_member_id": "BB4578249",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100029",
+  "vendor_member_id": "BB5420586",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100030",
+  "vendor_member_id": "BB4283578",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100031",
+  "vendor_member_id": "BB4916001",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100032",
+  "vendor_member_id": "BB1372946",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100033",
+  "vendor_member_id": "BB5119503",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100034",
+  "vendor_member_id": "BB9681569",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100035",
+  "vendor_member_id": "BB9493278",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100036",
+  "vendor_member_id": "BB1621884",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100037",
+  "vendor_member_id": "BB4173582",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100038",
+  "vendor_member_id": "BB6710326",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100039",
+  "vendor_member_id": "BB8534306",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100040",
+  "vendor_member_id": "BB9472349",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100041",
+  "vendor_member_id": "BB3313495",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100042",
+  "vendor_member_id": "BB6612718",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100043",
+  "vendor_member_id": "BB9056798",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100044",
+  "vendor_member_id": "BB9944155",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100045",
+  "vendor_member_id": "BB9466295",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100046",
+  "vendor_member_id": "BB4828810",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100047",
+  "vendor_member_id": "BB9902400",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100048",
+  "vendor_member_id": "BB4708316",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100049",
+  "vendor_member_id": "BB3109431",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100050",
+  "vendor_member_id": "BB4327274",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100051",
+  "vendor_member_id": "BB8565314",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100052",
+  "vendor_member_id": "BB2819828",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100053",
+  "vendor_member_id": "BB9042913",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100054",
+  "vendor_member_id": "BB3115649",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100055",
+  "vendor_member_id": "BB2278596",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100056",
+  "vendor_member_id": "BB6118145",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100057",
+  "vendor_member_id": "BB3013234",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100058",
+  "vendor_member_id": "BB2441721",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100059",
+  "vendor_member_id": "BB8631556",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100061",
+  "vendor_member_id": "BB2595350",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100062",
+  "vendor_member_id": "BB6184987",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100063",
+  "vendor_member_id": "BB7481418",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100064",
+  "vendor_member_id": "BB8486794",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100065",
+  "vendor_member_id": "BB9373734",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100066",
+  "vendor_member_id": "BB1090790",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100067",
+  "vendor_member_id": "BB4898975",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100068",
+  "vendor_member_id": "BB8039342",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100069",
+  "vendor_member_id": "BB3765552",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100070",
+  "vendor_member_id": "BB7989456",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100071",
+  "vendor_member_id": "BB8485317",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100072",
+  "vendor_member_id": "BB7890593",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100073",
+  "vendor_member_id": "BB9210370",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100074",
+  "vendor_member_id": "BB6354473",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100076",
+  "vendor_member_id": "BB1209244",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100077",
+  "vendor_member_id": "BB3494595",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100078",
+  "vendor_member_id": "BB9655565",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100079",
+  "vendor_member_id": "BB3982162",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100080",
+  "vendor_member_id": "BB8889742",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100081",
+  "vendor_member_id": "BB2564045",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100082",
+  "vendor_member_id": "BB6303995",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100083",
+  "vendor_member_id": "BB9820825",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100084",
+  "vendor_member_id": "BB8465637",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100085",
+  "vendor_member_id": "BB8718591",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100086",
+  "vendor_member_id": "BB8950505",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100087",
+  "vendor_member_id": "BB2910368",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100088",
+  "vendor_member_id": "BB3377321",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100089",
+  "vendor_member_id": "BB1819631",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100090",
+  "vendor_member_id": "BB4103193",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100091",
+  "vendor_member_id": "BB4774679",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100092",
+  "vendor_member_id": "BB5654234",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100093",
+  "vendor_member_id": "BB8256244",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100094",
+  "vendor_member_id": "BB9543879",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100095",
+  "vendor_member_id": "BB6483394",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100096",
+  "vendor_member_id": "BB9211242",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100097",
+  "vendor_member_id": "BB4872598",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100098",
+  "vendor_member_id": "BB2927055",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100099",
+  "vendor_member_id": "BB5827862",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100100",
+  "vendor_member_id": "BB2829260",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100101",
+  "vendor_member_id": "BB7091177",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100102",
+  "vendor_member_id": "BB8115656",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100103",
+  "vendor_member_id": "BB3464717",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100104",
+  "vendor_member_id": "BB8610608",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100105",
+  "vendor_member_id": "BB3690714",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100106",
+  "vendor_member_id": "BB1942669",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100107",
+  "vendor_member_id": "BB4877253",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100108",
+  "vendor_member_id": "BB7407641",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100109",
+  "vendor_member_id": "BB1499969",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100110",
+  "vendor_member_id": "BB1754049",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100111",
+  "vendor_member_id": "BB5712802",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100112",
+  "vendor_member_id": "BB6992525",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100113",
+  "vendor_member_id": "BB8647270",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100114",
+  "vendor_member_id": "BB6377164",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100116",
+  "vendor_member_id": "BB5678717",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100117",
+  "vendor_member_id": "BB7574424",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100118",
+  "vendor_member_id": "BB7718243",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100119",
+  "vendor_member_id": "BB9702017",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100120",
+  "vendor_member_id": "BB3119291",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100121",
+  "vendor_member_id": "BB9660820",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100122",
+  "vendor_member_id": "BB1220577",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100123",
+  "vendor_member_id": "BB3386846",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100124",
+  "vendor_member_id": "BB4252290",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100125",
+  "vendor_member_id": "BB1300705",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100126",
+  "vendor_member_id": "BB5157390",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100127",
+  "vendor_member_id": "BB8088345",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100128",
+  "vendor_member_id": "BB4604272",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100129",
+  "vendor_member_id": "BB3286326",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100130",
+  "vendor_member_id": "BB2939239",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100131",
+  "vendor_member_id": "BB8243803",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100132",
+  "vendor_member_id": "BB2480859",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100133",
+  "vendor_member_id": "BB4359997",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100134",
+  "vendor_member_id": "BB4465533",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100135",
+  "vendor_member_id": "BB9782818",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100136",
+  "vendor_member_id": "BB9911534",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100137",
+  "vendor_member_id": "BB3161671",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100138",
+  "vendor_member_id": "BB5433037",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100139",
+  "vendor_member_id": "BB8707724",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100140",
+  "vendor_member_id": "BB2217213",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100141",
+  "vendor_member_id": "BB8825851",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100142",
+  "vendor_member_id": "BB3873495",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100143",
+  "vendor_member_id": "BB8453105",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100144",
+  "vendor_member_id": "BB6165441",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100145",
+  "vendor_member_id": "BB2628089",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100146",
+  "vendor_member_id": "BB6002672",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100147",
+  "vendor_member_id": "BB7233240",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100148",
+  "vendor_member_id": "BB8495228",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100149",
+  "vendor_member_id": "BB1349651",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100151",
+  "vendor_member_id": "BB3304775",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100152",
+  "vendor_member_id": "BB9077003",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100153",
+  "vendor_member_id": "BB6515357",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100154",
+  "vendor_member_id": "BB4210015",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100155",
+  "vendor_member_id": "BB4938488",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100156",
+  "vendor_member_id": "BB1094503",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100157",
+  "vendor_member_id": "BB2905075",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100158",
+  "vendor_member_id": "BB9925678",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100159",
+  "vendor_member_id": "BB6887254",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100160",
+  "vendor_member_id": "BB7851430",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100161",
+  "vendor_member_id": "BB9017981",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100162",
+  "vendor_member_id": "BB6951686",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100163",
+  "vendor_member_id": "BB4983045",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100164",
+  "vendor_member_id": "BB1961613",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100165",
+  "vendor_member_id": "BB3709952",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100166",
+  "vendor_member_id": "BB7293030",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100167",
+  "vendor_member_id": "BB3213594",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100168",
+  "vendor_member_id": "BB4476837",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100169",
+  "vendor_member_id": "BB8215745",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100170",
+  "vendor_member_id": "BB8334051",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100171",
+  "vendor_member_id": "BB9350152",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100172",
+  "vendor_member_id": "BB3891038",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100173",
+  "vendor_member_id": "BB4106601",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100174",
+  "vendor_member_id": "BB4946325",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100175",
+  "vendor_member_id": "BB7866008",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100176",
+  "vendor_member_id": "BB7164634",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100177",
+  "vendor_member_id": "BB7934101",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100178",
+  "vendor_member_id": "BB8025887",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100179",
+  "vendor_member_id": "BB5772716",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100180",
+  "vendor_member_id": "BB3036157",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100181",
+  "vendor_member_id": "BB8726935",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100182",
+  "vendor_member_id": "BB4803537",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100183",
+  "vendor_member_id": "BB2090005",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100184",
+  "vendor_member_id": "BB8579327",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100185",
+  "vendor_member_id": "BB6696746",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100186",
+  "vendor_member_id": "BB3652081",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100187",
+  "vendor_member_id": "BB3511208",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100188",
+  "vendor_member_id": "BB1367936",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100189",
+  "vendor_member_id": "BB5339336",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100190",
+  "vendor_member_id": "BB8596565",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100191",
+  "vendor_member_id": "BB2954192",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100192",
+  "vendor_member_id": "BB1343307",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100193",
+  "vendor_member_id": "BB5716560",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100195",
+  "vendor_member_id": "BB7832588",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100196",
+  "vendor_member_id": "BB2515688",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100197",
+  "vendor_member_id": "BB9716191",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100198",
+  "vendor_member_id": "BB6511607",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100199",
+  "vendor_member_id": "BB7279762",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100200",
+  "vendor_member_id": "BB8380252",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100201",
+  "vendor_member_id": "BB1183394",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100202",
+  "vendor_member_id": "BB5703041",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100203",
+  "vendor_member_id": "BB3830698",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100205",
+  "vendor_member_id": "BB3659119",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100206",
+  "vendor_member_id": "BB6297024",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100207",
+  "vendor_member_id": "BB8001671",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100208",
+  "vendor_member_id": "BB8792957",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100209",
+  "vendor_member_id": "BB5653456",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100210",
+  "vendor_member_id": "BB8303791",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100211",
+  "vendor_member_id": "BB7777977",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100212",
+  "vendor_member_id": "BB3938538",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100213",
+  "vendor_member_id": "BB5585569",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100214",
+  "vendor_member_id": "BB5140569",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100215",
+  "vendor_member_id": "BB2997404",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100216",
+  "vendor_member_id": "BB2469433",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100217",
+  "vendor_member_id": "BB8861239",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100218",
+  "vendor_member_id": "BB2815468",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100219",
+  "vendor_member_id": "BB5375962",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100220",
+  "vendor_member_id": "BB8484482",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100221",
+  "vendor_member_id": "BB6153560",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100222",
+  "vendor_member_id": "BB9590292",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100223",
+  "vendor_member_id": "BB2826907",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100224",
+  "vendor_member_id": "BB1883102",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100225",
+  "vendor_member_id": "BB2764487",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100226",
+  "vendor_member_id": "BB4523606",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100227",
+  "vendor_member_id": "BB9081625",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100229",
+  "vendor_member_id": "BB2531977",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100230",
+  "vendor_member_id": "BB8504386",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100231",
+  "vendor_member_id": "BB7022017",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100232",
+  "vendor_member_id": "BB2838333",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100233",
+  "vendor_member_id": "BB7854314",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100234",
+  "vendor_member_id": "BB1808882",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100235",
+  "vendor_member_id": "BB9513406",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100236",
+  "vendor_member_id": "BB6819383",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100237",
+  "vendor_member_id": "BB7563469",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100238",
+  "vendor_member_id": "BB2072667",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100239",
+  "vendor_member_id": "BB2686706",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100240",
+  "vendor_member_id": "BB6805862",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100241",
+  "vendor_member_id": "BB8787574",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100242",
+  "vendor_member_id": "BB9588075",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100243",
+  "vendor_member_id": "BB4499035",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100244",
+  "vendor_member_id": "BB9139777",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100245",
+  "vendor_member_id": "BB8403602",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100246",
+  "vendor_member_id": "BB1814375",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100247",
+  "vendor_member_id": "BB1183555",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100248",
+  "vendor_member_id": "BB8863652",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100249",
+  "vendor_member_id": "BB6646388",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100250",
+  "vendor_member_id": "BB8729235",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100251",
+  "vendor_member_id": "BB1881749",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100252",
+  "vendor_member_id": "BB7979674",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100253",
+  "vendor_member_id": "BB4419920",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100254",
+  "vendor_member_id": "BB3391039",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100255",
+  "vendor_member_id": "BB5548669",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100257",
+  "vendor_member_id": "BB2258470",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100258",
+  "vendor_member_id": "BB3644007",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100259",
+  "vendor_member_id": "BB8525461",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100260",
+  "vendor_member_id": "BB4777637",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100261",
+  "vendor_member_id": "BB8079224",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100262",
+  "vendor_member_id": "BB9252273",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100263",
+  "vendor_member_id": "BB5791474",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100264",
+  "vendor_member_id": "BB7742549",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100265",
+  "vendor_member_id": "BB9535997",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100266",
+  "vendor_member_id": "BB3825058",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100267",
+  "vendor_member_id": "BB5204310",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100268",
+  "vendor_member_id": "BB1178322",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100269",
+  "vendor_member_id": "BB6988051",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100271",
+  "vendor_member_id": "BB5316312",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100272",
+  "vendor_member_id": "BB8808125",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100273",
+  "vendor_member_id": "BB7740886",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100274",
+  "vendor_member_id": "BB3388266",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100275",
+  "vendor_member_id": "BB7582630",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100276",
+  "vendor_member_id": "BB2811831",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100277",
+  "vendor_member_id": "BB2935135",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100278",
+  "vendor_member_id": "BB5068637",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100279",
+  "vendor_member_id": "BB3603819",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100280",
+  "vendor_member_id": "BB9968205",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100281",
+  "vendor_member_id": "BB6704291",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100282",
+  "vendor_member_id": "BB9324390",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100283",
+  "vendor_member_id": "BB4173548",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100284",
+  "vendor_member_id": "BB7257971",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100285",
+  "vendor_member_id": "BB5552309",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100286",
+  "vendor_member_id": "BB8453222",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100287",
+  "vendor_member_id": "BB2576962",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100288",
+  "vendor_member_id": "BB2246116",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100289",
+  "vendor_member_id": "BB9073655",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100290",
+  "vendor_member_id": "BB7080145",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100291",
+  "vendor_member_id": "BB4070791",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100292",
+  "vendor_member_id": "BB8495272",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100293",
+  "vendor_member_id": "BB9734848",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100294",
+  "vendor_member_id": "BB3904085",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100295",
+  "vendor_member_id": "BB5139418",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100296",
+  "vendor_member_id": "BB2406056",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100297",
+  "vendor_member_id": "BB9648296",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100298",
+  "vendor_member_id": "BB1569568",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100299",
+  "vendor_member_id": "BB1741070",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100300",
+  "vendor_member_id": "BB5217419",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100301",
+  "vendor_member_id": "BB5530091",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100302",
+  "vendor_member_id": "BB9569358",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100304",
+  "vendor_member_id": "BB2524943",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100305",
+  "vendor_member_id": "BB9662544",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100306",
+  "vendor_member_id": "BB7786962",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100307",
+  "vendor_member_id": "BB7429871",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100308",
+  "vendor_member_id": "BB4420655",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100309",
+  "vendor_member_id": "BB9337755",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100310",
+  "vendor_member_id": "BB7623682",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100311",
+  "vendor_member_id": "BB9172773",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100312",
+  "vendor_member_id": "BB3777988",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100313",
+  "vendor_member_id": "BB7302915",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100314",
+  "vendor_member_id": "BB4237305",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100315",
+  "vendor_member_id": "BB2829274",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100316",
+  "vendor_member_id": "BB4317859",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100317",
+  "vendor_member_id": "BB6565396",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100319",
+  "vendor_member_id": "BB7987901",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100320",
+  "vendor_member_id": "BB4772305",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100321",
+  "vendor_member_id": "BB1689022",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100322",
+  "vendor_member_id": "BB1038786",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100323",
+  "vendor_member_id": "BB7036552",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100324",
+  "vendor_member_id": "BB8509107",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100325",
+  "vendor_member_id": "BB5695416",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100326",
+  "vendor_member_id": "BB2173431",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100327",
+  "vendor_member_id": "BB3276667",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100328",
+  "vendor_member_id": "BB3281847",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100330",
+  "vendor_member_id": "BB7595712",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100331",
+  "vendor_member_id": "BB7217014",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100332",
+  "vendor_member_id": "BB8762813",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100333",
+  "vendor_member_id": "BB5228977",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100334",
+  "vendor_member_id": "BB7272762",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100335",
+  "vendor_member_id": "BB2527721",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100336",
+  "vendor_member_id": "BB1777169",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100337",
+  "vendor_member_id": "BB3606548",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100338",
+  "vendor_member_id": "BB9994080",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100339",
+  "vendor_member_id": "BB3192627",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100340",
+  "vendor_member_id": "BB2870981",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100341",
+  "vendor_member_id": "BB7388054",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100342",
+  "vendor_member_id": "BB7398685",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100343",
+  "vendor_member_id": "BB6833129",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100344",
+  "vendor_member_id": "BB6258854",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100345",
+  "vendor_member_id": "BB4293414",
+  "effective_date": "2023-06-01"
+ },
+ {
+  "member_id": "M100346",
+  "vendor_member_id": "BB9029653",
+  "effective_date": "2023-06-01"
+ }
+]

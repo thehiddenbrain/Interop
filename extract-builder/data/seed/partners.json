@@ -1,0 +1,194 @@
+[
+ {
+  "code": "ACMEDENTAL",
+  "name": "Acme Dental",
+  "category": "Dental carve-out",
+  "contactEmail": "eligibility@acmedental.example",
+  "status": "ACTIVE",
+  "baaOnFile": true,
+  "baaSignedDate": "2026-02-18",
+  "contractStart": "2026-03-01",
+  "contractEnd": "2027-06-30",
+  "pgpBy": "AXWAY",
+  "pgpKeyId": "acme-dental-2026",
+  "pgpKeyExpires": "2027-03-01",
+  "test": {
+   "mode": "DROP_FOLDER",
+   "folder": "ACMEDENTAL/test",
+   "axwayAccount": "acmedental-test",
+   "ackExpected": true,
+   "transport": "SFTP"
+  },
+  "prod": {
+   "mode": "DROP_FOLDER",
+   "folder": "ACMEDENTAL/prod",
+   "axwayAccount": "acmedental",
+   "ackExpected": true,
+   "transport": "SFTP"
+  },
+  "apiEnabled": true,
+  "apiKey": "veb_acme_demo_key_2026",
+  "allowUnmaskedSamples": true,
+  "notes": "Loads eligibility at 07:30 CT. Wants middle initials from October."
+ },
+ {
+  "code": "BLUEBIRD",
+  "name": "Bluebird PBM",
+  "category": "Pharmacy benefit manager",
+  "contactEmail": "feeds@bluebirdrx.example",
+  "status": "ACTIVE",
+  "baaOnFile": true,
+  "baaSignedDate": "2025-12-02",
+  "contractStart": "2026-01-01",
+  "contractEnd": "2026-10-15",
+  "pgpBy": "AXWAY",
+  "pgpKeyId": "bluebird-2025",
+  "pgpKeyExpires": "2026-12-31",
+  "test": {
+   "mode": "AXWAY_REST",
+   "folder": "BLUEBIRD/test",
+   "axwayAccount": "bluebird-uat",
+   "ackExpected": true,
+   "transport": "AS2"
+  },
+  "prod": {
+   "mode": "AXWAY_REST",
+   "folder": "BLUEBIRD/prod",
+   "axwayAccount": "bluebird",
+   "ackExpected": true,
+   "transport": "AS2"
+  },
+  "apiEnabled": false,
+  "apiKey": null,
+  "allowUnmaskedSamples": false,
+  "notes": "Contract renewal in negotiation."
+ },
+ {
+  "code": "NWVISION",
+  "name": "Northwind Vision",
+  "category": "Vision carve-out",
+  "contactEmail": "claims-intake@northwindvision.example",
+  "status": "ACTIVE",
+  "baaOnFile": true,
+  "baaSignedDate": "2026-08-05",
+  "contractStart": "2026-09-01",
+  "contractEnd": "2028-08-31",
+  "pgpBy": "APP",
+  "pgpKeyId": "northwind-vision-2026",
+  "pgpKeyExpires": "2027-08-31",
+  "test": {
+   "mode": "DROP_FOLDER",
+   "folder": "NWVISION/test",
+   "axwayAccount": "nwvision-test",
+   "ackExpected": true,
+   "transport": "SFTP"
+  },
+  "prod": {
+   "mode": "DROP_FOLDER",
+   "folder": "NWVISION/prod",
+   "axwayAccount": "nwvision",
+   "ackExpected": true,
+   "transport": "SFTP"
+  },
+  "apiEnabled": true,
+  "apiKey": "veb_nwvision_demo_key_2026",
+  "allowUnmaskedSamples": true,
+  "notes": "Wants PGP applied by the plan (their key on file)."
+ },
+ {
+  "code": "HARBORBH",
+  "name": "Harbor Behavioral Health",
+  "category": "Care management",
+  "contactEmail": "data@harborbh.example",
+  "status": "ACTIVE",
+  "baaOnFile": false,
+  "baaSignedDate": null,
+  "contractStart": "2026-02-01",
+  "contractEnd": "2027-01-31",
+  "pgpBy": "AXWAY",
+  "pgpKeyId": null,
+  "pgpKeyExpires": null,
+  "test": {
+   "mode": "DROP_FOLDER",
+   "folder": "HARBORBH/test",
+   "axwayAccount": "harborbh-test",
+   "ackExpected": false,
+   "transport": "SFTP"
+  },
+  "prod": {
+   "mode": "DROP_FOLDER",
+   "folder": "HARBORBH/prod",
+   "axwayAccount": "harborbh",
+   "ackExpected": false,
+   "transport": "SFTP"
+  },
+  "apiEnabled": false,
+  "apiKey": null,
+  "allowUnmaskedSamples": false,
+  "notes": "BAA amendment pending with legal since 07/2026."
+ },
+ {
+  "code": "CASCADE",
+  "name": "Cascade Health Directories",
+  "category": "Directory publisher",
+  "contactEmail": "ops@cascadedir.example",
+  "status": "ACTIVE",
+  "baaOnFile": false,
+  "baaSignedDate": null,
+  "contractStart": "2026-09-01",
+  "contractEnd": "2027-08-31",
+  "pgpBy": "NONE",
+  "pgpKeyId": null,
+  "pgpKeyExpires": null,
+  "test": {
+   "mode": "DROP_FOLDER",
+   "folder": "CASCADE/test",
+   "axwayAccount": "cascade-test",
+   "ackExpected": true,
+   "transport": "SFTP"
+  },
+  "prod": {
+   "mode": "DROP_FOLDER",
+   "folder": "CASCADE/prod",
+   "axwayAccount": "cascade",
+   "ackExpected": true,
+   "transport": "SFTP"
+  },
+  "apiEnabled": false,
+  "apiKey": null,
+  "allowUnmaskedSamples": true,
+  "notes": "Provider data only, no PHI."
+ },
+ {
+  "code": "SUMMITCM",
+  "name": "Summit Care Management",
+  "category": "Care management",
+  "contactEmail": "integration@summitcm.example",
+  "status": "DISABLED",
+  "baaOnFile": true,
+  "baaSignedDate": "2025-10-20",
+  "contractStart": "2025-11-01",
+  "contractEnd": "2026-08-30",
+  "pgpBy": "AXWAY",
+  "pgpKeyId": "summit-2025",
+  "pgpKeyExpires": "2026-10-31",
+  "test": {
+   "mode": "DROP_FOLDER",
+   "folder": "SUMMITCM/test",
+   "axwayAccount": "summit-test",
+   "ackExpected": true,
+   "transport": "SFTP"
+  },
+  "prod": {
+   "mode": "DROP_FOLDER",
+   "folder": "SUMMITCM/prod",
+   "axwayAccount": "summit",
+   "ackExpected": true,
+   "transport": "SFTP"
+  },
+  "apiEnabled": false,
+  "apiKey": null,
+  "allowUnmaskedSamples": false,
+  "notes": "Contract ended; feeds retired 08/30."
+ }
+]

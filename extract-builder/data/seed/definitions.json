@@ -1,0 +1,4709 @@
+[
+ {
+  "id": "d-acme-elig",
+  "slug": "acmedental-eligibility",
+  "name": "Acme Dental eligibility",
+  "vendorCode": "ACMEDENTAL",
+  "subjectArea": "MEMBER",
+  "grain": "member",
+  "description": "Daily incremental eligibility feed for the dental carve-out vendor. Pipe-delimited with a trailer count.",
+  "template": false,
+  "owner": "Jordan Rivera",
+  "createdAt": "2026-03-04T09:00:00",
+  "createdBy": "Jordan Rivera",
+  "updatedAt": "2026-09-17T14:22:00",
+  "versions": [
+   {
+    "versionNo": 1,
+    "status": "RETIRED",
+    "spec": {
+     "fields": [
+      {
+       "header": "VENDOR_MEMBER_ID",
+       "inputs": [
+        {
+         "element": "member.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "acme_member",
+          "onMiss": "FAIL"
+         }
+        },
+        {
+         "type": "CONCAT",
+         "params": {
+          "template": "ACM{1}"
+         }
+        }
+       ],
+       "maxLength": 12,
+       "description": "Acme's own member number, from the crosswalk, prefixed ACM",
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "SUBSCRIBER_ID",
+       "inputs": [
+        {
+         "element": "member.subscriber_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "MEMBER_NAME",
+       "inputs": [
+        {
+         "element": "member.last_name",
+         "rules": []
+        },
+        {
+         "element": "member.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER",
+          "trim": "COLLAPSE",
+          "asciiOnly": true
+         }
+        }
+       ],
+       "combiner": {
+        "type": "CONCAT",
+        "params": {
+         "template": "{1}, {2}",
+         "skipBlank": true
+        }
+       },
+       "maxLength": 40,
+       "onOverflow": "TRUNCATE",
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "DOB",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "GENDER",
+       "inputs": [
+        {
+         "element": "member.gender_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "MAP_VALUES",
+         "params": {
+          "map": {
+           "M": "1",
+           "F": "2"
+          },
+          "defaultValue": "0",
+          "caseInsensitive": true
+         }
+        }
+       ],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "EFF_DATE",
+       "inputs": [
+        {
+         "element": "coverage.effective_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "TERM_DATE",
+       "inputs": [
+        {
+         "element": "coverage.term_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "defaultValue": "9999-12-31",
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "PLAN_CODE",
+       "inputs": [
+        {
+         "element": "coverage.plan_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "GROUP_NBR",
+       "inputs": [
+        {
+         "element": "member.group_number",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CONCAT",
+         "params": {
+          "template": "GRP-{1}"
+         }
+        }
+       ],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "ZIP5",
+       "inputs": [
+        {
+         "element": "member.zip",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "SUBSTRING",
+         "params": {
+          "mode": "POSITION",
+          "start": 1,
+          "length": 5
+         }
+        }
+       ],
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "FILE_TYPE",
+       "inputs": [],
+       "rules": [
+        {
+         "type": "CONSTANT",
+         "params": {
+          "token": "LITERAL",
+          "value": "ELIG"
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      }
+     ],
+     "joins": [
+      {
+       "path": "member->coverage",
+       "select": "CURRENT_AS_OF_RUN_DATE"
+      }
+     ],
+     "filters": [
+      {
+       "element": "coverage.plan_code",
+       "op": "IN",
+       "value": [
+        "DENT01",
+        "DENT02"
+       ]
+      },
+      {
+       "template": "member.active_or_pending",
+       "params": {}
+      },
+      {
+       "template": "coverage.active_as_of",
+       "params": {
+        "asOfDate": {
+         "kind": "TOKEN",
+         "token": "RUN_DATE"
+        }
+       }
+      }
+     ],
+     "sort": [
+      {
+       "element": "member.subscriber_id",
+       "direction": "ASC"
+      },
+      {
+       "element": "member.relationship_code",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "INCREMENTAL",
+      "watermarkElements": [
+       "member.last_updated_ts",
+       "coverage.last_updated_ts"
+      ],
+      "lagMinutes": 120,
+      "initialWatermark": "2026-06-01"
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": "|",
+      "quoteMode": "NONE",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "txt",
+      "trailerRecord": "T|{RECORD_COUNT}"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-03-04T09:00:00",
+    "createdBy": "Jordan Rivera",
+    "updatedAt": "2026-03-04T09:00:00",
+    "changeNote": "Initial layout from the vendor's spec sheet",
+    "productionConfig": {
+     "fileName": {
+      "pattern": "{VENDOR}_ELIG_{DATE:yyyyMMdd}.txt",
+      "dateSource": "BUSINESS_DATE"
+     },
+     "compression": "NONE",
+     "pgpBy": "AXWAY",
+     "schedule": {
+      "preset": "WEEKDAYS",
+      "time": "02:00",
+      "timezone": "America/Chicago",
+      "cron": "",
+      "calendar": "plan-2026",
+      "holidayPolicy": "NEXT_BUSINESS_DAY",
+      "misfire": "RUN_ONCE",
+      "enabled": true,
+      "dayOfWeek": "MON",
+      "dayOfMonth": 1
+     },
+     "delivery": {
+      "route": "PROD",
+      "zeroRowPolicy": "SEND_EMPTY",
+      "retries": 3,
+      "backoffSeconds": 300,
+      "controlFile": true
+     },
+     "quality": {
+      "enabled": true,
+      "rowCountVariancePct": 25,
+      "nullRateMaxPct": 40,
+      "lookupMissMax": 0,
+      "holdOnBreach": true
+     },
+     "notifications": {
+      "onFailure": [
+       "mft-ops@plan.example",
+       "vendor-data@plan.example"
+      ],
+      "onHold": [
+       "vendor-data@plan.example"
+      ],
+      "onDelivered": [
+       "eligibility@acmedental.example"
+      ],
+      "onSlaMissed": [
+       "mft-ops@plan.example"
+      ]
+     },
+     "sla": {
+      "deliverBy": "07:00",
+      "note": null
+     },
+     "initialWatermark": null
+    },
+    "approvedBy": "Dev Patel",
+    "approvedAt": "2026-03-12T10:05:00",
+    "productionizedAt": "2026-03-13T09:00:00",
+    "productionizedBy": "Dev Patel",
+    "retiredAt": "2026-06-02T09:00:00",
+    "retiredReason": "Replaced by v2"
+   },
+   {
+    "versionNo": 2,
+    "status": "PRODUCTION",
+    "spec": {
+     "fields": [
+      {
+       "header": "VENDOR_MEMBER_ID",
+       "inputs": [
+        {
+         "element": "member.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "acme_member",
+          "onMiss": "FAIL"
+         }
+        },
+        {
+         "type": "CONCAT",
+         "params": {
+          "template": "ACM{1}"
+         }
+        }
+       ],
+       "maxLength": 12,
+       "description": "Acme's own member number, from the crosswalk, prefixed ACM",
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "SUBSCRIBER_ID",
+       "inputs": [
+        {
+         "element": "member.subscriber_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "MEMBER_NAME",
+       "inputs": [
+        {
+         "element": "member.last_name",
+         "rules": []
+        },
+        {
+         "element": "member.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER",
+          "trim": "COLLAPSE",
+          "asciiOnly": true
+         }
+        }
+       ],
+       "combiner": {
+        "type": "CONCAT",
+        "params": {
+         "template": "{1}, {2}",
+         "skipBlank": true
+        }
+       },
+       "maxLength": 40,
+       "onOverflow": "TRUNCATE",
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "DOB",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "GENDER",
+       "inputs": [
+        {
+         "element": "member.gender_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "MAP_VALUES",
+         "params": {
+          "map": {
+           "M": "1",
+           "F": "2"
+          },
+          "defaultValue": "0",
+          "caseInsensitive": true
+         }
+        }
+       ],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "RELATIONSHIP",
+       "inputs": [
+        {
+         "element": "member.relationship_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CONDITIONAL",
+         "params": {
+          "rules": [
+           {
+            "conditions": [
+             {
+              "compare": "CURRENT",
+              "op": "EQ",
+              "values": [
+               "18"
+              ]
+             }
+            ],
+            "match": "ALL",
+            "thenKind": "CONSTANT",
+            "thenValue": "SELF"
+           },
+           {
+            "conditions": [
+             {
+              "compare": "CURRENT",
+              "op": "EQ",
+              "values": [
+               "01"
+              ]
+             }
+            ],
+            "match": "ALL",
+            "thenKind": "CONSTANT",
+            "thenValue": "SPOUSE"
+           }
+          ],
+          "elseKind": "CONSTANT",
+          "elseValue": "DEP"
+         }
+        }
+       ],
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "EFF_DATE",
+       "inputs": [
+        {
+         "element": "coverage.effective_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "TERM_DATE",
+       "inputs": [
+        {
+         "element": "coverage.term_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "defaultValue": "9999-12-31",
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "PLAN_CODE",
+       "inputs": [
+        {
+         "element": "coverage.plan_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "GROUP_NBR",
+       "inputs": [
+        {
+         "element": "member.group_number",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CONCAT",
+         "params": {
+          "template": "GRP-{1}"
+         }
+        }
+       ],
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "ZIP5",
+       "inputs": [
+        {
+         "element": "member.zip",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "SUBSTRING",
+         "params": {
+          "mode": "POSITION",
+          "start": 1,
+          "length": 5
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "FILE_TYPE",
+       "inputs": [],
+       "rules": [
+        {
+         "type": "CONSTANT",
+         "params": {
+          "token": "LITERAL",
+          "value": "ELIG"
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      }
+     ],
+     "joins": [
+      {
+       "path": "member->coverage",
+       "select": "CURRENT_AS_OF_RUN_DATE"
+      }
+     ],
+     "filters": [
+      {
+       "element": "coverage.plan_code",
+       "op": "IN",
+       "value": [
+        "DENT01",
+        "DENT02"
+       ]
+      },
+      {
+       "template": "member.active_or_pending",
+       "params": {}
+      },
+      {
+       "template": "coverage.active_as_of",
+       "params": {
+        "asOfDate": {
+         "kind": "TOKEN",
+         "token": "RUN_DATE"
+        }
+       }
+      }
+     ],
+     "sort": [
+      {
+       "element": "member.subscriber_id",
+       "direction": "ASC"
+      },
+      {
+       "element": "member.relationship_code",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "INCREMENTAL",
+      "watermarkElements": [
+       "member.last_updated_ts",
+       "coverage.last_updated_ts"
+      ],
+      "lagMinutes": 120,
+      "initialWatermark": "2026-06-01"
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": "|",
+      "quoteMode": "NONE",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "txt",
+      "trailerRecord": "T|{RECORD_COUNT}"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-05-20T09:00:00",
+    "createdBy": "Jordan Rivera",
+    "updatedAt": "2026-05-20T09:00:00",
+    "changeNote": "Vendor added a relationship column (SELF, SPOUSE, DEP)",
+    "productionConfig": {
+     "fileName": {
+      "pattern": "{VENDOR}_ELIG_{DATE:yyyyMMdd}.txt",
+      "dateSource": "BUSINESS_DATE"
+     },
+     "compression": "NONE",
+     "pgpBy": "AXWAY",
+     "schedule": {
+      "preset": "WEEKDAYS",
+      "time": "02:00",
+      "timezone": "America/Chicago",
+      "cron": "",
+      "calendar": "plan-2026",
+      "holidayPolicy": "NEXT_BUSINESS_DAY",
+      "misfire": "RUN_ONCE",
+      "enabled": true,
+      "dayOfWeek": "MON",
+      "dayOfMonth": 1
+     },
+     "delivery": {
+      "route": "PROD",
+      "zeroRowPolicy": "SEND_EMPTY",
+      "retries": 3,
+      "backoffSeconds": 300,
+      "controlFile": true
+     },
+     "quality": {
+      "enabled": true,
+      "rowCountVariancePct": 25,
+      "nullRateMaxPct": 40,
+      "lookupMissMax": 0,
+      "holdOnBreach": true
+     },
+     "notifications": {
+      "onFailure": [
+       "mft-ops@plan.example",
+       "vendor-data@plan.example"
+      ],
+      "onHold": [
+       "vendor-data@plan.example"
+      ],
+      "onDelivered": [
+       "eligibility@acmedental.example"
+      ],
+      "onSlaMissed": [
+       "mft-ops@plan.example"
+      ]
+     },
+     "sla": {
+      "deliverBy": "07:00",
+      "note": null
+     },
+     "initialWatermark": null
+    },
+    "approvedBy": "Dev Patel",
+    "approvedAt": "2026-06-01T15:40:00",
+    "approvalRequestedBy": "Jordan Rivera",
+    "approvalRequestedAt": "2026-05-29T11:00:00",
+    "productionizedAt": "2026-06-02T09:00:00",
+    "productionizedBy": "Dev Patel",
+    "schedulePaused": false
+   },
+   {
+    "versionNo": 3,
+    "status": "DRAFT",
+    "spec": {
+     "fields": [
+      {
+       "header": "VENDOR_MEMBER_ID",
+       "inputs": [
+        {
+         "element": "member.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "acme_member",
+          "onMiss": "FAIL"
+         }
+        },
+        {
+         "type": "CONCAT",
+         "params": {
+          "template": "ACM{1}"
+         }
+        }
+       ],
+       "maxLength": 12,
+       "description": "Acme's own member number, from the crosswalk, prefixed ACM",
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "SUBSCRIBER_ID",
+       "inputs": [
+        {
+         "element": "member.subscriber_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "MEMBER_NAME",
+       "inputs": [
+        {
+         "element": "member.last_name",
+         "rules": []
+        },
+        {
+         "element": "member.first_name",
+         "rules": []
+        },
+        {
+         "element": "member.middle_name",
+         "rules": [
+          {
+           "type": "SUBSTRING",
+           "params": {
+            "mode": "POSITION",
+            "start": 1,
+            "length": 1
+           }
+          }
+         ]
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER",
+          "trim": "COLLAPSE",
+          "asciiOnly": true
+         }
+        }
+       ],
+       "combiner": {
+        "type": "CONCAT",
+        "params": {
+         "template": "{1}, {2} {3}.",
+         "skipBlank": true
+        }
+       },
+       "maxLength": 40,
+       "onOverflow": "TRUNCATE",
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "DOB",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "GENDER",
+       "inputs": [
+        {
+         "element": "member.gender_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "MAP_VALUES",
+         "params": {
+          "map": {
+           "M": "1",
+           "F": "2"
+          },
+          "defaultValue": "0",
+          "caseInsensitive": true
+         }
+        }
+       ],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "RELATIONSHIP",
+       "inputs": [
+        {
+         "element": "member.relationship_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CONDITIONAL",
+         "params": {
+          "rules": [
+           {
+            "conditions": [
+             {
+              "compare": "CURRENT",
+              "op": "EQ",
+              "values": [
+               "18"
+              ]
+             }
+            ],
+            "match": "ALL",
+            "thenKind": "CONSTANT",
+            "thenValue": "SELF"
+           },
+           {
+            "conditions": [
+             {
+              "compare": "CURRENT",
+              "op": "EQ",
+              "values": [
+               "01"
+              ]
+             }
+            ],
+            "match": "ALL",
+            "thenKind": "CONSTANT",
+            "thenValue": "SPOUSE"
+           }
+          ],
+          "elseKind": "CONSTANT",
+          "elseValue": "DEP"
+         }
+        }
+       ],
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "EFF_DATE",
+       "inputs": [
+        {
+         "element": "coverage.effective_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "TERM_DATE",
+       "inputs": [
+        {
+         "element": "coverage.term_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "defaultValue": "9999-12-31",
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "PLAN_CODE",
+       "inputs": [
+        {
+         "element": "coverage.plan_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "GROUP_NBR",
+       "inputs": [
+        {
+         "element": "member.group_number",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CONCAT",
+         "params": {
+          "template": "GRP-{1}"
+         }
+        }
+       ],
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "ZIP5",
+       "inputs": [
+        {
+         "element": "member.zip",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "SUBSTRING",
+         "params": {
+          "mode": "POSITION",
+          "start": 1,
+          "length": 5
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "FILE_TYPE",
+       "inputs": [],
+       "rules": [
+        {
+         "type": "CONSTANT",
+         "params": {
+          "token": "LITERAL",
+          "value": "ELIG"
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      }
+     ],
+     "joins": [
+      {
+       "path": "member->coverage",
+       "select": "CURRENT_AS_OF_RUN_DATE"
+      }
+     ],
+     "filters": [
+      {
+       "element": "coverage.plan_code",
+       "op": "IN",
+       "value": [
+        "DENT01",
+        "DENT02"
+       ]
+      },
+      {
+       "template": "member.active_or_pending",
+       "params": {}
+      },
+      {
+       "template": "coverage.active_as_of",
+       "params": {
+        "asOfDate": {
+         "kind": "TOKEN",
+         "token": "RUN_DATE"
+        }
+       }
+      }
+     ],
+     "sort": [
+      {
+       "element": "member.subscriber_id",
+       "direction": "ASC"
+      },
+      {
+       "element": "member.relationship_code",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "INCREMENTAL",
+      "watermarkElements": [
+       "member.last_updated_ts",
+       "coverage.last_updated_ts"
+      ],
+      "lagMinutes": 120,
+      "initialWatermark": "2026-06-01"
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": "|",
+      "quoteMode": "NONE",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "txt",
+      "trailerRecord": "T|{RECORD_COUNT}"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-09-15T09:00:00",
+    "createdBy": "Jordan Rivera",
+    "updatedAt": "2026-09-15T09:00:00",
+    "changeNote": "Vendor asked for the middle initial in MEMBER_NAME",
+    "productionConfig": {
+     "fileName": {
+      "pattern": "{VENDOR}_ELIG_{DATE:yyyyMMdd}.txt",
+      "dateSource": "BUSINESS_DATE"
+     },
+     "compression": "NONE",
+     "pgpBy": "AXWAY",
+     "schedule": {
+      "preset": "WEEKDAYS",
+      "time": "02:00",
+      "timezone": "America/Chicago",
+      "cron": "",
+      "calendar": "plan-2026",
+      "holidayPolicy": "NEXT_BUSINESS_DAY",
+      "misfire": "RUN_ONCE",
+      "enabled": true,
+      "dayOfWeek": "MON",
+      "dayOfMonth": 1
+     },
+     "delivery": {
+      "route": "PROD",
+      "zeroRowPolicy": "SEND_EMPTY",
+      "retries": 3,
+      "backoffSeconds": 300,
+      "controlFile": true
+     },
+     "quality": {
+      "enabled": true,
+      "rowCountVariancePct": 25,
+      "nullRateMaxPct": 40,
+      "lookupMissMax": 0,
+      "holdOnBreach": true
+     },
+     "notifications": {
+      "onFailure": [
+       "mft-ops@plan.example",
+       "vendor-data@plan.example"
+      ],
+      "onHold": [
+       "vendor-data@plan.example"
+      ],
+      "onDelivered": [
+       "eligibility@acmedental.example"
+      ],
+      "onSlaMissed": [
+       "mft-ops@plan.example"
+      ]
+     },
+     "sla": {
+      "deliverBy": "07:00",
+      "note": null
+     },
+     "initialWatermark": null
+    }
+   }
+  ]
+ },
+ {
+  "id": "d-bluebird-roster",
+  "slug": "bluebird-member-roster",
+  "name": "Bluebird PBM member roster",
+  "vendorCode": "BLUEBIRD",
+  "subjectArea": "MEMBER",
+  "grain": "member",
+  "description": "Weekly full roster of active members for the pharmacy benefit manager. Comma-delimited, quoted where needed.",
+  "template": false,
+  "owner": "Jordan Rivera",
+  "createdAt": "2026-04-11T09:00:00",
+  "createdBy": "Jordan Rivera",
+  "updatedAt": "2026-09-16T16:05:00",
+  "versions": [
+   {
+    "versionNo": 1,
+    "status": "PRODUCTION",
+    "spec": {
+     "fields": [
+      {
+       "header": "BB_MEMBER_ID",
+       "inputs": [
+        {
+         "element": "member.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "bluebird_member",
+          "onMiss": "BLANK"
+         }
+        }
+       ],
+       "description": "Bluebird's member number from the PBM crosswalk; blank when unknown",
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "LAST_NAME",
+       "inputs": [
+        {
+         "element": "member.last_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER",
+          "asciiOnly": true
+         }
+        }
+       ],
+       "maxLength": 35,
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "FIRST_NAME",
+       "inputs": [
+        {
+         "element": "member.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER",
+          "asciiOnly": true
+         }
+        }
+       ],
+       "maxLength": 25,
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "DOB",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "GENDER",
+       "inputs": [
+        {
+         "element": "member.gender_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "ADDRESS",
+       "inputs": [
+        {
+         "element": "member.address_line1",
+         "rules": []
+        },
+        {
+         "element": "member.address_line2",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "combiner": {
+        "type": "CONCAT",
+        "params": {
+         "separator": ", ",
+         "skipBlank": true
+        }
+       },
+       "maxLength": 60,
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "CITY",
+       "inputs": [
+        {
+         "element": "member.city",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "STATE",
+       "inputs": [
+        {
+         "element": "member.state",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "ZIP",
+       "inputs": [
+        {
+         "element": "member.zip",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "strip": "NON_DIGITS"
+         }
+        }
+       ],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "PHONE",
+       "inputs": [
+        {
+         "element": "member.mobile_phone",
+         "rules": []
+        },
+        {
+         "element": "member.home_phone",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "strip": "NON_DIGITS"
+         }
+        }
+       ],
+       "combiner": {
+        "type": "COALESCE",
+        "params": {
+         "treatBlankAsNull": true
+        }
+       },
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "EMAIL",
+       "inputs": [
+        {
+         "element": "member.email",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "LOWER"
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "PLAN_NAME",
+       "inputs": [
+        {
+         "element": "coverage.plan_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "plans",
+          "returnColumn": "plan_name",
+          "onMiss": "PASSTHROUGH"
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      },
+      {
+       "header": "LOB",
+       "inputs": [
+        {
+         "element": "member.line_of_business",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f13",
+       "position": 13
+      },
+      {
+       "header": "PCP_NPI",
+       "inputs": [
+        {
+         "element": "member.pcp_npi",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f14",
+       "position": 14
+      },
+      {
+       "header": "AS_OF",
+       "inputs": [],
+       "rules": [
+        {
+         "type": "CONSTANT",
+         "params": {
+          "token": "RUN_DATE",
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f15",
+       "position": 15
+      }
+     ],
+     "joins": [
+      {
+       "path": "member->coverage",
+       "select": "CURRENT_AS_OF_RUN_DATE"
+      }
+     ],
+     "filters": [
+      {
+       "element": "member.member_status",
+       "op": "EQ",
+       "value": "ACTIVE"
+      },
+      {
+       "element": "member.line_of_business",
+       "op": "IN",
+       "value": [
+        "COMMERCIAL",
+        "MEDICARE"
+       ]
+      }
+     ],
+     "sort": [
+      {
+       "element": "member.last_name",
+       "direction": "ASC"
+      },
+      {
+       "element": "member.first_name",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "FULL",
+      "watermarkElements": [],
+      "lagMinutes": 15
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": ",",
+      "quoteMode": "MINIMAL",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "csv"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-04-11T09:00:00",
+    "createdBy": "Jordan Rivera",
+    "updatedAt": "2026-04-11T09:00:00",
+    "changeNote": "Initial roster layout",
+    "productionConfig": {
+     "fileName": {
+      "pattern": "{VENDOR}_ROSTER_{DATE:yyyyMMdd}.csv",
+      "dateSource": "BUSINESS_DATE"
+     },
+     "compression": "NONE",
+     "pgpBy": "AXWAY",
+     "schedule": {
+      "preset": "WEEKLY",
+      "time": "05:30",
+      "timezone": "America/Chicago",
+      "cron": "",
+      "calendar": "plan-2026",
+      "holidayPolicy": "NEXT_BUSINESS_DAY",
+      "misfire": "RUN_ONCE",
+      "enabled": true,
+      "dayOfWeek": "MON",
+      "dayOfMonth": 1
+     },
+     "delivery": {
+      "route": "PROD",
+      "zeroRowPolicy": "SEND_EMPTY",
+      "retries": 3,
+      "backoffSeconds": 300,
+      "controlFile": true
+     },
+     "quality": {
+      "enabled": true,
+      "rowCountVariancePct": 25,
+      "nullRateMaxPct": 40,
+      "lookupMissMax": 0,
+      "holdOnBreach": true
+     },
+     "notifications": {
+      "onFailure": [
+       "mft-ops@plan.example",
+       "vendor-data@plan.example"
+      ],
+      "onHold": [
+       "vendor-data@plan.example"
+      ],
+      "onDelivered": [],
+      "onSlaMissed": [
+       "mft-ops@plan.example"
+      ]
+     },
+     "sla": {
+      "deliverBy": "07:30",
+      "note": null
+     },
+     "initialWatermark": null
+    },
+    "approvedBy": "Dev Patel",
+    "approvedAt": "2026-04-22T13:10:00",
+    "approvalRequestedBy": "Jordan Rivera",
+    "approvalRequestedAt": "2026-04-20T09:30:00",
+    "productionizedAt": "2026-04-23T08:00:00",
+    "productionizedBy": "Dev Patel",
+    "schedulePaused": false
+   },
+   {
+    "versionNo": 2,
+    "status": "DRAFT",
+    "spec": {
+     "fields": [
+      {
+       "header": "BB_MEMBER_ID",
+       "inputs": [
+        {
+         "element": "member.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "bluebird_member",
+          "onMiss": "BLANK"
+         }
+        }
+       ],
+       "description": "Bluebird's member number from the PBM crosswalk; blank when unknown",
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "LAST_NAME",
+       "inputs": [
+        {
+         "element": "member.last_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER",
+          "asciiOnly": true
+         }
+        }
+       ],
+       "maxLength": 35,
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "FIRST_NAME",
+       "inputs": [
+        {
+         "element": "member.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER",
+          "asciiOnly": true
+         }
+        }
+       ],
+       "maxLength": 25,
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "DOB",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "GENDER",
+       "inputs": [
+        {
+         "element": "member.gender_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "ADDRESS",
+       "inputs": [
+        {
+         "element": "member.address_line1",
+         "rules": []
+        },
+        {
+         "element": "member.address_line2",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "combiner": {
+        "type": "CONCAT",
+        "params": {
+         "separator": ", ",
+         "skipBlank": true
+        }
+       },
+       "maxLength": 60,
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "CITY",
+       "inputs": [
+        {
+         "element": "member.city",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "STATE",
+       "inputs": [
+        {
+         "element": "member.state",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "ZIP",
+       "inputs": [
+        {
+         "element": "member.zip",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "strip": "NON_DIGITS"
+         }
+        }
+       ],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "PHONE",
+       "inputs": [
+        {
+         "element": "member.mobile_phone",
+         "rules": []
+        },
+        {
+         "element": "member.home_phone",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "strip": "NON_DIGITS"
+         }
+        }
+       ],
+       "combiner": {
+        "type": "COALESCE",
+        "params": {
+         "treatBlankAsNull": true
+        }
+       },
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "EMAIL",
+       "inputs": [
+        {
+         "element": "member.email",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "LOWER"
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "PLAN_NAME",
+       "inputs": [
+        {
+         "element": "coverage.plan_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "plans",
+          "returnColumn": "plan_name",
+          "onMiss": "PASSTHROUGH"
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      },
+      {
+       "header": "LOB",
+       "inputs": [
+        {
+         "element": "member.line_of_business",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f13",
+       "position": 13
+      },
+      {
+       "header": "PCP_NPI",
+       "inputs": [
+        {
+         "element": "member.pcp_npi",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f14",
+       "position": 14
+      },
+      {
+       "header": "LANGUAGE",
+       "inputs": [
+        {
+         "element": "member.language_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f15",
+       "position": 15
+      },
+      {
+       "header": "AGE",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "DATE_MATH",
+         "params": {
+          "op": "AGE_AT",
+          "relativeTo": "RUN_DATE"
+         }
+        },
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 0
+         }
+        }
+       ],
+       "id": "f16",
+       "position": 16
+      },
+      {
+       "header": "AS_OF",
+       "inputs": [],
+       "rules": [
+        {
+         "type": "CONSTANT",
+         "params": {
+          "token": "RUN_DATE",
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f17",
+       "position": 17
+      }
+     ],
+     "joins": [
+      {
+       "path": "member->coverage",
+       "select": "CURRENT_AS_OF_RUN_DATE"
+      }
+     ],
+     "filters": [
+      {
+       "element": "member.member_status",
+       "op": "EQ",
+       "value": "ACTIVE"
+      },
+      {
+       "element": "member.line_of_business",
+       "op": "IN",
+       "value": [
+        "COMMERCIAL",
+        "MEDICARE"
+       ]
+      }
+     ],
+     "sort": [
+      {
+       "element": "member.last_name",
+       "direction": "ASC"
+      },
+      {
+       "element": "member.first_name",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "FULL",
+      "watermarkElements": [],
+      "lagMinutes": 15
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": ",",
+      "quoteMode": "MINIMAL",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "csv"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-09-10T09:00:00",
+    "createdBy": "Jordan Rivera",
+    "updatedAt": "2026-09-10T09:00:00",
+    "changeNote": "Add preferred language and age for the outreach program",
+    "productionConfig": {
+     "fileName": {
+      "pattern": "{VENDOR}_ROSTER_{DATE:yyyyMMdd}.csv",
+      "dateSource": "BUSINESS_DATE"
+     },
+     "compression": "NONE",
+     "pgpBy": "AXWAY",
+     "schedule": {
+      "preset": "WEEKLY",
+      "time": "05:30",
+      "timezone": "America/Chicago",
+      "cron": "",
+      "calendar": "plan-2026",
+      "holidayPolicy": "NEXT_BUSINESS_DAY",
+      "misfire": "RUN_ONCE",
+      "enabled": true,
+      "dayOfWeek": "MON",
+      "dayOfMonth": 1
+     },
+     "delivery": {
+      "route": "PROD",
+      "zeroRowPolicy": "SEND_EMPTY",
+      "retries": 3,
+      "backoffSeconds": 300,
+      "controlFile": true
+     },
+     "quality": {
+      "enabled": true,
+      "rowCountVariancePct": 25,
+      "nullRateMaxPct": 40,
+      "lookupMissMax": 0,
+      "holdOnBreach": true
+     },
+     "notifications": {
+      "onFailure": [
+       "mft-ops@plan.example",
+       "vendor-data@plan.example"
+      ],
+      "onHold": [
+       "vendor-data@plan.example"
+      ],
+      "onDelivered": [],
+      "onSlaMissed": [
+       "mft-ops@plan.example"
+      ]
+     },
+     "sla": {
+      "deliverBy": "07:30",
+      "note": null
+     },
+     "initialWatermark": null
+    }
+   }
+  ]
+ },
+ {
+  "id": "d-northwind-claims",
+  "slug": "nwvision-claims",
+  "name": "Northwind Vision claims",
+  "vendorCode": "NWVISION",
+  "subjectArea": "CLAIM",
+  "grain": "claim_line",
+  "description": "Paid vision claims at line level with header and trailer records and a paid-amount hash total.",
+  "template": false,
+  "owner": "Priya Okafor",
+  "createdAt": "2026-08-28T09:00:00",
+  "createdBy": "Priya Okafor",
+  "updatedAt": "2026-09-16T09:12:00",
+  "versions": [
+   {
+    "versionNo": 1,
+    "status": "APPROVED",
+    "spec": {
+     "fields": [
+      {
+       "header": "CLAIM_NO",
+       "inputs": [
+        {
+         "element": "claim_line.claim_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "LINE",
+       "inputs": [
+        {
+         "element": "claim_line.line_number",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 0,
+          "leadingZeros": 3
+         }
+        }
+       ],
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "MEMBER_ID",
+       "inputs": [
+        {
+         "element": "claim.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "MEMBER_LAST",
+       "inputs": [
+        {
+         "element": "member.last_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "MEMBER_FIRST",
+       "inputs": [
+        {
+         "element": "member.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER"
+         }
+        }
+       ],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "MEMBER_DOB",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "DOS",
+       "inputs": [
+        {
+         "element": "claim_line.service_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "PROC_CODE",
+       "inputs": [
+        {
+         "element": "claim_line.procedure_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "MODIFIER",
+       "inputs": [
+        {
+         "element": "claim_line.modifier",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "UNITS",
+       "inputs": [
+        {
+         "element": "claim_line.units",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 0
+         }
+        }
+       ],
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "BILLED",
+       "inputs": [
+        {
+         "element": "claim_line.billed_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "ALLOWED",
+       "inputs": [
+        {
+         "element": "claim_line.allowed_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      },
+      {
+       "header": "PAID",
+       "inputs": [
+        {
+         "element": "claim_line.paid_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f13",
+       "position": 13
+      },
+      {
+       "header": "PATIENT_RESP",
+       "inputs": [
+        {
+         "element": "claim_line.allowed_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "ARITHMETIC",
+         "params": {
+          "op": "SUBTRACT",
+          "operandKind": "ELEMENT",
+          "operandElement": "claim_line.paid_amount",
+          "scale": 2
+         }
+        },
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f14",
+       "position": 14
+      },
+      {
+       "header": "LINE_STATUS",
+       "inputs": [
+        {
+         "element": "claim_line.line_status",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f15",
+       "position": 15
+      },
+      {
+       "header": "POS",
+       "inputs": [
+        {
+         "element": "claim_line.place_of_service",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f16",
+       "position": 16
+      },
+      {
+       "header": "DX1",
+       "inputs": [
+        {
+         "element": "claim.primary_dx",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "find": ".",
+          "replaceWith": ""
+         }
+        }
+       ],
+       "id": "f17",
+       "position": 17
+      },
+      {
+       "header": "RENDERING_NPI",
+       "inputs": [
+        {
+         "element": "claim.rendering_npi",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f18",
+       "position": 18
+      },
+      {
+       "header": "PROVIDER_NAME",
+       "inputs": [
+        {
+         "element": "provider.org_name",
+         "rules": []
+        },
+        {
+         "element": "provider.last_name",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "combiner": {
+        "type": "COALESCE",
+        "params": {
+         "treatBlankAsNull": true
+        }
+       },
+       "maxLength": 50,
+       "id": "f19",
+       "position": 19
+      },
+      {
+       "header": "CLAIM_STATUS",
+       "inputs": [
+        {
+         "element": "claim.claim_status",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f20",
+       "position": 20
+      },
+      {
+       "header": "PAID_DATE",
+       "inputs": [
+        {
+         "element": "claim.paid_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f21",
+       "position": 21
+      }
+     ],
+     "joins": [
+      {
+       "path": "claim_line->claim"
+      },
+      {
+       "path": "claim_line->member"
+      },
+      {
+       "path": "claim_line->provider"
+      }
+     ],
+     "filters": [
+      {
+       "element": "claim.claim_type",
+       "op": "EQ",
+       "value": "VISION"
+      },
+      {
+       "element": "claim.claim_status",
+       "op": "IN",
+       "value": [
+        "PAID",
+        "ADJUSTED"
+       ]
+      },
+      {
+       "template": "claim.paid_in_last_days",
+       "params": {
+        "days": 90
+       }
+      }
+     ],
+     "sort": [
+      {
+       "element": "claim_line.claim_id",
+       "direction": "ASC"
+      },
+      {
+       "element": "claim_line.line_number",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "FULL",
+      "watermarkElements": [],
+      "lagMinutes": 15
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": "\t",
+      "quoteMode": "NONE",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "tsv",
+      "headerRecord": "H|NWVISION|{RUN_DATE:yyyyMMdd}",
+      "trailerRecord": "T|{RECORD_COUNT}|{SUM:PAID}"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-08-28T09:00:00",
+    "createdBy": "Priya Okafor",
+    "updatedAt": "2026-08-28T09:00:00",
+    "changeNote": "Initial layout from Northwind's companion guide",
+    "productionConfig": {
+     "fileName": {
+      "pattern": "{VENDOR}_CLAIMS_{DATE:yyyyMMdd}_{SEQ:2}.tsv",
+      "dateSource": "BUSINESS_DATE"
+     },
+     "compression": "NONE",
+     "pgpBy": "AXWAY",
+     "schedule": {
+      "preset": "DAILY",
+      "time": "04:00",
+      "timezone": "America/Chicago",
+      "cron": "",
+      "calendar": "plan-2026",
+      "holidayPolicy": "NEXT_BUSINESS_DAY",
+      "misfire": "RUN_ONCE",
+      "enabled": true,
+      "dayOfWeek": "MON",
+      "dayOfMonth": 1
+     },
+     "delivery": {
+      "route": "PROD",
+      "zeroRowPolicy": "SKIP",
+      "retries": 3,
+      "backoffSeconds": 300,
+      "controlFile": true
+     },
+     "quality": {
+      "enabled": true,
+      "rowCountVariancePct": 25,
+      "nullRateMaxPct": 40,
+      "lookupMissMax": 0,
+      "holdOnBreach": true
+     },
+     "notifications": {
+      "onFailure": [
+       "mft-ops@plan.example",
+       "vendor-data@plan.example"
+      ],
+      "onHold": [
+       "vendor-data@plan.example"
+      ],
+      "onDelivered": [],
+      "onSlaMissed": [
+       "mft-ops@plan.example"
+      ]
+     },
+     "sla": {
+      "deliverBy": "06:00",
+      "note": null
+     },
+     "initialWatermark": null
+    },
+    "approvalRequestedBy": "Priya Okafor",
+    "approvalRequestedAt": "2026-09-12T15:00:00",
+    "approvedBy": "Dev Patel",
+    "approvedAt": "2026-09-16T09:12:00",
+    "approvalNote": "Vendor accepted sample NWVISION_CLAIMS_20260911_01.tsv",
+    "vendorAcceptance": "Email from j.hall@northwindvision.example, 09/15"
+   }
+  ]
+ },
+ {
+  "id": "d-harbor-claims",
+  "slug": "harborbh-claims",
+  "name": "Harbor Behavioral claims",
+  "vendorCode": "HARBORBH",
+  "subjectArea": "CLAIM",
+  "grain": "claim",
+  "description": "Behavioral health claims (F-code primary diagnosis) for the care management vendor. Member identifiers are hashed by contract.",
+  "template": false,
+  "owner": "Priya Okafor",
+  "createdAt": "2026-02-10T09:00:00",
+  "createdBy": "Priya Okafor",
+  "updatedAt": "2026-09-01T10:00:00",
+  "versions": [
+   {
+    "versionNo": 1,
+    "status": "PRODUCTION",
+    "spec": {
+     "fields": [
+      {
+       "header": "CLAIM_ID",
+       "inputs": [
+        {
+         "element": "claim.claim_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "MEMBER_KEY",
+       "inputs": [
+        {
+         "element": "claim.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "MASK",
+         "params": {
+          "style": "HASH",
+          "hashLength": 16
+         }
+        }
+       ],
+       "description": "Hashed member id; Harbor matches on it across files",
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "SUBSCRIBER_KEY",
+       "inputs": [
+        {
+         "element": "claim.subscriber_id",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "MASK",
+         "params": {
+          "style": "HASH",
+          "hashLength": 16
+         }
+        }
+       ],
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "BIRTH_YEAR",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "CUSTOM",
+          "customPattern": "yyyy"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "SVC_FROM",
+       "inputs": [
+        {
+         "element": "claim.service_from",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyy-MM-dd"
+         }
+        }
+       ],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "SVC_TO",
+       "inputs": [
+        {
+         "element": "claim.service_to",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyy-MM-dd"
+         }
+        }
+       ],
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "RECEIVED",
+       "inputs": [
+        {
+         "element": "claim.received_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyy-MM-dd"
+         }
+        }
+       ],
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "PAID_DATE",
+       "inputs": [
+        {
+         "element": "claim.paid_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyy-MM-dd"
+         }
+        }
+       ],
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "STATUS",
+       "inputs": [
+        {
+         "element": "claim.claim_status",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "DX1",
+       "inputs": [
+        {
+         "element": "claim.primary_dx",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "DX2",
+       "inputs": [
+        {
+         "element": "claim.secondary_dx",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "BILLED",
+       "inputs": [
+        {
+         "element": "claim.billed_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      },
+      {
+       "header": "ALLOWED",
+       "inputs": [
+        {
+         "element": "claim.allowed_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f13",
+       "position": 13
+      },
+      {
+       "header": "PAID",
+       "inputs": [
+        {
+         "element": "claim.paid_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f14",
+       "position": 14
+      },
+      {
+       "header": "PT_RESP",
+       "inputs": [
+        {
+         "element": "claim.patient_responsibility",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f15",
+       "position": 15
+      },
+      {
+       "header": "NPI",
+       "inputs": [
+        {
+         "element": "claim.rendering_npi",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f16",
+       "position": 16
+      },
+      {
+       "header": "SPECIALTY",
+       "inputs": [
+        {
+         "element": "provider.primary_taxonomy",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "taxonomy",
+          "returnColumn": "description",
+          "onMiss": "PASSTHROUGH"
+         }
+        }
+       ],
+       "id": "f17",
+       "position": 17
+      },
+      {
+       "header": "REVERSAL",
+       "inputs": [
+        {
+         "element": "claim.reversal_flag",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "booleanStyle": "YN"
+         }
+        }
+       ],
+       "id": "f18",
+       "position": 18
+      },
+      {
+       "header": "LINES",
+       "inputs": [
+        {
+         "element": "claim.line_count",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 0
+         }
+        }
+       ],
+       "id": "f19",
+       "position": 19
+      }
+     ],
+     "joins": [
+      {
+       "path": "claim->member"
+      },
+      {
+       "path": "claim->provider"
+      }
+     ],
+     "filters": [
+      {
+       "element": "claim.claim_type",
+       "op": "EQ",
+       "value": "MEDICAL"
+      },
+      {
+       "element": "claim.primary_dx",
+       "op": "STARTS_WITH",
+       "value": "F"
+      }
+     ],
+     "sort": [
+      {
+       "element": "claim.paid_date",
+       "direction": "ASC"
+      },
+      {
+       "element": "claim.claim_id",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "INCREMENTAL",
+      "watermarkElements": [
+       "claim.last_updated_ts"
+      ],
+      "lagMinutes": 60,
+      "initialWatermark": "2026-04-01"
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": "|",
+      "quoteMode": "NONE",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "txt"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-02-10T09:00:00",
+    "createdBy": "Priya Okafor",
+    "updatedAt": "2026-02-10T09:00:00",
+    "changeNote": "Initial layout",
+    "productionConfig": {
+     "fileName": {
+      "pattern": "{VENDOR}_BH_CLAIMS_{DATE:yyyyMMdd}.txt",
+      "dateSource": "BUSINESS_DATE"
+     },
+     "compression": "NONE",
+     "pgpBy": "AXWAY",
+     "schedule": {
+      "preset": "DAILY",
+      "time": "03:00",
+      "timezone": "America/Chicago",
+      "cron": "",
+      "calendar": "plan-2026",
+      "holidayPolicy": "NEXT_BUSINESS_DAY",
+      "misfire": "RUN_ONCE",
+      "enabled": true,
+      "dayOfWeek": "MON",
+      "dayOfMonth": 1
+     },
+     "delivery": {
+      "route": "PROD",
+      "zeroRowPolicy": "SEND_EMPTY",
+      "retries": 3,
+      "backoffSeconds": 300,
+      "controlFile": true
+     },
+     "quality": {
+      "enabled": true,
+      "rowCountVariancePct": 40,
+      "nullRateMaxPct": 40,
+      "lookupMissMax": 0,
+      "holdOnBreach": true
+     },
+     "notifications": {
+      "onFailure": [
+       "mft-ops@plan.example",
+       "vendor-data@plan.example"
+      ],
+      "onHold": [
+       "vendor-data@plan.example"
+      ],
+      "onDelivered": [],
+      "onSlaMissed": [
+       "mft-ops@plan.example"
+      ]
+     },
+     "sla": {
+      "deliverBy": "06:30",
+      "note": null
+     },
+     "initialWatermark": null
+    },
+    "approvalRequestedBy": "Priya Okafor",
+    "approvalRequestedAt": "2026-02-20T09:00:00",
+    "approvedBy": "Dev Patel",
+    "approvedAt": "2026-02-24T09:00:00",
+    "productionizedAt": "2026-02-25T08:00:00",
+    "productionizedBy": "Morgan Chen",
+    "schedulePaused": false
+   }
+  ]
+ },
+ {
+  "id": "d-cascade-provider",
+  "slug": "cascade-provider-directory",
+  "name": "Cascade Health provider directory",
+  "vendorCode": "CASCADE",
+  "subjectArea": "PROVIDER",
+  "grain": "provider",
+  "description": "Fixed-width in-network provider directory for the printed and online directory vendor.",
+  "template": false,
+  "owner": "Morgan Chen",
+  "createdAt": "2026-09-17T09:00:00",
+  "createdBy": "Morgan Chen",
+  "updatedAt": "2026-09-18T15:40:00",
+  "versions": [
+   {
+    "versionNo": 1,
+    "status": "DRAFT",
+    "spec": {
+     "fields": [
+      {
+       "header": "NPI",
+       "inputs": [
+        {
+         "element": "provider.npi",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "width": 10,
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "TYPE",
+       "inputs": [
+        {
+         "element": "provider.provider_type",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "width": 3,
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "NAME",
+       "inputs": [
+        {
+         "element": "provider.org_name",
+         "rules": []
+        },
+        {
+         "element": "provider.last_name",
+         "rules": []
+        },
+        {
+         "element": "provider.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "width": 60,
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "TAXONOMY",
+       "inputs": [
+        {
+         "element": "provider.primary_taxonomy",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "width": 10,
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "SPECIALTY",
+       "inputs": [
+        {
+         "element": "provider.primary_taxonomy",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "taxonomy",
+          "returnColumn": "description",
+          "onMiss": "BLANK"
+         }
+        }
+       ],
+       "width": 40,
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "ADDRESS",
+       "inputs": [
+        {
+         "element": "provider.practice_address",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "width": 40,
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "CITY",
+       "inputs": [
+        {
+         "element": "provider.practice_city",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "width": 25,
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "STATE",
+       "inputs": [
+        {
+         "element": "provider.practice_state",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "width": 2,
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "ZIP",
+       "inputs": [
+        {
+         "element": "provider.practice_zip",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "width": 5,
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "PHONE",
+       "inputs": [
+        {
+         "element": "provider.phone",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "strip": "NON_DIGITS"
+         }
+        }
+       ],
+       "width": 10,
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "ACCEPTING",
+       "inputs": [
+        {
+         "element": "provider.accepting_new_patients",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "booleanStyle": "YN"
+         }
+        }
+       ],
+       "width": 1,
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "EFF_DATE",
+       "inputs": [
+        {
+         "element": "provider.effective_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      }
+     ],
+     "joins": [],
+     "filters": [
+      {
+       "template": "provider.in_network_now",
+       "params": {}
+      }
+     ],
+     "sort": [
+      {
+       "element": "provider.last_name",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "FULL",
+      "watermarkElements": [],
+      "lagMinutes": 15
+     },
+     "fileFormat": {
+      "type": "FIXED_WIDTH",
+      "delimiter": "|",
+      "quoteMode": "NONE",
+      "headerRow": false,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "dat"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-09-17T09:00:00",
+    "createdBy": "Morgan Chen",
+    "updatedAt": "2026-09-17T09:00:00",
+    "changeNote": "Started from the Provider directory template"
+   }
+  ]
+ },
+ {
+  "id": "d-summit-elig",
+  "slug": "summitcm-eligibility",
+  "name": "Summit Care Mgmt eligibility",
+  "vendorCode": "SUMMITCM",
+  "subjectArea": "MEMBER",
+  "grain": "member",
+  "description": "Eligibility feed for the former care management vendor. Contract ended August 2026.",
+  "template": false,
+  "owner": "Morgan Chen",
+  "createdAt": "2025-11-03T09:00:00",
+  "createdBy": "Morgan Chen",
+  "updatedAt": "2026-08-30T09:00:00",
+  "versions": [
+   {
+    "versionNo": 1,
+    "status": "RETIRED",
+    "spec": {
+     "fields": [
+      {
+       "header": "VENDOR_MEMBER_ID",
+       "inputs": [
+        {
+         "element": "member.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "acme_member",
+          "onMiss": "FAIL"
+         }
+        },
+        {
+         "type": "CONCAT",
+         "params": {
+          "template": "ACM{1}"
+         }
+        }
+       ],
+       "maxLength": 12,
+       "description": "Acme's own member number, from the crosswalk, prefixed ACM",
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "SUBSCRIBER_ID",
+       "inputs": [
+        {
+         "element": "member.subscriber_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "MEMBER_NAME",
+       "inputs": [
+        {
+         "element": "member.last_name",
+         "rules": []
+        },
+        {
+         "element": "member.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER",
+          "trim": "COLLAPSE",
+          "asciiOnly": true
+         }
+        }
+       ],
+       "combiner": {
+        "type": "CONCAT",
+        "params": {
+         "template": "{1}, {2}",
+         "skipBlank": true
+        }
+       },
+       "maxLength": 40,
+       "onOverflow": "TRUNCATE",
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "DOB",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "GENDER",
+       "inputs": [
+        {
+         "element": "member.gender_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "MAP_VALUES",
+         "params": {
+          "map": {
+           "M": "1",
+           "F": "2"
+          },
+          "defaultValue": "0",
+          "caseInsensitive": true
+         }
+        }
+       ],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "EFF_DATE",
+       "inputs": [
+        {
+         "element": "coverage.effective_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "TERM_DATE",
+       "inputs": [
+        {
+         "element": "coverage.term_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "defaultValue": "9999-12-31",
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "PLAN_CODE",
+       "inputs": [
+        {
+         "element": "coverage.plan_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "GROUP_NBR",
+       "inputs": [
+        {
+         "element": "member.group_number",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CONCAT",
+         "params": {
+          "template": "GRP-{1}"
+         }
+        }
+       ],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "ZIP5",
+       "inputs": [
+        {
+         "element": "member.zip",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "SUBSTRING",
+         "params": {
+          "mode": "POSITION",
+          "start": 1,
+          "length": 5
+         }
+        }
+       ],
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "FILE_TYPE",
+       "inputs": [],
+       "rules": [
+        {
+         "type": "CONSTANT",
+         "params": {
+          "token": "LITERAL",
+          "value": "ELIG"
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      }
+     ],
+     "joins": [
+      {
+       "path": "member->coverage",
+       "select": "CURRENT_AS_OF_RUN_DATE"
+      }
+     ],
+     "filters": [
+      {
+       "element": "coverage.plan_code",
+       "op": "IN",
+       "value": [
+        "DENT01",
+        "DENT02"
+       ]
+      },
+      {
+       "template": "member.active_or_pending",
+       "params": {}
+      },
+      {
+       "template": "coverage.active_as_of",
+       "params": {
+        "asOfDate": {
+         "kind": "TOKEN",
+         "token": "RUN_DATE"
+        }
+       }
+      }
+     ],
+     "sort": [
+      {
+       "element": "member.subscriber_id",
+       "direction": "ASC"
+      },
+      {
+       "element": "member.relationship_code",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "INCREMENTAL",
+      "watermarkElements": [
+       "member.last_updated_ts",
+       "coverage.last_updated_ts"
+      ],
+      "lagMinutes": 120,
+      "initialWatermark": "2026-06-01"
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": "|",
+      "quoteMode": "NONE",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "txt",
+      "trailerRecord": "T|{RECORD_COUNT}"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2025-11-03T09:00:00",
+    "createdBy": "Morgan Chen",
+    "updatedAt": "2025-11-03T09:00:00",
+    "changeNote": "Initial layout",
+    "productionConfig": {
+     "fileName": {
+      "pattern": "{VENDOR}_ELIG_{DATE:yyyyMMdd}.txt",
+      "dateSource": "BUSINESS_DATE"
+     },
+     "compression": "NONE",
+     "pgpBy": "AXWAY",
+     "schedule": {
+      "preset": "WEEKDAYS",
+      "time": "02:00",
+      "timezone": "America/Chicago",
+      "cron": "",
+      "calendar": "plan-2026",
+      "holidayPolicy": "NEXT_BUSINESS_DAY",
+      "misfire": "RUN_ONCE",
+      "enabled": true,
+      "dayOfWeek": "MON",
+      "dayOfMonth": 1
+     },
+     "delivery": {
+      "route": "PROD",
+      "zeroRowPolicy": "SEND_EMPTY",
+      "retries": 3,
+      "backoffSeconds": 300,
+      "controlFile": true
+     },
+     "quality": {
+      "enabled": true,
+      "rowCountVariancePct": 25,
+      "nullRateMaxPct": 40,
+      "lookupMissMax": 0,
+      "holdOnBreach": true
+     },
+     "notifications": {
+      "onFailure": [
+       "mft-ops@plan.example",
+       "vendor-data@plan.example"
+      ],
+      "onHold": [
+       "vendor-data@plan.example"
+      ],
+      "onDelivered": [],
+      "onSlaMissed": [
+       "mft-ops@plan.example"
+      ]
+     },
+     "sla": {
+      "deliverBy": "07:00",
+      "note": null
+     },
+     "initialWatermark": null
+    },
+    "approvedBy": "Dev Patel",
+    "approvedAt": "2025-11-12T09:00:00",
+    "productionizedAt": "2025-11-13T09:00:00",
+    "productionizedBy": "Morgan Chen",
+    "retiredAt": "2026-08-30T09:00:00",
+    "retiredReason": "Contract ended"
+   }
+  ]
+ },
+ {
+  "id": "t-834-eligibility",
+  "slug": "template-834-eligibility",
+  "name": "834-style eligibility",
+  "vendorCode": "TEMPLATE",
+  "subjectArea": "MEMBER",
+  "grain": "member",
+  "description": "Starter layout for a member eligibility feed: identifiers, name, DOB, gender, relationship, current coverage span and plan. Incremental on member and coverage changes.",
+  "template": true,
+  "owner": "Morgan Chen",
+  "createdAt": "2026-01-15T09:00:00",
+  "createdBy": "Morgan Chen",
+  "updatedAt": "2026-01-15T09:00:00",
+  "versions": [
+   {
+    "versionNo": 1,
+    "status": "DRAFT",
+    "spec": {
+     "fields": [
+      {
+       "header": "VENDOR_MEMBER_ID",
+       "inputs": [
+        {
+         "element": "member.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "maxLength": 12,
+       "description": "Acme's own member number, from the crosswalk, prefixed ACM",
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "SUBSCRIBER_ID",
+       "inputs": [
+        {
+         "element": "member.subscriber_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "MEMBER_NAME",
+       "inputs": [
+        {
+         "element": "member.last_name",
+         "rules": []
+        },
+        {
+         "element": "member.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER",
+          "trim": "COLLAPSE",
+          "asciiOnly": true
+         }
+        }
+       ],
+       "combiner": {
+        "type": "CONCAT",
+        "params": {
+         "template": "{1}, {2}",
+         "skipBlank": true
+        }
+       },
+       "maxLength": 40,
+       "onOverflow": "TRUNCATE",
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "DOB",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "GENDER",
+       "inputs": [
+        {
+         "element": "member.gender_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "MAP_VALUES",
+         "params": {
+          "map": {
+           "M": "1",
+           "F": "2"
+          },
+          "defaultValue": "0",
+          "caseInsensitive": true
+         }
+        }
+       ],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "RELATIONSHIP",
+       "inputs": [
+        {
+         "element": "member.relationship_code",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CONDITIONAL",
+         "params": {
+          "rules": [
+           {
+            "conditions": [
+             {
+              "compare": "CURRENT",
+              "op": "EQ",
+              "values": [
+               "18"
+              ]
+             }
+            ],
+            "match": "ALL",
+            "thenKind": "CONSTANT",
+            "thenValue": "SELF"
+           },
+           {
+            "conditions": [
+             {
+              "compare": "CURRENT",
+              "op": "EQ",
+              "values": [
+               "01"
+              ]
+             }
+            ],
+            "match": "ALL",
+            "thenKind": "CONSTANT",
+            "thenValue": "SPOUSE"
+           }
+          ],
+          "elseKind": "CONSTANT",
+          "elseValue": "DEP"
+         }
+        }
+       ],
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "EFF_DATE",
+       "inputs": [
+        {
+         "element": "coverage.effective_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "TERM_DATE",
+       "inputs": [
+        {
+         "element": "coverage.term_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "MM/dd/yyyy"
+         }
+        }
+       ],
+       "defaultValue": "9999-12-31",
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "PLAN_CODE",
+       "inputs": [
+        {
+         "element": "coverage.plan_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "GROUP_NBR",
+       "inputs": [
+        {
+         "element": "member.group_number",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CONCAT",
+         "params": {
+          "template": "GRP-{1}"
+         }
+        }
+       ],
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "ZIP5",
+       "inputs": [
+        {
+         "element": "member.zip",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "SUBSTRING",
+         "params": {
+          "mode": "POSITION",
+          "start": 1,
+          "length": 5
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "FILE_TYPE",
+       "inputs": [],
+       "rules": [
+        {
+         "type": "CONSTANT",
+         "params": {
+          "token": "LITERAL",
+          "value": "ELIG"
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      }
+     ],
+     "joins": [
+      {
+       "path": "member->coverage",
+       "select": "CURRENT_AS_OF_RUN_DATE"
+      }
+     ],
+     "filters": [
+      {
+       "template": "member.active_or_pending",
+       "params": {}
+      },
+      {
+       "template": "coverage.active_as_of",
+       "params": {
+        "asOfDate": {
+         "kind": "TOKEN",
+         "token": "RUN_DATE"
+        }
+       }
+      }
+     ],
+     "sort": [
+      {
+       "element": "member.subscriber_id",
+       "direction": "ASC"
+      },
+      {
+       "element": "member.relationship_code",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "INCREMENTAL",
+      "watermarkElements": [
+       "member.last_updated_ts",
+       "coverage.last_updated_ts"
+      ],
+      "lagMinutes": 120,
+      "initialWatermark": "2026-06-01"
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": "|",
+      "quoteMode": "NONE",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "txt",
+      "trailerRecord": "T|{RECORD_COUNT}"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-01-15T09:00:00",
+    "createdBy": "Morgan Chen",
+    "updatedAt": "2026-01-15T09:00:00"
+   }
+  ]
+ },
+ {
+  "id": "t-claims-line",
+  "slug": "template-claims-line-detail",
+  "name": "Claims line detail",
+  "vendorCode": "TEMPLATE",
+  "subjectArea": "CLAIM",
+  "grain": "claim_line",
+  "description": "Starter layout for paid claims at line level with member and rendering provider, header and trailer records.",
+  "template": true,
+  "owner": "Morgan Chen",
+  "createdAt": "2026-01-15T09:00:00",
+  "createdBy": "Morgan Chen",
+  "updatedAt": "2026-01-15T09:00:00",
+  "versions": [
+   {
+    "versionNo": 1,
+    "status": "DRAFT",
+    "spec": {
+     "fields": [
+      {
+       "header": "CLAIM_NO",
+       "inputs": [
+        {
+         "element": "claim_line.claim_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "LINE",
+       "inputs": [
+        {
+         "element": "claim_line.line_number",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 0,
+          "leadingZeros": 3
+         }
+        }
+       ],
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "MEMBER_ID",
+       "inputs": [
+        {
+         "element": "claim.member_id",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "MEMBER_LAST",
+       "inputs": [
+        {
+         "element": "member.last_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER"
+         }
+        }
+       ],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "MEMBER_FIRST",
+       "inputs": [
+        {
+         "element": "member.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "textCase": "UPPER"
+         }
+        }
+       ],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "MEMBER_DOB",
+       "inputs": [
+        {
+         "element": "member.birth_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "DOS",
+       "inputs": [
+        {
+         "element": "claim_line.service_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "PROC_CODE",
+       "inputs": [
+        {
+         "element": "claim_line.procedure_code",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "MODIFIER",
+       "inputs": [
+        {
+         "element": "claim_line.modifier",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "UNITS",
+       "inputs": [
+        {
+         "element": "claim_line.units",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 0
+         }
+        }
+       ],
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "BILLED",
+       "inputs": [
+        {
+         "element": "claim_line.billed_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "ALLOWED",
+       "inputs": [
+        {
+         "element": "claim_line.allowed_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      },
+      {
+       "header": "PAID",
+       "inputs": [
+        {
+         "element": "claim_line.paid_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f13",
+       "position": 13
+      },
+      {
+       "header": "PATIENT_RESP",
+       "inputs": [
+        {
+         "element": "claim_line.allowed_amount",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "ARITHMETIC",
+         "params": {
+          "op": "SUBTRACT",
+          "operandKind": "ELEMENT",
+          "operandElement": "claim_line.paid_amount",
+          "scale": 2
+         }
+        },
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "decimals": 2
+         }
+        }
+       ],
+       "id": "f14",
+       "position": 14
+      },
+      {
+       "header": "LINE_STATUS",
+       "inputs": [
+        {
+         "element": "claim_line.line_status",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f15",
+       "position": 15
+      },
+      {
+       "header": "POS",
+       "inputs": [
+        {
+         "element": "claim_line.place_of_service",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f16",
+       "position": 16
+      },
+      {
+       "header": "DX1",
+       "inputs": [
+        {
+         "element": "claim.primary_dx",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "find": ".",
+          "replaceWith": ""
+         }
+        }
+       ],
+       "id": "f17",
+       "position": 17
+      },
+      {
+       "header": "RENDERING_NPI",
+       "inputs": [
+        {
+         "element": "claim.rendering_npi",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f18",
+       "position": 18
+      },
+      {
+       "header": "PROVIDER_NAME",
+       "inputs": [
+        {
+         "element": "provider.org_name",
+         "rules": []
+        },
+        {
+         "element": "provider.last_name",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "combiner": {
+        "type": "COALESCE",
+        "params": {
+         "treatBlankAsNull": true
+        }
+       },
+       "maxLength": 50,
+       "id": "f19",
+       "position": 19
+      },
+      {
+       "header": "CLAIM_STATUS",
+       "inputs": [
+        {
+         "element": "claim.claim_status",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f20",
+       "position": 20
+      },
+      {
+       "header": "PAID_DATE",
+       "inputs": [
+        {
+         "element": "claim.paid_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f21",
+       "position": 21
+      }
+     ],
+     "joins": [
+      {
+       "path": "claim_line->claim"
+      },
+      {
+       "path": "claim_line->member"
+      },
+      {
+       "path": "claim_line->provider"
+      }
+     ],
+     "filters": [
+      {
+       "element": "claim.claim_status",
+       "op": "IN",
+       "value": [
+        "PAID",
+        "ADJUSTED"
+       ]
+      },
+      {
+       "template": "claim.paid_in_last_days",
+       "params": {
+        "days": 30
+       }
+      }
+     ],
+     "sort": [
+      {
+       "element": "claim_line.claim_id",
+       "direction": "ASC"
+      },
+      {
+       "element": "claim_line.line_number",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "FULL",
+      "watermarkElements": [],
+      "lagMinutes": 15
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": "|",
+      "quoteMode": "NONE",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "txt",
+      "trailerRecord": "T|{RECORD_COUNT}|{SUM:PAID}"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-01-15T09:00:00",
+    "createdBy": "Morgan Chen",
+    "updatedAt": "2026-01-15T09:00:00"
+   }
+  ]
+ },
+ {
+  "id": "t-provider-directory",
+  "slug": "template-provider-directory",
+  "name": "Provider directory",
+  "vendorCode": "TEMPLATE",
+  "subjectArea": "PROVIDER",
+  "grain": "provider",
+  "description": "Starter layout for an in-network provider directory with specialty description and practice location.",
+  "template": true,
+  "owner": "Morgan Chen",
+  "createdAt": "2026-01-15T09:00:00",
+  "createdBy": "Morgan Chen",
+  "updatedAt": "2026-01-15T09:00:00",
+  "versions": [
+   {
+    "versionNo": 1,
+    "status": "DRAFT",
+    "spec": {
+     "fields": [
+      {
+       "header": "NPI",
+       "inputs": [
+        {
+         "element": "provider.npi",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f1",
+       "position": 1
+      },
+      {
+       "header": "TYPE",
+       "inputs": [
+        {
+         "element": "provider.provider_type",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f2",
+       "position": 2
+      },
+      {
+       "header": "NAME",
+       "inputs": [
+        {
+         "element": "provider.org_name",
+         "rules": []
+        },
+        {
+         "element": "provider.last_name",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "combiner": {
+        "type": "COALESCE",
+        "params": {
+         "treatBlankAsNull": true
+        }
+       },
+       "maxLength": 60,
+       "id": "f3",
+       "position": 3
+      },
+      {
+       "header": "FIRST_NAME",
+       "inputs": [
+        {
+         "element": "provider.first_name",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f4",
+       "position": 4
+      },
+      {
+       "header": "TAXONOMY",
+       "inputs": [
+        {
+         "element": "provider.primary_taxonomy",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f5",
+       "position": 5
+      },
+      {
+       "header": "SPECIALTY",
+       "inputs": [
+        {
+         "element": "provider.primary_taxonomy",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "LOOKUP",
+         "params": {
+          "lookup": "taxonomy",
+          "returnColumn": "description",
+          "onMiss": "BLANK"
+         }
+        }
+       ],
+       "id": "f6",
+       "position": 6
+      },
+      {
+       "header": "ADDRESS",
+       "inputs": [
+        {
+         "element": "provider.practice_address",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f7",
+       "position": 7
+      },
+      {
+       "header": "CITY",
+       "inputs": [
+        {
+         "element": "provider.practice_city",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f8",
+       "position": 8
+      },
+      {
+       "header": "STATE",
+       "inputs": [
+        {
+         "element": "provider.practice_state",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f9",
+       "position": 9
+      },
+      {
+       "header": "ZIP",
+       "inputs": [
+        {
+         "element": "provider.practice_zip",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f10",
+       "position": 10
+      },
+      {
+       "header": "PHONE",
+       "inputs": [
+        {
+         "element": "provider.phone",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "CLEAN_TEXT",
+         "params": {
+          "strip": "NON_DIGITS"
+         }
+        }
+       ],
+       "id": "f11",
+       "position": 11
+      },
+      {
+       "header": "ACCEPTING_NEW",
+       "inputs": [
+        {
+         "element": "provider.accepting_new_patients",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_NUMBER",
+         "params": {
+          "booleanStyle": "YN"
+         }
+        }
+       ],
+       "id": "f12",
+       "position": 12
+      },
+      {
+       "header": "NETWORK",
+       "inputs": [
+        {
+         "element": "provider.network_status",
+         "rules": []
+        }
+       ],
+       "rules": [],
+       "id": "f13",
+       "position": 13
+      },
+      {
+       "header": "EFF_DATE",
+       "inputs": [
+        {
+         "element": "provider.effective_date",
+         "rules": []
+        }
+       ],
+       "rules": [
+        {
+         "type": "FORMAT_DATE",
+         "params": {
+          "pattern": "yyyyMMdd"
+         }
+        }
+       ],
+       "id": "f14",
+       "position": 14
+      }
+     ],
+     "joins": [],
+     "filters": [
+      {
+       "template": "provider.in_network_now",
+       "params": {}
+      }
+     ],
+     "sort": [
+      {
+       "element": "provider.last_name",
+       "direction": "ASC"
+      },
+      {
+       "element": "provider.org_name",
+       "direction": "ASC"
+      }
+     ],
+     "scope": {
+      "mode": "FULL",
+      "watermarkElements": [],
+      "lagMinutes": 15
+     },
+     "fileFormat": {
+      "type": "DELIMITED",
+      "delimiter": "|",
+      "quoteMode": "NONE",
+      "headerRow": true,
+      "lineEnding": "CRLF",
+      "encoding": "UTF-8",
+      "nullText": "",
+      "delimiterInValue": "STRIP",
+      "extension": "txt"
+     },
+     "sample": {
+      "maxRows": 200,
+      "cohort": [],
+      "synthetic": false
+     }
+    },
+    "createdAt": "2026-01-15T09:00:00",
+    "createdBy": "Morgan Chen",
+    "updatedAt": "2026-01-15T09:00:00"
+   }
+  ]
+ }
+]

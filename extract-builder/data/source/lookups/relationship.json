@@ -1,0 +1,17 @@
+[
+ {
+  "code": "18",
+  "description": "Self",
+  "vendor_code_834": "18"
+ },
+ {
+  "code": "01",
+  "description": "Spouse",
+  "vendor_code_834": "01"
+ },
+ {
+  "code": "19",
+  "description": "Child",
+  "vendor_code_834": "19"
+ }
+]

@@ -1,0 +1,1040 @@
+[
+ {
+  "npi": "7752275611",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4874463738",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4874463738",
+  "taxonomy_code": "363L00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "5614656358",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "6666376044",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "6666376044",
+  "taxonomy_code": "282N00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "6405324230",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4527270324",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "3004752499",
+  "taxonomy_code": "208000000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3004752499",
+  "taxonomy_code": "208000000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "6029783431",
+  "taxonomy_code": "152W00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "2581512573",
+  "taxonomy_code": "208000000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "2581512573",
+  "taxonomy_code": "363L00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "8968002484",
+  "taxonomy_code": "207R00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "8968002484",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "3443591458",
+  "taxonomy_code": "103T00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "3443591458",
+  "taxonomy_code": "207R00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "6461934542",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3151357068",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "4072821984",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "7306412637",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3902403237",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "4392432561",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "4392432561",
+  "taxonomy_code": "152W00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "3603720889",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3914144159",
+  "taxonomy_code": "152W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "5756974171",
+  "taxonomy_code": "207R00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3521586966",
+  "taxonomy_code": "152W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "8396735325",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "8396735325",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "4525260475",
+  "taxonomy_code": "103T00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "4525260475",
+  "taxonomy_code": "363L00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "7675837240",
+  "taxonomy_code": "152W00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "3793793886",
+  "taxonomy_code": "207R00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3793793886",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "1471701031",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "5033395703",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3134795632",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "4507237632",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "4507237632",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "6172817093",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "6172817093",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "2823109618",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "8741112238",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "8741112238",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "9016701507",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "9016701507",
+  "taxonomy_code": "208000000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "1503050886",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "1503050886",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "7685306939",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "7685306939",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "1680489360",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "1680489360",
+  "taxonomy_code": "207R00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "4377681075",
+  "taxonomy_code": "208000000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4377681075",
+  "taxonomy_code": "207R00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "7528146476",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "7528146476",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "3634131940",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "1478056405",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "5870005423",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "5870005423",
+  "taxonomy_code": "208000000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "3532967932",
+  "taxonomy_code": "103T00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "7528062376",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "7528062376",
+  "taxonomy_code": "103T00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "2242103416",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "6504256739",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "7929360924",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4243700307",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "1412773768",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "1412773768",
+  "taxonomy_code": "207R00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "8064821035",
+  "taxonomy_code": "152W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "9287702622",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "5995423386",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1873474120",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "8214772070",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "8214772070",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "3506050301",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1557460627",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "6590898022",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "6100619942",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "6100619942",
+  "taxonomy_code": "208000000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "6294628162",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "7279681986",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "7279681986",
+  "taxonomy_code": "282N00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "9948184459",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1140320825",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1140320825",
+  "taxonomy_code": "152W00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "1312974326",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1192963977",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1666920032",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3274668979",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1337647949",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "9754250477",
+  "taxonomy_code": "207R00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1973392362",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1973392362",
+  "taxonomy_code": "282N00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "4252850316",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4252850316",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "5843692232",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "5843692232",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "6221029542",
+  "taxonomy_code": "152W00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "6221029542",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "9327474950",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "9327474950",
+  "taxonomy_code": "208000000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "4238742678",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "4570570604",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4570570604",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "6260228484",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "2773230117",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "2773230117",
+  "taxonomy_code": "207W00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "8039502215",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "8039502215",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "4072226556",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4072226556",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "9429425157",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "2981189238",
+  "taxonomy_code": "152W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "2981189238",
+  "taxonomy_code": "363L00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "8238807647",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "8238807647",
+  "taxonomy_code": "282N00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "5996231085",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "9592111840",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "4203954308",
+  "taxonomy_code": "103T00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1454233705",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1454233705",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "2726760129",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3076833979",
+  "taxonomy_code": "208000000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3956784607",
+  "taxonomy_code": "152W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3956784607",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "4923376758",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "6721466160",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "3781486857",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "5353613834",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "5353613834",
+  "taxonomy_code": "282N00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "7733784368",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "7733784368",
+  "taxonomy_code": "207W00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "5103730078",
+  "taxonomy_code": "152W00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "5103730078",
+  "taxonomy_code": "363L00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "1652949409",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1874331592",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "3092849041",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "8786413186",
+  "taxonomy_code": "207R00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "4678434174",
+  "taxonomy_code": "208000000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4678434174",
+  "taxonomy_code": "208000000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "5321151685",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "6495361951",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "5013059253",
+  "taxonomy_code": "208000000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "5013059253",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "5497326681",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "9037218051",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "8952708658",
+  "taxonomy_code": "207Q00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "6523684283",
+  "taxonomy_code": "103T00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "6523684283",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "3162100747",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "3162100747",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "5190435227",
+  "taxonomy_code": "103T00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "5190435227",
+  "taxonomy_code": "103T00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "7938283471",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "7938283471",
+  "taxonomy_code": "207W00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "3797590536",
+  "taxonomy_code": "208000000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "5607842643",
+  "taxonomy_code": "208000000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "5607842643",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "2470719685",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "2470719685",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "4163144601",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "4163144601",
+  "taxonomy_code": "103T00000X",
+  "is_primary": false,
+  "board_certified": false
+ },
+ {
+  "npi": "3885384099",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "3885384099",
+  "taxonomy_code": "152W00000X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "1100738750",
+  "taxonomy_code": "1223G0001X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "1100738750",
+  "taxonomy_code": "1223P0221X",
+  "is_primary": false,
+  "board_certified": true
+ },
+ {
+  "npi": "6119524356",
+  "taxonomy_code": "282N00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "9369235939",
+  "taxonomy_code": "363L00000X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "3100542745",
+  "taxonomy_code": "2084P0800X",
+  "is_primary": true,
+  "board_certified": true
+ },
+ {
+  "npi": "8484996862",
+  "taxonomy_code": "261QU0200X",
+  "is_primary": true,
+  "board_certified": false
+ },
+ {
+  "npi": "6817065637",
+  "taxonomy_code": "207W00000X",
+  "is_primary": true,
+  "board_certified": true
+ }
+]
