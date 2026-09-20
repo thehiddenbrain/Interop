@@ -1,0 +1,45 @@
+VENDOR EXTRACT BUILDER  -  demo build
+======================================
+
+WHAT YOU NEED
+  Java 17 or newer. Check with:   java -version
+  If it is missing, install a JDK from https://adoptium.net (Temurin 17 or 21), then reopen the command window.
+
+RUN IT (Windows)
+  1. Unzip this folder anywhere, for example C:\demo\extract-builder
+  2. Double-click  run.bat
+  3. Your browser opens http://localhost:8090/ui/ after a few seconds.
+     (If it does not, open that address yourself.)
+  4. Close the black window to stop the app.
+
+RUN IT (Mac / Linux)
+  ./run.sh
+
+RUN IT FROM SPRING TOOL SUITE / ECLIPSE
+  File > Import > Gradle > Existing Gradle Project > pick this folder > Finish
+  Right-click ExtractBuilderApplication > Run As > Spring Boot App
+  (STS downloads Gradle and the libraries on the first import; allow a few minutes.)
+
+WHAT IS INSIDE
+  extract-builder.jar   the prebuilt application; run.bat / run.sh start this directly, no build needed
+  data\                 the catalog, the sample backend data and the demo seed
+  src\                  the source code (Java, Spring Boot 3, and the browser UI)
+  README.md             the walkthrough script for the demo, the feature list and how it works
+
+DEMO USERS
+  Switch users with the name in the top-right corner of the app.
+  Jordan Rivera  analyst      builds layouts, samples, requests approval
+  Dev Patel      approver     approves, releases held files, productionalizes
+  Morgan Chen    admin        partners, settings, Reset demo data
+
+THE FIVE-MINUTE STORY
+  Dashboard > Definitions > New definition > click catalog elements > click a row to add rules
+  > Preview 20 rows > Generate sample > Send to vendor test route > Request approval
+  > switch to Dev Patel > Approvals > Approve > Productionalize > Go live > Simulate tonight's run
+  > Runs (the held Bluebird file, Release) > Import a vendor spec > Compliance > Audit log
+  Full script with screens explained: README.md, section "The five-minute walkthrough".
+
+IF SOMETHING IS OFF
+  Port 8090 already in use:   java -jar extract-builder.jar --server.port=8091
+  Start over with fresh demo data:  Settings > Reset demo data (as Morgan Chen), or delete the folder data\state
+  Everything the app writes stays inside this folder (data\state, data\samples, data\mft).

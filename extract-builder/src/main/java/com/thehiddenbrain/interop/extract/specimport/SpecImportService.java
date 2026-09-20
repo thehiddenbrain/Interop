@@ -59,11 +59,11 @@ public class SpecImportService {
                 rules.add(c);
                 reason = "Reads as a constant or filler";
                 confidence = 0.7;
-            } else if (isFullName(haystack)) {
+            } else if (isFullName(l.name(), haystack)) {
                 String prefix = entityPrefixFor(haystack, subjectAreaHint);
                 inputs.add(input(prefix + ".last_name"));
                 inputs.add(input(prefix + ".first_name"));
-                combiner = new Spec.RuleSpec("CONCAT", Map.of("template", "{1}, {2}", "skipBlank", true));
+                combiner = new Spec.RuleSpec("CONCAT", Map.of("template", fullNameTemplate(haystack), "skipBlank", true));
                 rules.add(new Spec.RuleSpec("CLEAN_TEXT", Map.of("textCase", "UPPER", "trim", "COLLAPSE")));
                 reason = "A full name: last and first name combined";
                 confidence = 0.8;
@@ -131,9 +131,20 @@ public class SpecImportService {
         return "member";
     }
 
-    private static boolean isFullName(String h) {
-        return (h.contains("full name") || h.contains("member name") || h.contains("patient name") || h.contains("subscriber name") || h.contains("provider name") || h.matches(".*\\bname\\b.*"))
-                && !h.contains("first") && !h.contains("last") && !h.contains("middle") && !h.contains("plan name") && !h.contains("org") && !h.contains("group name") && !h.contains("facility") && !h.contains("practice");
+    /** A whole-person name field: "Member Name", "Full name as LAST, FIRST". Not "First name" or "Plan name". */
+    private static boolean isFullName(String fieldName, String h) {
+        String n = fieldName.toLowerCase();
+        boolean namey = n.matches(".*\\bname\\b.*") || h.contains("full name");
+        boolean explicitOrder = h.matches(".*\\blast\\b[, /]+\\bfirst\\b.*") || h.matches(".*\\bfirst\\b[, /]+\\blast\\b.*");
+        boolean partial = (n.contains("first") || n.contains("last") || n.contains("middle") || n.contains("surname") || n.contains("given")) && !h.contains("full name") && !explicitOrder;
+        boolean organisation = n.contains("plan") || n.contains("group") || n.contains("org") || n.contains("facility") || n.contains("practice") || n.contains("employer") || n.contains("company") || n.contains("file") || n.contains("vendor");
+        return namey && !partial && !organisation;
+    }
+
+    /** "FIRST LAST" in the vendor's words means first name first; the default is "LAST, FIRST". */
+    private static String fullNameTemplate(String h) {
+        if (h.matches(".*\\bfirst\\b[, /]+\\blast\\b.*")) return "{2} {1}";
+        return "{1}, {2}";
     }
 
     private static boolean isConstantLine(String h) {
@@ -237,6 +248,8 @@ public class SpecImportService {
         return out;
     }
 
+    private static final String HEADER_LABEL = "(#|no\\.?|seq(uence)?|pos(ition)?|order|field( ?name)?|name|column( ?name)?|element|attribute|desc(ription)?|definition|comment(s)?|meaning|format|type|data ?type|pattern|len(gth)?|size|width|max(imum)? ?len(gth)?|note(s)?|rule(s)?|value(s)?|valid values|required|req|mandatory|example)";
+
     /** Parse a pasted or uploaded spec: delimited with a header row, or one field per line. */
     public List<Line> parse(String text) {
         List<Line> out = new ArrayList<>();
@@ -251,8 +264,9 @@ public class SpecImportService {
             for (int i = 0; i < cells.length; i++) cells[i] = cells[i].trim().replaceAll("^\"|\"$", "");
             if (!headerSkipped) {
                 headerSkipped = true;
-                String joined = String.join(" ", cells).toLowerCase();
-                if (cells.length > 1 && (joined.contains("field") || joined.contains("name") || joined.contains("description") || joined.contains("length") || joined.contains("format"))) {
+                /* A header row is made of column labels ("Field", "Description", "Length"), not of a field's own words. */
+                long labelCells = java.util.Arrays.stream(cells).filter(c -> c.toLowerCase().matches(HEADER_LABEL)).count();
+                if (cells.length > 1 && labelCells >= 2) {
                     for (int i = 0; i < cells.length; i++) {
                         String c = cells[i].toLowerCase();
                         if (c.contains("field") || c.equals("name") || c.contains("column") || c.contains("element")) nameIdx = i;

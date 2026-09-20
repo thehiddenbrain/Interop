@@ -19,8 +19,10 @@ run.bat        Windows
 ./run.sh       Mac / Linux
 ```
 
-The script builds on first start (a few minutes), starts the app on port 8090 and opens
-http://localhost:8090/ui/ in your browser. Stop it with Ctrl+C.
+The script starts the app on port 8090 and opens http://localhost:8090/ui/ in your browser. Stop it
+with Ctrl+C. When the prebuilt `extract-builder.jar` is next to the script (it is in the demo zip)
+nothing is built; without it the script builds with the Gradle wrapper on first start, which takes
+a few minutes. `START-HERE.txt` has the same instructions in plain words.
 
 Other useful addresses:
 
