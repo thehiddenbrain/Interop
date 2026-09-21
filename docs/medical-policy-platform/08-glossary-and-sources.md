@@ -6,7 +6,7 @@
 |---|---|
 | Medical policy / MNG | The plan's written coverage criteria for a service, device, test or medical-benefit drug; "Medical Necessity Guideline" is the unified Point32Health term |
 | PA requirement / PA rule | The operational rule: whether a code, for a population, needs authorisation, by whom, through which channel, on what clock |
-| LOB | Line of business: Commercial fully insured, Commercial self-insured (ASO), Medicare Advantage, SCO, One Care, MassHealth (Tufts Health Together), RITogether, Tufts Health Direct (Marketplace), USFHP |
+| LOB | Line of business: Commercial fully insured, Commercial self-insured (ASO), Medicare Advantage, SCO, One Care, MassHealth (Tufts Health Together), RITogether, Tufts Health Direct (Marketplace) |
 | ePA | Electronic prior authorization: the CMS-0057-F Prior Authorization API implemented with the Da Vinci guides |
 | CRD | Coverage Requirements Discovery: a CDS Hooks service that tells the EHR whether coverage and PA apply and what documentation is needed |
 | DTR | Documentation Templates and Rules: FHIR questionnaires (standard or adaptive) with prepopulation logic in CQL |

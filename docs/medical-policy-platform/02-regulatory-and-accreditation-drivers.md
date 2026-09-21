@@ -4,7 +4,7 @@ This section inventories every legal, regulatory and accreditation requirement t
 
 **Confidence tags.** Primary-source sites (eCFR, Federal Register, CMS, mass.gov, malegislature.gov, NCQA, state legislatures) could not be fetched from the research environment, so citations were confirmed from excerpts returned by search engines or from secondary sources. **[V]** = wording or date confirmed from a primary-source excerpt; **[S]** = confirmed only through a secondary source (law firm alert, trade press, CMS fact sheet); **[K]** = analyst knowledge through mid-2026, not re-verified; **[U]** = section number or provision could not be verified. Before any item tagged [K] or [U] is used as a compliance citation, Compliance should pull the primary text. Nothing here invents a statute section; where a section could not be pinned, it says so.
 
-## 2.1 Medicare Advantage (Tufts Medicare Preferred, Harvard Pilgrim Stride, SCO and One Care as dual-eligible products)
+## 2.1 Medicare Advantage (Tufts Medicare Preferred, SCO and One Care as dual-eligible products)
 
 **Internal coverage criteria, 42 CFR 422.101(b)(6)** (CMS-4201-F, effective 1 January 2024) [V]. An MA organisation must follow Medicare NCDs, LCDs and general coverage rules. Only where criteria are "not fully established" may it create **publicly accessible internal coverage criteria based on current evidence in widely used treatment guidelines or clinical literature**; it must make the criteria publicly available, summarise the evidence and sources, and explain the rationale; clinical benefit must outweigh harm. CMS's HPMS FAQ of 6 February 2024 says "publicly accessible" means on a website (the plan's or a delegated vendor's) and **not behind a paywall or subscription** [V via republished memo]. Consequence: licensed criteria (InterQual, MCG) may be applied to MA only if the specific criteria actually applied are posted publicly with the evidence summary; holding the licence is not enough [S]. The same FAQ says an algorithm or AI tool that decides on population data rather than the individual's history, physician recommendation and notes is not compliant with 422.101(c) [V].
 
@@ -118,7 +118,7 @@ The schema must hold **jurisdiction overlays** (timeframes, notice periods, exem
 
 | ID | Derived platform requirement | Source | Conf. |
 |---|---|---|---|
-| R01 | LOB applicability flags per policy with per-LOB variants (MA, SCO/One Care, MassHealth, RITogether, Connector QHP, Commercial FI, Commercial ASO, USFHP). | 422.101; 438.210; c.176O; ERISA | V/K |
+| R01 | LOB applicability flags per policy with per-LOB variants (MA, SCO/One Care, MassHealth, RITogether, Connector QHP, Commercial FI, Commercial ASO). | 422.101; 438.210; c.176O; ERISA | V/K |
 | R02 | MA policies record the Medicare source basis: statute/regulation, NCD id, LCD/Article id and MAC, or "not fully established" justification. | 42 CFR 422.101(b)(6) | V |
 | R03 | MA internal criteria published on a public, non-paywalled page with criteria text, evidence summary, sources and rationale. | 422.101(b)(6); HPMS FAQ 6 Feb 2024 | V |
 | R04 | Ingest the Medicare Coverage Database (NCD/LCD/Article) and record the snapshot reviewed at each policy review. | 422.101(b)(2)-(3); 422.137(c) | V/K |

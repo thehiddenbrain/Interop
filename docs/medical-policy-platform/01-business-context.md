@@ -17,12 +17,11 @@ The reason the organisation needs it now is simple to state: the same policy con
 | Brand | Line of business | Regulatory regime that shapes policy content | Notes |
 |---|---|---|---|
 | Harvard Pilgrim Health Care | Commercial fully insured (MA, NH, ME, CT, RI) and self-insured/ASO | State insurance law of the situs state (211 CMR 52 in Massachusetts; NH, ME, CT, RI statutes), ERISA claims rules for ASO, ACA claims/appeals, MHPAEA | Tufts Health Plan commercial groups migrated onto Harvard Pilgrim products through mid-2025; a residual THP Commercial population still appears in 2026 guideline notices |
-| Harvard Pilgrim (Stride) and Tufts Health Plan (Tufts Medicare Preferred) | Medicare Advantage (HMO/PPO) | 42 CFR Part 422 (coverage criteria, UM committee, decision timeframes), NCD/LCD precedence, CMS-0057-F APIs | Internal criteria only where Medicare rules are not fully established, publicly accessible with evidence |
+| Tufts Health Plan (Tufts Medicare Preferred) | Medicare Advantage (HMO/PPO) | 42 CFR Part 422 (coverage criteria, UM committee, decision timeframes), NCD/LCD precedence, CMS-0057-F APIs | Internal criteria only where Medicare rules are not fully established, publicly accessible with evidence |
 | Tufts Health Plan | Senior Care Options (SCO) and One Care | Medicare Advantage rules plus MassHealth contract | Dual-eligible programmes; both regimes apply |
 | Tufts Health Public Plans | Tufts Health Together (MassHealth MCO/ACO partnerships) | 42 CFR Part 438, MassHealth contract and bulletins (including the MassHealth interoperability/PA bulletin), MassHealth Unified Formulary | State medical necessity guidelines and formulary take precedence |
 | Tufts Health Public Plans | Tufts Health RITogether (Rhode Island Medicaid) | 42 CFR Part 438, RI EOHHS contract | Separate state guideline set |
 | Tufts Health Public Plans | Tufts Health Direct (Marketplace/ConnectorCare QHP) | ACA/QHP rules, Massachusetts Connector, 211 CMR 52, CMS-0057-F for QHPs on the federally facilitated exchange does not apply to the Massachusetts state exchange but state law does | Listed separately in every Point32Health notice |
-| Both | US Family Health Plan | TRICARE rules | Excluded from most commercial migrations; keep as an applicability value |
 
 Every requirement in section 4 that says "per LOB" is because at least two of these regimes give a different answer for the same code.
 
