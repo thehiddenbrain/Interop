@@ -1,17 +1,13 @@
 # Member Profile Service – Design
 
-Status: proposal for review. No code yet.
+Status: implemented in `member-profile-service/` (see its README). This document records the design
+decisions and the open questions.
 
-The Member Profile Service (formerly "MAPS", Member Access Policy Service) is called once
-every time a member logs in to the League member portal or mobile app. It returns, in one
-response, who the member is, which restricted features apply to them (segmentation), and what
-they may do with each family member's information (family permissions). League uses it to
-decide which links, messages and actions to show. It is an authorization signal, not the
-authorization itself: every downstream API must still enforce the same rules on its own.
-
-This document takes the two workbooks (`League_Segmentation_Table_Design.xlsx` and
-`Family_Permission_Table_Design.xlsx`) and the design notes as the starting point, keeps what
-works, simplifies what does not need to be there, and lists the gaps that still need a decision.
+**Decision after review (2026-09-22): the service evaluates on demand.** Every call reads the member from
+MemberDomain and the rules from the database, and returns the flags. No rule cache, no version polling,
+no response cache. A rule change applied to the database is live on the next request. Sections of this
+document that described caching, polling and a rule set version are superseded by that decision and have
+been trimmed; what remains still applies.
 
 ---
 
@@ -19,9 +15,9 @@ works, simplifies what does not need to be there, and lists the gaps that still 
 
 | Goal | What it means here |
 |---|---|
-| Fast on the login path | No database call while serving a login. Rules live in memory. Latency is bounded by the upstream member data calls, nothing else. |
-| Rules change without a deploy | Rule changes happen 2 to 6 times a year. They are data, applied by SQL, and picked up by the running service within minutes. |
-| Easy to manage | One evaluator, two small tables, one refresh mechanism, one way to debug a wrong answer. |
+| Fast on the login path | One MemberDomain call plus a handful of small indexed reads of the rule tables. Rule evaluation itself is microseconds. |
+| Rules change without a deploy | Rule changes happen 2 to 6 times a year. They are data, applied by SQL, and live on the next request. |
+| Easy to manage | Two evaluators, a handful of small tables, no cache to operate, one way to debug a wrong answer (`?explain=true`). |
 | Complete for the known scenarios | Both companies (HPHC, THP), all seven segments, all six permission families, consent, masking, age bands, catch-all relationships. |
 | Not open-ended | Operators, fields, segments and permission keys are closed lists validated at load time. Bad rule data is rejected at load, never at login. |
 
@@ -34,17 +30,17 @@ works, simplifies what does not need to be there, and lists the gaps that still 
 1. The rule shape is simple and stable: flat conditions over a handful of member attributes,
    grouped by AND-within-group, OR-across-groups. That does not need a rules engine (Drools,
    Easy Rules, expression languages). A 100-line evaluator covers it.
-2. Changes are infrequent but must not wait for a release train. SQL applied by a DBA, picked up
-   by a version poll, gives that without an admin UI.
+2. Changes are infrequent but must not wait for a release train. SQL applied by a DBA is live on
+   the next request, without an admin UI.
 3. The volume is tiny: about 110 segmentation condition rows and about 430 permission rows.
    The whole rule set fits in memory many thousands of times over. Loading it is a one-time
    cost measured in milliseconds.
 
 **What to change from the workbook design** (details in sections 5 and 6):
 
-- Do not query the database per login. The workbook describes "one database call" per request.
-  Replace that with in-memory rules refreshed on a version check. Zero database calls on the
-  login path.
+- Read the rules per request, as the workbook describes, with one indexed query per rule table
+  (segments, segmentation rules for the company, permission rules for the actor relationship,
+  consent for the member, two reference tables). All inside one read-only transaction.
 - Drop `logical_operator` from the segmentation table. It is fully implied by `rule_group`
   (AND inside a group, OR between groups) and having it stored separately is a source of
   inconsistent rows. `evaluation_order` stays only as a stable sort/uniqueness key.
@@ -66,7 +62,7 @@ works, simplifies what does not need to be there, and lists the gaps that still 
 | Rules engine (Drools, Easy Rules) or expression language (SpEL, MVEL) | Adds a runtime, a DSL to learn, and a security surface (expression injection through rule data). The conditions here never need it. |
 | Admin UI for editing rules | Not worth building for a handful of changes a year. A reviewed SQL script plus a validate endpoint gives the same safety at a fraction of the cost. Revisit if changes become monthly. |
 | Precomputing segmentation nightly for all members | Moves work off the login path, but member facts change during the day (new coverage, termination) and the batch adds infrastructure. Evaluation is microseconds; the upstream fetch is the cost either way. |
-| Redis / distributed cache for rules | Unnecessary. Each instance loads the rules itself in milliseconds and polls a version row. Instances converge within one poll interval. |
+| In-memory rule cache with version polling or LISTEN/NOTIFY | Rejected in review: the team wants every request to read the current rules with no refresh mechanism to operate. The rule tables are tiny and indexed, so the per-request reads cost well under a millisecond each. |
 
 ---
 
@@ -147,9 +143,7 @@ actually needs it.
   ],
   "actionCodes": { "1": "View", "2": "Edit", "3": "Download", "4": "Delete" },
   "meta": {
-    "rulesVersion": "2026-09-15.3",
-    "generatedAt": "2026-09-22T14:31:07Z",
-    "degraded": false
+        "generatedAt": "2026-09-22T14:31:07Z"
   }
 }
 ```
@@ -163,10 +157,10 @@ Differences from the workbook's contract, and why:
   consent-required and masked-data cases, but a map of action arrays alone cannot say "you may
   see this once consent is on file" or "you may see this, but PDC-masked". Two short string
   arrays carry that without changing the shape of `permissions`.
-- **`meta.rulesVersion`** tells support which rule set produced the answer. Essential when
-  someone asks "why did this member see the bill pay link yesterday and not today".
-- **`meta.degraded`** is true when an upstream call failed and the service fell back to safe
-  defaults (see 4.4). League can choose to show a neutral experience rather than a wrong one.
+- **`?explain=true`** returns the full trace, which answers "why did this member see the bill
+  pay link yesterday and not today" together with the `updated_at` / `change_note` columns.
+- There is no partial or degraded answer. If MemberDomain fails the call is a `502` and League
+  decides what to show; a wrong permission answer is worse than a missing one.
 - **`member.company`** (HPHC or THP) is explicit because both rule tables key on it.
 - All seven segmentation keys are always present, true or false, as the workbook requires.
   Permission keys with no allowed actions are omitted; a parent key is present with `[1]` when
@@ -176,41 +170,39 @@ Differences from the workbook's contract, and why:
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /admin/rules/refresh` | Reload rules now instead of waiting for the poll. Returns the load report. |
-| `GET /admin/rules/status` | Current `rulesVersion`, load time, counts per segment and family, and any warnings from the last load. |
-| `POST /admin/rules/validate` | Load the rules from the database into a scratch evaluator and report errors without swapping the live set. Used after applying SQL in a lower environment. |
-| `GET /admin/members/{memberId}/explain` | Full evaluation trace: member facts used, each rule group with pass/fail per condition, the permission rows selected per family member. The first tool support reaches for. Restricted to support roles. |
+| `GET /api/v1/members/{memberId}/profile?explain=true` | Full evaluation trace: member facts used, each rule group with pass/fail per condition, the permission rows selected per family member. The first tool support reaches for. Restrict to support roles at the gateway. |
 
-These live behind the service's internal auth and are excluded from the public gateway.
+Refresh, status and validate endpoints from the earlier draft are not needed: rules are read per
+request, and the check constraints on the tables reject malformed rows at insert time.
 
 ---
 
 ## 4. Request flow
 
+Rendered diagrams: `docs/diagrams/member-profile-data-flow.png` (sequence) and
+`docs/diagrams/member-profile-components.png` (components). Sources are the `.mmd` files beside them.
+
 ```
 League portal / mobile
-        │  GET /api/v1/member-profile  (bearer token)
+        │  GET /api/v1/members/{memberId}/profile
         ▼
 ┌──────────────────────────────────────────────────────────────┐
-│ Member Profile Service                                       │
+│ Member Profile Service (one read-only transaction)           │
 │                                                              │
-│ 1. Authenticate token → memberId, company, impersonation     │
-│ 2. Response cache lookup (memberId)  ── hit ──► return       │
-│ 3. Fetch in parallel:                                        │
-│      a. member facts   (Member API)                          │
-│      b. family roster  (Member API / eligibility)            │
-│ 4. Evaluate segmentation  (in-memory compiled rules)         │
-│ 5. For self + each family member:                            │
-│      derive actor/viewing relationship + age band            │
-│      look up permissions (in-memory index)                   │
-│ 6. Assemble response, store in response cache, return        │
+│ 1. MemberDomain: member, attributes (facts), family roster   │
+│ 2. segment + segment_rule WHERE company = :company           │
+│ 3. Evaluate segmentation (AND in group, OR across groups)    │
+│ 4. relationship_code, action_code                            │
+│ 5. actor relationship = f(relationshipCode, age)             │
+│ 6. family_permission_rule WHERE actor_relationship = :actor  │
+│ 7. family_consent WHERE actor_member_id = :memberId          │
+│ 8. For self + each family member:                            │
+│      viewing relationship + age band → permissions map       │
+│ 9. Assemble response, return                                 │
 └──────────────────────────────────────────────────────────────┘
         ▲                                   ▲
-        │ rules (poll every N min)          │ member facts, roster
-   PostgreSQL                          Member API (existing)
-   league_segmentation.segment_rule
-   family_permission.family_permission_rule
-   rule_set_version
+        │ rule tables, per request          │ member facts, roster
+   PostgreSQL (member_profile)         MemberDomain service
 ```
 
 ### 4.1 Member facts
@@ -276,29 +268,15 @@ Per family member:
 
 Self permissions use the same path with viewing relationship SELF.
 
-### 4.4 Caching, timeouts and failure
+### 4.4 Timeouts and failure
 
-- **Rules cache**: in-process, immutable snapshot, swapped atomically on refresh. Refresh is
-  triggered by a `rule_set_version` poll every 5 minutes (one tiny query per instance) or by
-  the admin refresh endpoint. If a refresh fails validation, the previous snapshot stays live
-  and the failure is logged and exposed on the status endpoint. The service refuses to start
-  if the initial load fails; a service without rules must not answer logins.
-- **Response cache**: in-process (Caffeine), keyed by `memberId`, TTL 5 minutes, invalidated on
-  rules refresh. It absorbs the portal and mobile app calling within the same session, page
-  reloads, and retries. It is an optimization, not a correctness mechanism: a member whose
-  coverage changes sees the new answer within 5 minutes, which matches how often the source
-  systems themselves update. Set TTL to 0 to disable.
-- **Upstream timeouts**: member facts and family roster calls run in parallel with a 2 second
-  timeout each and one retry on connection failure only. Total budget on the login path:
-  under 3 seconds worst case, typically the Member API's own latency plus a millisecond.
-- **Failure policy (fail closed)**: if member facts cannot be fetched, segmentation returns
-  all false and `meta.degraded = true`. If the roster cannot be fetched, `familyPermissions`
-  is empty and `degraded = true`. The member block is still returned from the token and
-  whatever succeeded. A member who briefly does not see the bill pay link is recoverable; a
-  member who sees a dependent's claims they should not is not.
-- **Multiple instances**: nothing is shared. Each instance polls the version and caches
-  independently. Convergence within one poll interval is acceptable for rules that change a
-  few times a year.
+- **No caching.** Rules are read per request inside one read-only transaction, so a rule change
+  applied mid-request is seen entirely or not at all. There is no refresh mechanism to operate.
+- **MemberDomain timeouts**: 2 seconds to connect, 3 seconds to read. A failure is a
+  `502 MEMBER_DOMAIN_UNAVAILABLE`; the portal decides what to show.
+- **Incomplete member data** (unknown relationship code, no company, no age or date of birth) is a
+  `422 MEMBER_DATA_INCOMPLETE` rather than a guessed answer.
+- **Unknown member** is a `404 MEMBER_NOT_FOUND`.
 
 ---
 
@@ -322,16 +300,14 @@ Schema `league_segmentation`, table `segment_rule`. Compared with the workbook:
 | comparison_operator | keep | Check constraint stays. |
 | rule_value | keep | Required unless operator is IS_TRUE / IS_FALSE; validated at load. |
 | is_active | keep | |
-| effective_from, effective_to | **add**, nullable | Lets a plan-year change be loaded in December and switch on January 1 without anyone being awake. Evaluated at load and on the poll (a rule crossing its date triggers a refresh). |
+| effective_from, effective_to | optional, nullable | Would let a plan-year change be loaded in December and switch on January 1. Not in V1 of the schema; add with a `WHERE now() BETWEEN` clause in the per-request query when needed. |
 | updated_at, updated_by, change_note | **add** | Who changed what and why. Cheap and the first thing asked in an incident. |
 
 Uniqueness stays `(segment_name, company, evaluation_order)`.
 
 ### 5.2 Rule set version
 
-One-row table `rule_set_version (version TEXT, updated_at TIMESTAMPTZ)` in a shared schema,
-bumped by every rule change script as its last statement. The service polls this row, not the
-rule tables. `version` is free text such as `2026-09-15.3` and appears in `meta.rulesVersion`.
+Not needed with on-demand evaluation. Removed.
 
 ### 5.3 Family permission rules
 
@@ -383,30 +359,23 @@ That leaves roughly 200 rows that actually decide something.
 Expected frequency: 2 to 6 times a year, tied to plan-year changes, new programs, or a new
 segment condition.
 
-1. **Author** the change in the workbook (it stays the business source of truth) and export the
-   affected rows as an SQL script. The workbook's "PostgreSQL Script" tab already does this for
-   the full set; for a change, the script should be a targeted `UPDATE` / `INSERT` /
-   `UPDATE ... SET is_active = false`, never a `TRUNCATE` in production. It ends with an
-   `UPDATE rule_set_version`.
+1. **Author** the change in the workbook (it stays the business source of truth) and write the
+   affected rows as a targeted `INSERT` / `UPDATE` / `UPDATE ... SET is_active = false` script,
+   never a `TRUNCATE` in production. Fill `updated_by` and `change_note`.
 2. **Review** the script as a pull request in a `rules/` folder of this repository. The
    reviewer sees exactly which conditions change. Git history is the audit trail.
-3. **Apply in a lower environment**, call `POST /admin/rules/validate`, fix anything it
-   reports, then call `GET /admin/members/{id}/explain` for two or three representative
-   members to confirm the intended effect.
-4. **Apply in production** (DBA, normal change window). The service picks it up on the next
-   poll (within 5 minutes) or immediately via `POST /admin/rules/refresh`.
-5. **Verify** with `GET /admin/rules/status` that every instance reports the new version.
+3. **Apply in a lower environment** and call
+   `GET /api/v1/members/{id}/profile?explain=true` for two or three representative members to
+   confirm the intended effect.
+4. **Apply in production** (DBA, normal change window). It is live on the next request.
 
-Rollback is the reverse script, or `is_active = false` on the new rows, plus a version bump.
-
-Use `effective_from` for date-driven changes so the script can be applied early and switch on
-its own.
+Rollback is the reverse script, or `is_active = false` on the new rows.
 
 ---
 
-## 7. Validation at load time
+## 7. Validation
 
-Rules are rejected as a set (previous set stays live) when any row has:
+Database check constraints reject a row at insert or update time when it has:
 
 - an unknown segment name, permission key, api_field, operator, relationship code or company;
 - a null `rule_value` for an operator that needs one, or a non-numeric value for GREATER_THAN;
@@ -415,11 +384,10 @@ Rules are rejected as a set (previous set stays live) when any row has:
 - a duplicate `(segment_name, company, evaluation_order)` or duplicate
   `(permission_key, actor, viewing, min_age, max_age)`.
 
-Warnings (loaded, but shown on the status endpoint):
+Things the constraints cannot catch, to check with the explain endpoint after a change:
 
 - a segment with no active rule group for one company (it will always be false there);
-- a permission key with no active rows for some actor relationship;
-- `effective_to` in the past on an active row.
+- a permission key with no active rows for some actor relationship.
 
 ---
 
@@ -439,10 +407,10 @@ Warnings (loaded, but shown on the status endpoint):
 ## 9. Observability
 
 - Structured log per request: memberId (hashed in non-prod as needed), company, rulesVersion,
-  upstream latencies, cache hit, degraded flag, segments that evaluated true, count of family
+  upstream latency, rule query latency, segments that evaluated true, count of family
   members.
-- Metrics: request latency (p50/p95/p99), upstream latency per dependency, response cache hit
-  ratio, rules refresh outcome and age, per-segment true rate. A segment whose true rate drops
+- Metrics: request latency (p50/p95/p99), MemberDomain latency, rule query latency,
+  per-segment true rate. A segment whose true rate drops
   from 30 percent to 0 after a rule change is the alarm that matters.
 - Health: `/actuator/health` includes rules loaded (version, age) and Member API reachability.
 
@@ -459,7 +427,7 @@ Warnings (loaded, but shown on the status endpoint):
   parent derivation, consent and masked handling.
 - **Contract test**: the JSON response against a schema shared with League.
 - **Load test**: 200 requests per second sustained with a stubbed Member API, asserting p99
-  under 50 milliseconds of service-side time. This proves the evaluator and cache; the real
+  under 50 milliseconds of service-side time. This proves the evaluator and rule reads; the real
   p99 is the Member API's.
 
 ---
@@ -489,8 +457,8 @@ These need an answer before implementation. Suggested defaults are given so work
    dependent turning 18 changes bands on their birthday, which matches policy.
 7. **Self permissions in the contract.** Confirm League will use `selfPermissions`. If not, it
    can be dropped and the SELF rows ignored.
-8. **Degraded responses.** Confirm League prefers a fast fail-closed answer with
-   `degraded = true` over a login error when the Member API is down.
+8. **MemberDomain outage.** Confirm League is happy to treat a `502` from this service as
+   "show the neutral experience" rather than failing the login.
 9. **Segmentation for family members.** The notes say segmentation applies to the logged-in
    member only. Confirm there is no case (a parent paying a child's premium) where a
    dependent's segmentation is needed. If there is, it is the same evaluator run per family
@@ -500,27 +468,21 @@ These need an answer before implementation. Suggested defaults are given so work
 
 ---
 
-## 12. Suggested project shape
+## 12. Project shape
 
-Same conventions as the CMS-1500 service in this repository (Spring Boot 3.5, Java 17,
-springdoc, actuator), as a separate module or service:
+Implemented in `member-profile-service/` (Spring Boot 3.5, Java 17, JDBC, Flyway, springdoc):
 
 ```
-member-profile-service/
-  api/          controllers, response DTOs, error handling
-  member/       Member API client, MemberFacts, roster, relationship derivation
-  segmentation/ rule model, loader, compiler, evaluator
-  permission/   rule model, loader, index, evaluator, consent lookup
-  rules/        version poll, refresh, validation report, admin endpoints
-  config/       properties (poll interval, cache TTL, timeouts, admin auth)
-  db/migration/ Flyway: schemas, tables, version row, initial seed
-rules/          reviewed SQL change scripts, one file per change
+member-profile-service/src/main/java/com/thehiddenbrain/interop/memberprofile/
+  api/            MemberProfileController, MemberProfileResponse, RestExceptionHandler
+  memberdomain/   MemberDomainClient (interface), RestMemberDomainClient, MemberDomainMember
+  segmentation/   ComparisonOperator, SegmentRule, SegmentRuleRepository, SegmentationEvaluator
+  permission/     PermissionRule, PermissionRuleRepository, PermissionEvaluator,
+                  RelationshipResolver, ReferenceDataRepository, ConsentRepository
+  service/        MemberProfileService (one request, one read-only transaction)
+  config/         properties, RestClient, OpenAPI, Clock
+member-profile-service/src/main/resources/db/migration/
+  V1 schema, V2 segmentation seed (complete), V3 permission reference data,
+  V4 family permission rules (partial; replace with the workbook export)
+docs/diagrams/    member-profile-data-flow (sequence), member-profile-components
 ```
-
-Dependencies to add beyond the current pom: `spring-boot-starter-data-jdbc` (or plain
-`JdbcClient`), `postgresql`, `flyway-core`, `caffeine`, `spring-boot-starter-security` for the
-token and admin auth.
-
-Implementation order once the open questions are settled: schema and seed, loader and
-validation, segmentation evaluator with golden tests, permission evaluator with matrix tests,
-Member API client, endpoint and contract test, admin endpoints, load test.

@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: member-profile-service
+  jackson:
+    default-property-inclusion: non_null
+  datasource:
+    url: ${MEMBER_PROFILE_DB_URL:jdbc:postgresql://localhost:5432/member_profile}
+    username: ${MEMBER_PROFILE_DB_USER:member_profile}
+    password: ${MEMBER_PROFILE_DB_PASSWORD:member_profile}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 2000
+  flyway:
+    enabled: true
+    schemas: public,league_segmentation,family_permission
+
+server:
+  port: 8081
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+member-profile:
+  member-domain:
+    # MemberDomain service. GET {base-url}{member-path} returns the member, attributes and familyMembers.
+    base-url: ${MEMBER_DOMAIN_BASE_URL:http://localhost:8090/api/v1}
+    member-path: /members/{memberId}
+    connect-timeout: 2s
+    read-timeout: 3s

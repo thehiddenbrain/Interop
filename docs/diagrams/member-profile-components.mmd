@@ -1,0 +1,43 @@
+flowchart LR
+    subgraph Callers
+        L[League portal]
+        M[Mobile app]
+    end
+
+    subgraph MPS[Member Profile Service - Spring Boot]
+        API["REST API<br/>GET /api/v1/members/:memberId/profile"]
+        SVC[MemberProfileService<br/>orchestrates one request]
+        SEG[SegmentationEvaluator<br/>AND within rule_group<br/>OR across groups]
+        PERM[PermissionEvaluator<br/>age band, exact over catch-all,<br/>consent, masking, parent keys]
+        REL[RelationshipResolver<br/>code + age to actor / viewing words]
+        MDC[MemberDomain client<br/>RestClient, 2s / 3s timeouts]
+    end
+
+    subgraph DB["PostgreSQL: member_profile"]
+        direction TB
+        T1[league_segmentation.segment]
+        T2[league_segmentation.segment_rule]
+        T3[family_permission.family_permission_rule]
+        T4[family_permission.permission_catalog]
+        T5[family_permission.relationship_code<br/>family_permission.action_code]
+        T6[family_permission.family_consent]
+    end
+
+    MD[MemberDomain service<br/>member, facts, family roster]
+    DBA[Rule change<br/>reviewed SQL script]
+
+    L --> API
+    M --> API
+    API --> SVC
+    SVC --> MDC --> MD
+    SVC --> SEG
+    SVC --> REL
+    SVC --> PERM
+    SEG -.reads per request.-> T1
+    SEG -.reads per request.-> T2
+    PERM -.reads per request.-> T3
+    REL -.reads per request.-> T5
+    PERM -.reads per request.-> T6
+    T3 --- T4
+    DBA -- UPDATE / INSERT --> T2
+    DBA -- UPDATE / INSERT --> T3
