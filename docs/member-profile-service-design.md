@@ -406,7 +406,7 @@ Things the constraints cannot catch, to check with the explain endpoint after a 
 
 ## 9. Observability
 
-- Structured log per request: memberId (hashed in non-prod as needed), company, rulesVersion,
+- Structured log per request: memberId (hashed in non-prod as needed), company, actor relationship,
   upstream latency, rule query latency, segments that evaluated true, count of family
   members.
 - Metrics: request latency (p50/p95/p99), MemberDomain latency, rule query latency,
