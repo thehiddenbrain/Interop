@@ -1,15 +1,6 @@
 -- Segmentation seed from League_Segmentation_Table_Design.xlsx (Loaded Rules / PostgreSQL Script tabs).
 -- Rule changes in production go in as targeted UPDATE / INSERT scripts, never TRUNCATE.
 
-INSERT INTO league_segmentation.segment (segment_name, segment_category, league_capability, description) VALUES
-  ('onlineBillPay',            'Premium payment',              'home',             'Member may pay premiums online'),
-  ('optumRxCoverage',          'Pharmacy',                     'getcare',          'Member has Optum Rx pharmacy coverage'),
-  ('allPublicPlansMa',         'Plans',                        'forms',            'Tufts Health Public Plans (MA)'),
-  ('allTuftsMedicarePreferred','Plans',                        'forms',            'Tufts Medicare Preferred, excluding PDP'),
-  ('tmpOtcMa',                 'Spending Accounts',            'spendingaccounts', 'Tufts Medicare Preferred OTC benefit (MA)'),
-  ('planOfCare',               'Care Plans',                   'documents',        'Plan of care documents available'),
-  ('interoperability',         'Compliance / interoperability','settings',         'Interoperability (patient access) settings');
-
 INSERT INTO league_segmentation.segment_rule
   (segment_name, segment_category, league_capability, company, rule_group, evaluation_order, logical_operator, api_field, comparison_operator, rule_value, is_active)
 VALUES

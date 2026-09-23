@@ -4,40 +4,38 @@ flowchart LR
         M[Mobile app]
     end
 
-    subgraph MPS[Member Profile Service - Spring Boot]
-        API["REST API<br/>GET /api/v1/members/:memberId/profile"]
-        SVC[MemberProfileService<br/>orchestrates one request]
-        SEG[SegmentationEvaluator<br/>AND within rule_group<br/>OR across groups]
-        PERM[PermissionEvaluator<br/>age band, exact over catch-all,<br/>consent, masking, parent keys]
-        REL[RelationshipResolver<br/>code + age to actor / viewing words]
-        MDC[MemberDomain client<br/>RestClient, 2s / 3s timeouts]
+    subgraph MPS["Member Profile Service (org.point32health.memberprofile)"]
+        API["POST /api/v1/member-profile<br/>MemberProfileController"]
+        SVC["MemberProfileService<br/>wave 1 ∥ wave 2 fan-out"]
+        SEG["SegmentationEvaluator<br/>AND within rule_group<br/>OR across groups"]
+        PERM["PermissionEvaluator<br/>age band, exact over catch-all,<br/>consent, masking, parent keys"]
+        REL["RelationshipResolver<br/>code + age → actor / viewing"]
+        MDC["RestMemberDomainClient<br/>2s connect / 3s read"]
     end
 
     subgraph DB["PostgreSQL: member_profile"]
         direction TB
-        T1[league_segmentation.segment]
         T2[league_segmentation.segment_rule]
         T3[family_permission.family_permission_rule]
         T4[family_permission.permission_catalog]
-        T5[family_permission.relationship_code<br/>family_permission.action_code]
+        T5["family_permission.relationship_code<br/>family_permission.action_code"]
         T6[family_permission.family_consent]
     end
 
-    MD[MemberDomain service<br/>member, facts, family roster]
-    DBA[Rule change<br/>reviewed SQL script]
+    MD["MemberDomain service<br/>member, facts, family roster"]
+    DBA["Rule change<br/>reviewed SQL script"]
 
     L --> API
     M --> API
     API --> SVC
-    SVC --> MDC --> MD
+    SVC -- "wave 1" --> MDC --> MD
+    SVC -. "wave 1" .-> T6
+    SVC -. "wave 1" .-> T5
+    SVC -. "wave 2" .-> T2
+    SVC -. "wave 2" .-> T3
     SVC --> SEG
     SVC --> REL
     SVC --> PERM
-    SEG -.reads per request.-> T1
-    SEG -.reads per request.-> T2
-    PERM -.reads per request.-> T3
-    REL -.reads per request.-> T5
-    PERM -.reads per request.-> T6
     T3 --- T4
-    DBA -- UPDATE / INSERT --> T2
-    DBA -- UPDATE / INSERT --> T3
+    DBA -- "UPDATE / INSERT" --> T2
+    DBA -- "UPDATE / INSERT" --> T3

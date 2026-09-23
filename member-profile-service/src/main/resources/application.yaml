@@ -3,6 +3,18 @@ spring:
     name: member-profile-service
   profiles:
     default: dev
+  threads:
+    # Virtual threads for request handling and the per-request fan-out on JDK 21+; ignored on JDK 17.
+    virtual:
+      enabled: true
+  task:
+    execution:
+      # Used only on JDK 17, where virtual threads are unavailable: bounded pool for the per-request fan-out.
+      pool:
+        core-size: 8
+        max-size: 64
+        queue-capacity: 200
+      thread-name-prefix: profile-
   jackson:
     default-property-inclusion: non_null
   mvc:
@@ -13,8 +25,14 @@ spring:
     username: ${MEMBER_PROFILE_DB_USER:member_profile}
     password: ${MEMBER_PROFILE_DB_PASSWORD:member_profile}
     hikari:
-      maximum-pool-size: 10
+      maximum-pool-size: ${MEMBER_PROFILE_DB_POOL_SIZE:16}
+      minimum-idle: 4
+      # A login must not wait long for a connection; fail fast and let the portal retry.
       connection-timeout: 2000
+  jdbc:
+    template:
+      # Every rule query is a small indexed read; anything slower is a database problem, not a reason to hold a login.
+      query-timeout: 2s
   flyway:
     enabled: true
     schemas: public,league_segmentation,family_permission
@@ -24,6 +42,7 @@ server:
   error:
     include-message: never
     include-stacktrace: never
+  forward-headers-strategy: framework
 
 management:
   endpoints:

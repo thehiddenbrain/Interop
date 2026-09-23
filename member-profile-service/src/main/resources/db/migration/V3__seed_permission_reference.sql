@@ -31,8 +31,8 @@ INSERT INTO family_permission.permission_catalog (permission_key, permission_fam
   ('profile.raceEthnicityLanguage',          'profile',     'Profile > Race Ethnicity Language'),
   ('profile.sexualOrientationGenderIdentity','profile',     'Profile > Sexual Orientation Gender Identity');
 
--- Member domain relationship codes. Confirm against the MemberDomain service; 01 and 03 come from
--- the sample response in the design notes, 02 and 04 are placeholders to be verified.
+-- MemberDomain relationship codes (addition). 01 and 03 come from the sample response in the design notes;
+-- 02 and 04 are placeholders to confirm against MemberDomain.
 INSERT INTO family_permission.relationship_code (relationship_code, relationship, description) VALUES
   ('01', 'Subscriber', 'Subscriber / policy holder'),
   ('02', 'Spouse',     'Spouse or domestic partner'),

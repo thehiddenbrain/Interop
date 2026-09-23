@@ -1,0 +1,10 @@
+# Production: Swagger off unless enabled explicitly, quieter logging.
+springdoc:
+  swagger-ui:
+    enabled: ${MEMBER_PROFILE_SWAGGER_ENABLED:false}
+  api-docs:
+    enabled: ${MEMBER_PROFILE_SWAGGER_ENABLED:false}
+
+logging:
+  level:
+    org.point32health.memberprofile: INFO

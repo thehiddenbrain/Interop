@@ -70,110 +70,34 @@ been trimmed; what remains still applies.
 
 ### 3.1 Login-path endpoint
 
+All calls are POST: the member id travels in the JSON body, never in the URL.
+
 ```
-GET /api/v1/member-profile
-Authorization: Bearer <League session token>
-Accept: application/json
+POST /api/v1/member-profile
+Content-Type: application/json
+
+{ "memberId": "HPxxxxxxx", "impersonating": false, "explain": false }
 ```
-
-The member identity comes from the token, never from a query parameter, so a member cannot ask
-for another member's profile. For impersonation (CSR viewing as a member), the token carries
-both identities and the response sets `member.isImpersonating = true`.
-
-Optional query parameter `include=segmentation,familyPermissions` lets a client skip a section
-it does not need (for example the mobile app on a screen that only needs segmentation).
-Default is everything.
-
-A service-to-service variant for internal callers, `GET /api/v1/members/{memberId}/profile`,
-uses client-credentials auth and is otherwise identical. Only add it when an internal caller
-actually needs it.
 
 ### 3.2 Response
 
-```json
-{
-  "member": {
-    "memberId": "HPxxxxxxx",
-    "fullName": "Alxxx M Mxxx",
-    "firstName": "Alxxxa",
-    "lastName": "Mxxxx",
-    "planName": null,
-    "relationshipCode": "01",
-    "memberTypeCode": "HPHC",
-    "userTypeCode": "M",
-    "isImpersonating": false,
-    "age": 42,
-    "activePolicy": true,
-    "accountNumber": "****1234",
-    "policyStatus": "ACTIVE",
-    "company": "HPHC"
-  },
-  "segmentation": {
-    "onlineBillPay": true,
-    "optumRxCoverage": false,
-    "allPublicPlansMa": false,
-    "allTuftsMedicarePreferred": false,
-    "tmpOtcMa": false,
-    "planOfCare": false,
-    "interoperability": true
-  },
-  "selfPermissions": {
-    "benefits": [1],
-    "benefits.idCard": [1, 3],
-    "profile.raceEthnicityLanguage": [1, 2]
-  },
-  "familyPermissions": [
-    {
-      "memberId": "HPxxxx02",
-      "fullName": "Lxxxxx",
-      "relationshipCode": "03",
-      "age": 7,
-      "permissions": {
-        "benefits": [1],
-        "benefits.coverage": [1],
-        "benefits.idCard": [1, 3],
-        "claims": [1],
-        "claims.eob": [1, 3],
-        "documents": [1],
-        "documents.file": [1, 3, 4]
-      },
-      "consentRequired": ["claims.claim"],
-      "masked": ["claims.claim"]
-    }
-  ],
-  "actionCodes": { "1": "View", "2": "Edit", "3": "Download", "4": "Delete" },
-  "meta": {
-        "generatedAt": "2026-09-22T14:31:07Z"
-  }
-}
-```
+The agreed payload, unchanged in shape: `member` carries the identity fields, `segmentation` (the seven
+flags) and `familyPermissions`; `actionCodeDescriptions` explains the action codes. Three fields were
+added because the rule data needs them:
 
-Differences from the workbook's contract, and why:
+- `member.permissions`: what the member may do with their own information (the rule table has "Self"
+  rows, such as a teenager not seeing their own SOGI data).
+- `familyPermissions[].consentRequired`: keys that become available once consent is on file. A map of
+  action arrays alone cannot say "allowed after consent".
+- `familyPermissions[].masked`: keys whose data must be shown PDC-masked.
 
-- **`selfPermissions`** is new. The permission sheet has rows with viewing relationship
-  "Self" (for example a teenager cannot see their own SOGI data). Without this block that
-  information has nowhere to go.
-- **`consentRequired` and `masked`** per family member are new. The rule table records
-  consent-required and masked-data cases, but a map of action arrays alone cannot say "you may
-  see this once consent is on file" or "you may see this, but PDC-masked". Two short string
-  arrays carry that without changing the shape of `permissions`.
-- **`?explain=true`** returns the full trace, which answers "why did this member see the bill
-  pay link yesterday and not today" together with the `updated_at` / `change_note` columns.
-- There is no partial or degraded answer. If MemberDomain fails the call is a `502` and League
-  decides what to show; a wrong permission answer is worse than a missing one.
-- **`member.company`** (HPHC or THP) is explicit because both rule tables key on it.
-- All seven segmentation keys are always present, true or false, as the workbook requires.
-  Permission keys with no allowed actions are omitted; a parent key is present with `[1]` when
-  at least one child key has any action.
+See `member-profile-service/README.md` for the full example and the error table.
 
 ### 3.3 Operational endpoints (not on the login path)
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/v1/members/{memberId}/profile?explain=true` | Full evaluation trace: member facts used, each rule group with pass/fail per condition, the permission rows selected per family member. The first tool support reaches for. Restrict to support roles at the gateway. |
-
-Refresh, status and validate endpoints from the earlier draft are not needed: rules are read per
-request, and the check constraints on the tables reject malformed rows at insert time.
+`"explain": true` on the same endpoint returns the full evaluation trace: member facts used, each rule
+group with pass/fail per condition, the permission rows selected per family member, and timings. It is
+the first tool support reaches for. Block it at the gateway for portal traffic.
 
 ---
 
@@ -184,22 +108,27 @@ Rendered diagrams: `docs/diagrams/member-profile-data-flow.png` (sequence) and
 
 ```
 League portal / mobile
-        │  GET /api/v1/members/{memberId}/profile
+        │  POST /api/v1/member-profile  { memberId }
         ▼
-┌──────────────────────────────────────────────────────────────┐
-│ Member Profile Service (one read-only transaction)           │
-│                                                              │
-│ 1. MemberDomain: member, attributes (facts), family roster   │
-│ 2. segment + segment_rule WHERE company = :company           │
-│ 3. Evaluate segmentation (AND in group, OR across groups)    │
-│ 4. relationship_code, action_code                            │
-│ 5. actor relationship = f(relationshipCode, age)             │
-│ 6. family_permission_rule WHERE actor_relationship = :actor  │
-│ 7. family_consent WHERE actor_member_id = :memberId          │
-│ 8. For self + each family member:                            │
-│      viewing relationship + age band → permissions map       │
-│ 9. Assemble response, return                                 │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ Member Profile Service                                              │
+│                                                                     │
+│ Wave 1 (parallel)                                                   │
+│   MemberDomain GET member ─────────────┐                            │
+│   family_consent WHERE actor = member  │  need only the member id   │
+│   relationship_code, action_code ──────┘                            │
+│                                                                     │
+│ company = memberTypeCode, actor = f(relationshipCode, age)          │
+│ viewing relationship + age for each family member                   │
+│                                                                     │
+│ Wave 2 (parallel)                                                   │
+│   segment_rule WHERE company = :company                             │
+│   family_permission_rule WHERE actor = :actor AND viewing IN (...)  │
+│                                                                     │
+│ Evaluate segmentation (AND in group, OR across groups)              │
+│ Evaluate permissions for self + each family member                  │
+│ Assemble response, return                                           │
+└─────────────────────────────────────────────────────────────────────┘
         ▲                                   ▲
         │ rule tables, per request          │ member facts, roster
    PostgreSQL (member_profile)         MemberDomain service
@@ -224,6 +153,11 @@ Facts are fetched once per request from the existing Member API and held in an i
 `MemberFacts` object. The evaluator never touches the network.
 
 ### 4.2 Segmentation evaluation
+
+Rows are read already ordered by segment, rule group and evaluation order and evaluated in one pass with
+short-circuiting (a failed condition ends its group, a matched group ends its segment) unless explain was
+requested, in which case every condition is evaluated and recorded.
+
 
 At load time each database row becomes a compiled `Condition` (field accessor, operator,
 pre-parsed value: a trimmed upper-cased string, a `Set<String>` for IN / NOT_IN, a number for
@@ -365,7 +299,7 @@ segment condition.
 2. **Review** the script as a pull request in a `rules/` folder of this repository. The
    reviewer sees exactly which conditions change. Git history is the audit trail.
 3. **Apply in a lower environment** and call
-   `GET /api/v1/members/{id}/profile?explain=true` for two or three representative members to
+   `POST /api/v1/member-profile` with `"explain": true` for two or three representative members to
    confirm the intended effect.
 4. **Apply in production** (DBA, normal change window). It is live on the next request.
 
@@ -470,19 +404,20 @@ These need an answer before implementation. Suggested defaults are given so work
 
 ## 12. Project shape
 
-Implemented in `member-profile-service/` (Gradle 9.5.0 wrapper, Groovy DSL, Spring Boot 4.0.7, Java 17 release target, JDBC, Flyway, springdoc; same build shape as the EPA and Patient Access workbenches):
+Implemented in `member-profile-service/` (package `org.point32health.memberprofile`; Gradle 9.5.0 wrapper, Groovy DSL, Spring Boot 4.0.7, Java 17 release target, JDBC, Flyway, springdoc; same build shape as the EPA and Patient Access workbenches):
 
 ```
-member-profile-service/src/main/java/com/thehiddenbrain/interop/memberprofile/
-  api/            MemberProfileController, MemberProfileResponse, RestExceptionHandler
+member-profile-service/src/main/java/org/point32health/memberprofile/
+  api/            MemberProfileController (POST), MemberProfileRequest, MemberProfileResponse, RestExceptionHandler
+  common/         ApiError, ErrorCode, MemberProfileException
   memberdomain/   MemberDomainClient (interface), RestMemberDomainClient, MemberDomainMember
-  segmentation/   ComparisonOperator, SegmentRule, SegmentRuleRepository, SegmentationEvaluator
-  permission/     PermissionRule, PermissionRuleRepository, PermissionEvaluator,
-                  RelationshipResolver, ReferenceDataRepository, ConsentRepository
-  service/        MemberProfileService (one request, one read-only transaction)
+  segmentation/   Segment, MemberFacts, ComparisonOperator, SegmentRule, SegmentRuleRepository, SegmentationEvaluator
+  permission/     FamilyRelationship, ActorRelationship, ViewingRelationship, RelationshipResolver, PermissionRule,
+                  PermissionRuleRepository, PermissionEvaluator, ReferenceDataRepository, ConsentRepository
+  service/        MemberProfileService (two-wave fan-out, evaluation, response)
   config/         properties, RestClient, OpenAPI, Jackson and Clock (AppConfig)
 member-profile-service/src/main/resources/db/migration/
-  V1 schema, V2 segmentation seed (complete), V3 permission reference data,
+  V1 schema (tables as in the workbooks plus relationship_code and family_consent), V2 segmentation seed (complete), V3 permission reference data,
   V4 family permission rules (partial; replace with the workbook export)
 docs/diagrams/    member-profile-data-flow (sequence), member-profile-components
 ```

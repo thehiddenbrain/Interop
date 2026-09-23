@@ -4,43 +4,53 @@ sequenceDiagram
     participant C as MemberProfileController
     participant S as MemberProfileService
     participant MD as MemberDomain service
-    participant SR as segment / segment_rule
-    participant PR as family_permission_rule
     participant RC as relationship_code / action_code
     participant FC as family_consent
+    participant SR as segment_rule
+    participant PR as family_permission_rule
     participant SE as SegmentationEvaluator
     participant PE as PermissionEvaluator
 
-    L->>C: GET /api/v1/members/{memberId}/profile
-    C->>S: profile(memberId, impersonating, explain)
-    S->>MD: GET /members/{memberId}
-    MD-->>S: member, attributes (rule facts), familyMembers[]
-    Note over S: company, actor age from the member record
+    L->>C: POST /api/v1/member-profile {memberId, impersonating, explain}
+    C->>S: profile(request)
+
+    rect rgb(255, 247, 230)
+        Note over S,FC: Wave 1, in parallel: nothing here needs the member record
+        par MemberDomain
+            S->>MD: GET /members/{memberId}
+            MD-->>S: member, attributes (rule facts), familyMembers[]
+        and consents
+            S->>FC: consents WHERE actor_member_id = :memberId AND revoked_at IS NULL
+            FC-->>S: (viewedMemberId, permissionFamily) pairs
+        and reference data
+            S->>RC: relationship codes, action codes
+            RC-->>S: 01 Subscriber, 03 Child, ... / 1 View, 2 Edit, 3 Download, 4 Delete
+        end
+    end
+
+    Note over S: company = memberTypeCode (HPHC | THP)<br/>actor = f(relationshipCode, age): Subscriber, Spouse, Child (teenager), ...<br/>per family member: viewing = f(code, age): Self, Spouse, Child, Adult dependent, All other
 
     rect rgb(235, 243, 255)
-        Note over S,SE: Segmentation (logged-in member only)
-        S->>SR: active segments
-        S->>SR: active rules WHERE company = :company
-        SR-->>S: rows ordered by segment, rule_group, evaluation_order
-        S->>SE: evaluate(segments, rules, attributes)
-        SE-->>S: {onlineBillPay: true, optumRxCoverage: false, ...}
+        Note over S,PR: Wave 2, in parallel: the two rule reads
+        par segmentation rules
+            S->>SR: active rules WHERE company = :company ORDER BY segment, rule_group, evaluation_order
+            SR-->>S: 75 condition rows (THP) / 4 (HPHC), values parsed once
+        and permission rules
+            S->>PR: active rules WHERE actor_relationship = :actor AND viewing_relationship IN (:viewings)
+            PR-->>S: rows for the family's viewing relationships + catch-all
+        end
     end
 
     rect rgb(240, 250, 238)
-        Note over S,PE: Family permissions (self + each family member)
-        S->>RC: relationship codes, action codes
-        RC-->>S: 01 Subscriber, 03 Child, ... / 1 View, 2 Edit, 3 Download, 4 Delete
-        Note over S: actor relationship = f(relationshipCode, age)<br/>e.g. Subscriber, Spouse, Child (teenager)
-        S->>PR: active rules WHERE actor_relationship = :actor
-        PR-->>S: rows for every viewing relationship and age band
-        S->>FC: active consents WHERE actor_member_id = :memberId
-        FC-->>S: (viewedMemberId, permissionFamily) pairs
+        Note over S,PE: Evaluate in memory
+        S->>SE: evaluate(rules, facts, explain)
+        SE-->>S: {onlineBillPay: true, optumRxCoverage: false, ... 7 flags}
+        S->>PE: index(actorRules)
         loop self, then each family member
-            Note over S: viewing relationship = f(actor, viewed code, viewed age)<br/>Self, Subscriber, Spouse, Child, Adult dependent, All other
-            S->>PE: evaluate(actorRules, viewing, viewedAge, viewedMemberId, consents)
+            S->>PE: evaluate(viewing, age, viewedMemberId, consents, explain)
             PE-->>S: permissions map, consentRequired[], masked[]
         end
     end
 
     S-->>C: MemberProfileResponse
-    C-->>L: 200 JSON: member, segmentation, selfPermissions, familyPermissions, actionCodes, meta
+    C-->>L: 200 {member: {..., segmentation, permissions, familyPermissions}, actionCodeDescriptions}
