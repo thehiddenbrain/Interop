@@ -470,7 +470,7 @@ These need an answer before implementation. Suggested defaults are given so work
 
 ## 12. Project shape
 
-Implemented in `member-profile-service/` (Spring Boot 3.5, Java 17, JDBC, Flyway, springdoc):
+Implemented in `member-profile-service/` (Gradle, Spring Boot 3.5, Java 17, JDBC, Flyway, springdoc):
 
 ```
 member-profile-service/src/main/java/com/thehiddenbrain/interop/memberprofile/

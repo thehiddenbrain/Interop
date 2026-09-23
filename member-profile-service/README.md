@@ -125,13 +125,16 @@ with pass/fail per condition and every permission row that was selected.
 
 ## Run locally
 
-Requires Java 17+ and PostgreSQL.
+Requires Java 17+ and PostgreSQL. Gradle is not needed: the wrapper (`gradlew` / `gradlew.bat`)
+downloads it on first use.
 
 ```bash
 createuser member_profile -P          # password: member_profile
 createdb -O member_profile member_profile
-./mvnw spring-boot:run                # port 8081; Flyway creates and seeds the tables
+./gradlew bootRun                     # port 8081; Flyway creates and seeds the tables
 ```
+
+`./gradlew bootJar` builds `build/libs/member-profile-service-0.1.0-SNAPSHOT.jar`, runnable with `java -jar`.
 
 Configuration (`application.yaml`, all overridable by environment variable):
 
@@ -145,8 +148,8 @@ Configuration (`application.yaml`, all overridable by environment variable):
 ## Tests
 
 ```bash
-./mvnw test                                   # evaluator and resolver unit tests
-MEMBER_PROFILE_TEST_DB=true ./mvnw test       # plus the end-to-end test against the local PostgreSQL
+./gradlew test                                # evaluator and resolver unit tests
+MEMBER_PROFILE_TEST_DB=true ./gradlew test    # plus the end-to-end test against the local PostgreSQL
 ```
 
 The end-to-end test runs the migrations, stubs MemberDomain, and checks an HPHC subscriber with a young
