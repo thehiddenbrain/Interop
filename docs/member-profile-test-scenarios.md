@@ -93,8 +93,9 @@ HPHC has no rules for allPublicPlansMa, allTuftsMedicarePreferred, tmpOtcMa, pla
 those are always false for HPHC members. For every group above, tests need one fact set that matches and,
 for each condition, one that fails only that condition. Cross-checks: a THP member with planTypeCode SCO
 and coverageGroupTypeCode 2 fails onlineBillPay group 1 (NOT_IN) but tmpOtcMa group 1 and interoperability
-group 4 can be true; a THP member with product PDP fails optumRxCoverage groups 1 and 2 (NOT_IN) but
-matches group 3.
+group 4 can be true; a THP member with product NPDP or RPDP fails optumRxCoverage groups 1 and 2 (NOT_IN); a stand-alone
+PDP member (no pharmacy rider, no TMP medical coverage) gets optumRxCoverage only through group 3.
+The seed has 23 rule groups in total: 2 for HPHC and 21 for THP.
 
 ## 4. Family permissions
 

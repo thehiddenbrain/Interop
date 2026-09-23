@@ -56,7 +56,7 @@ public final class MemberFacts {
         Object value = raw.get(field);
         if (value == null) return null;
         if (value instanceof BigDecimal d) return d;
-        if (value instanceof Number n) return new BigDecimal(n.toString());
+        // Double/Float NaN and infinities are not numbers for our purposes; parseNumber turns them into null.
         return parseNumber(value.toString());
     }
 

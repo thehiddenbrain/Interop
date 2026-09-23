@@ -38,6 +38,6 @@ public enum Segment {
     }
 
     public static Optional<Segment> fromKey(String segmentName) {
-        return Optional.ofNullable(BY_KEY.get(segmentName));
+        return segmentName == null ? Optional.empty() : Optional.ofNullable(BY_KEY.get(segmentName));
     }
 }

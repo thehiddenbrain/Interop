@@ -32,6 +32,6 @@ public enum ViewingRelationship {
     }
 
     public static Optional<ViewingRelationship> fromLabel(String label) {
-        return Optional.ofNullable(BY_LABEL.get(label));
+        return label == null ? Optional.empty() : Optional.ofNullable(BY_LABEL.get(label));
     }
 }
