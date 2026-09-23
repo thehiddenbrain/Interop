@@ -352,7 +352,7 @@ class SeededFamilyPermissionRulesTest {
         assertThat(result.permissions()).doesNotContainKeys("benefits.spendingAccount", "claims", "claims.claim",
                 "claims.authorization", "claims.referral");
         assertThat(result.consentRequired()).containsExactly("claims.authorization", "claims.claim");
-        assertThat(result.masked()).isEmpty();
+        assertThat(result.masked()).containsExactly("claims.claim");           // masked is reported while consent is pending
     }
 
     @ParameterizedTest(name = "child aged {0}")
@@ -374,7 +374,7 @@ class SeededFamilyPermissionRulesTest {
 
         assertThat(result.permissions()).containsExactlyInAnyOrderEntriesOf(SUBSCRIBER_VIEWING_TEEN_WITHOUT_CONSENT);
         assertThat(result.consentRequired()).containsExactly("claims.authorization", "claims.claim");
-        assertThat(result.masked()).isEmpty();
+        assertThat(result.masked()).containsExactly("claims.claim");
     }
 
     @Test
@@ -699,10 +699,11 @@ class SeededFamilyPermissionRulesTest {
                     boolean teenClaims = actor == SUBSCRIBER_ACTOR && viewing == CHILD && age >= 13 && age <= 17;
                     if (teenClaims) {
                         assertThat(result.consentRequired()).containsExactly("claims.authorization", "claims.claim");
+                        assertThat(result.masked()).containsExactly("claims.claim");
                     } else {
                         assertThat(result.consentRequired()).as("%s viewing %s aged %d", actor, viewing, age).isEmpty();
+                        assertThat(result.masked()).as("%s viewing %s aged %d", actor, viewing, age).isEmpty();
                     }
-                    assertThat(result.masked()).as("%s viewing %s aged %d", actor, viewing, age).isEmpty();
                 }
             }
         }

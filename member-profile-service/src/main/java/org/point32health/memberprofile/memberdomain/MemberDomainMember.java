@@ -3,8 +3,11 @@ package org.point32health.memberprofile.memberdomain;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * What this service needs from the MemberDomain service for one member.
@@ -34,8 +37,10 @@ public record MemberDomainMember(
         List<FamilyMember> familyMembers) {
 
     public MemberDomainMember {
-        attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
-        familyMembers = familyMembers == null ? List.of() : List.copyOf(familyMembers);
+        // Map.copyOf / List.copyOf reject nulls; a null-valued fact is simply an absent fact.
+        attributes = attributes == null ? Map.of() : Collections.unmodifiableMap(new HashMap<>(attributes));
+        familyMembers = familyMembers == null ? List.of()
+                : familyMembers.stream().filter(Objects::nonNull).toList();
     }
 
     /** One member of the same family or policy, as MemberDomain lists them. */

@@ -6,16 +6,17 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Array;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Reads family permission rules on every request; nothing is cached. One indexed query per request
  * ({@code ix_family_permission_rule_actor_active}) limited to the viewing relationships the member's
- * family actually contains, plus the catch-all.
+ * family actually contains, plus the catch-all. No ORDER BY: the evaluator groups rows itself and sorts
+ * its output, so the index scan is returned as is.
  */
 @Repository
 public class PermissionRuleRepository {
@@ -27,7 +28,6 @@ public class PermissionRuleRepository {
              WHERE actor_relationship = :actor
                AND viewing_relationship IN (:viewings)
                AND is_active = TRUE
-             ORDER BY permission_key, viewing_relationship, minimum_age
             """;
 
     private final JdbcClient jdbc;
@@ -60,8 +60,8 @@ public class PermissionRuleRepository {
                             rs.getString("permission_key"),
                             rowActor,
                             rowViewing,
-                            (Integer) rs.getObject("minimum_age"),
-                            (Integer) rs.getObject("maximum_age"),
+                            rs.getObject("minimum_age", Integer.class),
+                            rs.getObject("maximum_age", Integer.class),
                             toSortedCodes(rs.getArray("action_codes")),
                             rs.getString("access_status"),
                             rs.getBoolean("consent_required"),
@@ -74,11 +74,10 @@ public class PermissionRuleRepository {
         if (array == null) return List.of();
         Object raw = array.getArray();
         if (!(raw instanceof Object[] values) || values.length == 0) return List.of();
-        List<Integer> codes = new ArrayList<>(values.length);
+        TreeSet<Integer> codes = new TreeSet<>();
         for (Object v : values) {
             if (v != null) codes.add(((Number) v).intValue());
         }
-        codes.sort(null);
         return List.copyOf(codes);
     }
 }

@@ -8,9 +8,21 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Reads {@code relationship_code} and {@code action_code} per request; they do not depend on the member, so they run alongside the MemberDomain call. */
+/**
+ * Reads {@code relationship_code} and {@code action_code} per request in one round trip (a UNION of the
+ * two tiny tables); they do not depend on the member, so the read runs alongside the MemberDomain call.
+ */
 @Repository
 public class ReferenceDataRepository {
+
+    private static final String REFERENCE_DATA = """
+            SELECT 'R' AS kind, relationship_code AS code, relationship AS value, 0 AS ord
+              FROM family_permission.relationship_code
+            UNION ALL
+            SELECT 'A', action_code::text, description, action_code
+              FROM family_permission.action_code
+             ORDER BY kind DESC, ord, code
+            """;
 
     private final JdbcClient jdbc;
 
@@ -20,16 +32,17 @@ public class ReferenceDataRepository {
 
     public ReferenceData load() {
         Map<String, FamilyRelationship> relationships = new LinkedHashMap<>();
-        jdbc.sql("SELECT relationship_code, relationship FROM family_permission.relationship_code ORDER BY relationship_code")
-                .query(rs -> {
-                    String code = rs.getString(1);
-                    String label = rs.getString(2);
-                    relationships.put(code, FamilyRelationship.fromLabel(label).orElseThrow(() ->
-                            MemberProfileException.ruleDataInvalid("relationship_code '" + code + "' maps to unknown relationship '" + label + "'")));
-                });
         Map<Integer, String> actions = new LinkedHashMap<>();
-        jdbc.sql("SELECT action_code, description FROM family_permission.action_code ORDER BY action_code")
-                .query(rs -> { actions.put(rs.getInt(1), rs.getString(2)); });
+        jdbc.sql(REFERENCE_DATA).query(rs -> {
+            String code = rs.getString("code");
+            String value = rs.getString("value");
+            if ("R".equals(rs.getString("kind"))) {
+                relationships.put(code, FamilyRelationship.fromLabel(value).orElseThrow(() ->
+                        MemberProfileException.ruleDataInvalid("relationship_code '" + code + "' maps to unknown relationship '" + value + "'")));
+            } else {
+                actions.put(Integer.parseInt(code), value);
+            }
+        });
         return new ReferenceData(Collections.unmodifiableMap(relationships), Collections.unmodifiableMap(actions));
     }
 }

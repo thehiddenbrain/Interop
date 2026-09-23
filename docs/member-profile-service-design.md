@@ -206,11 +206,14 @@ Self permissions use the same path with viewing relationship SELF.
 
 - **No caching.** Rules are read per request inside one read-only transaction, so a rule change
   applied mid-request is seen entirely or not at all. There is no refresh mechanism to operate.
-- **MemberDomain timeouts**: 2 seconds to connect, 3 seconds to read. A failure is a
-  `502 MEMBER_DOMAIN_UNAVAILABLE`; the portal decides what to show.
-- **Incomplete member data** (unknown relationship code, no company, no age or date of birth) is a
-  `422 MEMBER_DATA_INCOMPLETE` rather than a guessed answer.
+- **MemberDomain timeouts**: 2 seconds to connect, 3 seconds to read. Unreachable or timed out is
+  `504 MEMBER_DOMAIN_UNREACHABLE`; an error status or unreadable body is `502 MEMBER_DOMAIN_ERROR`. The
+  portal decides what to show.
+- **Incomplete member data** (memberTypeCode not HPHC/THP, unknown relationship code, no age or date of
+  birth) is a `422 MEMBER_DATA_INCOMPLETE` rather than a guessed answer.
 - **Unknown member** is a `404 MEMBER_NOT_FOUND`.
+- **Database**: connect and socket timeouts on the JDBC connection, a 2 second query timeout, a fixed-size
+  pool with a 2 second checkout timeout, and a 5 second bound on waiting for a parallel rule read.
 
 ---
 
@@ -327,13 +330,16 @@ Things the constraints cannot catch, to check with the explain endpoint after a 
 
 ## 8. Security
 
-- Member identity from the token only. No `memberId` parameter on the login-path endpoint.
+- All calls are POST; the member id is in the body, never in a URL or access log.
+- Service-to-service API key on `/api/**`, mandatory in prod. The portal or gateway asserts which
+  member logged in; binding that to the session token is their job (see the README's Security section
+  for the JWT alternative).
 - Family permissions are computed only for members returned by the roster call for this
   member, so the service cannot be used to probe permissions for arbitrary member ids.
 - Response contains no PHI beyond names, ages and masked account number. Claims and documents
   themselves are served by their own APIs, which enforce the same rules.
-- Admin endpoints on an internal port or path, behind service auth, not exposed through the
-  public gateway. The explain endpoint logs who asked about whom.
+- `explain` is off in prod. Error messages are fixed per code; internals stay in the log. Member ids
+  are logged as hashed prefixes only. Request bodies are capped at 8 KB.
 - Rule values are data, never code. No expression language means no injection surface.
 
 ---
@@ -374,10 +380,12 @@ These need an answer before implementation. Suggested defaults are given so work
    dental, Medicare plus PDP). Rules like `planTypeCode NOT_IN SCO,PDP` assume one value.
    Suggested default: evaluate against the member's primary active medical coverage; if
    several, evaluate each and a segment is true if any coverage satisfies it.
-2. **Where is consent recorded?** Consent-required rows need a lookup (consent on file for
-   actor, viewed member, permission family). Suggested default: a small
-   `family_consent` table in this service's database, written by whatever process captures
-   consent today, read once per request alongside the roster.
+2. **Where is consent recorded?** Implemented as `family_permission.family_consent` in this service's
+   database, read once per request; the process that writes it is still to be decided. Two semantics were
+   decided in review and need business confirmation: a consent-required row whose `action_codes` is empty
+   grants View once consent is on file (the workbook says "actions become available after consent" without
+   naming them), and a masked row is reported under `masked` while consent is still pending so the UI can
+   say the data will be masked.
 3. **Ex-spouse detection.** The relationship code alone may not distinguish a spouse from an
    ex-spouse who is still on the policy. Suggested default: treat as SPOUSE until the
    eligibility data can flag it; ex-spouse rules in the table stay dormant.
@@ -415,7 +423,8 @@ member-profile-service/src/main/java/org/point32health/memberprofile/
   permission/     FamilyRelationship, ActorRelationship, ViewingRelationship, RelationshipResolver, PermissionRule,
                   PermissionRuleRepository, PermissionEvaluator, ReferenceDataRepository, ConsentRepository
   service/        MemberProfileService (two-wave fan-out, evaluation, response)
-  config/         properties, RestClient, OpenAPI, Jackson and Clock (AppConfig)
+  common/         ApiError, ErrorCode, MemberProfileException, MemberIds
+  config/         properties, RestClient, OpenAPI, Jackson/Clock/executor (AppConfig), API key and body size filters
 member-profile-service/src/main/resources/db/migration/
   V1 schema (tables as in the workbooks plus relationship_code and family_consent), V2 segmentation seed (complete), V3 permission reference data,
   V4 family permission rules (partial; replace with the workbook export)

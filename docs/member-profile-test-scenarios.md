@@ -8,9 +8,12 @@ and `V4__seed_family_permission_rules.sql`.
 ## 1. API contract
 
 - `POST /api/v1/member-profile`, JSON body `{ "memberId": "...", "impersonating": false, "explain": false }`.
-  Only POST. GET is 405. Wrong media type is 415. Bad JSON is 400 `MALFORMED_REQUEST`. Missing or invalid
-  member id (blank, > 30 chars, characters outside `[A-Za-z0-9_-]`) is 400 `VALIDATION_ERROR` with a
-  `details[].field = memberId`.
+  Only POST. GET is 405 `METHOD_NOT_ALLOWED`. Wrong media type is 415 `UNSUPPORTED_MEDIA_TYPE`. Accept without
+  JSON is 406 `NOT_ACCEPTABLE`. Unknown path is 404 `NOT_FOUND`. Bodies above 8 KB are 413 `PAYLOAD_TOO_LARGE`.
+  Bad JSON is 400 `MALFORMED_REQUEST` with `details[0].field` naming the property. Missing or invalid member id
+  (blank, > 30 chars, characters outside `[A-Za-z0-9_-]`) is 400 `VALIDATION_ERROR` with `details[].field =
+  memberId`. With the API key enabled, a missing or wrong `X-Api-Key` is 401 `UNAUTHORIZED` before anything
+  else. `"explain": true` where explain is disabled is 403 `EXPLAIN_DISABLED`.
 - Success body (the agreed payload):
 
 ```json
@@ -38,11 +41,16 @@ and `V4__seed_family_permission_rules.sql`.
 - `permissions` maps lower camelCase permission keys to sorted action code arrays. Parent keys
   (`benefits`, `claims`, `demographic`, `documents`, `forms`, `profile`) carry `[1]` when at least one child
   key has an action. Keys with no allowed action are absent. `consentRequired` and `masked` are absent when empty.
-- `Cache-Control: no-store` on success.
+- `Cache-Control: no-store` on success and on every error.
+- `member` always writes all its properties, null included (`"planName": null`); `permissions` is always
+  present on the member and on every family entry, `{}` when empty; `consentRequired` and `masked` are
+  absent when empty; `explain` is absent unless requested.
 - Errors: `{ "status": "ERROR", "code": "...", "message": "...", "details": [ { "field", "message" } ] }`.
-  404 `MEMBER_NOT_FOUND`; 422 `MEMBER_DATA_INCOMPLETE` (no memberTypeCode, no age and no dateOfBirth for the
-  member or a family member, relationship code not in `relationship_code`); 502 `MEMBER_DOMAIN_ERROR`;
-  504 `MEMBER_DOMAIN_UNREACHABLE`; 500 `RULE_DATA_INVALID` (unknown operator or relationship label in a rule row).
+  `message` is fixed per code (see `ErrorCode`) and never contains ids, hosts, table names or rule ids;
+  the internal detail is logged only, with the member id hashed. 404 `MEMBER_NOT_FOUND`; 422
+  `MEMBER_DATA_INCOMPLETE` with `details[0].field` = memberTypeCode / age / familyMembers.age /
+  relationshipCode; 502 `MEMBER_DOMAIN_ERROR` (error status, empty or unreadable body); 504
+  `MEMBER_DOMAIN_UNREACHABLE`; 500 `RULE_DATA_INVALID` (unknown operator or relationship label in a rule row).
 
 ## 2. MemberDomain input
 
@@ -56,9 +64,11 @@ member themselves; that entry is skipped.
 ## 3. Segmentation rules (V2 seed, 75 condition rows)
 
 Evaluation: rows grouped by (segment_name, company, rule_group); AND inside a group, OR across groups; a
-segment with no active group for the company is false; a missing or null fact never satisfies a condition,
-not even NOT_EQUALS / NOT_IN / NOT_CONTAINS. Text compares are case-insensitive and trimmed. Booleans
-accept true/false, Y/N, YES/NO, 1/0 (any case) and JSON booleans.
+segment with no active group for the company is false; a missing, null or blank fact never satisfies a
+condition, not even NOT_EQUALS / NOT_IN / NOT_CONTAINS. Text compares are case-insensitive and trimmed.
+Numbers are compared in plain form (`2001`, `2001.0` and `2.001E3` all read as `2001`; `18.50` as `18.5`).
+Booleans accept true/false, Y/N, YES/NO, 1/0 (any case, also as numbers) and JSON booleans. A
+`memberTypeCode` other than HPHC or THP is 422, never a silent "all false".
 
 Operators (Operators tab): EQUALS, NOT_EQUALS, IN (comma list), NOT_IN, CONTAINS (substring), NOT_CONTAINS,
 IS_TRUE, IS_FALSE (no rule value), GREATER_THAN (numeric; non-numeric fact is false).
@@ -121,10 +131,13 @@ source_sheet, source_row, source_access_text, notes.
 Evaluation rules:
 1. Only rows whose age band contains the viewed member's age apply.
 2. Rows for the exact viewing relationship win; the catch-all row for a key applies only when that key has
-   no exact row (the precedence the workbook flagged as missing from its SQL).
-3. `consent_required` rows grant their actions only when `family_consent` has an unrevoked row for
-   (actor, viewed member, permission family); otherwise the key is listed under `consentRequired` with no actions.
-4. `masked_data` rows add the key to `masked` when they grant.
+   no exact row (the precedence the workbook flagged as missing from its SQL). The catch-all is about other
+   family members and never applies to Self.
+3. `consent_required` rows grant only when `family_consent` has an unrevoked row for (actor, viewed member,
+   permission family); otherwise the key is listed under `consentRequired` with no actions. With consent the
+   row grants its `action_codes`, or View when it lists none.
+4. `masked_data` rows add the key to `masked`, both when they grant and while consent is still pending, so
+   the UI knows the data will be masked either way.
 5. Parent keys are computed from children (View [1] when any child has an action); parent rows in the table
    ("Derived from child permissions") are ignored.
 6. Self permissions use viewing relationship Self with the actor's own age.
@@ -136,8 +149,9 @@ Seeded scenarios (V4) that tests must reproduce end to end:
 - Subscriber viewing Child 0–12: benefits children, claims.claim [1,3], claims.authorization [1], claims.referral [1].
 - Subscriber viewing Child 13–17: benefits coverage/idCard/accumulator/activePolicy (no spendingAccount);
   claims.claim CONSENT_REQUIRED + masked; claims.authorization CONSENT_REQUIRED. Without consent:
-  `consentRequired = [claims.authorization, claims.claim]`, no claims keys, no `claims` parent. With consent
-  on file for family `claims`: claims.claim [1] and claims.authorization [1], `claims` [1], `masked = [claims.claim]`.
+  `consentRequired = [claims.authorization, claims.claim]`, `masked = [claims.claim]`, no claims keys, no
+  `claims` parent. With consent on file for family `claims`: claims.claim [1] and claims.authorization [1],
+  `claims` [1], `masked = [claims.claim]`.
 - Subscriber viewing Adult dependent 18+: benefits.coverage [1], benefits.idCard [1].
 - Subscriber viewing All other family members: claims.claim NO_ACCESS (empty) → key absent.
 - Profile family, REL_SOGI rows 9–19 (exact values read from the workbook):
@@ -167,7 +181,9 @@ Boundaries: 12 → minor, 13 → teenager, 17 → teenager, 18 → adult.
 
 ## 6. Efficiency expectations
 
-- Exactly one MemberDomain call per request. Rule reads: consents and reference data run concurrently
-  with the MemberDomain call; segment rules and permission rules run concurrently after it. No caching.
+- Exactly one MemberDomain call per request, made on the request thread. Rule reads: consents and reference
+  data (one UNION query) run on the executor during the MemberDomain call; the permission rules run on the
+  executor while the request thread reads the segment rules. No caching. Waits on the executor are bounded
+  by `member-profile.http.fan-out-timeout`; JDBC has connect, socket and query timeouts.
 - Without `explain` no trace objects are allocated; with `explain` every condition and rule row is reported.
 - Rule values are parsed once per row when read (IN sets, numbers); member facts are normalized once per request.

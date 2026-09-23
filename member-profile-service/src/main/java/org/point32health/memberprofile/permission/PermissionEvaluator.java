@@ -16,10 +16,14 @@ import java.util.TreeSet;
  * <ul>
  *   <li>Rows must match the viewed member's age band.</li>
  *   <li>Rows for the exact viewing relationship win. Only when a permission key has no exact row does the
- *       "All other family members" catch-all row for that key apply (the precedence the workbook asks for).</li>
- *   <li>A consent-required row grants its actions only when consent is on file for
- *       (viewed member, permission family); otherwise the key is reported under consentRequired.</li>
- *   <li>A masked-data row adds its key to masked.</li>
+ *       "All other family members" catch-all row for that key apply (the precedence the workbook asks for).
+ *       The catch-all is about other family members, so it never applies to Self.</li>
+ *   <li>A consent-required row grants only when consent is on file for (viewed member, permission family);
+ *       otherwise the key is reported under consentRequired with no actions. Once consent is on file the
+ *       row grants its action codes, or View when the row lists none (the workbook's "no default actions,
+ *       actions become available after consent").</li>
+ *   <li>A masked-data row adds its key to masked, whether it grants now or is waiting for consent, so the
+ *       UI knows the data will be masked either way.</li>
  *   <li>Parent keys are computed: View [1] when at least one child key has an action.</li>
  * </ul>
  * {@link #index(List)} groups the actor's rows once per request; {@link Index#evaluate} then costs one scan
@@ -38,6 +42,10 @@ public class PermissionEvaluator {
         return new Index(byViewing);
     }
 
+    /** View is what a consent-required row without explicit action codes grants once consent is on file. */
+    private static final List<Integer> VIEW_ONLY = List.of(1);
+
+    /** The actor's rules grouped by viewing relationship. Build once per request, evaluate once per viewed member. */
     public static final class Index {
 
         private final EnumMap<ViewingRelationship, List<PermissionRule>> byViewing;
@@ -46,11 +54,18 @@ public class PermissionEvaluator {
             this.byViewing = byViewing;
         }
 
+        /**
+         * @param viewing        how the actor is related to the viewed member ({@link ViewingRelationship#SELF} for the actor's own data)
+         * @param viewedAge      the viewed member's age in full years
+         * @param viewedMemberId used to look up consent on file
+         * @param consentsOnFile keys from {@link ConsentRepository#activeConsentsFor}
+         * @param explain        record which rows were selected and why (costs allocations; off on the login path)
+         */
         public PermissionResult evaluate(ViewingRelationship viewing, int viewedAge, String viewedMemberId,
                                          Set<String> consentsOnFile, boolean explain) {
             Map<String, List<PermissionRule>> selected = new HashMap<>();
-            // catch-all first, then exact rows replace them key by key
-            if (viewing != ViewingRelationship.ALL_OTHER) {
+            // catch-all first, then exact rows replace them key by key; a member's own view never uses the catch-all
+            if (viewing != ViewingRelationship.ALL_OTHER && viewing != ViewingRelationship.SELF) {
                 collect(byViewing.get(ViewingRelationship.ALL_OTHER), viewedAge, selected);
             }
             Map<String, List<PermissionRule>> exact = new HashMap<>();
@@ -68,13 +83,17 @@ public class PermissionEvaluator {
                     if (rule.consentRequired()
                             && !consentsOnFile.contains(ConsentRepository.consentKey(viewedMemberId, rule.permissionFamily()))) {
                         consentRequired.add(rule.permissionKey());
-                        outcome = "consent required, not on file";
-                    } else if (rule.actionCodes().isEmpty()) {
-                        outcome = "no actions";
-                    } else {
-                        actions.computeIfAbsent(rule.permissionKey(), k -> new TreeSet<>()).addAll(rule.actionCodes());
                         if (rule.maskedData()) masked.add(rule.permissionKey());
-                        outcome = "granted " + rule.actionCodes() + (rule.maskedData() ? ", masked" : "");
+                        outcome = "consent required, not on file";
+                    } else {
+                        List<Integer> granted = rule.actionCodes().isEmpty() && rule.consentRequired() ? VIEW_ONLY : rule.actionCodes();
+                        if (granted.isEmpty()) {
+                            outcome = "no actions";
+                        } else {
+                            actions.computeIfAbsent(rule.permissionKey(), k -> new TreeSet<>()).addAll(granted);
+                            if (rule.maskedData()) masked.add(rule.permissionKey());
+                            outcome = "granted " + granted + (rule.maskedData() ? ", masked" : "");
+                        }
                     }
                     if (explain) {
                         trace.add(new PermissionResult.RuleTrace(rule.id(), rule.permissionKey(), rule.viewing().label(),

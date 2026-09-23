@@ -2,6 +2,7 @@ package org.point32health.memberprofile.config;
 
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
+import org.springframework.boot.http.client.HttpRedirects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
@@ -11,12 +12,14 @@ public class RestClientConfig {
 
     /**
      * The MemberDomain client: Boot's auto-configured builder (observability, message converters) with this
-     * service's timeouts. One instance, shared and thread-safe, with a pooled underlying HTTP client.
+     * service's timeouts and no redirect following, so a misconfigured or compromised upstream cannot send
+     * the request elsewhere. One instance, shared and thread-safe, with a pooled underlying HTTP client.
      */
     @Bean
     RestClient memberDomainRestClient(RestClient.Builder builder, MemberProfileProperties properties) {
         MemberProfileProperties.MemberDomain md = properties.memberDomain();
         HttpClientSettings settings = HttpClientSettings.defaults()
+                .withRedirects(HttpRedirects.DONT_FOLLOW)
                 .withConnectTimeout(md.connectTimeout())
                 .withReadTimeout(md.readTimeout());
         return builder

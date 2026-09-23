@@ -211,7 +211,7 @@ class ComparisonOperatorTest {
     class NotIn {
 
         @ParameterizedTest
-        @ValueSource(strings = {"MR", "CTH", "MAP", "SC", "SCO1", "", "SCO,PDP"})
+        @ValueSource(strings = {"MR", "CTH", "MAP", "SC", "SCO1", "SCO,PDP"})
         void matchesValuesOutsideTheList(String actual) {
             assertThat(test(NOT_IN, "SCO,PDP", actual)).isTrue();
         }
@@ -282,7 +282,7 @@ class ComparisonOperatorTest {
     class NotContains {
 
         @ParameterizedTest
-        @ValueSource(strings = {"10EG1234", "PD P", "DPP", "", "MR"})
+        @ValueSource(strings = {"10EG1234", "PD P", "DPP", "MR"})
         void matchesWhenTheTextIsAbsent(String actual) {
             assertThat(test(NOT_CONTAINS, "PDP", actual)).isTrue();
         }

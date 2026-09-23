@@ -3,7 +3,9 @@ package org.point32health.memberprofile.service;
 import org.point32health.memberprofile.api.MemberProfileRequest;
 import org.point32health.memberprofile.api.MemberProfileResponse;
 import org.point32health.memberprofile.common.ErrorCode;
+import org.point32health.memberprofile.common.MemberIds;
 import org.point32health.memberprofile.common.MemberProfileException;
+import org.point32health.memberprofile.config.MemberProfileProperties;
 import org.point32health.memberprofile.memberdomain.MemberDomainClient;
 import org.point32health.memberprofile.memberdomain.MemberDomainMember;
 import org.point32health.memberprofile.permission.ActorRelationship;
@@ -17,6 +19,7 @@ import org.point32health.memberprofile.permission.ReferenceData;
 import org.point32health.memberprofile.permission.ReferenceDataRepository;
 import org.point32health.memberprofile.permission.RelationshipResolver;
 import org.point32health.memberprofile.permission.ViewingRelationship;
+import org.point32health.memberprofile.segmentation.Company;
 import org.point32health.memberprofile.segmentation.MemberFacts;
 import org.point32health.memberprofile.segmentation.SegmentRule;
 import org.point32health.memberprofile.segmentation.SegmentRuleRepository;
@@ -29,6 +32,7 @@ import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.Period;
 import java.util.ArrayList;
@@ -38,23 +42,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Builds the profile on demand, once per login. Nothing is cached; every call reads the current rules.
  * <p>
  * The work is arranged so the database is never on the critical path behind MemberDomain:
  * <ol>
- *   <li><b>Wave 1</b>, concurrently: the MemberDomain call (member, rule facts, family roster); the member's
- *       consents on file (needs only the member id); the two reference tables (need nothing).</li>
- *   <li><b>Wave 2</b>, concurrently once the member is known: the segmentation rules for the member's company
- *       and the permission rules for the member's actor relationship and the viewing relationships the
- *       family contains.</li>
+ *   <li><b>Wave 1</b>: the request thread calls MemberDomain (the long call) while the executor reads the
+ *       member's consents on file (needs only the member id) and the two reference tables (need nothing).</li>
+ *   <li><b>Wave 2</b>, once the member is known: the request thread reads the segmentation rules for the
+ *       member's company while the executor reads the permission rules for the member's actor relationship
+ *       and the viewing relationships the family contains.</li>
  *   <li>Evaluate in memory: segmentation once, permissions for self and for each family member.</li>
  * </ol>
- * Latency is therefore the MemberDomain call plus one round trip of two small indexed queries. The
- * fan-out runs on Boot's application task executor, which is virtual threads on JDK 21+.
+ * Latency is therefore the MemberDomain call plus one small indexed query. The request thread always does
+ * the longest task of each wave, so under load the executor (virtual threads on JDK 21+, a bounded pool
+ * with caller-runs fallback on JDK 17) can only shorten a login, never block one.
  */
 @Service
 public class MemberProfileService {
@@ -71,6 +77,8 @@ public class MemberProfileService {
     private final RelationshipResolver relationships;
     private final AsyncTaskExecutor executor;
     private final Clock clock;
+    private final boolean explainEnabled;
+    private final Duration fanOutTimeout;
 
     public MemberProfileService(MemberDomainClient memberDomain,
                                 SegmentRuleRepository segmentRules,
@@ -81,7 +89,8 @@ public class MemberProfileService {
                                 ConsentRepository consents,
                                 RelationshipResolver relationships,
                                 @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor,
-                                Clock clock) {
+                                Clock clock,
+                                MemberProfileProperties properties) {
         this.memberDomain = memberDomain;
         this.segmentRules = segmentRules;
         this.segmentation = segmentation;
@@ -92,27 +101,40 @@ public class MemberProfileService {
         this.relationships = relationships;
         this.executor = executor;
         this.clock = clock;
+        this.explainEnabled = properties.explain().enabled();
+        this.fanOutTimeout = properties.http().fanOutTimeout();
     }
 
+    /**
+     * The login-time evaluation for one member.
+     *
+     * @throws MemberProfileException with {@code MEMBER_NOT_FOUND}, {@code MEMBER_DATA_INCOMPLETE},
+     *         {@code MEMBER_DOMAIN_ERROR}, {@code MEMBER_DOMAIN_UNREACHABLE}, {@code RULE_DATA_INVALID} or
+     *         {@code EXPLAIN_DISABLED}
+     */
     public MemberProfileResponse profile(MemberProfileRequest request) {
-        final String memberId = request.memberId();
+        final String requestedId = request.memberId();
         final boolean explain = request.isExplain();
+        if (explain && !explainEnabled) {
+            throw new MemberProfileException(ErrorCode.EXPLAIN_DISABLED, "explain requested for " + MemberIds.forLog(requestedId));
+        }
         final long start = System.nanoTime();
 
-        // Wave 1: everything that does not need the member record.
-        CompletableFuture<MemberDomainMember> memberFuture = CompletableFuture.supplyAsync(
-                () -> memberDomain.findMember(memberId).orElseThrow(() -> MemberProfileException.memberNotFound(memberId)), executor);
-        CompletableFuture<Set<String>> consentsFuture = CompletableFuture.supplyAsync(() -> consents.activeConsentsFor(memberId), executor);
+        // Wave 1: the executor reads what needs no member record; this thread makes the MemberDomain call.
+        CompletableFuture<Set<String>> consentsFuture = CompletableFuture.supplyAsync(() -> consents.activeConsentsFor(requestedId), executor);
         CompletableFuture<ReferenceData> referenceFuture = CompletableFuture.supplyAsync(referenceData::load, executor);
-
-        MemberDomainMember member = join(memberFuture);
+        MemberDomainMember member = memberDomain.findMember(requestedId)
+                .orElseThrow(() -> MemberProfileException.memberNotFound(requestedId));
         final long memberDomainNanos = System.nanoTime() - start;
 
-        String company = companyOf(member);
-        int actorAge = ageOf(memberId, member.age(), member.dateOfBirth());
-        ReferenceData reference = join(referenceFuture);
+        final String memberId = member.memberId() != null ? member.memberId() : requestedId;
+        Company company = Company.fromMemberTypeCode(member.memberTypeCode())
+                .orElseThrow(() -> MemberProfileException.memberDataIncomplete(memberId, "memberTypeCode",
+                        "memberTypeCode '" + member.memberTypeCode() + "' is not HPHC or THP"));
+        int actorAge = ageOf(memberId, "age", member.age(), member.dateOfBirth());
+        ReferenceData reference = await(referenceFuture);
         FamilyRelationship actorBase = reference.relationship(member.relationshipCode())
-                .orElseThrow(() -> MemberProfileException.memberDataIncomplete(memberId,
+                .orElseThrow(() -> MemberProfileException.memberDataIncomplete(memberId, "relationshipCode",
                         "relationship code '" + member.relationshipCode() + "' is not in family_permission.relationship_code"));
         ActorRelationship actor = relationships.actor(actorBase, actorAge);
 
@@ -120,20 +142,20 @@ public class MemberProfileService {
         List<ViewedMember> family = new ArrayList<>(member.familyMembers().size());
         Set<ViewingRelationship> viewings = EnumSet.of(ViewingRelationship.SELF);
         for (MemberDomainMember.FamilyMember fm : member.familyMembers()) {
-            if (memberId.equals(fm.memberId())) continue;                 // the roster may list the member themselves
-            int age = ageOf(fm.memberId(), fm.age(), fm.dateOfBirth());
+            if (fm.memberId() == null || memberId.equals(fm.memberId()) || requestedId.equals(fm.memberId())) continue;
+            int age = ageOf(fm.memberId(), "familyMembers.age", fm.age(), fm.dateOfBirth());
             ViewingRelationship viewing = relationships.viewing(reference.relationship(fm.relationshipCode()).orElse(null), age);
             viewings.add(viewing);
             family.add(new ViewedMember(fm, viewing, age));
         }
 
-        // Wave 2: the two rule reads, in parallel.
+        // Wave 2: the executor reads the permission rules; this thread reads the segmentation rules.
         final long rulesStart = System.nanoTime();
-        CompletableFuture<List<SegmentRule>> segmentRulesFuture = CompletableFuture.supplyAsync(() -> segmentRules.activeRulesFor(company), executor);
-        CompletableFuture<List<PermissionRule>> permissionRulesFuture = CompletableFuture.supplyAsync(() -> permissionRules.activeRulesFor(actor, viewings), executor);
-        List<SegmentRule> segmentRuleRows = join(segmentRulesFuture);
-        List<PermissionRule> permissionRuleRows = join(permissionRulesFuture);
-        Set<String> consentsOnFile = join(consentsFuture);
+        CompletableFuture<List<PermissionRule>> permissionRulesFuture =
+                CompletableFuture.supplyAsync(() -> permissionRules.activeRulesFor(actor, viewings), executor);
+        List<SegmentRule> segmentRuleRows = segmentRules.activeRulesFor(company);
+        List<PermissionRule> permissionRuleRows = await(permissionRulesFuture);
+        Set<String> consentsOnFile = await(consentsFuture);
         final long rulesNanos = System.nanoTime() - rulesStart;
 
         // Evaluate.
@@ -154,8 +176,8 @@ public class MemberProfileService {
 
         long totalMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
         if (log.isInfoEnabled()) {
-            log.info("profile memberId={} company={} actor={} segmentsTrue={} family={} memberDomainMs={} rulesMs={} totalMs={}",
-                    memberId, company, actor, trueSegments(segments), family.size(),
+            log.info("profile {} company={} actor={} segmentsTrue={} family={} memberDomainMs={} rulesMs={} totalMs={}",
+                    MemberIds.forLog(memberId), company, actor, countTrue(segments), family.size(),
                     TimeUnit.NANOSECONDS.toMillis(memberDomainNanos), TimeUnit.NANOSECONDS.toMillis(rulesNanos), totalMs);
         }
 
@@ -175,34 +197,35 @@ public class MemberProfileService {
     private record ViewedMember(MemberDomainMember.FamilyMember member, ViewingRelationship viewing, int age) {
     }
 
-    /** The company whose rules apply: {@code memberTypeCode} is HPHC or THP in the member payload. */
-    private static String companyOf(MemberDomainMember member) {
-        String code = member.memberTypeCode();
-        if (code == null || code.isBlank()) {
-            throw MemberProfileException.memberDataIncomplete(member.memberId(), "memberTypeCode (company) is missing");
-        }
-        return code.trim().toUpperCase();
-    }
-
-    private int ageOf(String memberId, Integer age, LocalDate dateOfBirth) {
+    private int ageOf(String memberId, String field, Integer age, LocalDate dateOfBirth) {
         if (age != null) return age;
         if (dateOfBirth != null) return Period.between(dateOfBirth, LocalDate.now(clock)).getYears();
-        throw MemberProfileException.memberDataIncomplete(memberId, "neither age nor dateOfBirth is present");
+        throw MemberProfileException.memberDataIncomplete(memberId, field, "neither age nor dateOfBirth is present");
     }
 
-    private static List<String> trueSegments(SegmentationResult segments) {
-        return segments.flags().entrySet().stream().filter(Map.Entry::getValue).map(Map.Entry::getKey).toList();
+    private static long countTrue(SegmentationResult segments) {
+        return segments.flags().values().stream().filter(Boolean::booleanValue).count();
     }
 
-    /** Waits for a wave-1 or wave-2 task and re-throws its failure as the original exception, not the executor's wrapper. */
-    private static <T> T join(CompletableFuture<T> future) {
+    /**
+     * Waits for a fan-out task, bounded by {@code member-profile.http.fan-out-timeout} (the JDBC query
+     * timeout is the real limit), and re-throws its failure as the original exception rather than the
+     * executor's wrapper.
+     */
+    private <T> T await(CompletableFuture<T> future) {
         try {
-            return future.join();
-        } catch (CompletionException e) {
+            return future.get(fanOutTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof MemberProfileException mpe) throw mpe;
             if (cause instanceof RuntimeException re) throw re;
-            throw new MemberProfileException(ErrorCode.INTERNAL_ERROR, "profile evaluation failed: " + cause.getMessage(), cause);
+            throw new MemberProfileException(ErrorCode.INTERNAL_ERROR, "profile evaluation failed: " + cause, cause);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            throw new MemberProfileException(ErrorCode.INTERNAL_ERROR, "rule read did not finish within " + fanOutTimeout, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MemberProfileException(ErrorCode.INTERNAL_ERROR, "interrupted while waiting for a rule read", e);
         }
     }
 }

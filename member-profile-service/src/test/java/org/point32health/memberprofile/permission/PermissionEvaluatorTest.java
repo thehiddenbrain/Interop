@@ -474,12 +474,12 @@ class PermissionEvaluatorTest {
     }
 
     @Test
-    void consentRowWithoutActionsGrantsNothingEvenWithConsent() {
+    void consentRowWithoutActionsGrantsViewOnceConsentIsOnFile() {
         List<PermissionRule> rules = List.of(consent("claims.claim", CHILD, 13, 17));
 
         PermissionResult result = evaluate(rules, CHILD, 15, consentFor(VIEWED, "claims"));
 
-        assertThat(result.permissions()).isEmpty();
+        assertThat(result.permissions()).containsExactly(Map.entry("claims", List.of(1)), Map.entry("claims.claim", List.of(1)));
         assertThat(result.consentRequired()).isEmpty();
     }
 
@@ -505,14 +505,14 @@ class PermissionEvaluatorTest {
     }
 
     @Test
-    void maskedRowNeedingConsentIsNotMaskedUntilConsentIsOnFile() {
+    void maskedRowNeedingConsentIsReportedMaskedWhileConsentIsPending() {
         List<PermissionRule> rules = List.of(maskedConsent("claims.claim", CHILD, 13, 17, 1));
 
         PermissionResult result = evaluate(rules, CHILD, 15);
 
         assertThat(result.permissions()).isEmpty();
         assertThat(result.consentRequired()).containsExactly("claims.claim");
-        assertThat(result.masked()).isEmpty();
+        assertThat(result.masked()).containsExactly("claims.claim");
     }
 
     @Test

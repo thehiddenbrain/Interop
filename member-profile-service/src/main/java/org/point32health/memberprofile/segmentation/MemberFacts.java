@@ -9,8 +9,11 @@ import java.util.Map;
  * The member attributes the segmentation rules are evaluated against, normalized once per request.
  * <p>
  * Text comparisons are case-insensitive and trimmed, so every value is upper-cased once here instead of
- * once per condition. Booleans accept the spellings the source systems use ({@code true}, {@code Y},
- * {@code 1}, ...). A fact that is absent or null never satisfies any condition.
+ * once per condition. Numbers are normalized to their plain form ({@code 2001.0} and {@code 2.001E3} both
+ * read as {@code 2001}) so a rule written as {@code sourceSystemId EQUALS 2001} matches whether MemberDomain
+ * sends a string, an integer or a float. Booleans accept the spellings the source systems use ({@code true},
+ * {@code Y}, {@code 1}, ...). A fact that is absent, null or blank never satisfies any condition, not even a
+ * negative one such as NOT_EQUALS.
  */
 public final class MemberFacts {
 
@@ -21,7 +24,8 @@ public final class MemberFacts {
         this.raw = raw;
         this.text = new HashMap<>(Math.max(16, raw.size() * 2));
         raw.forEach((k, v) -> {
-            if (v != null) text.put(k, normalize(v.toString()));
+            String normalized = normalizeValue(v);
+            if (normalized != null) text.put(k, normalized);
         });
     }
 
@@ -66,6 +70,19 @@ public final class MemberFacts {
 
     static String normalize(String value) {
         return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /** Text form of a fact for comparisons, or null when the fact carries no value. */
+    static String normalizeValue(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number n && !(value instanceof BigDecimal)) {
+            BigDecimal number = parseNumber(n.toString());
+            if (number == null) return null;                       // NaN, infinities
+            return number.stripTrailingZeros().toPlainString();
+        }
+        if (value instanceof BigDecimal d) return d.stripTrailingZeros().toPlainString();
+        String text = normalize(value.toString());
+        return text.isEmpty() ? null : text;
     }
 
     static BigDecimal parseNumber(String value) {

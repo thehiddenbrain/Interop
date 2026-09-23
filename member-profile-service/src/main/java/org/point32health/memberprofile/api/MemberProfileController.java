@@ -1,10 +1,13 @@
 package org.point32health.memberprofile.api;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.point32health.memberprofile.common.ApiError;
 import org.point32health.memberprofile.service.MemberProfileService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -31,11 +34,13 @@ public class MemberProfileController {
                     + "MemberDomain, the rules from this service's tables. Nothing is cached.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "The profile"),
-            @ApiResponse(responseCode = "400", description = "Malformed body or invalid member id"),
-            @ApiResponse(responseCode = "404", description = "MemberDomain does not know the member"),
-            @ApiResponse(responseCode = "422", description = "Member data cannot be evaluated (no company, no age, unknown relationship)"),
-            @ApiResponse(responseCode = "502", description = "MemberDomain answered with an error"),
-            @ApiResponse(responseCode = "504", description = "MemberDomain unreachable or timed out")})
+            @ApiResponse(responseCode = "400", description = "Malformed body or invalid member id", content = @Content(schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "401", description = "Missing or wrong API key", content = @Content(schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "explain requested where it is disabled", content = @Content(schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "404", description = "MemberDomain does not know the member", content = @Content(schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "422", description = "Member data cannot be evaluated (company, age, relationship)", content = @Content(schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "502", description = "MemberDomain answered with an error", content = @Content(schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "504", description = "MemberDomain unreachable or timed out", content = @Content(schema = @Schema(implementation = ApiError.class)))})
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<MemberProfileResponse> profile(@Valid @RequestBody MemberProfileRequest request) {
         return ResponseEntity.ok()

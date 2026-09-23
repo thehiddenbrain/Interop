@@ -1,4 +1,11 @@
-# Production: Swagger off unless enabled explicitly, quieter logging.
+# Production: API key required, explain off, Swagger off unless enabled explicitly, quieter logging.
+member-profile:
+  security:
+    api-key:
+      enabled: ${MEMBER_PROFILE_API_KEY_ENABLED:true}
+  explain:
+    enabled: ${MEMBER_PROFILE_EXPLAIN_ENABLED:false}
+
 springdoc:
   swagger-ui:
     enabled: ${MEMBER_PROFILE_SWAGGER_ENABLED:false}

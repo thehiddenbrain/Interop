@@ -22,10 +22,13 @@ import java.util.Map;
 public record MemberProfileResponse(Member member, Map<Integer, String> actionCodeDescriptions, Explain explain) {
 
     /**
+     * Every property is always written, null included, so the portal can rely on the shape.
+     *
      * @param segmentation      all seven segmentation flags, always present, true or false
      * @param permissions       what the member may do with their own information (viewing relationship Self)
      * @param familyPermissions one entry per other family member on the policy
      */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public record Member(
             String memberId,
             String fullName,
@@ -51,15 +54,15 @@ public record MemberProfileResponse(Member member, Map<Integer, String> actionCo
      * @param consentRequired keys that become available once consent is on file (absent when empty)
      * @param masked          keys whose data must be shown masked (absent when empty)
      */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public record FamilyPermission(
             String memberId,
             String fullName,
             String relationshipCode,
             Integer age,
             Map<String, List<Integer>> permissions,
-            List<String> consentRequired,
-            List<String> masked) {
+            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> consentRequired,
+            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> masked) {
     }
 
     /** Only present when the request set {@code explain}: how every flag and permission was decided. */

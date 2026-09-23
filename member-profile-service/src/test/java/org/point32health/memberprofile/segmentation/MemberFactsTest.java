@@ -106,8 +106,8 @@ class MemberFactsTest {
                     arguments("  std  saver  ", "STD  SAVER"),
                     arguments("nh_39_week", "NH_39_WEEK"),
                     arguments("10eg1234", "10EG1234"),
-                    arguments("", ""),
-                    arguments("   ", ""));
+                    arguments("", null),                       // blank is an absent fact
+                    arguments("   ", null));
         }
 
         @ParameterizedTest(name = "\"{0}\" -> \"{1}\"")
@@ -122,7 +122,10 @@ class MemberFactsTest {
                     arguments(2001L, "2001"),
                     arguments((short) 7, "7"),
                     arguments(2.5, "2.5"),
-                    arguments(new BigDecimal("18.50"), "18.50"),
+                    arguments(new BigDecimal("18.50"), "18.5"),                // numbers in plain form, trailing zeros dropped
+                    arguments(2001.0, "2001"),
+                    arguments(2.001e3, "2001"),
+                    arguments(1.0f, "1"),
                     arguments(Boolean.TRUE, "TRUE"),
                     arguments(Boolean.FALSE, "FALSE"),
                     arguments('x', "X"));

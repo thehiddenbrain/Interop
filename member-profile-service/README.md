@@ -16,8 +16,10 @@ Everything is evaluated **on demand**. Per request the service:
 4. returns the response. Nothing is cached, so a rule change applied to the database is live on the next call.
 
 The database is never waiting behind MemberDomain: consents and reference data are read **while** the
-MemberDomain call is in flight, and the two rule queries run **in parallel** once the member is known
-(virtual threads on JDK 21+). Latency is the MemberDomain call plus one round trip of two small indexed reads.
+MemberDomain call is in flight, and the two rule queries run **in parallel** once the member is known. The
+request thread always does the longest task of each wave; the helper tasks run on virtual threads on JDK 21+
+(the Docker image ships 21) or a bounded pool with caller-runs fallback on JDK 17. Latency is the MemberDomain
+call plus one small indexed query.
 
 Data flow: [`docs/diagrams/member-profile-data-flow.png`](../docs/diagrams/member-profile-data-flow.png)
 (sequence) and [`docs/diagrams/member-profile-components.png`](../docs/diagrams/member-profile-components.png)
@@ -75,17 +77,41 @@ Response (the agreed payload; abridged):
 - `explain` is present only when requested: actor relationship, the member facts used, every segmentation
   rule group with pass/fail per condition, the permission rows selected per member, and timings.
 
-Errors always have the shape `{ "status": "ERROR", "code": "...", "message": "...", "details": [ { "field", "message" } ] }`:
+Errors always have the shape `{ "status": "ERROR", "code": "...", "message": "...", "details": [ { "field", "message" } ] }`.
+The message is fixed per code and never contains internal details (upstream hosts, table names, rule ids);
+those go to the server log.
 
 | HTTP | `code` | When |
 |---|---|---|
-| 400 | `MALFORMED_REQUEST` | Body is not valid JSON, wrong method (405) or media type (415), unknown path (404) |
+| 400 | `MALFORMED_REQUEST` | Body is not valid JSON or cannot be mapped; `details[0].field` names the property |
 | 400 | `VALIDATION_ERROR` | `memberId` missing or invalid; `details[].field` says which field |
+| 401 | `UNAUTHORIZED` | API key missing or wrong (when `member-profile.security.api-key.enabled`) |
+| 403 | `EXPLAIN_DISABLED` | `"explain": true` where explain is disabled (prod) |
+| 404 | `NOT_FOUND` | Unknown path |
 | 404 | `MEMBER_NOT_FOUND` | MemberDomain does not know the member |
-| 422 | `MEMBER_DATA_INCOMPLETE` | No `memberTypeCode`, no age or date of birth, or a relationship code not in `relationship_code` |
-| 502 | `MEMBER_DOMAIN_ERROR` | MemberDomain answered with an error status |
+| 405 / 406 / 413 / 415 | `METHOD_NOT_ALLOWED` / `NOT_ACCEPTABLE` / `PAYLOAD_TOO_LARGE` / `UNSUPPORTED_MEDIA_TYPE` | Only POST, only JSON, bodies up to 8 KB |
+| 422 | `MEMBER_DATA_INCOMPLETE` | `memberTypeCode` not HPHC/THP, no age or date of birth, or a relationship code not in `relationship_code`; `details[0].field` says which |
+| 502 | `MEMBER_DOMAIN_ERROR` | MemberDomain answered with an error status or an unreadable body |
 | 504 | `MEMBER_DOMAIN_UNREACHABLE` | MemberDomain could not be reached or timed out |
 | 500 | `RULE_DATA_INVALID` | A rule row cannot be interpreted (unknown operator or relationship label) |
+
+## Security
+
+- **Service-to-service API key.** With `member-profile.security.api-key.enabled` (on in the `prod` profile)
+  every `/api/**` call must send the key from `MEMBER_PROFILE_API_KEY` in the `X-Api-Key` header; the
+  service refuses to start enabled without a key. Health probes stay open. The portal's backend or the API
+  gateway holds the key; browsers never call this service directly. If the platform issues JWTs for the
+  portal's service identity, replace `ApiKeyAuthFilter` with Spring Security's resource server on the same paths.
+- **The member id is the caller's assertion.** This service trusts the portal to send the id of the member
+  who logged in (and the `impersonating` flag for CSR sessions). Binding the id to the session token is the
+  portal's or the gateway's job; nothing here lets one member ask for another member's profile without that
+  layer, which is why the API key is mandatory outside development.
+- `explain` is off in prod (`member-profile.explain.enabled`): it returns raw member facts and rule internals.
+- Request bodies above `member-profile.http.max-body-bytes` (8 KB) are refused with 413 before parsing.
+- Responses, including errors, carry `Cache-Control: no-store`. Member ids appear in logs only as a
+  hashed prefix (`m:3f9a2c1e7b04`); names and account numbers are never logged.
+- The MemberDomain client does not follow redirects and has connect/read timeouts; PostgreSQL connections
+  have connect and socket timeouts and a fixed-size pool, so a stalled dependency cannot hold login threads.
 
 Swagger UI: `http://localhost:8081/swagger-ui.html` (spec at `/api-docs`). Health: `/actuator/health`
 (liveness and readiness probes). Build info: `/actuator/info`.
@@ -128,10 +154,14 @@ segmentation rules name in `api_field`; values may be strings, numbers or boolea
 The seven segment names come from the Response Contract tab and live in the `Segment` enum: League's UI
 must know each flag, so adding one is always a coordinated release. Rules for existing segments are data.
 
-Schema and seed live in `src/main/resources/db/migration` and are applied by Flyway at startup.
-`V2__seed_segmentation.sql` is the complete Loaded Rules sheet (75 conditions).
-`V4__seed_family_permission_rules.sql` is a **partial** seed (profile family plus benefits and claims examples);
-replace it with the full export of the "Family Permission Rules" sheet before go-live.
+Schema and seed live in `src/main/resources/db/migration` and are applied by Flyway at startup (or by a
+separate migration role: set `MEMBER_PROFILE_FLYWAY_USER` / `MEMBER_PROFILE_FLYWAY_PASSWORD`, or
+`MEMBER_PROFILE_FLYWAY_ENABLED=false` and run the migrations from the deployment pipeline; the runtime role
+then only needs SELECT). `V2__seed_segmentation.sql` is the complete Loaded Rules sheet (75 conditions).
+`V4__seed_family_permission_rules.sql` is a **partial** seed (profile family plus benefits and claims
+examples). Before the first deployment, replace it with the full export of the "Family Permission Rules"
+sheet; after a database has been migrated, never edit an applied migration: add `V5__...` that deactivates
+the partial rows and inserts the full export.
 
 ### Changing a rule
 
@@ -159,9 +189,10 @@ Check the effect with `POST /api/v1/member-profile` and `"explain": true`.
 org.point32health.memberprofile
   api/           MemberProfileController (POST), MemberProfileRequest, MemberProfileResponse, RestExceptionHandler
   common/        ApiError, ErrorCode, MemberProfileException
-  config/        MemberProfileProperties, AppConfig (clock, Jackson), RestClientConfig, OpenApiConfig
+  config/        MemberProfileProperties, AppConfig (clock, Jackson, executor), RestClientConfig, OpenApiConfig,
+                 ApiKeyAuthFilter, RequestSizeLimitFilter
   memberdomain/  MemberDomainClient, RestMemberDomainClient, MemberDomainMember
-  segmentation/  Segment, MemberFacts, ComparisonOperator, SegmentRule, SegmentRuleRepository,
+  segmentation/  Segment, Company, MemberFacts, ComparisonOperator, SegmentRule, SegmentRuleRepository,
                  SegmentationEvaluator, SegmentationResult
   permission/    FamilyRelationship, ActorRelationship, ViewingRelationship, RelationshipResolver,
                  PermissionRule, PermissionRuleRepository, PermissionEvaluator, PermissionResult,
@@ -196,7 +227,8 @@ curl -X POST http://localhost:8081/api/v1/member-profile -H 'Content-Type: appli
 `member-profile-service` folder. Gradle version and JDK come from the wrapper and `gradle.properties`.
 
 **Docker**: `docker build -t member-profile-service .` then run it with `MEMBER_PROFILE_DB_URL`,
-`MEMBER_PROFILE_DB_USER`, `MEMBER_PROFILE_DB_PASSWORD` and `MEMBER_DOMAIN_BASE_URL` set.
+`MEMBER_PROFILE_DB_USER`, `MEMBER_PROFILE_DB_PASSWORD`, `MEMBER_DOMAIN_BASE_URL` and `MEMBER_PROFILE_API_KEY`
+set (the image runs the `prod` profile on JDK 21).
 
 Configuration (`application.yaml`, all overridable by environment variable):
 
@@ -205,25 +237,41 @@ Configuration (`application.yaml`, all overridable by environment variable):
 | `spring.datasource.url` | `MEMBER_PROFILE_DB_URL` | `jdbc:postgresql://localhost:5432/member_profile` |
 | `spring.datasource.username` / `password` | `MEMBER_PROFILE_DB_USER` / `MEMBER_PROFILE_DB_PASSWORD` | `member_profile` |
 | `spring.datasource.hikari.maximum-pool-size` | `MEMBER_PROFILE_DB_POOL_SIZE` | `16` |
+| `spring.flyway.user` / `password` / `enabled` | `MEMBER_PROFILE_FLYWAY_USER` / `_PASSWORD` / `_ENABLED` | the datasource credentials / `true` |
 | `member-profile.member-domain.base-url` | `MEMBER_DOMAIN_BASE_URL` | `http://localhost:8090/api/v1` |
+| `member-profile.member-domain.member-path` | | `/members/{memberId}` |
 | `member-profile.member-domain.connect-timeout` / `read-timeout` | | `2s` / `3s` |
+| `member-profile.security.api-key.enabled` / `value` | `MEMBER_PROFILE_API_KEY_ENABLED` / `MEMBER_PROFILE_API_KEY` | `false` (`true` in prod) / empty |
+| `member-profile.explain.enabled` | `MEMBER_PROFILE_EXPLAIN_ENABLED` | `true` (`false` in prod) |
+| `member-profile.http.max-body-bytes` / `fan-out-timeout` | | `8192` / `5s` |
+| `member-profile.time-zone` | | `America/New_York` (ages from dates of birth roll over at local midnight) |
 | `spring.jdbc.template.query-timeout` | | `2s` |
+| `springdoc.swagger-ui.enabled` | `MEMBER_PROFILE_SWAGGER_ENABLED` (prod) | `true` (`false` in prod) |
+| `spring.profiles.active` | `SPRING_PROFILES_ACTIVE` | `dev`; the Docker image sets `prod` |
 
 ## Tests
 
 ```bash
-./gradlew test                                # unit tests (evaluators, resolver, API slice, service)
+./gradlew test                                # unit tests (evaluators, resolver, API slice, filters, service, client)
 MEMBER_PROFILE_TEST_DB=true ./gradlew test    # plus the database and end-to-end tests against the local PostgreSQL
 ```
 
-The database tests run the migrations, check the seed against the workbook, and exercise the endpoint with
-MemberDomain stubbed. The GitHub workflow `.github/workflows/member-profile-service.yml` runs everything
-against a PostgreSQL service container and builds the Docker image.
+1,948 test executions (719 test methods) in 26 classes, built from the scenario catalog
+([`docs/member-profile-test-scenarios.md`](../docs/member-profile-test-scenarios.md)):
+
+| Area | Classes | What they pin down |
+|---|---|---|
+| Segmentation | `SegmentationEvaluatorTest`, `ComparisonOperatorTest`, `MemberFactsTest`, `SegmentRuleTest`, `SegmentTest`, `CompanyTest`, `SeededSegmentationRulesTest` | Every operator and normalization rule; AND/OR grouping and short-circuiting; all 23 seeded rule groups with a matching fact set and one breaker per condition |
+| Family permissions | `PermissionEvaluatorTest`, `PermissionRuleTest`, `RelationshipResolverTest`, `RelationshipEnumsTest`, `SeededFamilyPermissionRulesTest` | Age bands, exact-over-catch-all, consent and masking, parent derivation, every relationship and age boundary, every seeded permission scenario |
+| Database | `SegmentRuleRepositoryTest`, `PermissionRuleRepositoryTest`, `ReferenceDataRepositoryTest`, `ConsentRepositoryTest`, `SchemaAndSeedTest` | Row mapping incl. `SMALLINT[]`, inactive rows, the seed against the workbook (golden run of every group on the real tables), check constraints and indexes |
+| API | `MemberProfileControllerTest`, `RestExceptionHandlerTest`, `MemberProfileRequestTest`, `ResponseJsonShapeTest`, `ApiKeyAndBodySizeFilterTest`, `MemberProfileEndToEndTest` | POST only, validation, every error code and status, the exact JSON shape of the agreed payload, API key and body size, end to end with MemberDomain stubbed |
+| Service and client | `MemberProfileServiceTest`, `RestMemberDomainClientTest`, `MemberIdsTest` | One MemberDomain call and one read per table, company and age derivation, actor and viewing relationships, consent pass-through, explain trace and gating, failure mapping, hashed ids in logs |
+
+The GitHub workflow `.github/workflows/member-profile-service.yml` runs everything against a PostgreSQL
+service container and builds the Docker image.
 
 ## Not in this version
 
-- Authentication. The caller supplies the member id; put the service behind the gateway that validates the
-  League session and restrict it to the portal's service identity, or add a token filter that binds the
-  member id to the session. Until then `explain` should be blocked at the gateway for portal traffic.
+- Binding the member id to the League session token (see Security above): the portal or gateway asserts it.
 - Caching of rules or responses. Deliberately omitted: every call reads the current rules.
 - Consent capture. `family_consent` is read here; the process that writes it is outside this service.

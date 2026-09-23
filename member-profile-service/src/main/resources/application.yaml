@@ -25,17 +25,28 @@ spring:
     username: ${MEMBER_PROFILE_DB_USER:member_profile}
     password: ${MEMBER_PROFILE_DB_PASSWORD:member_profile}
     hikari:
+      # Fixed-size pool (minimum-idle = maximum): a login never pays for opening a connection.
       maximum-pool-size: ${MEMBER_PROFILE_DB_POOL_SIZE:16}
-      minimum-idle: 4
+      minimum-idle: ${MEMBER_PROFILE_DB_POOL_SIZE:16}
       # A login must not wait long for a connection; fail fast and let the portal retry.
       connection-timeout: 2000
+      data-source-properties:
+        # pgjdbc: bound every network wait so a stalled database cannot hold a login thread.
+        connectTimeout: 2
+        socketTimeout: 5
+        tcpKeepAlive: true
+        # Server-side prepared statements from the first execution: the same five queries run on every login.
+        prepareThreshold: 1
   jdbc:
     template:
       # Every rule query is a small indexed read; anything slower is a database problem, not a reason to hold a login.
       query-timeout: 2s
   flyway:
-    enabled: true
+    enabled: ${MEMBER_PROFILE_FLYWAY_ENABLED:true}
     schemas: public,league_segmentation,family_permission
+    # Migrations may run as a separate, privileged role; the runtime role then only needs SELECT.
+    user: ${MEMBER_PROFILE_FLYWAY_USER:${MEMBER_PROFILE_DB_USER:member_profile}}
+    password: ${MEMBER_PROFILE_FLYWAY_PASSWORD:${MEMBER_PROFILE_DB_PASSWORD:member_profile}}
 
 server:
   port: 8081
@@ -53,6 +64,10 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        # Not ready without the database: every login reads the rule tables.
+        readiness:
+          include: readinessState,db
   info:
     build:
       enabled: true
@@ -70,3 +85,19 @@ member-profile:
     member-path: /members/{memberId}
     connect-timeout: 2s
     read-timeout: 3s
+  security:
+    api-key:
+      # Every /api/** call must carry the key in this header. Off by default for local development; the prod
+      # profile turns it on and the service refuses to start without a key.
+      enabled: ${MEMBER_PROFILE_API_KEY_ENABLED:false}
+      header: X-Api-Key
+      value: ${MEMBER_PROFILE_API_KEY:}
+  explain:
+    # "explain": true returns raw member facts and rule internals; on for development, off in prod.
+    enabled: ${MEMBER_PROFILE_EXPLAIN_ENABLED:true}
+  http:
+    # Largest accepted request body (the real one is under 200 bytes) and the wait bound for a parallel rule read.
+    max-body-bytes: 8192
+    fan-out-timeout: 5s
+  # Ages from dates of birth roll over at midnight in this zone.
+  time-zone: America/New_York

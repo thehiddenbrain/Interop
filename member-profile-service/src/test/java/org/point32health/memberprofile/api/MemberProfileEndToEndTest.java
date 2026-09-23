@@ -133,7 +133,7 @@ class MemberProfileEndToEndTest {
     void getIsNotAllowedAndBadIdsAreRejected() throws Exception {
         mvc.perform(get("/api/v1/member-profile"))
                 .andExpect(status().isMethodNotAllowed())
-                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
         mvc.perform(post("/api/v1/member-profile").contentType(MediaType.APPLICATION_JSON).content(body("a b;drop", "")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
