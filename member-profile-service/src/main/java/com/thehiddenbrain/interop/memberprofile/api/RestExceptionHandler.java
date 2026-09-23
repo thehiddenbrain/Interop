@@ -40,7 +40,7 @@ public class RestExceptionHandler {
     @ExceptionHandler({RelationshipResolver.UnknownRelationshipException.class, IllegalStateException.class})
     ResponseEntity<ErrorResponse> memberData(RuntimeException e) {
         log.error("Member data cannot be evaluated: {}", e.getMessage());
-        return error(HttpStatus.UNPROCESSABLE_ENTITY, "MEMBER_DATA_INCOMPLETE", e.getMessage());
+        return error(HttpStatus.UNPROCESSABLE_CONTENT, "MEMBER_DATA_INCOMPLETE", e.getMessage());
     }
 
     private static ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {

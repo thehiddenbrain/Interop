@@ -1,0 +1,3 @@
+// The folder name, this root project name, the Eclipse project name, and the
+// artifact id must all be the same string, or Buildship reports Model not available.
+rootProject.name = 'member-profile-service'

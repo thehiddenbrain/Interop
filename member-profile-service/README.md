@@ -125,16 +125,28 @@ with pass/fail per condition and every permission row that was selected.
 
 ## Run locally
 
-Requires Java 17+ and PostgreSQL. Gradle is not needed: the wrapper (`gradlew` / `gradlew.bat`)
-downloads it on first use.
+Requires Java 17 or newer and PostgreSQL. Gradle is not needed: the wrapper downloads Gradle 9.5.0 and the
+dependencies on first use. The build is the same shape as the EPA Workbench and the Patient Access
+workbench: Gradle 9.5.0 wrapper, Spring Boot 4.0.7 (Spring Framework 7, Jackson 3), no toolchain block,
+`options.release = 17` plus `-parameters`, `springBoot { buildInfo() }`, and an `internalRepoUrl` Gradle
+property that swaps Maven Central for an internal mirror (`./gradlew -PinternalRepoUrl=https://nexus.example/repository/maven-public/ build`).
 
 ```bash
 createuser member_profile -P          # password: member_profile
 createdb -O member_profile member_profile
-./gradlew bootRun                     # port 8081; Flyway creates and seeds the tables
+./run.sh                              # Mac / Linux: builds the jar on first use, then starts it on port 8081
+run.bat                               # Windows (run.cmd is the same script); finds a JDK 17+ by itself
 ```
 
-`./gradlew bootJar` builds `build/libs/member-profile-service-0.1.0-SNAPSHOT.jar`, runnable with `java -jar`.
+Or with the wrapper directly: `./gradlew bootRun`, or `./gradlew bootJar` then
+`java -jar build/libs/member-profile-service-1.0.0.jar`. Flyway creates and seeds the tables at startup.
+`/actuator/info` reports the build version.
+
+**Spring Tool Suite / Eclipse**: File > Import > Gradle > Existing Gradle Project, pick the
+`member-profile-service` folder. Gradle version and JDK come from the wrapper and `gradle.properties`.
+
+**Docker**: `docker build -t member-profile-service .` then run it with `MEMBER_PROFILE_DB_URL`,
+`MEMBER_PROFILE_DB_USER`, `MEMBER_PROFILE_DB_PASSWORD` and `MEMBER_DOMAIN_BASE_URL` set.
 
 Configuration (`application.yaml`, all overridable by environment variable):
 
@@ -153,7 +165,9 @@ MEMBER_PROFILE_TEST_DB=true ./gradlew test    # plus the end-to-end test against
 ```
 
 The end-to-end test runs the migrations, stubs MemberDomain, and checks an HPHC subscriber with a young
-child and a THP Medicare subscriber with a teenager (consent required for claims).
+child and a THP Medicare subscriber with a teenager (consent required for claims). The GitHub workflow
+`.github/workflows/member-profile-service.yml` runs both against a PostgreSQL service container and
+builds the Docker image.
 
 ## Not in this version
 

@@ -470,7 +470,7 @@ These need an answer before implementation. Suggested defaults are given so work
 
 ## 12. Project shape
 
-Implemented in `member-profile-service/` (Gradle, Spring Boot 3.5, Java 17, JDBC, Flyway, springdoc):
+Implemented in `member-profile-service/` (Gradle 9.5.0 wrapper, Groovy DSL, Spring Boot 4.0.7, Java 17 release target, JDBC, Flyway, springdoc; same build shape as the EPA and Patient Access workbenches):
 
 ```
 member-profile-service/src/main/java/com/thehiddenbrain/interop/memberprofile/
@@ -480,7 +480,7 @@ member-profile-service/src/main/java/com/thehiddenbrain/interop/memberprofile/
   permission/     PermissionRule, PermissionRuleRepository, PermissionEvaluator,
                   RelationshipResolver, ReferenceDataRepository, ConsentRepository
   service/        MemberProfileService (one request, one read-only transaction)
-  config/         properties, RestClient, OpenAPI, Clock
+  config/         properties, RestClient, OpenAPI, Jackson and Clock (AppConfig)
 member-profile-service/src/main/resources/db/migration/
   V1 schema, V2 segmentation seed (complete), V3 permission reference data,
   V4 family permission rules (partial; replace with the workbook export)

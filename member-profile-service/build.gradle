@@ -1,0 +1,65 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.7'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.thehiddenbrain.interop'
+version = '1.0.0'
+description = 'Member Profile Service: member identity, segmentation flags and family permissions for the League member portal, evaluated on demand from MemberDomain and the rule tables'
+
+// No toolchain block on purpose: release 17 pins source, target, and the linked API in one
+// flag on whatever JVM builds (JDK 17, 21 or 25 all work).
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+    // Spring Framework 7 resolves @PathVariable and @RequestParam by reflection and
+    // needs parameter names in the bytecode; bindings carry explicit names anyway.
+    options.compilerArgs.add('-parameters')
+}
+
+ext {
+    springdocVersion = '3.0.3'
+}
+
+repositories {
+    if (project.hasProperty('internalRepoUrl')) {
+        maven { url = project.property('internalRepoUrl') }
+    } else {
+        mavenCentral()
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-restclient'
+    implementation 'org.springframework.boot:spring-boot-starter-jackson'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Stamps the build so the running app can prove which version it is (/actuator/info).
+springBoot {
+    buildInfo()
+}
+
+bootJar {
+    archiveFileName = "member-profile-service-${project.version}.jar"
+}
+
+test {
+    useJUnitPlatform()
+    maxHeapSize = '1g'
+    // Set MEMBER_PROFILE_TEST_DB=true to also run the end-to-end test against a local PostgreSQL.
+    testLogging { events 'failed'; exceptionFormat = 'full' }
+}

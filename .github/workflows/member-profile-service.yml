@@ -1,0 +1,48 @@
+name: member-profile-service
+
+on:
+  push:
+    paths:
+      - 'member-profile-service/**'
+      - '.github/workflows/member-profile-service.yml'
+  pull_request:
+    paths:
+      - 'member-profile-service/**'
+      - '.github/workflows/member-profile-service.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: member-profile-service
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: member_profile
+          POSTGRES_USER: member_profile
+          POSTGRES_PASSWORD: member_profile
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U member_profile"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and test (unit + end-to-end against PostgreSQL)
+        run: ./gradlew build --no-daemon
+        env:
+          MEMBER_PROFILE_TEST_DB: 'true'
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: member-profile-service
+          path: member-profile-service/build/libs/member-profile-service-*.jar
+          if-no-files-found: error
+      - name: Docker build
+        run: docker build -t member-profile-service:ci .
