@@ -21,6 +21,7 @@ import java.sql.Types;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -543,6 +544,60 @@ class PermissionRuleRepositoryTest {
                 assertThat(repositoryReturning(row("Subscriber", "Self", null, null, new Integer[]{2, null, 1})).activeRulesFor(SUBSCRIBER, Set.of(SELF)))
                         .singleElement().extracting(PermissionRule::actionCodes).isEqualTo(List.of(1, 2));
             }
+        }
+    }
+
+    // ------------------------------------------------------------------------------- golden run on the real seed
+
+    /** The catalog's section 4 scenarios evaluated on rows read from the database, not from an in-memory copy. */
+    @Nested
+    class SeededGoldenRun {
+
+        private final PermissionEvaluator evaluator = new PermissionEvaluator();
+
+        private PermissionResult run(ActorRelationship actor, ViewingRelationship viewing, int age, Set<String> consents) {
+            List<PermissionRule> rows = repository.activeRulesFor(actor, java.util.EnumSet.of(viewing));
+            return evaluator.index(rows).evaluate(viewing, age, "VIEWED", consents, false);
+        }
+
+        @Test
+        void spouseViewingYoungChildSeesRaceEthnicityLanguageOnly() {
+            PermissionResult r = run(ActorRelationship.SPOUSE, ViewingRelationship.CHILD, 5, Set.of());
+            assertThat(r.permissions()).containsExactly(Map.entry("profile", List.of(1)), Map.entry("profile.raceEthnicityLanguage", List.of(1, 2)));
+        }
+
+        @Test
+        void spouseViewingTeenSeesNothingOfTheProfileFamily() {
+            assertThat(run(ActorRelationship.SPOUSE, ViewingRelationship.CHILD, 15, Set.of()).permissions()).isEmpty();
+        }
+
+        @Test
+        void exSpouseAndAdultChildSeeTheirOwnProfileFully() {
+            for (ActorRelationship actor : List.of(ActorRelationship.EX_SPOUSE, ActorRelationship.ADULT_CHILD)) {
+                PermissionResult r = run(actor, ViewingRelationship.SELF, 30, Set.of());
+                assertThat(r.permissions()).as(actor.label()).containsExactly(Map.entry("profile", List.of(1)),
+                        Map.entry("profile.raceEthnicityLanguage", List.of(1, 2)), Map.entry("profile.sexualOrientationGenderIdentity", List.of(1, 2)));
+            }
+            assertThat(run(ActorRelationship.EX_SPOUSE, ViewingRelationship.SUBSCRIBER, 50, Set.of()).permissions()).isEmpty();
+        }
+
+        @Test
+        void teenSeesOwnRaceEthnicityLanguageButNoSogiAndMinorSeesNothing() {
+            PermissionResult teen = run(ActorRelationship.CHILD_TEENAGER, ViewingRelationship.SELF, 15, Set.of());
+            assertThat(teen.permissions()).containsExactly(Map.entry("profile", List.of(1)), Map.entry("profile.raceEthnicityLanguage", List.of(1, 2)));
+            assertThat(run(ActorRelationship.CHILD_MINOR, ViewingRelationship.SELF, 7, Set.of()).permissions()).isEmpty();
+        }
+
+        @Test
+        void subscriberViewingTeenWithConsentOnFileForClaims() {
+            Set<String> consent = Set.of(ConsentRepository.consentKey("VIEWED", "claims"));
+            PermissionResult r = run(ActorRelationship.SUBSCRIBER, ViewingRelationship.CHILD, 15, consent);
+
+            assertThat(r.permissions()).containsEntry("claims", List.of(1)).containsEntry("claims.claim", List.of(1))
+                    .containsEntry("claims.authorization", List.of(1)).doesNotContainKey("claims.referral")
+                    .containsEntry("benefits.idCard", List.of(1, 3)).doesNotContainKey("benefits.spendingAccount");
+            assertThat(r.consentRequired()).isEmpty();
+            assertThat(r.masked()).containsExactly("claims.claim");
         }
     }
 }

@@ -9,6 +9,7 @@ import org.point32health.memberprofile.memberdomain.MemberDomainMember;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -38,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MemberProfileEndToEndTest {
 
     @Autowired MockMvc mvc;
+    @Autowired JdbcClient jdbc;
     @MockitoBean MemberDomainClient memberDomain;
 
     private static String body(String memberId, String extra) {
@@ -141,5 +143,42 @@ class MemberProfileEndToEndTest {
         mvc.perform(post("/api/v1/member-profile").contentType(MediaType.APPLICATION_JSON).content("{\"memberId\": "))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+    }
+
+    @Test
+    void consentOnFileUnlocksTheTeenClaimsRowsEndToEnd() throws Exception {
+        when(memberDomain.findMember("TH0000001")).thenReturn(Optional.of(new MemberDomainMember(
+                "TH0000001", "Sam", "Lee", "Sam Lee", null, "01", "THP", "M", null, 70, true, "****9876", "ACTIVE", Map.of(),
+                List.of(new MemberDomainMember.FamilyMember("TH0000002", "Kim Lee", "03", null, 15)))));
+        jdbc.sql("INSERT INTO family_permission.family_consent (actor_member_id, viewed_member_id, permission_family, granted_by) "
+                + "VALUES ('TH0000001', 'TH0000002', 'claims', 'e2e')").update();
+        try {
+            mvc.perform(post("/api/v1/member-profile").contentType(MediaType.APPLICATION_JSON).content(body("TH0000001", "")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.member.familyPermissions[0].permissions.claims").value(contains(1)))
+                    .andExpect(jsonPath("$.member.familyPermissions[0].permissions['claims.claim']").value(contains(1)))
+                    .andExpect(jsonPath("$.member.familyPermissions[0].permissions['claims.authorization']").value(contains(1)))
+                    .andExpect(jsonPath("$.member.familyPermissions[0].consentRequired").doesNotExist())
+                    .andExpect(jsonPath("$.member.familyPermissions[0].masked").value(contains("claims.claim")));
+        } finally {
+            jdbc.sql("DELETE FROM family_permission.family_consent WHERE actor_member_id = 'TH0000001'").update();
+        }
+    }
+
+    @Test
+    void exSpouseActorSeesOwnProfileButNothingOfTheSubscriber() throws Exception {
+        when(memberDomain.findMember("TH0000004")).thenReturn(Optional.of(new MemberDomainMember(
+                "TH0000004", "Pat", "Lee", "Pat Lee", null, "04", "THP", "M", null, 45, true, "****1111", "ACTIVE", Map.of(),
+                List.of(new MemberDomainMember.FamilyMember("TH0000001", "Sam Lee", "01", null, 70)))));
+
+        mvc.perform(post("/api/v1/member-profile").contentType(MediaType.APPLICATION_JSON).content(body("TH0000004", "")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.member.permissions.profile").value(contains(1)))
+                .andExpect(jsonPath("$.member.permissions['profile.raceEthnicityLanguage']").value(contains(1, 2)))
+                .andExpect(jsonPath("$.member.permissions['profile.sexualOrientationGenderIdentity']").value(contains(1, 2)))
+                .andExpect(jsonPath("$.member.familyPermissions[0].memberId").value("TH0000001"))
+                .andExpect(jsonPath("$.member.familyPermissions[0].permissions").isEmpty())
+                .andExpect(jsonPath("$.member.segmentation.*", hasSize(7)))
+                .andExpect(jsonPath("$.member.segmentation.onlineBillPay").value(false));
     }
 }

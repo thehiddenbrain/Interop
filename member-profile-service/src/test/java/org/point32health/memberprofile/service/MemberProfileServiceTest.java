@@ -34,6 +34,7 @@ import org.point32health.memberprofile.segmentation.SegmentRule;
 import org.point32health.memberprofile.segmentation.SegmentRuleRepository;
 import org.point32health.memberprofile.segmentation.SegmentationEvaluator;
 import org.springframework.core.task.AsyncTaskExecutor;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
 
 import java.io.IOException;
@@ -49,6 +50,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
@@ -987,6 +989,88 @@ class MemberProfileServiceTest {
 
             assertThat(response.explain()).isNull();
             assertThat(response.member().memberId()).isEqualTo(MEMBER);
+        }
+    }
+
+    // ------------------------------------------------------------------------------- fan-out on a real executor
+
+    @Nested
+    class FanOut {
+
+        private MemberProfileService serviceOn(AsyncTaskExecutor realExecutor, Duration fanOutTimeout) {
+            MemberProfileProperties props = new MemberProfileProperties(PROPERTIES.memberDomain(), PROPERTIES.security(),
+                    PROPERTIES.explain(), new MemberProfileProperties.Http(8192, fanOutTimeout), PROPERTIES.timeZone());
+            return new MemberProfileService(memberDomain, segmentRules, new SegmentationEvaluator(), permissionRules,
+                    new PermissionEvaluator(), referenceData, consents, new RelationshipResolver(), realExecutor, CLOCK, props);
+        }
+
+        @Test
+        void memberDomainAndSegmentRulesRunOnTheRequestThreadTheRestOnTheExecutor() {
+            Map<String, String> threads = new ConcurrentHashMap<>();
+            when(memberDomain.findMember(MEMBER)).thenAnswer(inv -> { threads.put("memberDomain", Thread.currentThread().getName()); return Optional.of(subscriber(family("HP0000002", "03", 7))); });
+            when(consents.activeConsentsFor(MEMBER)).thenAnswer(inv -> { threads.put("consents", Thread.currentThread().getName()); return Set.of(); });
+            when(referenceData.load()).thenAnswer(inv -> { threads.put("reference", Thread.currentThread().getName()); return reference(); });
+            when(segmentRules.activeRulesFor(Company.HPHC)).thenAnswer(inv -> { threads.put("segmentRules", Thread.currentThread().getName()); return List.of(); });
+            when(permissionRules.activeRulesFor(any(), any())).thenAnswer(inv -> { threads.put("permissionRules", Thread.currentThread().getName()); return List.of(); });
+
+            serviceOn(new SimpleAsyncTaskExecutor("fanout-"), Duration.ofSeconds(5)).profile(request());
+
+            String requestThread = Thread.currentThread().getName();
+            assertThat(threads).containsEntry("memberDomain", requestThread).containsEntry("segmentRules", requestThread);
+            assertThat(threads.get("consents")).startsWith("fanout-");
+            assertThat(threads.get("reference")).startsWith("fanout-");
+            assertThat(threads.get("permissionRules")).startsWith("fanout-");
+        }
+
+        @Test
+        void aRuleReadThatOutlivesTheFanOutTimeoutIsAnInternalErrorNotAHang() {
+            stubMember(subscriber());
+            when(consents.activeConsentsFor(MEMBER)).thenAnswer(inv -> { Thread.sleep(2_000); return Set.of(); });
+
+            MemberProfileException e = catchThrowableOfType(MemberProfileException.class,
+                    () -> serviceOn(new SimpleAsyncTaskExecutor("fanout-"), Duration.ofMillis(200)).profile(request()));
+
+            assertThat(e.getCode()).isEqualTo(ErrorCode.INTERNAL_ERROR);
+            assertThat(e.getDetail()).contains("did not finish within");
+        }
+    }
+
+    // ------------------------------------------------------------------------------- 422 details
+
+    @Nested
+    class IncompleteMemberDataDetails {
+
+        private MemberProfileException incomplete(MemberDomainMember member) {
+            stubMember(member);
+            MemberProfileException e = catchThrowableOfType(MemberProfileException.class, () -> service.profile(request()));
+            assertThat(e.getCode()).isEqualTo(ErrorCode.MEMBER_DATA_INCOMPLETE);
+            return e;
+        }
+
+        @Test
+        void unknownNonBlankCompanyIs422NamingMemberTypeCode() {
+            MemberProfileException e = incomplete(member("ACME", "01", 42, null, Map.of()));
+
+            assertThat(e.getDetails()).singleElement().extracting(d -> d.field()).isEqualTo("memberTypeCode");
+            assertThat(e.toApiError().message()).doesNotContain("ACME");
+        }
+
+        @Test
+        void missingAgeNamesAge() {
+            assertThat(incomplete(member("HPHC", "01", null, null, Map.of())).getDetails()).singleElement()
+                    .extracting(d -> d.field()).isEqualTo("age");
+        }
+
+        @Test
+        void missingFamilyAgeNamesTheFamilyField() {
+            assertThat(incomplete(subscriber(new FamilyMember("HP0000002", "Kid", "03", null, null))).getDetails()).singleElement()
+                    .extracting(d -> d.field()).isEqualTo("familyMembers.age");
+        }
+
+        @Test
+        void unknownRelationshipCodeNamesRelationshipCode() {
+            assertThat(incomplete(member("HPHC", "99", 42, null, Map.of())).getDetails()).singleElement()
+                    .extracting(d -> d.field()).isEqualTo("relationshipCode");
         }
     }
 }

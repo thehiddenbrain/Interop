@@ -256,7 +256,7 @@ Configuration (`application.yaml`, all overridable by environment variable):
 MEMBER_PROFILE_TEST_DB=true ./gradlew test    # plus the database and end-to-end tests against the local PostgreSQL
 ```
 
-1,948 test executions (719 test methods) in 26 classes, built from the scenario catalog
+1,974 test executions (743 test methods) in 27 classes, built from the scenario catalog
 ([`docs/member-profile-test-scenarios.md`](../docs/member-profile-test-scenarios.md)):
 
 | Area | Classes | What they pin down |
@@ -265,7 +265,7 @@ MEMBER_PROFILE_TEST_DB=true ./gradlew test    # plus the database and end-to-end
 | Family permissions | `PermissionEvaluatorTest`, `PermissionRuleTest`, `RelationshipResolverTest`, `RelationshipEnumsTest`, `SeededFamilyPermissionRulesTest` | Age bands, exact-over-catch-all, consent and masking, parent derivation, every relationship and age boundary, every seeded permission scenario |
 | Database | `SegmentRuleRepositoryTest`, `PermissionRuleRepositoryTest`, `ReferenceDataRepositoryTest`, `ConsentRepositoryTest`, `SchemaAndSeedTest` | Row mapping incl. `SMALLINT[]`, inactive rows, the seed against the workbook (golden run of every group on the real tables), check constraints and indexes |
 | API | `MemberProfileControllerTest`, `RestExceptionHandlerTest`, `MemberProfileRequestTest`, `ResponseJsonShapeTest`, `ApiKeyAndBodySizeFilterTest`, `MemberProfileEndToEndTest` | POST only, validation, every error code and status, the exact JSON shape of the agreed payload, API key and body size, end to end with MemberDomain stubbed |
-| Service and client | `MemberProfileServiceTest`, `RestMemberDomainClientTest`, `MemberIdsTest` | One MemberDomain call and one read per table, company and age derivation, actor and viewing relationships, consent pass-through, explain trace and gating, failure mapping, hashed ids in logs |
+| Service and client | `MemberProfileServiceTest`, `RestMemberDomainClientTest`, `MemberDomainMemberTest`, `MemberIdsTest` | One MemberDomain call and one read per table, company and age derivation, actor and viewing relationships, consent pass-through, explain trace and gating, failure mapping, hashed ids in logs |
 
 The GitHub workflow `.github/workflows/member-profile-service.yml` runs everything against a PostgreSQL
 service container and builds the Docker image.

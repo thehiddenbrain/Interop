@@ -303,7 +303,7 @@ class PermissionEvaluatorTest {
     }
 
     @Test
-    void selfPermissionsComeOnlyFromSelfRowsAndTheCatchAll() {
+    void selfPermissionsComeOnlyFromSelfRows() {
         List<PermissionRule> rules = List.of(
                 grant("benefits.idCard", SELF, null, null, 1, 3),
                 grant("benefits.coverage", SPOUSE, null, null, 1),
@@ -860,5 +860,44 @@ class PermissionEvaluatorTest {
                 SELF, null, null, VIEW_DOWNLOAD, "FULL_ACCESS", false, false);
 
         assertThat(evaluate(List.of(spouseActorRow), SELF, 42).permissions()).containsEntry("benefits.idCard", VIEW_DOWNLOAD);
+    }
+
+    // ------------------------------------------------------------------------------- catch-all and access_status
+
+    @Test
+    void aGrantingCatchAllRowNeverAppliesToSelf() {
+        List<PermissionRule> rules = List.of(row("claims.claim", ALL_OTHER, null, null, List.of(1, 3), "FULL_ACCESS", false, false));
+
+        assertThat(evaluate(rules, SELF, 42).permissions()).isEmpty();
+        assertThat(explain(rules, SELF, 42, NO_CONSENT).trace()).isEmpty();
+        assertThat(evaluate(rules, CHILD, 7).permissions()).containsEntry("claims.claim", List.of(1, 3));
+    }
+
+    @Test
+    void notApplicableAndReviewRequiredRowsNeverGrantEvenWhenActiveWithActions() {
+        List<PermissionRule> rules = List.of(
+                row("claims.claim", CHILD, null, null, List.of(1, 3), "NOT_APPLICABLE", false, false),
+                row("claims.referral", CHILD, null, null, List.of(1), "REVIEW_REQUIRED", false, false),
+                row("claims.authorization", CHILD, null, null, List.of(1), "FULL_ACCESS", false, false));
+
+        PermissionResult result = explain(rules, CHILD, 7, NO_CONSENT);
+
+        assertThat(result.permissions()).containsExactly(Map.entry("claims", List.of(1)), Map.entry("claims.authorization", List.of(1)));
+        assertThat(result.trace()).extracting(PermissionResult.RuleTrace::permissionKey).containsExactly("claims.authorization");
+    }
+
+    @Test
+    void administrativeConsentBehavesLikeConsentRequiredAndRevocableGrantsLikeFullAccess() {
+        List<PermissionRule> rules = List.of(
+                row("claims.claim", CHILD, 13, 17, List.of(1), "CONSENT_REQUIRED_ADMIN", true, false),
+                row("claims.referral", CHILD, 13, 17, List.of(1), "REVOCABLE_ACCESS", false, false));
+
+        PermissionResult pending = evaluate(rules, CHILD, 15);
+        assertThat(pending.permissions()).containsExactly(Map.entry("claims", List.of(1)), Map.entry("claims.referral", List.of(1)));
+        assertThat(pending.consentRequired()).containsExactly("claims.claim");
+
+        PermissionResult granted = evaluate(rules, CHILD, 15, consentFor(VIEWED, "claims"));
+        assertThat(granted.permissions()).containsEntry("claims.claim", List.of(1)).containsEntry("claims.referral", List.of(1));
+        assertThat(granted.consentRequired()).isEmpty();
     }
 }

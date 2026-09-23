@@ -41,6 +41,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -89,7 +90,7 @@ class RestExceptionHandlerTest {
     class WrongVerb {
 
         @Test
-        void getIs405MalformedRequest() throws Exception {
+        void getIs405MethodNotAllowed() throws Exception {
             expectApiError(perform(get(PATH)), HttpStatus.METHOD_NOT_ALLOWED, ErrorCode.METHOD_NOT_ALLOWED)
                     .andExpect(jsonPath("$.message").value(ErrorCode.METHOD_NOT_ALLOWED.message()))
                     .andExpect(jsonPath("$.details", empty()));
@@ -103,7 +104,7 @@ class RestExceptionHandlerTest {
         }
 
         @Test
-        void putIs405MalformedRequest() throws Exception {
+        void putIs405MethodNotAllowed() throws Exception {
             expectApiError(perform(put(PATH).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY)),
                     HttpStatus.METHOD_NOT_ALLOWED, ErrorCode.METHOD_NOT_ALLOWED)
                     .andExpect(jsonPath("$.message").value(ErrorCode.METHOD_NOT_ALLOWED.message()));
@@ -111,14 +112,14 @@ class RestExceptionHandlerTest {
         }
 
         @Test
-        void deleteIs405MalformedRequest() throws Exception {
+        void deleteIs405MethodNotAllowed() throws Exception {
             expectApiError(perform(delete(PATH)), HttpStatus.METHOD_NOT_ALLOWED, ErrorCode.METHOD_NOT_ALLOWED)
                     .andExpect(jsonPath("$.message").value(ErrorCode.METHOD_NOT_ALLOWED.message()));
             verifyNoInteractions(service);
         }
 
         @Test
-        void patchIs405MalformedRequest() throws Exception {
+        void patchIs405MethodNotAllowed() throws Exception {
             expectApiError(perform(patch(PATH).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY)),
                     HttpStatus.METHOD_NOT_ALLOWED, ErrorCode.METHOD_NOT_ALLOWED)
                     .andExpect(jsonPath("$.message").value(ErrorCode.METHOD_NOT_ALLOWED.message()));
@@ -139,7 +140,7 @@ class RestExceptionHandlerTest {
 
         @ParameterizedTest(name = "Content-Type {0}")
         @ValueSource(strings = {"text/plain", "application/xml", "application/x-www-form-urlencoded", "text/html", "application/octet-stream"})
-        void nonJsonContentTypeIs415MalformedRequest(String contentType) throws Exception {
+        void nonJsonContentTypeIs415UnsupportedMediaType(String contentType) throws Exception {
             expectApiError(perform(post(PATH).contentType(contentType).content(VALID_BODY)),
                     HttpStatus.UNSUPPORTED_MEDIA_TYPE, ErrorCode.UNSUPPORTED_MEDIA_TYPE)
                     .andExpect(jsonPath("$.message").value("unsupported content type; send application/json"))
@@ -364,7 +365,7 @@ class RestExceptionHandlerTest {
 
         @ParameterizedTest(name = "POST {0}")
         @ValueSource(strings = {"/api/v1/nope", "/api/v2/member-profile", "/api/v1/member-profile/HP0000001", "/member-profile"})
-        void postToAnUnknownPathIs404MalformedRequest(String path) throws Exception {
+        void postToAnUnknownPathIs404NotFound(String path) throws Exception {
             expectApiError(perform(post(path).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY)),
                     HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND)
                     .andExpect(jsonPath("$.message", containsString("no such endpoint")))
@@ -373,7 +374,7 @@ class RestExceptionHandlerTest {
         }
 
         @Test
-        void getOfAnUnknownPathIs404MalformedRequest() throws Exception {
+        void getOfAnUnknownPathIs404NotFound() throws Exception {
             expectApiError(perform(get("/api/v1/member-profile/HP0000001")), HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND)
                     .andExpect(jsonPath("$.message").value(ErrorCode.NOT_FOUND.message()));
             verifyNoInteractions(service);
@@ -439,6 +440,47 @@ class RestExceptionHandlerTest {
             assertThat(response.getBody().details()).hasSize(1);
             assertThat(response.getBody().details().get(0).field()).isEqualTo("body");
             assertThat(response.getBody().details().get(0).message()).isEqualTo("missing or not readable as JSON");
+        }
+    }
+
+    // ------------------------------------------------------------------------------- accept header and caching
+
+    @Nested
+    class AcceptAndCaching {
+
+        @Test
+        void acceptWithoutJsonIs406NotAcceptable() throws Exception {
+            expectApiError(perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY)
+                            .accept(MediaType.APPLICATION_XML)),
+                    HttpStatus.NOT_ACCEPTABLE, ErrorCode.NOT_ACCEPTABLE)
+                    .andExpect(jsonPath("$.message").value(ErrorCode.NOT_ACCEPTABLE.message()));
+        }
+
+        @Test
+        void everyHandlerProducedErrorCarriesNoStore() throws Exception {
+            when(service.profile(any())).thenThrow(MemberProfileException.memberNotFound("HP0000001"));
+
+            perform(get(PATH)).andExpect(status().isMethodNotAllowed()).andExpect(header().string("Cache-Control", "no-store"));
+            perform(post(PATH).contentType(MediaType.TEXT_PLAIN).content("x")).andExpect(status().isUnsupportedMediaType())
+                    .andExpect(header().string("Cache-Control", "no-store"));
+            perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content("{bad")).andExpect(status().isBadRequest())
+                    .andExpect(header().string("Cache-Control", "no-store"));
+            perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest())
+                    .andExpect(header().string("Cache-Control", "no-store"));
+            perform(post("/api/v1/nope").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY)).andExpect(status().isNotFound())
+                    .andExpect(header().string("Cache-Control", "no-store"));
+            perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY)).andExpect(status().isNotFound())
+                    .andExpect(header().string("Cache-Control", "no-store"));
+        }
+
+        @Test
+        void unexpectedFailuresCarryNoStoreToo() throws Exception {
+            when(service.profile(any())).thenThrow(new IllegalStateException("hunter2"));
+
+            perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(jsonPath("$.message").value(ErrorCode.INTERNAL_ERROR.message()));
         }
     }
 }

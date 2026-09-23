@@ -460,4 +460,31 @@ class ComparisonOperatorTest {
             assertThat(test(GREATER_THAN, "18", actual)).isFalse();
         }
     }
+
+    // ------------------------------------------------------------------------------- blank and numeric facts
+
+    @Nested
+    class BlankAndNumericFacts {
+
+        @ParameterizedTest
+        @ValueSource(strings = {"", " ", "\t"})
+        void aBlankFactIsAbsentSoNegativeOperatorsDoNotMatchEither(String blank) {
+            assertThat(test(NOT_EQUALS, "SCO", blank)).isFalse();
+            assertThat(test(NOT_IN, "SCO,PDP", blank)).isFalse();
+            assertThat(test(NOT_CONTAINS, "PDP", blank)).isFalse();
+            assertThat(test(EQUALS, "", blank)).isFalse();
+        }
+
+        @Test
+        void numericFactsInAnyRepresentationEqualTheRuleText() {
+            for (Object actual : java.util.List.of(2001, 2001L, 2001.0, 2.001e3, 2001.0f, new java.math.BigDecimal("2001.00"), "2001", " 2001 ")) {
+                assertThat(test(EQUALS, "2001", actual)).as(String.valueOf(actual)).isTrue();
+                assertThat(test(IN, "2026,2001", actual)).as(String.valueOf(actual)).isTrue();
+                assertThat(test(NOT_EQUALS, "2001", actual)).as(String.valueOf(actual)).isFalse();
+            }
+            assertThat(test(EQUALS, "2001", "2001.0")).isFalse();        // a string is text, not a number
+            assertThat(test(IS_TRUE, null, 1.0)).isTrue();
+            assertThat(test(IS_FALSE, null, 0.0)).isTrue();
+        }
+    }
 }

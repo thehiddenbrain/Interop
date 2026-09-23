@@ -10,7 +10,8 @@ and `V4__seed_family_permission_rules.sql`.
 - `POST /api/v1/member-profile`, JSON body `{ "memberId": "...", "impersonating": false, "explain": false }`.
   Only POST. GET is 405 `METHOD_NOT_ALLOWED`. Wrong media type is 415 `UNSUPPORTED_MEDIA_TYPE`. Accept without
   JSON is 406 `NOT_ACCEPTABLE`. Unknown path is 404 `NOT_FOUND`. Bodies above 8 KB are 413 `PAYLOAD_TOO_LARGE`.
-  Bad JSON is 400 `MALFORMED_REQUEST` with `details[0].field` naming the property. Missing or invalid member id
+  Bad JSON is 400 `MALFORMED_REQUEST`; `details[0].field` names the property for a type mismatch and is
+  `body` when the JSON itself cannot be parsed. Missing or invalid member id
   (blank, > 30 chars, characters outside `[A-Za-z0-9_-]`) is 400 `VALIDATION_ERROR` with `details[].field =
   memberId`. With the API key enabled, a missing or wrong `X-Api-Key` is 401 `UNAUTHORIZED` before anything
   else. `"explain": true` where explain is disabled is 403 `EXPLAIN_DISABLED`.
@@ -141,6 +142,10 @@ Evaluation rules:
 5. Parent keys are computed from children (View [1] when any child has an action); parent rows in the table
    ("Derived from child permissions") are ignored.
 6. Self permissions use viewing relationship Self with the actor's own age.
+7. `access_status` is descriptive except that NOT_APPLICABLE and REVIEW_REQUIRED rows never grant, whatever
+   `is_active` says. CONSENT_REQUIRED_ADMIN behaves like CONSENT_REQUIRED (the consent row's `granted_by`
+   records the staff member); REVOCABLE_ACCESS grants like FULL_ACCESS (a revocation is `revoked_at` on the
+   consent row).
 
 Seeded scenarios (V4) that tests must reproduce end to end:
 - Subscriber viewing Self, any age: benefits.* all View, idCard View+Download, claims.claim View+Download,
@@ -181,7 +186,7 @@ Boundaries: 12 → minor, 13 → teenager, 17 → teenager, 18 → adult.
 
 ## 6. Efficiency expectations
 
-- Exactly one MemberDomain call per request, made on the request thread. Rule reads: consents and reference
+- Exactly one MemberDomain call per request, made on the request thread. Rule reads: consents (one query) and reference
   data (one UNION query) run on the executor during the MemberDomain call; the permission rules run on the
   executor while the request thread reads the segment rules. No caching. Waits on the executor are bounded
   by `member-profile.http.fan-out-timeout`; JDBC has connect, socket and query timeouts.

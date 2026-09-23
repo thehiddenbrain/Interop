@@ -25,6 +25,10 @@ import java.util.TreeSet;
  *   <li>A masked-data row adds its key to masked, whether it grants now or is waiting for consent, so the
  *       UI knows the data will be masked either way.</li>
  *   <li>Parent keys are computed: View [1] when at least one child key has an action.</li>
+ *   <li>{@code access_status} is descriptive except for two values: NOT_APPLICABLE and REVIEW_REQUIRED rows
+ *       never grant, whatever {@code is_active} says. CONSENT_REQUIRED_ADMIN behaves like CONSENT_REQUIRED
+ *       (the consent row's {@code granted_by} records the staff member); REVOCABLE_ACCESS grants like
+ *       FULL_ACCESS (a revocation is a consent row with {@code revoked_at} set).</li>
  * </ul>
  * {@link #index(List)} groups the actor's rows once per request; {@link Index#evaluate} then costs one scan
  * of the rows for the viewed member's viewing relationship.
@@ -36,7 +40,7 @@ public class PermissionEvaluator {
     public Index index(List<PermissionRule> actorRules) {
         EnumMap<ViewingRelationship, List<PermissionRule>> byViewing = new EnumMap<>(ViewingRelationship.class);
         for (PermissionRule rule : actorRules) {
-            if (rule.isParentKey()) continue;
+            if (rule.isParentKey() || NEVER_GRANTS.contains(rule.accessStatus())) continue;
             byViewing.computeIfAbsent(rule.viewing(), v -> new ArrayList<>()).add(rule);
         }
         return new Index(byViewing);
@@ -44,6 +48,9 @@ public class PermissionEvaluator {
 
     /** View is what a consent-required row without explicit action codes grants once consent is on file. */
     private static final List<Integer> VIEW_ONLY = List.of(1);
+
+    /** Rows in these states are not decisions yet and never grant, even if activated by mistake. */
+    private static final Set<String> NEVER_GRANTS = Set.of("NOT_APPLICABLE", "REVIEW_REQUIRED");
 
     /** The actor's rules grouped by viewing relationship. Build once per request, evaluate once per viewed member. */
     public static final class Index {
