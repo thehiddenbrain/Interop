@@ -19,6 +19,7 @@ Start with `01-executive-summary.md`. Read the documents in order; each is self-
 | 09 | [Test and certification strategy](09-test-strategy.md) |
 | 10 | [Sources and access limitations](10-sources.md) |
 | 11 | [HPHC business rules and regulatory context](11-business-rules-and-regulatory.md) |
+| 12 | [Project plan: ordered tasks and dependencies](12-project-plan.md) |
 | – | [samples/](samples/README.md) – X12 Example 1a referral and its PAS equivalent |
 
 ## Status of this package (20 Sept 2026)
