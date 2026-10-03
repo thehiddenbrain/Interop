@@ -64,3 +64,18 @@ See the conversation; answers will be appended here.
   plus the two format enums, not a database. v0.1 also adds (a) an optional ConfigMap override of the
   YAML and (b) a startup check that the SAMPLE values were replaced in PQA/PROD. Both are candidates
   to drop in the revision to keep the mapping as plain as possible. Decision pending final feedback.
+
+## Feedback 4 (2026-10-03): behaviour when no date of service is supplied
+
+- Think again about the case where Onyx does not have a date of service. v0.1 rejects the request
+  (400 `DATE_OF_SERVICE_MISSING`); the owner wants an alternative considered, for example returning
+  current, recent past and future coverage instead of a single-date status.
+- Options to weigh in the revision (none chosen yet):
+  1. Keep `dateOfService` required (v0.1).
+  2. Default it to today, evaluate as usual, and flag `dateOfServiceDefaulted: true` in the response.
+  3. With no DOS, still resolve and format the member ID (that part never needs a date), and return a
+     coverage summary instead of one status: the span covering today (if any), the most recent past
+     span, the next future span, with status as of today.
+  4. Return every span inside a window (for example 1 year back, 1 year forward) and let Onyx decide.
+- In all options the ID resolution and vendor formatting are unaffected; only the coverage block
+  changes shape, so the contract change is additive.
