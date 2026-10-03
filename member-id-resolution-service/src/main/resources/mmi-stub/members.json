@@ -93,6 +93,13 @@
     ]
   },
   {
+    "_comment": "TMP member whose only span has an unreadable date: the service must refuse to answer (502), not say INACTIVE.",
+    "memberId": "880000000   01", "subscriberMemberId": "880000000   01", "policyId": "880000000",
+    "memberFirstName": "Lee", "memberLastName": "Okafor", "memberDob": "04/04/1951", "gender": "F",
+    "socialSecurityNumber": "***-**-8800", "legacyMemberId": null, "company": "THP", "lineOfBusiness": "MCR", "restrictedData": "N",
+    "coverage": [ { "effDate": "2024-01-01", "endDate": null, "groupId": "00001111", "groupName": "Tufts Medicare Preferred HMO", "voidFlag": "N" } ]
+  },
+  {
     "_comment": "TMP member with company missing on the record (inferred THP) and restrictedData Y.",
     "memberId": "901234567   01", "subscriberMemberId": "901234567   01", "policyId": "901234567",
     "memberFirstName": "Robin", "memberLastName": "Diaz", "memberDob": "01/30/1949", "gender": "F",

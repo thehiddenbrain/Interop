@@ -17,4 +17,12 @@ class MaskingTest {
         assertThat(Masking.memberId("")).isEqualTo("");
         assertThat(Masking.memberId(null)).isNull();
     }
+
+    @Test
+    void shapeKeepsStructureNotContent() {
+        assertThat(Masking.shape("02/30/2024")).isEqualTo("##/##/####");
+        assertThat(Masking.shape("2024-01-01")).isEqualTo("####-##-##");
+        assertThat(Masking.shape("abc 123456789")).isEqualTo("aaa #########");
+        assertThat(Masking.shape(null)).isEqualTo("null");
+    }
 }

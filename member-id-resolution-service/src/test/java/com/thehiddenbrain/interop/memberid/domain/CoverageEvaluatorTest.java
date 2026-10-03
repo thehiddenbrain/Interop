@@ -63,6 +63,15 @@ class CoverageEvaluatorTest {
     }
 
     @Test
+    void activeAnswerStillReportsTheNeighbouringSpans() {
+        CoverageDecision d = evaluator.evaluate(List.of(span("2021-01-01", "2023-12-31"), span("2024-01-01", "2026-12-31"), span("2027-01-01", null)),
+                LocalDate.parse("2026-10-03"));
+        assertThat(d.active()).isTrue();
+        assertThat(d.lastEndDate()).isEqualTo(LocalDate.parse("2023-12-31"));
+        assertThat(d.nextEffectiveDate()).isEqualTo(LocalDate.parse("2027-01-01"));
+    }
+
+    @Test
     void reportsTheLatestCoveringSpanWhenSpansOverlap() {
         CoverageDecision d = evaluator.evaluate(List.of(span("2020-01-01", null), span("2025-01-01", null)), LocalDate.parse("2026-10-15"));
         assertThat(d.span().effective()).isEqualTo(LocalDate.parse("2025-01-01"));

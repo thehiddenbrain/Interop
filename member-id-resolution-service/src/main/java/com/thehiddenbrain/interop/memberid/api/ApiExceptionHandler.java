@@ -9,9 +9,12 @@ import com.thehiddenbrain.interop.memberid.mmi.MmiException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -29,7 +32,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ResolutionException.class)
     public ResponseEntity<ApiErrorResponse> business(ResolutionException e) {
-        return respond(e.status(), e.code(), e.getMessage(), e.details(), null);
+        return respond(e.status(), e.code(), e.getMessage(), e.details(), e.mmiRequestId());
     }
 
     @ExceptionHandler(MmiException.class)
@@ -49,7 +52,7 @@ public class ApiExceptionHandler {
         String field = null;
         if (cause instanceof UnrecognizedPropertyException upe) {
             code = "UNKNOWN_PROPERTY";
-            field = upe.getPropertyName();
+            field = path(upe);
         } else if (cause instanceof InvalidFormatException ife) {
             code = "WRONG_JSON_TYPE";
             field = path(ife);
@@ -69,8 +72,16 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiErrorResponse> method(HttpRequestMethodNotSupportedException e) {
-        return respond(HttpStatus.METHOD_NOT_ALLOWED, InvalidRequestException.CODE, "method not allowed",
-                List.of(new ErrorDetail(null, "METHOD_NOT_ALLOWED", "use POST")), null);
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .header(HttpHeaders.ALLOW, HttpMethod.POST.name())
+                .body(new ApiErrorResponse(new ApiErrorResponse.Error(InvalidRequestException.CODE, "method not allowed",
+                        List.of(new ErrorDetail(null, "METHOD_NOT_ALLOWED", "use POST"))), CorrelationFilter.current(), null));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ApiErrorResponse> notAcceptable(HttpMediaTypeNotAcceptableException e) {
+        return respond(HttpStatus.NOT_ACCEPTABLE, InvalidRequestException.CODE, "this service answers application/json only",
+                List.of(new ErrorDetail(null, "NOT_ACCEPTABLE", "request a JSON representation")), null);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

@@ -8,6 +8,7 @@ import com.thehiddenbrain.interop.memberid.domain.CoverageDecision;
 import com.thehiddenbrain.interop.memberid.domain.InputShape;
 import com.thehiddenbrain.interop.memberid.domain.MemberRecord;
 import com.thehiddenbrain.interop.memberid.domain.MemberSelector;
+import com.thehiddenbrain.interop.memberid.domain.ResolutionException;
 import com.thehiddenbrain.interop.memberid.domain.SelectionResult;
 import com.thehiddenbrain.interop.memberid.domain.UnknownVendorException;
 import com.thehiddenbrain.interop.memberid.mmi.MmiClient;
@@ -85,7 +86,12 @@ public class ResolutionService {
             throw MmiException.invalidResponse(mmiResult.requestId(), "NO_MEMBER_ID", "every MMI record lacks a memberId", null);
         }
 
-        SelectionResult selection = selector.select(records, v.dateOfBirth(), v.dateOfService());
+        SelectionResult selection;
+        try {
+            selection = selector.select(records, v.dateOfBirth(), v.dateOfService());
+        } catch (ResolutionException e) {
+            throw e.withMmiRequestId(mmiResult.requestId());
+        }
         ResolveResponse response;
         if (selection instanceof SelectionResult.Ambiguous a) {
             String hint = v.memberId().shape() == InputShape.THP_9
@@ -100,6 +106,11 @@ public class ResolutionService {
         } else {
             SelectionResult.Selected s = (SelectionResult.Selected) selection;
             MemberRecord record = s.record();
+            if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
+                // every span the member has is unreadable: answering INACTIVE would be a confident wrong answer
+                throw MmiException.invalidResponse(mmiResult.requestId(), "UNREADABLE_COVERAGE",
+                        "every coverage span on the MMI record has an unreadable date; coverage cannot be determined", null);
+            }
             CoverageDecision coverage = s.coverage();
             FormattedMemberId formatted = formatter.format(record.storedMemberId(), vendor.format());
             ResolveResponse.Span span = coverage.span() == null ? null
@@ -109,9 +120,9 @@ public class ResolutionService {
                     v.dateOfService(), v.dateOfServiceDefaulted(),
                     new ResolveResponse.Coverage(coverage.active(), coverage.reason(), span, coverage.lastEndDate(), coverage.nextEffectiveDate()),
                     null, null, correlationId, mmiResult.requestId());
-            if (record.unreadableSpans() > 0) {
+            if (s.unreadableSpans() > 0) {
                 log.warn("marker=UNREADABLE_SPANS_ON_SELECTED mmiRequestId={} count={} outcome={}", mmiResult.requestId(),
-                        record.unreadableSpans(), response.outcome());
+                        s.unreadableSpans(), response.outcome());
             }
         }
         logOutcome(response, v, members.size(), start);

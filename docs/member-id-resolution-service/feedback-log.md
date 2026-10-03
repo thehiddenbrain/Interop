@@ -114,11 +114,13 @@ See the conversation; answers will be appended here.
   against localhost. The owner will point it at the PQA MMI first.
 
 ## Consolidated decisions applied in v0.2 (code + revised design)
-1. Response fields: `outcome` (ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS), `memberId.received`,
-   `memberId.searched`, `memberId.stored`, `memberId.vendor` (+ `memberId.vendorParts` for split
-   formats), `vendor`, `company`, `lineOfBusiness`, `coverage.active` (boolean flag),
-   `coverage.dateOfService`, `coverage.dateOfServiceDefaulted`, `coverage.reason`, `coverage.span`,
-   `coverage.lastEndDate` / `nextEffectiveDate`, `candidates[]` on AMBIGUOUS, `mmiRequestId`.
+1. Response fields (as shipped): `outcome` (ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS),
+   `memberId.received`, `memberId.searched`, `memberId.stored`, `memberId.forVendor`
+   (+ `memberId.forVendorParts` for split formats on TMP/SCO ids), `vendor`, `company`, `lineOfBusiness`,
+   top-level `dateOfService` and `dateOfServiceDefaulted` (top-level so NOT_FOUND and AMBIGUOUS carry
+   them too), `coverage.active` (boolean flag), `coverage.reason`, `coverage.span`,
+   `coverage.lastEndDate` / `nextEffectiveDate` (whenever such spans exist, ACTIVE included),
+   `ambiguity` + `candidates[]` on AMBIGUOUS, `correlationId`, `mmiRequestId`.
    Dropped: retryable, trace block, legacy/converted/migration/restricted/relationship fields.
 2. Vendor formats (YAML): eviCore COMPACT_11, MHK SPACED_14, Evolent COMPACT_11, Carelon COMPACT_11
    (to confirm), Optum SPLIT (9 digits and suffix as two fields, plus the 11-character join).
@@ -133,3 +135,16 @@ See the conversation; answers will be appended here.
    one, else AMBIGUOUS with candidates. DOB supplied and matching no record: 422 DOB_MISMATCH.
    Records linked through legacyMemberId (THP<->HPHC conversion) count as one person; the record
    covering the date of service wins.
+
+
+## Post-review adjustments (2026-10-03, after the adversarial code review)
+- A member whose only coverage spans have unreadable dates is answered 502 `MMI_INVALID_RESPONSE` /
+  `UNREADABLE_COVERAGE` instead of a confident INACTIVE. Spans with unreadable dates are still skipped when
+  readable ones exist.
+- The stub additionally refuses to start inside a Kubernetes/OpenShift pod (`KUBERNETES_SERVICE_HOST`),
+  because the default profile is `local`; `SPRING_PROFILES_ACTIVE` is mandatory in every deployment.
+- For a converted member, coverage reason and nearest dates come from both records' spans together.
+- `coverage.lastEndDate` / `nextEffectiveDate` are returned for ACTIVE answers as well.
+- 422 `DOB_MISMATCH` carries `mmiRequestId`; 405 carries `Allow: POST`; an unsupported representation
+  (e.g. `/api-docs.yaml`) is 406, not 500; a connection failure while reading the MMI body is 503, not 502;
+  nested unknown properties report the full JSON path.

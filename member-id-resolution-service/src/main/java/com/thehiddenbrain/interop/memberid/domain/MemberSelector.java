@@ -57,16 +57,35 @@ public final class MemberSelector {
         }
 
         if (persons.size() == 1) {
-            MemberRecord chosen = chooseWithinPerson(persons.get(0), dateOfService);
-            return new SelectionResult.Selected(chosen, evaluator.evaluate(chosen.spans(), dateOfService));
+            List<MemberRecord> person = persons.get(0);
+            MemberRecord chosen = chooseWithinPerson(person, dateOfService);
+            List<CoverageSpan> union = personSpans(person);
+            return new SelectionResult.Selected(chosen, evaluator.evaluate(union, dateOfService), union.size(),
+                    person.stream().mapToInt(MemberRecord::unreadableSpans).sum());
         }
         List<SelectionResult.Candidate> candidates = persons.stream()
-                .map(p -> chooseWithinPerson(p, dateOfService))
-                .sorted(Comparator.comparing(MemberRecord::company).thenComparing(MemberRecord::matchKey))
-                .map(r -> new SelectionResult.Candidate(r.storedMemberId(), r.company(), r.lineOfBusiness(),
-                        evaluator.evaluate(r.spans(), dateOfService).active()))
+                .sorted(Comparator.comparing((List<MemberRecord> p) -> chooseWithinPerson(p, dateOfService).company())
+                        .thenComparing(p -> chooseWithinPerson(p, dateOfService).matchKey()))
+                .map(p -> {
+                    MemberRecord r = chooseWithinPerson(p, dateOfService);
+                    return new SelectionResult.Candidate(r.storedMemberId(), r.company(), r.lineOfBusiness(),
+                            evaluator.evaluate(personSpans(p), dateOfService).active());
+                })
                 .toList();
         return new SelectionResult.Ambiguous(dobApplied ? DOB_NOT_DISCRIMINATING : MULTIPLE_PERSONS, candidates);
+    }
+
+    /** Every readable span of the person, across all of its records; a converted pair's history is one history. */
+    private static List<CoverageSpan> personSpans(List<MemberRecord> person) {
+        List<CoverageSpan> all = new ArrayList<>();
+        for (MemberRecord r : person) {
+            for (CoverageSpan s : r.spans()) {
+                if (!all.contains(s)) {
+                    all.add(s);
+                }
+            }
+        }
+        return all;
     }
 
     private static List<MemberRecord> mergeDuplicates(List<MemberRecord> records) {

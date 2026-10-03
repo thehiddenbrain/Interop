@@ -61,6 +61,11 @@ public class RestMmiClient implements MmiClient {
                             try {
                                 parsed = res.bodyTo(MmiResponse.class);
                             } catch (RuntimeException e) {
+                                if (hasIoCause(e)) {
+                                    // the connection broke or stalled while the body was being read: MMI is unavailable, not malformed
+                                    String detail = classify(e);
+                                    throw MmiException.unavailable(requestId, detail, "MMI connection failed while reading the body: " + detail, e);
+                                }
                                 throw MmiException.invalidResponse(requestId, "UNPARSEABLE_BODY",
                                         "MMI answered " + status.value() + " with a body that is not the expected JSON", e);
                             }
@@ -94,7 +99,18 @@ public class RestMmiClient implements MmiClient {
         }
     }
 
-    private static String classify(ResourceAccessException e) {
+    private static boolean hasIoCause(Throwable e) {
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof java.io.IOException) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
+    }
+
+    private static String classify(Throwable e) {
         Throwable t = e;
         while (t != null) {
             if (t instanceof HttpConnectTimeoutException || t instanceof ConnectException || t instanceof UnknownHostException) {

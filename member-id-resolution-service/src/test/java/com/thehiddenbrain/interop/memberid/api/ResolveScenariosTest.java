@@ -49,10 +49,19 @@ class ResolveScenariosTest {
     }
 
     private static final String PATH = "/api/v1/member-ids/resolve";
-    private static final Pattern NINE_DIGITS = Pattern.compile("(?<!\\d)\\d{9}(?!\\d)");
+    /** An unmasked 9- or 11-digit run (member ids), or an MM/dd/yyyy value (MMI dates of birth). */
+    private static final Pattern PHI = Pattern.compile("(?<!\\d)(?:\\d{9}|\\d{11})(?!\\d)|\\d{2}/\\d{2}/\\d{4}");
 
     @Autowired TestRestTemplate rest;
     @Autowired ObjectMapper json;
+    @Autowired com.thehiddenbrain.interop.memberid.mmi.MmiClient mmiClient;
+
+    private com.thehiddenbrain.interop.memberid.mmi.StubMmiClient stub;
+
+    @BeforeEach
+    void stub() {
+        stub = (com.thehiddenbrain.interop.memberid.mmi.StubMmiClient) mmiClient;
+    }
 
     private ListAppender<ILoggingEvent> logs;
 
@@ -97,12 +106,25 @@ class ResolveScenariosTest {
     }
 
     private void assertNoPhi(String body) {
-        assertThat(body).doesNotContain("memberFirstName", "memberLastName", "socialSecurityNumber", "memberDob", "Morgan", "Rivera", "***-**");
+        if (body != null) {
+            assertThat(body).doesNotContain("memberFirstName", "memberLastName", "socialSecurityNumber", "memberDob", "Morgan", "Rivera", "***-**");
+        }
         for (ILoggingEvent e : logs.list) {
-            String line = e.getFormattedMessage();
-            assertThat(NINE_DIGITS.matcher(line).find()).as("unmasked 9-digit run in log line: %s", line).isFalse();
+            StringBuilder text = new StringBuilder(e.getFormattedMessage());
+            if (e.getThrowableProxy() != null) {
+                text.append(' ').append(e.getThrowableProxy().getMessage());
+            }
+            if (e.getMDCPropertyMap() != null) {
+                e.getMDCPropertyMap().values().forEach(v -> text.append(' ').append(v));
+            }
+            String line = text.toString();
+            assertThat(PHI.matcher(line).find()).as("unmasked member id or MM/dd/yyyy date in log line: %s", line).isFalse();
             assertThat(line).doesNotContain("1950-03-15", "2012-09-09", "Morgan", "Rivera");
         }
+    }
+
+    private void assertNoPhi(ResponseEntity<String> r) {
+        assertNoPhi(r.getBody());
     }
 
     // ---------------------------------------------------------------- TMP: 9 / 11 / 14, one record, vendor formats
@@ -366,16 +388,24 @@ class ResolveScenariosTest {
     void wrongMethodRouteAndMediaTypeCarryTheEnvelope() throws Exception {
         ResponseEntity<String> get = rest.getForEntity(PATH, String.class);
         assertThat(get.getStatusCode().value()).isEqualTo(405);
+        assertThat(get.getHeaders().getFirst("Allow")).isEqualTo("POST");
         assertThat(json.readTree(get.getBody()).at("/error/details/0/code").asText()).isEqualTo("METHOD_NOT_ALLOWED");
+        assertNoPhi(get);
 
         ResponseEntity<String> route = rest.postForEntity("/api/v1/nope", Map.of(), String.class);
         assertThat(route.getStatusCode().value()).isEqualTo(404);
         assertThat(json.readTree(route.getBody()).at("/error/details/0/code").asText()).isEqualTo("ROUTE_NOT_FOUND");
+        assertNoPhi(route);
 
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.TEXT_PLAIN);
         ResponseEntity<String> media = rest.exchange(PATH, HttpMethod.POST, new HttpEntity<>("x", h), String.class);
         assertThat(media.getStatusCode().value()).isEqualTo(415);
+        assertNoPhi(media);
+
+        ResponseEntity<String> yaml = rest.getForEntity("/api-docs.yaml", String.class);
+        assertThat(yaml.getStatusCode().value()).as("a representation we do not serve is 406, not 500").isEqualTo(406);
+        assertThat(json.readTree(yaml.getBody()).at("/error/details/0/code").asText()).isEqualTo("NOT_ACCEPTABLE");
     }
 
     @Test
@@ -383,6 +413,7 @@ class ResolveScenariosTest {
         ResponseEntity<String> r = post(req("123456789", "2026-10-15", "evicore"), "Accept", "application/xml");
         assertThat(r.getStatusCode().value()).isEqualTo(200);
         assertThat(r.getHeaders().getContentType().isCompatibleWith(MediaType.APPLICATION_JSON)).isTrue();
+        assertNoPhi(r);
     }
 
     @Test
@@ -391,8 +422,67 @@ class ResolveScenariosTest {
         assertThat(r.getHeaders().getFirst("X-Correlation-Id")).isEqualTo("ONYX-PA-1");
         assertThat(json.readTree(r.getBody()).get("correlationId").asText()).isEqualTo("ONYX-PA-1");
         assertThat(r.getHeaders().getFirst("Cache-Control")).isEqualTo("no-store");
+        assertNoPhi(r);
         ResponseEntity<String> generated = post(req("123456789", "2026-10-15", "evicore"), "X-Correlation-Id", "{bad id}");
         assertThat(generated.getHeaders().getFirst("X-Correlation-Id")).matches("[0-9a-f-]{36}");
+        assertNoPhi(generated);
+    }
+
+    @Test
+    void unknownNestedPropertyReportsTheFullPath() throws Exception {
+        JsonNode r = call(400, "{\"memberId\":\"123456789\",\"vendor\":\"evicore\",\"patient\":{\"dob\":\"1950-03-15\"}}");
+        assertThat(r.at("/error/details/0/code").asText()).isEqualTo("UNKNOWN_PROPERTY");
+        assertThat(r.at("/error/details/0/field").asText()).isEqualTo("patient.dob");
+    }
+
+    @Test
+    void memberWhoseOnlySpanIsUnreadableIsRefusedNotInactive() throws Exception {
+        JsonNode r = call(502, req("880000000", "2026-10-15", "evicore"));
+        assertThat(r.at("/error/code").asText()).isEqualTo("MMI_INVALID_RESPONSE");
+        assertThat(r.at("/error/details/0/code").asText()).isEqualTo("UNREADABLE_COVERAGE");
+        assertThat(r.get("mmiRequestId").asText()).startsWith("MBRIDSVC-");
+    }
+
+    @Test
+    void activeAnswerCarriesThePreviousSpanEndAndDefaultedDateWorksForInactive() throws Exception {
+        JsonNode active = call(200, req("123456789", "2026-10-15", "evicore"));
+        assertThat(active.at("/coverage/lastEndDate").asText()).as("end of the span before the covering one").isEqualTo("2023-12-31");
+        assertThat(active.at("/coverage/nextEffectiveDate").isMissingNode()).isTrue();
+
+        JsonNode inactive = call(200, req("234567890", null, "evicore"));
+        assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");
+        assertThat(inactive.get("dateOfServiceDefaulted").asBoolean()).isTrue();
+        assertThat(inactive.at("/coverage/lastEndDate").asText()).isEqualTo("2025-12-31");
+    }
+
+    @Test
+    void dobMismatchCarriesTheMmiRequestId() throws Exception {
+        JsonNode r = call(422, reqDob("123456789", "2026-10-15", "evicore", "1999-09-09"));
+        assertThat(r.get("mmiRequestId").asText()).startsWith("MBRIDSVC-");
+    }
+
+    @Test
+    void errorMessageBesideMembersIsAWarningNotAFailure() throws Exception {
+        JsonNode r = call(200, req("887777777", "2026-10-15", "evicore"));
+        assertThat(r.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(logs.list.stream().anyMatch(e -> e.getFormattedMessage().contains("marker=MMI_ERROR_MESSAGE_WITH_MEMBERS"))).isTrue();
+    }
+
+    @Test
+    void recordsWithoutAMemberIdAreAContractError() throws Exception {
+        JsonNode r = call(502, req("886666666", "2026-10-15", "evicore"));
+        assertThat(r.at("/error/details/0/code").asText()).isEqualTo("NO_MEMBER_ID");
+    }
+
+    @Test
+    void invalidRequestsNeverReachMmi() throws Exception {
+        long before = stub.calls();
+        call(400, req("1234567890", "2026-10-15", "evicore"));
+        call(400, req("123456789", "2026-10-15", "AIMX"));
+        call(400, req("1".repeat(41), "2026-10-15", "evicore"));
+        assertThat(stub.calls()).isEqualTo(before);
+        JsonNode tooLong = call(400, req("1".repeat(41), "2026-10-15", "evicore"));
+        assertThat(tooLong.at("/error/details/0/code").asText()).isEqualTo("MEMBER_ID_TOO_LONG");
     }
 
     // ---------------------------------------------------------------- MMI failures

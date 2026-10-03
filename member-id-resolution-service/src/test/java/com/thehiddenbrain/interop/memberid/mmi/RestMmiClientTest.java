@@ -89,6 +89,18 @@ class RestMmiClientTest {
     }
 
     @Test
+    void requestTimeoutStatusIsUnavailable503() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://mmi.test/master/member/v1")).andRespond(withStatus(HttpStatus.REQUEST_TIMEOUT));
+        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"));
+        assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
+            assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            assertThat(e.detail()).isEqualTo("HTTP_408");
+        });
+    }
+
+    @Test
     void clientErrorIsRejected502() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -151,7 +163,7 @@ class RestMmiClientTest {
                 assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
                 assertThat(e.detail()).isEqualTo("READ_TIMEOUT");
             });
-            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(1400));
+            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(1400));
         } finally {
             server.stop(0);
         }

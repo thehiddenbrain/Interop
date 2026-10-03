@@ -34,10 +34,15 @@ then `java -jar build/libs/member-id-resolution-service-0.1.0-SNAPSHOT.jar --spr
 | `pqa-lite` | `http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` |
 | `prod` | `http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp` |
 
-In STS: Run Configurations → Spring Boot App → **Profile: `pqa`**. Or `SPRING_PROFILES_ACTIVE=pqa`.
-Overrides without a rebuild: `MMI_BASE_URL`, `MMI_CLIENT_ID` (placeholder `MBRIDSVC`; register the real
-application name with the MMI team), `SPRING_HTTP_CLIENT_READ_TIMEOUT=5s`. The stub can only be enabled
-with the `local` or `test` profile; any other profile with `mmi.stub.enabled=true` refuses to start.
+In STS: Run Configurations → Spring Boot App → **Profile: `pqa`**. From a jar: `--spring.profiles.active=pqa`
+or `SPRING_PROFILES_ACTIVE=pqa`. Overrides without a rebuild: `MMI_BASE_URL`, `MMI_CLIENT_ID` (placeholder
+`MBRIDSVC`; register the real application name with the MMI team), `SPRING_HTTP_CLIENT_READ_TIMEOUT=5s`.
+
+**Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `local` (the stub) so that
+STS runs with one click. Two guards back the rule: the stub refuses to start with any explicitly active
+profile other than `local` or `test`, and it refuses to start inside a Kubernetes/OpenShift pod at all
+(it checks `KUBERNETES_SERVICE_HOST`), so a pod that forgot its profile fails loudly instead of answering
+from canned data.
 
 ## 2. The API
 
@@ -63,7 +68,7 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed, generated when a
 
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
-| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Put `memberId.forVendor` (or `forVendorParts` for Optum) in the vendor payload. |
+| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Put `memberId.forVendor` in the vendor payload. For Optum use `forVendorParts` when it is present (TMP/SCO ids); for Public Plans and HPHC ids there are no parts, send `forVendor`. |
 | `INACTIVE` | Member verified, `coverage.active = false`; `coverage.reason` and the nearest span dates say why | Hold for intake (owner decision). |
 | `NOT_FOUND` | MMI has no record for this ID | "Member not found" worklist. |
 | `AMBIGUOUS` | A 9-digit ID of a population with dependents matched several persons and no DOB settled it | Resend with the 11-character ID or `patient.dateOfBirth`, else intake picks from `candidates[]`. |
@@ -78,19 +83,27 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed, generated when a
 ```
 
 `memberId.stored` is the ID exactly as MMI holds it. `forVendor` is that ID in the vendor's format.
-For Optum (`SPLIT`) the response also carries `forVendorParts: { "memberId": "123456789", "suffix": "01" }`.
+For Optum (`SPLIT`) **and a TMP/SCO id** the response also carries `forVendorParts: { "memberId": "123456789",
+"suffix": "01" }`; for Public Plans and HPHC ids only `forVendor` is returned (their ids have no suffix to split).
 Public Plans IDs (11 continuous characters) and HPHC IDs (`HP` + 9 digits) are passed as stored for every vendor.
-`coverage.reason` is one of `COVERED`, `NO_COVERAGE_RECORDS`, `NOT_YET_EFFECTIVE` (+ `nextEffectiveDate`),
-`COVERAGE_ENDED` (+ `lastEndDate`), `COVERAGE_GAP` (+ both).
+`coverage.reason` is one of `COVERED`, `NO_COVERAGE_RECORDS`, `NOT_YET_EFFECTIVE`, `COVERAGE_ENDED`,
+`COVERAGE_GAP`. `coverage.lastEndDate` (end of the latest span before the date) and `coverage.nextEffectiveDate`
+(start of the earliest span after it) are present whenever such spans exist, for ACTIVE answers too, so a
+defaulted date of service still shows recent past and future coverage.
 
-### Errors (non-200): always `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "mmiRequestId" }`
+### Errors (non-200): `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "mmiRequestId" }`
+
+Every answer the application produces has this shape (`mmiRequestId` is present once MMI was called,
+including on a 422). The one exception is a request Tomcat rejects before it reaches the application
+(malformed percent-encoding in the URL, a header block over 8 KB): that returns Spring Boot's default
+error JSON.
 
 | HTTP | `error.code` | When | Onyx action |
 |---|---|---|---|
-| 400 | `INVALID_REQUEST` | bad member ID shape, bad dates, missing vendor, malformed JSON, unknown property, wrong JSON type. Every problem is listed in `details[]`. | Never retry. `MEMBER_ID_*` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
+| 400 | `INVALID_REQUEST` | bad member ID shape, bad dates, missing vendor, malformed JSON, unknown property, wrong JSON type. Every problem is listed in `details[]`. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type.) | Never retry. `MEMBER_ID_*` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
 | 400 | `UNKNOWN_VENDOR` | vendor not in the table; `details[0].message` lists the known codes | Never retry; routing table and this table disagree. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
-| 502 | `MMI_ERROR`, `MMI_INVALID_RESPONSE` | MMI rejected the call or answered unreadably | Park, alert the service owners. |
+| 502 | `MMI_ERROR`, `MMI_INVALID_RESPONSE` | MMI rejected the call, answered unreadably, or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read) | Park, alert the service owners. |
 | 503 | `MMI_UNAVAILABLE` (`Retry-After: 10`) | MMI unreachable, timed out, or 5xx | Retry later. |
 | 500 | `INTERNAL_ERROR` | a bug here | Retry once later, alert the service owners. |
 
@@ -109,7 +122,10 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    conversion) are one person and the record covering the date of service wins; a supplied DOB picks one
    person or proves a mismatch; several persons without a DOB → `AMBIGUOUS`.
 4. Coverage: a non-void span with `effDate ≤ DOS ≤ endDate` (inclusive; null or `12/31/9999` = open)
-   → active. Unreadable dates are skipped and logged with `marker=UNREADABLE_SPAN`.
+   → active. A span with an unreadable date is skipped and logged with `marker=UNREADABLE_SPAN`; the
+   remaining spans decide. If a member has unreadable spans and no readable one, the answer is 502
+   `UNREADABLE_COVERAGE`, never a confident INACTIVE. For a converted member the two records' spans are
+   evaluated together, so a gap between the old and the new record is reported as a gap.
 5. Format for the vendor from the stored ID (never from the input).
 
 TMP / SCO members have no dependents: a 9-digit card number returns exactly one record and resolves
@@ -117,17 +133,32 @@ directly. Only populations with dependents (HPHC commercial, Together) can produ
 
 ## 4. Vendor formats: the only thing to edit when a vendor changes
 
-`src/main/resources/application.yml`, block `member-id.vendors`. Change a value, redeploy; the startup log
-prints the effective table rendered against a sample ID.
+`src/main/resources/application.yml`, block `member-id.vendors` (edit it there; the block below is a copy of
+the shipped values). Change a value, redeploy; the startup log prints the effective table rendered against
+a sample ID.
 
 ```yaml
 member-id:
   vendors:
-    EVICORE: { display-name: eviCore, aliases: [EVI], format: COMPACT_11 }   # 12345678901
-    MHK:     { display-name: MHK,     aliases: [MEDHOK], format: SPACED_14 } # 123456789   01
-    EVOLENT: { display-name: Evolent, format: COMPACT_11 }
-    CARELON: { display-name: Carelon, aliases: [AIM], format: COMPACT_11 }   # TO CONFIRM: 11 or 14
-    OPTUM:   { display-name: Optum,   format: SPLIT }                        # "123456789" + "01" as two fields
+    EVICORE:
+      display-name: eviCore
+      aliases: [EVI, EVICORE_HEALTHCARE]
+      format: COMPACT_11                # 12345678901
+    MHK:
+      display-name: MHK (MedHOK)
+      aliases: [MEDHOK]
+      format: SPACED_14                 # 123456789   01
+    EVOLENT:
+      display-name: Evolent
+      aliases: [EVOLENT_HEALTH]
+      format: COMPACT_11
+    CARELON:
+      display-name: Carelon
+      aliases: [AIM]
+      format: COMPACT_11                # TO CONFIRM with the owner: 11 or 14
+    OPTUM:
+      display-name: Optum
+      format: SPLIT                     # "123456789" + "01" as two fields (TMP/SCO ids)
 ```
 
 Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. A new output shape = one constant in
@@ -148,8 +179,10 @@ the family, legacy-id match and the second pass through `legacyMemberId`.
 | `678901234` | void span + ended span → INACTIVE |
 | `789012345` | coverage starts 2027-01-01 → NOT_YET_EFFECTIVE |
 | `890123456` | one unreadable span + one valid → ACTIVE with a warning |
+| `880000000` | only an unreadable span → 502 `UNREADABLE_COVERAGE` |
 | `901234567` | company missing on the record (inferred), restrictedData Y |
-| `500500500` · `503503503` · `400400400` · `888888888` · `202202202` | faults: MMI 500 → 503, timeout → 503, MMI 400 → 502, error message → 502, bad body → 502 |
+| `500500500` · `503503503` · `400400400` · `888888888` · `202202202` | faults: MMI 500 → 503, timeout → 503, MMI 400 → 502, error message with no members → 502, bad body → 502 |
+| `887777777` · `886666666` | an error message beside a member record → 200 with a warning; a record without a member id → 502 `NO_MEMBER_ID` |
 | anything else | NOT_FOUND |
 
 Postman: import `postman/MemberIdResolution.postman_collection.json` and
@@ -158,11 +191,13 @@ run the whole collection with the Collection Runner for a green scenario pass.
 
 ## 6. Tests
 
-`./gradlew test`: parser rows, coverage rules, selection rules, vendor formats, MMI mapping, the REST client
-against a mock server (500/429/400/bad body/connection refused/read timeout), configuration validation,
-and the end-to-end scenario matrix over HTTP against the stub with "today" fixed at 2026-10-03. A capturing
-log appender asserts no log line contains an unmasked 9-digit run or a date of birth, and no response body
-contains names or SSN.
+`./gradlew test`: parser rows, coverage rules, selection rules (including converted members in a gap and
+with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
+(500/429/408/400/bad body/connection refused/read timeout), configuration validation, and the end-to-end
+scenario matrix over HTTP against the stub with "today" fixed at 2026-10-03. A capturing log appender
+asserts no log line (message, exception text or MDC) contains an unmasked 9- or 11-digit run or an
+MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
+never reach MMI.
 
 ## 7. Assumptions to confirm in PQA
 

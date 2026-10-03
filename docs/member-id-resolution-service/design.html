@@ -177,7 +177,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
   <h1>Member ID Resolution Service</h1>
   <p class="lede">A small, stateless Spring Boot service for Onyx. It takes the member ID exactly as the provider's EMR supplied it, verifies it with the Master Member Index (MMI), returns the ID as stored and in the format the chosen UM vendor expects, and says with one flag whether coverage is active on the date of service.</p>
   <div class="meta">
-    <span><b>Status</b> v0.2, code delivered (<code>member-id-resolution-service/</code>), 111 tests green, Postman collection verified</span>
+    <span><b>Status</b> v0.2, code delivered (<code>member-id-resolution-service/</code>), reviewed, 124 tests green, Postman collection verified</span>
     <span><b>Date</b> 2026-10-03</span>
     <span><b>Stack</b> Java 17+ · Spring Boot 3.5 · Gradle · port 9090</span>
     <span><b>Only integration</b> MMI</span>
@@ -242,7 +242,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
   <div class="card"><h4>Four business answers (HTTP 200)</h4><p><span class="pill ok">ACTIVE</span> <span class="pill warn">INACTIVE</span> <span class="pill neutral">NOT_FOUND</span> <span class="pill info">AMBIGUOUS</span><br>Onyx branches on <code>outcome</code>; <code>coverage.active</code> is the yes/no flag.</p></div>
   <div class="card"><h4>Three Onyx branches</h4><p>200: act on <code>outcome</code>. 400 or 422: never retry, route by code. 502, 503 or no response: retry later; if this service is down, pass the EMR's ID through.</p></div>
   <div class="card"><h4>Deliberately plain</h4><p>No database, no cache, no queue, no retry or circuit-breaker machinery, no security envelope (Azure APIM owns that). About 45 small classes.</p></div>
-  <div class="card"><h4>Delivered</h4><p>Gradle project importable into STS, in-process MMI stub for local runs, README, Postman collection (42 requests, 168 assertions, all green against the running service).</p></div>
+  <div class="card"><h4>Delivered</h4><p>Gradle project importable into STS, in-process MMI stub for local runs, README, Postman collection (45 requests, all assertions green against the running service).</p></div>
 </div>
 
 <div class="callout">
@@ -303,7 +303,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <li>One MMI call per request; TMP/SCO resolve from any form; dependents handled through the DOB or AMBIGUOUS with candidates; converted THP↔HPHC members handled through MMI's legacy link.</li>
 <li>Coverage flag for the date of service (today when omitted), with the reason and the nearest span dates.</li>
 <li>Vendor formats in <code>application.yml</code>; a change is a config edit and a deploy.</li>
-<li>Clear error envelope, masked logging, correlation id, in-process MMI stub for local runs and tests, profiles with the four MMI URLs.</li>
+<li>Clear error envelope, masked logging, correlation id, in-process MMI stub for local runs and tests (profile-guarded and refusing to run inside a pod), profiles with the four MMI URLs.</li>
 </ul>
 </div>
 <div>
@@ -328,7 +328,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <li><b>Look up the vendor</b> by code or alias, case-insensitively → 400 <code>UNKNOWN_VENDOR</code> with the known codes.</li>
 <li><b>Normalise the member ID</b> into one of three shapes (section 8).</li>
 <li><b>Call MMI once</b> with the normalised ID in <code>memberId</code> and <code>legacyMemberId</code>, <code>voidCoverageRecord = N</code>, our <code>clientId</code>, a fresh <code>requestId</code> (section 9).</li>
-<li><b>Interpret the answer</b>: no members → NOT_FOUND (or 502 if MMI reported an error); otherwise map each record, keeping only readable, non-void coverage spans.</li>
+<li><b>Interpret the answer</b>: no members → NOT_FOUND (or 502 if MMI reported an error); otherwise map each record, keeping only readable, non-void coverage spans. A member with unreadable spans and no readable one is a 502, never a confident INACTIVE.</li>
 <li><b>Select the member</b> (section 10): merge duplicates, join converted pairs, apply the DOB, one person or AMBIGUOUS.</li>
 <li><b>Evaluate coverage</b> on the date of service (section 11).</li>
 <li><b>Format the stored ID</b> for the vendor (section 12), never the input.</li>
@@ -372,7 +372,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <tr><td><code>coverage.active</code></td><td><code>true</code></td><td><code>false</code></td><td>–</td><td>–</td><td><b>The flag.</b></td></tr>
 <tr><td><code>coverage.reason</code></td><td><code>COVERED</code></td><td><code>NO_COVERAGE_RECORDS</code> · <code>NOT_YET_EFFECTIVE</code> · <code>COVERAGE_ENDED</code> · <code>COVERAGE_GAP</code></td><td>–</td><td>–</td><td>Why.</td></tr>
 <tr><td><code>coverage.span</code></td><td>✓</td><td>–</td><td>–</td><td>–</td><td><code>{ effectiveDate, endDate }</code> of the covering span; <code>endDate</code> is an explicit <code>null</code> when open-ended.</td></tr>
-<tr><td><code>coverage.lastEndDate</code>, <code>coverage.nextEffectiveDate</code></td><td>–</td><td>opt</td><td>–</td><td>–</td><td>Nearest span boundaries around the date, so intake sees recent past and future coverage.</td></tr>
+<tr><td><code>coverage.lastEndDate</code>, <code>coverage.nextEffectiveDate</code></td><td>opt</td><td>opt</td><td>–</td><td>–</td><td>End of the latest span before the date and start of the earliest span after it, whenever such spans exist (ACTIVE included), so intake sees recent past and future coverage.</td></tr>
 <tr><td><code>ambiguity.reason</code>, <code>ambiguity.hint</code></td><td>–</td><td>–</td><td>–</td><td>✓</td><td><code>MULTIPLE_PERSONS</code> or <code>DOB_NOT_DISCRIMINATING</code>; what to resend.</td></tr>
 <tr><td><code>candidates[]</code></td><td>–</td><td>–</td><td>–</td><td>✓</td><td><code>{ storedMemberId, company, lineOfBusiness, coverageActive }</code>, one per person, no DOB.</td></tr>
 <tr><td><code>correlationId</code>, <code>mmiRequestId</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>For support: the Onyx id and the id we sent to MMI.</td></tr>
@@ -380,15 +380,15 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <p class="small">Fields that do not apply are absent (not null), so a consumer that ignores unknown or missing fields keeps working if a field is added later.</p>
 
 <h3>6.4 Errors (HTTP 4xx / 5xx)</h3>
-<p>One shape: <code>{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "mmiRequestId" }</code>.</p>
+<p>One shape: <code>{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "mmiRequestId" }</code>. <code>mmiRequestId</code> is present whenever MMI was called, on a 422 too, so identity review has the trace id.</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>HTTP</th><th><code>error.code</code></th><th><code>details[].code</code></th><th>Onyx</th></tr></thead>
 <tbody>
 <tr><td><span class="pill bad">400</span></td><td><code>INVALID_REQUEST</code></td><td class="wrap"><code>MEMBER_ID_MISSING MEMBER_ID_TOO_LONG MEMBER_ID_ILLEGAL_CHARACTERS MEMBER_ID_UNRECOGNIZED_SHAPE DATE_OF_SERVICE_INVALID DATE_OF_SERVICE_OUT_OF_RANGE DATE_OF_BIRTH_INVALID DATE_OF_BIRTH_OUT_OF_RANGE VENDOR_MISSING VENDOR_INVALID MALFORMED_JSON UNKNOWN_PROPERTY WRONG_JSON_TYPE</code></td><td>Never retry. <code>MEMBER_ID_*</code> and <code>DATE_OF_SERVICE_OUT_OF_RANGE</code> are provider data; the rest are Onyx mapping defects.</td></tr>
 <tr><td><span class="pill bad">400</span></td><td><code>UNKNOWN_VENDOR</code></td><td><code>KNOWN_VENDORS</code> (message lists them)</td><td>Never retry; routing and this table disagree.</td></tr>
 <tr><td><span class="pill warn">422</span></td><td><code>DOB_MISMATCH</code></td><td><code>DOB_MISMATCH</code></td><td>Manual identity review; never file the auth.</td></tr>
-<tr><td><span class="pill bad">404 405 415</span></td><td><code>INVALID_REQUEST</code></td><td><code>ROUTE_NOT_FOUND METHOD_NOT_ALLOWED UNSUPPORTED_MEDIA_TYPE</code></td><td>Deployment or connector defect.</td></tr>
-<tr><td><span class="pill bad">502</span></td><td><code>MMI_ERROR</code> · <code>MMI_INVALID_RESPONSE</code></td><td><code>HTTP_4xx ERROR_MESSAGE</code> · <code>UNPARSEABLE_BODY EMPTY_BODY NO_MEMBER_ID CLIENT_ERROR</code></td><td>Retry later; alert the service owners.</td></tr>
+<tr><td><span class="pill bad">404 405 406 415</span></td><td><code>INVALID_REQUEST</code></td><td><code>ROUTE_NOT_FOUND METHOD_NOT_ALLOWED NOT_ACCEPTABLE UNSUPPORTED_MEDIA_TYPE</code></td><td>Deployment or connector defect. (A request Tomcat rejects before the application sees it returns Spring Boot's default error JSON instead.)</td></tr>
+<tr><td><span class="pill bad">502</span></td><td><code>MMI_ERROR</code> · <code>MMI_INVALID_RESPONSE</code></td><td><code>HTTP_4xx ERROR_MESSAGE</code> · <code>UNPARSEABLE_BODY EMPTY_BODY NO_MEMBER_ID UNREADABLE_COVERAGE CLIENT_ERROR</code></td><td>Retry later; alert the service owners. <code>UNREADABLE_COVERAGE</code> means the member's only spans have unreadable dates: the service refuses to say INACTIVE on data it cannot read.</td></tr>
 <tr><td><span class="pill bad">503</span></td><td><code>MMI_UNAVAILABLE</code></td><td><code>CONNECT_FAILED READ_TIMEOUT HTTP_5xx HTTP_429 HTTP_408</code></td><td>Retry later (<code>Retry-After: 10</code>).</td></tr>
 <tr><td><span class="pill bad">500</span></td><td><code>INTERNAL_ERROR</code></td><td>–</td><td>Retry once later; alert the service owners.</td></tr>
 </tbody></table></div>
@@ -410,7 +410,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "vendor": "EVICORE", "company": "THP", "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": true, "reason": "COVERED",
-                "span": { "effectiveDate": "2024-01-01", "endDate": null } },
+                "span": { "effectiveDate": "2024-01-01", "endDate": null },
+                "lastEndDate": "2023-12-31" },
   "correlationId": "ONYX-PA-2026-000123",
   "mmiRequestId": "MBRIDSVC-1791064774829-92478" }</code></pre>
 </div>
@@ -423,7 +424,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "vendor": "OPTUM", "company": "THP", "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": true, "reason": "COVERED",
-                "span": { "effectiveDate": "2024-01-01", "endDate": null } },
+                "span": { "effectiveDate": "2024-01-01", "endDate": null },
+                "lastEndDate": "2023-12-31" },
   "correlationId": "ONYX-PA-2026-000123",
   "mmiRequestId": "MBRIDSVC-1791064774904-06573" }</code></pre>
 </div>
@@ -603,10 +605,12 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <tr><td>Connect failure, unknown host, read timeout</td><td><span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code> / <code>CONNECT_FAILED</code> or <code>READ_TIMEOUT</code></td></tr>
 <tr><td><code>company</code> missing on a record</td><td>inferred from the ID shape (<code>HP…</code> → HPHC, else THP), warning logged</td></tr>
 <tr><td>Void span (<code>voidFlag = Y</code>)</td><td>skipped</td></tr>
-<tr><td>Span with an unreadable date, or end before start</td><td>skipped, warning <code>marker=UNREADABLE_SPAN</code>; the remaining spans decide</td></tr>
+<tr><td>Span with an unreadable date, or end before start</td><td>skipped, warning <code>marker=UNREADABLE_SPAN</code> (the shape of the value, never the value); the remaining spans decide</td></tr>
+<tr><td>Member with unreadable spans and no readable one</td><td><span class="pill bad">502</span> <code>MMI_INVALID_RESPONSE</code> / <code>UNREADABLE_COVERAGE</code>: refusing is the only answer that is never wrong</td></tr>
+<tr><td>Connection breaks or stalls while the body is being read</td><td><span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code>, like any other transport failure</td></tr>
 </tbody></table></div>
 <h3>9.4 The stub</h3>
-<p>For local runs and tests an in-process stub answers from <code>mmi-stub/members.json</code> with MMI's documented behaviour: exact match, 9-digit match returning the family, legacy-id match and the second pass through <code>legacyMemberId</code>. Reserved IDs simulate faults (500, timeout, 400, error message, unreadable body). The stub can only be enabled with the <code>local</code> or <code>test</code> profile; any other profile with <code>mmi.stub.enabled=true</code> refuses to start, so canned answers can never reach PQA or PROD through a copied environment variable.</p>
+<p>For local runs and tests an in-process stub answers from <code>mmi-stub/members.json</code> with MMI's documented behaviour: exact match, 9-digit match returning the family, legacy-id match and the second pass through <code>legacyMemberId</code>. Reserved IDs simulate faults (500, timeout, 400, error message with and without members, unreadable body, a record without an id, a member whose only span is unreadable). Two guards keep canned answers out of PQA and PROD: the stub refuses to start with any explicitly active profile other than <code>local</code> or <code>test</code>, and it refuses to start inside a Kubernetes/OpenShift pod at all (<code>KUBERNETES_SERVICE_HOST</code>). Because the default profile is <code>local</code> (so STS runs with one click), every deployment must set <code>SPRING_PROFILES_ACTIVE</code>; a pod that forgets it fails at startup instead of answering from fixtures.</p>
 
 <h2 id="selection"><span class="num">10</span>Selecting the member</h2>
 <p>From the records MMI returned to the one that represents the patient on the date of service. MMI's record order is never a criterion, and nobody is ever picked "by default".</p>
@@ -670,7 +674,7 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <li><b>Link converted pairs.</b> Records linked through <code>legacyMemberId</code> in either direction (A's legacy id is B's id, or the reverse, transitively) are one person with several records. This is how a THP↔HPHC conversion comes back from MMI's second pass.</li>
 <li><b>Apply the date of birth, when sent.</b> If at least one record carries a DOB, keep only persons with a matching DOB. None left → 422 <code>DOB_MISMATCH</code>, including when a single record came back (an EMR that appended <code>01</code> to a dependent's card number is caught here). If no record carries a DOB at all, continue unverified with a warning: a request with a DOB is never worse off than one without.</li>
 <li><b>Count persons.</b> One → step 5. Several → <code>AMBIGUOUS</code> with one candidate per person (the record covering the date, else the most recent), sorted by company then ID; <code>ambiguity.reason</code> is <code>DOB_NOT_DISCRIMINATING</code> when a DOB was applied (twins), else <code>MULTIPLE_PERSONS</code>.</li>
-<li><b>Pick the record within the person.</b> One record: that one. Several (a converted member): the record whose coverage covers the date of service; if both do, the newer record (the one naming the other as its legacy id); if neither does, the record whose coverage ends last, so INACTIVE shows the most recent end date. The vendor format then follows that record's company: a member converted to HPHC gets the HPHC ID for a post-migration date and the THP ID for a pre-migration date.</li>
+<li><b>Pick the record within the person.</b> One record: that one. Several (a converted member): the record whose coverage covers the date of service; if both do, the newer record (the one naming the other as its legacy id); if neither does, the record whose coverage ends last. The coverage reason and the nearest dates are then computed over <em>all</em> of the person's spans, so a gap between the old and the new record is reported as a gap with both dates. The vendor format follows the picked record's company: a member converted to HPHC gets the HPHC ID for a post-migration date and the THP ID for a pre-migration date.</li>
 </ol>
 <p>TMP and SCO have no dependents, so a 9-digit card number always yields one person and resolves directly; no DOB is needed. Only Together and HPHC commercial families can reach <code>AMBIGUOUS</code>.</p>
 
@@ -681,7 +685,8 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <li><b>ACTIVE</b> iff at least one span covers the date. The reported span is the covering span with the latest start (then the latest end).</li>
 <li><b>INACTIVE</b> otherwise, with exactly one reason: <code>NO_COVERAGE_RECORDS</code> (no readable, non-void spans), <code>NOT_YET_EFFECTIVE</code> (date before the earliest start, with <code>nextEffectiveDate</code>), <code>COVERAGE_ENDED</code> (date after the latest end, with <code>lastEndDate</code>), <code>COVERAGE_GAP</code> (between spans, with both).</li>
 <li><b>Calendar dates only</b>, no time zones. A future date against an open-ended span is ACTIVE; against a known future termination it is <code>COVERAGE_ENDED</code>. A retro-termination that ended coverage after the date of service but before today is still ACTIVE on that date.</li>
-<li><b>Unreadable spans are skipped</b> (bad date text, end before start) with a warning that names the record (masked) and the span. The remaining spans decide. This is the simple rule the owner asked for; the stricter "refuse to answer" alternative is recorded in section 18.</li>
+<li><b>Unreadable spans are skipped</b> (bad date text, end before start) with a warning that names the record (masked) and the shape of the bad value. The remaining spans decide. If the member has unreadable spans and <em>no</em> readable one, the answer is 502 <code>UNREADABLE_COVERAGE</code>: a confident INACTIVE on data the service could not read would block care.</li>
+<li><b>Nearest dates always.</b> <code>lastEndDate</code> (end of the latest span before the date) and <code>nextEffectiveDate</code> (start of the earliest span after it) are reported whenever such spans exist, ACTIVE included, so a defaulted date of service still shows recent past and future coverage.</li>
 </ol>
 <div class="callout rule">
   <div class="label">Rows of the evaluator test (today = 2026-10-03)</div>
@@ -727,7 +732,7 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <tr><td>Member found, no span covers the date</td><td>evaluator</td><td><span class="pill ok">200</span> <code>INACTIVE</code> + reason + nearest dates</td><td>Hold for intake (D3).</td></tr>
 <tr><td>MMI unreachable, times out, answers 5xx / 429 / 408</td><td>REST client</td><td><span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code>, <code>Retry-After: 10</code></td><td>Retry later.</td></tr>
 <tr><td>MMI answers 4xx, or an error-typed message with no members</td><td>REST client, service</td><td><span class="pill bad">502</span> <code>MMI_ERROR</code></td><td>Retry later; alert the service owners.</td></tr>
-<tr><td>MMI body unreadable or empty; every record lacks a memberId</td><td>REST client, service</td><td><span class="pill bad">502</span> <code>MMI_INVALID_RESPONSE</code></td><td>Alert the service owners (contract drift).</td></tr>
+<tr><td>MMI body unreadable or empty; every record lacks a memberId; the member's only spans have unreadable dates</td><td>REST client, service</td><td><span class="pill bad">502</span> <code>MMI_INVALID_RESPONSE</code> (<code>UNPARSEABLE_BODY</code>, <code>EMPTY_BODY</code>, <code>NO_MEMBER_ID</code>, <code>UNREADABLE_COVERAGE</code>)</td><td>Alert the service owners (contract drift or a data defect on that member).</td></tr>
 <tr><td>Unexpected exception</td><td>handler</td><td><span class="pill bad">500</span> <code>INTERNAL_ERROR</code>, no stack trace in the body</td><td>Retry once later; page the service owners with the correlation id.</td></tr>
 </tbody></table></div>
 
@@ -777,11 +782,11 @@ member-id:
   date-of-birth-max-age-years: 125
   hphc-digit-lengths: [9]
   vendors: { ...section 12... }</code></pre>
-<p>All properties bind to validated records; a missing <code>mmi.base-url</code> outside local, a bad vendor table, or the stub enabled outside local/test stops the application with a message naming the property.</p>
+<p>All properties bind to validated records; a missing <code>mmi.base-url</code> outside local, a bad vendor table, the stub enabled outside local/test, or the stub inside a pod stops the application with a message naming the cause. <b>Every deployment sets <code>SPRING_PROFILES_ACTIVE</code></b>; the default profile exists for the IDE only.</p>
 
 <h2 id="project"><span class="num">16</span>Project layout, build, STS, Postman</h2>
 <p>Standalone Gradle project <code>member-id-resolution-service/</code> (Groovy DSL, wrapper committed, <code>eclipse</code> plugin), group <code>com.thehiddenbrain.interop</code>, compiled for Java 17 on JDK 17 or 21. Dependencies: <code>spring-boot-starter-web</code>, <code>-validation</code>, <code>-actuator</code>, <code>springdoc-openapi-starter-webmvc-ui</code>; tests use <code>spring-boot-starter-test</code>. No Lombok, no JPA, no Resilience4j, no WireMock.</p>
-<p><b>STS:</b> File → Import → Gradle → Existing Gradle Project → this folder → Run <code>MemberIdResolutionApplication</code> as a Spring Boot App. It starts on 9090 with the stub; Swagger UI at <code>/swagger-ui.html</code>. To target PQA, set the run configuration's profile to <code>pqa</code>. <b>Postman:</b> import <code>postman/MemberIdResolution.postman_collection.json</code> and <code>postman/Local.postman_environment.json</code>; every request carries tests, and the Collection Runner gives a green scenario pass (verified here with newman: 42 requests, 168 assertions, 0 failures).</p>
+<p><b>STS:</b> File → Import → Gradle → Existing Gradle Project → this folder → Run <code>MemberIdResolutionApplication</code> as a Spring Boot App. It starts on 9090 with the stub; Swagger UI at <code>/swagger-ui.html</code>. To target PQA, set the run configuration's profile to <code>pqa</code>. <b>Postman:</b> import <code>postman/MemberIdResolution.postman_collection.json</code> and <code>postman/Local.postman_environment.json</code>; every request carries tests, and the Collection Runner gives a green scenario pass (verified here with newman: 45 requests, 0 failures).</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Package · class</th><th>Responsibility</th></tr></thead>
 <tbody>
@@ -799,19 +804,19 @@ member-id:
 </tbody></table></div>
 
 <h2 id="testing"><span class="num">17</span>Testing</h2>
-<p><code>./gradlew test</code>: 111 tests, all green. "Today" is fixed at 2026-10-03 in the scenario suite so the fixtures never age.</p>
+<p><code>./gradlew test</code>: 124 tests, all green, after an adversarial review whose confirmed findings were folded in. "Today" is fixed at 2026-10-03 in the scenario suite so the fixtures never age.</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Test class</th><th>Covers</th></tr></thead>
 <tbody>
 <tr><td><code>MemberIdParserTest</code></td><td>17 accepted rows, 15 rejected rows, configurable HPHC lengths, null and too long.</td></tr>
 <tr><td><code>CoverageEvaluatorTest</code></td><td>Open-ended, inclusive ends and starts, not yet effective, gap, no spans, overlap, retro-termination.</td></tr>
-<tr><td><code>MemberSelectorTest</code></td><td>Single record, family without DOB, DOB picks one, twins, mismatch on a single record, DOB ignored when no record has one, converted pair before and after migration, converted pair with no coverage, duplicate merge.</td></tr>
+<tr><td><code>MemberSelectorTest</code></td><td>Single record, family without DOB, DOB picks one, twins, mismatch on a single record, DOB ignored when no record has one, converted pair before and after migration, converted pair in the gap between its records, converted pair with both records covering the date, unreadable spans counted across the person, duplicate merge.</td></tr>
 <tr><td><code>VendorFormatterTest</code>, <code>VendorRegistryTest</code></td><td>Every format on TMP, Public Plans and HPHC ids; split parts; alias and case handling; duplicate alias, missing format and bad key rejected.</td></tr>
 <tr><td><code>MmiRecordMapperTest</code></td><td>Strict dates, void and unreadable spans, open-ended sentinels, company inference, unreadable DOB, legacy id normalisation.</td></tr>
-<tr><td><code>RestMmiClientTest</code></td><td>Exact outbound body (both id fields, void flag, client id, request id pattern, no DOS fields), 500 → 503, 429 → 503, 400 → 502, HTML body → 502, connection refused → 503, read timeout → 503 within the budget, missing base URL refused.</td></tr>
+<tr><td><code>RestMmiClientTest</code></td><td>Exact outbound body (both id fields, void flag, client id, request id pattern, no DOS fields), 500 → 503, 429 → 503, 408 → 503, 400 → 502, HTML body → 502, connection refused → 503, read timeout → 503 within 1.4 s, missing base URL refused.</td></tr>
 <tr><td><code>ConfigValidationTest</code></td><td>Valid config starts; unknown format, duplicate alias, stub outside local/test, missing base URL all fail naming the property.</td></tr>
 <tr><td><code>MaskingTest</code></td><td>The masked forms.</td></tr>
-<tr><td><code>ResolveScenariosTest</code> (HTTP, stub, fixed clock)</td><td>TMP 9/11/14 forms, every vendor format and alias, Optum parts, SCO ended, earlier span, future effective, void, unreadable span, company inferred, no DOS, blank or null patient, Together family with and without DOB, twins, gap and inclusive end on an 11-character ID, DOB mismatch on family and single record, HPHC forms, converted member in both directions and from the 9-digit old id, not found, aggregated validation errors, DOS window, unknown and PHI-shaped vendor values, malformed JSON, unknown property, wrong type, 405/404/415 envelopes, JSON regardless of Accept, correlation echo and replacement, every MMI fault. Every response and every log line is checked for PHI.</td></tr>
+<tr><td><code>ResolveScenariosTest</code> (HTTP, stub, fixed clock)</td><td>TMP 9/11/14 forms, every vendor format and alias, Optum parts, SCO ended, earlier span, future effective, void, unreadable span, company inferred, no DOS, blank or null patient, Together family with and without DOB, twins, gap and inclusive end on an 11-character ID, DOB mismatch on family and single record, HPHC forms, converted member in both directions and from the 9-digit old id, not found, aggregated validation errors, DOS window, unknown and PHI-shaped vendor values, malformed JSON, unknown property, wrong type, 405/404/415 envelopes, JSON regardless of Accept, correlation echo and replacement, every MMI fault, an error message beside a member, a record without an id, a member whose only span is unreadable, the previous span's end on an ACTIVE answer, a 422 carrying the MMI request id, the full path of a nested unknown property, 406 for an unsupported representation, and a stub call counter proving invalid requests never reach MMI. Every response and every log line (message, exception text and MDC) is checked for unmasked 9- or 11-digit runs, MM/dd/yyyy dates, names and SSN.</td></tr>
 </tbody></table></div>
 <p>Before PQA: confirm the assumptions in section 19 against real MMI answers, starting with the 9-digit forms and the error message shapes.</p>
 
@@ -827,7 +832,7 @@ member-id:
 <tr><td>Vendor table location</td><td><code>application.yml</code> only; change = edit + deploy.</td><td>Four or five vendors; the owner wants no table and nothing external.</td><td>Database table; ConfigMap override; SAMPLE guard; a vendors endpoint.</td></tr>
 <tr><td>Missing date of service</td><td>Default to today, flag it, still return the nearest past and future dates.</td><td>The flag is always produced; Onyx never computes it from spans.</td><td>400; returning spans for Onyx to interpret.</td></tr>
 <tr><td>MMI failures</td><td>Timeouts and clear 503/502 codes; no retry or breaker.</td><td>MMI is reliable and fast; Onyx retries later; less code to explain and test.</td><td>v0.1's retry, breaker, retryable flag and park ladder.</td></tr>
-<tr><td>Unreadable coverage spans</td><td>Skipped with a warning; the remaining spans decide.</td><td>Simplicity, and MMI's data is clean in practice.</td><td>v0.1's 502 when the answer would otherwise be INACTIVE. Reinstate if PQA shows unreadable spans at all.</td></tr>
+<tr><td>Unreadable coverage spans</td><td>Skipped with a warning when readable spans remain; 502 <code>UNREADABLE_COVERAGE</code> when none remain.</td><td>A readable span is evidence; no readable span is no evidence, and a confident INACTIVE on no evidence would block care.</td><td>Answering INACTIVE / NO_COVERAGE_RECORDS (the first draft of the code did this; the review caught it).</td></tr>
 <tr><td>Security</td><td>None in this code.</td><td>Azure API Management owns it (owner).</td><td>API key filter, per-environment keys.</td></tr>
 <tr><td>Converted members</td><td>Legacy-linked records are one person; the record covering the date wins; its company decides the vendor format.</td><td>Coverage is the fact; the migration date is only a hint and is no longer returned.</td><td>Migration-date-first with its own error code.</td></tr>
 <tr><td>Local run</td><td>In-process stub with realistic MMI search behaviour, profile-guarded in code.</td><td>"Import into STS and run" with no network; the same fixtures serve the tests; the guard keeps canned answers out of PQA/PROD.</td><td>External WireMock process.</td></tr>
@@ -835,7 +840,7 @@ member-id:
 </tbody></table></div>
 <h3>Considered and left out on purpose</h3>
 <ul>
-<li>Retry, circuit breaker, bulkhead, host-versus-profile guard, degraded "unverified" mode, <code>retryable</code> flag, Onyx park ladder with per-priority ages.</li>
+<li>Retry, circuit breaker, bulkhead, host-versus-profile guard (replaced by the cheaper "stub never runs in a pod" check), degraded "unverified" mode, <code>retryable</code> flag, Onyx park ladder with per-priority ages.</li>
 <li>API key filter, body-size filter, Jackson stream limits (APIM fronts the service).</li>
 <li>Legacy member ID, migration date, restricted flag, relationship, selection method and trace block in the response.</li>
 <li>Metrics and alert catalog, structured JSON logging, SLO section; the one INFO line per request and the actuator health endpoint are enough to start, and the platform's standard monitoring applies.</li>

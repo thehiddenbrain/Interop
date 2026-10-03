@@ -89,6 +89,35 @@ class MemberSelectorTest {
         SelectionResult.Selected s = (SelectionResult.Selected) r;
         assertThat(s.record().storedMemberId()).isEqualTo("HP567890123");
         assertThat(s.coverage().reason()).isEqualTo(CoverageReason.COVERAGE_ENDED);
+        assertThat(s.coverage().lastEndDate()).isEqualTo(LocalDate.parse("2025-12-31"));
+    }
+
+    @Test
+    void convertedPairInTheGapBetweenTheTwoRecordsIsAGapNotNotYetEffective() {
+        MemberRecord thp = rec("567890123   01", "THP", null, null, span("2020-01-01", "2024-06-30"));
+        MemberRecord hphc = rec("HP567890123", "HPHC", "567890123   01", null, span("2025-01-01", null));
+        SelectionResult.Selected s = (SelectionResult.Selected) selector.select(List.of(thp, hphc), null, LocalDate.parse("2024-09-01"));
+        assertThat(s.coverage().reason()).isEqualTo(CoverageReason.COVERAGE_GAP);
+        assertThat(s.coverage().lastEndDate()).isEqualTo(LocalDate.parse("2024-06-30"));
+        assertThat(s.coverage().nextEffectiveDate()).isEqualTo(LocalDate.parse("2025-01-01"));
+        assertThat(s.readableSpans()).isEqualTo(2);
+    }
+
+    @Test
+    void convertedPairWhereBothRecordsCoverTheDatePrefersTheNewerRecord() {
+        MemberRecord thp = rec("567890123   01", "THP", null, null, span("2020-01-01", "2025-12-31"));
+        MemberRecord hphc = rec("HP567890123", "HPHC", "567890123   01", null, span("2025-01-01", null));
+        SelectionResult.Selected s = (SelectionResult.Selected) selector.select(List.of(thp, hphc), null, LocalDate.parse("2025-06-01"));
+        assertThat(s.record().storedMemberId()).isEqualTo("HP567890123");
+        assertThat(s.coverage().active()).isTrue();
+    }
+
+    @Test
+    void unreadableSpansAreCountedAcrossThePerson() {
+        MemberRecord only = new MemberRecord("880000000   01", "88000000001", "THP", "MCR", null, null, List.of(), 1);
+        SelectionResult.Selected s = (SelectionResult.Selected) selector.select(List.of(only), null, DOS);
+        assertThat(s.readableSpans()).isZero();
+        assertThat(s.unreadableSpans()).isEqualTo(1);
     }
 
     @Test

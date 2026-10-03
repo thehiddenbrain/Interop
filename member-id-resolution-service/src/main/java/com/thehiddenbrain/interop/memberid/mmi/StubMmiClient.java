@@ -33,6 +33,12 @@ public class StubMmiClient implements MmiClient {
     public static final String FAULT_HTTP_400 = "400400400";
     public static final String FAULT_ERROR_MESSAGE = "888888888";
     public static final String FAULT_BAD_BODY = "202202202";
+    /** An error-typed message returned beside a member record (MMI partial result). */
+    public static final String FAULT_ERROR_WITH_MEMBER = "887777777";
+    /** A member record without a memberId. */
+    public static final String FAULT_NO_MEMBER_ID = "886666666";
+
+    private final java.util.concurrent.atomic.AtomicLong calls = new java.util.concurrent.atomic.AtomicLong();
 
     private final List<MmiMember> members;
     private final MmiProperties properties;
@@ -41,6 +47,11 @@ public class StubMmiClient implements MmiClient {
         if (!environment.acceptsProfiles(Profiles.of("local", "test"))) {
             throw new IllegalStateException("mmi.stub.enabled=true is only allowed with the local or test profile; active profiles: "
                     + Arrays.toString(environment.getActiveProfiles()));
+        }
+        if (System.getenv("KUBERNETES_SERVICE_HOST") != null) {
+            // the default profile is local, so a pod started without SPRING_PROFILES_ACTIVE would otherwise serve canned answers
+            throw new IllegalStateException("the MMI stub must never run inside a Kubernetes/OpenShift pod; set SPRING_PROFILES_ACTIVE "
+                    + "to fqa, pqa, pqa-lite or prod");
         }
         this.properties = properties;
         Resource resource = resourceLoader.getResource(properties.stub().fixtures());
@@ -57,8 +68,14 @@ public class StubMmiClient implements MmiClient {
         return "STUB";
     }
 
+    /** Number of searches served; lets tests prove MMI is not called for an invalid request. */
+    public long calls() {
+        return calls.get();
+    }
+
     @Override
     public MmiResult search(String memberId, String correlationId) {
+        calls.incrementAndGet();
         String requestId = MmiRequestIds.next(properties.clientId());
         String key = memberId.replaceAll("\\s+", "").toUpperCase();
         String core = key.length() >= 9 ? key.substring(0, 9) : key;
@@ -70,6 +87,17 @@ public class StubMmiClient implements MmiClient {
             case FAULT_ERROR_MESSAGE -> {
                 return new MmiResult(requestId, new MmiResponse(properties.clientId(), properties.clientType(), requestId,
                         List.of(new MmiMessage("ERROR", "500", "ES_TIMEOUT", "search backend timed out (stub)")), null));
+            }
+            case FAULT_ERROR_WITH_MEMBER -> {
+                MmiMember member = new MmiMember(FAULT_ERROR_WITH_MEMBER + "   01", null, "01/01/1951", null, "THP", "MCR", "N", null,
+                        List.of(new MmiCoverage("01/01/2024", null, "00001111", "N")));
+                return new MmiResult(requestId, new MmiResponse(properties.clientId(), properties.clientType(), requestId,
+                        List.of(new MmiMessage("ERROR", "500", "SECOND_PASS_FAILED", "legacy pass failed (stub)")), List.of(member)));
+            }
+            case FAULT_NO_MEMBER_ID -> {
+                MmiMember member = new MmiMember(null, null, "01/01/1951", null, "THP", "MCR", "N", null,
+                        List.of(new MmiCoverage("01/01/2024", null, "00001111", "N")));
+                return new MmiResult(requestId, new MmiResponse(properties.clientId(), properties.clientType(), requestId, null, List.of(member)));
             }
             default -> {
                 // fall through to the fixture search

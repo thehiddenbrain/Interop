@@ -41,8 +41,8 @@ public final class MmiRecordMapper {
             boolean endUnreadable = !MmiDates.isOpenEnd(c.endDate()) && end == null;
             if (eff == null || endUnreadable || (end != null && end.isBefore(eff))) {
                 unreadable++;
-                log.warn("marker=UNREADABLE_SPAN record {} span effDate='{}' endDate='{}' skipped", Masking.memberId(stored),
-                        c.effDate(), c.endDate());
+                log.warn("marker=UNREADABLE_SPAN record {} span effDate shape '{}' endDate shape '{}' skipped", Masking.memberId(stored),
+                        Masking.shape(c.effDate()), Masking.shape(c.endDate()));
                 continue;
             }
             spans.add(new CoverageSpan(eff, end));

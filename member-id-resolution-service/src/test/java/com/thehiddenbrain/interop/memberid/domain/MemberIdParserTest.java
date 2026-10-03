@@ -72,7 +72,8 @@ class MemberIdParserTest {
 
     @org.junit.jupiter.api.Test
     void tooLongAndNull() {
-        assertThatThrownBy(() -> parser.parse("1".repeat(41))).hasMessageContaining("rejected");
+        assertThatThrownBy(() -> parser.parse("1".repeat(41))).isInstanceOfSatisfying(InvalidRequestException.class,
+                e -> assertThat(e.details().get(0).code()).isEqualTo("MEMBER_ID_TOO_LONG"));
         assertThatThrownBy(() -> parser.parse(null)).isInstanceOf(InvalidRequestException.class);
     }
 

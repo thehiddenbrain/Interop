@@ -49,7 +49,3 @@ tasks.named('test') {
     }
 }
 
-// "Run As > Spring Boot App" in STS defaults to the local profile (in-process MMI stub on port 9090).
-tasks.named('bootRun') {
-    systemProperty 'spring.profiles.active', System.getProperty('spring.profiles.active', 'local')
-}

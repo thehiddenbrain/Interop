@@ -29,4 +29,16 @@ public class ResolutionException extends RuntimeException {
     public List<ErrorDetail> details() {
         return details;
     }
+
+    private String mmiRequestId;
+
+    /** Set when the failure happened after MMI answered, so the error body can carry the trace id. */
+    public ResolutionException withMmiRequestId(String requestId) {
+        this.mmiRequestId = requestId;
+        return this;
+    }
+
+    public String mmiRequestId() {
+        return mmiRequestId;
+    }
 }

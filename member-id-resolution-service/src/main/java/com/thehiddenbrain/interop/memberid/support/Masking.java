@@ -9,6 +9,16 @@ public final class Masking {
     private Masking() {
     }
 
+    /** The shape of an arbitrary upstream value for diagnostics: digits become #, letters become a, nothing else survives. */
+    public static String shape(String value) {
+        if (value == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        value.codePoints().limit(24).forEach(cp -> sb.append(Character.isDigit(cp) ? '#' : Character.isLetter(cp) ? 'a' : (char) cp));
+        return sb.toString() + (value.length() > 24 ? "..." : "");
+    }
+
     public static String memberId(String value) {
         if (value == null) {
             return null;
