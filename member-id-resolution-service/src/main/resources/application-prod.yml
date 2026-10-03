@@ -1,0 +1,10 @@
+mmi:
+  base-url: http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+logging:
+  level:
+    com.thehiddenbrain.interop.memberid: INFO

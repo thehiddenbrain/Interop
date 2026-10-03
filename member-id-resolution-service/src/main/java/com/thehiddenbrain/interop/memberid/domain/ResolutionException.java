@@ -1,0 +1,32 @@
+package com.thehiddenbrain.interop.memberid.domain;
+
+import com.thehiddenbrain.interop.memberid.api.ErrorDetail;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+
+/** A business error that maps to one HTTP status and one stable error code. */
+public class ResolutionException extends RuntimeException {
+
+    private final HttpStatus status;
+    private final String code;
+    private final List<ErrorDetail> details;
+
+    public ResolutionException(HttpStatus status, String code, String message, List<ErrorDetail> details) {
+        super(message);
+        this.status = status;
+        this.code = code;
+        this.details = details == null ? List.of() : List.copyOf(details);
+    }
+
+    public HttpStatus status() {
+        return status;
+    }
+
+    public String code() {
+        return code;
+    }
+
+    public List<ErrorDetail> details() {
+        return details;
+    }
+}

@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: member-id-resolution-service
+  profiles:
+    default: local                      # "Run As > Spring Boot App" in STS runs against the in-process MMI stub
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: true  # a misspelled Onyx property is an error, not silently ignored
+  mvc:
+    problemdetails:
+      enabled: false                    # the error envelope in ApiErrorResponse is the only error shape
+  http:
+    client:
+      connect-timeout: 2s               # MMI is in-network; a slow connect means a dead pod, not a slow lookup
+      read-timeout: 5s                  # MMI averages ~16 ms; 5 s is already a problem worth surfacing
+
+server:
+  port: 9090
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{correlationId:-}] %logger{36} - %msg%n"
+
+mmi:
+  base-url: ${MMI_BASE_URL:}            # set per profile (application-<env>.yml) or by environment variable
+  path: /master/member/v1
+  client-id: ${MMI_CLIENT_ID:MBRIDSVC}  # PLACEHOLDER: register this application's name with the MMI team
+  client-type: INT
+  void-coverage-record: N               # MMI drops void and negative spans; the service also skips voidFlag=Y
+  error-message-types: [ERROR]          # messageType values MMI uses for errors (confirm in PQA)
+  stub:
+    enabled: false                      # true only in the local and test profiles
+
+member-id:
+  date-of-service:
+    max-past-years: 10                  # MMI keeps 10 years of coverage history
+    max-future-days: 366                # prior auths for future dates are normal
+    zone: America/New_York              # "today" for a defaulted date of service
+  date-of-birth-max-age-years: 125
+  hphc-digit-lengths: [9]               # HPHC ids are HP + 9 digits (11 characters)
+  # ------------------------------------------------------------------------------------------------------
+  # Vendor -> format table. This is the ONLY place to add or change a vendor. Key = the code Onyx sends.
+  # Formats apply to THP ids stored as 9 digits + spaces + 2-digit suffix (TMP / SCO). Public Plans ids
+  # (11 continuous characters) and HPHC ids (HP + 9 digits) are sent exactly as stored for every vendor.
+  #   COMPACT_11  9 digits + suffix, no spaces        12345678901
+  #   SPACED_14   9 digits + 3 spaces + suffix        123456789   01   (as stored)
+  #   SPLIT       two fields: 9 digits and the suffix, plus the 11-character join
+  #   AS_STORED   exactly as MMI stores it
+  # ------------------------------------------------------------------------------------------------------
+  vendors:
+    EVICORE:
+      display-name: eviCore
+      aliases: [EVI, EVICORE_HEALTHCARE]
+      format: COMPACT_11
+    MHK:
+      display-name: MHK (MedHOK)
+      aliases: [MEDHOK]
+      format: SPACED_14
+    EVOLENT:
+      display-name: Evolent
+      aliases: [EVOLENT_HEALTH]
+      format: COMPACT_11
+    CARELON:
+      display-name: Carelon
+      aliases: [AIM]
+      format: COMPACT_11                # TO CONFIRM with the owner: 11 or 14
+    OPTUM:
+      display-name: Optum
+      format: SPLIT                     # Optum receives the 9 digits and the suffix as two fields

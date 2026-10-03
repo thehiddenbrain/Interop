@@ -91,3 +91,45 @@ See the conversation; answers will be appended here.
 - Consequence for feedback 4 (no date of service): option 4, "return spans and let Onyx decide", is
   out. Any no-DOS behaviour must still produce the flag, evaluated as of today, with a marker that the
   date was defaulted.
+
+## Feedback 6 (2026-10-03): final round, go build it
+
+- Terminology: "canonical" was unclear. Use plain words: the member ID **as stored in MMI**.
+- No tables. Mapping in YAML (or the simplest equivalent); a format change is a config/code change
+  plus a simple deployment. Simple, stateless service. **The only integration is MMI.** Nothing else.
+- `retryable` is not needed. MMI is a core service that will not be down; if it is, much else is down
+  and it is restored quickly. Do not build machinery around MMI outages.
+- If **this** service is unavailable, Onyx's fallback is to pass the member ID exactly as received
+  from the EMR to the UM vendor. Document that; nothing to build here.
+- Security (tokens, certificates, credentials) is handled outside this code by the Azure API
+  Management layer. Do not build an API key or security envelope. Focus on functionality.
+- Response must be very lean. Question whether legacy member ID and similar fields are needed at all.
+- Performance: MMI averages about 16 ms over millions of calls a month (Elasticsearch backend). This
+  service must be fast and lean too; expect hundreds of thousands of calls, not millions.
+- Resolution rules: if a DOB is supplied and MMI returns several records, pick the matching one. If no
+  DOB and the member is non-TMP with a 9-digit ID that returns several records, answer AMBIGUOUS. TMP
+  always returns one record.
+- Deliverables now: the code (Gradle, Spring Boot, importable straight into STS), unit tests, all
+  scenarios tested, a local run against a stub MMI (port 9090 suggested), and a Postman collection
+  against localhost. The owner will point it at the PQA MMI first.
+
+## Consolidated decisions applied in v0.2 (code + revised design)
+1. Response fields: `outcome` (ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS), `memberId.received`,
+   `memberId.searched`, `memberId.stored`, `memberId.vendor` (+ `memberId.vendorParts` for split
+   formats), `vendor`, `company`, `lineOfBusiness`, `coverage.active` (boolean flag),
+   `coverage.dateOfService`, `coverage.dateOfServiceDefaulted`, `coverage.reason`, `coverage.span`,
+   `coverage.lastEndDate` / `nextEffectiveDate`, `candidates[]` on AMBIGUOUS, `mmiRequestId`.
+   Dropped: retryable, trace block, legacy/converted/migration/restricted/relationship fields.
+2. Vendor formats (YAML): eviCore COMPACT_11, MHK SPACED_14, Evolent COMPACT_11, Carelon COMPACT_11
+   (to confirm), Optum SPLIT (9 digits and suffix as two fields, plus the 11-character join).
+   Formats apply to IDs stored as 9 digits + spaces + suffix (TMP/SCO). Public Plans (11 continuous)
+   and HPHC (HP + digits) IDs are passed as stored for every vendor.
+3. No date of service: default to today, flag `dateOfServiceDefaulted: true`, and still return the
+   nearest past/future span dates.
+4. Removed: Resilience4j retry and circuit breaker, API key filter, body-size filter, host-vs-profile
+   guard, ConfigMap override, SAMPLE guard, "degraded mode" discussion. Kept: plain timeouts, a clear
+   503 when MMI cannot be reached, stub MMI only in the local profile, masked logging.
+5. Ambiguity: exactly one record returned is the member (any population). Several records: DOB picks
+   one, else AMBIGUOUS with candidates. DOB supplied and matching no record: 422 DOB_MISMATCH.
+   Records linked through legacyMemberId (THP<->HPHC conversion) count as one person; the record
+   covering the date of service wins.

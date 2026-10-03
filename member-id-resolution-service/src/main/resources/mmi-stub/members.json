@@ -1,0 +1,102 @@
+[
+  {
+    "_comment": "TMP (Tufts Medicare Preferred). Card shows 123456789; stored with 3 spaces + 01. One record, no dependents.",
+    "memberId": "123456789   01", "subscriberMemberId": "123456789   01", "policyId": "123456789",
+    "memberFirstName": "Taylor", "memberMiddleName": "A", "memberLastName": "Morgan", "memberDob": "03/15/1950", "gender": "F",
+    "socialSecurityNumber": "***-**-1234", "legacyMemberId": null, "company": "THP", "personId": null, "mbin": null,
+    "agencyMemberNumber": null, "agencySubscriberNumber": null, "lineOfBusiness": "MCR", "restrictedData": "N", "migrationEffectiveDate": null,
+    "coverage": [
+      { "effDate": "01/01/2024", "endDate": null, "groupId": "00001111", "groupName": "Tufts Medicare Preferred HMO", "pcpId": "P1234567", "pcpName": null, "voidFlag": "N" },
+      { "effDate": "01/01/2021", "endDate": "12/31/2023", "groupId": "00001110", "groupName": "Tufts Medicare Preferred HMO", "pcpId": "P1234567", "pcpName": null, "voidFlag": "N" }
+    ]
+  },
+  {
+    "_comment": "SCO member (Medicare). Coverage ended 12/31/2025.",
+    "memberId": "234567890   01", "subscriberMemberId": "234567890   01", "policyId": "234567890",
+    "memberFirstName": "Jordan", "memberLastName": "Lee", "memberDob": "07/04/1948", "gender": "M",
+    "socialSecurityNumber": "***-**-2345", "legacyMemberId": null, "company": "THP", "lineOfBusiness": "MCR", "restrictedData": "N",
+    "coverage": [
+      { "effDate": "01/01/2023", "endDate": "12/31/2025", "groupId": "00002222", "groupName": "Tufts Health Plan SCO", "voidFlag": "N" }
+    ]
+  },
+  {
+    "_comment": "Public Plans (Together) subscriber. Ids are 11 continuous characters.",
+    "memberId": "34567890101", "subscriberMemberId": "34567890101", "policyId": "345678901",
+    "memberFirstName": "Casey", "memberLastName": "Rivera", "memberDob": "06/01/1985", "gender": "F",
+    "socialSecurityNumber": "***-**-3456", "legacyMemberId": null, "company": "THP", "lineOfBusiness": "PP", "restrictedData": "N",
+    "coverage": [ { "effDate": "01/01/2025", "endDate": null, "groupId": "MH000001", "groupName": "Tufts Health Together", "voidFlag": "N" } ]
+  },
+  {
+    "_comment": "Public Plans dependent 02: a gap between 06/01/2024 and 12/31/2024.",
+    "memberId": "34567890102", "subscriberMemberId": "34567890101", "policyId": "345678901",
+    "memberFirstName": "Riley", "memberLastName": "Rivera", "memberDob": "09/09/2012", "gender": "M",
+    "socialSecurityNumber": "***-**-3457", "legacyMemberId": null, "company": "THP", "lineOfBusiness": "PP", "restrictedData": "N",
+    "coverage": [
+      { "effDate": "01/01/2025", "endDate": null, "groupId": "MH000001", "groupName": "Tufts Health Together", "voidFlag": "N" },
+      { "effDate": "01/01/2023", "endDate": "05/31/2024", "groupId": "MH000001", "groupName": "Tufts Health Together", "voidFlag": "N" }
+    ]
+  },
+  {
+    "_comment": "Public Plans dependent 03: twin of 02 (same DOB), coverage ended 12/31/2024.",
+    "memberId": "34567890103", "subscriberMemberId": "34567890101", "policyId": "345678901",
+    "memberFirstName": "Rowan", "memberLastName": "Rivera", "memberDob": "09/09/2012", "gender": "F",
+    "socialSecurityNumber": "***-**-3458", "legacyMemberId": null, "company": "THP", "lineOfBusiness": "PP", "restrictedData": "N",
+    "coverage": [ { "effDate": "01/01/2023", "endDate": "12/31/2024", "groupId": "MH000001", "groupName": "Tufts Health Together", "voidFlag": "N" } ]
+  },
+  {
+    "_comment": "HPHC commercial member. Card shows HP-456789012; stored HP456789012. Open-ended as 12/31/9999.",
+    "memberId": "HP456789012", "subscriberMemberId": "HP456789012", "policyId": "HP45678901",
+    "memberFirstName": "Avery", "memberLastName": "Chen", "memberDob": "02/02/1978", "gender": "F",
+    "socialSecurityNumber": "***-**-4567", "legacyMemberId": null, "company": "HPHC", "lineOfBusiness": "COM", "restrictedData": null,
+    "coverage": [ { "effDate": "03/01/2013", "endDate": "12/31/9999", "groupId": "0012345678", "groupName": "Acme Corp", "pcpId": "P7654321", "voidFlag": "N" } ]
+  },
+  {
+    "_comment": "Converted member, old THP side. Coverage ended 12/31/2024.",
+    "memberId": "567890123   01", "subscriberMemberId": "567890123   01", "policyId": "567890123",
+    "memberFirstName": "Sam", "memberLastName": "Patel", "memberDob": "11/11/1990", "gender": "M",
+    "socialSecurityNumber": "***-**-5678", "legacyMemberId": null, "company": "THP", "lineOfBusiness": "COM", "restrictedData": "N",
+    "coverage": [ { "effDate": "01/01/2020", "endDate": "12/31/2024", "groupId": "00005555", "groupName": "Beta LLC", "voidFlag": "N" } ]
+  },
+  {
+    "_comment": "Converted member, new HPHC side, linked through legacyMemberId. Coverage from 01/01/2025.",
+    "memberId": "HP567890123", "subscriberMemberId": "HP567890123", "policyId": "HP56789012",
+    "memberFirstName": "Sam", "memberLastName": "Patel", "memberDob": "11/11/1990", "gender": "M",
+    "socialSecurityNumber": "***-**-5678", "legacyMemberId": "567890123   01", "company": "HPHC", "lineOfBusiness": "COM", "restrictedData": "N",
+    "migrationEffectiveDate": "01/01/2025",
+    "coverage": [ { "effDate": "01/01/2025", "endDate": null, "groupId": "0055555555", "groupName": "Beta LLC", "voidFlag": "N" } ]
+  },
+  {
+    "_comment": "TMP member with a void span covering today and a real span that ended 06/30/2025.",
+    "memberId": "678901234   01", "subscriberMemberId": "678901234   01", "policyId": "678901234",
+    "memberFirstName": "Drew", "memberLastName": "Kim", "memberDob": "12/24/1952", "gender": "M",
+    "socialSecurityNumber": "***-**-6789", "legacyMemberId": null, "company": "THP", "lineOfBusiness": "MCR", "restrictedData": "N",
+    "coverage": [
+      { "effDate": "01/01/2026", "endDate": null, "groupId": "00001111", "groupName": "Tufts Medicare Preferred HMO", "voidFlag": "Y" },
+      { "effDate": "01/01/2023", "endDate": "06/30/2025", "groupId": "00001111", "groupName": "Tufts Medicare Preferred HMO", "voidFlag": "N" }
+    ]
+  },
+  {
+    "_comment": "TMP member whose coverage starts in the future (01/01/2027).",
+    "memberId": "789012345   01", "subscriberMemberId": "789012345   01", "policyId": "789012345",
+    "memberFirstName": "Pat", "memberLastName": "Nguyen", "memberDob": "05/05/1960", "gender": "F",
+    "socialSecurityNumber": "***-**-7890", "legacyMemberId": null, "company": "THP", "lineOfBusiness": "MCR", "restrictedData": "N",
+    "coverage": [ { "effDate": "01/01/2027", "endDate": null, "groupId": "00001111", "groupName": "Tufts Medicare Preferred PPO", "voidFlag": "N" } ]
+  },
+  {
+    "_comment": "TMP member with one unreadable span (02/30/2024) and one valid open span.",
+    "memberId": "890123456   01", "subscriberMemberId": "890123456   01", "policyId": "890123456",
+    "memberFirstName": "Alex", "memberLastName": "Garcia", "memberDob": "08/08/1955", "gender": "M",
+    "socialSecurityNumber": "***-**-8901", "legacyMemberId": null, "company": "THP", "lineOfBusiness": "MCR", "restrictedData": "N",
+    "coverage": [
+      { "effDate": "02/30/2024", "endDate": "12/31/2024", "groupId": "00001111", "groupName": "Tufts Medicare Preferred HMO", "voidFlag": "N" },
+      { "effDate": "01/01/2025", "endDate": null, "groupId": "00001111", "groupName": "Tufts Medicare Preferred HMO", "voidFlag": "N" }
+    ]
+  },
+  {
+    "_comment": "TMP member with company missing on the record (inferred THP) and restrictedData Y.",
+    "memberId": "901234567   01", "subscriberMemberId": "901234567   01", "policyId": "901234567",
+    "memberFirstName": "Robin", "memberLastName": "Diaz", "memberDob": "01/30/1949", "gender": "F",
+    "socialSecurityNumber": "***-**-9012", "legacyMemberId": null, "company": null, "lineOfBusiness": "MCR", "restrictedData": "Y",
+    "coverage": [ { "effDate": "01/01/2022", "endDate": null, "groupId": "00001111", "groupName": "Tufts Medicare Preferred HMO", "voidFlag": "N" } ]
+  }
+]

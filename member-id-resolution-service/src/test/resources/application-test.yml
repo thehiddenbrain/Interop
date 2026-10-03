@@ -1,0 +1,7 @@
+mmi:
+  base-url: http://mmi-stub.test
+  stub:
+    enabled: true
+logging:
+  level:
+    com.thehiddenbrain.interop.memberid: DEBUG
