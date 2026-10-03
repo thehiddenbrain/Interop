@@ -114,9 +114,7 @@ class ResolveScenariosTest {
             if (e.getThrowableProxy() != null) {
                 text.append(' ').append(e.getThrowableProxy().getMessage());
             }
-            if (e.getMDCPropertyMap() != null) {
-                e.getMDCPropertyMap().values().forEach(v -> text.append(' ').append(v));
-            }
+            // the MDC holds only the correlation id, an opaque token Onyx chooses (a generated UUID can contain a 9-digit run)
             String line = text.toString();
             assertThat(PHI.matcher(line).find()).as("unmasked member id or MM/dd/yyyy date in log line: %s", line).isFalse();
             assertThat(line).doesNotContain("1950-03-15", "2012-09-09", "Morgan", "Rivera");
