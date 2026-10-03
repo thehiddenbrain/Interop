@@ -79,3 +79,15 @@ See the conversation; answers will be appended here.
   4. Return every span inside a window (for example 1 year back, 1 year forward) and let Onyx decide.
 - In all options the ID resolution and vendor formatting are unaffected; only the coverage block
   changes shape, so the contract change is additive.
+
+## Feedback 5 (2026-10-03): coverage must be an explicit yes/no flag
+
+- The response must state plainly whether the member is covered on the date of service: a flag
+  (Y/N, true/false). Onyx must never have to derive it from spans.
+- Spans may still be sent for other purposes, as supporting detail only.
+- v0.1 already does this with `coverage.status: ACTIVE | INACTIVE` (plus `outcome`). For the revision,
+  consider an explicit boolean such as `coverage.active: true | false` next to or instead of the
+  enum, so the flag is unmistakable. Keep the span and the reason as detail.
+- Consequence for feedback 4 (no date of service): option 4, "return spans and let Onyx decide", is
+  out. Any no-DOS behaviour must still produce the flag, evaluated as of today, with a marker that the
+  date was defaulted.
