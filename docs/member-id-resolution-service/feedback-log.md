@@ -41,3 +41,17 @@ design is revised once the owner says the feedback is final.
 
 ## Questions raised back to the owner (open)
 See the conversation; answers will be appended here.
+
+## Feedback 2 (2026-10-03): TMP has no dependents; MMI returns one record
+
+- **TMP / Medicare membership has no dependents.** Whether Onyx sends the 9-digit, 11-digit or
+  14-character form, MMI always returns exactly one record. A 9-digit TMP input is **not ambiguous**.
+- **Populations with dependents**: HPHC commercial and the Together (Public Plans) population. There a
+  9-digit search may return more than one record, so the ambiguity handling still applies to them.
+- Design implication to apply in the revision (not applied yet): the "9-digit + one record =
+  PERSON_NOT_CONFIRMED" rule from v0.1 is wrong for TMP. A single record returned for a TMP member can
+  be accepted as the patient. The AMBIGUOUS / DOB rules are needed only for populations that have
+  dependents. The service needs a reliable way to recognise a TMP record in the MMI response (see
+  questions).
+- Answers question 2 of the open list (suffix is effectively always `01` for TMP; one person per
+  9-digit number).
