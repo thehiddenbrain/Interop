@@ -9,7 +9,8 @@ group = 'com.thehiddenbrain.interop'
 version = '0.1.0-SNAPSHOT'
 description = 'Member ID Resolution Service: resolves an EMR-supplied member ID through MMI, formats it for the UM vendor and reports coverage on the date of service'
 
-// Compiles for Java 17 whether the installed JDK is 17 or 21 (STS default toolchains both work).
+// Compiles for Java 17 whether the installed JDK is 17, 21 or 25. Gradle 9.8 (wrapper) runs on all of them;
+// an older wrapper fails on JDK 25 with "Unsupported class file major version 69".
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
@@ -44,8 +45,8 @@ springBoot {
 tasks.named('test') {
     useJUnitPlatform()
     testLogging {
-        events 'failed'
-        exceptionFormat 'full'
+        events = ['failed']
+        exceptionFormat = 'full'
     }
 }
 

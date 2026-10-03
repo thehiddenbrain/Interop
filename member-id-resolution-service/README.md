@@ -15,7 +15,11 @@ of service. One endpoint, one downstream (MMI), no database, no state.
 ## 1. Run it in STS (or any IDE)
 
 1. **File → Import → Gradle → Existing Gradle Project**, pick this folder (`member-id-resolution-service`),
-   accept the defaults (Gradle wrapper). JDK 17 or 21 both work.
+   accept the defaults (Gradle wrapper, version 9.8). JDK 17, 21 and 25 all work: the code compiles for
+   Java 17, and Gradle 9.8 runs on any of those JDKs. If the import ever fails with
+   `Unsupported class file major version NN`, Gradle is being run on a JDK newer than the wrapper
+   supports; either keep the shipped wrapper version or point STS at a supported JDK
+   (Window → Preferences → Gradle → Advanced Options → Java home).
 2. Run `MemberIdResolutionApplication` as a **Spring Boot App**. With no profile set it runs the `local`
    profile: an **in-process MMI stub** answers from `src/main/resources/mmi-stub/members.json`, so nothing
    needs network access.
