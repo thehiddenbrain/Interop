@@ -55,3 +55,12 @@ See the conversation; answers will be appended here.
   questions).
 - Answers question 2 of the open list (suffix is effectively always `01` for TMP; one person per
   9-digit number).
+
+## Feedback 3 (2026-10-03): vendor formats stay in YAML or code, no database table
+
+- No separate database table for vendor formats. The service must stay a simple, stateless service.
+- Four or five vendors; if a format changes, a simple code or YAML change plus a deploy is acceptable.
+- Clarification recorded: the v0.1 "vendor table" is the `member-id.vendors` map in `application.yml`
+  plus the two format enums, not a database. v0.1 also adds (a) an optional ConfigMap override of the
+  YAML and (b) a startup check that the SAMPLE values were replaced in PQA/PROD. Both are candidates
+  to drop in the revision to keep the mapping as plain as possible. Decision pending final feedback.
