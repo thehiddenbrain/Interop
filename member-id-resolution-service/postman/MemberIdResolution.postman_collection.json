@@ -2607,7 +2607,7 @@
                   "pm.test(\"OPTUM memberIdParts = {123456789, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberIdParts.memberId)).to.eql(JSON.stringify(\"123456789\")); pm.expect(JSON.stringify(v.memberIdParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
                   "pm.test(\"EVICORE has no memberIdParts\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(v).to.not.have.property(\"memberIdParts\"); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
-                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2672,7 +2672,7 @@
                   "pm.test(\"OPTUM memberIdParts = {123456789, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberIdParts.memberId)).to.eql(JSON.stringify(\"123456789\")); pm.expect(JSON.stringify(v.memberIdParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
                   "pm.test(\"EVICORE has no memberIdParts\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(v).to.not.have.property(\"memberIdParts\"); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
-                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2731,7 +2731,7 @@
                   "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = HP456789012\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"HP456789012\")); }); });",
                   "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
-                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2789,7 +2789,7 @@
                   "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = 34567890102\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890102\")); }); });",
                   "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
-                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2845,7 +2845,7 @@
                   "pm.test(\"no .vendorMemberIds\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendorMemberIds\"); });",
                   "pm.test(\"no .coverage\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"coverage\"); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
-                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2900,7 +2900,7 @@
                   "pm.test(\".ambiguity.reason = MULTIPLE_PERSONS\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.ambiguity.reason)).to.eql(JSON.stringify(\"MULTIPLE_PERSONS\")); });",
                   "pm.test(\"3 candidates\", function () { pm.expect(pm.response.json().candidates.length).to.eql(3); });",
                   "pm.test(\"no .vendorMemberIds\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendorMemberIds\"); });",
-                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2957,7 +2957,7 @@
                   "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = 34567890101\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890101\")); }); });",
                   "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
-                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3116,7 +3116,7 @@
                 "exec": [
                   "pm.test(\"HTTP 422\", function () { pm.response.to.have.status(422); });",
                   "pm.test(\".error.code = DOB_MISMATCH\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"DOB_MISMATCH\")); });",
-                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3149,6 +3149,60 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\",\n  \"patient\": {\n    \"dateOfBirth\": \"1999-12-31\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MMI answers 500: 503 MMI_UNAVAILABLE (same envelope)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 503\", function () { pm.response.to.have.status(503); });",
+                  "pm.test(\".error.code = MMI_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_UNAVAILABLE\")); });",
+                  "pm.test(\".error.details[0].code = HTTP_500\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"HTTP_500\")); });",
+                  "pm.test(\"Retry-After\", function () { pm.response.to.have.header(\"Retry-After\"); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"500500500\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

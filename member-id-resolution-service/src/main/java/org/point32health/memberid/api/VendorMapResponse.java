@@ -1,5 +1,6 @@
 package org.point32health.memberid.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -26,6 +27,7 @@ public record VendorMapResponse(
      * @param received as Onyx sent it (surrounding whitespace removed); this exact value was sent to MMI
      * @param stored   exactly as MMI stores it (ACTIVE / INACTIVE only)
      */
+    @Schema(name = "VendorMapMemberId") // distinct from ResolveResponse.MemberId in the OpenAPI document
     public record MemberId(String received, String stored) {
     }
 

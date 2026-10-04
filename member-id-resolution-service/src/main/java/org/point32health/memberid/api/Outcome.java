@@ -2,7 +2,7 @@ package org.point32health.memberid.api;
 
 /** The one field Onyx branches on in a 200 response. */
 public enum Outcome {
-    /** Member verified; coverage active on the date of service. {@code memberId.forVendor} may be used. */
+    /** Member verified; coverage active on the date of service. Use {@code memberId.forVendor} (/resolve) or the {@code vendorMemberIds} entry (/vendor-map). */
     ACTIVE,
     /** Member verified; no coverage on the date of service. */
     INACTIVE,
