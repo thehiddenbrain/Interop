@@ -3,11 +3,12 @@
 Spring Boot service for Onyx. Onyx sends the member ID exactly as the provider's EMR supplied it, the
 date of service and the UM vendor; the service verifies the ID with MMI (Master Member Index), returns it
 **as stored**, returns it **in the vendor's format**, and says whether coverage is **active** on the date
-of service. One endpoint, one downstream (MMI), no database, no state.
+of service. When Onyx does not yet know the vendor, the **vendor map** operation takes the member id alone
+and returns it in every vendor's format at once. Two operations, one downstream (MMI), no database, no state.
 
 | | |
 |---|---|
-| Endpoint | `POST /api/v1/member-ids/resolve` (port **9090**) |
+| Endpoints | `POST /api/v1/member-ids/resolve` (one vendor) · `POST /api/v1/member-ids/vendor-map` (every vendor), port **9090** |
 | Stack | Spring Boot 4.0.7 (Spring Framework 7, Jackson 3) / Java 17+ / Gradle 9.5 wrapper, springdoc 3: the same build shape as the EPA Workbench and the member profile service |
 | Swagger UI | `http://localhost:9090/swagger-ui.html` (off in `prod`) |
 | Health | `http://localhost:9090/actuator/health` |
@@ -55,8 +56,10 @@ that profile's `application-<profile>.yaml`; nothing else changes.
    on port 80 (plain HTTP, no token, as the MMI contract states). If it cannot, every call answers
    `503 MMI_UNAVAILABLE` with `CONNECT_FAILED` and the log line `mmi call failed ... cause=...` names the reason.
 5. **Try it**: a Postman resolve request with a real PQA member id, typed as the EMR has it, or
-   `curl -X POST http://localhost:9090/api/v1/member-ids/resolve -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\",\"vendor\":\"EVICORE\"}"`.
-   The response carries `mmiRequestId` (`MBRIDSVC-<millis>-<5 digits>`), which the MMI team can find in their logs.
+   `curl -X POST http://localhost:9090/api/v1/member-ids/resolve -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\",\"vendor\":\"EVICORE\"}"`;
+   for the id in every vendor's format,
+   `curl -X POST http://localhost:9090/api/v1/member-ids/vendor-map -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\"}"`.
+   Either response carries `mmiRequestId` (`MBRIDSVC-<millis>-<5 digits>`), which the MMI team can find in their logs.
 
 #### Reading the MMI request and response when something fails
 
@@ -98,7 +101,10 @@ from canned data.
 
 ## 2. The API
 
-### Request
+Two operations, both `POST` with a JSON body (the member id is PHI and must not appear in a URL), both pure
+reads that may be repeated. **Resolve** answers for one vendor; **vendor map** answers for every vendor at once.
+
+### Resolve: `POST /api/v1/member-ids/resolve`
 
 ```http
 POST /api/v1/member-ids/resolve
@@ -121,7 +127,7 @@ characters, hyphens, spaces, letters, any length) goes to MMI as is, with only s
 and MMI decides whether it knows the id. A missing or blank `memberId` is the only member-id error
 (400 `INVALID_REQUEST`, detail code `MEMBER_ID_MISSING`).
 
-### Response (HTTP 200): branch on `outcome`
+### Resolve: response (HTTP 200), branch on `outcome`
 
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
@@ -135,7 +141,7 @@ and MMI decides whether it knows the id. A missing or blank `memberId` is the on
   "memberId": { "received": "123456789", "stored": "123456789   01", "forVendor": "12345678901" },
   "vendor": "EVICORE", "company": "THP", "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "reason": "COVERED", "span": { "effectiveDate": "2024-01-01", "endDate": null } },
+  "coverage": { "active": true, "reason": "COVERED", "span": { "effectiveDate": "2024-01-01", "endDate": null }, "lastEndDate": "2023-12-31" },
   "correlationId": "ONYX-PA-2026-000123", "mmiRequestId": "MBRIDSVC-1760000000000-48213" }
 ```
 
@@ -150,17 +156,79 @@ stored ID (Public Plans, HPHC) is passed as stored for every vendor.
 (start of the earliest span after it) are present whenever such spans exist, for ACTIVE answers too, so a
 defaulted date of service still shows recent past and future coverage.
 
-### Errors (non-200): `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "mmiRequestId" }`
+### Vendor map: `POST /api/v1/member-ids/vendor-map`
 
-Every answer the application produces has this shape (`mmiRequestId` is present once MMI was called,
-including on a 422). The one exception is a request Tomcat rejects before it reaches the application
-(malformed percent-encoding in the URL, a header block over 8 KB): that returns Spring Boot's default
-error JSON.
+Onyx does not always know which vendor will receive the authorization. The vendor map operation takes the
+member id without a vendor and returns the member id in every vendor's format; Onyx keeps the answer and
+picks the entry for the vendor once it knows. Same validation, same single MMI call, same selection and
+coverage decision as `/resolve`; only the rendering differs.
+
+```http
+POST /api/v1/member-ids/vendor-map
+Content-Type: application/json
+X-Correlation-Id: ONYX-PA-2026-000124        (optional; echoed, generated when absent)
+
+{ "memberId": "123456789", "dateOfService": "2026-10-15",
+  "patient": { "dateOfBirth": "1950-03-15" } }
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `memberId` | yes | As the EMR typed it. Same rule as `/resolve`: checked for presence only, sent to MMI exactly as received with surrounding whitespace removed. |
+| `dateOfService` | no | `yyyy-MM-dd`. **Defaults to today** when omitted (`dateOfServiceDefaulted: true`). Same window: 10 years back / 366 days forward. |
+| `patient.dateOfBirth` | recommended | `yyyy-MM-dd`. Used only to verify or pick among the records MMI returned. Never sent to MMI, never logged, never echoed. |
+
+There is **no `vendor` field**. Sending one is an unknown property and answers 400 `INVALID_REQUEST`, like any
+other unknown property. The validation detail codes are those of `/resolve` minus the vendor:
+`MEMBER_ID_MISSING`, `DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE`, `DATE_OF_BIRTH_INVALID`,
+`DATE_OF_BIRTH_OUT_OF_RANGE`. An invalid request never reaches MMI.
+
+**Response (HTTP 200)**: the same `outcome` values, the same `coverage`, `ambiguity` and `candidates[]` blocks
+and the same Onyx actions as the table above, with one difference: there is no `vendor`, no `forVendor` and
+no `forVendorParts`. Instead `vendorMemberIds[]` carries one entry per configured vendor, sorted by vendor
+code; for `ACTIVE`, Onyx picks the entry for its vendor and puts that `memberId` (for Optum,
+`memberIdParts` when present) in the vendor payload. For the TMP id `123456789` (stored `123456789   01`):
+
+```json
+{ "outcome": "ACTIVE",
+  "memberId": { "received": "123456789", "stored": "123456789   01" },
+  "company": "THP", "lineOfBusiness": "MCR",
+  "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
+  "coverage": { "active": true, "reason": "COVERED", "span": { "effectiveDate": "2024-01-01", "endDate": null }, "lastEndDate": "2023-12-31" },
+  "vendorMemberIds": [
+    { "vendor": "CARELON", "memberId": "12345678901" },
+    { "vendor": "EVICORE", "memberId": "12345678901" },
+    { "vendor": "EVOLENT", "memberId": "12345678901" },
+    { "vendor": "MHK",     "memberId": "123456789   01" },
+    { "vendor": "OPTUM",   "memberId": "12345678901", "memberIdParts": { "memberId": "123456789", "suffix": "01" } }
+  ],
+  "correlationId": "ONYX-PA-2026-000124", "mmiRequestId": "MBRIDSVC-1760000000000-48214" }
+```
+
+`vendorMemberIds` is present **only when a member was identified**, that is for `ACTIVE` and `INACTIVE`.
+`NOT_FOUND` and `AMBIGUOUS` answers carry no `vendorMemberIds` and no `memberId.stored`; an `AMBIGUOUS` answer
+carries `ambiguity` and `candidates[]` exactly as on `/resolve`, and a resend with `patient.dateOfBirth`
+settles it. `memberIdParts` appears only on vendors whose format is `SPLIT` (Optum) and only for a TMP/SCO id.
+For an HPHC id (stored `HP456789012`) or a Public Plans id (`34567890102`) every entry carries the stored id
+unchanged and no entry has `memberIdParts`: the same rule as `forVendor` on `/resolve`. Absent blocks are
+omitted, not sent as `null`.
+
+**Which one to call.** Call `/resolve` when Onyx already knows the vendor; call `/vendor-map` when it does not,
+and pick the entry for the vendor later. Either way there is one MMI call, and if this service is down Onyx's
+fallback is unchanged: pass the EMR's id through to the vendor as received.
+
+### Errors (non-200), both operations: `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "mmiRequestId" }`
+
+Every answer the application produces, on `/resolve` and on `/vendor-map` alike, has this shape (`mmiRequestId`
+is present once MMI was called, including on a 422). The one exception is a request Tomcat rejects before it
+reaches the application (malformed percent-encoding in the URL, a header block over 8 KB): that returns Spring
+Boot's default error JSON. `UNKNOWN_VENDOR` cannot occur on `/vendor-map`, which has no vendor; a `vendor`
+property sent to it is an unknown property, 400 `INVALID_REQUEST`.
 
 | HTTP | `error.code` | When | Onyx action |
 |---|---|---|---|
-| 400 | `INVALID_REQUEST` | missing member ID, bad dates, missing vendor, malformed JSON, unknown property, wrong JSON type. Every problem is listed in `details[]`. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type.) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
-| 400 | `UNKNOWN_VENDOR` | vendor not in the table; `details[0].message` lists the known codes | Never retry; routing table and this table disagree. |
+| 400 | `INVALID_REQUEST` | missing member ID, bad dates, missing vendor (`/resolve`), malformed JSON, unknown property (including `vendor` on `/vendor-map`), wrong JSON type. Every problem is listed in `details[]`. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operations are POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
+| 400 | `UNKNOWN_VENDOR` | `/resolve` only: vendor not in the table; `details[0].message` lists the known codes | Never retry; routing table and this table disagree. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
 | 502 | `MMI_ERROR`, `MMI_INVALID_RESPONSE` | MMI rejected the call, answered unreadably, or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read) | Park, alert the service owners. |
 | 503 | `MMI_UNAVAILABLE` (`Retry-After: 10`) | MMI unreachable, timed out, or 5xx | Retry later. |
@@ -187,6 +255,9 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    evaluated together, so a gap between the old and the new record is reported as a gap.
 5. Format for the vendor from the stored ID (never from the input).
 
+`/vendor-map` runs the same steps 1 to 4 and renders step 5 for every configured vendor instead of one, in
+vendor-code order; the member is identified once, from one MMI call, whichever operation is used.
+
 TMP / SCO members have no dependents: a 9-digit card number returns exactly one record and resolves
 directly. Only populations with dependents (HPHC commercial, Together) can produce `AMBIGUOUS`.
 
@@ -194,7 +265,8 @@ directly. Only populations with dependents (HPHC commercial, Together) can produ
 
 `src/main/resources/application.yaml`, block `member-id.vendors` (edit it there; the block below is a copy of
 the shipped values). Change a value, redeploy; the startup log prints the effective table rendered against
-a sample ID.
+a sample ID. Adding a vendor to this block also adds its entry to `/vendor-map` automatically: the vendor map
+is rendered from this table and nothing else needs editing.
 
 ```yaml
 member-id:
@@ -229,7 +301,7 @@ Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. A new output shape = o
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
 and case (anything that is not a letter or digit is ignored), the leniency expected of the real MMI; the service
 itself hands the id over untouched. The fault ids below are recognised by the first 9 characters of the id with
-separators removed.
+separators removed. The same fixtures serve `/resolve` and `/vendor-map`.
 
 | Member ID (as typed; the stub ignores separators and case) | Case |
 |---|---|
@@ -249,14 +321,21 @@ separators removed.
 
 Postman: import `postman/MemberIdResolution.postman_collection.json` and
 `postman/Local.postman_environment.json` (`baseUrl = http://localhost:9090`). Every request carries tests;
-run the whole collection with the Collection Runner for a green scenario pass.
+run the whole collection with the Collection Runner for a green scenario pass. Folders 1 to 5 exercise
+`/resolve` (folder 6 is health and the OpenAPI document); folder **7 Vendor map** exercises `/vendor-map` with the same fixtures (the TMP id in every
+vendor's format, HPHC and Public Plans ids passed as stored, answers without `vendorMemberIds`, validation).
 
 ## 6. Tests
 
-`./gradlew test`: request validation, coverage rules, selection rules (including converted members in a gap and
-with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
+`./gradlew test` (95 tests): request validation, coverage rules, selection rules (including converted members in
+a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (500/429/408/400/bad body/connection refused/read timeout), configuration validation, and the end-to-end
-scenario matrix over HTTP against the stub with "today" fixed at 2026-10-03. A capturing log appender
+scenario matrix over HTTP against the stub with "today" fixed at 2026-10-03. Four of the scenarios cover
+`/vendor-map`: the TMP id rendered for every vendor from one MMI call (Optum with `memberIdParts`, no `vendor`
+or `forVendor` in the body); HPHC and Public Plans ids passed as stored to every vendor, with the defaulted
+date and an INACTIVE gap; NOT_FOUND and AMBIGUOUS answers without `vendorMemberIds`, and a DOB that settles the
+ambiguity; validation identical to `/resolve` minus the vendor and a sent `vendor` rejected as an unknown property,
+none of which reaches MMI; and a DOB mismatch answered 422 after the one MMI call (`mmiRequestId` present). A capturing log appender
 asserts no log line (message or exception text; payload logging is off in the `test` profile) contains an
 unmasked 9- or 11-digit run or an MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI

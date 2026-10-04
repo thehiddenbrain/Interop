@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "fc06bd8a-2b7b-4a0b-a1a5-d2d605d0da94",
     "name": "Member ID Resolution Service",
-    "description": "Every scenario of POST /api/v1/member-ids/resolve against the dev profile (the default: in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence.",
+    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (the default: in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One MMI call either way. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -2574,6 +2574,586 @@
               "path": [
                 "api-docs"
               ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7 Vendor map (POST /api/v1/member-ids/vendor-map)",
+      "description": "",
+      "item": [
+        {
+          "name": "TMP 9-digit: the id in every vendor's format",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".memberId.received = 123456789\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123456789\")); });",
+                  "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
+                  "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
+                  "pm.test(\"no .memberId.forVendor\", function () { const j = pm.response.json(); pm.expect(j.memberId).to.not.have.property(\"forVendor\"); });",
+                  "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
+                  "pm.test(\"EVICORE memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"EVOLENT memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVOLENT\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"CARELON memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"CARELON\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"MHK memberId = 123456789   01\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"123456789   01\")); });",
+                  "pm.test(\"OPTUM memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"OPTUM memberIdParts = {123456789, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberIdParts.memberId)).to.eql(JSON.stringify(\"123456789\")); pm.expect(JSON.stringify(v.memberIdParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
+                  "pm.test(\"EVICORE has no memberIdParts\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(v).to.not.have.property(\"memberIdParts\"); });",
+                  "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
+                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TMP id typed with a hyphen (123456789-01)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".memberId.received = 123456789-01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123456789-01\")); });",
+                  "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
+                  "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
+                  "pm.test(\"no .memberId.forVendor\", function () { const j = pm.response.json(); pm.expect(j.memberId).to.not.have.property(\"forVendor\"); });",
+                  "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
+                  "pm.test(\"EVICORE memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"EVOLENT memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVOLENT\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"CARELON memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"CARELON\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"MHK memberId = 123456789   01\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"123456789   01\")); });",
+                  "pm.test(\"OPTUM memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"OPTUM memberIdParts = {123456789, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberIdParts.memberId)).to.eql(JSON.stringify(\"123456789\")); pm.expect(JSON.stringify(v.memberIdParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
+                  "pm.test(\"EVICORE has no memberIdParts\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(v).to.not.have.property(\"memberIdParts\"); });",
+                  "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
+                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"123456789-01\",\n  \"dateOfService\": \"2026-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "HPHC card id, no date of service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".dateOfServiceDefaulted = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(true)); });",
+                  "pm.test(\".memberId.received = HP-456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP-456789012\")); });",
+                  "pm.test(\".memberId.stored = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"HP456789012\")); });",
+                  "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
+                  "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
+                  "pm.test(\"every vendor memberId = HP456789012\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"HP456789012\")); }); });",
+                  "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
+                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"HP-456789012\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Public Plans id in a coverage gap: INACTIVE still maps",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
+                  "pm.test(\".coverage.active = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(false)); });",
+                  "pm.test(\".coverage.reason = COVERAGE_GAP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"COVERAGE_GAP\")); });",
+                  "pm.test(\".memberId.stored = 34567890102\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890102\")); });",
+                  "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
+                  "pm.test(\"every vendor memberId = 34567890102\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890102\")); }); });",
+                  "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
+                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"34567890102\",\n  \"dateOfService\": \"2024-08-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Unknown id: NOT_FOUND, no vendor ids",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".memberId.received = HP111222333\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP111222333\")); });",
+                  "pm.test(\"no .vendorMemberIds\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendorMemberIds\"); });",
+                  "pm.test(\"no .coverage\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"coverage\"); });",
+                  "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
+                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"HP111222333\",\n  \"dateOfService\": \"2026-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Family id without DOB: AMBIGUOUS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
+                  "pm.test(\".ambiguity.reason = MULTIPLE_PERSONS\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.ambiguity.reason)).to.eql(JSON.stringify(\"MULTIPLE_PERSONS\")); });",
+                  "pm.test(\"3 candidates\", function () { pm.expect(pm.response.json().candidates.length).to.eql(3); });",
+                  "pm.test(\"no .vendorMemberIds\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendorMemberIds\"); });",
+                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Family id with DOB: resolved, then mapped",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".memberId.stored = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890101\")); });",
+                  "pm.test(\".lineOfBusiness = PP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"PP\")); });",
+                  "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
+                  "pm.test(\"every vendor memberId = 34567890101\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890101\")); }); });",
+                  "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
+                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\",\n  \"patient\": {\n    \"dateOfBirth\": \"1985-06-01\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Blank memberId: 400 MEMBER_ID_MISSING",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\".error.code = INVALID_REQUEST\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"INVALID_REQUEST\")); });",
+                  "pm.test(\".error.details has memberId MEMBER_ID_MISSING\", function () { const d = pm.response.json().error.details; pm.expect(d.some(function (x) { return x.field === \"memberId\" && x.code === \"MEMBER_ID_MISSING\"; })).to.eql(true); });",
+                  "pm.test(\"no .mmiRequestId\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"mmiRequestId\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"   \",\n  \"dateOfService\": \"2026-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "vendor is not a field of this operation: 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\".error.code = INVALID_REQUEST\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"INVALID_REQUEST\")); });",
+                  "pm.test(\"response names the vendor property\", function () { pm.expect(pm.response.text()).to.include(\"vendor\"); });",
+                  "pm.test(\".error.details has vendor UNKNOWN_PROPERTY\", function () { const d = pm.response.json().error.details; pm.expect(d.some(function (x) { return x.field === \"vendor\" && x.code === \"UNKNOWN_PROPERTY\"; })).to.eql(true); });",
+                  "pm.test(\"no .mmiRequestId\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"mmiRequestId\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"vendor\": \"EVICORE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DOB matches no record: 422 DOB_MISMATCH",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", function () { pm.response.to.have.status(422); });",
+                  "pm.test(\".error.code = DOB_MISMATCH\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"DOB_MISMATCH\")); });",
+                  "pm.test(\".mmiRequestId present\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\").and.to.not.be.empty; });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\",\n  \"patient\": {\n    \"dateOfBirth\": \"1999-12-31\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "response": []
