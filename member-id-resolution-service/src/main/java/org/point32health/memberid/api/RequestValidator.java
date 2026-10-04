@@ -2,8 +2,6 @@ package org.point32health.memberid.api;
 
 import org.point32health.memberid.config.MemberIdProperties;
 import org.point32health.memberid.domain.InvalidRequestException;
-import org.point32health.memberid.domain.MemberIdParser;
-import org.point32health.memberid.domain.ParsedMemberId;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -14,23 +12,28 @@ import java.util.List;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
-/** Validates the whole request in one pass and reports every problem together. No MMI call for an invalid request. */
+/**
+ * Validates the whole request in one pass and reports every problem together. No MMI call for an invalid request.
+ *
+ * <p>The member id itself is only checked for presence. Whatever the EMR typed (9, 10, 11 or 40 characters, hyphens,
+ * spaces, letters) is sent to MMI exactly as received, with only surrounding whitespace removed; MMI decides whether it
+ * knows the id. This service never judges the shape of a member id.
+ */
 @Component
 public class RequestValidator {
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT);
     private static final Pattern VENDOR = Pattern.compile("^[A-Za-z0-9 _.()-]{1,40}$");
 
-    public record Validated(ParsedMemberId memberId, LocalDate dateOfService, boolean dateOfServiceDefaulted,
+    /** @param memberId the id as Onyx sent it, surrounding whitespace removed: what is sent to MMI and echoed back */
+    public record Validated(String memberId, LocalDate dateOfService, boolean dateOfServiceDefaulted,
             LocalDate dateOfBirth, String vendor) {
     }
 
-    private final MemberIdParser parser;
     private final MemberIdProperties properties;
     private final Clock clock;
 
-    public RequestValidator(MemberIdParser parser, MemberIdProperties properties, Clock clock) {
-        this.parser = parser;
+    public RequestValidator(MemberIdProperties properties, Clock clock) {
         this.properties = properties;
         this.clock = clock;
     }
@@ -39,11 +42,9 @@ public class RequestValidator {
         List<ErrorDetail> details = new ArrayList<>();
         LocalDate today = LocalDate.now(clock);
 
-        ParsedMemberId parsed = null;
-        try {
-            parsed = parser.parse(request.memberId());
-        } catch (InvalidRequestException e) {
-            details.addAll(e.details());
+        String memberId = request.memberId() == null ? "" : request.memberId().strip();
+        if (memberId.isEmpty()) {
+            details.add(new ErrorDetail("memberId", "MEMBER_ID_MISSING", "memberId is required"));
         }
 
         LocalDate dos = null;
@@ -88,7 +89,7 @@ public class RequestValidator {
         if (!details.isEmpty()) {
             throw new InvalidRequestException(details);
         }
-        return new Validated(parsed, dos, defaulted, dob, vendor);
+        return new Validated(memberId, dos, defaulted, dob, vendor);
     }
 
     private static LocalDate parseDate(String value) {

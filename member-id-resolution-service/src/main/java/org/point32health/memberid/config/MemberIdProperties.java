@@ -13,8 +13,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * Everything under {@code member-id.*} in application.yml: the date-of-service window, the HPHC id
- * length(s) and the vendor -> format map. Bound once at startup and validated; a bad value stops the
+ * Everything under {@code member-id.*} in application.yaml: the date-of-service window, the DOB sanity
+ * limit and the vendor -> format map. Nothing here describes the shape of a member id: the id is passed to MMI as received. Bound once at startup and validated; a bad value stops the
  * application with a message naming the property.
  */
 @ConfigurationProperties("member-id")
@@ -22,7 +22,6 @@ import org.springframework.validation.annotation.Validated;
 public record MemberIdProperties(
         @Valid @NotNull @DefaultValue DateOfService dateOfService,
         @DefaultValue("125") @Positive int dateOfBirthMaxAgeYears,
-        @DefaultValue("9") @NotEmpty List<@Positive Integer> hphcDigitLengths,
         @Valid @NotEmpty Map<String, VendorConfig> vendors) {
 
     public record DateOfService(

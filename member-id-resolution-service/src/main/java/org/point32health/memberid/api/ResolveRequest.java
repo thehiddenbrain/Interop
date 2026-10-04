@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 @Schema(description = "Member id resolution request")
 public record ResolveRequest(
-        @Schema(description = "The member id exactly as the EMR supplied it: 9 digits, 11 digits, 14 characters with spaces, HP-prefixed; any separators",
+        @Schema(description = "The member id exactly as the EMR supplied it. Sent to MMI unchanged (surrounding whitespace removed); no shape, length or character check",
                 example = "123456789", requiredMode = Schema.RequiredMode.REQUIRED) String memberId,
         @Schema(description = "Date of service, yyyy-MM-dd. Defaults to today when omitted.", example = "2026-10-15") String dateOfService,
         @Schema(description = "UM vendor code or alias (case-insensitive)", example = "EVICORE", requiredMode = Schema.RequiredMode.REQUIRED) String vendor,

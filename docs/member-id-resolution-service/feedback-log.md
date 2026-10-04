@@ -170,3 +170,17 @@ See the conversation; answers will be appended here.
   startup banner shows `mmi payload log : ON / off`.
 - Removed the "MMI averages about 16 ms" remarks from the YAML comments, the design and this log, per the
   owner: no bragging in the deliverables.
+
+## Feedback 7 (2026-10-04): no restriction on the incoming member id; pass it through to MMI
+
+- A real PQA member id was rejected with `MEMBER_ID_UNRECOGNIZED_SHAPE`. The owner: the EMR can send 9, 10, 11,
+  14, 20 or 40 characters, hyphens, whatever; if MMI can find it, MMI will. This service must not judge the
+  shape, the length or the characters of a member id. "The service is just passing through to MMI."
+- Applied: the parser (`MemberIdParser`, `ParsedMemberId`, `InputShape`) and the `member-id.hphc-digit-lengths`
+  setting are deleted. The only check on `memberId` is that it is present (`MEMBER_ID_MISSING`). The value is sent
+  to MMI exactly as received, surrounding whitespace removed, in both `memberId` and `legacyMemberId`.
+  `memberId.searched` is dropped from the response because it would always equal `memberId.received`.
+  Error codes `MEMBER_ID_UNRECOGNIZED_SHAPE`, `MEMBER_ID_TOO_LONG` and `MEMBER_ID_ILLEGAL_CHARACTERS` no longer exist.
+- The dev stub now ignores separators and case when matching fixtures, which is the leniency described for the
+  real MMI; the PQA assumption to confirm is that MMI finds a member from a hyphenated or spaced id.
+

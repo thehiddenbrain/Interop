@@ -53,7 +53,6 @@ public class StartupReport implements ApplicationRunner {
         sb.append("mmi payload log   : ").append(mmi.logPayloads() ? "ON (request and response bodies, contains PHI)" : "off").append('\n');
         sb.append("dos window        : -").append(memberId.dateOfService().maxPastYears()).append("y / +")
           .append(memberId.dateOfService().maxFutureDays()).append("d (").append(memberId.dateOfService().zone()).append(")\n");
-        sb.append("hphc digit lengths: ").append(memberId.hphcDigitLengths()).append('\n');
         sb.append("vendor formats (sample stored id '123456789   01' -> what the vendor receives):\n");
         vendors.all().forEach(v -> sb.append(String.format("  %-10s %-14s %s%n", v.code(), v.format(),
                 formatter.format("123456789   01", v.format()).describe())));

@@ -159,7 +159,7 @@ class ResolveScenariosTest {
         JsonNode r = call(200, req("123456789", "2026-10-15", "evicore"));
         assertThat(r.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(r.at("/memberId/received").asText()).isEqualTo("123456789");
-        assertThat(r.at("/memberId/searched").asText()).isEqualTo("123456789");
+        assertThat(r.at("/memberId/received").asText()).isEqualTo("123456789");
         assertThat(r.at("/memberId/stored").asText()).isEqualTo("123456789   01");
         assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("12345678901");
         assertThat(r.at("/memberId/forVendorParts").isMissingNode()).isTrue();
@@ -264,7 +264,7 @@ class ResolveScenariosTest {
         JsonNode r = call(200, req("345678901", "2026-10-15", "evicore"));
         assertThat(r.get("outcome").asText()).isEqualTo("AMBIGUOUS");
         assertThat(r.at("/ambiguity/reason").asText()).isEqualTo("MULTIPLE_PERSONS");
-        assertThat(r.at("/ambiguity/hint").asText()).contains("11-character");
+        assertThat(r.at("/ambiguity/hint").asText()).contains("dateOfBirth");
         assertThat(r.get("candidates")).hasSize(3);
         assertThat(r.at("/candidates/0/storedMemberId").asText()).isEqualTo("34567890101");
         assertThat(r.at("/candidates/0/coverageActive").asBoolean()).isTrue();
@@ -327,7 +327,7 @@ class ResolveScenariosTest {
         for (String input : List.of("HP-456789012", "hp456789012", "HP 4567 89012", "HP456789012")) {
             JsonNode r = call(200, req(input, "2026-10-15", "evicore"));
             assertThat(r.get("outcome").asText()).as(input).isEqualTo("ACTIVE");
-            assertThat(r.at("/memberId/searched").asText()).isEqualTo("HP456789012");
+            assertThat(r.at("/memberId/received").asText()).as("echoed exactly as sent").isEqualTo(input);
             assertThat(r.at("/memberId/stored").asText()).isEqualTo("HP456789012");
             assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("HP456789012");
             assertThat(r.get("company").asText()).isEqualTo("HPHC");
@@ -372,13 +372,12 @@ class ResolveScenariosTest {
 
     @Test
     void everyValidationProblemIsReportedTogetherAndMmiIsNotCalled() throws Exception {
-        JsonNode r = call(400, Map.of("memberId", "1234567890", "dateOfService", "10/15/2026", "vendor", "", "patient", Map.of("dateOfBirth", "2099-01-01")));
+        JsonNode r = call(400, Map.of("memberId", "   ", "dateOfService", "10/15/2026", "vendor", "", "patient", Map.of("dateOfBirth", "2099-01-01")));
         assertThat(r.at("/error/code").asText()).isEqualTo("INVALID_REQUEST");
         assertThat(r.get("mmiRequestId")).isNull();
         List<String> codes = new java.util.ArrayList<>();
         r.at("/error/details").forEach(d -> codes.add(d.get("code").asText()));
-        assertThat(codes).containsExactlyInAnyOrder("MEMBER_ID_UNRECOGNIZED_SHAPE", "DATE_OF_SERVICE_INVALID", "VENDOR_MISSING", "DATE_OF_BIRTH_OUT_OF_RANGE");
-        assertThat(r.toString()).doesNotContain("1234567890");
+        assertThat(codes).containsExactlyInAnyOrder("MEMBER_ID_MISSING", "DATE_OF_SERVICE_INVALID", "VENDOR_MISSING", "DATE_OF_BIRTH_OUT_OF_RANGE");
     }
 
     @Test
@@ -501,12 +500,33 @@ class ResolveScenariosTest {
     @Test
     void invalidRequestsNeverReachMmi() throws Exception {
         long before = stub.calls();
-        call(400, req("1234567890", "2026-10-15", "evicore"));
+        call(400, req("   ", "2026-10-15", "evicore"));
         call(400, req("123456789", "2026-10-15", "AIMX"));
-        call(400, req("1".repeat(41), "2026-10-15", "evicore"));
+        call(400, req("123456789", "13/45/2026", "evicore"));
         assertThat(stub.calls()).isEqualTo(before);
-        JsonNode tooLong = call(400, req("1".repeat(41), "2026-10-15", "evicore"));
-        assertThat(tooLong.at("/error/details/0/code").asText()).isEqualTo("MEMBER_ID_TOO_LONG");
+    }
+
+    @Test
+    void anyMemberIdIsPassedToMmiExactlyAsTypedAndNeverRejectedForItsShape() throws Exception {
+        // 10 digits, 40 digits, letters and punctuation: none of it is this service's business, MMI decides
+        for (String odd : List.of("1234567890", "1".repeat(40), "ABC-123/XYZ_9", "HP-000000000", "98765 432 10")) {
+            long before = stub.calls();
+            JsonNode r = call(200, req(odd, "2026-10-15", "evicore"));
+            assertThat(stub.calls()).as("MMI was asked about " + odd).isEqualTo(before + 1);
+            assertThat(r.get("outcome").asText()).as(odd).isEqualTo("NOT_FOUND");
+            assertThat(r.at("/memberId/received").asText()).isEqualTo(odd);
+            assertThat(r.get("mmiRequestId").asText()).startsWith("MBRIDSVC-");
+        }
+        // a known member typed with a hyphen or in pieces still resolves: the (lenient) MMI matches it, not this service
+        for (String typed : List.of("123456789-01", "123-456-789 01", "  12345678901  ")) {
+            JsonNode r = call(200, req(typed, "2026-10-15", "evicore"));
+            assertThat(r.get("outcome").asText()).as(typed).isEqualTo("ACTIVE");
+            assertThat(r.at("/memberId/received").asText()).isEqualTo(typed.strip());
+            assertThat(r.at("/memberId/stored").asText()).isEqualTo("123456789   01");
+            assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("12345678901");
+        }
+        // the stub received the id untouched (the stub's own matching is what ignores the separators)
+        assertThat(stub.lastSearched()).isEqualTo("12345678901");
     }
 
     // ---------------------------------------------------------------- MMI failures

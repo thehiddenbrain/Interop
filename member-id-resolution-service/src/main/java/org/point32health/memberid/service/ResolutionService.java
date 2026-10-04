@@ -5,7 +5,6 @@ import org.point32health.memberid.api.RequestValidator;
 import org.point32health.memberid.api.ResolveRequest;
 import org.point32health.memberid.api.ResolveResponse;
 import org.point32health.memberid.domain.CoverageDecision;
-import org.point32health.memberid.domain.InputShape;
 import org.point32health.memberid.domain.MemberRecord;
 import org.point32health.memberid.domain.MemberSelector;
 import org.point32health.memberid.domain.ResolutionException;
@@ -30,8 +29,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * The whole request in order: validate, find the vendor, ask MMI once, reduce the records to one person,
- * decide coverage on the date of service, render the stored id for the vendor, answer.
+ * The whole request in order: validate, find the vendor, ask MMI once with the member id exactly as received,
+ * reduce the records to one person, decide coverage on the date of service, render the stored id for the vendor, answer.
  */
 @Service
 public class ResolutionService {
@@ -62,7 +61,7 @@ public class ResolutionService {
         RequestValidator.Validated v = validator.validate(request);
         Vendor vendor = vendors.find(v.vendor()).orElseThrow(() -> new UnknownVendorException(vendors.knownCodes()));
 
-        MmiResult mmiResult = mmi.search(v.memberId().searched(), correlationId);
+        MmiResult mmiResult = mmi.search(v.memberId(), correlationId);
         List<MmiMember> members = mmiResult.response().membersOrEmpty();
         List<MmiMessage> messages = mmiResult.response().messagesOrEmpty();
 
@@ -94,9 +93,7 @@ public class ResolutionService {
         }
         ResolveResponse response;
         if (selection instanceof SelectionResult.Ambiguous a) {
-            String hint = v.memberId().shape() == InputShape.THP_9
-                    ? "Resend with the member's 11-character id (9 digits + suffix) or add patient.dateOfBirth"
-                    : "Add patient.dateOfBirth or route to intake for a manual pick";
+            String hint = "Add patient.dateOfBirth, or resend with the member's full id including the suffix, or route to intake for a manual pick";
             List<ResolveResponse.Candidate> candidates = a.candidates().stream()
                     .map(c -> new ResolveResponse.Candidate(c.storedMemberId(), c.company(), c.lineOfBusiness(), c.coverageActive()))
                     .toList();
@@ -130,7 +127,7 @@ public class ResolutionService {
     }
 
     private static ResolveResponse.MemberId idBlock(RequestValidator.Validated v, String stored, FormattedMemberId formatted) {
-        return new ResolveResponse.MemberId(v.memberId().received(), v.memberId().searched(), stored,
+        return new ResolveResponse.MemberId(v.memberId(), stored,
                 formatted == null ? null : formatted.value(),
                 formatted == null || formatted.parts() == null ? null
                         : new ResolveResponse.Parts(formatted.parts().memberId(), formatted.parts().suffix()));
@@ -145,9 +142,9 @@ public class ResolutionService {
     }
 
     private static void logOutcome(ResolveResponse r, RequestValidator.Validated v, int records, long start) {
-        log.info("resolve outcome={} reason={} vendor={} shape={} memberId={} stored={} company={} lob={} dos={} dosDefaulted={} records={} mmiRequestId={} ms={}",
-                r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(), r.vendor(), v.memberId().shape(),
-                Masking.memberId(v.memberId().searched()), Masking.memberId(r.memberId().stored()), r.company(), r.lineOfBusiness(),
+        log.info("resolve outcome={} reason={} vendor={} memberId={} stored={} company={} lob={} dos={} dosDefaulted={} records={} mmiRequestId={} ms={}",
+                r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(), r.vendor(),
+                Masking.memberId(v.memberId()), Masking.memberId(r.memberId().stored()), r.company(), r.lineOfBusiness(),
                 r.dateOfService(), r.dateOfServiceDefaulted(), records, r.mmiRequestId(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
     }

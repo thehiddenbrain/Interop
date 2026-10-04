@@ -59,11 +59,11 @@ member-id:
     max-future-days: 366                # prior auths for future dates are normal
     zone: America/New_York              # "today" for a defaulted date of service
   date-of-birth-max-age-years: 125
-  hphc-digit-lengths: [9]               # HPHC ids are HP + 9 digits (11 characters)
   # ------------------------------------------------------------------------------------------------------
   # Vendor -> format table. This is the ONLY place to add or change a vendor. Key = the code Onyx sends.
   # Formats apply to THP ids stored as 9 digits + spaces + 2-digit suffix (TMP / SCO). Public Plans ids
-  # (11 continuous characters) and HPHC ids (HP + 9 digits) are sent exactly as stored for every vendor.
+  # (11 continuous characters) and HPHC ids (HP + digits) are sent exactly as stored for every vendor.
+  # The INCOMING member id is never checked or reshaped: it goes to MMI exactly as the EMR typed it.
   #   COMPACT_11  9 digits + suffix, no spaces        12345678901
   #   SPACED_14   9 digits + 3 spaces + suffix        123456789   01   (as stored)
   #   SPLIT       two fields: 9 digits and the suffix, plus the 11-character join

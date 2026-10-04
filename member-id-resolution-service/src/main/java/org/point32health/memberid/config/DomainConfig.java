@@ -1,7 +1,6 @@
 package org.point32health.memberid.config;
 
 import org.point32health.memberid.domain.CoverageEvaluator;
-import org.point32health.memberid.domain.MemberIdParser;
 import org.point32health.memberid.domain.MemberSelector;
 import org.point32health.memberid.mmi.MmiRecordMapper;
 import org.point32health.memberid.vendor.VendorFormatter;
@@ -12,11 +11,6 @@ import org.springframework.context.annotation.Configuration;
 /** The pure domain components, wired once. None of them holds state. */
 @Configuration
 public class DomainConfig {
-
-    @Bean
-    public MemberIdParser memberIdParser(MemberIdProperties properties) {
-        return new MemberIdParser(properties.hphcDigitLengths());
-    }
 
     @Bean
     public CoverageEvaluator coverageEvaluator() {

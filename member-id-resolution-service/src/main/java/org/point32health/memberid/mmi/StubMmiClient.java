@@ -21,6 +21,10 @@ import org.springframework.core.io.ResourceLoader;
  * of the family, a legacy-id match, and the second pass that pulls in records linked through
  * legacyMemberId. A few reserved ids simulate faults (see the README).
  *
+ * <p>The service sends the member id exactly as the EMR typed it. The stub ignores separators (spaces, hyphens,
+ * anything that is not a letter or digit) and case when matching, which is the leniency the owner describes for
+ * the real MMI; confirm it in PQA with a hyphenated id.
+ *
  * <p>Refuses to start outside the {@code dev} and {@code test} profiles, and inside any Kubernetes/OpenShift pod,
  * so canned answers can never reach PQA or PROD through a copied environment variable.
  */
@@ -39,6 +43,7 @@ public class StubMmiClient implements MmiClient {
     public static final String FAULT_NO_MEMBER_ID = "886666666";
 
     private final java.util.concurrent.atomic.AtomicLong calls = new java.util.concurrent.atomic.AtomicLong();
+    private volatile String lastSearched;
 
     private final List<MmiMember> members;
     private final MmiProperties properties;
@@ -75,9 +80,15 @@ public class StubMmiClient implements MmiClient {
         return calls.get();
     }
 
+    /** The member id of the most recent search, exactly as this client received it; lets tests prove nothing was reshaped. */
+    public String lastSearched() {
+        return lastSearched;
+    }
+
     @Override
     public MmiResult search(String memberId, String correlationId) {
         calls.incrementAndGet();
+        lastSearched = memberId;
         String requestId = MmiRequestIds.next(properties.clientId());
         if (properties.logPayloads()) {
             MmiRequest request = new MmiRequest(memberId, memberId, properties.voidCoverageRecord(), properties.clientId(),
@@ -100,7 +111,7 @@ public class StubMmiClient implements MmiClient {
     }
 
     private MmiResult answer(String memberId, String requestId) {
-        String key = memberId.replaceAll("\\s+", "").toUpperCase();
+        String key = compact(memberId);
         String core = key.length() >= 9 ? key.substring(0, 9) : key;
         switch (core) {
             case FAULT_HTTP_500 -> throw MmiException.unavailable(requestId, "HTTP_500", "MMI answered HTTP 500 (stub)", null);
@@ -159,6 +170,6 @@ public class StubMmiClient implements MmiClient {
     }
 
     private static String compact(String id) {
-        return id == null ? null : id.replaceAll("\\s+", "").toUpperCase();
+        return id == null ? null : id.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
     }
 }
