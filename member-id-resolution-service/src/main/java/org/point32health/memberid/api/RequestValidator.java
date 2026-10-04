@@ -25,7 +25,10 @@ public class RequestValidator {
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT);
     private static final Pattern VENDOR = Pattern.compile("^[A-Za-z0-9 _.()-]{1,40}$");
 
-    /** @param memberId the id as Onyx sent it, surrounding whitespace removed: what is sent to MMI and echoed back */
+    /**
+     * @param memberId the id as Onyx sent it, surrounding whitespace removed: what is sent to MMI and echoed back
+     * @param vendor   the vendor code or alias as sent; null for the vendor-map operation
+     */
     public record Validated(String memberId, LocalDate dateOfService, boolean dateOfServiceDefaulted,
             LocalDate dateOfBirth, String vendor) {
     }
@@ -38,22 +41,32 @@ public class RequestValidator {
         this.clock = clock;
     }
 
+    /** Operation 1 ({@code /resolve}): member id, dates and a vendor. */
     public Validated validate(ResolveRequest request) {
+        return validate(request.memberId(), request.dateOfService(), request.patient(), request.vendor(), true);
+    }
+
+    /** Operation 2 ({@code /vendor-map}): member id and dates; no vendor. */
+    public Validated validate(VendorMapRequest request) {
+        return validate(request.memberId(), request.dateOfService(), request.patient(), null, false);
+    }
+
+    private Validated validate(String rawMemberId, String rawDateOfService, ResolveRequest.Patient patient, String rawVendor, boolean vendorRequired) {
         List<ErrorDetail> details = new ArrayList<>();
         LocalDate today = LocalDate.now(clock);
 
-        String memberId = request.memberId() == null ? "" : request.memberId().strip();
+        String memberId = rawMemberId == null ? "" : rawMemberId.strip();
         if (memberId.isEmpty()) {
             details.add(new ErrorDetail("memberId", "MEMBER_ID_MISSING", "memberId is required"));
         }
 
         LocalDate dos = null;
         boolean defaulted = false;
-        if (request.dateOfService() == null || request.dateOfService().isBlank()) {
+        if (rawDateOfService == null || rawDateOfService.isBlank()) {
             dos = today;
             defaulted = true;
         } else {
-            dos = parseDate(request.dateOfService());
+            dos = parseDate(rawDateOfService);
             if (dos == null) {
                 details.add(new ErrorDetail("dateOfService", "DATE_OF_SERVICE_INVALID", "expected a real date in yyyy-MM-dd"));
             } else {
@@ -67,7 +80,7 @@ public class RequestValidator {
         }
 
         LocalDate dob = null;
-        String rawDob = request.patient() == null ? null : request.patient().dateOfBirth();
+        String rawDob = patient == null ? null : patient.dateOfBirth();
         if (rawDob != null && !rawDob.isBlank()) {
             dob = parseDate(rawDob);
             if (dob == null) {
@@ -79,11 +92,14 @@ public class RequestValidator {
             }
         }
 
-        String vendor = request.vendor() == null ? "" : request.vendor().strip();
-        if (vendor.isEmpty()) {
-            details.add(new ErrorDetail("vendor", "VENDOR_MISSING", "vendor is required"));
-        } else if (!VENDOR.matcher(vendor).matches()) {
-            details.add(new ErrorDetail("vendor", "VENDOR_INVALID", "vendor must be 1-40 letters, digits, spaces or _ . ( ) -"));
+        String vendor = null;
+        if (vendorRequired) {
+            vendor = rawVendor == null ? "" : rawVendor.strip();
+            if (vendor.isEmpty()) {
+                details.add(new ErrorDetail("vendor", "VENDOR_MISSING", "vendor is required"));
+            } else if (!VENDOR.matcher(vendor).matches()) {
+                details.add(new ErrorDetail("vendor", "VENDOR_INVALID", "vendor must be 1-40 letters, digits, spaces or _ . ( ) -"));
+            }
         }
 
         if (!details.isEmpty()) {

@@ -49,6 +49,7 @@ class ResolveScenariosTest {
     }
 
     private static final String PATH = "/api/v1/member-ids/resolve";
+    private static final String VENDOR_MAP = "/api/v1/member-ids/vendor-map";
     /** An unmasked 9- or 11-digit run (member ids), or an MM/dd/yyyy value (MMI dates of birth). */
     private static final Pattern PHI = Pattern.compile("(?<!\\d)(?:\\d{9}|\\d{11})(?!\\d)|\\d{2}/\\d{2}/\\d{4}");
 
@@ -117,6 +118,15 @@ class ResolveScenariosTest {
 
     private JsonNode call(int expectedStatus, Object body, String... headers) throws Exception {
         Resp r = post(body, headers);
+        assertThat(r.status()).as("status for %s: %s", body, r.body()).isEqualTo(expectedStatus);
+        assertThat(r.contentType()).isNotNull();
+        assertThat(r.contentType().isCompatibleWith(MediaType.APPLICATION_JSON)).isTrue();
+        assertNoPhi(r.body());
+        return json.readTree(r.body());
+    }
+
+    private JsonNode callVendorMap(int expectedStatus, Object body) throws Exception {
+        Resp r = send(HttpMethod.POST, VENDOR_MAP, toJson(body), MediaType.APPLICATION_JSON_VALUE);
         assertThat(r.status()).as("status for %s: %s", body, r.body()).isEqualTo(expectedStatus);
         assertThat(r.contentType()).isNotNull();
         assertThat(r.contentType().isCompatibleWith(MediaType.APPLICATION_JSON)).isTrue();
@@ -527,6 +537,103 @@ class ResolveScenariosTest {
         }
         // the stub received the id untouched (the stub's own matching is what ignores the separators)
         assertThat(stub.lastSearched()).isEqualTo("12345678901");
+    }
+
+    // ---------------------------------------------------------------- vendor map (operation 2)
+
+    @Test
+    void vendorMapReturnsTheTmpIdInEveryVendorsFormat() throws Exception {
+        long before = stub.calls();
+        JsonNode r = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15"));
+        assertThat(stub.calls()).as("one MMI call for all vendors").isEqualTo(before + 1);
+        assertThat(r.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(r.at("/memberId/received").asText()).isEqualTo("123456789");
+        assertThat(r.at("/memberId/stored").asText()).isEqualTo("123456789   01");
+        assertThat(r.has("vendor")).as("no single vendor in this operation").isFalse();
+        assertThat(r.at("/memberId/forVendor").isMissingNode()).isTrue();
+        assertThat(r.get("company").asText()).isEqualTo("THP");
+        assertThat(r.get("lineOfBusiness").asText()).isEqualTo("MCR");
+        assertThat(r.get("dateOfService").asText()).isEqualTo("2026-10-15");
+        assertThat(r.get("dateOfServiceDefaulted").asBoolean()).isFalse();
+        assertThat(r.at("/coverage/active").asBoolean()).isTrue();
+        assertThat(r.at("/coverage/reason").asText()).isEqualTo("COVERED");
+        assertThat(r.get("mmiRequestId").asText()).isNotBlank();
+
+        Map<String, JsonNode> byVendor = new java.util.LinkedHashMap<>();
+        r.get("vendorMemberIds").forEach(e -> byVendor.put(e.get("vendor").asText(), e));
+        assertThat(byVendor.keySet()).as("every configured vendor, sorted by code").containsExactly("CARELON", "EVICORE", "EVOLENT", "MHK", "OPTUM");
+        assertThat(byVendor.get("EVICORE").get("memberId").asText()).isEqualTo("12345678901");
+        assertThat(byVendor.get("EVOLENT").get("memberId").asText()).isEqualTo("12345678901");
+        assertThat(byVendor.get("CARELON").get("memberId").asText()).isEqualTo("12345678901");
+        assertThat(byVendor.get("MHK").get("memberId").asText()).isEqualTo("123456789   01");
+        assertThat(byVendor.get("OPTUM").get("memberId").asText()).isEqualTo("12345678901");
+        assertThat(byVendor.get("OPTUM").at("/memberIdParts/memberId").asText()).isEqualTo("123456789");
+        assertThat(byVendor.get("OPTUM").at("/memberIdParts/suffix").asText()).isEqualTo("01");
+        assertThat(byVendor.get("EVICORE").has("memberIdParts")).as("parts only for SPLIT vendors").isFalse();
+        assertThat(byVendor.get("MHK").has("memberIdParts")).isFalse();
+    }
+
+    @Test
+    void vendorMapPassesNonTmpIdsAsStoredForEveryVendorAndDefaultsTheDate() throws Exception {
+        JsonNode hphc = callVendorMap(200, Map.of("memberId", "HP-456789012"));
+        assertThat(hphc.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(hphc.get("dateOfServiceDefaulted").asBoolean()).isTrue();
+        assertThat(hphc.get("dateOfService").asText()).isEqualTo("2026-10-03");
+        assertThat(hphc.at("/memberId/received").asText()).isEqualTo("HP-456789012");
+        assertThat(hphc.at("/memberId/stored").asText()).isEqualTo("HP456789012");
+        assertThat(hphc.get("vendorMemberIds")).hasSize(5);
+        hphc.get("vendorMemberIds").forEach(e -> {
+            assertThat(e.get("memberId").asText()).as(e.get("vendor").asText()).isEqualTo("HP456789012");
+            assertThat(e.has("memberIdParts")).isFalse();
+        });
+
+        JsonNode publicPlans = callVendorMap(200, Map.of("memberId", "34567890102", "dateOfService", "2024-08-15"));
+        assertThat(publicPlans.get("outcome").asText()).as("a gap in coverage still identifies the member").isEqualTo("INACTIVE");
+        assertThat(publicPlans.at("/coverage/active").asBoolean()).isFalse();
+        assertThat(publicPlans.get("vendorMemberIds")).hasSize(5);
+        publicPlans.get("vendorMemberIds").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890102"));
+    }
+
+    @Test
+    void vendorMapWithoutAnIdentifiedMemberCarriesNoVendorIds() throws Exception {
+        JsonNode notFound = callVendorMap(200, Map.of("memberId", "HP111222333", "dateOfService", "2026-10-15"));
+        assertThat(notFound.get("outcome").asText()).isEqualTo("NOT_FOUND");
+        assertThat(notFound.has("vendorMemberIds")).isFalse();
+        assertThat(notFound.has("coverage")).isFalse();
+        assertThat(notFound.at("/memberId/received").asText()).isEqualTo("HP111222333");
+        assertThat(notFound.get("mmiRequestId").asText()).isNotBlank();
+
+        JsonNode ambiguous = callVendorMap(200, Map.of("memberId", "345678901", "dateOfService", "2026-10-15"));
+        assertThat(ambiguous.get("outcome").asText()).isEqualTo("AMBIGUOUS");
+        assertThat(ambiguous.at("/ambiguity/reason").asText()).isEqualTo("MULTIPLE_PERSONS");
+        assertThat(ambiguous.get("candidates")).hasSize(3);
+        assertThat(ambiguous.has("vendorMemberIds")).isFalse();
+
+        JsonNode withDob = callVendorMap(200, Map.of("memberId", "345678901", "dateOfService", "2026-10-15",
+                "patient", Map.of("dateOfBirth", "1985-06-01")));
+        assertThat(withDob.get("outcome").asText()).as("DOB picks the subscriber, then every vendor gets the id").isEqualTo("ACTIVE");
+        assertThat(withDob.at("/memberId/stored").asText()).isEqualTo("34567890101");
+        assertThat(withDob.get("vendorMemberIds")).hasSize(5);
+        withDob.get("vendorMemberIds").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890101"));
+    }
+
+    @Test
+    void vendorMapValidatesLikeResolveExceptForTheVendor() throws Exception {
+        long before = stub.calls();
+        JsonNode blank = callVendorMap(400, Map.of("memberId", "   ", "dateOfService", "2026-10-15"));
+        assertThat(blank.at("/error/code").asText()).isEqualTo("INVALID_REQUEST");
+        assertThat(blank.at("/error/details/0/code").asText()).isEqualTo("MEMBER_ID_MISSING");
+        JsonNode badDate = callVendorMap(400, Map.of("memberId", "123456789", "dateOfService", "10/15/2026"));
+        assertThat(badDate.at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_INVALID");
+        JsonNode withVendor = callVendorMap(400, Map.of("memberId", "123456789", "vendor", "EVICORE"));
+        assertThat(withVendor.at("/error/code").asText()).as("vendor is not a field of this operation").isEqualTo("INVALID_REQUEST");
+        assertThat(withVendor.toString()).contains("vendor");
+        assertThat(stub.calls()).as("nothing invalid reaches MMI").isEqualTo(before);
+
+        JsonNode dobMismatch = callVendorMap(422, Map.of("memberId", "123456789", "dateOfService", "2026-10-15",
+                "patient", Map.of("dateOfBirth", "1999-12-31")));
+        assertThat(dobMismatch.at("/error/code").asText()).isEqualTo("DOB_MISMATCH");
+        assertThat(dobMismatch.get("mmiRequestId").asText()).isNotBlank();
     }
 
     // ---------------------------------------------------------------- MMI failures

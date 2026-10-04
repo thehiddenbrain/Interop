@@ -14,6 +14,7 @@ public class OpenApiConfig {
                 .title("Member ID Resolution Service")
                 .version("v1")
                 .description("Resolves an EMR-supplied member ID through MMI, returns it as stored and in the "
-                        + "UM vendor's format, and reports whether coverage is active on the date of service."));
+                        + "UM vendor's format (/resolve) or in every vendor's format (/vendor-map), and reports whether "
+                        + "coverage is active on the date of service."));
     }
 }

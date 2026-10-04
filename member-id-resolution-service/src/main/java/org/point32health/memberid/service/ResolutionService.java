@@ -1,9 +1,15 @@
 package org.point32health.memberid.service;
 
+import org.point32health.memberid.api.Ambiguity;
+import org.point32health.memberid.api.Candidate;
+import org.point32health.memberid.api.Coverage;
+import org.point32health.memberid.api.MemberIdParts;
 import org.point32health.memberid.api.Outcome;
 import org.point32health.memberid.api.RequestValidator;
 import org.point32health.memberid.api.ResolveRequest;
 import org.point32health.memberid.api.ResolveResponse;
+import org.point32health.memberid.api.VendorMapRequest;
+import org.point32health.memberid.api.VendorMapResponse;
 import org.point32health.memberid.domain.CoverageDecision;
 import org.point32health.memberid.domain.MemberRecord;
 import org.point32health.memberid.domain.MemberSelector;
@@ -29,13 +35,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * The whole request in order: validate, find the vendor, ask MMI once with the member id exactly as received,
- * reduce the records to one person, decide coverage on the date of service, render the stored id for the vendor, answer.
+ * Two operations over one core. The core: ask MMI once with the member id exactly as received, reduce the
+ * records to one person, decide coverage on the date of service. {@link #resolve} then renders the stored id
+ * for the one vendor Onyx named; {@link #vendorMap} renders it for every configured vendor.
  */
 @Service
 public class ResolutionService {
 
     private static final Logger log = LoggerFactory.getLogger(ResolutionService.class);
+    private static final String AMBIGUOUS_HINT =
+            "Add patient.dateOfBirth, or resend with the member's full id including the suffix, or route to intake for a manual pick";
 
     private final RequestValidator validator;
     private final VendorRegistry vendors;
@@ -56,11 +65,66 @@ public class ResolutionService {
         this.formatter = formatter;
     }
 
+    /** Operation 1, {@code POST /api/v1/member-ids/resolve}: the id for the one vendor Onyx named. */
     public ResolveResponse resolve(ResolveRequest request, String correlationId) {
         long start = System.nanoTime();
         RequestValidator.Validated v = validator.validate(request);
         Vendor vendor = vendors.find(v.vendor()).orElseThrow(() -> new UnknownVendorException(vendors.knownCodes()));
+        Resolved r = resolveMember(v, correlationId);
+        FormattedMemberId formatted = r.record() == null ? null : formatter.format(r.record().storedMemberId(), vendor.format());
+        ResolveResponse response = new ResolveResponse(r.outcome(),
+                new ResolveResponse.MemberId(v.memberId(), r.storedMemberId(), formatted == null ? null : formatted.value(), parts(formatted)),
+                vendor.code(), r.company(), r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
+                r.coverageBlock(), r.ambiguity(), r.candidates(), correlationId, r.mmiRequestId());
+        logOutcome("resolve", vendor.code(), r, v, start);
+        return response;
+    }
 
+    /** Operation 2, {@code POST /api/v1/member-ids/vendor-map}: the id for every configured vendor, no vendor named. */
+    public VendorMapResponse vendorMap(VendorMapRequest request, String correlationId) {
+        long start = System.nanoTime();
+        RequestValidator.Validated v = validator.validate(request);
+        Resolved r = resolveMember(v, correlationId);
+        List<VendorMapResponse.VendorMemberId> vendorMemberIds = null;
+        if (r.record() != null) {
+            vendorMemberIds = vendors.all().stream().map(vendor -> {
+                FormattedMemberId formatted = formatter.format(r.record().storedMemberId(), vendor.format());
+                return new VendorMapResponse.VendorMemberId(vendor.code(), formatted.value(), parts(formatted));
+            }).toList();
+        }
+        VendorMapResponse response = new VendorMapResponse(r.outcome(), new VendorMapResponse.MemberId(v.memberId(), r.storedMemberId()),
+                r.company(), r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
+                r.coverageBlock(), r.ambiguity(), r.candidates(), vendorMemberIds, correlationId, r.mmiRequestId());
+        logOutcome("vendor-map", "ALL(" + vendors.all().size() + ")", r, v, start);
+        return response;
+    }
+
+    /** What both operations share once the request is valid: MMI's answer reduced to one outcome. */
+    private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, Ambiguity ambiguity,
+            List<Candidate> candidates, String mmiRequestId, int records) {
+
+        String storedMemberId() {
+            return record == null ? null : record.storedMemberId();
+        }
+
+        String company() {
+            return record == null ? null : record.company();
+        }
+
+        String lineOfBusiness() {
+            return record == null ? null : record.lineOfBusiness();
+        }
+
+        Coverage coverageBlock() {
+            if (coverage == null) {
+                return null;
+            }
+            Coverage.Span span = coverage.span() == null ? null : new Coverage.Span(coverage.span().effective(), coverage.span().end());
+            return new Coverage(coverage.active(), coverage.reason(), span, coverage.lastEndDate(), coverage.nextEffectiveDate());
+        }
+    }
+
+    private Resolved resolveMember(RequestValidator.Validated v, String correlationId) {
         MmiResult mmiResult = mmi.search(v.memberId(), correlationId);
         List<MmiMember> members = mmiResult.response().membersOrEmpty();
         List<MmiMessage> messages = mmiResult.response().messagesOrEmpty();
@@ -71,10 +135,7 @@ public class ResolutionService {
                 throw MmiException.rejected(mmiResult.requestId(), "ERROR_MESSAGE",
                         "MMI reported an error: type=" + m.messageType() + " status=" + m.statusCode() + " code=" + m.messageCode());
             }
-            ResolveResponse response = new ResolveResponse(Outcome.NOT_FOUND, idBlock(v, null, null), vendor.code(), null, null,
-                    v.dateOfService(), v.dateOfServiceDefaulted(), null, null, null, correlationId, mmiResult.requestId());
-            logOutcome(response, v, 0, start);
-            return response;
+            return new Resolved(Outcome.NOT_FOUND, null, null, null, null, mmiResult.requestId(), 0);
         }
         if (hasErrorMessage(messages)) {
             log.warn("marker=MMI_ERROR_MESSAGE_WITH_MEMBERS mmiRequestId={} messages={}", mmiResult.requestId(), messages);
@@ -91,46 +152,31 @@ public class ResolutionService {
         } catch (ResolutionException e) {
             throw e.withMmiRequestId(mmiResult.requestId());
         }
-        ResolveResponse response;
         if (selection instanceof SelectionResult.Ambiguous a) {
-            String hint = "Add patient.dateOfBirth, or resend with the member's full id including the suffix, or route to intake for a manual pick";
-            List<ResolveResponse.Candidate> candidates = a.candidates().stream()
-                    .map(c -> new ResolveResponse.Candidate(c.storedMemberId(), c.company(), c.lineOfBusiness(), c.coverageActive()))
+            List<Candidate> candidates = a.candidates().stream()
+                    .map(c -> new Candidate(c.storedMemberId(), c.company(), c.lineOfBusiness(), c.coverageActive()))
                     .toList();
-            response = new ResolveResponse(Outcome.AMBIGUOUS, idBlock(v, null, null), vendor.code(), null, null,
-                    v.dateOfService(), v.dateOfServiceDefaulted(), null, new ResolveResponse.Ambiguity(a.reason(), hint), candidates,
-                    correlationId, mmiResult.requestId());
-        } else {
-            SelectionResult.Selected s = (SelectionResult.Selected) selection;
-            MemberRecord record = s.record();
-            if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
-                // every span the member has is unreadable: answering INACTIVE would be a confident wrong answer
-                throw MmiException.invalidResponse(mmiResult.requestId(), "UNREADABLE_COVERAGE",
-                        "every coverage span on the MMI record has an unreadable date; coverage cannot be determined", null);
-            }
-            CoverageDecision coverage = s.coverage();
-            FormattedMemberId formatted = formatter.format(record.storedMemberId(), vendor.format());
-            ResolveResponse.Span span = coverage.span() == null ? null
-                    : new ResolveResponse.Span(coverage.span().effective(), coverage.span().end());
-            response = new ResolveResponse(coverage.active() ? Outcome.ACTIVE : Outcome.INACTIVE,
-                    idBlock(v, record.storedMemberId(), formatted), vendor.code(), record.company(), record.lineOfBusiness(),
-                    v.dateOfService(), v.dateOfServiceDefaulted(),
-                    new ResolveResponse.Coverage(coverage.active(), coverage.reason(), span, coverage.lastEndDate(), coverage.nextEffectiveDate()),
-                    null, null, correlationId, mmiResult.requestId());
-            if (s.unreadableSpans() > 0) {
-                log.warn("marker=UNREADABLE_SPANS_ON_SELECTED mmiRequestId={} count={} outcome={}", mmiResult.requestId(),
-                        s.unreadableSpans(), response.outcome());
-            }
+            return new Resolved(Outcome.AMBIGUOUS, null, null, new Ambiguity(a.reason(), AMBIGUOUS_HINT), candidates,
+                    mmiResult.requestId(), members.size());
         }
-        logOutcome(response, v, members.size(), start);
-        return response;
+        SelectionResult.Selected s = (SelectionResult.Selected) selection;
+        if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
+            // every span the member has is unreadable: answering INACTIVE would be a confident wrong answer
+            throw MmiException.invalidResponse(mmiResult.requestId(), "UNREADABLE_COVERAGE",
+                    "every coverage span on the MMI record has an unreadable date; coverage cannot be determined", null);
+        }
+        CoverageDecision coverage = s.coverage();
+        if (s.unreadableSpans() > 0) {
+            log.warn("marker=UNREADABLE_SPANS_ON_SELECTED mmiRequestId={} count={} active={}", mmiResult.requestId(),
+                    s.unreadableSpans(), coverage.active());
+        }
+        return new Resolved(coverage.active() ? Outcome.ACTIVE : Outcome.INACTIVE, s.record(), coverage, null, null,
+                mmiResult.requestId(), members.size());
     }
 
-    private static ResolveResponse.MemberId idBlock(RequestValidator.Validated v, String stored, FormattedMemberId formatted) {
-        return new ResolveResponse.MemberId(v.memberId(), stored,
-                formatted == null ? null : formatted.value(),
-                formatted == null || formatted.parts() == null ? null
-                        : new ResolveResponse.Parts(formatted.parts().memberId(), formatted.parts().suffix()));
+    private static MemberIdParts parts(FormattedMemberId formatted) {
+        return formatted == null || formatted.parts() == null ? null
+                : new MemberIdParts(formatted.parts().memberId(), formatted.parts().suffix());
     }
 
     private boolean hasErrorMessage(List<MmiMessage> messages) {
@@ -141,11 +187,11 @@ public class ResolutionService {
         return m.messageType() != null && mmiProperties.errorMessageTypes().stream().anyMatch(t -> t.equalsIgnoreCase(m.messageType().strip()));
     }
 
-    private static void logOutcome(ResolveResponse r, RequestValidator.Validated v, int records, long start) {
-        log.info("resolve outcome={} reason={} vendor={} memberId={} stored={} company={} lob={} dos={} dosDefaulted={} records={} mmiRequestId={} ms={}",
-                r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(), r.vendor(),
-                Masking.memberId(v.memberId()), Masking.memberId(r.memberId().stored()), r.company(), r.lineOfBusiness(),
-                r.dateOfService(), r.dateOfServiceDefaulted(), records, r.mmiRequestId(),
+    private static void logOutcome(String operation, String vendor, Resolved r, RequestValidator.Validated v, long start) {
+        log.info("{} outcome={} reason={} vendor={} memberId={} stored={} company={} lob={} dos={} dosDefaulted={} records={} mmiRequestId={} ms={}",
+                operation, r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(), vendor,
+                Masking.memberId(v.memberId()), Masking.memberId(r.storedMemberId()), r.company(), r.lineOfBusiness(),
+                v.dateOfService(), v.dateOfServiceDefaulted(), r.records(), r.mmiRequestId(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
     }
 }

@@ -87,7 +87,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiErrorResponse> noRoute(NoResourceFoundException e) {
         return respond(HttpStatus.NOT_FOUND, InvalidRequestException.CODE, "no such route",
-                List.of(new ErrorDetail(null, "ROUTE_NOT_FOUND", "the only operation is POST /api/v1/member-ids/resolve")), null);
+                List.of(new ErrorDetail(null, "ROUTE_NOT_FOUND", "the operations are POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map")), null);
     }
 
     @ExceptionHandler(Exception.class)
