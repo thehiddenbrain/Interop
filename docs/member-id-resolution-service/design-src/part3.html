@@ -1,0 +1,371 @@
+
+<h2 id="parsing"><span class="num">7</span>Member ID parsing and normalization</h2>
+<p>The parser is a pure function. It never invents a suffix, never strips digits, never "sends it to MMI to see". Its only job is to recognise one of three shapes and produce the value MMI should be asked for.</p>
+
+<h3>7.1 Anatomy of a THP member ID</h3>
+<div class="idgrid" role="img" aria-label="Three rows of character cells showing the same THP member id: as stored, 14 characters, 9 digits then 3 spaces then the 2-digit suffix; compact, 11 characters, 9 digits then suffix; card, 9 digits only.">
+  <div class="lbl">As stored (14)</div>
+  <div class="cell">1</div><div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div><div class="cell">6</div><div class="cell">7</div><div class="cell">8</div><div class="cell">9</div><div class="cell sp">␣</div><div class="cell sp">␣</div><div class="cell sp">␣</div><div class="cell sx">0</div><div class="cell sx">1</div>
+  <div class="note">MMI canonical form; what Optum / MHK want (sample)</div>
+  <div class="lbl">Compact (11)</div>
+  <div class="cell">1</div><div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div><div class="cell">6</div><div class="cell">7</div><div class="cell">8</div><div class="cell">9</div><div class="cell sx">0</div><div class="cell sx">1</div><div class="cell off"></div><div class="cell off"></div><div class="cell off"></div>
+  <div class="note">what eviCore / Carelon want (sample)</div>
+  <div class="lbl">Card (9)</div>
+  <div class="cell">1</div><div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div><div class="cell">6</div><div class="cell">7</div><div class="cell">8</div><div class="cell">9</div><div class="cell off"></div><div class="cell off"></div><div class="cell off"></div><div class="cell off"></div><div class="cell off"></div>
+  <div class="note">policy / subscriber number: identifies a family, not a person</div>
+  <div class="lbl">HPHC</div>
+  <div class="cell hp">H</div><div class="cell hp">P</div><div class="cell">1</div><div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div><div class="cell">6</div><div class="cell">7</div><div class="cell">8</div><div class="cell">9</div><div class="cell off"></div><div class="cell off"></div><div class="cell off"></div>
+  <div class="note">prefix + digits; digit count to be confirmed (default 9)</div>
+</div>
+<p class="small">Digits 1–9 are the <em>core</em> (policy ID, "subscriber id" in MMI terms). Suffix <code>01</code> is the subscriber; <code>02</code>, <code>03</code>… are dependents. The three spaces are literal characters in the stored value.</p>
+
+<h3>7.2 Normalization steps</h3>
+<ol>
+<li>Reject null. Keep the verbatim value as <code>memberId.received</code>.</li>
+<li>Trim leading and trailing whitespace, including tabs, NBSP (U+00A0) and full-width space (U+3000). Empty → <code>MEMBER_ID_MISSING</code>; more than 40 characters → <code>MEMBER_ID_TOO_LONG</code>.</li>
+<li>Classify every character of the trimmed value: ASCII digit; ASCII letter; separator (any Unicode whitespace or space character, any dash punctuation such as <code>-</code>, en dash, non-breaking hyphen, plus <code>_</code> <code>.</code> <code>/</code>); anything else → <code>MEMBER_ID_ILLEGAL_CHARACTERS</code> (the detail lists the offending code points, never the ID).</li>
+<li>Build <code>compact</code>: drop every separator, upper-case letters with <code>Locale.ROOT</code>. Separators are tolerated anywhere and never interpreted; deleting them cannot change a digit, and MMI verifies the result.</li>
+<li>Match <code>compact</code> against the shape table. No match → <code>MEMBER_ID_UNRECOGNIZED_SHAPE</code>.</li>
+</ol>
+<p>IDs are strings end to end; leading zeros are significant. A numeric JSON value is rejected before it gets here (<code>WRONG_JSON_TYPE</code>), which also catches an upstream system that dropped leading zeros.</p>
+
+<h3>7.3 Shape table</h3>
+<div class="tablewrap"><table>
+<thead><tr><th><code>compact</code> matches</th><th>Shape</th><th>Interpretation</th><th>Sent to MMI (<code>memberId</code> and <code>legacyMemberId</code>)</th></tr></thead>
+<tbody>
+<tr><td><code>^\d{9}$</code></td><td><code>THP_9</code></td><td>THP policy / card ID, person unknown</td><td><code>123456789</code> (owner states MMI accepts the 9-digit form; confirmed in FQA, open question Q1)</td></tr>
+<tr><td><code>^\d{11}$</code></td><td><code>THP_11</code></td><td>core = first 9 digits, suffix = last 2</td><td>the stored form <code>core + "   " + suffix</code> = <code>123456789   01</code>, the shape the MMI spec documents</td></tr>
+<tr><td><code>^HP\d{n}$</code>, <var>n</var> in <code>member-id.hphc-digit-lengths</code> (default <code>[9]</code>)</td><td><code>HPHC</code></td><td>HPHC member ID</td><td><code>HP123456789</code></td></tr>
+</tbody></table></div>
+<p class="small">The regexes are code constants; only the HPHC digit-length set is a property, because the spec sample shows HP + 9 X's and nothing confirms it. An HPHC ID with a THP-style suffix (<code>HP123456789 01</code>) is not a documented form and is rejected until FQA says otherwise.</p>
+
+<h3>7.4 Accepted inputs (rows of the parser unit test)</h3>
+<div class="tablewrap"><table class="tight">
+<thead><tr><th>Input as received</th><th><code>compact</code></th><th>Shape</th><th>Sent to MMI</th></tr></thead>
+<tbody>
+<tr><td><code>123456789</code>, <code>&nbsp;123456789&nbsp;</code></td><td><code>123456789</code></td><td>THP_9</td><td><code>123456789</code></td></tr>
+<tr><td><code>12345678901</code></td><td><code>12345678901</code></td><td>THP_11</td><td><code>123456789   01</code></td></tr>
+<tr><td><code>123456789   01</code> (14 characters, as stored)</td><td><code>12345678901</code></td><td>THP_11</td><td><code>123456789   01</code></td></tr>
+<tr><td><code>123456789 01</code>, <code>123456789-01</code>, <code>123456789_01</code>, <code>123456789.01</code>, <code>123456789/01</code>, <code>123456789–01</code> (en dash)</td><td><code>12345678901</code></td><td>THP_11</td><td><code>123456789   01</code></td></tr>
+<tr><td><code>123-456-789 02</code></td><td><code>12345678902</code></td><td>THP_11</td><td><code>123456789   02</code></td></tr>
+<tr><td><code>000123456 07</code></td><td><code>00012345607</code></td><td>THP_11</td><td><code>000123456   07</code> (leading zeros kept)</td></tr>
+<tr><td><code>HP123456789</code>, <code>hp123456789</code>, <code>HP 123456789</code>, <code>HP-123456789</code>, <code>HP 1234 56789</code></td><td><code>HP123456789</code></td><td>HPHC</td><td><code>HP123456789</code></td></tr>
+</tbody></table></div>
+
+<h3>7.5 Rejected inputs (400 <code>INVALID_REQUEST</code>, field <code>memberId</code>)</h3>
+<div class="tablewrap"><table class="tight">
+<thead><tr><th>Input</th><th>Detail code</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>empty, blanks only</td><td><code>MEMBER_ID_MISSING</code></td><td></td></tr>
+<tr><td><code>1234567890</code>, <code>123456789-1</code></td><td><code>MEMBER_ID_UNRECOGNIZED_SHAPE</code></td><td>10 digits: a one-digit suffix is never guessed as <code>01</code></td></tr>
+<tr><td><code>12345</code>, <code>123456789012</code>, 14 digits</td><td><code>MEMBER_ID_UNRECOGNIZED_SHAPE</code></td><td>no shape</td></tr>
+<tr><td><code>123456789 0A</code>, <code>12345678O1</code> (letter O)</td><td><code>MEMBER_ID_UNRECOGNIZED_SHAPE</code></td><td>non-digit; never auto-corrected</td></tr>
+<tr><td><code>HP12</code>, <code>HP12345678901</code></td><td><code>MEMBER_ID_UNRECOGNIZED_SHAPE</code></td><td>digit count outside the configured HPHC set</td></tr>
+<tr><td><code>HP123456789 01</code></td><td><code>MEMBER_ID_UNRECOGNIZED_SHAPE</code></td><td>HPHC with suffix is not a documented form (Q5)</td></tr>
+<tr><td><code>W123456789</code>, <code>THP123456789</code></td><td><code>MEMBER_ID_UNRECOGNIZED_SHAPE</code></td><td>unknown prefix</td></tr>
+<tr><td><code>123456789*01</code>, full-width digits</td><td><code>MEMBER_ID_ILLEGAL_CHARACTERS</code></td><td><code>*</code> is not a separator; digits are never Unicode-normalised</td></tr>
+<tr><td>41+ characters</td><td><code>MEMBER_ID_TOO_LONG</code></td><td></td></tr>
+<tr><td><code>"memberId": 12345678901</code> (JSON number)</td><td><code>WRONG_JSON_TYPE</code></td><td>rejected at deserialization; possible dropped leading zeros upstream</td></tr>
+</tbody></table></div>
+<p>For <code>THP_11</code> the suffix is kept only to relate MMI records to the input and to report <code>member.relationship</code>. <code>vendorFormatted</code> is always derived from MMI's stored <code>memberId</code>, never from the input. Error messages and logs carry the masked form only: <code>*****6789 01</code>, <code>HP*****6789</code>.</p>
+
+<h2 id="mmi"><span class="num">8</span>MMI integration</h2>
+<h3>8.1 The request we send</h3>
+<pre><code>POST {mmi.base-url}/master/member/v1        (plain HTTP, no auth, exactly as the MMI spec states for internal consumers)
+Content-Type: application/json · Accept: application/json · X-Correlation-Id: &lt;onyx id&gt;
+
+{ "memberId": "123456789   01", "legacyMemberId": "123456789   01", "voidCoverageRecord": "N",
+  "clientId": "MBRIDSVC", "clientType": "INT", "requestId": "MBRIDSVC-1760000000000-48213" }</code></pre>
+<div class="tablewrap"><table>
+<thead><tr><th>MMI field</th><th>Value</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>memberId</code></td><td>the normalized ID from the shape table</td><td>The only search key.</td></tr>
+<tr><td><code>legacyMemberId</code></td><td>always the same value</td><td>The spec says "may pass the same ID in memberId and legacyMemberId to improve hit rate". That is exactly the converted-member case: an EMR still holding the pre-conversion ID. Always on; no toggle, because turning it off silently turns converted members into false INACTIVE or NOT_FOUND.</td></tr>
+<tr><td><code>voidCoverageRecord</code></td><td><code>"N"</code></td><td>MMI drops void and negative spans; the service still skips <code>voidFlag == "Y"</code> defensively.</td></tr>
+<tr><td><code>dosStartDate</code> / <code>dosEndDate</code></td><td>not sent</td><td>The full history is evaluated locally so that INACTIVE carries a reason and the nearest dates, and nothing depends on undocumented overlap semantics.</td></tr>
+<tr><td><code>searchMode</code></td><td>not sent (property <code>mmi.search-mode</code>, empty)</td><td>Semantics undocumented; <code>EXACT</code> might disable the 9-digit tolerance the whole design relies on (Q3).</td></tr>
+<tr><td><code>clientId</code> / <code>clientType</code></td><td><code>mmi.client-id</code> (placeholder <code>MBRIDSVC</code>, register with the MMI team) / <code>INT</code></td><td></td></tr>
+<tr><td><code>requestId</code></td><td><code>&lt;clientId&gt;-&lt;epoch ms&gt;-&lt;5-digit zero-padded SecureRandom&gt;</code>, new per attempt</td><td>Spec convention; a retry gets its own id so the two attempts are distinguishable in MMI's logs; each is logged with the Onyx correlation id.</td></tr>
+<tr><td>demographics, <code>policyId</code>, <code>ssn</code>, <code>mbin</code>, agency fields</td><td>never sent</td><td>The integration test asserts the outbound body never contains them.</td></tr>
+</tbody></table></div>
+
+<h3>8.2 Dates</h3>
+<ul>
+<li>Onyx → service: <code>DateTimeFormatter.ISO_LOCAL_DATE</code>, <code>ResolverStyle.STRICT</code>.</li>
+<li>MMI → service: <code>MM/dd/uuuu</code> STRICT (<code>uuuu</code>, not <code>yyyy</code>: strict resolution with <code>yyyy</code> fails without an era). <code>12/31/9999</code> and a null or blank <code>endDate</code> both mean open-ended (<code>LocalDate.MAX</code> internally, rendered <code>null</code>). The spec documents the 9999 default for HPHC only; THP's convention is Q7, and both are handled.</li>
+<li>Service → Onyx: ISO <code>yyyy-MM-dd</code>.</li>
+<li>An unparseable <code>effDate</code> or <code>endDate</code>, or <code>endDate &lt; effDate</code>, makes the span <em>unreadable</em> (section 10). No guessing of other sentinels: FQA will show any THP convention immediately.</li>
+</ul>
+
+<h3>8.3 What we read from the response</h3>
+<p>The MMI DTOs declare only the fields the service uses and ignore everything else, so names, SSN, gender, PCP, group name, MBI and agency numbers are discarded during deserialization and cannot be logged or serialized by accident:</p>
+<div class="kv">
+  <dt>envelope</dt><dd><code>clientId</code>, <code>clientType</code>, <code>requestId</code>, <code>messages[]{messageType, statusCode, messageCode, message}</code>, <code>members[]</code></dd>
+  <dt>member</dt><dd><code>memberId</code>, <code>subscriberMemberId</code>, <code>memberDob</code> (parsed only when the request carried a DOB, or for duplicate detection), <code>legacyMemberId</code>, <code>company</code>, <code>lineOfBusiness</code>, <code>restrictedData</code>, <code>migrationEffectiveDate</code>, <code>coverage[]</code></dd>
+  <dt>coverage span</dt><dd><code>effDate</code>, <code>endDate</code>, <code>groupId</code>, <code>voidFlag</code></dd>
+</div>
+<p class="small">Scalar coercion is off on the shared ObjectMapper: a <code>voidFlag</code> that arrives as a JSON boolean, or a <code>memberId</code> that arrives as a number, is a 502 <code>UNPARSEABLE_BODY</code> rather than a silently wrong value. <code>company</code> is optional in the spec: when absent it is inferred from the ID shape (<code>HP…</code> → HPHC, 9 digits + suffix → THP) with a WARN; when present but contradicting the shape, the record is unusable (502 <code>UNKNOWN_COMPANY</code> if selected).</p>
+
+<h3>8.4 Interpreting the envelope: precedence table</h3>
+<p>MMI's exact codes for "no match", "invalid request" and "internal error" are unknown until FQA. Three lists hold them (<code>mmi.not-found-http-statuses</code>, <code>mmi.not-found-message-codes</code>, <code>mmi.error-message-types</code>), empty until filled from FQA evidence. The default when the lists cannot decide is to fail closed: an MMI partial outage must park and replay, never become a terminal "member not found".</p>
+<div class="tablewrap"><table>
+<thead><tr><th>#</th><th>Condition (first match wins)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>HTTP status in <code>not-found-http-statuses</code> <b>and</b> the body parses as the MMI envelope (has our <code>requestId</code> echo)</td><td><span class="pill ok">200</span> <code>NOT_FOUND</code> / <code>NO_MMI_RECORDS</code></td></tr>
+<tr><td>2</td><td>HTTP status in <code>not-found-http-statuses</code> but the body is not an MMI envelope (router 404, Spring error page: a wrong URL or path)</td><td><span class="pill bad">502</span> <code>MMI_REJECTED</code> / <code>HTTP_4XX_NO_ENVELOPE</code>, contract-drift alert</td></tr>
+<tr><td>3</td><td>HTTP 429 or 408, or 503 with <code>Retry-After</code></td><td><span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code> / <code>MMI_THROTTLED</code>; <code>Retry-After</code> = max(MMI's, 10); counted as a breaker failure; no in-service retry</td></tr>
+<tr><td>4</td><td>Other HTTP 4xx</td><td><span class="pill bad">502</span> <code>MMI_REJECTED</code> / <code>HTTP_4XX</code> (not counted by the breaker)</td></tr>
+<tr><td>5</td><td>HTTP 5xx (other than row 3)</td><td>one retry if allowed (section 13), then <span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code> / <code>HTTP_5XX</code></td></tr>
+<tr><td>6</td><td>Body not JSON, envelope of the wrong shape, or every record missing <code>memberId</code></td><td><span class="pill bad">502</span> <code>MMI_RESPONSE_INVALID</code> / <code>UNPARSEABLE_BODY</code> or <code>NO_MEMBER_ID</code> (not counted by the breaker: drift is an alert, not an outage)</td></tr>
+<tr><td>7</td><td><code>members</code> non-empty and no message whose <code>messageType</code> is in <code>error-message-types</code></td><td>continue; other messages are logged WARN as informational</td></tr>
+<tr><td>8</td><td><code>members</code> non-empty and an error-typed message present (a partial result, for example a failed second pass)</td><td><span class="pill bad">502</span> <code>MMI_REJECTED</code> / <code>MMI_ERROR_MESSAGE</code> with type/status/code (never the text)</td></tr>
+<tr><td>9</td><td><code>members</code> null or empty and <code>messages</code> null</td><td><span class="pill ok">200</span> <code>NOT_FOUND</code> / <code>NO_MMI_RECORDS</code></td></tr>
+<tr><td>10</td><td><code>members</code> empty and every <code>messageCode</code> in <code>not-found-message-codes</code></td><td><span class="pill ok">200</span> <code>NOT_FOUND</code> / <code>NO_MMI_RECORDS</code></td></tr>
+<tr><td>11</td><td>otherwise (<code>members</code> empty, messages present but unclassified)</td><td><span class="pill bad">502</span> <code>MMI_REJECTED</code> / <code>UNCLASSIFIED_MMI_MESSAGE</code>, ERROR log, so FQA sees the shape and fills the list</td></tr>
+<tr><td>12</td><td>more than <code>mmi.max-records</code> (200) records</td><td><span class="pill bad">502</span> <code>MMI_RESPONSE_INVALID</code> / <code>TOO_MANY_RECORDS</code></td></tr>
+</tbody></table></div>
+<p class="small">A <code>requestId</code> echo that differs from what we sent is a WARN and a metric, not a failure: MMI's echo fidelity is unknown and a hard 502 could fail every call on a formatting quirk. Promote to 502 only after FQA proves the echo reliable. The startup report WARNs in PQA/PROD while <code>not-found-message-codes</code> is empty; the go-live gate (18.5), not a startup failure, proves whether MMI uses <code>messages: null</code> for no match.</p>
+
+<h3>8.5 Two guards against answering from the wrong place</h3>
+<ul>
+<li><b>Host matches profile.</b> Each profile carries <code>mmi.expected-host-pattern</code> (for <code>prod</code>: <code>^mastermemberindexserviceapp-spring-boot-prod\.apps\.prodocp\.</code>). Startup fails, naming profile and host, when <code>mmi.base-url</code> does not match. An emergency override edits the pattern property; there is no bypass boolean. This stops a PROD pod from quietly answering from the FQA index after a copy-paste or a mis-mounted ConfigMap.</li>
+<li><b>Stub only in local.</b> The in-process stub MMI client is created only when <code>mmi.stub.enabled</code> is true <em>and</em> the <code>local</code> or <code>test</code> profile is active; any other profile with the flag set fails startup. The startup report and <code>/actuator/info</code> show <code>mmi.client: STUB | REST</code>.</li>
+</ul>
+
+<h2 id="selection"><span class="num">9</span>Candidate selection: from MMI records to one person</h2>
+<p>Inputs: the MMI records <var>R</var>, the parsed input <var>P</var>, the optional DOB <var>H</var>, the date of service. Output: exactly one selected record, or <code>NOT_FOUND</code>, <code>AMBIGUOUS</code> or <code>IDENTITY_MISMATCH</code>. Steps run in order; each is unit-testable on fixture record sets. The order in which MMI returns records is never a criterion.</p>
+
+<figure>
+<svg viewBox="0 0 1000 560" role="img" aria-label="Decision flow from MMI records to an outcome: structural check, relatedness closure, duplicate merge, grouping into persons, DOB verification, person count, record choice within a converted pair, then coverage evaluation and vendor formatting. Terminal outcomes are NOT_FOUND, AMBIGUOUS, IDENTITY_MISMATCH, 502 for unreadable data, 422 UNSUPPORTED_FOR_VENDOR, ACTIVE and INACTIVE." style="color: var(--fg)">
+  <defs><marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <g font-family="Source Sans 3, Arial, sans-serif" font-size="12.5" fill="currentColor" stroke-width="1.2">
+    <!-- main spine x=300 -->
+    <rect x="200" y="14" width="200" height="40" rx="6" fill="none" stroke="currentColor"/>
+    <text x="300" y="39" text-anchor="middle" font-weight="600">MMI members[] (0..n)</text>
+
+    <line x1="300" y1="54" x2="300" y2="76" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="200" y="78" width="200" height="40" rx="6" fill="none" stroke="currentColor"/>
+    <text x="300" y="96" text-anchor="middle" font-weight="600">S0 structural</text>
+    <text x="300" y="111" text-anchor="middle" font-size="11">drop blank memberId</text>
+    <line x1="400" y1="98" x2="520" y2="98" stroke="currentColor" marker-end="url(#arr3)"/>
+    <text x="460" y="90" text-anchor="middle" font-size="11">none left</text>
+    <rect x="522" y="80" width="150" height="36" rx="18" fill="var(--code-bg)" stroke="none"/>
+    <text x="597" y="102" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5">200 NOT_FOUND</text>
+
+    <line x1="300" y1="118" x2="300" y2="140" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="200" y="142" width="200" height="40" rx="6" fill="none" stroke="currentColor"/>
+    <text x="300" y="160" text-anchor="middle" font-weight="600">S1 relatedness closure</text>
+    <text x="300" y="175" text-anchor="middle" font-size="11">DIRECT · FAMILY · LEGACY (either direction)</text>
+    <line x1="400" y1="162" x2="520" y2="162" stroke="currentColor" marker-end="url(#arr3)"/>
+    <text x="460" y="154" text-anchor="middle" font-size="11">nothing related</text>
+    <rect x="522" y="144" width="150" height="36" rx="18" fill="var(--code-bg)" stroke="none"/>
+    <text x="597" y="166" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5">200 NOT_FOUND</text>
+    <text x="700" y="166" font-size="11">NO_RELATED_RECORD / NO_RECORD_WITH_SUFFIX</text>
+
+    <line x1="300" y1="182" x2="300" y2="204" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="200" y="206" width="200" height="40" rx="6" fill="none" stroke="currentColor"/>
+    <text x="300" y="224" text-anchor="middle" font-weight="600">S2 duplicates</text>
+    <text x="300" y="239" text-anchor="middle" font-size="11">merge if same DOB and spans, else</text>
+    <line x1="400" y1="226" x2="520" y2="226" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="522" y="208" width="150" height="36" rx="18" fill="var(--info-soft)" stroke="none"/>
+    <text x="597" y="230" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" fill="var(--info)">200 AMBIGUOUS</text>
+    <text x="700" y="230" font-size="11">DUPLICATE_RECORDS</text>
+
+    <line x1="300" y1="246" x2="300" y2="268" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="200" y="270" width="200" height="40" rx="6" fill="none" stroke="currentColor"/>
+    <text x="300" y="288" text-anchor="middle" font-weight="600">S3 group into persons</text>
+    <text x="300" y="303" text-anchor="middle" font-size="11">converted pair = one person</text>
+
+    <line x1="300" y1="310" x2="300" y2="332" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="200" y="334" width="200" height="40" rx="6" fill="none" stroke="currentColor"/>
+    <text x="300" y="352" text-anchor="middle" font-weight="600">S4 DOB check (if sent)</text>
+    <text x="300" y="367" text-anchor="middle" font-size="11">keep persons whose DOB matches</text>
+    <line x1="400" y1="354" x2="520" y2="354" stroke="currentColor" marker-end="url(#arr3)"/>
+    <text x="460" y="346" text-anchor="middle" font-size="11">none match</text>
+    <rect x="522" y="336" width="150" height="36" rx="18" fill="var(--warn-soft)" stroke="none"/>
+    <text x="597" y="358" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" fill="var(--warn)">422 MISMATCH</text>
+    <line x1="200" y1="354" x2="130" y2="354" stroke="currentColor" marker-end="url(#arr3)"/>
+    <text x="165" y="346" text-anchor="middle" font-size="11">DOB on no record</text>
+    <text x="15" y="350" font-size="11">continue as "no DOB",</text>
+    <text x="15" y="364" font-size="11">identityVerified = false</text>
+
+    <line x1="300" y1="374" x2="300" y2="396" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="200" y="398" width="200" height="40" rx="6" fill="none" stroke="currentColor"/>
+    <text x="300" y="416" text-anchor="middle" font-weight="600">S5 how many persons?</text>
+    <text x="300" y="431" text-anchor="middle" font-size="11">THP_9 + no DOB is never "confirmed"</text>
+    <line x1="400" y1="418" x2="520" y2="418" stroke="currentColor" marker-end="url(#arr3)"/>
+    <text x="460" y="410" text-anchor="middle" font-size="11">&gt;1, or 1 unconfirmed</text>
+    <rect x="522" y="400" width="150" height="36" rx="18" fill="var(--info-soft)" stroke="none"/>
+    <text x="597" y="422" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" fill="var(--info)">200 AMBIGUOUS</text>
+    <text x="700" y="416" font-size="11">MULTIPLE_PERSONS · PERSON_NOT_CONFIRMED</text>
+    <text x="700" y="430" font-size="11">DOB_NOT_DISCRIMINATING · candidates[]</text>
+
+    <line x1="300" y1="438" x2="300" y2="460" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="200" y="462" width="200" height="40" rx="6" fill="none" stroke="currentColor"/>
+    <text x="300" y="480" text-anchor="middle" font-weight="600">S6 pick the record</text>
+    <text x="300" y="495" text-anchor="middle" font-size="11">coverage on DOS, then migration date</text>
+    <line x1="400" y1="482" x2="520" y2="482" stroke="currentColor" marker-end="url(#arr3)"/>
+    <text x="460" y="474" text-anchor="middle" font-size="11">both active, no date</text>
+    <rect x="522" y="464" width="150" height="36" rx="18" fill="var(--info-soft)" stroke="none"/>
+    <text x="597" y="486" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" fill="var(--info)">200 AMBIGUOUS</text>
+    <text x="700" y="486" font-size="11">MULTIPLE_ACTIVE_RECORDS</text>
+
+    <line x1="300" y1="502" x2="300" y2="522" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="30" y="524" width="170" height="30" rx="15" fill="var(--bad-soft)" stroke="none"/>
+    <text x="115" y="543" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" fill="var(--bad)">502 UNREADABLE_SPAN</text>
+    <rect x="215" y="524" width="170" height="30" rx="15" fill="var(--ok-soft)" stroke="none"/>
+    <text x="300" y="543" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" fill="var(--ok)">200 ACTIVE / INACTIVE</text>
+    <rect x="400" y="524" width="200" height="30" rx="15" fill="var(--warn-soft)" stroke="none"/>
+    <text x="500" y="543" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" fill="var(--warn)">422 UNSUPPORTED_FOR_VENDOR</text>
+    <text x="620" y="543" font-size="11">← coverage (§10) then vendor format (§11)</text>
+  </g>
+</svg>
+<figcaption>Every exit is a named outcome. Nothing is ever "picked by default": the only path to ACTIVE or INACTIVE is a single person the input (and the DOB, when sent) accounts for.</figcaption>
+</figure>
+
+<h3>S0 — structural</h3>
+<p>Records with a blank <code>memberId</code> are dropped (WARN, metric). If <var>R</var> was non-empty and nothing remains → 502 <code>NO_MEMBER_ID</code>. If <var>R</var> is empty → 200 <code>NOT_FOUND</code> / <code>NO_MMI_RECORDS</code>.</p>
+<p>Each record's <code>memberId</code> is parsed into a canonical form for matching after trimming (including NBSP) and upper-casing: THP <code>^(\d{9})\s*(\d{2})$</code> → core and suffix; HPHC <code>^HP\d+$</code>. The verbatim stored value is what the response returns as <code>memberId.canonical</code>; the parsed parts are what the vendor format is rendered from, so a stored trailing space never reaches a vendor. A record whose ID does not parse is marked <em>unparseable</em>; it cannot be related to anything.</p>
+
+<h3>S1 — relatedness as a closure</h3>
+<div class="tablewrap"><table class="tight">
+<thead><tr><th>Class</th><th>Condition</th></tr></thead>
+<tbody>
+<tr><td><code>DIRECT</code></td><td>record <code>memberId</code> equals <var>P</var> (THP_11: same core and suffix; HPHC: same id). <code>12345678901</code> and <code>123456789   01</code> compare equal.</td></tr>
+<tr><td><code>FAMILY</code></td><td><var>P</var> is THP_9 and the record's THP core equals <var>P</var>.core (any suffix).</td></tr>
+<tr><td><code>LEGACY</code></td><td>record <code>legacyMemberId</code> equals <var>P</var> (or its core equals <var>P</var>.core for THP_9), <b>or</b> the record is linked to an already-admitted record in either direction (<var>B</var>.legacyMemberId == <var>A</var>.memberId, or <var>A</var>.legacyMemberId == <var>B</var>.memberId). Repeated until nothing new is admitted, at most 5 hops.</td></tr>
+<tr><td><code>UNRELATED</code></td><td>none of the above after the closure.</td></tr>
+</tbody></table></div>
+<p>The closure matters in the common case, not only for exotic chains: when the input is the <em>new</em> HPHC ID, the old THP record carries no <code>legacyMemberId</code> (only the new record names the old one), so a one-directional comparison would drop the record that covers a pre-migration date of service.</p>
+<p><code>UNRELATED</code> records are dropped, counted, logged WARN (masked; a distinct marker when the dropped record was active on the DOS, which hints at an unlinked conversion), and <b>never re-admitted</b>. If nothing related remains → 200 <code>NOT_FOUND</code> / <code>NO_RELATED_RECORD</code>, or <code>NO_RECORD_WITH_SUFFIX</code> when <var>P</var> is THP_11 and records for the same core exist but none has this suffix. If nothing is related <em>and</em> at least one record had an unparseable ID → 502 <code>CANONICAL_ID_UNPARSEABLE</code> instead: stored-form drift must surface as a contract error, not as a NOT_FOUND spike.</p>
+
+<h3>S2 — duplicates</h3>
+<p>Group related records by (company, canonical id). Within a group, merge into one record when the <code>memberDob</code> values are present and equal, or all absent with identical span sets (a span is identical when effDate, endDate, groupId and voidFlag match after parsing). Otherwise → 200 <code>AMBIGUOUS</code> / <code>DUPLICATE_RECORDS</code> with an ERROR log: two different people, or two different coverage histories, under one ID is a data-quality incident worth surfacing, never something to resolve by taking the first row.</p>
+
+<h3>S3 — persons</h3>
+<p>A person is one THP (core, suffix) or one HPHC id, plus every record linked to it through <code>legacyMemberId</code> in either direction. A converted THP↔HPHC pair is one person with two records.</p>
+
+<h3>S4 — DOB verification and disambiguation (whenever a DOB was sent, including when one record came back)</h3>
+<ul>
+<li>Keep the persons that have at least one record whose <code>memberDob</code> equals the DOB.</li>
+<li>Zero left → 422 <code>IDENTITY_MISMATCH</code> / <code>DOB_MISMATCH</code>. This catches the dominant 9-digit failure mode (MMI returned only the subscriber while the patient is a dependent) and the EMR that appended <code>01</code> to a dependent's card number.</li>
+<li>One left → continue with <code>identityVerified: true</code>; <code>selection.method = DOB</code> when more than one person existed before the filter.</li>
+<li>Several left (twins, same-DOB dependents) → 200 <code>AMBIGUOUS</code> / <code>DOB_NOT_DISCRIMINATING</code>.</li>
+<li><code>memberDob</code> absent on every related record → the DOB cannot be checked; continue on the no-DOB path with <code>identityVerified: false</code> and a WARN marker. A request with a DOB is never worse off than the same request without one.</li>
+<li><code>memberDob</code> present but unparseable on every related record → 502 <code>DOB_UNPARSEABLE</code> (contract drift, not an identity review).</li>
+</ul>
+
+<h3>S5 — how many persons</h3>
+<ul>
+<li>Several persons and no usable DOB → 200 <code>AMBIGUOUS</code> / <code>MULTIPLE_PERSONS</code>, one candidate per person (the record covering the DOS, else the most recent), sorted by company then id, capped at 10 with <code>candidatesTruncated</code>.</li>
+<li>Exactly one person, input THP_9, no usable DOB → 200 <code>AMBIGUOUS</code> / <code>PERSON_NOT_CONFIRMED</code> with that one candidate. A 9-digit card number is not evidence of <em>which</em> family member, and we do not yet know whether a one-record answer means a one-person policy or "MMI only returns the subscriber". The single policy property <code>member-id.thp9-single-record: AMBIGUOUS | ACCEPT</code> defaults to <code>AMBIGUOUS</code> and is set to <code>ACCEPT</code> only after FQA proves a 9-digit search returns every suffix (18.4).</li>
+<li>Exactly one person otherwise (THP_11 or HPHC direct hit, or a DOB-confirmed person) → S6.</li>
+</ul>
+<p>Explicitly not done: defaulting to suffix 01, or to "the only active member".</p>
+
+<h3>S6 — one person, which record (converted pairs)</h3>
+<p>"New record" is the one whose <code>legacyMemberId</code> names the other's <code>memberId</code>; the migration date is <code>migrationEffectiveDate</code> from whichever record carries it (if both carry different dates, the new record's wins with a WARN). Coverage on the DOS is evaluated for each record of the person (section 10).</p>
+<div class="tablewrap"><table class="tight">
+<thead><tr><th>Situation</th><th>Selected record</th><th><code>selection.method</code></th></tr></thead>
+<tbody>
+<tr><td>single record</td><td>that record</td><td><code>DIRECT</code>, <code>LEGACY_ID</code> or <code>ONLY_RELATED</code></td></tr>
+<tr><td>exactly one record ACTIVE on the DOS</td><td>that record</td><td><code>COVERAGE_ON_DOS</code></td></tr>
+<tr><td>both ACTIVE (old company's spans not trimmed)</td><td>DOS ≥ migration date → new record, else old; no usable migration date → 200 <code>AMBIGUOUS</code> / <code>MULTIPLE_ACTIVE_RECORDS</code> (WARN + metric)</td><td><code>MIGRATION_DATE</code></td></tr>
+<tr><td>neither ACTIVE</td><td>same comparison when a migration date exists; otherwise the old record. The answer is INACTIVE evaluated on that record, with <code>member.migrationEffectiveDate</code> passed through so intake sees the conversion.</td><td><code>MIGRATION_DATE</code></td></tr>
+</tbody></table></div>
+<p>If only one side of a converted pair came back it is simply selected and evaluated; there is no separate "pre-migration unavailable" error. <code>member.converted</code> is true, <code>member.legacyMemberId</code> is the other id, and <b>the vendor format follows the selected record's company</b>: a member converted to HPHC gets the HPHC ID for a post-migration DOS and the THP ID for a pre-migration DOS.</p>
+
+<h2 id="coverage"><span class="num">10</span>Coverage status on the date of service</h2>
+<p>Evaluated on the selected person's records (coverage is per company; S6 chose the record whose company owns the DOS). <code>migrationEffectiveDate</code>, <code>lineOfBusiness</code>, <code>restrictedData</code> and <code>groupId</code> are reported but take no part in the decision.</p>
+<h3>10.1 Span classification</h3>
+<div class="tablewrap"><table class="tight">
+<thead><tr><th>Condition</th><th>Class</th></tr></thead>
+<tbody>
+<tr><td><code>voidFlag</code> equals <code>Y</code> (case-insensitive)</td><td><code>VOID</code>, excluded (belt and braces: <code>voidCoverageRecord=N</code> was sent). Any value other than Y, N or blank makes the span UNREADABLE.</td></tr>
+<tr><td><code>effDate</code> null, blank or unparseable</td><td><code>UNREADABLE</code></td></tr>
+<tr><td><code>endDate</code> null, blank or <code>12/31/9999</code></td><td>valid, open-ended (rendered <code>null</code>)</td></tr>
+<tr><td><code>endDate</code> unparseable, or <code>endDate &lt; effDate</code></td><td><code>UNREADABLE</code> (detail <code>NEGATIVE_SPAN</code> in the log for the reversed case so FQA can count them; a reversed pair may be swapped dates whose real span covers the DOS)</td></tr>
+<tr><td>otherwise</td><td><code>VALID</code></td></tr>
+<tr><td><code>coverage</code> array null on the record</td><td>treated as empty (the spec's convention is "null when none"), with a distinct WARN marker and a counter so FQA can see how often null and <code>[]</code> occur</td></tr>
+</tbody></table></div>
+<h3>10.2 Rules</h3>
+<ol>
+<li><b>Covers</b>: a VALID span covers the DOS iff <code>effDate ≤ DOS ≤ endDate</code>, both inclusive (a span ending on the DOS is still active that day; inclusive end to be confirmed, Q7).</li>
+<li><b>ACTIVE</b> iff at least one VALID span covers the DOS. <code>coverage.reason = COVERED</code>. The reported span is the covering span with the latest <code>effDate</code>; tie → latest end (open-ended sorts last). More than one covering span → WARN + metric, not surfaced.</li>
+<li><b>Unreadable-span guard</b>: if no VALID span of the selected person covers the DOS and <em>any</em> record of that person has an UNREADABLE span → 502 <code>MMI_RESPONSE_INVALID</code> / <code>UNREADABLE_SPAN</code>. An unreadable span may be the covering one, and a false INACTIVE blocks care; refusing is the only answer that is never wrong. ACTIVE proven by a VALID span is still returned, with <code>unreadableSpanCount</code> so the data problem stays visible. For <code>candidates[]</code> the same situation renders <code>coverageOnDateOfService: UNKNOWN</code> rather than a 502.</li>
+<li><b>INACTIVE</b> otherwise, with exactly one reason, chosen in this order:
+  <div class="tablewrap"><table class="tight">
+  <thead><tr><th>Reason</th><th>Condition</th><th>Extra fields</th></tr></thead>
+  <tbody>
+  <tr><td><code>NO_COVERAGE_RECORDS</code></td><td>no VALID spans (array absent, empty, or all void)</td><td></td></tr>
+  <tr><td><code>NOT_YET_EFFECTIVE</code></td><td>DOS before the earliest <code>effDate</code></td><td><code>nextEffectiveDate</code></td></tr>
+  <tr><td><code>COVERAGE_ENDED</code></td><td>DOS after the latest <code>endDate</code></td><td><code>lastEndDate</code></td></tr>
+  <tr><td><code>COVERAGE_GAP</code></td><td>otherwise (between spans)</td><td><code>lastEndDate</code>, <code>nextEffectiveDate</code></td></tr>
+  </tbody></table></div></li>
+<li><b>Dates are calendar dates</b>; no time zones in the comparison. A future DOS with an open-ended span → ACTIVE; with a known future termination → <code>COVERAGE_ENDED</code> with <code>lastEndDate</code>. A retro-termination that ended coverage after the DOS but before today → ACTIVE: the question is coverage on the DOS, not today.</li>
+</ol>
+<div class="callout rule">
+  <div class="label">Testable statements (rows of the evaluator test, today = 2026-10-03)</div>
+  <ul>
+  <li><code>[2025-01-01..open]</code>, DOS 2026-10-15 → ACTIVE, <code>endDate: null</code>.</li>
+  <li><code>[2024-01-01..2024-05-31]</code>, DOS 2024-05-31 → ACTIVE; DOS 2024-06-01 → INACTIVE / COVERAGE_ENDED / lastEndDate 2024-05-31.</li>
+  <li><code>[2027-01-01..open]</code>, DOS 2026-10-15 → NOT_YET_EFFECTIVE / nextEffectiveDate 2027-01-01.</li>
+  <li><code>[2023-01-01..2024-05-31] + [2025-01-01..open]</code>, DOS 2024-08-15 → COVERAGE_GAP / 2024-05-31 / 2025-01-01.</li>
+  <li>Only a void span covering the DOS → NO_COVERAGE_RECORDS. <code>endDate 12/31/9999</code> → ACTIVE for DOS 2099-01-01.</li>
+  <li><code>effDate 02/30/2024</code> alone → 502 UNREADABLE_SPAN; the same plus a valid covering span → ACTIVE, <code>unreadableSpanCount: 1</code>.</li>
+  <li>Converted pair, THP spans ended 2024-12-31, HPHC's only span unreadable, DOS 2026-10-15 → 502 UNREADABLE_SPAN (person-level guard), not INACTIVE.</li>
+  </ul>
+</div>
+
+<h2 id="vendors"><span class="num">11</span>Vendor mapping</h2>
+<p>Format <em>styles</em> are code: two small enums with a <code>render</code> method and a unit test each. <em>Vendors</em> are data: one YAML map. Adding or changing a vendor is a YAML edit; a brand-new output shape is one enum constant plus one test row. Two enums make "a THP style applied to an HPHC record" impossible by type.</p>
+<pre><code>enum ThpIdFormat {               // input: core (9 digits) and suffix (2 digits) parsed from the stored id
+  CORE_SUFFIX_11,                // "12345678901"
+  CORE_SPACES_SUFFIX_14,         // "123456789   01"   (as stored)
+  NOT_SUPPORTED;                 // vendor does not take THP members → 422 UNSUPPORTED_FOR_VENDOR
+  abstract String render(String core, String suffix);
+}
+enum HphcIdFormat {              // input: the stored id, e.g. "HP123456789"
+  AS_STORED,
+  NOT_SUPPORTED;
+  abstract String render(String canonical);
+}
+record VendorConfig(String displayName, List&lt;String&gt; aliases, ThpIdFormat thpFormat, HphcIdFormat hphcFormat) {}</code></pre>
+<p class="small">A lossy 9-digit style and a digits-only HPHC style are deliberately absent until a real vendor needs them; each would be one constant.</p>
+
+<h3>11.1 The table (sample values; the only place to edit)</h3>
+<pre><code>member-id:
+  vendors-source: SAMPLE          # PQA / PROD refuse to start while this still says SAMPLE
+  vendors:
+    # Key = the vendor code Onyx sends (upper-cased on lookup). Formats are SAMPLE values, not production truth.
+    EVICORE:
+      display-name: eviCore
+      aliases: [EVI, EVICORE_HEALTHCARE]
+      thp-format: CORE_SUFFIX_11            # sample: 11 characters
+      hphc-format: AS_STORED
+    CARELON:
+      display-name: Carelon
+      aliases: [AIM]                        # sample alias for the former AIM Specialty Health
+      thp-format: CORE_SUFFIX_11            # sample: 11 characters
+      hphc-format: AS_STORED
+    OPTUM:
+      display-name: Optum
+      thp-format: CORE_SPACES_SUFFIX_14     # sample: 14 characters
+      hphc-format: AS_STORED
+    MHK:
+      display-name: MHK (MedHOK)
+      aliases: [MEDHOK]
+      thp-format: CORE_SPACES_SUFFIX_14     # sample: owner said "14 (or 11)", confirm
+      hphc-format: NOT_SUPPORTED            # sample: shows how "THP only" is expressed</code></pre>
+<p>The table lives in <code>application.yml</code> because vendor formats are not environment-specific. <code>spring.config.import: optional:file:/config/vendors.yml</code> lets a mounted ConfigMap override it, so a format correction after go-live is a config roll with fail-fast validation on the new pods rather than a release. Single values can also be overridden by environment variable (<code>MEMBER_ID_VENDORS_MHK_THPFORMAT=CORE_SUFFIX_11</code>) for an emergency.</p>
+
+<h3>11.2 Startup validation (the application refuses to start, naming the offending key)</h3>
+<ol>
+<li><code>member-id.vendors</code> non-empty; each key matches <code>^[A-Z0-9_]{2,32}$</code> after upper-casing.</li>
+<li>Both formats present and valid enum names (the binding error lists the valid values).</li>
+<li>Aliases unique across vendors, case-insensitive, and never equal to another vendor's key.</li>
+<li><code>vendors-source</code> is not <code>SAMPLE</code> in <code>pqa</code>, <code>pqa-lite</code> and <code>prod</code>.</li>
+<li>Self-test: every configured style renders <code>123456789</code>/<code>01</code> and <code>HP123456789</code>; one INFO table <code>vendor | THP sample | HPHC sample</code> is logged so the effective mapping is visible in the first 20 log lines of every environment, and the same table is exposed at <code>/actuator/info</code>.</li>
+</ol>
+<h3>11.3 How to add a vendor</h3>
+<p>Add a block under <code>member-id.vendors</code> (key, optional aliases, two formats); deploy or roll the ConfigMap; check the startup table or <code>/actuator/info</code>. If the vendor needs a shape no constant produces, add one enum constant with its <code>render</code> and one test row. No other code changes.</p>

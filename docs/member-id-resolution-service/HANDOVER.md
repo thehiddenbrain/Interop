@@ -1,0 +1,118 @@
+# Member ID Resolution Service: handover for a new session
+
+Written 2026-10-04 so that a fresh Claude Code session can continue the work without the owner repeating
+anything. Read this file, then `feedback-log.md` (every owner decision, in order), then `../../member-id-resolution-service/README.md`.
+
+## Chat hygiene (mandatory)
+
+The owner's workplace runs data-loss prevention (DLP) on the chat. **Never write a member-id-shaped value in a
+chat message**: no letter followed by eight digits, no run of nine or eleven digits, no "letter, digits, three
+spaces, two-digit suffix" example, not even the sample values from the fixtures or the documents. Refer to them as
+"the sample TMP id" or as masked patterns such as `S########`, `S######## + suffix`, `###########`. Sample values
+may stay inside repository files (fixtures, tests, Postman, README, design), which the owner opens in STS, not
+in the chat. Never paste file contents that contain such values into the chat; summarise instead.
+
+## What this is
+
+A Spring Boot service for Point32Health. Onyx (the prior-authorization intake system) sends a member id exactly
+as a provider's EMR typed it, optionally a date of service and a patient date of birth, and either a UM vendor or
+nothing. The service asks MMI (the internal Master Member Index, the only integration) once and returns the id as
+stored in MMI, the id in the vendor's format (or in every vendor's format), and whether coverage is active on the
+date of service. No database, no state, no security code (Azure API Management in front owns that).
+
+- Repository: `https://github.com/thehiddenbrain/Interop`, branch `claude/member-id-normalization-design-ihju8o`,
+  folder `member-id-resolution-service`. The owner imports it straight into STS from GitHub (README section 1).
+- Design document: `docs/member-id-resolution-service/design.html`, generated from `design-src/` (see its README);
+  published as the claude.ai artifact `https://claude.ai/artifact/A6PfmrLch1RronSwsDQKRp` (republish `design-src/artifact_v2.html`
+  to that URL after changes; a new session must `read` the URL once before it can publish to it).
+- Owner feedback and decisions: `docs/member-id-resolution-service/feedback-log.md` (14 numbered feedback rounds so far).
+
+## The owner's standing rules (their words, condensed)
+
+- "Do not over engineer it. It's a simple call but a very important service."
+- "The only integration is MMI. Nothing else. Zero other external integration." No tables, no database.
+- No retry, no circuit breaker: "MMI won't be down." If this service is down, Onyx passes the EMR's id through.
+- Security (tokens, certificates) is external; do not build an API key or security envelope.
+- "The response should be very lean." No bragging or performance claims anywhere in code or documents.
+- Package is always `org.point32health`. Build shape must match the owner's other services (EPA Workbench):
+  Gradle 9.5.0 wrapper, Spring Boot 4.0.7 (Spring Framework 7, Jackson 3 `tools.jackson.*`), `options.release = 17`,
+  no toolchain block, `springBoot { buildInfo() }`, `internalRepoUrl` repository switch, `application.yaml` files.
+- The incoming member id is **never validated or reshaped**: presence only, sent to MMI exactly as typed
+  (surrounding whitespace removed). "The service is just passing through to MMI. Don't try to be over smart."
+- Ask the owner when unsure; do not assume.
+
+## Current behaviour (as of commit c5fb108)
+
+Operations (`api/ResolveController`):
+- `POST /api/v1/member-ids/resolve`: `{ memberId, dateOfService?, vendor, patient?{dateOfBirth} }`, strict
+  validation (every problem listed together), vendor required.
+- `POST /api/v1/member-ids/vendor-map`: `{ memberId, dateOfService?, patient?{dateOfBirth}, vendor? }`, lenient:
+  only the member id is required; a vendor of any JSON type and any unknown property are accepted and ignored;
+  an unusable date of service or date of birth is ignored and listed under `ignoredFields` (date of service then
+  defaults to today, `dateOfServiceDefaulted: true`).
+
+Response (200) on both: `outcome` ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS, a plain `message` sentence,
+`memberId { received, stored, forVendor, forVendorParts }` on /resolve or `memberId { received, stored }` plus
+`vendorMemberIds[ { vendor, memberId, memberIdParts? } ]` (sorted by vendor code, present for ACTIVE and INACTIVE)
+on /vendor-map, `company`, `lineOfBusiness`, `dateOfService`, `dateOfServiceDefaulted`, `coverage { active, reason,
+span, lastEndDate, nextEffectiveDate }`, `ambiguity { reason, hint }` + `candidates[]` on AMBIGUOUS,
+`correlationId`, `mmiRequestId`, and `mmiMessage { type, status, code, text }` on NOT_FOUND when MMI sent a message.
+Errors: `{ error { code, message, details[ { field, code, message } ] }, correlationId, mmiRequestId }`.
+
+MMI's HTTP contract (owner, definitive) and the mapping, fixed in `mmi/RestMmiClient` and `service/ResolutionService`:
+200 success → outcome from the records (one record = the member; several: DOB picks one, else AMBIGUOUS with
+candidates; a real DOB matching nothing = 422 DOB_MISMATCH); 404 = member not found → 200 NOT_FOUND whatever the
+body (a 404 without MMI's envelope still answers NOT_FOUND but logs `marker=MMI_404_WITHOUT_ENVELOPE` naming the URL,
+since a wrong URL looks the same); 400 bad request → 400 `MMI_BAD_REQUEST` forwarding MMI's code and text;
+500 internal error → 503 `MMI_UNAVAILABLE` (Retry-After 10) with MMI's text; any other status is a gateway or proxy,
+not MMI → 503 (5xx, 429, 408) or 502 saying so; cannot reach / timeout → 503 CONNECT_FAILED / READ_TIMEOUT;
+unparseable or empty 2xx body → 502 MMI_INVALID_RESPONSE. The only 404 this service returns is an unknown route.
+A 200 with no members and an error-typed message → 502 ERROR_MESSAGE forwarding MMI's code and text.
+
+Vendor formats (`vendor/VendorFormatter`, `member-id.vendors` in `application.yaml`; adding a vendor is one YAML
+block): CARELON COMPACT_11, EVICORE COMPACT_11, EVOLENT COMPACT_11, MHK SPACED_14, ONYX COMPACT_11, OPTUM SPLIT (core
+and suffix as two fields plus the joined value). **The TMP/SCO core is 9 characters, a letter and 8 digits** (not 9
+digits), stored by MMI as core, three spaces, two-digit suffix. The formatter reshapes "letters and digits, any
+separator, 1-3 digit suffix" and copies core and suffix character for character (the letter is kept); Public Plans
+ids (11 continuous characters) and HPHC ids (HP + 9 digits) pass as stored for every vendor. A stored value that is
+not plain letters and digits and cannot be reshaped logs `marker=STORED_ID_NOT_RESHAPED` with its shape (never the
+characters).
+
+Profiles: `spring.profiles.default` is **pqa** (STS "Run As → Spring Boot App" talks to the PQA MMI). `dev` = in-process
+stub (`mmi/StubMmiClient`, fixtures in `src/main/resources/mmi-stub/members.json`, fault ids documented in the README);
+the stub refuses any profile other than dev/test and refuses to run inside a Kubernetes pod. `fqa`, `pqa`, `pqa-lite`,
+`prod` set the MMI base URL. `mmi.log-payloads` (env `MMI_LOG_PAYLOADS`) prints the exact MMI request and response
+bodies; on in dev/fqa/pqa/pqa-lite, off in prod (PHI). Every deployment must set `SPRING_PROFILES_ACTIVE`.
+
+Logging: one INFO line per request with masked ids (last four characters survive), one per MMI call, warning
+markers for data anomalies, correlation id in the pattern. A test asserts no unmasked id or date of birth in logs.
+
+## Verification state
+
+- `./gradlew clean build --no-daemon`: 119 tests green (unit tests per component, REST client against a mock server,
+  configuration validation, end-to-end scenarios over HTTP against the stub with "today" fixed at 2026-10-03).
+- Postman: `postman/MemberIdResolution.postman_collection.json` + `postman/Local.postman_environment.json`, 65
+  requests in 7 folders, 439 assertions; run with the service on the dev profile:
+  `npx -y newman@6 run postman/MemberIdResolution.postman_collection.json -e postman/Local.postman_environment.json`.
+- Tooling notes: never `pkill -f <jar name>` (it kills the shell); stop a local run with `lsof -ti:9090 | xargs -r kill`.
+  Commit with the attribution footer the session requires and push to the branch after every change (a stop hook
+  demands a clean tree).
+
+## Open items
+
+1. Confirm in PQA with a real id that the four 11-character vendors now receive 11 characters with the leading
+   letter kept, and MHK 14. If not, the `mmi response` payload line or a `STORED_ID_NOT_RESHAPED` line shows the
+   stored shape; never paste it into the chat, describe it as a masked pattern.
+2. Confirm in PQA that MMI's 404 carries its envelope (messages with code and text) so `mmiMessage` is filled; if
+   the log shows `MMI_404_WITHOUT_ENVELOPE` for ids that exist nowhere, MMI's 404 body is bare.
+3. Register the real application name with the MMI team (`mmi.client-id`, placeholder MBRIDSVC) and confirm
+   `mmi.error-message-types`.
+4. The owner may share MMI's message-code list; map any codes that deserve a better message.
+5. Keep documents in step: README, `design-src/` + `assemble_v2.py` + republish the artifact, feedback log.
+
+## How the work has been done
+
+Code changes are made directly, tests first green locally, then documents, Postman and the feedback log are
+brought in line, everything committed and pushed; a zip of the project is no longer needed since the owner pulls
+from GitHub in STS. The owner gives short, direct feedback; apply it fully, record it as the next numbered entry
+in `feedback-log.md`, and report in plain words without id-shaped values.
