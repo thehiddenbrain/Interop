@@ -22,7 +22,11 @@ public record MmiProperties(
         @DefaultValue("5s") @NotNull Duration readTimeout,
         @DefaultValue("N") String voidCoverageRecord,
         @DefaultValue("ERROR") List<String> errorMessageTypes,
+        @DefaultValue("false") boolean logPayloads,
         @DefaultValue Stub stub) {
+
+    // logPayloads: print the full MMI request and response bodies (they contain member PHI). For integration
+    // debugging in dev / FQA / PQA; keep it off in prod.
 
     /** The in-process stub used for developer runs and tests. Allowed only with the dev or test profile. */
     public record Stub(@DefaultValue("false") boolean enabled,

@@ -58,9 +58,37 @@ that profile's `application-<profile>.yaml`; nothing else changes.
    `curl -X POST http://localhost:9090/api/v1/member-ids/resolve -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\",\"vendor\":\"EVICORE\"}"`.
    The response carries `mmiRequestId` (`MBRIDSVC-<millis>-<5 digits>`), which the MMI team can find in their logs.
 
+#### Reading the MMI request and response when something fails
+
+`mmi.log-payloads: true` makes the MMI client write the exact request body and the raw response body to the
+console, unmasked, as two lines per call. It is on in `dev`, `fqa`, `pqa` and `pqa-lite` and off in `prod`
+(the bodies contain PHI). The startup banner shows `mmi payload log : ON` when it is active. A real call
+looks like this:
+
+```
+INFO  [<correlationId>] o.p.memberid.mmi.RestMmiClient - mmi request requestId=MBRIDSVC-1791083521042-40296 POST http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp/master/member/v1
+{"memberId":"123456789","legacyMemberId":"123456789","voidCoverageRecord":"N","clientId":"MBRIDSVC","clientType":"INT","requestId":"MBRIDSVC-1791083521042-40296"}
+INFO  [<correlationId>] o.p.memberid.mmi.RestMmiClient - mmi response requestId=MBRIDSVC-1791083521042-40296 status=200 contentType=application/json ms=18
+{"clientId":"MBRIDSVC","clientType":"INT","requestId":"MBRIDSVC-1791083521042-40296","messages":null,"members":[ ... ]}
+```
+
+What the lines tell you when the service answers an error:
+
+| You see | Meaning | What to do |
+|---|---|---|
+| `mmi request ...` then `mmi call failed ... detail=CONNECT_FAILED cause=...` and no `mmi response` line | The host could not be reached (DNS, VPN, firewall) | Fix the network path to the MMI host; check `cause=` |
+| `mmi response ... status=404` | Wrong URL or path | Compare the URL on the `mmi request` line with the MMI team's; `mmi.path` is `/master/member/v1` |
+| `mmi response ... status=400` and a body with MMI's message | MMI rejected the request shape or a field value | Send the request line's JSON to the MMI team; adjust `mmi.client-id` / `mmi.client-type` if they ask |
+| `mmi response ... status=200` then `502 MMI_INVALID_RESPONSE` with `UNPARSEABLE_BODY` from this service | The body is not the MMI JSON (often an HTML sign-in or proxy page, `contentType=text/html`) | The call is being intercepted before MMI; check proxy settings and the host |
+| `mmi response ... status=200` and the body has fields this service does not know | MMI added or renamed fields | Paste the response line; the DTOs in `org.point32health.memberid.mmi` are updated to match |
+| `mmi response ... status=200`, `members` is empty, this service answers `NOT_FOUND` | MMI has no record for that ID in that environment | Use an ID that exists in PQA |
+
+Turn it off with `mmi.log-payloads: false` in the profile file, or `MMI_LOG_PAYLOADS=false` once the
+problem is found. Everything else in the log stays masked whether or not payload logging is on.
+
 Overrides without a rebuild (environment variables or `-D` system properties): `MMI_BASE_URL` (any MMI, no
 profile file needed), `MMI_CLIENT_ID` (placeholder `MBRIDSVC`; register the real application name with the
-MMI team), `MMI_CONNECT_TIMEOUT=2s`, `MMI_READ_TIMEOUT=5s`.
+MMI team), `MMI_CONNECT_TIMEOUT=2s`, `MMI_READ_TIMEOUT=5s`, `MMI_LOG_PAYLOADS=true|false`.
 
 **Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `dev` (the stub) so that
 STS runs with one click. Two guards back the rule: the stub refuses to start with any explicitly active
@@ -219,8 +247,8 @@ run the whole collection with the Collection Runner for a green scenario pass.
 with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (500/429/408/400/bad body/connection refused/read timeout), configuration validation, and the end-to-end
 scenario matrix over HTTP against the stub with "today" fixed at 2026-10-03. A capturing log appender
-asserts no log line (message, exception text or MDC) contains an unmasked 9- or 11-digit run or an
-MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
+asserts no log line (message or exception text; payload logging is off in the `test` profile) contains an
+unmasked 9- or 11-digit run or an MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
 never reach MMI.
 
 ## 7. Assumptions to confirm in PQA

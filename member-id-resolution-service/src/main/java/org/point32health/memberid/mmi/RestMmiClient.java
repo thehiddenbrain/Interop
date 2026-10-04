@@ -1,12 +1,13 @@
 package org.point32health.memberid.mmi;
 
-import org.point32health.memberid.support.Masking;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
+import org.point32health.memberid.support.Masking;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
@@ -14,13 +15,17 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * The HTTP client for MMI: one POST per call, plain HTTP and no authentication exactly as the MMI contract
- * states for internal consumers. Connect and read timeouts ({@code mmi.connect-timeout} / {@code mmi.read-timeout}) are
- * applied to the builder by {@code MmiClientConfig}.
- * No retry and no circuit breaker: MMI is a core service that is restored quickly when it fails, and a
- * clear 503 lets Onyx retry later.
+ * states for internal consumers. Connect and read timeouts ({@code mmi.connect-timeout} / {@code mmi.read-timeout})
+ * are applied to the builder by {@code MmiClientConfig}. No retry: a clear 503 lets Onyx retry later.
+ *
+ * <p>With {@code mmi.log-payloads=true} the exact request body sent and the exact response body received
+ * (status, headers' content type, raw text) are written to the log, so an integration problem can be read
+ * straight from the console. Those bodies contain member PHI; keep the flag off in prod.
  */
 public class RestMmiClient implements MmiClient {
 
@@ -28,12 +33,14 @@ public class RestMmiClient implements MmiClient {
 
     private final RestClient restClient;
     private final MmiProperties properties;
+    private final ObjectMapper objectMapper;
 
-    public RestMmiClient(RestClient.Builder builder, MmiProperties properties) {
+    public RestMmiClient(RestClient.Builder builder, MmiProperties properties, ObjectMapper objectMapper) {
         if (properties.baseUrl() == null || properties.baseUrl().isBlank()) {
             throw new IllegalStateException("mmi.base-url is required (set MMI_BASE_URL or activate a profile that defines it)");
         }
         this.properties = properties;
+        this.objectMapper = objectMapper;
         this.restClient = builder.baseUrl(properties.baseUrl()).build();
     }
 
@@ -47,6 +54,11 @@ public class RestMmiClient implements MmiClient {
         String requestId = MmiRequestIds.next(properties.clientId());
         MmiRequest body = new MmiRequest(memberId, memberId, properties.voidCoverageRecord(), properties.clientId(),
                 properties.clientType(), requestId);
+        String requestJson = objectMapper.writeValueAsString(body);
+        String url = properties.baseUrl() + properties.path();
+        if (properties.logPayloads()) {
+            log.info("mmi request requestId={} POST {}\n{}", requestId, url, requestJson);
+        }
         long start = System.nanoTime();
         try {
             MmiResponse response = restClient.post()
@@ -54,26 +66,33 @@ public class RestMmiClient implements MmiClient {
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
                     .header("X-Correlation-Id", correlationId == null ? "" : correlationId)
-                    .body(body)
+                    .body(requestJson)
                     .exchange((request, res) -> {
                         HttpStatusCode status = res.getStatusCode();
+                        String text;
+                        try {
+                            text = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                        } catch (RuntimeException e) {
+                            if (hasIoCause(e)) {
+                                String detail = classify(e);
+                                throw MmiException.unavailable(requestId, detail, "MMI connection failed while reading the body: " + detail, e);
+                            }
+                            throw e;
+                        }
+                        if (properties.logPayloads()) {
+                            log.info("mmi response requestId={} status={} contentType={} ms={}\n{}", requestId, status.value(),
+                                    res.getHeaders().getContentType(), elapsedMs(start), text.isEmpty() ? "<empty body>" : text);
+                        }
                         if (status.is2xxSuccessful()) {
-                            MmiResponse parsed;
+                            if (text.isBlank()) {
+                                throw MmiException.invalidResponse(requestId, "EMPTY_BODY", "MMI answered " + status.value() + " with no body", null);
+                            }
                             try {
-                                parsed = res.bodyTo(MmiResponse.class);
-                            } catch (RuntimeException e) {
-                                if (hasIoCause(e)) {
-                                    // the connection broke or stalled while the body was being read: MMI is unavailable, not malformed
-                                    String detail = classify(e);
-                                    throw MmiException.unavailable(requestId, detail, "MMI connection failed while reading the body: " + detail, e);
-                                }
+                                return objectMapper.readValue(text, MmiResponse.class);
+                            } catch (JacksonException e) {
                                 throw MmiException.invalidResponse(requestId, "UNPARSEABLE_BODY",
                                         "MMI answered " + status.value() + " with a body that is not the expected JSON", e);
                             }
-                            if (parsed == null) {
-                                throw MmiException.invalidResponse(requestId, "EMPTY_BODY", "MMI answered " + status.value() + " with no body", null);
-                            }
-                            return parsed;
                         }
                         int code = status.value();
                         if (status.is5xxServerError() || code == 429 || code == 408) {
@@ -85,13 +104,13 @@ public class RestMmiClient implements MmiClient {
                     response.membersOrEmpty().size(), elapsedMs(start));
             return new MmiResult(requestId, response);
         } catch (MmiException e) {
-            log.warn("mmi call failed requestId={} memberId={} code={} detail={} ms={}", requestId, Masking.memberId(memberId),
-                    e.code(), e.detail(), elapsedMs(start));
+            log.warn("mmi call failed requestId={} memberId={} code={} detail={} ms={} cause={}", requestId, Masking.memberId(memberId),
+                    e.code(), e.detail(), elapsedMs(start), e.getCause() == null ? "-" : rootMessage(e.getCause()));
             throw e;
         } catch (ResourceAccessException e) {
             String detail = classify(e);
-            log.warn("mmi call failed requestId={} memberId={} code={} detail={} ms={} cause={}", requestId,
-                    Masking.memberId(memberId), MmiException.UNAVAILABLE, detail, elapsedMs(start), rootMessage(e));
+            log.warn("mmi call failed requestId={} memberId={} code={} detail={} url={} ms={} cause={}", requestId,
+                    Masking.memberId(memberId), MmiException.UNAVAILABLE, detail, url, elapsedMs(start), rootMessage(e));
             throw MmiException.unavailable(requestId, detail, "MMI could not be reached: " + detail, e);
         } catch (RestClientException e) {
             log.warn("mmi call failed requestId={} memberId={} code={} ms={} cause={}", requestId, Masking.memberId(memberId),

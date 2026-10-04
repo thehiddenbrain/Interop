@@ -50,6 +50,7 @@ public class StartupReport implements ApplicationRunner {
         sb.append("mmi url           : ").append(mmi.baseUrl()).append(mmi.path()).append('\n');
         sb.append("mmi clientId      : ").append(mmi.clientId()).append('\n');
         sb.append("mmi timeouts      : connect=").append(mmi.connectTimeout()).append(" read=").append(mmi.readTimeout()).append('\n');
+        sb.append("mmi payload log   : ").append(mmi.logPayloads() ? "ON (request and response bodies, contains PHI)" : "off").append('\n');
         sb.append("dos window        : -").append(memberId.dateOfService().maxPastYears()).append("y / +")
           .append(memberId.dateOfService().maxFutureDays()).append("d (").append(memberId.dateOfService().zone()).append(")\n");
         sb.append("hphc digit lengths: ").append(memberId.hphcDigitLengths()).append('\n');

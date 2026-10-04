@@ -27,6 +27,6 @@ public class MmiClientConfig {
                 HttpClientSettings.defaults()
                         .withConnectTimeout(properties.connectTimeout())
                         .withReadTimeout(properties.readTimeout())));
-        return new RestMmiClient(withTimeouts, properties);
+        return new RestMmiClient(withTimeouts, properties, objectMapper);
     }
 }

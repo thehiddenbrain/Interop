@@ -45,10 +45,11 @@ mmi:
   path: /master/member/v1
   client-id: ${MMI_CLIENT_ID:MBRIDSVC}  # PLACEHOLDER: register this application's name with the MMI team
   client-type: INT
-  connect-timeout: 2s                   # MMI is in-network; a slow connect means a dead pod, not a slow lookup
-  read-timeout: 5s                      # MMI averages ~16 ms; 5 s is already a problem worth surfacing
+  connect-timeout: ${MMI_CONNECT_TIMEOUT:2s}
+  read-timeout: ${MMI_READ_TIMEOUT:5s}
   void-coverage-record: N               # MMI drops void and negative spans; the service also skips voidFlag=Y
   error-message-types: [ERROR]          # messageType values MMI uses for errors (confirm in PQA)
+  log-payloads: ${MMI_LOG_PAYLOADS:false}  # print the full MMI request and response bodies (PHI); dev/fqa/pqa/pqa-lite turn it on
   stub:
     enabled: false                      # true only in the dev and test profiles
 

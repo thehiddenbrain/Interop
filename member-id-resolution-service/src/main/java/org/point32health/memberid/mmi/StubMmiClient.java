@@ -42,6 +42,7 @@ public class StubMmiClient implements MmiClient {
 
     private final List<MmiMember> members;
     private final MmiProperties properties;
+    private final ObjectMapper objectMapper;
 
     public StubMmiClient(Environment environment, ResourceLoader resourceLoader, ObjectMapper objectMapper, MmiProperties properties) {
         if (!environment.acceptsProfiles(Profiles.of("dev", "test"))) {
@@ -54,6 +55,7 @@ public class StubMmiClient implements MmiClient {
                     + "to fqa, pqa, pqa-lite or prod");
         }
         this.properties = properties;
+        this.objectMapper = objectMapper;
         Resource resource = resourceLoader.getResource(properties.stub().fixtures());
         try (InputStream in = resource.getInputStream()) {
             this.members = List.of(objectMapper.readValue(in, MmiMember[].class));
@@ -77,6 +79,27 @@ public class StubMmiClient implements MmiClient {
     public MmiResult search(String memberId, String correlationId) {
         calls.incrementAndGet();
         String requestId = MmiRequestIds.next(properties.clientId());
+        if (properties.logPayloads()) {
+            MmiRequest request = new MmiRequest(memberId, memberId, properties.voidCoverageRecord(), properties.clientId(),
+                    properties.clientType(), requestId);
+            log.info("mmi request (stub) requestId={} POST {}{}\n{}", requestId, properties.baseUrl(), properties.path(),
+                    objectMapper.writeValueAsString(request));
+        }
+        try {
+            MmiResult result = answer(memberId, requestId);
+            if (properties.logPayloads()) {
+                log.info("mmi response (stub) requestId={} status=200\n{}", requestId, objectMapper.writeValueAsString(result.response()));
+            }
+            return result;
+        } catch (MmiException e) {
+            if (properties.logPayloads()) {
+                log.info("mmi response (stub) requestId={} simulated failure code={} detail={}", requestId, e.code(), e.detail());
+            }
+            throw e;
+        }
+    }
+
+    private MmiResult answer(String memberId, String requestId) {
         String key = memberId.replaceAll("\\s+", "").toUpperCase();
         String core = key.length() >= 9 ? key.substring(0, 9) : key;
         switch (core) {

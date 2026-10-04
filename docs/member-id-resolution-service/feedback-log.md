@@ -104,8 +104,8 @@ See the conversation; answers will be appended here.
 - Security (tokens, certificates, credentials) is handled outside this code by the Azure API
   Management layer. Do not build an API key or security envelope. Focus on functionality.
 - Response must be very lean. Question whether legacy member ID and similar fields are needed at all.
-- Performance: MMI averages about 16 ms over millions of calls a month (Elasticsearch backend). This
-  service must be fast and lean too; expect hundreds of thousands of calls, not millions.
+- Performance: MMI answers quickly; this service must stay fast and lean as well. No performance claims
+  belong in the code, configuration or documents.
 - Resolution rules: if a DOB is supplied and MMI returns several records, pick the matching one. If no
   DOB and the member is non-TMP with a 9-digit ID that returns several records, answer AMBIGUOUS. TMP
   always returns one record.
@@ -161,3 +161,12 @@ See the conversation; answers will be appended here.
   under `mmi.connect-timeout` / `mmi.read-timeout` (applied to the RestClient builder in `MmiClientConfig`),
   tests use a plain RestClient and `ApplicationContextRunner`. Behaviour and contract are unchanged;
   124 tests and the 45-request Postman collection are green on the new build.
+
+## Troubleshooting aid (2026-10-04)
+- The owner hit an error against the real MMI and could not see what was sent or received. New switch
+  `mmi.log-payloads` (default `false`): when `true` the MMI client logs the exact request body and the raw
+  response body (status, content type, elapsed ms) as two log lines per call, unmasked. On in `dev` (the stub
+  prints the same two lines), `fqa`, `pqa`, `pqa-lite`; off in `prod` because the bodies contain PHI. The
+  startup banner shows `mmi payload log : ON / off`.
+- Removed the "MMI averages about 16 ms" remarks from the YAML comments, the design and this log, per the
+  owner: no bragging in the deliverables.

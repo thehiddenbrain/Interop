@@ -34,9 +34,11 @@ class RestMmiClientTest {
                              "coverage": [ { "effDate": "01/01/2024", "endDate": null, "groupId": "g", "voidFlag": "N" } ] } ] }
             """;
 
+    private static final tools.jackson.databind.ObjectMapper JSON = tools.jackson.databind.json.JsonMapper.builder().build();
+
     private static MmiProperties props(String baseUrl) {
         return new MmiProperties(baseUrl, "/master/member/v1", "MBRIDSVC", "INT", Duration.ofSeconds(2), Duration.ofSeconds(5), "N",
-                List.of("ERROR"), new MmiProperties.Stub(false, ""));
+                List.of("ERROR"), true, new MmiProperties.Stub(false, ""));
     }
 
     @Test
@@ -55,9 +57,20 @@ class RestMmiClientTest {
                 .andExpect(jsonPath("$.requestId").value(Matchers.matchesRegex("MBRIDSVC-\\d{13}-\\d{5}")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("dosStartDate"))))
                 .andRespond(withSuccess(MMI_OK, MediaType.APPLICATION_JSON));
-        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"));
+        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"), JSON);
 
-        MmiResult result = client.search("123456789   01", "ONYX-1");
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs = new ch.qos.logback.core.read.ListAppender<>();
+        logs.start();
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(RestMmiClient.class)).addAppender(logs);
+        MmiResult result;
+        try {
+            result = client.search("123456789   01", "ONYX-1");
+        } finally {
+            ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(RestMmiClient.class)).detachAppender(logs);
+        }
+        assertThat(logs.list.stream().map(e -> e.getFormattedMessage()).toList())
+                .anySatisfy(m -> assertThat(m).startsWith("mmi request requestId=").contains("\"legacyMemberId\":\"123456789   01\""))
+                .anySatisfy(m -> assertThat(m).startsWith("mmi response requestId=").contains("status=200").contains("\"members\"").contains("123456789   01"));
 
         assertThat(result.requestId()).matches("MBRIDSVC-\\d{13}-\\d{5}");
         assertThat(result.response().membersOrEmpty()).hasSize(1);
@@ -71,7 +84,7 @@ class RestMmiClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("http://mmi.test/master/member/v1")).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
-        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"));
+        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"), JSON);
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
             assertThat(e.code()).isEqualTo(MmiException.UNAVAILABLE);
@@ -84,7 +97,7 @@ class RestMmiClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("http://mmi.test/master/member/v1")).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
-        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"));
+        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"), JSON);
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class,
                 e -> assertThat(e.detail()).isEqualTo("HTTP_429"));
     }
@@ -94,7 +107,7 @@ class RestMmiClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("http://mmi.test/master/member/v1")).andRespond(withStatus(HttpStatus.REQUEST_TIMEOUT));
-        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"));
+        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"), JSON);
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
             assertThat(e.detail()).isEqualTo("HTTP_408");
@@ -106,7 +119,7 @@ class RestMmiClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("http://mmi.test/master/member/v1")).andRespond(withStatus(HttpStatus.BAD_REQUEST));
-        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"));
+        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"), JSON);
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
             assertThat(e.code()).isEqualTo(MmiException.REJECTED);
@@ -120,7 +133,7 @@ class RestMmiClientTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("http://mmi.test/master/member/v1"))
                 .andRespond(withSuccess("<html>maintenance</html>", MediaType.TEXT_HTML));
-        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"));
+        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"), JSON);
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
             assertThat(e.code()).isEqualTo(MmiException.INVALID_RESPONSE);
@@ -135,7 +148,7 @@ class RestMmiClientTest {
         }
         RestClient.Builder builder = RestClient.builder().requestFactory(ClientHttpRequestFactoryBuilder.detect()
                 .build(HttpClientSettings.defaults().withConnectTimeout(Duration.ofSeconds(1)).withReadTimeout(Duration.ofSeconds(1))));
-        RestMmiClient client = new RestMmiClient(builder, props("http://127.0.0.1:" + port));
+        RestMmiClient client = new RestMmiClient(builder, props("http://127.0.0.1:" + port), JSON);
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
             assertThat(e.detail()).isEqualTo("CONNECT_FAILED");
@@ -158,7 +171,7 @@ class RestMmiClientTest {
         try {
             RestClient.Builder builder = RestClient.builder().requestFactory(ClientHttpRequestFactoryBuilder.detect()
                     .build(HttpClientSettings.defaults().withConnectTimeout(Duration.ofSeconds(1)).withReadTimeout(Duration.ofMillis(400))));
-            RestMmiClient client = new RestMmiClient(builder, props("http://127.0.0.1:" + server.getAddress().getPort()));
+            RestMmiClient client = new RestMmiClient(builder, props("http://127.0.0.1:" + server.getAddress().getPort()), JSON);
             long start = System.nanoTime();
             assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
                 assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
@@ -172,6 +185,6 @@ class RestMmiClientTest {
 
     @Test
     void refusesToStartWithoutABaseUrl() {
-        assertThatThrownBy(() -> new RestMmiClient(RestClient.builder(), props(""))).hasMessageContaining("mmi.base-url");
+        assertThatThrownBy(() -> new RestMmiClient(RestClient.builder(), props(""), JSON)).hasMessageContaining("mmi.base-url");
     }
 }
