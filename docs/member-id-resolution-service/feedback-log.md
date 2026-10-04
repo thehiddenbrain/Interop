@@ -195,3 +195,15 @@ See the conversation; answers will be appended here.
   (`vendor`, `memberId`, and `memberIdParts` for split formats), sorted by vendor code, present for ACTIVE
   and INACTIVE. NOT_FOUND and AMBIGUOUS answer as in `/resolve`. One MMI call serves all vendors.
 
+## Feedback 9 (2026-10-04): the vendor-map operation must be lenient
+
+- Onyx may send the vendor name, or other details, with a vendor-map request; that must never be an
+  "invalid request". The operation exists to answer "for this member, here are the vendors and their member
+  ids"; nothing but the member id is required.
+- Applied: `/vendor-map` accepts a `vendor` field and ignores it (so the `/resolve` payload can be sent as is),
+  ignores unknown properties, and ignores an unusable date of service or date of birth instead of rejecting it:
+  the date of service then defaults to today (`dateOfServiceDefaulted: true`) and the response lists what was
+  ignored under `ignoredFields`. The only 400 left on `/vendor-map` is a missing member id (or a body that is not
+  JSON). A real date of birth is still used to pick among several records and a mismatch is still 422.
+  `/resolve` keeps its strict validation.
+

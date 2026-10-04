@@ -618,22 +618,43 @@ class ResolveScenariosTest {
     }
 
     @Test
-    void vendorMapValidatesLikeResolveExceptForTheVendor() throws Exception {
+    void vendorMapIsLenientAboutEverythingExceptTheMemberId() throws Exception {
         long before = stub.calls();
         JsonNode blank = callVendorMap(400, Map.of("memberId", "   ", "dateOfService", "2026-10-15"));
         assertThat(blank.at("/error/code").asText()).isEqualTo("INVALID_REQUEST");
         assertThat(blank.at("/error/details/0/code").asText()).isEqualTo("MEMBER_ID_MISSING");
-        JsonNode badDate = callVendorMap(400, Map.of("memberId", "123456789", "dateOfService", "10/15/2026"));
-        assertThat(badDate.at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_INVALID");
-        JsonNode withVendor = callVendorMap(400, Map.of("memberId", "123456789", "vendor", "EVICORE"));
-        assertThat(withVendor.at("/error/code").asText()).as("vendor is not a field of this operation").isEqualTo("INVALID_REQUEST");
-        assertThat(withVendor.toString()).contains("vendor");
-        assertThat(stub.calls()).as("nothing invalid reaches MMI").isEqualTo(before);
+        assertThat(stub.calls()).as("a missing id never reaches MMI").isEqualTo(before);
 
+        // the /resolve payload, vendor included, is accepted as is: the vendor is simply ignored
+        JsonNode withVendor = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "vendor", "EVICORE"));
+        assertThat(withVendor.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(withVendor.get("vendorMemberIds")).hasSize(5);
+        assertThat(withVendor.has("ignoredFields")).isFalse();
+
+        // unknown properties, an unusable date of service and an unusable date of birth are ignored, not rejected
+        JsonNode odd = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "10/15/2026", "anything", "goes",
+                "patient", Map.of("dateOfBirth", "not-a-date", "name", "ignored too")));
+        assertThat(odd.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(odd.get("dateOfService").asText()).as("unusable date -> today").isEqualTo("2026-10-03");
+        assertThat(odd.get("dateOfServiceDefaulted").asBoolean()).isTrue();
+        List<String> ignored = new java.util.ArrayList<>();
+        odd.get("ignoredFields").forEach(n -> ignored.add(n.asText()));
+        assertThat(ignored).containsExactly("dateOfService", "patient.dateOfBirth");
+        assertThat(odd.get("vendorMemberIds")).hasSize(5);
+
+        JsonNode farPast = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "1999-01-01"));
+        assertThat(farPast.get("dateOfServiceDefaulted").asBoolean()).as("out-of-window date -> today").isTrue();
+        assertThat(farPast.get("ignoredFields").get(0).asText()).isEqualTo("dateOfService");
+
+        // a real date of birth is still used, and still protects against the wrong person
         JsonNode dobMismatch = callVendorMap(422, Map.of("memberId", "123456789", "dateOfService", "2026-10-15",
                 "patient", Map.of("dateOfBirth", "1999-12-31")));
         assertThat(dobMismatch.at("/error/code").asText()).isEqualTo("DOB_MISMATCH");
         assertThat(dobMismatch.get("mmiRequestId").asText()).isNotBlank();
+
+        // /resolve keeps its strict contract
+        JsonNode strict = call(400, Map.of("memberId", "123456789", "dateOfService", "10/15/2026", "vendor", "EVICORE", "anything", "goes"));
+        assertThat(strict.at("/error/code").asText()).isEqualTo("INVALID_REQUEST");
     }
 
     // ---------------------------------------------------------------- MMI failures

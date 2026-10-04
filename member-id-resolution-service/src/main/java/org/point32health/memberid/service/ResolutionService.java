@@ -94,6 +94,7 @@ public class ResolutionService {
         }
         VendorMapResponse response = new VendorMapResponse(r.outcome(), new VendorMapResponse.MemberId(v.memberId(), r.storedMemberId()),
                 r.company(), r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
+                v.ignoredFields().isEmpty() ? null : v.ignoredFields(),
                 r.coverageBlock(), r.ambiguity(), r.candidates(), vendorMemberIds, correlationId, r.mmiRequestId());
         logOutcome("vendor-map", "ALL(" + vendors.all().size() + ")", r, v, start);
         return response;
