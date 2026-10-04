@@ -1,4 +1,4 @@
-# Local development: no network, in-process MMI stub with the fixtures in mmi-stub/members.json.
+# Developer profile (default): no network, in-process MMI stub with the fixtures in mmi-stub/members.json.
 mmi:
   base-url: http://mmi-stub.local
   stub:

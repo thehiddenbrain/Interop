@@ -17,7 +17,8 @@ import org.springframework.web.client.RestClientException;
 
 /**
  * The HTTP client for MMI: one POST per call, plain HTTP and no authentication exactly as the MMI contract
- * states for internal consumers. Connect and read timeouts come from {@code spring.http.client.*}.
+ * states for internal consumers. Connect and read timeouts ({@code mmi.connect-timeout} / {@code mmi.read-timeout}) are
+ * applied to the builder by {@code MmiClientConfig}.
  * No retry and no circuit breaker: MMI is a core service that is restored quickly when it fails, and a
  * clear 503 lets Onyx retry later.
  */

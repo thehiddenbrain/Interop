@@ -1,6 +1,6 @@
 package com.thehiddenbrain.interop.memberid.mmi;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -21,8 +21,8 @@ import org.springframework.core.io.ResourceLoader;
  * of the family, a legacy-id match, and the second pass that pulls in records linked through
  * legacyMemberId. A few reserved ids simulate faults (see the README).
  *
- * <p>Refuses to start outside the {@code local} and {@code test} profiles, so canned answers can never
- * reach PQA or PROD through a copied environment variable.
+ * <p>Refuses to start outside the {@code dev} and {@code test} profiles, and inside any Kubernetes/OpenShift pod,
+ * so canned answers can never reach PQA or PROD through a copied environment variable.
  */
 public class StubMmiClient implements MmiClient {
 
@@ -44,8 +44,8 @@ public class StubMmiClient implements MmiClient {
     private final MmiProperties properties;
 
     public StubMmiClient(Environment environment, ResourceLoader resourceLoader, ObjectMapper objectMapper, MmiProperties properties) {
-        if (!environment.acceptsProfiles(Profiles.of("local", "test"))) {
-            throw new IllegalStateException("mmi.stub.enabled=true is only allowed with the local or test profile; active profiles: "
+        if (!environment.acceptsProfiles(Profiles.of("dev", "test"))) {
+            throw new IllegalStateException("mmi.stub.enabled=true is only allowed with the dev or test profile; active profiles: "
                     + Arrays.toString(environment.getActiveProfiles()));
         }
         if (System.getenv("KUBERNETES_SERVICE_HOST") != null) {

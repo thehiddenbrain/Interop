@@ -148,3 +148,16 @@ See the conversation; answers will be appended here.
 - 422 `DOB_MISMATCH` carries `mmiRequestId`; 405 carries `Allow: POST`; an unsupported representation
   (e.g. `/api-docs.yaml`) is 406, not 500; a connection failure while reading the MMI body is 503, not 502;
   nested unknown properties report the full JSON path.
+
+## Build alignment (2026-10-04)
+- The first import into STS failed with "Unsupported class file major version 69": the workstation runs
+  Gradle on JDK 25 and the shipped wrapper (Gradle 8.14.3, Spring Boot 3.5) could not run there.
+- The owner's other services on this repository (patient-access-workbench = the EPA Workbench,
+  member-profile-service) share one build shape. The project now uses exactly that: Gradle 9.5.0 wrapper,
+  Spring Boot 4.0.7 (Spring Framework 7, Jackson 3), no toolchain block, `options.release = 17` plus
+  `-parameters`, `springBoot { buildInfo() }`, `internalRepoUrl` repository switch, `application.yaml`
+  files, default profile `dev`, `run.sh` / `run.cmd` launchers, `gradle.properties` with the JDK note.
+- Consequences in code: Jackson 3 packages (`tools.jackson.*`), Boot 4 starter names, MMI timeouts moved
+  under `mmi.connect-timeout` / `mmi.read-timeout` (applied to the RestClient builder in `MmiClientConfig`),
+  tests use a plain RestClient and `ApplicationContextRunner`. Behaviour and contract are unchanged;
+  124 tests and the 45-request Postman collection are green on the new build.

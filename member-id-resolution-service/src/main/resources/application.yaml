@@ -2,7 +2,7 @@ spring:
   application:
     name: member-id-resolution-service
   profiles:
-    default: local                      # "Run As > Spring Boot App" in STS runs against the in-process MMI stub
+    default: dev                        # "Run As > Spring Boot App" in STS runs against the in-process MMI stub
   jackson:
     default-property-inclusion: non_null
     deserialization:
@@ -10,10 +10,6 @@ spring:
   mvc:
     problemdetails:
       enabled: false                    # the error envelope in ApiErrorResponse is the only error shape
-  http:
-    client:
-      connect-timeout: 2s               # MMI is in-network; a slow connect means a dead pod, not a slow lookup
-      read-timeout: 5s                  # MMI averages ~16 ms; 5 s is already a problem worth surfacing
 
 server:
   port: 9090
@@ -30,6 +26,9 @@ management:
     health:
       probes:
         enabled: true
+  info:
+    build:
+      enabled: true
 
 springdoc:
   api-docs:
@@ -46,10 +45,12 @@ mmi:
   path: /master/member/v1
   client-id: ${MMI_CLIENT_ID:MBRIDSVC}  # PLACEHOLDER: register this application's name with the MMI team
   client-type: INT
+  connect-timeout: 2s                   # MMI is in-network; a slow connect means a dead pod, not a slow lookup
+  read-timeout: 5s                      # MMI averages ~16 ms; 5 s is already a problem worth surfacing
   void-coverage-record: N               # MMI drops void and negative spans; the service also skips voidFlag=Y
   error-message-types: [ERROR]          # messageType values MMI uses for errors (confirm in PQA)
   stub:
-    enabled: false                      # true only in the local and test profiles
+    enabled: false                      # true only in the dev and test profiles
 
 member-id:
   date-of-service:

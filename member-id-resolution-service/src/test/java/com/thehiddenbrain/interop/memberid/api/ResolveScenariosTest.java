@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.client.RestClient;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -20,15 +23,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -52,8 +52,40 @@ class ResolveScenariosTest {
     /** An unmasked 9- or 11-digit run (member ids), or an MM/dd/yyyy value (MMI dates of birth). */
     private static final Pattern PHI = Pattern.compile("(?<!\\d)(?:\\d{9}|\\d{11})(?!\\d)|\\d{2}/\\d{2}/\\d{4}");
 
-    @Autowired TestRestTemplate rest;
+    @Value("${local.server.port}") int port;
     @Autowired ObjectMapper json;
+
+    /** A plain HTTP response: status, headers, body. The client never throws on a status. */
+    record Resp(int status, HttpHeaders headers, String body) {
+        String header(String name) {
+            return headers.getFirst(name);
+        }
+
+        MediaType contentType() {
+            return headers.getContentType();
+        }
+    }
+
+    private RestClient http() {
+        return RestClient.builder().baseUrl("http://localhost:" + port).build();
+    }
+
+    private Resp send(HttpMethod method, String path, String body, String contentType, String... headers) {
+        RestClient.RequestBodySpec spec = http().method(method).uri(path);
+        if (contentType != null) {
+            spec = spec.header(HttpHeaders.CONTENT_TYPE, contentType);
+        }
+        for (int i = 0; i + 1 < headers.length; i += 2) {
+            spec = spec.header(headers[i], headers[i + 1]);
+        }
+        RestClient.RequestHeadersSpec<?> ready = body == null ? spec : spec.body(body);
+        return ready.exchange((req, res) -> new Resp(res.getStatusCode().value(), res.getHeaders(),
+                new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8)));
+    }
+
+    private String toJson(Object body) {
+        return body instanceof String s ? s : json.writeValueAsString(body);
+    }
     @Autowired com.thehiddenbrain.interop.memberid.mmi.MmiClient mmiClient;
 
     private com.thehiddenbrain.interop.memberid.mmi.StubMmiClient stub;
@@ -79,22 +111,17 @@ class ResolveScenariosTest {
 
     // ---------------------------------------------------------------- helpers
 
-    private ResponseEntity<String> post(Object body, String... headers) {
-        HttpHeaders h = new HttpHeaders();
-        h.setContentType(MediaType.APPLICATION_JSON);
-        for (int i = 0; i + 1 < headers.length; i += 2) {
-            h.set(headers[i], headers[i + 1]);
-        }
-        return rest.exchange(PATH, HttpMethod.POST, new HttpEntity<>(body, h), String.class);
+    private Resp post(Object body, String... headers) {
+        return send(HttpMethod.POST, PATH, toJson(body), MediaType.APPLICATION_JSON_VALUE, headers);
     }
 
     private JsonNode call(int expectedStatus, Object body, String... headers) throws Exception {
-        ResponseEntity<String> r = post(body, headers);
-        assertThat(r.getStatusCode().value()).as("status for %s: %s", body, r.getBody()).isEqualTo(expectedStatus);
-        assertThat(r.getHeaders().getContentType()).isNotNull();
-        assertThat(r.getHeaders().getContentType().isCompatibleWith(MediaType.APPLICATION_JSON)).isTrue();
-        assertNoPhi(r.getBody());
-        return json.readTree(r.getBody());
+        Resp r = post(body, headers);
+        assertThat(r.status()).as("status for %s: %s", body, r.body()).isEqualTo(expectedStatus);
+        assertThat(r.contentType()).isNotNull();
+        assertThat(r.contentType().isCompatibleWith(MediaType.APPLICATION_JSON)).isTrue();
+        assertNoPhi(r.body());
+        return json.readTree(r.body());
     }
 
     private static Map<String, Object> req(String memberId, String dos, String vendor) {
@@ -121,8 +148,8 @@ class ResolveScenariosTest {
         }
     }
 
-    private void assertNoPhi(ResponseEntity<String> r) {
-        assertNoPhi(r.getBody());
+    private void assertNoPhi(Resp r) {
+        assertNoPhi(r.body());
     }
 
     // ---------------------------------------------------------------- TMP: 9 / 11 / 14, one record, vendor formats
@@ -348,7 +375,8 @@ class ResolveScenariosTest {
         JsonNode r = call(400, Map.of("memberId", "1234567890", "dateOfService", "10/15/2026", "vendor", "", "patient", Map.of("dateOfBirth", "2099-01-01")));
         assertThat(r.at("/error/code").asText()).isEqualTo("INVALID_REQUEST");
         assertThat(r.get("mmiRequestId")).isNull();
-        List<String> codes = r.at("/error/details").findValuesAsText("code");
+        List<String> codes = new java.util.ArrayList<>();
+        r.at("/error/details").forEach(d -> codes.add(d.get("code").asText()));
         assertThat(codes).containsExactlyInAnyOrder("MEMBER_ID_UNRECOGNIZED_SHAPE", "DATE_OF_SERVICE_INVALID", "VENDOR_MISSING", "DATE_OF_BIRTH_OUT_OF_RANGE");
         assertThat(r.toString()).doesNotContain("1234567890");
     }
@@ -384,45 +412,43 @@ class ResolveScenariosTest {
 
     @Test
     void wrongMethodRouteAndMediaTypeCarryTheEnvelope() throws Exception {
-        ResponseEntity<String> get = rest.getForEntity(PATH, String.class);
-        assertThat(get.getStatusCode().value()).isEqualTo(405);
-        assertThat(get.getHeaders().getFirst("Allow")).isEqualTo("POST");
-        assertThat(json.readTree(get.getBody()).at("/error/details/0/code").asText()).isEqualTo("METHOD_NOT_ALLOWED");
+        Resp get = send(HttpMethod.GET, PATH, null, null);
+        assertThat(get.status()).isEqualTo(405);
+        assertThat(get.header("Allow")).isEqualTo("POST");
+        assertThat(json.readTree(get.body()).at("/error/details/0/code").asText()).isEqualTo("METHOD_NOT_ALLOWED");
         assertNoPhi(get);
 
-        ResponseEntity<String> route = rest.postForEntity("/api/v1/nope", Map.of(), String.class);
-        assertThat(route.getStatusCode().value()).isEqualTo(404);
-        assertThat(json.readTree(route.getBody()).at("/error/details/0/code").asText()).isEqualTo("ROUTE_NOT_FOUND");
+        Resp route = send(HttpMethod.POST, "/api/v1/nope", "{}", MediaType.APPLICATION_JSON_VALUE);
+        assertThat(route.status()).isEqualTo(404);
+        assertThat(json.readTree(route.body()).at("/error/details/0/code").asText()).isEqualTo("ROUTE_NOT_FOUND");
         assertNoPhi(route);
 
-        HttpHeaders h = new HttpHeaders();
-        h.setContentType(MediaType.TEXT_PLAIN);
-        ResponseEntity<String> media = rest.exchange(PATH, HttpMethod.POST, new HttpEntity<>("x", h), String.class);
-        assertThat(media.getStatusCode().value()).isEqualTo(415);
+        Resp media = send(HttpMethod.POST, PATH, "x", MediaType.TEXT_PLAIN_VALUE);
+        assertThat(media.status()).isEqualTo(415);
         assertNoPhi(media);
 
-        ResponseEntity<String> yaml = rest.getForEntity("/api-docs.yaml", String.class);
-        assertThat(yaml.getStatusCode().value()).as("a representation we do not serve is 406, not 500").isEqualTo(406);
-        assertThat(json.readTree(yaml.getBody()).at("/error/details/0/code").asText()).isEqualTo("NOT_ACCEPTABLE");
+        Resp yaml = send(HttpMethod.GET, "/api-docs.yaml", null, null);
+        assertThat(yaml.status()).as("a representation we do not serve is 406, not 500").isEqualTo(406);
+        assertThat(json.readTree(yaml.body()).at("/error/details/0/code").asText()).isEqualTo("NOT_ACCEPTABLE");
     }
 
     @Test
     void answersJsonWhateverAcceptHeaderIsSent() throws Exception {
-        ResponseEntity<String> r = post(req("123456789", "2026-10-15", "evicore"), "Accept", "application/xml");
-        assertThat(r.getStatusCode().value()).isEqualTo(200);
-        assertThat(r.getHeaders().getContentType().isCompatibleWith(MediaType.APPLICATION_JSON)).isTrue();
+        Resp r = post(req("123456789", "2026-10-15", "evicore"), "Accept", "application/xml");
+        assertThat(r.status()).isEqualTo(200);
+        assertThat(r.contentType().isCompatibleWith(MediaType.APPLICATION_JSON)).isTrue();
         assertNoPhi(r);
     }
 
     @Test
     void correlationIdIsEchoedOrGenerated() throws Exception {
-        ResponseEntity<String> r = post(req("123456789", "2026-10-15", "evicore"), "X-Correlation-Id", "ONYX-PA-1");
-        assertThat(r.getHeaders().getFirst("X-Correlation-Id")).isEqualTo("ONYX-PA-1");
-        assertThat(json.readTree(r.getBody()).get("correlationId").asText()).isEqualTo("ONYX-PA-1");
-        assertThat(r.getHeaders().getFirst("Cache-Control")).isEqualTo("no-store");
+        Resp r = post(req("123456789", "2026-10-15", "evicore"), "X-Correlation-Id", "ONYX-PA-1");
+        assertThat(r.header("X-Correlation-Id")).isEqualTo("ONYX-PA-1");
+        assertThat(json.readTree(r.body()).get("correlationId").asText()).isEqualTo("ONYX-PA-1");
+        assertThat(r.header("Cache-Control")).isEqualTo("no-store");
         assertNoPhi(r);
-        ResponseEntity<String> generated = post(req("123456789", "2026-10-15", "evicore"), "X-Correlation-Id", "{bad id}");
-        assertThat(generated.getHeaders().getFirst("X-Correlation-Id")).matches("[0-9a-f-]{36}");
+        Resp generated = post(req("123456789", "2026-10-15", "evicore"), "X-Correlation-Id", "{bad id}");
+        assertThat(generated.header("X-Correlation-Id")).matches("[0-9a-f-]{36}");
         assertNoPhi(generated);
     }
 
@@ -491,7 +517,7 @@ class ResolveScenariosTest {
         assertThat(down.at("/error/code").asText()).isEqualTo("MMI_UNAVAILABLE");
         assertThat(down.at("/error/details/0/code").asText()).isEqualTo("HTTP_500");
         assertThat(down.get("mmiRequestId").asText()).startsWith("MBRIDSVC-");
-        assertThat(post(req("500500500", "2026-10-15", "evicore")).getHeaders().getFirst("Retry-After")).isEqualTo("10");
+        assertThat(post(req("500500500", "2026-10-15", "evicore")).header("Retry-After")).isEqualTo("10");
 
         JsonNode timeout = call(503, req("503503503", "2026-10-15", "evicore"));
         assertThat(timeout.at("/error/details/0/code").asText()).isEqualTo("READ_TIMEOUT");

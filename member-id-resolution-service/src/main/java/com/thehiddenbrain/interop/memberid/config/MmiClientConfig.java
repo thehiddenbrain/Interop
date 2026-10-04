@@ -1,17 +1,19 @@
 package com.thehiddenbrain.interop.memberid.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.thehiddenbrain.interop.memberid.mmi.MmiClient;
 import com.thehiddenbrain.interop.memberid.mmi.MmiProperties;
 import com.thehiddenbrain.interop.memberid.mmi.RestMmiClient;
 import com.thehiddenbrain.interop.memberid.mmi.StubMmiClient;
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.web.client.RestClient;
 
-/** One MMI client: the in-process stub when {@code mmi.stub.enabled} is true (local and test only), otherwise HTTP. */
+/** One MMI client: the in-process stub when {@code mmi.stub.enabled} is true (dev and test only), otherwise HTTP. */
 @Configuration
 public class MmiClientConfig {
 
@@ -21,6 +23,10 @@ public class MmiClientConfig {
         if (properties.stub().enabled()) {
             return new StubMmiClient(environment, resourceLoader, objectMapper, properties);
         }
-        return new RestMmiClient(builder, properties);
+        RestClient.Builder withTimeouts = builder.requestFactory(ClientHttpRequestFactoryBuilder.detect().build(
+                HttpClientSettings.defaults()
+                        .withConnectTimeout(properties.connectTimeout())
+                        .withReadTimeout(properties.readTimeout())));
+        return new RestMmiClient(withTimeouts, properties);
     }
 }

@@ -179,7 +179,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
   <div class="meta">
     <span><b>Status</b> v0.2, code delivered (<code>member-id-resolution-service/</code>), reviewed, 124 tests green, Postman collection verified</span>
     <span><b>Date</b> 2026-10-03</span>
-    <span><b>Stack</b> Java 17+ · Spring Boot 3.5 · Gradle · port 9090</span>
+    <span><b>Stack</b> Spring Boot 4.0.7 · Java 17+ · Gradle 9.5 · port 9090 (the EPA Workbench build shape)</span>
     <span><b>Only integration</b> MMI</span>
   </div>
 </header>
@@ -242,12 +242,12 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
   <div class="card"><h4>Four business answers (HTTP 200)</h4><p><span class="pill ok">ACTIVE</span> <span class="pill warn">INACTIVE</span> <span class="pill neutral">NOT_FOUND</span> <span class="pill info">AMBIGUOUS</span><br>Onyx branches on <code>outcome</code>; <code>coverage.active</code> is the yes/no flag.</p></div>
   <div class="card"><h4>Three Onyx branches</h4><p>200: act on <code>outcome</code>. 400 or 422: never retry, route by code. 502, 503 or no response: retry later; if this service is down, pass the EMR's ID through.</p></div>
   <div class="card"><h4>Deliberately plain</h4><p>No database, no cache, no queue, no retry or circuit-breaker machinery, no security envelope (Azure APIM owns that). About 45 small classes.</p></div>
-  <div class="card"><h4>Delivered</h4><p>Gradle project importable into STS, in-process MMI stub for local runs, README, Postman collection (45 requests, all assertions green against the running service).</p></div>
+  <div class="card"><h4>Delivered</h4><p>Gradle project importable into STS, built like your other services (Spring Boot 4.0.7, Gradle 9.5, JDK 17 to 25), in-process MMI stub for developer runs, run scripts, README, Postman collection (45 requests, all assertions green against the running service).</p></div>
 </div>
 
 <div class="callout">
   <div class="label">What changed since v0.1, in one paragraph</div>
-  <p>TMP and SCO members have no dependents, so a 9-digit card number resolves directly; the "not confirmed" rule is gone. AMBIGUOUS applies only to populations with dependents (HPHC commercial, Together) when a 9-digit ID returns several people and no date of birth settles it. The response is lean: <code>stored</code> replaces "canonical", a boolean <code>coverage.active</code> is the flag, and the legacy, migration, restricted and trace fields are gone. A missing date of service defaults to today and says so. Vendor formats live in <code>application.yml</code> only (Evolent added, Optum as two fields). Retry and circuit-breaker logic, the API key, the ConfigMap override and the host guard were removed: MMI is reliable, security is external, and a format change is a config edit plus a deploy.</p>
+  <p>TMP and SCO members have no dependents, so a 9-digit card number resolves directly; the "not confirmed" rule is gone. AMBIGUOUS applies only to populations with dependents (HPHC commercial, Together) when a 9-digit ID returns several people and no date of birth settles it. The response is lean: <code>stored</code> replaces "canonical", a boolean <code>coverage.active</code> is the flag, and the legacy, migration, restricted and trace fields are gone. A missing date of service defaults to today and says so. Vendor formats live in <code>application.yaml</code> only (Evolent added, Optum as two fields). Retry and circuit-breaker logic, the API key, the ConfigMap override and the host guard were removed: MMI is reliable, security is external, and a format change is a config edit plus a deploy.</p>
 </div>
 
 <h2 id="background"><span class="num">2</span>Member IDs today: printed, stored, sent</h2>
@@ -302,8 +302,8 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <li>Every ID variation seen so far: 9, 11 and 14 characters, any separator, <code>HP-</code> with the card hyphen, any case.</li>
 <li>One MMI call per request; TMP/SCO resolve from any form; dependents handled through the DOB or AMBIGUOUS with candidates; converted THP↔HPHC members handled through MMI's legacy link.</li>
 <li>Coverage flag for the date of service (today when omitted), with the reason and the nearest span dates.</li>
-<li>Vendor formats in <code>application.yml</code>; a change is a config edit and a deploy.</li>
-<li>Clear error envelope, masked logging, correlation id, in-process MMI stub for local runs and tests (profile-guarded and refusing to run inside a pod), profiles with the four MMI URLs.</li>
+<li>Vendor formats in <code>application.yaml</code>; a change is a config edit and a deploy.</li>
+<li>Clear error envelope, masked logging, correlation id, in-process MMI stub for developer runs and tests (profile-guarded and refusing to run inside a pod), profiles with the four MMI URLs.</li>
 </ul>
 </div>
 <div>
@@ -587,7 +587,7 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <li><code>memberId</code> and <code>legacyMemberId</code> both carry the normalised ID: the MMI spec's advice to improve the hit rate, and exactly the converted-member case (an EMR still holding the pre-conversion ID).</li>
 <li>No <code>dosStartDate</code>/<code>dosEndDate</code>: the full history is evaluated locally so INACTIVE can say why and show the nearest dates. No <code>searchMode</code>. No demographics ever.</li>
 <li><code>requestId</code> follows MMI's convention, new per call, logged with the correlation id and returned to Onyx as <code>mmiRequestId</code>.</li>
-<li>Timeouts: connect 2 s, read 5 s (<code>spring.http.client.*</code>). No retry: MMI averages about 16 ms over millions of calls a month; a 5-second answer is already a problem worth surfacing, and Onyx retries later on a 503.</li>
+<li>Timeouts: connect 2 s, read 5 s (<code>mmi.connect-timeout</code> / <code>mmi.read-timeout</code>). No retry: MMI averages about 16 ms over millions of calls a month; a 5-second answer is already a problem worth surfacing, and Onyx retries later on a 503.</li>
 </ul>
 <h3>9.2 What we read</h3>
 <p>The MMI DTOs declare only <code>memberId</code>, <code>subscriberMemberId</code>, <code>memberDob</code>, <code>legacyMemberId</code>, <code>company</code>, <code>lineOfBusiness</code>, <code>restrictedData</code>, <code>migrationEffectiveDate</code> and <code>coverage[]{effDate, endDate, groupId, voidFlag}</code>, plus the envelope's <code>messages[]</code>. Names, SSN, gender, PCP, group name, MBI and agency numbers are discarded during deserialization and cannot be logged or returned by accident. Dates are <code>MM/dd/yyyy</code>, parsed strictly; <code>endDate</code> null, blank or <code>12/31/9999</code> means open-ended.</p>
@@ -610,7 +610,7 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <tr><td>Connection breaks or stalls while the body is being read</td><td><span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code>, like any other transport failure</td></tr>
 </tbody></table></div>
 <h3>9.4 The stub</h3>
-<p>For local runs and tests an in-process stub answers from <code>mmi-stub/members.json</code> with MMI's documented behaviour: exact match, 9-digit match returning the family, legacy-id match and the second pass through <code>legacyMemberId</code>. Reserved IDs simulate faults (500, timeout, 400, error message with and without members, unreadable body, a record without an id, a member whose only span is unreadable). Two guards keep canned answers out of PQA and PROD: the stub refuses to start with any explicitly active profile other than <code>local</code> or <code>test</code>, and it refuses to start inside a Kubernetes/OpenShift pod at all (<code>KUBERNETES_SERVICE_HOST</code>). Because the default profile is <code>local</code> (so STS runs with one click), every deployment must set <code>SPRING_PROFILES_ACTIVE</code>; a pod that forgets it fails at startup instead of answering from fixtures.</p>
+<p>For developer runs and tests an in-process stub answers from <code>mmi-stub/members.json</code> with MMI's documented behaviour: exact match, 9-digit match returning the family, legacy-id match and the second pass through <code>legacyMemberId</code>. Reserved IDs simulate faults (500, timeout, 400, error message with and without members, unreadable body, a record without an id, a member whose only span is unreadable). Two guards keep canned answers out of PQA and PROD: the stub refuses to start with any explicitly active profile other than <code>dev</code> or <code>test</code>, and it refuses to start inside a Kubernetes/OpenShift pod at all (<code>KUBERNETES_SERVICE_HOST</code>). Because the default profile is <code>dev</code> (so STS runs with one click), every deployment must set <code>SPRING_PROFILES_ACTIVE</code>; a pod that forgets it fails at startup instead of answering from fixtures.</p>
 
 <h2 id="selection"><span class="num">10</span>Selecting the member</h2>
 <p>From the records MMI returned to the one that represents the patient on the date of service. MMI's record order is never a criterion, and nobody is ever picked "by default".</p>
@@ -700,7 +700,7 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 </div>
 
 <h2 id="vendors"><span class="num">12</span>Vendor mapping</h2>
-<p>Four format styles are code; the vendors are a YAML map in <code>application.yml</code>. No table anywhere else. A vendor change is a YAML edit and a deployment; a new output shape is one enum constant, one <code>switch</code> case and one test row.</p>
+<p>Four format styles are code; the vendors are a YAML map in <code>application.yaml</code>. No table anywhere else. A vendor change is a YAML edit and a deployment; a new output shape is one enum constant, one <code>switch</code> case and one test row.</p>
 <pre><code>public enum VendorIdFormat {
     AS_STORED,     // exactly as MMI stores it            123456789   01
     COMPACT_11,    // 9 digits + suffix, no spaces        12345678901
@@ -751,19 +751,18 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Profile</th><th>MMI</th><th>Notes</th></tr></thead>
 <tbody>
-<tr><td><code>local</code> (default)</td><td>in-process stub, no network</td><td>what "Run As → Spring Boot App" uses; DEBUG logging for the service package</td></tr>
+<tr><td><code>dev</code> (default)</td><td>in-process stub, no network</td><td>what "Run As → Spring Boot App" uses; DEBUG logging for the service package</td></tr>
 <tr><td><code>fqa</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp</code></td><td></td></tr>
 <tr><td><code>pqa</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp</code></td><td>the owner's first real target</td></tr>
 <tr><td><code>pqa-lite</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp</code></td><td></td></tr>
 <tr><td><code>prod</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp</code></td><td>Swagger and OpenAPI off; package logging pinned to INFO</td></tr>
 </tbody></table></div>
-<p>Endpoint on every environment: <code>/master/member/v1</code>. Environment variables override without a rebuild: <code>MMI_BASE_URL</code>, <code>MMI_CLIENT_ID</code>, <code>SPRING_HTTP_CLIENT_READ_TIMEOUT</code>, <code>SPRING_PROFILES_ACTIVE</code>.</p>
+<p>Endpoint on every environment: <code>/master/member/v1</code>. Environment variables override without a rebuild: <code>MMI_BASE_URL</code>, <code>MMI_CLIENT_ID</code>, <code>MMI_READ_TIMEOUT</code>, <code>MMI_CONNECT_TIMEOUT</code>, <code>SPRING_PROFILES_ACTIVE</code>.</p>
 <pre><code>spring:
   application.name: member-id-resolution-service
-  profiles.default: local
+  profiles.default: dev
   jackson: { default-property-inclusion: non_null, deserialization.fail-on-unknown-properties: true }
   mvc.problemdetails.enabled: false
-  http.client: { connect-timeout: 2s, read-timeout: 5s }
 server: { port: 9090, error: { include-message: never, include-stacktrace: never } }
 management: { endpoints.web.exposure.include: "health,info", endpoint.health.probes.enabled: true }
 springdoc: { api-docs.path: /api-docs, swagger-ui.path: /swagger-ui.html }
@@ -773,20 +772,22 @@ mmi:
   path: /master/member/v1
   client-id: ${MMI_CLIENT_ID:MBRIDSVC}  # PLACEHOLDER, register with the MMI team
   client-type: INT
+  connect-timeout: 2s
+  read-timeout: 5s
   void-coverage-record: N
   error-message-types: [ERROR]          # MMI messageType values that mean "error" (confirm in PQA)
-  stub.enabled: false                   # true only in local and test
+  stub.enabled: false                   # true only in dev and test
 
 member-id:
   date-of-service: { max-past-years: 10, max-future-days: 366, zone: America/New_York }
   date-of-birth-max-age-years: 125
   hphc-digit-lengths: [9]
   vendors: { ...section 12... }</code></pre>
-<p>All properties bind to validated records; a missing <code>mmi.base-url</code> outside local, a bad vendor table, the stub enabled outside local/test, or the stub inside a pod stops the application with a message naming the cause. <b>Every deployment sets <code>SPRING_PROFILES_ACTIVE</code></b>; the default profile exists for the IDE only.</p>
+<p>All properties bind to validated records; a missing <code>mmi.base-url</code> outside dev, a bad vendor table, the stub enabled outside dev/test, or the stub inside a pod stops the application with a message naming the cause. <b>Every deployment sets <code>SPRING_PROFILES_ACTIVE</code></b>; the default profile exists for the IDE only.</p>
 
 <h2 id="project"><span class="num">16</span>Project layout, build, STS, Postman</h2>
-<p>Standalone Gradle project <code>member-id-resolution-service/</code> (Groovy DSL, wrapper committed, <code>eclipse</code> plugin), group <code>com.thehiddenbrain.interop</code>, compiled for Java 17 on JDK 17 or 21. Dependencies: <code>spring-boot-starter-web</code>, <code>-validation</code>, <code>-actuator</code>, <code>springdoc-openapi-starter-webmvc-ui</code>; tests use <code>spring-boot-starter-test</code>. No Lombok, no JPA, no Resilience4j, no WireMock.</p>
-<p><b>STS:</b> File → Import → Gradle → Existing Gradle Project → this folder → Run <code>MemberIdResolutionApplication</code> as a Spring Boot App. It starts on 9090 with the stub; Swagger UI at <code>/swagger-ui.html</code>. To target PQA, set the run configuration's profile to <code>pqa</code>. <b>Postman:</b> import <code>postman/MemberIdResolution.postman_collection.json</code> and <code>postman/Local.postman_environment.json</code>; every request carries tests, and the Collection Runner gives a green scenario pass (verified here with newman: 45 requests, 0 failures).</p>
+<p>Standalone Gradle project <code>member-id-resolution-service/</code>, built exactly like the EPA Workbench and the member profile service: Gradle 9.5.0 wrapper, Spring Boot 4.0.7 (Spring Framework 7, Jackson 3), Groovy DSL, no toolchain block, <code>options.release = 17</code> plus <code>-parameters</code>, <code>springBoot { buildInfo() }</code>, an <code>internalRepoUrl</code> property that swaps Maven Central for an internal mirror, <code>run.sh</code> / <code>run.cmd</code> launchers. Builds on JDK 17, 21 or 25. Dependencies: <code>spring-boot-starter-webmvc</code>, <code>-restclient</code>, <code>-jackson</code>, <code>-validation</code>, <code>-actuator</code>, <code>springdoc-openapi-starter-webmvc-ui</code> 3.0.3; tests use <code>spring-boot-starter-test</code> and <code>-webmvc-test</code>. No Lombok, no JPA, no Resilience4j, no WireMock.</p>
+<p><b>STS:</b> File → Import → Gradle → Existing Gradle Project → this folder (keep the folder name; Buildship wants it equal to the project name) → Run <code>MemberIdResolutionApplication</code> as a Spring Boot App. It starts on 9090 with the stub; Swagger UI at <code>/swagger-ui.html</code>. To target PQA, set the run configuration's profile to <code>pqa</code>. <b>Postman:</b> import <code>postman/MemberIdResolution.postman_collection.json</code> and <code>postman/Local.postman_environment.json</code>; every request carries tests, and the Collection Runner gives a green scenario pass (verified here with newman: 45 requests, 0 failures).</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Package · class</th><th>Responsibility</th></tr></thead>
 <tbody>
@@ -829,14 +830,14 @@ member-id:
 <tr><td>9-digit TMP input</td><td>Resolves directly from the one record MMI returns.</td><td>TMP and SCO have no dependents (owner).</td><td>v0.1's "person not confirmed" rule and policy switch.</td></tr>
 <tr><td>Dependents</td><td>Several persons → AMBIGUOUS unless a DOB picks one; a sent DOB is always verified, even against a single record.</td><td>Never file an auth under the wrong family member; an EMR that appended 01 to a dependent's card number is caught.</td><td>Pick the subscriber by default; verify only when several records exist.</td></tr>
 <tr><td>Vendor format scope</td><td>Formats reshape only IDs stored as 9 digits + spaces + suffix; everything else passes as stored.</td><td>Public Plans IDs are 11 continuous characters by definition; HPHC IDs have no suffix.</td><td>Separate THP and HPHC enums with "not supported" entries.</td></tr>
-<tr><td>Vendor table location</td><td><code>application.yml</code> only; change = edit + deploy.</td><td>Four or five vendors; the owner wants no table and nothing external.</td><td>Database table; ConfigMap override; SAMPLE guard; a vendors endpoint.</td></tr>
+<tr><td>Vendor table location</td><td><code>application.yaml</code> only; change = edit + deploy.</td><td>Four or five vendors; the owner wants no table and nothing external.</td><td>Database table; ConfigMap override; SAMPLE guard; a vendors endpoint.</td></tr>
 <tr><td>Missing date of service</td><td>Default to today, flag it, still return the nearest past and future dates.</td><td>The flag is always produced; Onyx never computes it from spans.</td><td>400; returning spans for Onyx to interpret.</td></tr>
 <tr><td>MMI failures</td><td>Timeouts and clear 503/502 codes; no retry or breaker.</td><td>MMI is reliable and fast; Onyx retries later; less code to explain and test.</td><td>v0.1's retry, breaker, retryable flag and park ladder.</td></tr>
 <tr><td>Unreadable coverage spans</td><td>Skipped with a warning when readable spans remain; 502 <code>UNREADABLE_COVERAGE</code> when none remain.</td><td>A readable span is evidence; no readable span is no evidence, and a confident INACTIVE on no evidence would block care.</td><td>Answering INACTIVE / NO_COVERAGE_RECORDS (the first draft of the code did this; the review caught it).</td></tr>
 <tr><td>Security</td><td>None in this code.</td><td>Azure API Management owns it (owner).</td><td>API key filter, per-environment keys.</td></tr>
 <tr><td>Converted members</td><td>Legacy-linked records are one person; the record covering the date wins; its company decides the vendor format.</td><td>Coverage is the fact; the migration date is only a hint and is no longer returned.</td><td>Migration-date-first with its own error code.</td></tr>
-<tr><td>Local run</td><td>In-process stub with realistic MMI search behaviour, profile-guarded in code.</td><td>"Import into STS and run" with no network; the same fixtures serve the tests; the guard keeps canned answers out of PQA/PROD.</td><td>External WireMock process.</td></tr>
-<tr><td>Build</td><td>Gradle Groovy DSL + eclipse plugin, port 9090, <code>release 17</code> so JDK 17 and 21 both build it.</td><td>STS imports Groovy builds natively.</td><td>Kotlin DSL; Maven.</td></tr>
+<tr><td>Developer run</td><td>In-process stub with realistic MMI search behaviour, profile-guarded in code and refusing to run in a pod.</td><td>"Import into STS and run" with no network; the same fixtures serve the tests; the guard keeps canned answers out of PQA/PROD.</td><td>External WireMock process.</td></tr>
+<tr><td>Build</td><td>The EPA Workbench build shape: Gradle 9.5 wrapper, Spring Boot 4.0.7, <code>release 17</code> + <code>-parameters</code>, port 9090.</td><td>One build shape across the owner's services; the first cut on Spring Boot 3.5 / Gradle 8 could not run on the JDK 25 found on the owner's workstation.</td><td>Spring Boot 3.5 with Gradle 8; Kotlin DSL; Maven.</td></tr>
 </tbody></table></div>
 <h3>Considered and left out on purpose</h3>
 <ul>

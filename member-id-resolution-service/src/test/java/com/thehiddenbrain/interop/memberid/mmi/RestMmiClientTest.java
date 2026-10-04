@@ -18,7 +18,7 @@ import java.util.List;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
-import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
+import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,7 +35,8 @@ class RestMmiClientTest {
             """;
 
     private static MmiProperties props(String baseUrl) {
-        return new MmiProperties(baseUrl, "/master/member/v1", "MBRIDSVC", "INT", "N", List.of("ERROR"), new MmiProperties.Stub(false, ""));
+        return new MmiProperties(baseUrl, "/master/member/v1", "MBRIDSVC", "INT", Duration.ofSeconds(2), Duration.ofSeconds(5), "N",
+                List.of("ERROR"), new MmiProperties.Stub(false, ""));
     }
 
     @Test
@@ -133,7 +134,7 @@ class RestMmiClientTest {
             port = s.getLocalPort();
         }
         RestClient.Builder builder = RestClient.builder().requestFactory(ClientHttpRequestFactoryBuilder.detect()
-                .build(ClientHttpRequestFactorySettings.defaults().withConnectTimeout(Duration.ofSeconds(1)).withReadTimeout(Duration.ofSeconds(1))));
+                .build(HttpClientSettings.defaults().withConnectTimeout(Duration.ofSeconds(1)).withReadTimeout(Duration.ofSeconds(1))));
         RestMmiClient client = new RestMmiClient(builder, props("http://127.0.0.1:" + port));
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
@@ -156,7 +157,7 @@ class RestMmiClientTest {
         server.start();
         try {
             RestClient.Builder builder = RestClient.builder().requestFactory(ClientHttpRequestFactoryBuilder.detect()
-                    .build(ClientHttpRequestFactorySettings.defaults().withConnectTimeout(Duration.ofSeconds(1)).withReadTimeout(Duration.ofMillis(400))));
+                    .build(HttpClientSettings.defaults().withConnectTimeout(Duration.ofSeconds(1)).withReadTimeout(Duration.ofMillis(400))));
             RestMmiClient client = new RestMmiClient(builder, props("http://127.0.0.1:" + server.getAddress().getPort()));
             long start = System.nanoTime();
             assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {

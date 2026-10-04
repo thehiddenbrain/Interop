@@ -4,12 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.thehiddenbrain.interop.memberid.MemberIdResolutionApplication;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /** A wrong configuration must stop the application with a message that names the property. */
 class ConfigValidationTest {
 
-    private final WebApplicationContextRunner runner = new WebApplicationContextRunner()
+    private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(MemberIdResolutionApplication.class)
             .withPropertyValues(
                     "mmi.client-id=MBRIDSVC",
@@ -40,11 +40,11 @@ class ConfigValidationTest {
     }
 
     @Test
-    void stubOutsideLocalOrTestProfileFails() {
+    void stubOutsideDevOrTestProfileFails() {
         runner.withPropertyValues("spring.profiles.active=pqa", "mmi.stub.enabled=true")
                 .run(ctx -> {
                     assertThat(ctx).hasFailed();
-                    assertThat(rootMessage(ctx.getStartupFailure())).contains("only allowed with the local or test profile");
+                    assertThat(rootMessage(ctx.getStartupFailure())).contains("only allowed with the dev or test profile");
                 });
     }
 

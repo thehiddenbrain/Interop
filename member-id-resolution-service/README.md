@@ -8,31 +8,33 @@ of service. One endpoint, one downstream (MMI), no database, no state.
 | | |
 |---|---|
 | Endpoint | `POST /api/v1/member-ids/resolve` (port **9090**) |
-| Stack | Java 17+, Spring Boot 3.5, Gradle (wrapper included), springdoc OpenAPI |
+| Stack | Spring Boot 4.0.7 (Spring Framework 7, Jackson 3) / Java 17+ / Gradle 9.5 wrapper, springdoc 3: the same build shape as the EPA Workbench and the member profile service |
 | Swagger UI | `http://localhost:9090/swagger-ui.html` (off in `prod`) |
 | Health | `http://localhost:9090/actuator/health` |
 
 ## 1. Run it in STS (or any IDE)
 
-1. **File → Import → Gradle → Existing Gradle Project**, pick this folder (`member-id-resolution-service`),
-   accept the defaults (Gradle wrapper, version 9.8). JDK 17, 21 and 25 all work: the code compiles for
-   Java 17, and Gradle 9.8 runs on any of those JDKs. If the import ever fails with
-   `Unsupported class file major version NN`, Gradle is being run on a JDK newer than the wrapper
-   supports; either keep the shipped wrapper version or point STS at a supported JDK
-   (Window → Preferences → Gradle → Advanced Options → Java home).
-2. Run `MemberIdResolutionApplication` as a **Spring Boot App**. With no profile set it runs the `local`
+The build is the same shape as the EPA Workbench (`patient-access-workbench`): Gradle 9.5.0 wrapper,
+Spring Boot 4.0.7, no toolchain block, `options.release = 17` plus `-parameters`, `springBoot { buildInfo() }`,
+and an `internalRepoUrl` Gradle property that swaps Maven Central for an internal mirror. Only a JDK 17 or
+newer is needed (17, 21 and 25 all work); the wrapper downloads Gradle and the dependencies on first use.
+
+1. **File → Import → Gradle → Existing Gradle Project**, pick this folder (`member-id-resolution-service`;
+   keep the folder name, Buildship wants it equal to the project name), accept the defaults (Gradle wrapper).
+2. Run `MemberIdResolutionApplication` as a **Spring Boot App**. With no profile set it runs the `dev`
    profile: an **in-process MMI stub** answers from `src/main/resources/mmi-stub/members.json`, so nothing
    needs network access.
 3. Open `http://localhost:9090/swagger-ui.html` or import the Postman collection in `postman/`.
 
-Command line: `./gradlew bootRun` (local profile) · `./gradlew test` (all tests) · `./gradlew bootJar`
-then `java -jar build/libs/member-id-resolution-service-0.1.0-SNAPSHOT.jar --spring.profiles.active=pqa`.
+Command line: `./run.sh` (Mac/Linux) or `run.cmd` / `run.bat` (Windows) build the jar on first use and start it;
+`./gradlew bootRun` (dev profile) · `./gradlew test` (all tests) · `./gradlew bootJar` then
+`java -jar build/libs/member-id-resolution-service-1.0.0.jar --spring.profiles.active=pqa`.
 
 ### Point it at a real MMI
 
 | Profile | MMI |
 |---|---|
-| `local` (default) | in-process stub, no network |
+| `dev` (default) | in-process stub, no network |
 | `fqa` | `http://mastermemberindexserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp` |
 | `pqa` | `http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` |
 | `pqa-lite` | `http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` |
@@ -40,11 +42,11 @@ then `java -jar build/libs/member-id-resolution-service-0.1.0-SNAPSHOT.jar --spr
 
 In STS: Run Configurations → Spring Boot App → **Profile: `pqa`**. From a jar: `--spring.profiles.active=pqa`
 or `SPRING_PROFILES_ACTIVE=pqa`. Overrides without a rebuild: `MMI_BASE_URL`, `MMI_CLIENT_ID` (placeholder
-`MBRIDSVC`; register the real application name with the MMI team), `SPRING_HTTP_CLIENT_READ_TIMEOUT=5s`.
+`MBRIDSVC`; register the real application name with the MMI team), `MMI_READ_TIMEOUT=5s` / `MMI_CONNECT_TIMEOUT=2s`.
 
-**Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `local` (the stub) so that
+**Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `dev` (the stub) so that
 STS runs with one click. Two guards back the rule: the stub refuses to start with any explicitly active
-profile other than `local` or `test`, and it refuses to start inside a Kubernetes/OpenShift pod at all
+profile other than `dev` or `test`, and it refuses to start inside a Kubernetes/OpenShift pod at all
 (it checks `KUBERNETES_SERVICE_HOST`), so a pod that forgot its profile fails loudly instead of answering
 from canned data.
 
@@ -137,7 +139,7 @@ directly. Only populations with dependents (HPHC commercial, Together) can produ
 
 ## 4. Vendor formats: the only thing to edit when a vendor changes
 
-`src/main/resources/application.yml`, block `member-id.vendors` (edit it there; the block below is a copy of
+`src/main/resources/application.yaml`, block `member-id.vendors` (edit it there; the block below is a copy of
 the shipped values). Change a value, redeploy; the startup log prints the effective table rendered against
 a sample ID.
 
@@ -168,7 +170,7 @@ member-id:
 Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. A new output shape = one constant in
 `VendorIdFormat` + one case in `VendorFormatter` + one test row.
 
-## 5. Stub fixtures (local profile) and Postman
+## 5. Stub fixtures (dev profile) and Postman
 
 `src/main/resources/mmi-stub/members.json` behaves like MMI: exact match, 9-digit (policy) match returning
 the family, legacy-id match and the second pass through `legacyMemberId`.

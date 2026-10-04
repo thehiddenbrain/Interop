@@ -1,8 +1,8 @@
 package com.thehiddenbrain.interop.memberid.api;
 
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import com.fasterxml.jackson.databind.exc.MismatchedInputException;
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import tools.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.exc.MismatchedInputException;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
 import com.thehiddenbrain.interop.memberid.domain.InvalidRequestException;
 import com.thehiddenbrain.interop.memberid.domain.ResolutionException;
 import com.thehiddenbrain.interop.memberid.mmi.MmiException;
@@ -109,11 +109,11 @@ public class ApiExceptionHandler {
         }
         StringBuilder sb = new StringBuilder();
         e.getPath().forEach(ref -> {
-            if (ref.getFieldName() != null) {
+            if (ref.getPropertyName() != null) {
                 if (sb.length() > 0) {
                     sb.append('.');
                 }
-                sb.append(ref.getFieldName());
+                sb.append(ref.getPropertyName());
             }
         });
         return sb.length() == 0 ? null : sb.toString();
