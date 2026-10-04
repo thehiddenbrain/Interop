@@ -221,3 +221,14 @@ See the conversation; answers will be appended here.
   code and text. The dev stub answers 404 with an ERROR-typed MEMBER_NOT_FOUND message for unknown ids, like MMI.
 - Pending: align the two YAML lists with the MMI error-code list when it arrives.
 
+## Feedback 11 (2026-10-04): MMI's HTTP contract, definitive
+
+- MMI answers exactly four ways: 200 success, 404 member not found ("not ideal, but it is what it is"), 400 bad
+  request, 500 internal error. Map on that basis.
+- Applied, fixed in code (nothing configurable): 200 -> outcome from the records; 404 -> 200 `NOT_FOUND` whatever
+  the body (a 404 whose body is not MMI's envelope is still NOT_FOUND, with a log warning naming the URL, since a
+  wrong URL would look the same); 400 -> 400 `MMI_BAD_REQUEST` forwarding MMI's code and text; 500 -> 503
+  `MMI_UNAVAILABLE` (`Retry-After: 10`) with MMI's text when present; any other status is a gateway or proxy, not
+  MMI, and is answered 503 (5xx, 429, 408) or 502 saying so. The two not-found code lists from feedback 10 are
+  removed again. The stub's 400400400 fault now answers 400 `MMI_BAD_REQUEST`.
+

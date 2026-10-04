@@ -3,13 +3,15 @@ package org.point32health.memberid.mmi;
 import org.springframework.http.HttpStatus;
 
 /**
- * MMI could not give a usable answer. 503 when MMI could not be reached or answered 5xx (Onyx may retry
- * later); 502 when MMI rejected the request or returned something the service cannot read (someone has
- * to look).
+ * MMI could not give a usable answer. MMI's contract has three error statuses: 404 (no member: not an exception,
+ * answered 200 NOT_FOUND), 400 (bad request: forwarded as 400 {@code MMI_BAD_REQUEST} with MMI's text) and 500
+ * (internal error: 503 {@code MMI_UNAVAILABLE}, Onyx may retry later). 503 is also the answer when MMI cannot be
+ * reached; 502 when the endpoint answered something outside MMI's contract or a body the service cannot read.
  */
 public class MmiException extends RuntimeException {
 
     public static final String UNAVAILABLE = "MMI_UNAVAILABLE";
+    public static final String BAD_REQUEST = "MMI_BAD_REQUEST";
     public static final String REJECTED = "MMI_ERROR";
     public static final String INVALID_RESPONSE = "MMI_INVALID_RESPONSE";
 
@@ -28,6 +30,11 @@ public class MmiException extends RuntimeException {
 
     public static MmiException unavailable(String requestId, String detail, String message, Throwable cause) {
         return new MmiException(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE, detail, requestId, message, cause);
+    }
+
+    /** MMI answered 400: it could not process the request as sent. Forwarded to Onyx as a 400 with MMI's own text. */
+    public static MmiException badRequest(String requestId, String detail, String message) {
+        return new MmiException(HttpStatus.BAD_REQUEST, BAD_REQUEST, detail, requestId, message, null);
     }
 
     public static MmiException rejected(String requestId, String detail, String message) {

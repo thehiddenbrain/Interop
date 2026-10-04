@@ -115,9 +115,10 @@ public class StubMmiClient implements MmiClient {
         String key = compact(memberId);
         String core = key.length() >= 9 ? key.substring(0, 9) : key;
         switch (core) {
-            case FAULT_HTTP_500 -> throw MmiException.unavailable(requestId, "HTTP_500", "MMI answered HTTP 500 (stub)", null);
+            case FAULT_HTTP_500 -> throw MmiException.unavailable(requestId, "HTTP_500", "MMI reported an internal error: INTERNAL_ERROR search failed (stub)", null);
             case FAULT_TIMEOUT -> throw MmiException.unavailable(requestId, "READ_TIMEOUT", "MMI could not be reached: READ_TIMEOUT (stub)", null);
-            case FAULT_HTTP_400 -> throw MmiException.rejected(requestId, "HTTP_400", "MMI rejected the request with HTTP 400 (stub)");
+            case FAULT_HTTP_400 -> throw MmiException.badRequest(requestId, "HTTP_400",
+                    "MMI rejected the request as a bad request: INVALID_REQUEST memberId could not be processed (stub)");
             case FAULT_BAD_BODY -> throw MmiException.invalidResponse(requestId, "UNPARSEABLE_BODY", "MMI answered 200 with a body that is not the expected JSON (stub)", null);
             case FAULT_ERROR_MESSAGE -> {
                 return new MmiResult(requestId, 200, new MmiResponse(properties.clientId(), properties.clientType(), requestId,

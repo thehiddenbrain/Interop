@@ -24,10 +24,12 @@ import tools.jackson.databind.ObjectMapper;
  * states for internal consumers. Connect and read timeouts ({@code mmi.connect-timeout} / {@code mmi.read-timeout})
  * are applied to the builder by {@code MmiClientConfig}. No retry: a clear 503 lets Onyx retry later.
  *
- * <p>Status mapping: 2xx is parsed; 404 is MMI's "no member for this id" and is returned as a normal result when the
- * body is an MMI envelope or empty (a 404 with a non-MMI body, such as the servlet container's default error page or a
- * proxy's HTML, means the URL is wrong and is a 502 {@code HTTP_404}); 5xx, 429 and 408 are 503 (Onyx may retry);
- * any other status is 502.
+ * <p>MMI's contract has four statuses, mapped as follows. 200: the answer is parsed. 404: no member for this id, a normal
+ * result answered 200 NOT_FOUND (a 404 whose body is not MMI's envelope is still NOT_FOUND, with a warning in the log,
+ * because a wrong URL would also look like that). 400: MMI could not process the request, forwarded as 400
+ * {@code MMI_BAD_REQUEST} with MMI's text. 500: MMI internal error, 503 {@code MMI_UNAVAILABLE} so Onyx may retry later.
+ * Any other status is not MMI speaking (a gateway, proxy or container): 5xx, 429 and 408 are 503, the rest 502, each
+ * saying so.
  *
  * <p>With {@code mmi.log-payloads=true} the exact request body sent and the exact response body received
  * (status, headers' content type, raw text) are written to the log, so an integration problem can be read
@@ -101,18 +103,35 @@ public class RestMmiClient implements MmiClient {
                             }
                         }
                         int code = status.value();
+                        MmiResponse envelope = asMmiEnvelope(text, requestId);
+                        String mmiText = firstMessageText(envelope);
                         if (code == 404) {
-                            MmiResponse notFound = asMmiEnvelope(text, requestId);
-                            if (notFound != null) {
-                                return new MmiResult(requestId, 404, notFound);
+                            // MMI's contract: 404 means "no member for this id". A normal answer, never a failure.
+                            if (envelope == null) {
+                                log.warn("marker=MMI_404_WITHOUT_ENVELOPE requestId={} url={} contentType={}: the 404 body is not MMI's "
+                                        + "envelope; if every id comes back NOT_FOUND, check mmi.base-url and mmi.path", requestId, url,
+                                        res.getHeaders().getContentType());
+                                envelope = new MmiResponse(null, null, requestId, null, null);
                             }
-                            throw MmiException.rejected(requestId, "HTTP_404", "MMI answered 404 without an MMI response body: the MMI URL is "
-                                    + "probably wrong (mmi.base-url + mmi.path = " + url + ")");
+                            return new MmiResult(requestId, 404, envelope);
                         }
+                        if (code == 400) {
+                            // MMI's contract: 400 means MMI could not process the request as sent. Forwarded with MMI's text.
+                            throw MmiException.badRequest(requestId, "HTTP_400",
+                                    "MMI rejected the request as a bad request" + (mmiText == null ? "" : ": " + mmiText));
+                        }
+                        if (code == 500) {
+                            // MMI's contract: 500 means an internal error in MMI. Onyx may retry later.
+                            throw MmiException.unavailable(requestId, "HTTP_500",
+                                    "MMI reported an internal error" + (mmiText == null ? "" : ": " + mmiText), null);
+                        }
+                        // Anything else is outside MMI's contract (200, 400, 404, 500): a gateway, proxy or container answered.
+                        String outside = "HTTP " + code + " from the MMI endpoint, which is not in MMI's contract (200, 400, 404, 500): "
+                                + "a gateway or proxy answered, not MMI (" + url + ")";
                         if (status.is5xxServerError() || code == 429 || code == 408) {
-                            throw MmiException.unavailable(requestId, "HTTP_" + code, "MMI answered HTTP " + code, null);
+                            throw MmiException.unavailable(requestId, "HTTP_" + code, outside, null);
                         }
-                        throw MmiException.rejected(requestId, "HTTP_" + code, "MMI rejected the request with HTTP " + code);
+                        throw MmiException.rejected(requestId, "HTTP_" + code, outside);
                     });
             log.info("mmi call ok requestId={} memberId={} status={} records={} ms={}", requestId, Masking.memberId(memberId),
                     result.httpStatus(), result.response().membersOrEmpty().size(), elapsedMs(start));
@@ -133,9 +152,21 @@ public class RestMmiClient implements MmiClient {
         }
     }
 
+    /** The first message MMI put in its envelope, as "CODE text", or null when there is none. */
+    private static String firstMessageText(MmiResponse envelope) {
+        if (envelope == null) {
+            return null;
+        }
+        return envelope.messagesOrEmpty().stream()
+                .map(m -> ((m.messageCode() == null ? "" : m.messageCode() + " ") + (m.message() == null ? "" : m.message())).strip())
+                .filter(s -> !s.isEmpty())
+                .findFirst()
+                .orElse(null);
+    }
+
     /**
-     * MMI's "no member" answer is a 404 whose body is the usual envelope (messages, no members) or nothing at all.
-     * Anything else with a 404 (the container's default error JSON, a proxy's HTML page) is not MMI speaking.
+     * MMI's envelope: a JSON object with any of members / messages / clientId / requestId, or an empty body. Anything else
+     * (the container's default error JSON, a proxy's HTML page) is not MMI speaking and yields null.
      */
     private MmiResponse asMmiEnvelope(String text, String requestId) {
         if (text == null || text.isBlank()) {

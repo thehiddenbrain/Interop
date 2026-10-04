@@ -688,8 +688,14 @@ class ResolveScenariosTest {
         JsonNode timeout = call(503, req("503503503", "2026-10-15", "evicore"));
         assertThat(timeout.at("/error/details/0/code").asText()).isEqualTo("READ_TIMEOUT");
 
-        JsonNode rejected = call(502, req("400400400", "2026-10-15", "evicore"));
-        assertThat(rejected.at("/error/code").asText()).isEqualTo("MMI_ERROR");
+        Resp badRequest = post(req("400400400", "2026-10-15", "evicore"));
+        assertThat(badRequest.status()).as("MMI's 400 is forwarded as a 400, not hidden behind a 502").isEqualTo(400);
+        assertThat(badRequest.header("Retry-After")).isNull();
+        JsonNode rejected = json.readTree(badRequest.body());
+        assertThat(rejected.at("/error/code").asText()).isEqualTo("MMI_BAD_REQUEST");
+        assertThat(rejected.at("/error/details/0/code").asText()).isEqualTo("HTTP_400");
+        assertThat(rejected.at("/error/message").asText()).contains("bad request").contains("INVALID_REQUEST");
+        assertThat(rejected.get("mmiRequestId").asText()).isNotBlank();
 
         JsonNode message = call(502, req("888888888", "2026-10-15", "evicore"));
         assertThat(message.at("/error/code").asText()).isEqualTo("MMI_ERROR");

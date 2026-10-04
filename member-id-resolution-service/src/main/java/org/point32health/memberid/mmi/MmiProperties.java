@@ -22,14 +22,11 @@ public record MmiProperties(
         @DefaultValue("5s") @NotNull Duration readTimeout,
         @DefaultValue("N") String voidCoverageRecord,
         @DefaultValue("ERROR") List<String> errorMessageTypes,
-        @DefaultValue({"404"}) List<String> notFoundStatusCodes,
-        @DefaultValue({"NOT_FOUND", "MEMBER_NOT_FOUND", "NO_MEMBER_FOUND", "NO_MATCH", "NO_RECORDS_FOUND"}) List<String> notFoundMessageCodes,
         @DefaultValue("false") boolean logPayloads,
         @DefaultValue Stub stub) {
 
-    // notFoundStatusCodes / notFoundMessageCodes: an MMI answer with one of these HTTP statuses, or a message carrying
-    // one of these statusCode / messageCode values, means "MMI has no member for this id" (answered 200 NOT_FOUND),
-    // whatever the messageType says. To be aligned with the MMI error-code list once the owner shares it.
+    // MMI's HTTP contract is fixed (200 success, 404 no member, 400 bad request, 500 internal error) and mapped in
+    // RestMmiClient; nothing about it is configurable.
     // logPayloads: print the full MMI request and response bodies (they contain member PHI). For integration
     // debugging in dev / FQA / PQA; keep it off in prod.
 

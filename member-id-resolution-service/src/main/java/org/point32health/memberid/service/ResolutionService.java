@@ -131,9 +131,9 @@ public class ResolutionService {
         List<MmiMember> members = mmiResult.response().membersOrEmpty();
         List<MmiMessage> messages = mmiResult.response().messagesOrEmpty();
 
-        boolean saysNotFound = saysNotFound(mmiResult, messages);
+        boolean notFound = mmiResult.httpStatus() == 404; // MMI's contract: 404 = no member for this id
         if (members.isEmpty()) {
-            if (!saysNotFound && hasErrorMessage(messages)) {
+            if (!notFound && hasErrorMessage(messages)) {
                 MmiMessage m = messages.stream().filter(this::isError).findFirst().orElseThrow();
                 throw MmiException.rejected(mmiResult.requestId(), "ERROR_MESSAGE",
                         "MMI reported an error: type=" + m.messageType() + " status=" + m.statusCode() + " code=" + m.messageCode()
@@ -143,9 +143,8 @@ public class ResolutionService {
             MmiNote note = first == null ? null : new MmiNote(first.messageType(), first.statusCode(), first.messageCode(), first.message());
             return new Resolved(Outcome.NOT_FOUND, null, null, null, null, mmiResult.requestId(), 0, note);
         }
-        if (saysNotFound) {
-            log.warn("marker=MMI_NOT_FOUND_WITH_MEMBERS mmiRequestId={} httpStatus={} messages={} records={}", mmiResult.requestId(),
-                    mmiResult.httpStatus(), messages, members.size());
+        if (notFound) {
+            log.warn("marker=MMI_NOT_FOUND_WITH_MEMBERS mmiRequestId={} messages={} records={}", mmiResult.requestId(), messages, members.size());
         } else if (hasErrorMessage(messages)) {
             log.warn("marker=MMI_ERROR_MESSAGE_WITH_MEMBERS mmiRequestId={} messages={}", mmiResult.requestId(), messages);
         }
@@ -196,28 +195,6 @@ public class ResolutionService {
             case NOT_FOUND -> "No member found in MMI for this id";
             case AMBIGUOUS -> "Several members match this id; see candidates and ambiguity.hint";
         };
-    }
-
-    /**
-     * MMI says "no member for this id" with an HTTP 404 or with a message whose statusCode / messageCode is one of the
-     * configured not-found values ({@code mmi.not-found-status-codes}, {@code mmi.not-found-message-codes}), whatever the
-     * messageType. Such an answer is NOT_FOUND, never a 502.
-     */
-    private boolean saysNotFound(MmiResult result, List<MmiMessage> messages) {
-        List<String> statuses = mmiProperties.notFoundStatusCodes();
-        if (statuses.contains(String.valueOf(result.httpStatus()))) {
-            return true;
-        }
-        for (MmiMessage m : messages) {
-            if (m.statusCode() != null && statuses.contains(m.statusCode().strip())) {
-                return true;
-            }
-            if (m.messageCode() != null && mmiProperties.notFoundMessageCodes().stream()
-                    .anyMatch(c -> c.equalsIgnoreCase(m.messageCode().strip()))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean hasErrorMessage(List<MmiMessage> messages) {
