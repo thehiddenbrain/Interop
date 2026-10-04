@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "fc06bd8a-2b7b-4a0b-a1a5-d2d605d0da94",
     "name": "Member ID Resolution Service",
-    "description": "Every scenario of POST /api/v1/member-ids/resolve against the local profile (in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests.",
+    "description": "Every scenario of POST /api/v1/member-ids/resolve against the dev profile (the default: in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -190,6 +190,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".memberId.received = 123-456-789 01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123-456-789 01\")); });",
+                  "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\".vendor = CARELON\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendor)).to.eql(JSON.stringify(\"CARELON\")); });",
                   "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -224,6 +226,60 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"memberId\": \"123-456-789 01\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"aim\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TMP id typed with a hyphen (123456789-01)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".memberId.received = 123456789-01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123456789-01\")); });",
+                  "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
+                  "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"123456789-01\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1042,6 +1098,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".memberId.received = HP-456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP-456789012\")); });",
                   "pm.test(\".memberId.stored = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"HP456789012\")); });",
                   "pm.test(\".memberId.forVendor = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"HP456789012\")); });",
                   "pm.test(\".company = HPHC\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.company)).to.eql(JSON.stringify(\"HPHC\")); });",
@@ -1096,6 +1153,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".memberId.received = hp 4567 89012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"hp 4567 89012\")); });",
                   "pm.test(\".memberId.forVendor = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"HP456789012\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1405,16 +1463,18 @@
           "response": []
         },
         {
-          "name": "10 digits is no shape: 400",
+          "name": "10 digits goes to MMI as typed: 200 NOT_FOUND",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
-                  "pm.test(\".error.code = INVALID_REQUEST\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"INVALID_REQUEST\")); });",
-                  "pm.test(\".error.details[0].code = MEMBER_ID_UNRECOGNIZED_SHAPE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"MEMBER_ID_UNRECOGNIZED_SHAPE\")); });",
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".memberId.received = 1234567890\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"1234567890\")); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1457,6 +1517,166 @@
           "response": []
         },
         {
+          "name": "40-character id goes to MMI as typed: 200 NOT_FOUND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".memberId.received = 1111111111111111111111111111111111111111\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"1111111111111111111111111111111111111111\")); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"1111111111111111111111111111111111111111\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Letters and punctuation go to MMI as typed: 200 NOT_FOUND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".memberId.received = ABC-123/XYZ_9\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"ABC-123/XYZ_9\")); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"ABC-123/XYZ_9\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Blank memberId: 400 MEMBER_ID_MISSING",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\".error.code = INVALID_REQUEST\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"INVALID_REQUEST\")); });",
+                  "pm.test(\".error.details has memberId MEMBER_ID_MISSING\", function () { const d = pm.response.json().error.details; pm.expect(d.some(function (x) { return x.field === \"memberId\" && x.code === \"MEMBER_ID_MISSING\"; })).to.eql(true); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"   \",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Several problems reported together",
           "event": [
             {
@@ -1465,7 +1685,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
-                  "pm.test(\"4 details\", function () { pm.expect(pm.response.json().error.details.length).to.eql(4); });",
+                  "pm.test(\"3 details\", function () { pm.expect(pm.response.json().error.details.length).to.eql(3); });",
+                  "pm.test(\"no detail about memberId\", function () { const d = pm.response.json().error.details; pm.expect(d.some(function (x) { return x.field === \"memberId\"; })).to.eql(false); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }

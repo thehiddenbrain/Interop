@@ -54,7 +54,7 @@ that profile's `application-<profile>.yaml`; nothing else changes.
 4. **Network**: your machine (or the pod) must reach `mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp`
    on port 80 (plain HTTP, no token, as the MMI contract states). If it cannot, every call answers
    `503 MMI_UNAVAILABLE` with `CONNECT_FAILED` and the log line `mmi call failed ... cause=...` names the reason.
-5. **Try it**: Postman request "TMP 9-digit card number" with a real PQA member id, or
+5. **Try it**: a Postman resolve request with a real PQA member id, typed as the EMR has it, or
    `curl -X POST http://localhost:9090/api/v1/member-ids/resolve -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\",\"vendor\":\"EVICORE\"}"`.
    The response carries `mmiRequestId` (`MBRIDSVC-<millis>-<5 digits>`), which the MMI team can find in their logs.
 
@@ -111,10 +111,15 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed, generated when a
 
 | Field | Required | Notes |
 |---|---|---|
-| `memberId` | yes | As the EMR sent it. 9 digits, 11 digits, 14 characters with spaces, `HP-…`, any separators, any case. |
+| `memberId` | yes | As the EMR typed it. Only checked for presence; sent to MMI exactly as received, with surrounding whitespace removed. Not validated or reshaped here. |
 | `dateOfService` | no | `yyyy-MM-dd`. **Defaults to today** when omitted (`dateOfServiceDefaulted: true` in the response). Must be within 10 years back / 366 days forward. |
 | `vendor` | yes | Code or alias from the vendor table, case-insensitive: `EVICORE`, `MHK`, `EVOLENT`, `CARELON`, `OPTUM` (samples). |
 | `patient.dateOfBirth` | recommended | `yyyy-MM-dd`. Used only to verify or pick among the records MMI returned. Never sent to MMI, never logged, never echoed. |
+
+The service does not validate or reshape the incoming member id. Whatever the EMR typed (9, 11 or 14
+characters, hyphens, spaces, letters, any length) goes to MMI as is, with only surrounding whitespace removed,
+and MMI decides whether it knows the id. A missing or blank `memberId` is the only member-id error
+(400 `INVALID_REQUEST`, detail code `MEMBER_ID_MISSING`).
 
 ### Response (HTTP 200): branch on `outcome`
 
@@ -123,21 +128,23 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed, generated when a
 | `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Put `memberId.forVendor` in the vendor payload. For Optum use `forVendorParts` when it is present (TMP/SCO ids); for Public Plans and HPHC ids there are no parts, send `forVendor`. |
 | `INACTIVE` | Member verified, `coverage.active = false`; `coverage.reason` and the nearest span dates say why | Hold for intake (owner decision). |
 | `NOT_FOUND` | MMI has no record for this ID | "Member not found" worklist. |
-| `AMBIGUOUS` | A 9-digit ID of a population with dependents matched several persons and no DOB settled it | Resend with the 11-character ID or `patient.dateOfBirth`, else intake picks from `candidates[]`. |
+| `AMBIGUOUS` | MMI matched the ID to several persons (a 9-digit ID of a population with dependents) and no DOB settled it | Resend with the member's full ID including the suffix, or with `patient.dateOfBirth`, else intake picks from `candidates[]`. |
 
 ```json
 { "outcome": "ACTIVE",
-  "memberId": { "received": "123456789", "searched": "123456789", "stored": "123456789   01", "forVendor": "12345678901" },
+  "memberId": { "received": "123456789", "stored": "123456789   01", "forVendor": "12345678901" },
   "vendor": "EVICORE", "company": "THP", "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": true, "reason": "COVERED", "span": { "effectiveDate": "2024-01-01", "endDate": null } },
   "correlationId": "ONYX-PA-2026-000123", "mmiRequestId": "MBRIDSVC-1760000000000-48213" }
 ```
 
+`memberId.received` is the ID as Onyx sent it (surrounding whitespace removed): exactly what was sent to MMI.
 `memberId.stored` is the ID exactly as MMI holds it. `forVendor` is that ID in the vendor's format.
 For Optum (`SPLIT`) **and a TMP/SCO id** the response also carries `forVendorParts: { "memberId": "123456789",
-"suffix": "01" }`; for Public Plans and HPHC ids only `forVendor` is returned (their ids have no suffix to split).
-Public Plans IDs (11 continuous characters) and HPHC IDs (`HP` + 9 digits) are passed as stored for every vendor.
+"suffix": "01" }`; for Public Plans and HPHC ids only `forVendor` is returned.
+Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 digits, spaces, 2 digits); any other
+stored ID (Public Plans, HPHC) is passed as stored for every vendor.
 `coverage.reason` is one of `COVERED`, `NO_COVERAGE_RECORDS`, `NOT_YET_EFFECTIVE`, `COVERAGE_ENDED`,
 `COVERAGE_GAP`. `coverage.lastEndDate` (end of the latest span before the date) and `coverage.nextEffectiveDate`
 (start of the earliest span after it) are present whenever such spans exist, for ACTIVE answers too, so a
@@ -152,7 +159,7 @@ error JSON.
 
 | HTTP | `error.code` | When | Onyx action |
 |---|---|---|---|
-| 400 | `INVALID_REQUEST` | bad member ID shape, bad dates, missing vendor, malformed JSON, unknown property, wrong JSON type. Every problem is listed in `details[]`. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type.) | Never retry. `MEMBER_ID_*` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
+| 400 | `INVALID_REQUEST` | missing member ID, bad dates, missing vendor, malformed JSON, unknown property, wrong JSON type. Every problem is listed in `details[]`. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type.) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
 | 400 | `UNKNOWN_VENDOR` | vendor not in the table; `details[0].message` lists the known codes | Never retry; routing table and this table disagree. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
 | 502 | `MMI_ERROR`, `MMI_INVALID_RESPONSE` | MMI rejected the call, answered unreadably, or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read) | Park, alert the service owners. |
@@ -164,9 +171,9 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
 
 ## 3. How an answer is produced
 
-1. Normalise the ID: trim, drop separators (spaces, dashes, `_ . /`), upper-case. Accept `\d{9}`,
-   `\d{11}`, `HP\d{9}`; reject everything else (no guessing of suffixes).
-2. One MMI call: `POST {mmi.base-url}/master/member/v1` with the normalised ID in `memberId` **and**
+1. Take the ID as received: surrounding whitespace removed, nothing else. No separator stripping, no
+   upper-casing, no shape or length check; the member id is sent to MMI exactly as the EMR typed it.
+2. One MMI call: `POST {mmi.base-url}/master/member/v1` with that ID in `memberId` **and**
    `legacyMemberId` (the MMI spec's hit-rate advice), `voidCoverageRecord: N`, `clientId`, `clientType: INT`,
    a fresh `requestId` (`MBRIDSVC-<millis>-<5 digits>`). No date filter: coverage is evaluated locally so
    INACTIVE can say why. No demographics are ever sent.
@@ -219,9 +226,12 @@ Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. A new output shape = o
 ## 5. Stub fixtures (dev profile) and Postman
 
 `src/main/resources/mmi-stub/members.json` behaves like MMI: exact match, 9-digit (policy) match returning
-the family, legacy-id match and the second pass through `legacyMemberId`.
+the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
+and case (anything that is not a letter or digit is ignored), the leniency expected of the real MMI; the service
+itself hands the id over untouched. The fault ids below are recognised by the first 9 characters of the id with
+separators removed.
 
-| Member ID (any accepted form) | Case |
+| Member ID (as typed; the stub ignores separators and case) | Case |
 |---|---|
 | `123456789` / `12345678901` / `123456789   01` | TMP, active, open-ended |
 | `234567890` | SCO, coverage ended 2025-12-31 → INACTIVE |
@@ -243,20 +253,22 @@ run the whole collection with the Collection Runner for a green scenario pass.
 
 ## 6. Tests
 
-`./gradlew test`: parser rows, coverage rules, selection rules (including converted members in a gap and
+`./gradlew test`: request validation, coverage rules, selection rules (including converted members in a gap and
 with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (500/429/408/400/bad body/connection refused/read timeout), configuration validation, and the end-to-end
 scenario matrix over HTTP against the stub with "today" fixed at 2026-10-03. A capturing log appender
 asserts no log line (message or exception text; payload logging is off in the `test` profile) contains an
 unmasked 9- or 11-digit run or an MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
-never reach MMI.
+never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI
+and echoed back unchanged in `memberId.received`, and the stub's `lastSearched()` proves the id arrives at MMI
+untouched.
 
 ## 7. Assumptions to confirm in PQA
 
-- MMI accepts the 9-digit, 11-digit and 14-character forms of a TMP ID equally; the service sends the
-  compact form (separators removed) and the same value in `legacyMemberId`.
+- MMI finds the member from the id as typed, including the 9-, 11- and 14-character forms and ids with
+  hyphens or spaces (`123456789-01`, `HP-123456789`); the service sends it unchanged in `memberId` and
+  `legacyMemberId`. The stub assumes the same.
 - A single record returned for any population is the member (TMP/SCO always return one).
-- HPHC IDs are `HP` + 9 digits (`member-id.hphc-digit-lengths`).
 - MMI's error `messageType` is `ERROR` (`mmi.error-message-types`); "no match" is `members: null`.
 - Carelon's format (11 or 14).
 - `coverage.active` is the flag; the span is supporting detail. Legacy IDs, migration dates, PCP and
