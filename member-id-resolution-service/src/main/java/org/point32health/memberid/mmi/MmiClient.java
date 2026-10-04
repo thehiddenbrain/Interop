@@ -4,7 +4,7 @@ package org.point32health.memberid.mmi;
 public interface MmiClient {
 
     /**
-     * @param memberId      the normalised id (separators removed, upper-cased)
+     * @param memberId      the member id exactly as the EMR typed it, surrounding whitespace removed; sent to MMI unchanged
      * @param correlationId the Onyx correlation id, forwarded as a header
      * @throws MmiException when MMI cannot be reached, rejects the call or answers unreadably
      */

@@ -169,7 +169,6 @@ class ResolveScenariosTest {
         JsonNode r = call(200, req("123456789", "2026-10-15", "evicore"));
         assertThat(r.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(r.at("/memberId/received").asText()).isEqualTo("123456789");
-        assertThat(r.at("/memberId/received").asText()).isEqualTo("123456789");
         assertThat(r.at("/memberId/stored").asText()).isEqualTo("123456789   01");
         assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("12345678901");
         assertThat(r.at("/memberId/forVendorParts").isMissingNode()).isTrue();
@@ -338,6 +337,7 @@ class ResolveScenariosTest {
             JsonNode r = call(200, req(input, "2026-10-15", "evicore"));
             assertThat(r.get("outcome").asText()).as(input).isEqualTo("ACTIVE");
             assertThat(r.at("/memberId/received").asText()).as("echoed exactly as sent").isEqualTo(input);
+            assertThat(stub.lastSearched()).as("no upper-casing or separator stripping before MMI").isEqualTo(input);
             assertThat(r.at("/memberId/stored").asText()).isEqualTo("HP456789012");
             assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("HP456789012");
             assertThat(r.get("company").asText()).isEqualTo("HPHC");
@@ -525,6 +525,7 @@ class ResolveScenariosTest {
             assertThat(stub.calls()).as("MMI was asked about " + odd).isEqualTo(before + 1);
             assertThat(r.get("outcome").asText()).as(odd).isEqualTo("NOT_FOUND");
             assertThat(r.at("/memberId/received").asText()).isEqualTo(odd);
+            assertThat(stub.lastSearched()).as("sent to MMI exactly as typed: " + odd).isEqualTo(odd);
             assertThat(r.get("mmiRequestId").asText()).startsWith("MBRIDSVC-");
         }
         // a known member typed with a hyphen or in pieces still resolves: the (lenient) MMI matches it, not this service
@@ -532,11 +533,10 @@ class ResolveScenariosTest {
             JsonNode r = call(200, req(typed, "2026-10-15", "evicore"));
             assertThat(r.get("outcome").asText()).as(typed).isEqualTo("ACTIVE");
             assertThat(r.at("/memberId/received").asText()).isEqualTo(typed.strip());
+            assertThat(stub.lastSearched()).as("sent to MMI exactly as typed: " + typed).isEqualTo(typed.strip());
             assertThat(r.at("/memberId/stored").asText()).isEqualTo("123456789   01");
             assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("12345678901");
         }
-        // the stub received the id untouched (the stub's own matching is what ignores the separators)
-        assertThat(stub.lastSearched()).isEqualTo("12345678901");
     }
 
     // ---------------------------------------------------------------- vendor map (operation 2)
