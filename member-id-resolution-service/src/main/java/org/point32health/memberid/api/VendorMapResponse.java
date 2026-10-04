@@ -11,22 +11,19 @@ import java.util.List;
  * {@code ignoredFields} is present when a request field was unusable and ignored (for example a date that is not a
  * real date): the answer is still given, with the date of service defaulted to today where needed.
  * {@code message} is one human-readable sentence for the outcome; {@code mmiMessage} is what MMI itself said when
- * it had no member for the id (NOT_FOUND only).
+ * it had no member for the id (NOT_FOUND only). The correlation id travels in the {@code X-Correlation-Id} header.
  */
 public record VendorMapResponse(
         Outcome outcome,
         String message,
         MemberId memberId,
-        String company,
         String lineOfBusiness,
         LocalDate dateOfService,
         boolean dateOfServiceDefaulted,
         List<String> ignoredFields,
         Coverage coverage,
-        Ambiguity ambiguity,
         List<Candidate> candidates,
         List<VendorMemberId> vendorMemberIds,
-        String correlationId,
         String mmiRequestId,
         MmiNote mmiMessage) {
 
@@ -41,7 +38,7 @@ public record VendorMapResponse(
     /**
      * @param vendor        the vendor code as configured in {@code member-id.vendors}
      * @param memberId      the stored id in that vendor's format: what goes into that vendor's payload
-     * @param memberIdParts the two fields for vendors that take the 9 digits and the suffix separately, else absent
+     * @param memberIdParts the two fields for vendors that take the core and the suffix separately, else absent
      */
     public record VendorMemberId(String vendor, String memberId, MemberIdParts memberIdParts) {
     }

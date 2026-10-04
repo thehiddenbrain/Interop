@@ -174,11 +174,12 @@ class ResolveScenariosTest {
         assertThat(r.at("/memberId/stored").asText()).isEqualTo("123456789   01");
         assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("12345678901");
         assertThat(r.at("/memberId/forVendorParts").isMissingNode()).isTrue();
-        assertThat(r.get("vendor").asText()).isEqualTo("EVICORE");
-        assertThat(r.get("company").asText()).isEqualTo("THP");
+        assertThat(r.has("vendor")).as("Onyx named the vendor; it is not echoed").isFalse();
+        assertThat(r.has("company")).as("lean response: the line of business is what Onyx routes on").isFalse();
+        assertThat(r.has("correlationId")).as("the correlation id travels in the X-Correlation-Id header").isFalse();
         assertThat(r.get("lineOfBusiness").asText()).isEqualTo("MCR");
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
-        assertThat(r.at("/coverage/reason").asText()).isEqualTo("COVERED");
+        assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("flag and period only").containsExactly("active", "span");
         assertThat(r.at("/coverage/span/effectiveDate").asText()).isEqualTo("2024-01-01");
         assertThat(r.at("/coverage/span").has("endDate")).as("open-ended end is an explicit null").isTrue();
         assertThat(r.at("/coverage/span/endDate").isNull()).isTrue();
@@ -212,8 +213,8 @@ class ResolveScenariosTest {
         JsonNode r = call(200, req("234567890", "2026-10-15", "evicore"));
         assertThat(r.get("outcome").asText()).isEqualTo("INACTIVE");
         assertThat(r.at("/coverage/active").asBoolean()).isFalse();
-        assertThat(r.at("/coverage/reason").asText()).isEqualTo("COVERAGE_ENDED");
-        assertThat(r.at("/coverage/lastEndDate").asText()).isEqualTo("2025-12-31");
+        assertThat(r.get("message").asText()).isEqualTo("Member found; coverage ended before 2026-10-15");
+        assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("no period when inactive, no neighbouring dates").containsExactly("active");
         assertThat(r.at("/memberId/forVendor").asText()).as("the id is still returned when inactive").isEqualTo("23456789001");
     }
 
@@ -228,8 +229,8 @@ class ResolveScenariosTest {
     void futureEffectiveDateIsNotYetEffective() throws Exception {
         JsonNode r = call(200, req("789012345", "2026-10-15", "evicore"));
         assertThat(r.get("outcome").asText()).isEqualTo("INACTIVE");
-        assertThat(r.at("/coverage/reason").asText()).isEqualTo("NOT_YET_EFFECTIVE");
-        assertThat(r.at("/coverage/nextEffectiveDate").asText()).isEqualTo("2027-01-01");
+        assertThat(r.get("message").asText()).isEqualTo("Member found; coverage not yet effective on 2026-10-15");
+        assertThat(r.at("/coverage/nextEffectiveDate").isMissingNode()).isTrue();
         assertThat(call(200, req("789012345", "2027-01-01", "evicore")).get("outcome").asText()).isEqualTo("ACTIVE");
     }
 
@@ -237,8 +238,7 @@ class ResolveScenariosTest {
     void voidSpansAreIgnored() throws Exception {
         JsonNode r = call(200, req("678901234", "2026-10-15", "evicore"));
         assertThat(r.get("outcome").asText()).isEqualTo("INACTIVE");
-        assertThat(r.at("/coverage/reason").asText()).isEqualTo("COVERAGE_ENDED");
-        assertThat(r.at("/coverage/lastEndDate").asText()).isEqualTo("2025-06-30");
+        assertThat(r.get("message").asText()).isEqualTo("Member found; coverage ended before 2026-10-15");
     }
 
     @Test
@@ -249,9 +249,9 @@ class ResolveScenariosTest {
     }
 
     @Test
-    void companyMissingOnTheRecordIsInferred() throws Exception {
+    void companyMissingOnTheRecordIsInferredForTheVendorFormat() throws Exception {
         JsonNode r = call(200, req("901234567", "2026-10-15", "evicore"));
-        assertThat(r.get("company").asText()).isEqualTo("THP");
+        assertThat(r.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("90123456701");
     }
 
@@ -265,7 +265,8 @@ class ResolveScenariosTest {
         assertThat(r.get("dateOfServiceDefaulted").asBoolean()).isTrue();
         JsonNode blank = call(200, Map.of("memberId", "789012345", "dateOfService", "", "vendor", "evicore"));
         assertThat(blank.get("dateOfServiceDefaulted").asBoolean()).isTrue();
-        assertThat(blank.at("/coverage/nextEffectiveDate").asText()).as("future coverage is still reported").isEqualTo("2027-01-01");
+        assertThat(blank.get("outcome").asText()).isEqualTo("INACTIVE");
+        assertThat(blank.get("message").asText()).isEqualTo("Member found; coverage not yet effective on 2026-10-03");
     }
 
     // ---------------------------------------------------------------- populations with dependents
@@ -274,9 +275,11 @@ class ResolveScenariosTest {
     void publicPlansNineDigitWithoutDobIsAmbiguousWithCandidates() throws Exception {
         JsonNode r = call(200, req("345678901", "2026-10-15", "evicore"));
         assertThat(r.get("outcome").asText()).isEqualTo("AMBIGUOUS");
-        assertThat(r.at("/ambiguity/reason").asText()).isEqualTo("MULTIPLE_PERSONS");
-        assertThat(r.at("/ambiguity/hint").asText()).contains("dateOfBirth");
+        assertThat(r.has("ambiguity")).isFalse();
+        assertThat(r.get("message").asText()).isEqualTo(
+                "Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates");
         assertThat(r.get("candidates")).hasSize(3);
+        assertThat(r.at("/candidates/0").properties()).extracting(Map.Entry::getKey).containsExactly("storedMemberId", "lineOfBusiness", "coverageActive");
         assertThat(r.at("/candidates/0/storedMemberId").asText()).isEqualTo("34567890101");
         assertThat(r.at("/candidates/0/coverageActive").asBoolean()).isTrue();
         assertThat(r.at("/candidates/2/storedMemberId").asText()).isEqualTo("34567890103");
@@ -290,7 +293,8 @@ class ResolveScenariosTest {
     void publicPlansNineDigitWithDobResolvesTheDependent() throws Exception {
         JsonNode r = call(200, reqDob("345678901", "2026-10-15", "evicore", "2012-09-09"));
         assertThat(r.get("outcome").asText()).isEqualTo("AMBIGUOUS");
-        assertThat(r.at("/ambiguity/reason").asText()).as("twins share the DOB").isEqualTo("DOB_NOT_DISCRIMINATING");
+        assertThat(r.get("message").asText()).as("twins share the DOB").isEqualTo(
+                "Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates");
         assertThat(r.get("candidates")).hasSize(2);
 
         JsonNode sub = call(200, reqDob("345678901", "2026-10-15", "evicore", "1985-06-01"));
@@ -304,9 +308,8 @@ class ResolveScenariosTest {
     void publicPlansElevenCharacterIdIsDirectAndReportsAGap() throws Exception {
         JsonNode r = call(200, req("34567890102", "2024-08-15", "MHK"));
         assertThat(r.get("outcome").asText()).isEqualTo("INACTIVE");
-        assertThat(r.at("/coverage/reason").asText()).isEqualTo("COVERAGE_GAP");
-        assertThat(r.at("/coverage/lastEndDate").asText()).isEqualTo("2024-05-31");
-        assertThat(r.at("/coverage/nextEffectiveDate").asText()).isEqualTo("2025-01-01");
+        assertThat(r.get("message").asText()).isEqualTo("Member found; no coverage on 2024-08-15 (gap between coverage periods)");
+        assertThat(r.at("/coverage/lastEndDate").isMissingNode()).isTrue();
         assertThat(r.at("/memberId/forVendor").asText()).as("MHK's 14-character format does not apply to an 11-character id").isEqualTo("34567890102");
         assertThat(call(200, req("34567890102", "2024-05-31", "MHK")).get("outcome").asText()).as("inclusive end date").isEqualTo("ACTIVE");
     }
@@ -367,7 +370,7 @@ class ResolveScenariosTest {
             assertThat(stub.lastSearched()).as("no upper-casing or separator stripping before MMI").isEqualTo(input);
             assertThat(r.at("/memberId/stored").asText()).isEqualTo("HP456789012");
             assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("HP456789012");
-            assertThat(r.get("company").asText()).isEqualTo("HPHC");
+            assertThat(r.get("lineOfBusiness").asText()).isEqualTo("COM");
             assertThat(r.at("/coverage/span/endDate").isNull()).as("12/31/9999 is open-ended").isTrue();
         }
     }
@@ -379,13 +382,11 @@ class ResolveScenariosTest {
         assertThat(after.at("/memberId/stored").asText()).isEqualTo("HP567890123");
         assertThat(after.at("/memberId/forVendor").asText()).isEqualTo("HP567890123");
         assertThat(after.at("/memberId/forVendorParts").isMissingNode()).as("no split for an HPHC id").isTrue();
-        assertThat(after.get("company").asText()).isEqualTo("HPHC");
 
         JsonNode before = call(200, req("56789012301", "2024-06-01", "Optum"));
         assertThat(before.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(before.at("/memberId/stored").asText()).isEqualTo("567890123   01");
         assertThat(before.at("/memberId/forVendorParts/suffix").asText()).isEqualTo("01");
-        assertThat(before.get("company").asText()).isEqualTo("THP");
 
         JsonNode newIdPreMigration = call(200, req("HP567890123", "2024-06-01", "evicore"));
         assertThat(newIdPreMigration.at("/memberId/stored").asText()).as("reverse legacy link").isEqualTo("567890123   01");
@@ -403,7 +404,7 @@ class ResolveScenariosTest {
         assertThat(r.get("outcome").asText()).isEqualTo("NOT_FOUND");
         assertThat(r.at("/memberId/received").asText()).isEqualTo("111222333");
         assertThat(r.has("coverage")).isFalse();
-        assertThat(r.has("company")).isFalse();
+        assertThat(r.has("lineOfBusiness")).isFalse();
         JsonNode notFound = call(200, req("HP111222333", "2026-10-15", "evicore"));
         assertThat(notFound.get("outcome").asText()).isEqualTo("NOT_FOUND");
         assertThat(notFound.get("message").asText()).isEqualTo("No member found in MMI for this id");
@@ -487,7 +488,7 @@ class ResolveScenariosTest {
     void correlationIdIsEchoedOrGenerated() throws Exception {
         Resp r = post(req("123456789", "2026-10-15", "evicore"), "X-Correlation-Id", "ONYX-PA-1");
         assertThat(r.header("X-Correlation-Id")).isEqualTo("ONYX-PA-1");
-        assertThat(json.readTree(r.body()).get("correlationId").asText()).isEqualTo("ONYX-PA-1");
+        assertThat(json.readTree(r.body()).has("correlationId")).as("header only on a 200").isFalse();
         assertThat(r.header("Cache-Control")).isEqualTo("no-store");
         assertNoPhi(r);
         Resp generated = post(req("123456789", "2026-10-15", "evicore"), "X-Correlation-Id", "{bad id}");
@@ -511,15 +512,16 @@ class ResolveScenariosTest {
     }
 
     @Test
-    void activeAnswerCarriesThePreviousSpanEndAndDefaultedDateWorksForInactive() throws Exception {
+    void coverageBlockIsTheFlagAndThePeriodOnly() throws Exception {
         JsonNode active = call(200, req("123456789", "2026-10-15", "evicore"));
-        assertThat(active.at("/coverage/lastEndDate").asText()).as("end of the span before the covering one").isEqualTo("2023-12-31");
-        assertThat(active.at("/coverage/nextEffectiveDate").isMissingNode()).isTrue();
+        assertThat(active.get("coverage").properties()).extracting(Map.Entry::getKey).containsExactly("active", "span");
+        assertThat(active.at("/coverage/span/effectiveDate").asText()).isEqualTo("2024-01-01");
 
         JsonNode inactive = call(200, req("234567890", null, "evicore"));
         assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");
         assertThat(inactive.get("dateOfServiceDefaulted").asBoolean()).isTrue();
-        assertThat(inactive.at("/coverage/lastEndDate").asText()).isEqualTo("2025-12-31");
+        assertThat(inactive.get("coverage").properties()).extracting(Map.Entry::getKey).containsExactly("active");
+        assertThat(inactive.get("message").asText()).isEqualTo("Member found; coverage ended before 2026-10-03");
     }
 
     @Test
@@ -585,12 +587,13 @@ class ResolveScenariosTest {
         assertThat(r.at("/memberId/stored").asText()).isEqualTo("123456789   01");
         assertThat(r.has("vendor")).as("no single vendor in this operation").isFalse();
         assertThat(r.at("/memberId/forVendor").isMissingNode()).isTrue();
-        assertThat(r.get("company").asText()).isEqualTo("THP");
+        assertThat(r.has("company")).isFalse();
+        assertThat(r.has("correlationId")).isFalse();
         assertThat(r.get("lineOfBusiness").asText()).isEqualTo("MCR");
         assertThat(r.get("dateOfService").asText()).isEqualTo("2026-10-15");
         assertThat(r.get("dateOfServiceDefaulted").asBoolean()).isFalse();
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
-        assertThat(r.at("/coverage/reason").asText()).isEqualTo("COVERED");
+        assertThat(r.at("/coverage/reason").isMissingNode()).isTrue();
         assertThat(r.get("mmiRequestId").asText()).isNotBlank();
 
         Map<String, JsonNode> byVendor = new java.util.LinkedHashMap<>();
@@ -642,7 +645,8 @@ class ResolveScenariosTest {
 
         JsonNode ambiguous = callVendorMap(200, Map.of("memberId", "345678901", "dateOfService", "2026-10-15"));
         assertThat(ambiguous.get("outcome").asText()).isEqualTo("AMBIGUOUS");
-        assertThat(ambiguous.at("/ambiguity/reason").asText()).isEqualTo("MULTIPLE_PERSONS");
+        assertThat(ambiguous.has("ambiguity")).isFalse();
+        assertThat(ambiguous.get("message").asText()).startsWith("Several members match this id; add patient.dateOfBirth");
         assertThat(ambiguous.get("candidates")).hasSize(3);
         assertThat(ambiguous.has("vendorMemberIds")).isFalse();
 

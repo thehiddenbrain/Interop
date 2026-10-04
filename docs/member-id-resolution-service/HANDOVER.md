@@ -25,7 +25,7 @@ date of service. No database, no state, no security code (Azure API Management i
 - Design document: `docs/member-id-resolution-service/design.html`, generated from `design-src/` (see its README);
   published as the claude.ai artifact `https://claude.ai/artifact/A6PfmrLch1RronSwsDQKRp` (republish `design-src/artifact_v2.html`
   to that URL after changes; a new session must `read` the URL once before it can publish to it).
-- Owner feedback and decisions: `docs/member-id-resolution-service/feedback-log.md` (14 numbered feedback rounds so far).
+- Owner feedback and decisions: `docs/member-id-resolution-service/feedback-log.md` (15 numbered feedback rounds so far).
 
 ## The owner's standing rules (their words, condensed)
 
@@ -41,7 +41,7 @@ date of service. No database, no state, no security code (Azure API Management i
   (surrounding whitespace removed). "The service is just passing through to MMI. Don't try to be over smart."
 - Ask the owner when unsure; do not assume.
 
-## Current behaviour (as of commit c5fb108)
+## Current behaviour (as of feedback 15, 2026-10-04)
 
 Operations (`api/ResolveController`):
 - `POST /api/v1/member-ids/resolve`: `{ memberId, dateOfService?, vendor, patient?{dateOfBirth} }`, strict
@@ -51,13 +51,17 @@ Operations (`api/ResolveController`):
   an unusable date of service or date of birth is ignored and listed under `ignoredFields` (date of service then
   defaults to today, `dateOfServiceDefaulted: true`).
 
-Response (200) on both: `outcome` ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS, a plain `message` sentence,
-`memberId { received, stored, forVendor, forVendorParts }` on /resolve or `memberId { received, stored }` plus
-`vendorMemberIds[ { vendor, memberId, memberIdParts? } ]` (sorted by vendor code, present for ACTIVE and INACTIVE)
-on /vendor-map, `company`, `lineOfBusiness`, `dateOfService`, `dateOfServiceDefaulted`, `coverage { active, reason,
-span, lastEndDate, nextEffectiveDate }`, `ambiguity { reason, hint }` + `candidates[]` on AMBIGUOUS,
-`correlationId`, `mmiRequestId`, and `mmiMessage { type, status, code, text }` on NOT_FOUND when MMI sent a message.
-Errors: `{ error { code, message, details[ { field, code, message } ] }, correlationId, mmiRequestId }`.
+Response (200) on both, lean by the owner's decision (feedback 15: "active or not", the ids, the line of business,
+the coverage period): `outcome` ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS, a plain `message` sentence (it carries why
+an INACTIVE member is not covered and what to do about an AMBIGUOUS answer), `memberId { received, stored, forVendor,
+forVendorParts }` on /resolve or `memberId { received, stored }` plus `vendorMemberIds[ { vendor, memberId,
+memberIdParts? } ]` (sorted by vendor code, present for ACTIVE and INACTIVE) on /vendor-map, `lineOfBusiness` (Onyx
+routes on it), `dateOfService`, `dateOfServiceDefaulted`, `ignoredFields[]` on /vendor-map when something was ignored,
+`coverage { active, span? }` (the flag and the covering period), `candidates[ { storedMemberId, lineOfBusiness,
+coverageActive } ]` on AMBIGUOUS, `mmiRequestId`, and `mmiMessage { type, status, code, text }` on NOT_FOUND when MMI
+sent a message. Not in a 200 body any more: `company`, `vendor`, `coverage.reason`, `coverage.lastEndDate`,
+`coverage.nextEffectiveDate`, `ambiguity`, `correlationId` (the `X-Correlation-Id` response header carries it).
+Errors, unchanged: `{ error { code, message, details[ { field, code, message } ] }, correlationId, mmiRequestId }`.
 
 MMI's HTTP contract (owner, definitive) and the mapping, fixed in `mmi/RestMmiClient` and `service/ResolutionService`:
 200 success → outcome from the records (one record = the member; several: DOB picks one, else AMBIGUOUS with
@@ -92,7 +96,7 @@ markers for data anomalies, correlation id in the pattern. A test asserts no unm
 - `./gradlew clean build --no-daemon`: 119 tests green (unit tests per component, REST client against a mock server,
   configuration validation, end-to-end scenarios over HTTP against the stub with "today" fixed at 2026-10-03).
 - Postman: `postman/MemberIdResolution.postman_collection.json` + `postman/Local.postman_environment.json`, 65
-  requests in 7 folders, 439 assertions; run with the service on the dev profile:
+  requests in 7 folders, 438 assertions; run with the service on the dev profile:
   `npx -y newman@6 run postman/MemberIdResolution.postman_collection.json -e postman/Local.postman_environment.json`.
 - Tooling notes: never `pkill -f <jar name>` (it kills the shell); stop a local run with `lsof -ti:9090 | xargs -r kill`.
   Commit with the attribution footer the session requires and push to the branch after every change (a stop hook

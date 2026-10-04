@@ -17,6 +17,6 @@ public sealed interface SelectionResult {
     record Ambiguous(String reason, List<Candidate> candidates) implements SelectionResult {
     }
 
-    record Candidate(String storedMemberId, String company, String lineOfBusiness, boolean coverageActive) {
+    record Candidate(String storedMemberId, String lineOfBusiness, boolean coverageActive) {
     }
 }

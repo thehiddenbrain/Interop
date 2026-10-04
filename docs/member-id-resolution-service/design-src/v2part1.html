@@ -30,8 +30,8 @@
   <h1>Member ID Resolution Service</h1>
   <p class="lede">A small, stateless Spring Boot service for Onyx. It takes the member ID exactly as the provider's EMR supplied it, verifies it with the Master Member Index (MMI), returns the ID as stored and in the format the UM vendor expects (one vendor when Onyx names it, every vendor at once when it does not), and says with one flag whether coverage is active on the date of service.</p>
   <div class="meta">
-    <span><b>Status</b> v0.2, code delivered (<code>member-id-resolution-service/</code>), reviewed, 101 tests green, Postman collection with tests on every request</span>
-    <span><b>Date</b> 2026-10-04 (v0.2 of 2026-10-03, revised: the member id is sent to MMI exactly as the EMR typed it; a second operation, the vendor map, added and then made lenient; MMI's four answers (200, 404, 400, 500) mapped one to one, its 404 answered as 200 NOT_FOUND with what MMI said)</span>
+    <span><b>Status</b> v0.2, code delivered (<code>member-id-resolution-service/</code>), reviewed, 119 tests green, Postman collection with tests on every request</span>
+    <span><b>Date</b> 2026-10-04 (v0.2 of 2026-10-03, revised: the member id is sent to MMI exactly as the EMR typed it; a second operation, the vendor map, added and then made lenient; MMI's four answers (200, 404, 400, 500) mapped one to one, its 404 answered as 200 NOT_FOUND with what MMI said; the response trimmed to the flag, the ids, the line of business and the coverage period)</span>
     <span><b>Stack</b> Spring Boot 4.0.7 · Java 17+ · Gradle 9.5 · port 9090 (the EPA Workbench build shape)</span>
     <span><b>Only integration</b> MMI</span>
   </div>
@@ -74,6 +74,11 @@
   <p>MMI's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: on 200 the records decide the outcome; MMI's 404 is <span class="pill neutral">200</span> <code>NOT_FOUND</code>, whatever the body; MMI's 400 is <span class="pill bad">400</span> <code>MMI_BAD_REQUEST</code> with MMI's text; MMI's 500 is <span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code>. Only an unknown route of this service is a 404 from this service. Both 200 responses carry a one-sentence <code>message</code> right after <code>outcome</code>, and a NOT_FOUND carries what MMI said in <code>mmiMessage</code> <code>{ type, status, code, text }</code> when MMI sent a message; the 400, 503 and 502 error messages carry MMI's code and text. Nothing in the mapping is configurable. Sections 6.3, 6.4, 6.6 and 9.3 have the rules; the decision log in section 18 has the entry.</p>
 </div>
 
+<div class="callout">
+  <div class="label">Revised 2026-10-04 (owner feedback 15)</div>
+  <p>The response is trimmed to what Onyx acts on: <code>outcome</code>, <code>message</code>, the member id (received, stored, for the vendor or the vendor map), <code>lineOfBusiness</code> (Onyx routes on it), the date evaluated, <code>coverage.active</code> with the covering period, <code>candidates[]</code> when AMBIGUOUS, <code>mmiRequestId</code> and <code>mmiMessage</code>. Removed from the 200 bodies: <code>company</code>, the echoed <code>vendor</code>, <code>coverage.reason</code>, <code>coverage.lastEndDate</code>, <code>coverage.nextEffectiveDate</code>, the <code>ambiguity</code> block and <code>correlationId</code> (the header carries it; error bodies keep it). Why an inactive member is not covered, and what to do about an AMBIGUOUS answer, is said in <code>message</code>. Sections 6.3, 6.6, 7 and 11 are updated; the decision log in section 18 has the entry.</p>
+</div>
+
 <h2 id="background"><span class="num">2</span>Member IDs today: printed, stored, sent</h2>
 <p>Three populations, three shapes. The whole problem lives in the first row.</p>
 <div class="tablewrap"><table>
@@ -111,7 +116,7 @@
 <tbody>
 <tr><td>D1</td><td><b>Carelon's format</b>: settled by the owner on 2026-10-04, 11 characters.</td><td>One YAML value.</td><td><code>COMPACT_11</code> (done)</td></tr>
 <tr><td>D2</td><td><b>Does Onyx send <code>patient.dateOfBirth</code></b> for populations with dependents?</td><td>Without it a 9-character Together or HPHC family ID lands on a worklist as AMBIGUOUS. TMP/SCO never need it.</td><td>Optional; verified whenever present.</td></tr>
-<tr><td>D3</td><td><b>What Onyx does with INACTIVE.</b></td><td>The service reports the flag and why; it does not decide whether the auth may still be filed.</td><td>Reported; Onyx holds for intake.</td></tr>
+<tr><td>D3</td><td><b>What Onyx does with INACTIVE.</b></td><td>The service reports the flag, and says why in <code>message</code>; it does not decide whether the auth may still be filed.</td><td>Reported; Onyx holds for intake.</td></tr>
 <tr><td>D4</td><td><b>Restricted members</b> (<code>restrictedData = Y</code>).</td><td>The lean response does not carry the flag. Adding <code>member.restricted</code> is one field if Onyx must act on it.</td><td>Not returned.</td></tr>
 <tr><td>D5</td><td><b>Can Onyx read the JSON body on non-2xx responses?</b></td><td>If not, it branches on status class alone (200 / 4xx / 5xx), which the contract supports.</td><td>Both work.</td></tr>
 <tr><td>D6</td><td><b>Date-of-service window</b> and the no-DOS default.</td><td>On <code>/resolve</code> an out-of-window date is a 400; on <code>/vendor-map</code> it is ignored (today is evaluated and <code>ignoredFields</code> names the date). A missing date is evaluated as today on both.</td><td>10 years back, 366 days forward; default today.</td></tr>
@@ -126,7 +131,7 @@
 <li>Two operations over one core: <code>POST /api/v1/member-ids/resolve</code> (the id for the vendor Onyx names) and <code>POST /api/v1/member-ids/vendor-map</code> (the id in every vendor's format, for when Onyx does not yet know the vendor).</li>
 <li>The member id is sent to MMI exactly as the EMR typed it, whatever its length, separators or case; this service checks only that one was sent.</li>
 <li>One MMI call per request; TMP/SCO resolve from any form; dependents handled through the DOB or AMBIGUOUS with candidates; converted THP↔HPHC members handled through MMI's legacy link.</li>
-<li>Coverage flag for the date of service (today when omitted), with the reason and the nearest span dates.</li>
+<li>Coverage flag for the date of service (today when omitted), with the coverage period when active; why an inactive member is not covered is said in the one-sentence <code>message</code>.</li>
 <li>Vendor formats in <code>application.yaml</code>; a change is a config edit and a deploy.</li>
 <li>Clear error envelope, masked logging, correlation id, in-process MMI stub for developer runs and tests (profile-guarded and refusing to run inside a pod), profiles with the four MMI URLs.</li>
 </ul>
@@ -147,7 +152,7 @@
 <h2 id="flow"><span class="num">5</span>How a request flows</h2>
 <p>Synchronous, on the request thread, no state between requests. Both operations run these steps; steps 5 to 8 are one shared core (<code>ResolutionService.resolveMember</code>), and the two differ only where marked.</p>
 <ol>
-<li><b>Correlation.</b> Read <code>X-Correlation-Id</code> (or generate a UUID); it goes into every log line, the response header and the body.</li>
+<li><b>Correlation.</b> Read <code>X-Correlation-Id</code> (or generate a UUID); it goes into every log line, the <code>X-Correlation-Id</code> response header and the body of error responses.</li>
 <li><b>Read the JSON.</b> Malformed JSON or a wrong JSON type is a 400 on both operations. An unknown property is a 400 on <code>/resolve</code> and ignored on <code>/vendor-map</code>, whose request type is declared <code>@JsonIgnoreProperties(ignoreUnknown = true)</code>.</li>
 <li><b>Validate in one pass.</b> Both operations: member ID present (the only check on it). <code>/resolve</code>, strict: date of service (format, window, default to today), date of birth (format, plausibility), vendor present and well-formed; every problem is returned together as one 400. <code>/vendor-map</code>, lenient: only the member id is required; a <code>vendor</code> is accepted and ignored, an unusable date of service is ignored (today is evaluated, <code>dateOfServiceDefaulted</code> is true) and an unusable date of birth is ignored (it takes no part in the selection), each named in <code>ignoredFields</code>. No MMI call for an invalid request.</li>
 <li><b>Look up the vendor</b> (<code>/resolve</code> only) by code or alias, case-insensitively → 400 <code>UNKNOWN_VENDOR</code> with the known codes.</li>

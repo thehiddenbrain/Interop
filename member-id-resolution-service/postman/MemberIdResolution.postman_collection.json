@@ -35,8 +35,7 @@
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
-                  "pm.test(\".company = THP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.company)).to.eql(JSON.stringify(\"THP\")); });",
-                  "pm.test(\".coverage.lastEndDate = 2023-12-31\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.lastEndDate)).to.eql(JSON.stringify(\"2023-12-31\")); });",
+                  "pm.test(\"no .company (lean response: lineOfBusiness is what Onyx routes on)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"company\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -91,7 +90,8 @@
                   "pm.test(\".memberId.stored = S98765432   01\", function () { pm.expect(pm.response.json().memberId.stored).to.eql(\"S98765432   01\"); });",
                   "pm.test(\".memberId.forVendor = S9876543201 (the S is part of the id)\", function () { pm.expect(pm.response.json().memberId.forVendor).to.eql(\"S9876543201\"); });",
                   "pm.test(\".memberId.forVendor has 11 characters\", function () { pm.expect(pm.response.json().memberId.forVendor.length).to.eql(11); });",
-                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });",
+                  "pm.test(\"no .correlationId in the body (X-Correlation-Id header carries it)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"correlationId\"); });"
                 ]
               }
             }
@@ -251,7 +251,7 @@
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.received = 123-456-789 01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123-456-789 01\")); });",
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
-                  "pm.test(\".vendor = CARELON\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendor)).to.eql(JSON.stringify(\"CARELON\")); });",
+                  "pm.test(\"no .vendor (Onyx named it; not echoed)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
                   "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -520,10 +520,9 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".message = Member found; no coverage on 2026-10-15 (COVERAGE_ENDED)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; no coverage on 2026-10-15 (COVERAGE_ENDED)\")); });",
+                  "pm.test(\".message = Member found; coverage ended before 2026-10-15\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage ended before 2026-10-15\"); });",
                   "pm.test(\".coverage.active = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(false)); });",
-                  "pm.test(\".coverage.reason = COVERAGE_ENDED\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"COVERAGE_ENDED\")); });",
-                  "pm.test(\".coverage.lastEndDate = 2025-12-31\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.lastEndDate)).to.eql(JSON.stringify(\"2025-12-31\")); });",
+                  "pm.test(\"no .coverage.reason (the reason is in .message)\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"reason\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -628,8 +627,8 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".coverage.reason = NOT_YET_EFFECTIVE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"NOT_YET_EFFECTIVE\")); });",
-                  "pm.test(\".coverage.nextEffectiveDate = 2027-01-01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.nextEffectiveDate)).to.eql(JSON.stringify(\"2027-01-01\")); });",
+                  "pm.test(\"no .coverage.reason (the reason is in .message)\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"reason\"); });",
+                  "pm.test(\".message = Member found; coverage not yet effective on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage not yet effective on 2026-10-15\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -682,8 +681,8 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".coverage.reason = COVERAGE_ENDED\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"COVERAGE_ENDED\")); });",
-                  "pm.test(\".coverage.lastEndDate = 2025-06-30\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.lastEndDate)).to.eql(JSON.stringify(\"2025-06-30\")); });",
+                  "pm.test(\"no .coverage.reason (the reason is in .message)\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"reason\"); });",
+                  "pm.test(\".message = Member found; coverage ended before 2026-10-15\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage ended before 2026-10-15\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -788,7 +787,7 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".company = THP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.company)).to.eql(JSON.stringify(\"THP\")); });",
+                  "pm.test(\"no .company (lean response: lineOfBusiness is what Onyx routes on)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"company\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -847,8 +846,8 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".message = Several members match this id; see candidates and ambiguity.hint\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Several members match this id; see candidates and ambiguity.hint\")); });",
-                  "pm.test(\".ambiguity.reason = MULTIPLE_PERSONS\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.ambiguity.reason)).to.eql(JSON.stringify(\"MULTIPLE_PERSONS\")); });",
+                  "pm.test(\".message = Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates\"); });",
+                  "pm.test(\"no .ambiguity block (the guidance is in .message)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ambiguity\"); });",
                   "pm.test(\"3 candidates\", function () { pm.expect(pm.response.json().candidates.length).to.eql(3); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -958,7 +957,7 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".ambiguity.reason = DOB_NOT_DISCRIMINATING\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.ambiguity.reason)).to.eql(JSON.stringify(\"DOB_NOT_DISCRIMINATING\")); });",
+                  "pm.test(\"no .ambiguity block (the guidance is in .message)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ambiguity\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1011,10 +1010,8 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".message = Member found; no coverage on 2024-08-15 (COVERAGE_GAP)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; no coverage on 2024-08-15 (COVERAGE_GAP)\")); });",
-                  "pm.test(\".coverage.reason = COVERAGE_GAP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"COVERAGE_GAP\")); });",
-                  "pm.test(\".coverage.lastEndDate = 2024-05-31\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.lastEndDate)).to.eql(JSON.stringify(\"2024-05-31\")); });",
-                  "pm.test(\".coverage.nextEffectiveDate = 2025-01-01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.nextEffectiveDate)).to.eql(JSON.stringify(\"2025-01-01\")); });",
+                  "pm.test(\".message = Member found; no coverage on 2024-08-15 (gap between coverage periods)\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; no coverage on 2024-08-15 (gap between coverage periods)\"); });",
+                  "pm.test(\"no .coverage.reason (the reason is in .message)\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"reason\"); });",
                   "pm.test(\".memberId.forVendor = 34567890102\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"34567890102\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1181,7 +1178,7 @@
                   "pm.test(\".memberId.received = HP-456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP-456789012\")); });",
                   "pm.test(\".memberId.stored = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"HP456789012\")); });",
                   "pm.test(\".memberId.forVendor = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"HP456789012\")); });",
-                  "pm.test(\".company = HPHC\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.company)).to.eql(JSON.stringify(\"HPHC\")); });",
+                  "pm.test(\"no .company (lean response: lineOfBusiness is what Onyx routes on)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"company\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1289,7 +1286,7 @@
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.stored = HP567890123\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"HP567890123\")); });",
-                  "pm.test(\".company = HPHC\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.company)).to.eql(JSON.stringify(\"HPHC\")); });",
+                  "pm.test(\"no .company (lean response: lineOfBusiness is what Onyx routes on)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"company\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2586,7 +2583,8 @@
                   "pm.test(\".outcome = ACTIVE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.outcome)).to.eql(JSON.stringify(\"ACTIVE\")); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
-                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });",
+                  "pm.test(\"no .correlationId in the body (X-Correlation-Id header carries it)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"correlationId\"); });"
                 ]
               }
             }
@@ -2852,7 +2850,8 @@
                   "pm.test(\"11-character vendors get S9876543201\", function () { const j = pm.response.json(); [\"CARELON\",\"EVICORE\",\"EVOLENT\",\"ONYX\",\"OPTUM\"].forEach(function (code) { const v = j.vendorMemberIds.find(function (x) { return x.vendor === code; }); pm.expect(v.memberId, code).to.eql(\"S9876543201\"); }); });",
                   "pm.test(\"MHK gets S98765432   01\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }); pm.expect(v.memberId).to.eql(\"S98765432   01\"); });",
                   "pm.test(\"OPTUM memberIdParts = {S98765432, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(v.memberIdParts.memberId).to.eql(\"S98765432\"); pm.expect(v.memberIdParts.suffix).to.eql(\"01\"); });",
-                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });",
+                  "pm.test(\"no .correlationId in the body (X-Correlation-Id header carries it)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"correlationId\"); });"
                 ]
               }
             }
@@ -3032,9 +3031,9 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".message = Member found; no coverage on 2024-08-15 (COVERAGE_GAP)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; no coverage on 2024-08-15 (COVERAGE_GAP)\")); });",
+                  "pm.test(\".message = Member found; no coverage on 2024-08-15 (gap between coverage periods)\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; no coverage on 2024-08-15 (gap between coverage periods)\"); });",
                   "pm.test(\".coverage.active = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(false)); });",
-                  "pm.test(\".coverage.reason = COVERAGE_GAP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"COVERAGE_GAP\")); });",
+                  "pm.test(\"no .coverage.reason (the reason is in .message)\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"reason\"); });",
                   "pm.test(\".memberId.stored = 34567890102\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890102\")); });",
                   "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
@@ -3153,8 +3152,8 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".message = Several members match this id; see candidates and ambiguity.hint\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Several members match this id; see candidates and ambiguity.hint\")); });",
-                  "pm.test(\".ambiguity.reason = MULTIPLE_PERSONS\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.ambiguity.reason)).to.eql(JSON.stringify(\"MULTIPLE_PERSONS\")); });",
+                  "pm.test(\".message = Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates\"); });",
+                  "pm.test(\"no .ambiguity block (the guidance is in .message)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ambiguity\"); });",
                   "pm.test(\"3 candidates\", function () { pm.expect(pm.response.json().candidates.length).to.eql(3); });",
                   "pm.test(\"no .vendorMemberIds\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendorMemberIds\"); });",
                   "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",

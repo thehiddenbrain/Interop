@@ -263,3 +263,31 @@ See the conversation; answers will be appended here.
   on as stored. A realistic `S98765432   01` member is in the stub, with tests and Postman requests on both
   operations; the banner's sample id is `S12345678   01`; wording "9 digits" is now "9 characters".
 
+
+## Feedback 15 (2026-10-04): the response is for "active or not"; keep the ids and the line of business, drop the rest
+
+- The owner questioned `nextEffectiveDate`, `lastEndDate` "and those kind of things": the service is used to know whether
+  the member is active or not, with the member id, perhaps the coverage period, and the line of business, which Onyx
+  needs to route the transaction. Anything else only if it is absolutely needed; also check whether anything is
+  missing for the near future.
+- Field by field, kept: `outcome`, `message`, `memberId { received, stored, forVendor, forVendorParts }` /
+  `vendorMemberIds[]`, `lineOfBusiness`, `dateOfService`, `dateOfServiceDefaulted` (the marker the owner asked for in
+  feedback 5), `ignoredFields` on the vendor map, `coverage { active, span }` (the flag and the coverage period),
+  `candidates[] { storedMemberId, lineOfBusiness, coverageActive }` on AMBIGUOUS (intake picks from it, feedback 6),
+  `mmiRequestId` (support traces the MMI call with it), `mmiMessage` on NOT_FOUND (feedback 10).
+- Removed from the 200 bodies: `coverage.lastEndDate`, `coverage.nextEffectiveDate`, `coverage.reason`, `company`,
+  the echoed `vendor`, the `ambiguity { reason, hint }` block, `correlationId` (it is the `X-Correlation-Id` response
+  header; error bodies keep it so a ticket can quote one body). Why an INACTIVE member is not covered and what to do
+  about an AMBIGUOUS answer are now said in `message` in plain words ("coverage ended before <date>", "coverage not yet
+  effective on <date>", "no coverage on <date> (gap between coverage periods)", "no coverage on record"; "Several
+  members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from
+  candidates"). The reason codes stay in the log line.
+- Judgment call recorded: `company` (THP / HPHC) is dropped because the owner named only the line of business for
+  routing and the stored id itself shows the company (`HP` prefix). If Onyx turns out to route on company as well, it
+  is one field to restore (`MemberRecord` still carries it for the log and the selection).
+- Nothing missing for the near future: health and build info are exposed, Swagger documents both operations, a new
+  vendor is one YAML block, the error envelope is unchanged. A batch operation, a vendor list endpoint and caching
+  were considered and left out as not needed.
+- Code: `Coverage` is `{ active, span }`, `CoverageDecision` and `CoverageEvaluator` no longer compute the nearest
+  dates, `Ambiguity` is deleted, `Candidate` loses `company`, both response records are trimmed. 119 tests and the
+  65-request Postman collection (438 assertions) are green; README, design and this log updated.

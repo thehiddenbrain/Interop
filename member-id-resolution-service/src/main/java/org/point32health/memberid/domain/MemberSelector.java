@@ -64,11 +64,10 @@ public final class MemberSelector {
                     person.stream().mapToInt(MemberRecord::unreadableSpans).sum());
         }
         List<SelectionResult.Candidate> candidates = persons.stream()
-                .sorted(Comparator.comparing((List<MemberRecord> p) -> chooseWithinPerson(p, dateOfService).company())
-                        .thenComparing(p -> chooseWithinPerson(p, dateOfService).matchKey()))
+                .sorted(Comparator.comparing((List<MemberRecord> p) -> chooseWithinPerson(p, dateOfService).matchKey()))
                 .map(p -> {
                     MemberRecord r = chooseWithinPerson(p, dateOfService);
-                    return new SelectionResult.Candidate(r.storedMemberId(), r.company(), r.lineOfBusiness(),
+                    return new SelectionResult.Candidate(r.storedMemberId(), r.lineOfBusiness(),
                             evaluator.evaluate(personSpans(p), dateOfService).active());
                 })
                 .toList();

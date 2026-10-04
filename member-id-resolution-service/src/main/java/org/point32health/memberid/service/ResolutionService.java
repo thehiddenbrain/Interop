@@ -1,6 +1,5 @@
 package org.point32health.memberid.service;
 
-import org.point32health.memberid.api.Ambiguity;
 import org.point32health.memberid.api.Candidate;
 import org.point32health.memberid.api.Coverage;
 import org.point32health.memberid.api.MemberIdParts;
@@ -44,8 +43,6 @@ import org.springframework.stereotype.Service;
 public class ResolutionService {
 
     private static final Logger log = LoggerFactory.getLogger(ResolutionService.class);
-    private static final String AMBIGUOUS_HINT =
-            "Add patient.dateOfBirth, or resend with the member's full id including the suffix, or route to intake for a manual pick";
 
     private final RequestValidator validator;
     private final VendorRegistry vendors;
@@ -75,8 +72,8 @@ public class ResolutionService {
         FormattedMemberId formatted = r.record() == null ? null : formatter.format(r.record().storedMemberId(), vendor.format());
         ResolveResponse response = new ResolveResponse(r.outcome(), message(r, v),
                 new ResolveResponse.MemberId(v.memberId(), r.storedMemberId(), formatted == null ? null : formatted.value(), parts(formatted)),
-                vendor.code(), r.company(), r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
-                r.coverageBlock(), r.ambiguity(), r.candidates(), correlationId, r.mmiRequestId(), r.mmiNote());
+                r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
+                r.coverageBlock(), r.candidates(), r.mmiRequestId(), r.mmiNote());
         logOutcome("resolve", vendor.code(), r, v, start);
         return response;
     }
@@ -94,15 +91,15 @@ public class ResolutionService {
             }).toList();
         }
         VendorMapResponse response = new VendorMapResponse(r.outcome(), message(r, v), new VendorMapResponse.MemberId(v.memberId(), r.storedMemberId()),
-                r.company(), r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
+                r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
                 v.ignoredFields().isEmpty() ? null : v.ignoredFields(),
-                r.coverageBlock(), r.ambiguity(), r.candidates(), vendorMemberIds, correlationId, r.mmiRequestId(), r.mmiNote());
+                r.coverageBlock(), r.candidates(), vendorMemberIds, r.mmiRequestId(), r.mmiNote());
         logOutcome("vendor-map", "ALL(" + vendors.all().size() + ")", r, v, start);
         return response;
     }
 
     /** What both operations share once the request is valid: MMI's answer reduced to one outcome. */
-    private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, Ambiguity ambiguity,
+    private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String ambiguityReason,
             List<Candidate> candidates, String mmiRequestId, int records, MmiNote mmiNote) {
 
         String storedMemberId() {
@@ -122,7 +119,7 @@ public class ResolutionService {
                 return null;
             }
             Coverage.Span span = coverage.span() == null ? null : new Coverage.Span(coverage.span().effective(), coverage.span().end());
-            return new Coverage(coverage.active(), coverage.reason(), span, coverage.lastEndDate(), coverage.nextEffectiveDate());
+            return new Coverage(coverage.active(), span);
         }
     }
 
@@ -164,10 +161,9 @@ public class ResolutionService {
         }
         if (selection instanceof SelectionResult.Ambiguous a) {
             List<Candidate> candidates = a.candidates().stream()
-                    .map(c -> new Candidate(c.storedMemberId(), c.company(), c.lineOfBusiness(), c.coverageActive()))
+                    .map(c -> new Candidate(c.storedMemberId(), c.lineOfBusiness(), c.coverageActive()))
                     .toList();
-            return new Resolved(Outcome.AMBIGUOUS, null, null, new Ambiguity(a.reason(), AMBIGUOUS_HINT), candidates,
-                    mmiResult.requestId(), members.size(), null);
+            return new Resolved(Outcome.AMBIGUOUS, null, null, a.reason(), candidates, mmiResult.requestId(), members.size(), null);
         }
         SelectionResult.Selected s = (SelectionResult.Selected) selection;
         if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
@@ -189,13 +185,24 @@ public class ResolutionService {
                 : new MemberIdParts(formatted.parts().memberId(), formatted.parts().suffix());
     }
 
-    /** One plain sentence per outcome, for a human reading the response. */
+    /**
+     * One plain sentence per outcome, for a human reading the response. It carries what used to be separate fields:
+     * why an INACTIVE member is not covered, and what to do about an AMBIGUOUS answer.
+     */
     private static String message(Resolved r, RequestValidator.Validated v) {
         return switch (r.outcome()) {
             case ACTIVE -> "Member found; coverage active on " + v.dateOfService();
-            case INACTIVE -> "Member found; no coverage on " + v.dateOfService() + " (" + r.coverage().reason() + ")";
+            case INACTIVE -> "Member found; " + switch (r.coverage().reason()) {
+                case NO_COVERAGE_RECORDS -> "no coverage on record";
+                case NOT_YET_EFFECTIVE -> "coverage not yet effective on " + v.dateOfService();
+                case COVERAGE_ENDED -> "coverage ended before " + v.dateOfService();
+                case COVERAGE_GAP -> "no coverage on " + v.dateOfService() + " (gap between coverage periods)";
+                case COVERED -> throw new IllegalStateException("INACTIVE with reason COVERED");
+            };
             case NOT_FOUND -> "No member found in MMI for this id";
-            case AMBIGUOUS -> "Several members match this id; see candidates and ambiguity.hint";
+            case AMBIGUOUS -> MemberSelector.DOB_NOT_DISCRIMINATING.equals(r.ambiguityReason())
+                    ? "Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates"
+                    : "Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates";
         };
     }
 
