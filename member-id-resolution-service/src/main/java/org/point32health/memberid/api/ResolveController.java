@@ -26,7 +26,7 @@ public class ResolveController {
                     + "POST because the member id is PHI and must not appear in URLs; the operation is a pure read and may be repeated.")
     @ApiResponse(responseCode = "200", description = "outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS",
             content = @Content(schema = @Schema(implementation = ResolveResponse.class)))
-    @ApiResponse(responseCode = "400", description = "INVALID_REQUEST or UNKNOWN_VENDOR", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "400", description = "INVALID_REQUEST or UNKNOWN_VENDOR (this service's validation), or MMI_BAD_REQUEST when MMI itself answered 400 (details[0].code HTTP_400, MMI's text in the message)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "422", description = "DOB_MISMATCH: the date of birth matches no record for this id", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "502", description = "MMI_ERROR or MMI_INVALID_RESPONSE", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "503", description = "MMI_UNAVAILABLE", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
@@ -42,7 +42,7 @@ public class ResolveController {
                     + "accepted and ignored, an unusable date is ignored and listed in ignoredFields. Pure read; may be repeated.")
     @ApiResponse(responseCode = "200", description = "outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; vendorMemberIds present for ACTIVE and INACTIVE",
             content = @Content(schema = @Schema(implementation = VendorMapResponse.class)))
-    @ApiResponse(responseCode = "400", description = "INVALID_REQUEST: only for a missing memberId or a body that is not JSON", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "400", description = "INVALID_REQUEST only for a missing memberId or a body that is not JSON; MMI_BAD_REQUEST when MMI itself answered 400 (details[0].code HTTP_400, MMI's text in the message)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "422", description = "DOB_MISMATCH: the date of birth matches no record for this id", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "502", description = "MMI_ERROR or MMI_INVALID_RESPONSE", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "503", description = "MMI_UNAVAILABLE", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))

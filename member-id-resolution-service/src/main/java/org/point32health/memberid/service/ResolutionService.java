@@ -131,8 +131,12 @@ public class ResolutionService {
         List<MmiMember> members = mmiResult.response().membersOrEmpty();
         List<MmiMessage> messages = mmiResult.response().messagesOrEmpty();
 
-        boolean notFound = mmiResult.httpStatus() == 404; // MMI's contract: 404 = no member for this id
-        if (members.isEmpty()) {
+        boolean notFound = mmiResult.httpStatus() == 404; // MMI's contract: 404 = no member for this id; the status wins
+        if (notFound || members.isEmpty()) {
+            if (notFound && !members.isEmpty()) {
+                log.warn("marker=MMI_NOT_FOUND_WITH_MEMBERS mmiRequestId={} messages={} records={}: 404 wins, records ignored",
+                        mmiResult.requestId(), messages, members.size());
+            }
             if (!notFound && hasErrorMessage(messages)) {
                 MmiMessage m = messages.stream().filter(this::isError).findFirst().orElseThrow();
                 throw MmiException.rejected(mmiResult.requestId(), "ERROR_MESSAGE",
@@ -143,9 +147,7 @@ public class ResolutionService {
             MmiNote note = first == null ? null : new MmiNote(first.messageType(), first.statusCode(), first.messageCode(), first.message());
             return new Resolved(Outcome.NOT_FOUND, null, null, null, null, mmiResult.requestId(), 0, note);
         }
-        if (notFound) {
-            log.warn("marker=MMI_NOT_FOUND_WITH_MEMBERS mmiRequestId={} messages={} records={}", mmiResult.requestId(), messages, members.size());
-        } else if (hasErrorMessage(messages)) {
+        if (hasErrorMessage(messages)) {
             log.warn("marker=MMI_ERROR_MESSAGE_WITH_MEMBERS mmiRequestId={} messages={}", mmiResult.requestId(), messages);
         }
 

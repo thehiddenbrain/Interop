@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "fc06bd8a-2b7b-4a0b-a1a5-d2d605d0da94",
     "name": "Member ID Resolution Service",
-    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (the default: in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One MMI call either way. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient: only the member id is required; a vendor or any unknown property is accepted and ignored; an unusable date is ignored, not rejected, and named in ignoredFields. Every 200 carries a one-sentence \"message\" right after \"outcome\". MMI answers 404 when it has no member for the id; that is a normal answer: 200 NOT_FOUND, with MMI's own message in \"mmiMessage\". Only an unknown route of this service is a 404 from this service.",
+    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (the default: in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One MMI call either way. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient: only the member id is required; a vendor or any unknown property is accepted and ignored; an unusable date is ignored, not rejected, and named in ignoredFields. Every 200 carries a one-sentence \"message\" right after \"outcome\". MMI's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MMI_BAD_REQUEST with MMI's text; 503 MMI_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. On NOT_FOUND, \"mmiMessage\" (type, status, code, text) carries MMI's own message when MMI sent one.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -1388,7 +1388,7 @@
     },
     {
       "name": "4 Not found and request validation",
-      "description": "",
+      "description": "An id MMI does not know is MMI's 404 and this service's 200 NOT_FOUND, with MMI's own message in mmiMessage when MMI sent one. The only 404 from this service is an unknown route (last request in this folder); the other requests are the strict validation of /resolve.",
       "item": [
         {
           "name": "Unknown member: NOT_FOUND",
@@ -2085,6 +2085,7 @@
                 "exec": [
                   "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
                   "pm.test(\".error.details[0].code = ROUTE_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"ROUTE_NOT_FOUND\")); });",
+                  "pm.test(\".error.details[0].message contains POST /api/v1/member-ids/vendor-map\", function () { const j = pm.response.json(); pm.expect(j.error.details[0].message).to.include(\"POST /api/v1/member-ids/vendor-map\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2122,7 +2123,8 @@
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "The only 404 this service itself returns: an unknown route (ROUTE_NOT_FOUND), with the same error envelope as every other failure. A member MMI does not know is not a 404 from this service; it is 200 NOT_FOUND (see the NOT_FOUND requests above)."
           },
           "response": []
         }
@@ -2130,7 +2132,7 @@
     },
     {
       "name": "5 MMI failures (stub fault ids)",
-      "description": "",
+      "description": "MMI's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MMI_BAD_REQUEST with MMI's text; 503 MMI_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. Anything else from the MMI endpoint (a gateway or proxy answering, not MMI) is 503 for 5xx / 429 / 408 and 502 otherwise; a connection failure or read timeout is 503; a 2xx body this service cannot read is 502 MMI_INVALID_RESPONSE. The stub's reserved ids drive these answers: 500500500 (MMI 500), 503503503 (read timeout), 400400400 (MMI 400), 888888888 (200 with an error-typed message and no members), 202202202 (unreadable body), 887777777 (error message beside a member), 886666666 (record without a member id), 880000000 (only span unreadable). Any id the stub does not know is MMI's 404: 200 NOT_FOUND.",
       "item": [
         {
           "name": "MMI answers 500: 503 MMI_UNAVAILABLE",
@@ -2143,7 +2145,10 @@
                   "pm.test(\"HTTP 503\", function () { pm.response.to.have.status(503); });",
                   "pm.test(\".error.code = MMI_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_UNAVAILABLE\")); });",
                   "pm.test(\".error.details[0].code = HTTP_500\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"HTTP_500\")); });",
-                  "pm.test(\"Retry-After\", function () { pm.response.to.have.header(\"Retry-After\"); });",
+                  "pm.test(\".error.message contains internal error\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"internal error\"); });",
+                  "pm.test(\".error.message contains INTERNAL_ERROR\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"INTERNAL_ERROR\"); });",
+                  "pm.test(\"Retry-After = 10\", function () { pm.response.to.have.header(\"Retry-After\"); pm.expect(pm.response.headers.get(\"Retry-After\")).to.eql(\"10\"); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2181,7 +2186,8 @@
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "MMI's contract: 500 means an internal error in MMI. This service answers 503 MMI_UNAVAILABLE (details[0].code HTTP_500) with Retry-After: 10 so Onyx may retry later; the error message is \"MMI reported an internal error\" followed by MMI's own code and text when MMI sent a message (the stub sends INTERNAL_ERROR)."
           },
           "response": []
         },
@@ -2194,7 +2200,10 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 503\", function () { pm.response.to.have.status(503); });",
+                  "pm.test(\".error.code = MMI_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_UNAVAILABLE\")); });",
                   "pm.test(\".error.details[0].code = READ_TIMEOUT\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"READ_TIMEOUT\")); });",
+                  "pm.test(\"Retry-After = 10\", function () { pm.response.to.have.header(\"Retry-After\"); pm.expect(pm.response.headers.get(\"Retry-After\")).to.eql(\"10\"); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2237,15 +2246,20 @@
           "response": []
         },
         {
-          "name": "MMI rejects with 400: 502 MMI_ERROR",
+          "name": "MMI answers 400 (bad request): forwarded as 400 MMI_BAD_REQUEST",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 502\", function () { pm.response.to.have.status(502); });",
-                  "pm.test(\".error.code = MMI_ERROR\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_ERROR\")); });",
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\".error.code = MMI_BAD_REQUEST\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_BAD_REQUEST\")); });",
+                  "pm.test(\".error.details[0].code = HTTP_400\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"HTTP_400\")); });",
+                  "pm.test(\".error.message contains bad request\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"bad request\"); });",
+                  "pm.test(\".error.message contains INVALID_REQUEST\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"INVALID_REQUEST\"); });",
+                  "pm.test(\"no Retry-After header\", function () { pm.expect(pm.response.headers.has(\"Retry-After\")).to.eql(false); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2283,12 +2297,13 @@
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "MMI's contract: 400 means MMI could not process the request as sent. This service forwards it as 400 MMI_BAD_REQUEST (details[0].code HTTP_400); the error message is \"MMI rejected the request as a bad request\" followed by MMI's own code and text when MMI sent a message (the stub sends INVALID_REQUEST). No Retry-After: Onyx must not retry as is. mmiRequestId is present because the id was sent to MMI."
           },
           "response": []
         },
         {
-          "name": "MMI error message that is not a not-found code (ES_TIMEOUT), no members: 502 MMI_ERROR",
+          "name": "MMI 200 with an error-typed message (ES_TIMEOUT) and no members: 502 MMI_ERROR",
           "event": [
             {
               "listen": "test",
@@ -2296,9 +2311,11 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 502\", function () { pm.response.to.have.status(502); });",
+                  "pm.test(\".error.code = MMI_ERROR\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_ERROR\")); });",
                   "pm.test(\".error.details[0].code = ERROR_MESSAGE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"ERROR_MESSAGE\")); });",
                   "pm.test(\".error.message contains code=ES_TIMEOUT\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"code=ES_TIMEOUT\"); });",
                   "pm.test(\".error.message contains text=search backend timed out\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"text=search backend timed out\"); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2337,7 +2354,7 @@
                 }
               }
             },
-            "description": "MMI answered with an error-typed message whose code is not a not-found code (ES_TIMEOUT) and no members: that is an MMI error, 502 MMI_ERROR / ERROR_MESSAGE, and the error message forwards MMI's code and text. Compare with the next request: a not-found answer (HTTP 404 or a not-found code such as MEMBER_NOT_FOUND) is 200 NOT_FOUND."
+            "description": "MMI answered 200, no members, and an error-typed message (ES_TIMEOUT): MMI itself reported an error, so this is 502 MMI_ERROR / ERROR_MESSAGE and the error message forwards MMI's code and text. A 200 with no members and no error-typed message would be 200 NOT_FOUND. Compare with the next request: MMI's 404 (no member for this id) is 200 NOT_FOUND, never an error."
           },
           "response": []
         },
@@ -2409,6 +2426,7 @@
                 "exec": [
                   "pm.test(\"HTTP 502\", function () { pm.response.to.have.status(502); });",
                   "pm.test(\".error.code = MMI_INVALID_RESPONSE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_INVALID_RESPONSE\")); });",
+                  "pm.test(\".error.details[0].code = UNPARSEABLE_BODY\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"UNPARSEABLE_BODY\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3414,7 +3432,9 @@
                   "pm.test(\"HTTP 503\", function () { pm.response.to.have.status(503); });",
                   "pm.test(\".error.code = MMI_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_UNAVAILABLE\")); });",
                   "pm.test(\".error.details[0].code = HTTP_500\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"HTTP_500\")); });",
-                  "pm.test(\"Retry-After\", function () { pm.response.to.have.header(\"Retry-After\"); });",
+                  "pm.test(\".error.message contains internal error\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"internal error\"); });",
+                  "pm.test(\".error.message contains INTERNAL_ERROR\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"INTERNAL_ERROR\"); });",
+                  "pm.test(\"Retry-After = 10\", function () { pm.response.to.have.header(\"Retry-After\"); pm.expect(pm.response.headers.get(\"Retry-After\")).to.eql(\"10\"); });",
                   "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
