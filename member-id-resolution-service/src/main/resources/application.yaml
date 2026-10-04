@@ -89,7 +89,10 @@ member-id:
     CARELON:
       display-name: Carelon
       aliases: [AIM]
-      format: COMPACT_11                # TO CONFIRM with the owner: 11 or 14
+      format: COMPACT_11
     OPTUM:
       display-name: Optum
       format: SPLIT                     # Optum receives the 9 digits and the suffix as two fields
+    ONYX:
+      display-name: Onyx
+      format: COMPACT_11

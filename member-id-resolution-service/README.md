@@ -122,7 +122,7 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed, generated when a
 |---|---|---|
 | `memberId` | yes | As the EMR typed it. Only checked for presence; sent to MMI exactly as received, with surrounding whitespace removed. Not validated or reshaped here. |
 | `dateOfService` | no | `yyyy-MM-dd`. **Defaults to today** when omitted (`dateOfServiceDefaulted: true` in the response). Must be within 10 years back / 366 days forward. |
-| `vendor` | yes | Code or alias from the vendor table, case-insensitive: `EVICORE`, `MHK`, `EVOLENT`, `CARELON`, `OPTUM` (samples). |
+| `vendor` | yes | Code or alias from the vendor table, case-insensitive: `EVICORE`, `MHK`, `EVOLENT`, `CARELON`, `OPTUM`, `ONYX`. |
 | `patient.dateOfBirth` | recommended | `yyyy-MM-dd`. Used only to verify or pick among the records MMI returned. Never sent to MMI, never logged, never echoed. |
 
 The service does not validate or reshape the incoming member id. Whatever the EMR typed (9, 11 or 14
@@ -258,6 +258,7 @@ For the TMP id `123456789` (stored `123456789   01`):
     { "vendor": "EVICORE", "memberId": "12345678901" },
     { "vendor": "EVOLENT", "memberId": "12345678901" },
     { "vendor": "MHK",     "memberId": "123456789   01" },
+    { "vendor": "ONYX",    "memberId": "12345678901" },
     { "vendor": "OPTUM",   "memberId": "12345678901", "memberIdParts": { "memberId": "123456789", "suffix": "01" } }
   ],
   "correlationId": "ONYX-PA-2026-000124", "mmiRequestId": "MBRIDSVC-1760000000000-48214" }
@@ -371,13 +372,16 @@ member-id:
     CARELON:
       display-name: Carelon
       aliases: [AIM]
-      format: COMPACT_11                # TO CONFIRM with the owner: 11 or 14
+      format: COMPACT_11
     OPTUM:
       display-name: Optum
       format: SPLIT                     # "123456789" + "01" as two fields (TMP/SCO ids)
+    ONYX:
+      display-name: Onyx
+      format: COMPACT_11
 ```
 
-Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. A new output shape = one constant in
+Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. A format applies when the stored id is digits, whitespace, digits (any kind or number of spaces, TMP/SCO); a stored id of any other shape is passed on unchanged and, when it is not plain letters and digits, the log says so (`marker=STORED_ID_NOT_RESHAPED` with the shape, never the digits). A new output shape = one constant in
 `VendorIdFormat` + one case in `VendorFormatter` + one test row.
 
 ## 5. Stub fixtures (dev profile) and Postman
@@ -449,6 +453,5 @@ untouched.
 - MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500 (owner);
   confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `mmiMessage`
   can be filled: if the log shows `MMI_404_WITHOUT_ENVELOPE` for an id that exists nowhere, it does not.
-- Carelon's format (11 or 14).
 - `coverage.active` is the flag; the span is supporting detail. Legacy IDs, migration dates, PCP and
   group names are intentionally not returned.

@@ -232,3 +232,16 @@ See the conversation; answers will be appended here.
   MMI, and is answered 503 (5xx, 429, 408) or 502 saying so. The two not-found code lists from feedback 10 are
   removed again. The stub's 400400400 fault now answers 400 `MMI_BAD_REQUEST`.
 
+## Feedback 12 (2026-10-04): every vendor got the 14-character id in PQA; Carelon confirmed 11; add Onyx
+
+- Against the real MMI every vendor received the 14-character stored id. The owner confirms the formats: Carelon
+  11, eviCore 11, Evolent 11, MHK 14, Optum 11 (two fields), and Onyx itself 11.
+- Diagnosis: the formatter only reshaped a stored id matching exactly "9 digits, ASCII whitespace, 2 digits"; a
+  stored value padded or separated differently (non-breaking spaces, tabs, trailing blanks, another digit count)
+  fell back to "as stored" for every vendor. Applied: the formatter now normalises every kind of whitespace and
+  reshapes any "digits, spaces, digits" value; when a stored id that is not plain letters and digits still cannot
+  be reshaped, the log carries `marker=STORED_ID_NOT_RESHAPED` with the shape (digits as #, other characters by
+  code point, never the digits). Onyx added as a vendor (COMPACT_11); Carelon's "to confirm" removed.
+- If PQA still shows 14 characters for an 11-character vendor, the `mmi response` payload line or the
+  `STORED_ID_NOT_RESHAPED` line shows the exact stored shape to map.
+

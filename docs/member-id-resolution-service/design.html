@@ -287,14 +287,15 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 </div>
 
 <h3>2.1 What each vendor expects</h3>
-<p>Sample values from the owner; Carelon still to be confirmed. The formats apply to ids <em>stored</em> in the TMP/SCO form only; Public Plans and HPHC IDs go to every vendor exactly as stored. This table is about what MMI stores and what each vendor receives, not about what Onyx may send: the incoming id goes to MMI as typed (section 8).</p>
+<p>Values from the owner (Carelon confirmed as 11). The formats apply to ids <em>stored</em> in the TMP/SCO form only; Public Plans and HPHC IDs go to every vendor exactly as stored. This table is about what MMI stores and what each vendor receives, not about what Onyx may send: the incoming id goes to MMI as typed (section 8).</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Vendor</th><th>Format</th><th>TMP stored <code>123456789   01</code> becomes</th><th>Public Plans <code>34567890101</code></th><th>HPHC <code>HP456789012</code></th></tr></thead>
 <tbody>
 <tr><td>eviCore</td><td><code>COMPACT_11</code></td><td><code>12345678901</code></td><td>as stored</td><td>as stored</td></tr>
 <tr><td>Evolent</td><td><code>COMPACT_11</code></td><td><code>12345678901</code></td><td>as stored</td><td>as stored</td></tr>
-<tr><td>Carelon</td><td><code>COMPACT_11</code> (to confirm: 11 or 14)</td><td><code>12345678901</code></td><td>as stored</td><td>as stored</td></tr>
+<tr><td>Carelon</td><td><code>COMPACT_11</code></td><td><code>12345678901</code></td><td>as stored</td><td>as stored</td></tr>
 <tr><td>MHK (MedHOK)</td><td><code>SPACED_14</code></td><td><code>123456789   01</code></td><td>as stored</td><td>as stored</td></tr>
+<tr><td>Onyx</td><td><code>COMPACT_11</code></td><td><code>12345678901</code></td><td>as stored</td><td>as stored</td></tr>
 <tr><td>Optum</td><td><code>SPLIT</code></td><td>two fields <code>123456789</code> and <code>01</code>, plus the join <code>12345678901</code></td><td>as stored</td><td>as stored</td></tr>
 </tbody></table></div>
 <p>Why a service and not a rule in Onyx: the EMR's 9 digits do not say which suffix, which company or whether the member is covered; only MMI knows, and MMI is internal. Putting the lookup and the per-vendor rendering in one place means nobody else guesses.</p>
@@ -304,7 +305,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <div class="tablewrap"><table>
 <thead><tr><th>#</th><th>Decision</th><th>Why it matters</th><th>Default in the code</th></tr></thead>
 <tbody>
-<tr><td>D1</td><td><b>Carelon's format</b>: 11 or 14 characters.</td><td>One YAML value.</td><td><code>COMPACT_11</code></td></tr>
+<tr><td>D1</td><td><b>Carelon's format</b>: settled by the owner on 2026-10-04, 11 characters.</td><td>One YAML value.</td><td><code>COMPACT_11</code> (done)</td></tr>
 <tr><td>D2</td><td><b>Does Onyx send <code>patient.dateOfBirth</code></b> for populations with dependents?</td><td>Without it a 9-digit Together or HPHC family ID lands on a worklist as AMBIGUOUS. TMP/SCO never need it.</td><td>Optional; verified whenever present.</td></tr>
 <tr><td>D3</td><td><b>What Onyx does with INACTIVE.</b></td><td>The service reports the flag and why; it does not decide whether the auth may still be filed.</td><td>Reported; Onyx holds for intake.</td></tr>
 <tr><td>D4</td><td><b>Restricted members</b> (<code>restrictedData = Y</code>).</td><td>The lean response does not carry the flag. Adding <code>member.restricted</code> is one field if Onyx must act on it.</td><td>Not returned.</td></tr>
@@ -550,7 +551,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <h4><span class="pill bad">400</span> UNKNOWN_VENDOR · <span class="pill bad">503</span> MMI_UNAVAILABLE: MMI's 500, its code and text forwarded, <code>Retry-After: 10</code></h4>
 <pre><code>{ "error": { "code": "UNKNOWN_VENDOR", "message": "vendor is not configured",
     "details": [ { "field": "vendor", "code": "KNOWN_VENDORS",
-                   "message": "CARELON, EVICORE, EVOLENT, MHK, OPTUM" } ] },
+                   "message": "CARELON, EVICORE, EVOLENT, MHK, ONYX, OPTUM" } ] },
   "correlationId": "ONYX-PA-2026-000123" }
 
 { "error": { "code": "MMI_UNAVAILABLE",
@@ -630,6 +631,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     { "vendor": "EVICORE", "memberId": "12345678901" },
     { "vendor": "EVOLENT", "memberId": "12345678901" },
     { "vendor": "MHK",     "memberId": "123456789   01" },
+    { "vendor": "ONYX",    "memberId": "12345678901" },
     { "vendor": "OPTUM",   "memberId": "12345678901",
       "memberIdParts": { "memberId": "123456789", "suffix": "01" } } ],
   "correlationId": "ONYX-PA-2026-000123",
@@ -649,6 +651,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     { "vendor": "EVICORE", "memberId": "HP456789012" },
     { "vendor": "EVOLENT", "memberId": "HP456789012" },
     { "vendor": "MHK",     "memberId": "HP456789012" },
+    { "vendor": "ONYX",    "memberId": "HP456789012" },
     { "vendor": "OPTUM",   "memberId": "HP456789012" } ],
   "correlationId": "ONYX-PA-2026-000123",
   "mmiRequestId": "MBRIDSVC-1791086474713-48882" }</code></pre>
@@ -695,6 +698,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     { "vendor": "EVICORE", "memberId": "12345678901" },
     { "vendor": "EVOLENT", "memberId": "12345678901" },
     { "vendor": "MHK",     "memberId": "123456789   01" },
+    { "vendor": "ONYX",    "memberId": "12345678901" },
     { "vendor": "OPTUM",   "memberId": "12345678901",
       "memberIdParts": { "memberId": "123456789", "suffix": "01" } } ],
   "correlationId": "ONYX-PA-2026-000123",
@@ -892,8 +896,9 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
     EVICORE: { display-name: eviCore, aliases: [EVI, EVICORE_HEALTHCARE], format: COMPACT_11 }
     MHK:     { display-name: MHK (MedHOK), aliases: [MEDHOK],             format: SPACED_14 }
     EVOLENT: { display-name: Evolent, aliases: [EVOLENT_HEALTH],          format: COMPACT_11 }
-    CARELON: { display-name: Carelon, aliases: [AIM],                     format: COMPACT_11 }   # TO CONFIRM: 11 or 14
-    OPTUM:   { display-name: Optum,                                       format: SPLIT }</code></pre>
+    CARELON: { display-name: Carelon, aliases: [AIM],                     format: COMPACT_11 }
+    OPTUM:   { display-name: Optum,                                       format: SPLIT }
+    ONYX:    { display-name: Onyx,                                        format: COMPACT_11 }</code></pre>
 <p>At startup the table is validated (keys <code>^[A-Z0-9_]{2,32}$</code>, a format on every vendor, aliases unique across vendors) and printed, rendered against the sample stored ID <code>123456789   01</code>, in the first lines of the log. An unknown enum value or a shared alias stops the application with a message naming the key.</p>
 <p>The vendor map (section 6.6) is rendered from this same table: <code>VendorRegistry.all()</code>, sorted by code, one <code>vendorMemberIds</code> entry per key. A vendor added here appears in every vendor-map response from the next deployment, with no code change. The same shape rule applies to every entry: only a stored TMP/SCO id is reshaped; a Public Plans or HPHC id is the stored value on all of them.</p>
 
@@ -1058,7 +1063,7 @@ member-id:
 <li>A search by the 9 digits of an HPHC id without the <code>HP</code> prefix does not match HPHC records (affects only what NOT_FOUND means for such an input).</li>
 <li>For converted members, which record carries <code>migrationEffectiveDate</code> and whether the old company's spans are trimmed (affects only the "both records cover the date" branch).</li>
 <li>Whether <code>coverage</code> is null or <code>[]</code> for a member with no spans (both are handled the same way).</li>
-<li>Carelon's format (D1); Onyx's DOB availability for dependent populations (D2); INACTIVE and restricted-member handling (D3, D4); whether Onyx reads bodies on non-2xx (D5); the DOS window (D6); the registered MMI <code>clientId</code> (D7).</li>
+<li>Onyx's DOB availability for dependent populations (D2); INACTIVE and restricted-member handling (D3, D4); whether Onyx reads bodies on non-2xx (D5); the DOS window (D6); the registered MMI <code>clientId</code> (D7).</li>
 </ol>
 
 <h2 id="glossary"><span class="num">20</span>Glossary</h2>
@@ -1068,7 +1073,7 @@ member-id:
   <dt>TMP / SCO</dt><dd>Tufts Medicare Preferred and Senior Care Options: THP Medicare membership. Cards print 9 digits; MMI stores 9 digits + 3 spaces + <code>01</code>. No dependents.</dd>
   <dt>Public Plans</dt><dd>THP's Together, Direct and SNP populations; 11-character continuous IDs; families with dependents.</dd>
   <dt>Onyx</dt><dd>The integration platform that receives prior-authorization requests from provider EMRs and routes them to UM vendors. The only caller.</dd>
-  <dt>UM vendor</dt><dd>Utilization-management partner: eviCore, Evolent, Carelon, MHK, Optum.</dd>
+  <dt>UM vendor</dt><dd>Utilization-management partner: eviCore, Evolent, Carelon, MHK, Optum; Onyx itself is also configured as a vendor (11 characters).</dd>
   <dt>Stored ID</dt><dd>The member ID exactly as MMI holds it (<code>memberId.stored</code>).</dd>
   <dt>For-vendor ID</dt><dd>The stored ID rendered in a vendor's format (<code>memberId.forVendor</code> on <code>/resolve</code>, <code>vendorMemberIds[].memberId</code> on the vendor map); the only value Onyx forwards.</dd>
   <dt>Vendor map</dt><dd>The second operation, <code>POST /api/v1/member-ids/vendor-map</code>: the member id in every vendor's format at once, <code>vendorMemberIds[]</code>, for when Onyx does not yet know the vendor.</dd>

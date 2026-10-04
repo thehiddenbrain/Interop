@@ -410,7 +410,7 @@ class ResolveScenariosTest {
     void unknownVendorListsTheKnownOnesAndNeverEchoesTheValue() throws Exception {
         JsonNode r = call(400, req("123456789", "2026-10-15", "AIMX"));
         assertThat(r.at("/error/code").asText()).isEqualTo("UNKNOWN_VENDOR");
-        assertThat(r.at("/error/details/0/message").asText()).isEqualTo("CARELON, EVICORE, EVOLENT, MHK, OPTUM");
+        assertThat(r.at("/error/details/0/message").asText()).isEqualTo("CARELON, EVICORE, EVOLENT, MHK, ONYX, OPTUM");
         assertThat(r.toString()).doesNotContain("AIMX");
         JsonNode phi = call(400, req("123456789", "2026-10-15", "Smith, John 123456789 01"));
         assertThat(phi.at("/error/details/0/code").asText()).isEqualTo("VENDOR_INVALID");
@@ -570,10 +570,11 @@ class ResolveScenariosTest {
 
         Map<String, JsonNode> byVendor = new java.util.LinkedHashMap<>();
         r.get("vendorMemberIds").forEach(e -> byVendor.put(e.get("vendor").asText(), e));
-        assertThat(byVendor.keySet()).as("every configured vendor, sorted by code").containsExactly("CARELON", "EVICORE", "EVOLENT", "MHK", "OPTUM");
+        assertThat(byVendor.keySet()).as("every configured vendor, sorted by code").containsExactly("CARELON", "EVICORE", "EVOLENT", "MHK", "ONYX", "OPTUM");
         assertThat(byVendor.get("EVICORE").get("memberId").asText()).isEqualTo("12345678901");
         assertThat(byVendor.get("EVOLENT").get("memberId").asText()).isEqualTo("12345678901");
         assertThat(byVendor.get("CARELON").get("memberId").asText()).isEqualTo("12345678901");
+        assertThat(byVendor.get("ONYX").get("memberId").asText()).isEqualTo("12345678901");
         assertThat(byVendor.get("MHK").get("memberId").asText()).isEqualTo("123456789   01");
         assertThat(byVendor.get("OPTUM").get("memberId").asText()).isEqualTo("12345678901");
         assertThat(byVendor.get("OPTUM").at("/memberIdParts/memberId").asText()).isEqualTo("123456789");
@@ -590,7 +591,7 @@ class ResolveScenariosTest {
         assertThat(hphc.get("dateOfService").asText()).isEqualTo("2026-10-03");
         assertThat(hphc.at("/memberId/received").asText()).isEqualTo("HP-456789012");
         assertThat(hphc.at("/memberId/stored").asText()).isEqualTo("HP456789012");
-        assertThat(hphc.get("vendorMemberIds")).hasSize(5);
+        assertThat(hphc.get("vendorMemberIds")).hasSize(6);
         hphc.get("vendorMemberIds").forEach(e -> {
             assertThat(e.get("memberId").asText()).as(e.get("vendor").asText()).isEqualTo("HP456789012");
             assertThat(e.has("memberIdParts")).isFalse();
@@ -599,7 +600,7 @@ class ResolveScenariosTest {
         JsonNode publicPlans = callVendorMap(200, Map.of("memberId", "34567890102", "dateOfService", "2024-08-15"));
         assertThat(publicPlans.get("outcome").asText()).as("a gap in coverage still identifies the member").isEqualTo("INACTIVE");
         assertThat(publicPlans.at("/coverage/active").asBoolean()).isFalse();
-        assertThat(publicPlans.get("vendorMemberIds")).hasSize(5);
+        assertThat(publicPlans.get("vendorMemberIds")).hasSize(6);
         publicPlans.get("vendorMemberIds").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890102"));
     }
 
@@ -624,7 +625,7 @@ class ResolveScenariosTest {
                 "patient", Map.of("dateOfBirth", "1985-06-01")));
         assertThat(withDob.get("outcome").asText()).as("DOB picks the subscriber, then every vendor gets the id").isEqualTo("ACTIVE");
         assertThat(withDob.at("/memberId/stored").asText()).isEqualTo("34567890101");
-        assertThat(withDob.get("vendorMemberIds")).hasSize(5);
+        assertThat(withDob.get("vendorMemberIds")).hasSize(6);
         withDob.get("vendorMemberIds").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890101"));
     }
 
@@ -639,13 +640,13 @@ class ResolveScenariosTest {
         // the /resolve payload, vendor included, is accepted as is: the vendor is simply ignored
         JsonNode withVendor = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "vendor", "EVICORE"));
         assertThat(withVendor.get("outcome").asText()).isEqualTo("ACTIVE");
-        assertThat(withVendor.get("vendorMemberIds")).hasSize(5);
+        assertThat(withVendor.get("vendorMemberIds")).hasSize(6);
         assertThat(withVendor.has("ignoredFields")).isFalse();
         // whatever shape the vendor takes (unknown code, object, array, number), it is ignored, never looked up or rejected
         for (Object vendor : List.of("NO_SUCH_VENDOR", Map.of("code", "EVICORE"), List.of("EVICORE"), 5)) {
             JsonNode r = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "vendor", vendor));
             assertThat(r.get("outcome").asText()).as("vendor=" + vendor).isEqualTo("ACTIVE");
-            assertThat(r.get("vendorMemberIds")).hasSize(5);
+            assertThat(r.get("vendorMemberIds")).hasSize(6);
             assertThat(r.has("ignoredFields")).isFalse();
         }
 
@@ -658,7 +659,7 @@ class ResolveScenariosTest {
         List<String> ignored = new java.util.ArrayList<>();
         odd.get("ignoredFields").forEach(n -> ignored.add(n.asText()));
         assertThat(ignored).containsExactly("dateOfService", "patient.dateOfBirth");
-        assertThat(odd.get("vendorMemberIds")).hasSize(5);
+        assertThat(odd.get("vendorMemberIds")).hasSize(6);
 
         JsonNode farPast = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "1999-01-01"));
         assertThat(farPast.get("dateOfServiceDefaulted").asBoolean()).as("out-of-window date -> today").isTrue();
