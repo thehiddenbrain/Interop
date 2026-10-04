@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "fc06bd8a-2b7b-4a0b-a1a5-d2d605d0da94",
     "name": "Member ID Resolution Service",
-    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (the default: in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One MMI call either way. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence.",
+    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (the default: in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One MMI call either way. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient: only the member id is required; a vendor or any unknown property is accepted and ignored; an unusable date is ignored, not rejected, and named in ignoredFields.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

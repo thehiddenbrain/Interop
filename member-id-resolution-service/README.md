@@ -3,7 +3,7 @@
 Spring Boot service for Onyx. Onyx sends the member ID exactly as the provider's EMR supplied it, the
 date of service and the UM vendor; the service verifies the ID with MMI (Master Member Index), returns it
 **as stored**, returns it **in the vendor's format**, and says whether coverage is **active** on the date
-of service. When Onyx does not yet know the vendor, the **vendor map** operation takes the member id alone
+of service. When Onyx does not yet know the vendor, the **vendor map** operation needs only the member id (anything else sent with it is accepted)
 and returns it in every vendor's format at once. Two operations, one downstream (MMI), no database, no state.
 
 | | |
@@ -174,7 +174,7 @@ X-Correlation-Id: ONYX-PA-2026-000124        (optional; echoed, generated when a
 
 | Field | Required | Notes |
 |---|---|---|
-| `memberId` | yes | As the EMR typed it. Same rule as `/resolve`: checked for presence only, sent to MMI exactly as received with surrounding whitespace removed. The only field that can cause a 400. |
+| `memberId` | yes | As the EMR typed it. Same rule as `/resolve`: checked for presence only, sent to MMI exactly as received with surrounding whitespace removed. The only field whose value can cause a 400 (blank: `MEMBER_ID_MISSING`). A field sent as the wrong JSON type (an object or array where a string is expected, a string where `patient` is expected) is a body the service cannot read: 400 `WRONG_JSON_TYPE`, on either operation. |
 | `dateOfService` | no | `yyyy-MM-dd`. **Defaults to today** when omitted (`dateOfServiceDefaulted: true`). A value that is not a real date or is outside 10 years back / 366 days forward is **ignored**: the date defaults to today and `ignoredFields` names `dateOfService`. |
 | `vendor` | no | **Accepted and ignored**: this operation answers for every vendor. Lets Onyx send the `/resolve` payload as is. |
 | `patient.dateOfBirth` | recommended | `yyyy-MM-dd`. A real date is used to verify or pick among the records MMI returned (a date that matches no record is still 422 `DOB_MISMATCH`). A value that is not a real date, is in the future or is more than 125 years ago is **ignored** and `ignoredFields` names `patient.dateOfBirth`. Never sent to MMI, never logged, never echoed. |
@@ -182,7 +182,9 @@ X-Correlation-Id: ONYX-PA-2026-000124        (optional; echoed, generated when a
 `/vendor-map` is lenient: only the member id is required; a `vendor` or any unknown property (at the top level
 or inside `patient`) is accepted and ignored; an unusable date is ignored, not rejected, and named in
 `ignoredFields`. The only 400 `INVALID_REQUEST` on this operation is a missing or blank `memberId`
-(`MEMBER_ID_MISSING`) or a body that is not JSON (malformed JSON, wrong top-level type). A blank id never
+(`MEMBER_ID_MISSING`) or a body the service cannot read as this request: malformed JSON (`MALFORMED_JSON`) or a
+wrong JSON type (`WRONG_JSON_TYPE`: a non-object body, an object or array where a string is expected, a string
+where `patient` is expected). A blank id never
 reaches MMI. So
 
 ```json
@@ -239,7 +241,7 @@ and ignored, like any unknown property.
 
 | HTTP | `error.code` | When | Onyx action |
 |---|---|---|---|
-| 400 | `INVALID_REQUEST` | `/resolve`: missing member ID, bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE`, `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), missing or malformed vendor (`VENDOR_MISSING`, `VENDOR_INVALID`), unknown property (`UNKNOWN_PROPERTY`), malformed JSON, wrong JSON type; every problem is listed in `details[]`. `/vendor-map`: only a missing or blank member ID (`MEMBER_ID_MISSING`) or a body that is not JSON (malformed JSON, wrong top-level type); bad dates and unknown properties are ignored there, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operations are POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
+| 400 | `INVALID_REQUEST` | `/resolve`: missing member ID, bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE`, `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), missing or malformed vendor (`VENDOR_MISSING`, `VENDOR_INVALID`), unknown property (`UNKNOWN_PROPERTY`), malformed JSON, wrong JSON type; every problem is listed in `details[]`. `/vendor-map`: only a missing or blank member ID (`MEMBER_ID_MISSING`) or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); bad dates and unknown properties are ignored there, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operations are POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
 | 400 | `UNKNOWN_VENDOR` | `/resolve` only: vendor not in the table; `details[0].message` lists the known codes | Never retry; routing table and this table disagree. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
 | 502 | `MMI_ERROR`, `MMI_INVALID_RESPONSE` | MMI rejected the call, answered unreadably, or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read) | Park, alert the service owners. |
@@ -355,8 +357,8 @@ only 400 and never reaches MMI, that the `/resolve` payload with its `vendor` is
 `ignoredFields`), that an unknown property, a `10/15/2026` date of service and a `not-a-date` date of birth
 answer 200 with today's date, `dateOfServiceDefaulted: true` and `ignoredFields: ["dateOfService",
 "patient.dateOfBirth"]`, that an out-of-window date of service is defaulted the same way, that a real but wrong
-DOB is still 422 `DOB_MISMATCH` after the one MMI call (`mmiRequestId` present), and that the same odd payload on
-`/resolve` is still 400. A capturing log appender
+DOB is still 422 `DOB_MISMATCH` after the one MMI call (`mmiRequestId` present), and that an unknown property with a
+`10/15/2026` date of service on `/resolve` is still 400 `INVALID_REQUEST`. A capturing log appender
 asserts no log line (message or exception text; payload logging is off in the `test` profile) contains an
 unmasked 9- or 11-digit run or an MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI

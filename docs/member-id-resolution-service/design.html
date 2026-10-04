@@ -188,7 +188,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <p>Every UM vendor stores our member ID in its own shape. A THP Medicare (TMP) or SCO card prints 9 digits; our systems store those 9 digits, three spaces and the suffix <code>01</code> (14 characters); eviCore, Evolent and Carelon keep 11 characters without the spaces, MHK keeps all 14, Optum receives the 9 digits and the suffix as two separate fields. EMRs type whatever is on the card. Today the mismatch surfaces at the vendor. This service moves the check to the front of the flow: one call from Onyx, one call to MMI, and back come the ID as received, the ID as stored, the ID in the vendor's format and the coverage flag. Two operations share that one lookup: <code>/resolve</code> when Onyx knows the vendor, <code>/vendor-map</code> when it does not yet and wants the id in every vendor's format at once.</p>
 
 <figure>
-<svg viewBox="0 0 980 300" role="img" aria-label="Request path: the EMR sends a member ID to Onyx; Onyx posts the member ID and date of service (and, on /resolve, the vendor) to the Member ID Resolution Service; the service posts a member search to MMI inside the internal network; MMI returns member records with coverage spans; the service returns an outcome with the stored and vendor-formatted IDs; Onyx sends only the vendor-formatted ID to the UM vendor." style="color: var(--fg)">
+<svg viewBox="0 0 980 300" role="img" aria-label="Request path: the EMR sends a member ID to Onyx; Onyx posts the member ID, the date of service and the vendor (which only /resolve uses) to the Member ID Resolution Service; the service posts a member search to MMI inside the internal network; MMI returns member records with coverage spans; the service returns an outcome with the stored and vendor-formatted IDs; Onyx sends only the vendor-formatted ID to the UM vendor." style="color: var(--fg)">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
   </defs>
@@ -222,7 +222,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
     <text x="149" y="131" text-anchor="middle" font-size="11">auth request</text>
 
     <line x1="300" y1="126" x2="448" y2="126" stroke="currentColor" marker-end="url(#arr)"/>
-    <text x="374" y="117" text-anchor="middle" font-size="11">memberId, DOS, vendor (/resolve only)</text>
+    <text x="374" y="117" text-anchor="middle" font-size="11">memberId, DOS, vendor (used by /resolve only)</text>
     <line x1="448" y1="156" x2="302" y2="156" stroke="currentColor" marker-end="url(#arr)"/>
     <text x="374" y="174" text-anchor="middle" font-size="11">outcome, IDs, coverage</text>
 
@@ -567,7 +567,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <tr><td><code>vendorMemberIds[].memberId</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The stored ID in that vendor's format: what goes into that vendor's payload. Public Plans and HPHC ids are the stored value on every entry (section 12).</td></tr>
 <tr><td><code>vendorMemberIds[].memberIdParts</code></td><td>opt</td><td>opt</td><td>–</td><td>–</td><td><code>{ memberId, suffix }</code>, only on entries for vendors configured <code>SPLIT</code> (Optum) and only when the stored ID has the TMP shape.</td></tr>
 </tbody></table></div>
-<p class="small">As on <code>/resolve</code>, fields that do not apply are absent, not null. Errors use the envelope of 6.4; from this operation only <code>MEMBER_ID_MISSING</code>, <code>MALFORMED_JSON</code>, <code>WRONG_JSON_TYPE</code>, the 422 and the 5xx codes can occur.</p>
+<p class="small">As on <code>/resolve</code>, fields that do not apply are absent, not null. Errors use the envelope of 6.4; of its 400 detail codes only <code>MEMBER_ID_MISSING</code>, <code>MALFORMED_JSON</code> and <code>WRONG_JSON_TYPE</code> can occur on this operation; the 422, the 5xx codes and the 404 / 405 / 406 / 415 of 6.4 apply as on <code>/resolve</code>.</p>
 <h4>Examples (real output of the delivered service against the stub)</h4>
 <pre><code>POST /api/v1/member-ids/vendor-map
 Content-Type: application/json
@@ -786,7 +786,7 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <ol>
 <li><b>Merge duplicates.</b> Two records with the same company and the same stored ID (compared without whitespace, case-insensitively) become one, with their spans combined. A warning is logged.</li>
 <li><b>Link converted pairs.</b> Records linked through <code>legacyMemberId</code> in either direction (A's legacy id is B's id, or the reverse, transitively) are one person with several records. This is how a THP↔HPHC conversion comes back from MMI's second pass.</li>
-<li><b>Apply the date of birth, when sent.</b> If at least one record carries a DOB, keep only persons with a matching DOB. None left → 422 <code>DOB_MISMATCH</code>, including when a single record came back (an EMR that appended <code>01</code> to a dependent's card number is caught here). If no record carries a DOB at all, continue unverified with a warning: a request with a DOB is never worse off than one without.</li>
+<li><b>Apply the date of birth, when sent</b> (on <code>/vendor-map</code>, when sent and usable: an unusable one was ignored at validation and named in <code>ignoredFields</code>, section 6.6). If at least one record carries a DOB, keep only persons with a matching DOB. None left → 422 <code>DOB_MISMATCH</code>, including when a single record came back (an EMR that appended <code>01</code> to a dependent's card number is caught here). If no record carries a DOB at all, continue unverified with a warning: a request with a DOB is never worse off than one without.</li>
 <li><b>Count persons.</b> One → step 5. Several → <code>AMBIGUOUS</code> with one candidate per person (the record covering the date, else the most recent), sorted by company then ID; <code>ambiguity.reason</code> is <code>DOB_NOT_DISCRIMINATING</code> when a DOB was applied (twins), else <code>MULTIPLE_PERSONS</code>.</li>
 <li><b>Pick the record within the person.</b> One record: that one. Several (a converted member): the record whose coverage covers the date of service; if both do, the newer record (the one naming the other as its legacy id); if neither does, the record whose coverage ends last. The coverage reason and the nearest dates are then computed over <em>all</em> of the person's spans, so a gap between the old and the new record is reported as a gap with both dates. The vendor format follows the picked record's company: a member converted to HPHC gets the HPHC ID for a post-migration date and the THP ID for a pre-migration date.</li>
 </ol>
@@ -1003,7 +1003,7 @@ member-id:
   <dt>Ignored field</dt><dd>A <code>/vendor-map</code> request field that was present but unusable (a date that is not a real date, is outside the window or is implausible) and was left out of the evaluation; named in <code>ignoredFields</code>. A sent <code>vendor</code> or an unknown property is also ignored but not listed: the operation never needed it.</dd>
   <dt>Received ID</dt><dd>The member ID as Onyx sent it, surrounding whitespace removed (<code>memberId.received</code>); exactly the value sent to MMI.</dd>
   <dt>Span</dt><dd>One coverage period on a record; readable and non-void spans decide the flag.</dd>
-  <dt>Date of service (DOS)</dt><dd>The calendar date coverage is evaluated on; today when Onyx sends none.</dd>
+  <dt>Date of service (DOS)</dt><dd>The calendar date coverage is evaluated on; today when Onyx sends none, or, on <code>/vendor-map</code>, one that is not usable (then named in <code>ignoredFields</code>).</dd>
   <dt>Worklist</dt><dd>A UM intake queue where a person resolves what the automation could not.</dd>
 </dl>
 
