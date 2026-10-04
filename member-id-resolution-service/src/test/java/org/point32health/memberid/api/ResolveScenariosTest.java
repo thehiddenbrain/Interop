@@ -51,7 +51,7 @@ class ResolveScenariosTest {
     private static final String PATH = "/api/v1/member-ids/resolve";
     private static final String VENDOR_MAP = "/api/v1/member-ids/vendor-map";
     /** An unmasked 9- or 11-digit run (member ids), or an MM/dd/yyyy value (MMI dates of birth). */
-    private static final Pattern PHI = Pattern.compile("(?<!\\d)(?:\\d{9}|\\d{11})(?!\\d)|\\d{2}/\\d{2}/\\d{4}");
+    private static final Pattern PHI = Pattern.compile("(?<!\\d)(?:\\d{9}|\\d{11})(?!\\d)|(?<![A-Za-z0-9])[A-Za-z]\\d{8}(?!\\d)|\\d{2}/\\d{2}/\\d{4}");
 
     @Value("${local.server.port}") int port;
     @Autowired ObjectMapper json;
@@ -329,6 +329,31 @@ class ResolveScenariosTest {
                 "patient", Map.of())).get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(call(200, "{\"memberId\":\"123456789\",\"dateOfService\":\"2026-10-15\",\"vendor\":\"evicore\",\"patient\":null}")
                 .get("outcome").asText()).isEqualTo("ACTIVE");
+    }
+
+    // ---------------------------------------------------------------- TMP id with the real shape: a letter and 8 digits
+
+    @Test
+    void tmpIdStartingWithALetterKeepsTheLetterInEveryVendorFormat() throws Exception {
+        for (String typed : List.of("S98765432", "s98765432", "S98765432   01", "S9876543201", "S98765432-01")) {
+            JsonNode r = call(200, req(typed, "2026-10-15", "evicore"));
+            assertThat(r.get("outcome").asText()).as(typed).isEqualTo("ACTIVE");
+            assertThat(r.at("/memberId/received").asText()).isEqualTo(typed);
+            assertThat(r.at("/memberId/stored").asText()).isEqualTo("S98765432   01");
+            assertThat(r.at("/memberId/forVendor").asText()).as("the S is part of the id").isEqualTo("S9876543201");
+        }
+        assertThat(call(200, req("S98765432", "2026-10-15", "MHK")).at("/memberId/forVendor").asText()).isEqualTo("S98765432   01");
+        JsonNode optum = call(200, req("S98765432", "2026-10-15", "OPTUM"));
+        assertThat(optum.at("/memberId/forVendor").asText()).isEqualTo("S9876543201");
+        assertThat(optum.at("/memberId/forVendorParts/memberId").asText()).isEqualTo("S98765432");
+        assertThat(optum.at("/memberId/forVendorParts/suffix").asText()).isEqualTo("01");
+
+        JsonNode map = callVendorMap(200, Map.of("memberId", "S98765432", "dateOfService", "2026-10-15"));
+        Map<String, String> byVendor = new java.util.LinkedHashMap<>();
+        map.get("vendorMemberIds").forEach(e -> byVendor.put(e.get("vendor").asText(), e.get("memberId").asText()));
+        assertThat(byVendor).containsEntry("CARELON", "S9876543201").containsEntry("EVICORE", "S9876543201")
+                .containsEntry("EVOLENT", "S9876543201").containsEntry("MHK", "S98765432   01")
+                .containsEntry("ONYX", "S9876543201").containsEntry("OPTUM", "S9876543201");
     }
 
     // ---------------------------------------------------------------- HPHC and converted members

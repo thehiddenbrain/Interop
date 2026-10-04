@@ -79,6 +79,60 @@
           "response": []
         },
         {
+          "name": "TMP id with the real shape (S98765432): the S is kept, eviCore gets 11 characters",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\".outcome = ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".memberId.stored = S98765432   01\", function () { pm.expect(pm.response.json().memberId.stored).to.eql(\"S98765432   01\"); });",
+                  "pm.test(\".memberId.forVendor = S9876543201 (the S is part of the id)\", function () { pm.expect(pm.response.json().memberId.forVendor).to.eql(\"S9876543201\"); });",
+                  "pm.test(\".memberId.forVendor has 11 characters\", function () { pm.expect(pm.response.json().memberId.forVendor.length).to.eql(11); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"S98765432\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "TMP 14-character stored form, MHK (14 chars)",
           "event": [
             {
@@ -2774,6 +2828,62 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TMP id with the real shape (S98765432): every vendor keeps the S",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\".outcome = ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".memberId.stored = S98765432   01\", function () { pm.expect(pm.response.json().memberId.stored).to.eql(\"S98765432   01\"); });",
+                  "pm.test(\"6 vendorMemberIds\", function () { pm.expect(pm.response.json().vendorMemberIds.length).to.eql(6); });",
+                  "pm.test(\"11-character vendors get S9876543201\", function () { const j = pm.response.json(); [\"CARELON\",\"EVICORE\",\"EVOLENT\",\"ONYX\",\"OPTUM\"].forEach(function (code) { const v = j.vendorMemberIds.find(function (x) { return x.vendor === code; }); pm.expect(v.memberId, code).to.eql(\"S9876543201\"); }); });",
+                  "pm.test(\"MHK gets S98765432   01\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }); pm.expect(v.memberId).to.eql(\"S98765432   01\"); });",
+                  "pm.test(\"OPTUM memberIdParts = {S98765432, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(v.memberIdParts.memberId).to.eql(\"S98765432\"); pm.expect(v.memberIdParts.suffix).to.eql(\"01\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"S98765432\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

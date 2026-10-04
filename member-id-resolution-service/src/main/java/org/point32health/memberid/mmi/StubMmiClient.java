@@ -168,11 +168,11 @@ public class StubMmiClient implements MmiClient {
     private static boolean matches(String key, MmiMember m) {
         String mKey = compact(m.memberId());
         String mLegacy = compact(m.legacyMemberId());
-        boolean nineDigits = key.length() == 9 && key.chars().allMatch(Character::isDigit);
+        boolean cardNumber = key.length() == 9 && key.chars().allMatch(Character::isLetterOrDigit); // 9 characters: the card / policy number
         if (key.equals(mKey) || key.equals(mLegacy)) {
             return true;
         }
-        return nineDigits && ((mKey != null && mKey.startsWith(key)) || (mLegacy != null && mLegacy.startsWith(key)));
+        return cardNumber && ((mKey != null && mKey.startsWith(key)) || (mLegacy != null && mLegacy.startsWith(key)));
     }
 
     private static String compact(String id) {

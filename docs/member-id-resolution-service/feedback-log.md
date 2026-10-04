@@ -253,3 +253,13 @@ See the conversation; answers will be appended here.
   in-process stub needs Profile = `dev`. `run.sh` / `run.cmd` / `run.bat` default to `pqa` too. The deployment rule
   stays: every deployment sets `SPRING_PROFILES_ACTIVE` explicitly (a pod without it would call the PQA MMI).
 
+## Feedback 14 (2026-10-04): the TMP id starts with a letter (S); the service was dropping it
+
+- Root cause of the 14-character answers in PQA: a TMP id is not 9 digits but 9 characters, a letter and 8 digits
+  (`S12345678`), stored as `S12345678   01`. The formatter only reshaped an all-digit core, so every vendor got
+  the stored 14 characters; the first attempt to widen it then dropped the `S`.
+- Applied: the formatter reshapes "letters and digits, separator, 1-3 digit suffix" and copies the core and the
+  suffix character for character (`S1234567801`, `S12345678   01`, `S12345678` + `01`). Anything else is passed
+  on as stored. A realistic `S98765432   01` member is in the stub, with tests and Postman requests on both
+  operations; the banner's sample id is `S12345678   01`; wording "9 digits" is now "9 characters".
+

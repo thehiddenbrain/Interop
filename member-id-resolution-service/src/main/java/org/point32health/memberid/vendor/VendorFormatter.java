@@ -1,31 +1,36 @@
 package org.point32health.memberid.vendor;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Renders the id as stored in MMI into the vendor's format.
  *
- * <p>The TMP / SCO id is stored as a 9-digit core, a separator (MMI: three spaces) and a 2-digit suffix. Whatever
- * MMI actually puts between the two digit groups (plain or non-breaking spaces, tabs, zero-width characters, a
- * hyphen, any padding), the rule is the same: trim the ends; if the value has at least ten digits and at least one
- * non-digit character between its digits, the first nine digits are the core and the remaining digits are the
- * suffix. A value with no separator between its digits (a Public Plans id, {@code 34567890101}) or with fewer
- * digits (an HPHC id, {@code HP456789012}) is passed on exactly as stored, whatever the vendor's format.
+ * <p>A TMP / SCO id is stored as a core of letters and digits (9 characters, for TMP a letter and 8 digits such as
+ * {@code S12345678}), a separator (MMI: three spaces; any blanks or punctuation are accepted) and a short numeric
+ * suffix ({@code 01}). Only such a value is reshaped, and nothing in it is ever dropped or changed: the core and the
+ * suffix are copied character for character. A value with a single run of letters and digits (a Public Plans id
+ * {@code 34567890101}, an HPHC id {@code HP456789012}) or any other shape is passed on exactly as stored, whatever
+ * the vendor's format.
  *
  * <p>When a value that is not plain letters and digits still cannot be reshaped, a warning names its shape (digits
- * as #, letters as a, every other character by code point, never the digits themselves).
+ * as #, letters as a, every other character by code point, never the characters themselves).
  */
 public final class VendorFormatter {
 
     private static final Logger log = LoggerFactory.getLogger(VendorFormatter.class);
+
+    private static final int MIN_CORE_LENGTH = 5;
+    private static final int MAX_SUFFIX_LENGTH = 3;
 
     public FormattedMemberId format(String storedMemberId, VendorIdFormat format) {
         String stored = trim(storedMemberId);
         Split split = split(stored);
         if (split == null) {
             if (format != VendorIdFormat.AS_STORED && !stored.chars().allMatch(Character::isLetterOrDigit)) {
-                log.warn("marker=STORED_ID_NOT_RESHAPED format={} shape={}: not a core + separator + suffix id; passed on as stored",
+                log.warn("marker=STORED_ID_NOT_RESHAPED format={} shape={}: not a core + separator + numeric suffix; passed on as stored",
                         format, describe(storedMemberId));
             }
             return new FormattedMemberId(stored, null);
@@ -41,28 +46,33 @@ public final class VendorFormatter {
     private record Split(String core, String suffix) {
     }
 
-    /** The core and suffix of a separated id, or null when the value is not one. */
+    /** Core and suffix of "letters/digits, separator, 1-3 digits"; null for anything else. Characters are never altered. */
     private static Split split(String stored) {
-        StringBuilder digits = new StringBuilder();
-        boolean separatorInside = false;
-        boolean pendingSeparator = false;
+        List<String> groups = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
         for (int i = 0; i < stored.length(); ) {
             int cp = stored.codePointAt(i);
             i += Character.charCount(cp);
-            if (Character.isDigit(cp)) {
-                if (pendingSeparator && digits.length() > 0) {
-                    separatorInside = true;
-                }
-                pendingSeparator = false;
-                digits.append(Character.digit(cp, 10));
-            } else {
-                pendingSeparator = true;
+            if (Character.isLetterOrDigit(cp)) {
+                current.appendCodePoint(cp);
+            } else if (current.length() > 0) {
+                groups.add(current.toString());
+                current.setLength(0);
             }
         }
-        if (!separatorInside || digits.length() < 10) {
+        if (current.length() > 0) {
+            groups.add(current.toString());
+        }
+        if (groups.size() != 2) {
             return null;
         }
-        return new Split(digits.substring(0, 9), digits.substring(9));
+        String core = groups.get(0);
+        String suffix = groups.get(1);
+        boolean numericSuffix = suffix.chars().allMatch(Character::isDigit);
+        if (core.length() < MIN_CORE_LENGTH || suffix.length() > MAX_SUFFIX_LENGTH || !numericSuffix) {
+            return null;
+        }
+        return new Split(core, suffix);
     }
 
     /** Trims every kind of blank (plain, non-breaking, tab, ...) from both ends. */
@@ -85,7 +95,7 @@ public final class VendorFormatter {
         return Character.isWhitespace(cp) || Character.isSpaceChar(cp);
     }
 
-    /** The shape of a stored id for the log: digits #, letters a, anything else as [U+XXXX]. Never the digits. */
+    /** The shape of a stored id for the log: digits #, letters a, anything else as [U+XXXX]. Never the characters. */
     static String describe(String s) {
         if (s == null) {
             return "null";

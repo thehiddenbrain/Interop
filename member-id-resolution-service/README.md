@@ -178,7 +178,7 @@ back as 400 `MMI_BAD_REQUEST` with MMI's text.
 | `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Put `memberId.forVendor` in the vendor payload. For Optum use `forVendorParts` when it is present (TMP/SCO ids); for Public Plans and HPHC ids there are no parts, send `forVendor`. |
 | `INACTIVE` | Member verified, `coverage.active = false`; `coverage.reason` and the nearest span dates say why | Hold for intake (owner decision). |
 | `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found in MMI for this id" and, when MMI sent a message, `mmiMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
-| `AMBIGUOUS` | MMI matched the ID to several persons (a 9-digit ID of a population with dependents) and no DOB settled it | Resend with the member's full ID including the suffix, or with `patient.dateOfBirth`, else intake picks from `candidates[]`. |
+| `AMBIGUOUS` | MMI matched the ID to several persons (a 9-character ID of a population with dependents) and no DOB settled it | Resend with the member's full ID including the suffix, or with `patient.dateOfBirth`, else intake picks from `candidates[]`. |
 
 ```json
 { "outcome": "ACTIVE",
@@ -194,7 +194,7 @@ back as 400 `MMI_BAD_REQUEST` with MMI's text.
 `memberId.stored` is the ID exactly as MMI holds it. `forVendor` is that ID in the vendor's format.
 For Optum (`SPLIT`) **and a TMP/SCO id** the response also carries `forVendorParts: { "memberId": "123456789",
 "suffix": "01" }`; for Public Plans and HPHC ids only `forVendor` is returned.
-Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 digits, spaces, 2 digits); any other
+Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 characters, spaces, 2 digits); any other
 stored ID (Public Plans, HPHC) is passed as stored for every vendor.
 `coverage.reason` is one of `COVERED`, `NO_COVERAGE_RECORDS`, `NOT_YET_EFFECTIVE`, `COVERAGE_ENDED`,
 `COVERAGE_GAP`. `coverage.lastEndDate` (end of the latest span before the date) and `coverage.nextEffectiveDate`
@@ -384,7 +384,7 @@ vendor-code order; the member is identified once, from one MMI call, whichever o
 it drops what it cannot use instead of rejecting it: an unusable date of service becomes today and an unusable
 date of birth is left out of step 3, both named in `ignoredFields`; a `vendor` or unknown property is ignored.
 
-TMP / SCO members have no dependents: a 9-digit card number returns exactly one record and resolves
+TMP / SCO members have no dependents: a 9-character card number returns exactly one record and resolves
 directly. Only populations with dependents (HPHC commercial, Together) can produce `AMBIGUOUS`.
 
 ## 4. Vendor formats: the only thing to edit when a vendor changes
@@ -421,12 +421,12 @@ member-id:
       format: COMPACT_11
 ```
 
-Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. A format applies when the stored id is digits, whitespace, digits (any kind or number of spaces, TMP/SCO); a stored id of any other shape is passed on unchanged and, when it is not plain letters and digits, the log says so (`marker=STORED_ID_NOT_RESHAPED` with the shape, never the digits). A new output shape = one constant in
+Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. The TMP core is **9 characters, a letter and 8 digits** (`S12345678`), stored with three spaces and the suffix `01`: `S12345678   01`. A format applies when the stored id is a run of letters and digits, a separator (any blanks or punctuation) and a short numeric suffix; the core and the suffix are copied character for character, so the `S` is always kept (`S1234567801`, `S12345678   01`, `S12345678` + `01`). A stored id of any other shape is passed on unchanged and, when it is not plain letters and digits, the log says so (`marker=STORED_ID_NOT_RESHAPED` with the shape, never the characters). A new output shape = one constant in
 `VendorIdFormat` + one case in `VendorFormatter` + one test row.
 
 ## 5. Stub fixtures (dev profile: `--spring.profiles.active=dev`) and Postman
 
-`src/main/resources/mmi-stub/members.json` behaves like MMI: exact match, 9-digit (policy) match returning
+`src/main/resources/mmi-stub/members.json` behaves like MMI: exact match, 9-character (policy) match returning
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
 and case (anything that is not a letter or digit is ignored), the leniency expected of the real MMI; the service
 itself hands the id over untouched. The fault ids below are recognised by the first 9 characters of the id with
