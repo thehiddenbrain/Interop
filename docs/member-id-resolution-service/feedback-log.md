@@ -184,3 +184,14 @@ See the conversation; answers will be appended here.
 - The dev stub now ignores separators and case when matching fixtures, which is the leniency described for the
   real MMI; the PQA assumption to confirm is that MMI finds a member from a hyphenated or spaced id.
 
+## Feedback 8 (2026-10-04): a second operation when Onyx has no vendor
+
+- Onyx does not always know which vendor will receive the authorization. Given only the member id (and
+  whatever else it has: date of service, date of birth), the service must return the member id in every
+  vendor's format at once: eviCore 11, MHK 14, Optum two fields, and so on.
+- Applied: `POST /api/v1/member-ids/vendor-map`, in the same controller and service. Same MMI call, same
+  selection and coverage decision as `/resolve`; no `vendor` in the request; the response carries
+  `memberId.received`, `memberId.stored` and `vendorMemberIds[]`, one entry per configured vendor
+  (`vendor`, `memberId`, and `memberIdParts` for split formats), sorted by vendor code, present for ACTIVE
+  and INACTIVE. NOT_FOUND and AMBIGUOUS answer as in `/resolve`. One MMI call serves all vendors.
+
