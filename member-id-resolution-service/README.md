@@ -40,9 +40,27 @@ Command line: `./run.sh` (Mac/Linux) or `run.cmd` / `run.bat` (Windows) build th
 | `pqa-lite` | `http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` |
 | `prod` | `http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp` |
 
-In STS: Run Configurations → Spring Boot App → **Profile: `pqa`**. From a jar: `--spring.profiles.active=pqa`
-or `SPRING_PROFILES_ACTIVE=pqa`. Overrides without a rebuild: `MMI_BASE_URL`, `MMI_CLIENT_ID` (placeholder
-`MBRIDSVC`; register the real application name with the MMI team), `MMI_READ_TIMEOUT=5s` / `MMI_CONNECT_TIMEOUT=2s`.
+#### Pointing at the real MMI, step by step
+
+The profile is the only switch. Any profile other than `dev` turns the stub off and uses the MMI URL from
+that profile's `application-<profile>.yaml`; nothing else changes.
+
+1. **STS**: Run → Run Configurations → Spring Boot App → `MemberIdResolutionApplication` → **Profile** field:
+   `pqa` (or on the Arguments tab, Program arguments: `--spring.profiles.active=pqa`). Apply, Run.
+2. **Command line**: `set SPRING_PROFILES_ACTIVE=pqa` then `run.cmd` (Windows), or
+   `SPRING_PROFILES_ACTIVE=pqa ./run.sh`, or `java -jar build/libs/member-id-resolution-service-1.0.0.jar --spring.profiles.active=pqa`.
+3. **Check the startup banner** in the console. It must say `profiles : [pqa]`, `mmi client : REST` and the PQA
+   URL. If it says `STUB`, the profile did not apply. `http://localhost:9090/actuator/info` shows the build.
+4. **Network**: your machine (or the pod) must reach `mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp`
+   on port 80 (plain HTTP, no token, as the MMI contract states). If it cannot, every call answers
+   `503 MMI_UNAVAILABLE` with `CONNECT_FAILED` and the log line `mmi call failed ... cause=...` names the reason.
+5. **Try it**: Postman request "TMP 9-digit card number" with a real PQA member id, or
+   `curl -X POST http://localhost:9090/api/v1/member-ids/resolve -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\",\"vendor\":\"EVICORE\"}"`.
+   The response carries `mmiRequestId` (`MBRIDSVC-<millis>-<5 digits>`), which the MMI team can find in their logs.
+
+Overrides without a rebuild (environment variables or `-D` system properties): `MMI_BASE_URL` (any MMI, no
+profile file needed), `MMI_CLIENT_ID` (placeholder `MBRIDSVC`; register the real application name with the
+MMI team), `MMI_CONNECT_TIMEOUT=2s`, `MMI_READ_TIMEOUT=5s`.
 
 **Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `dev` (the stub) so that
 STS runs with one click. Two guards back the rule: the stub refuses to start with any explicitly active

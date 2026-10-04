@@ -5,4 +5,4 @@ mmi:
     enabled: true
 logging:
   level:
-    com.thehiddenbrain.interop.memberid: DEBUG
+    org.point32health.memberid: DEBUG
