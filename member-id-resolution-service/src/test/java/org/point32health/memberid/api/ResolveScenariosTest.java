@@ -641,6 +641,13 @@ class ResolveScenariosTest {
         assertThat(withVendor.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(withVendor.get("vendorMemberIds")).hasSize(5);
         assertThat(withVendor.has("ignoredFields")).isFalse();
+        // whatever shape the vendor takes (unknown code, object, array, number), it is ignored, never looked up or rejected
+        for (Object vendor : List.of("NO_SUCH_VENDOR", Map.of("code", "EVICORE"), List.of("EVICORE"), 5)) {
+            JsonNode r = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "vendor", vendor));
+            assertThat(r.get("outcome").asText()).as("vendor=" + vendor).isEqualTo("ACTIVE");
+            assertThat(r.get("vendorMemberIds")).hasSize(5);
+            assertThat(r.has("ignoredFields")).isFalse();
+        }
 
         // unknown properties, an unusable date of service and an unusable date of birth are ignored, not rejected
         JsonNode odd = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "10/15/2026", "anything", "goes",

@@ -15,13 +15,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record VendorMapRequest(
         @Schema(description = "The member id exactly as the EMR supplied it. Sent to MMI unchanged (surrounding whitespace removed); no shape, length or character check",
                 example = "123456789", requiredMode = Schema.RequiredMode.REQUIRED) String memberId,
-        @Schema(description = "Date of service, yyyy-MM-dd. Defaults to today when omitted or unusable (then dateOfServiceDefaulted is true and ignoredFields names it).",
+        @Schema(description = "Date of service, yyyy-MM-dd. Defaults to today when omitted (dateOfServiceDefaulted is true). An unusable value is ignored: it also defaults to today and ignoredFields names it.",
                 example = "2026-10-15") String dateOfService,
-        @Schema(description = "Accepted and ignored: this operation answers for every vendor. Lets Onyx send the /resolve payload unchanged.",
-                example = "EVICORE") String vendor,
+        @Schema(type = "string", description = "Accepted and ignored, whatever its JSON type: this operation answers for every vendor. Lets Onyx send the /resolve payload unchanged.",
+                example = "EVICORE") Object vendor,
         @Schema(description = "Optional patient hints used only to pick among the records MMI returned; an unusable value is ignored") Patient patient) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
+    @Schema(name = "VendorMapPatient") // distinct from ResolveRequest.Patient in the OpenAPI document
     public record Patient(
             @Schema(description = "Patient date of birth, yyyy-MM-dd. Never sent to MMI, never logged, never echoed.", example = "1950-03-15") String dateOfBirth) {
 
@@ -33,7 +34,7 @@ public record VendorMapRequest(
 
     @Override
     public String toString() {
-        return "VendorMapRequest[memberId=" + Masking.memberId(memberId) + ", dateOfService=" + dateOfService + ", vendor=<len "
-                + (vendor == null ? 0 : vendor.length()) + ">, patient=" + patient + "]";
+        return "VendorMapRequest[memberId=" + Masking.memberId(memberId) + ", dateOfService=" + dateOfService + ", vendor="
+                + (vendor == null ? "absent" : "supplied") + ", patient=" + patient + "]";
     }
 }
