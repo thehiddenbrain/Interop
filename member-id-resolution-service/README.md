@@ -159,9 +159,9 @@ defaulted date of service still shows recent past and future coverage.
 ### Vendor map: `POST /api/v1/member-ids/vendor-map`
 
 Onyx does not always know which vendor will receive the authorization. The vendor map operation takes the
-member id without a vendor and returns the member id in every vendor's format; Onyx keeps the answer and
-picks the entry for the vendor once it knows. Same validation, same single MMI call, same selection and
-coverage decision as `/resolve`; only the rendering differs.
+member id and returns it in every vendor's format; Onyx keeps the answer and picks the entry for the vendor
+once it knows. Same single MMI call, same selection and coverage decision as `/resolve`; the rendering differs,
+and the request is lenient: only the member id is required.
 
 ```http
 POST /api/v1/member-ids/vendor-map
@@ -174,20 +174,31 @@ X-Correlation-Id: ONYX-PA-2026-000124        (optional; echoed, generated when a
 
 | Field | Required | Notes |
 |---|---|---|
-| `memberId` | yes | As the EMR typed it. Same rule as `/resolve`: checked for presence only, sent to MMI exactly as received with surrounding whitespace removed. |
-| `dateOfService` | no | `yyyy-MM-dd`. **Defaults to today** when omitted (`dateOfServiceDefaulted: true`). Same window: 10 years back / 366 days forward. |
-| `patient.dateOfBirth` | recommended | `yyyy-MM-dd`. Used only to verify or pick among the records MMI returned. Never sent to MMI, never logged, never echoed. |
+| `memberId` | yes | As the EMR typed it. Same rule as `/resolve`: checked for presence only, sent to MMI exactly as received with surrounding whitespace removed. The only field that can cause a 400. |
+| `dateOfService` | no | `yyyy-MM-dd`. **Defaults to today** when omitted (`dateOfServiceDefaulted: true`). A value that is not a real date or is outside 10 years back / 366 days forward is **ignored**: the date defaults to today and `ignoredFields` names `dateOfService`. |
+| `vendor` | no | **Accepted and ignored**: this operation answers for every vendor. Lets Onyx send the `/resolve` payload as is. |
+| `patient.dateOfBirth` | recommended | `yyyy-MM-dd`. A real date is used to verify or pick among the records MMI returned (a date that matches no record is still 422 `DOB_MISMATCH`). A value that is not a real date, is in the future or is more than 125 years ago is **ignored** and `ignoredFields` names `patient.dateOfBirth`. Never sent to MMI, never logged, never echoed. |
 
-There is **no `vendor` field**. Sending one is an unknown property and answers 400 `INVALID_REQUEST`, like any
-other unknown property. The validation detail codes are those of `/resolve` minus the vendor:
-`MEMBER_ID_MISSING`, `DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE`, `DATE_OF_BIRTH_INVALID`,
-`DATE_OF_BIRTH_OUT_OF_RANGE`. An invalid request never reaches MMI.
+`/vendor-map` is lenient: only the member id is required; a `vendor` or any unknown property (at the top level
+or inside `patient`) is accepted and ignored; an unusable date is ignored, not rejected, and named in
+`ignoredFields`. The only 400 `INVALID_REQUEST` on this operation is a missing or blank `memberId`
+(`MEMBER_ID_MISSING`) or a body that is not JSON (malformed JSON, wrong top-level type). A blank id never
+reaches MMI. So
+
+```json
+{ "memberId": "123456789", "dateOfService": "10/15/2026", "patient": { "dateOfBirth": "not-a-date" } }
+```
+
+answers 200 `ACTIVE` with `"dateOfService": <today>`, `"dateOfServiceDefaulted": true`,
+`"ignoredFields": ["dateOfService", "patient.dateOfBirth"]` and the full `vendorMemberIds` list.
 
 **Response (HTTP 200)**: the same `outcome` values, the same `coverage`, `ambiguity` and `candidates[]` blocks
-and the same Onyx actions as the table above, with one difference: there is no `vendor`, no `forVendor` and
-no `forVendorParts`. Instead `vendorMemberIds[]` carries one entry per configured vendor, sorted by vendor
-code; for `ACTIVE`, Onyx picks the entry for its vendor and puts that `memberId` (for Optum,
-`memberIdParts` when present) in the vendor payload. For the TMP id `123456789` (stored `123456789   01`):
+and the same Onyx actions as the table above, with two differences. There is no `vendor`, no `forVendor` and
+no `forVendorParts`; instead `vendorMemberIds[]` carries one entry per configured vendor, sorted by vendor
+code, and for `ACTIVE` Onyx picks the entry for its vendor and puts that `memberId` (for Optum,
+`memberIdParts` when present) in the vendor payload. And `ignoredFields[]` (after `dateOfServiceDefaulted`,
+before `coverage`) lists the request fields that were present but unusable and therefore ignored; it is absent
+when nothing was ignored, as below. For the TMP id `123456789` (stored `123456789   01`):
 
 ```json
 { "outcome": "ACTIVE",
@@ -214,20 +225,21 @@ unchanged and no entry has `memberIdParts`: the same rule as `forVendor` on `/re
 omitted, not sent as `null`.
 
 **Which one to call.** Call `/resolve` when Onyx already knows the vendor; call `/vendor-map` when it does not,
-and pick the entry for the vendor later. Either way there is one MMI call, and if this service is down Onyx's
-fallback is unchanged: pass the EMR's id through to the vendor as received.
+and pick the entry for the vendor later. The same payload can go to either: `/vendor-map` ignores the `vendor`.
+Either way there is one MMI call, and if this service is down Onyx's fallback is unchanged: pass the EMR's id
+through to the vendor as received.
 
 ### Errors (non-200), both operations: `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "mmiRequestId" }`
 
 Every answer the application produces, on `/resolve` and on `/vendor-map` alike, has this shape (`mmiRequestId`
 is present once MMI was called, including on a 422). The one exception is a request Tomcat rejects before it
 reaches the application (malformed percent-encoding in the URL, a header block over 8 KB): that returns Spring
-Boot's default error JSON. `UNKNOWN_VENDOR` cannot occur on `/vendor-map`, which has no vendor; a `vendor`
-property sent to it is an unknown property, 400 `INVALID_REQUEST`.
+Boot's default error JSON. `UNKNOWN_VENDOR` cannot occur on `/vendor-map`: a `vendor` sent to it is accepted
+and ignored, like any unknown property.
 
 | HTTP | `error.code` | When | Onyx action |
 |---|---|---|---|
-| 400 | `INVALID_REQUEST` | missing member ID, bad dates, missing vendor (`/resolve`), malformed JSON, unknown property (including `vendor` on `/vendor-map`), wrong JSON type. Every problem is listed in `details[]`. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operations are POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
+| 400 | `INVALID_REQUEST` | `/resolve`: missing member ID, bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE`, `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), missing or malformed vendor (`VENDOR_MISSING`, `VENDOR_INVALID`), unknown property (`UNKNOWN_PROPERTY`), malformed JSON, wrong JSON type; every problem is listed in `details[]`. `/vendor-map`: only a missing or blank member ID (`MEMBER_ID_MISSING`) or a body that is not JSON (malformed JSON, wrong top-level type); bad dates and unknown properties are ignored there, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operations are POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
 | 400 | `UNKNOWN_VENDOR` | `/resolve` only: vendor not in the table; `details[0].message` lists the known codes | Never retry; routing table and this table disagree. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
 | 502 | `MMI_ERROR`, `MMI_INVALID_RESPONSE` | MMI rejected the call, answered unreadably, or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read) | Park, alert the service owners. |
@@ -256,7 +268,9 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
 5. Format for the vendor from the stored ID (never from the input).
 
 `/vendor-map` runs the same steps 1 to 4 and renders step 5 for every configured vendor instead of one, in
-vendor-code order; the member is identified once, from one MMI call, whichever operation is used.
+vendor-code order; the member is identified once, from one MMI call, whichever operation is used. Before step 1
+it drops what it cannot use instead of rejecting it: an unusable date of service becomes today and an unusable
+date of birth is left out of step 3, both named in `ignoredFields`; a `vendor` or unknown property is ignored.
 
 TMP / SCO members have no dependents: a 9-digit card number returns exactly one record and resolves
 directly. Only populations with dependents (HPHC commercial, Together) can produce `AMBIGUOUS`.
@@ -323,7 +337,9 @@ Postman: import `postman/MemberIdResolution.postman_collection.json` and
 `postman/Local.postman_environment.json` (`baseUrl = http://localhost:9090`). Every request carries tests;
 run the whole collection with the Collection Runner for a green scenario pass. Folders 1 to 5 exercise
 `/resolve` (folder 6 is health and the OpenAPI document); folder **7 Vendor map** exercises `/vendor-map` with the same fixtures (the TMP id in every
-vendor's format, HPHC and Public Plans ids passed as stored, answers without `vendorMemberIds`, validation).
+vendor's format, HPHC and Public Plans ids passed as stored, answers without `vendorMemberIds`, and the lenient
+request: a `vendor` or an unusable date accepted and ignored, only a missing member id answered 400). The dev
+stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` is true rather than a specific date.
 
 ## 6. Tests
 
@@ -332,10 +348,15 @@ a gap and with overlapping records), vendor formats, MMI mapping, the REST clien
 (500/429/408/400/bad body/connection refused/read timeout), configuration validation, and the end-to-end
 scenario matrix over HTTP against the stub with "today" fixed at 2026-10-03. Four of the scenarios cover
 `/vendor-map`: the TMP id rendered for every vendor from one MMI call (Optum with `memberIdParts`, no `vendor`
-or `forVendor` in the body); HPHC and Public Plans ids passed as stored to every vendor, with the defaulted
+or `forVendor` in the response); HPHC and Public Plans ids passed as stored to every vendor, with the defaulted
 date and an INACTIVE gap; NOT_FOUND and AMBIGUOUS answers without `vendorMemberIds`, and a DOB that settles the
-ambiguity; validation identical to `/resolve` minus the vendor and a sent `vendor` rejected as an unknown property,
-none of which reaches MMI; and a DOB mismatch answered 422 after the one MMI call (`mmiRequestId` present). A capturing log appender
+ambiguity; and `vendorMapIsLenientAboutEverythingExceptTheMemberId`, which proves that a blank member id is the
+only 400 and never reaches MMI, that the `/resolve` payload with its `vendor` is accepted as is (200, no
+`ignoredFields`), that an unknown property, a `10/15/2026` date of service and a `not-a-date` date of birth
+answer 200 with today's date, `dateOfServiceDefaulted: true` and `ignoredFields: ["dateOfService",
+"patient.dateOfBirth"]`, that an out-of-window date of service is defaulted the same way, that a real but wrong
+DOB is still 422 `DOB_MISMATCH` after the one MMI call (`mmiRequestId` present), and that the same odd payload on
+`/resolve` is still 400. A capturing log appender
 asserts no log line (message or exception text; payload logging is off in the `test` profile) contains an
 unmasked 9- or 11-digit run or an MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI
