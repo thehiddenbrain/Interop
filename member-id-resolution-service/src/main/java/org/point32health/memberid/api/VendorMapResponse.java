@@ -10,9 +10,12 @@ import java.util.List;
  * is present only when a member was identified (ACTIVE / INACTIVE), one entry per vendor, sorted by vendor code.
  * {@code ignoredFields} is present when a request field was unusable and ignored (for example a date that is not a
  * real date): the answer is still given, with the date of service defaulted to today where needed.
+ * {@code message} is one human-readable sentence for the outcome; {@code mmiMessage} is what MMI itself said when
+ * it had no member for the id (NOT_FOUND only).
  */
 public record VendorMapResponse(
         Outcome outcome,
+        String message,
         MemberId memberId,
         String company,
         String lineOfBusiness,
@@ -24,7 +27,8 @@ public record VendorMapResponse(
         List<Candidate> candidates,
         List<VendorMemberId> vendorMemberIds,
         String correlationId,
-        String mmiRequestId) {
+        String mmiRequestId,
+        MmiNote mmiMessage) {
 
     /**
      * @param received as Onyx sent it (surrounding whitespace removed); this exact value was sent to MMI

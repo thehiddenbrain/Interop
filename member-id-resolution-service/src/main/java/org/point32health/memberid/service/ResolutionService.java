@@ -4,6 +4,7 @@ import org.point32health.memberid.api.Ambiguity;
 import org.point32health.memberid.api.Candidate;
 import org.point32health.memberid.api.Coverage;
 import org.point32health.memberid.api.MemberIdParts;
+import org.point32health.memberid.api.MmiNote;
 import org.point32health.memberid.api.Outcome;
 import org.point32health.memberid.api.RequestValidator;
 import org.point32health.memberid.api.ResolveRequest;
@@ -72,10 +73,10 @@ public class ResolutionService {
         Vendor vendor = vendors.find(v.vendor()).orElseThrow(() -> new UnknownVendorException(vendors.knownCodes()));
         Resolved r = resolveMember(v, correlationId);
         FormattedMemberId formatted = r.record() == null ? null : formatter.format(r.record().storedMemberId(), vendor.format());
-        ResolveResponse response = new ResolveResponse(r.outcome(),
+        ResolveResponse response = new ResolveResponse(r.outcome(), message(r, v),
                 new ResolveResponse.MemberId(v.memberId(), r.storedMemberId(), formatted == null ? null : formatted.value(), parts(formatted)),
                 vendor.code(), r.company(), r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
-                r.coverageBlock(), r.ambiguity(), r.candidates(), correlationId, r.mmiRequestId());
+                r.coverageBlock(), r.ambiguity(), r.candidates(), correlationId, r.mmiRequestId(), r.mmiNote());
         logOutcome("resolve", vendor.code(), r, v, start);
         return response;
     }
@@ -92,17 +93,17 @@ public class ResolutionService {
                 return new VendorMapResponse.VendorMemberId(vendor.code(), formatted.value(), parts(formatted));
             }).toList();
         }
-        VendorMapResponse response = new VendorMapResponse(r.outcome(), new VendorMapResponse.MemberId(v.memberId(), r.storedMemberId()),
+        VendorMapResponse response = new VendorMapResponse(r.outcome(), message(r, v), new VendorMapResponse.MemberId(v.memberId(), r.storedMemberId()),
                 r.company(), r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
                 v.ignoredFields().isEmpty() ? null : v.ignoredFields(),
-                r.coverageBlock(), r.ambiguity(), r.candidates(), vendorMemberIds, correlationId, r.mmiRequestId());
+                r.coverageBlock(), r.ambiguity(), r.candidates(), vendorMemberIds, correlationId, r.mmiRequestId(), r.mmiNote());
         logOutcome("vendor-map", "ALL(" + vendors.all().size() + ")", r, v, start);
         return response;
     }
 
     /** What both operations share once the request is valid: MMI's answer reduced to one outcome. */
     private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, Ambiguity ambiguity,
-            List<Candidate> candidates, String mmiRequestId, int records) {
+            List<Candidate> candidates, String mmiRequestId, int records, MmiNote mmiNote) {
 
         String storedMemberId() {
             return record == null ? null : record.storedMemberId();
@@ -130,15 +131,22 @@ public class ResolutionService {
         List<MmiMember> members = mmiResult.response().membersOrEmpty();
         List<MmiMessage> messages = mmiResult.response().messagesOrEmpty();
 
+        boolean saysNotFound = saysNotFound(mmiResult, messages);
         if (members.isEmpty()) {
-            if (hasErrorMessage(messages)) {
+            if (!saysNotFound && hasErrorMessage(messages)) {
                 MmiMessage m = messages.stream().filter(this::isError).findFirst().orElseThrow();
                 throw MmiException.rejected(mmiResult.requestId(), "ERROR_MESSAGE",
-                        "MMI reported an error: type=" + m.messageType() + " status=" + m.statusCode() + " code=" + m.messageCode());
+                        "MMI reported an error: type=" + m.messageType() + " status=" + m.statusCode() + " code=" + m.messageCode()
+                                + (m.message() == null ? "" : " text=" + m.message()));
             }
-            return new Resolved(Outcome.NOT_FOUND, null, null, null, null, mmiResult.requestId(), 0);
+            MmiMessage first = messages.isEmpty() ? null : messages.get(0);
+            MmiNote note = first == null ? null : new MmiNote(first.messageType(), first.statusCode(), first.messageCode(), first.message());
+            return new Resolved(Outcome.NOT_FOUND, null, null, null, null, mmiResult.requestId(), 0, note);
         }
-        if (hasErrorMessage(messages)) {
+        if (saysNotFound) {
+            log.warn("marker=MMI_NOT_FOUND_WITH_MEMBERS mmiRequestId={} httpStatus={} messages={} records={}", mmiResult.requestId(),
+                    mmiResult.httpStatus(), messages, members.size());
+        } else if (hasErrorMessage(messages)) {
             log.warn("marker=MMI_ERROR_MESSAGE_WITH_MEMBERS mmiRequestId={} messages={}", mmiResult.requestId(), messages);
         }
 
@@ -158,7 +166,7 @@ public class ResolutionService {
                     .map(c -> new Candidate(c.storedMemberId(), c.company(), c.lineOfBusiness(), c.coverageActive()))
                     .toList();
             return new Resolved(Outcome.AMBIGUOUS, null, null, new Ambiguity(a.reason(), AMBIGUOUS_HINT), candidates,
-                    mmiResult.requestId(), members.size());
+                    mmiResult.requestId(), members.size(), null);
         }
         SelectionResult.Selected s = (SelectionResult.Selected) selection;
         if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
@@ -172,12 +180,44 @@ public class ResolutionService {
                     s.unreadableSpans(), coverage.active());
         }
         return new Resolved(coverage.active() ? Outcome.ACTIVE : Outcome.INACTIVE, s.record(), coverage, null, null,
-                mmiResult.requestId(), members.size());
+                mmiResult.requestId(), members.size(), null);
     }
 
     private static MemberIdParts parts(FormattedMemberId formatted) {
         return formatted == null || formatted.parts() == null ? null
                 : new MemberIdParts(formatted.parts().memberId(), formatted.parts().suffix());
+    }
+
+    /** One plain sentence per outcome, for a human reading the response. */
+    private static String message(Resolved r, RequestValidator.Validated v) {
+        return switch (r.outcome()) {
+            case ACTIVE -> "Member found; coverage active on " + v.dateOfService();
+            case INACTIVE -> "Member found; no coverage on " + v.dateOfService() + " (" + r.coverage().reason() + ")";
+            case NOT_FOUND -> "No member found in MMI for this id";
+            case AMBIGUOUS -> "Several members match this id; see candidates and ambiguity.hint";
+        };
+    }
+
+    /**
+     * MMI says "no member for this id" with an HTTP 404 or with a message whose statusCode / messageCode is one of the
+     * configured not-found values ({@code mmi.not-found-status-codes}, {@code mmi.not-found-message-codes}), whatever the
+     * messageType. Such an answer is NOT_FOUND, never a 502.
+     */
+    private boolean saysNotFound(MmiResult result, List<MmiMessage> messages) {
+        List<String> statuses = mmiProperties.notFoundStatusCodes();
+        if (statuses.contains(String.valueOf(result.httpStatus()))) {
+            return true;
+        }
+        for (MmiMessage m : messages) {
+            if (m.statusCode() != null && statuses.contains(m.statusCode().strip())) {
+                return true;
+            }
+            if (m.messageCode() != null && mmiProperties.notFoundMessageCodes().stream()
+                    .anyMatch(c -> c.equalsIgnoreCase(m.messageCode().strip()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasErrorMessage(List<MmiMessage> messages) {

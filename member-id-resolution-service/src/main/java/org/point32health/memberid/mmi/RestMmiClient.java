@@ -16,12 +16,18 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
  * The HTTP client for MMI: one POST per call, plain HTTP and no authentication exactly as the MMI contract
  * states for internal consumers. Connect and read timeouts ({@code mmi.connect-timeout} / {@code mmi.read-timeout})
  * are applied to the builder by {@code MmiClientConfig}. No retry: a clear 503 lets Onyx retry later.
+ *
+ * <p>Status mapping: 2xx is parsed; 404 is MMI's "no member for this id" and is returned as a normal result when the
+ * body is an MMI envelope or empty (a 404 with a non-MMI body, such as the servlet container's default error page or a
+ * proxy's HTML, means the URL is wrong and is a 502 {@code HTTP_404}); 5xx, 429 and 408 are 503 (Onyx may retry);
+ * any other status is 502.
  *
  * <p>With {@code mmi.log-payloads=true} the exact request body sent and the exact response body received
  * (status, headers' content type, raw text) are written to the log, so an integration problem can be read
@@ -61,7 +67,7 @@ public class RestMmiClient implements MmiClient {
         }
         long start = System.nanoTime();
         try {
-            MmiResponse response = restClient.post()
+            MmiResult result = restClient.post()
                     .uri(properties.path())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
@@ -88,21 +94,29 @@ public class RestMmiClient implements MmiClient {
                                 throw MmiException.invalidResponse(requestId, "EMPTY_BODY", "MMI answered " + status.value() + " with no body", null);
                             }
                             try {
-                                return objectMapper.readValue(text, MmiResponse.class);
+                                return new MmiResult(requestId, status.value(), objectMapper.readValue(text, MmiResponse.class));
                             } catch (JacksonException e) {
                                 throw MmiException.invalidResponse(requestId, "UNPARSEABLE_BODY",
                                         "MMI answered " + status.value() + " with a body that is not the expected JSON", e);
                             }
                         }
                         int code = status.value();
+                        if (code == 404) {
+                            MmiResponse notFound = asMmiEnvelope(text, requestId);
+                            if (notFound != null) {
+                                return new MmiResult(requestId, 404, notFound);
+                            }
+                            throw MmiException.rejected(requestId, "HTTP_404", "MMI answered 404 without an MMI response body: the MMI URL is "
+                                    + "probably wrong (mmi.base-url + mmi.path = " + url + ")");
+                        }
                         if (status.is5xxServerError() || code == 429 || code == 408) {
                             throw MmiException.unavailable(requestId, "HTTP_" + code, "MMI answered HTTP " + code, null);
                         }
                         throw MmiException.rejected(requestId, "HTTP_" + code, "MMI rejected the request with HTTP " + code);
                     });
-            log.info("mmi call ok requestId={} memberId={} records={} ms={}", requestId, Masking.memberId(memberId),
-                    response.membersOrEmpty().size(), elapsedMs(start));
-            return new MmiResult(requestId, response);
+            log.info("mmi call ok requestId={} memberId={} status={} records={} ms={}", requestId, Masking.memberId(memberId),
+                    result.httpStatus(), result.response().membersOrEmpty().size(), elapsedMs(start));
+            return result;
         } catch (MmiException e) {
             log.warn("mmi call failed requestId={} memberId={} code={} detail={} ms={} cause={}", requestId, Masking.memberId(memberId),
                     e.code(), e.detail(), elapsedMs(start), e.getCause() == null ? "-" : rootMessage(e.getCause()));
@@ -117,6 +131,25 @@ public class RestMmiClient implements MmiClient {
                     MmiException.INVALID_RESPONSE, elapsedMs(start), rootMessage(e));
             throw MmiException.invalidResponse(requestId, "CLIENT_ERROR", "MMI call failed: " + e.getClass().getSimpleName(), e);
         }
+    }
+
+    /**
+     * MMI's "no member" answer is a 404 whose body is the usual envelope (messages, no members) or nothing at all.
+     * Anything else with a 404 (the container's default error JSON, a proxy's HTML page) is not MMI speaking.
+     */
+    private MmiResponse asMmiEnvelope(String text, String requestId) {
+        if (text == null || text.isBlank()) {
+            return new MmiResponse(null, null, requestId, null, null);
+        }
+        try {
+            JsonNode node = objectMapper.readTree(text);
+            if (node.isObject() && (node.has("members") || node.has("messages") || node.has("clientId") || node.has("requestId"))) {
+                return objectMapper.treeToValue(node, MmiResponse.class);
+            }
+        } catch (JacksonException e) {
+            // not JSON: fall through
+        }
+        return null;
     }
 
     private static boolean hasIoCause(Throwable e) {

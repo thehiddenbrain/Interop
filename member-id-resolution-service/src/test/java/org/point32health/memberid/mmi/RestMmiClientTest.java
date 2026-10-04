@@ -38,7 +38,7 @@ class RestMmiClientTest {
 
     private static MmiProperties props(String baseUrl) {
         return new MmiProperties(baseUrl, "/master/member/v1", "MBRIDSVC", "INT", Duration.ofSeconds(2), Duration.ofSeconds(5), "N",
-                List.of("ERROR"), true, new MmiProperties.Stub(false, ""));
+                List.of("ERROR"), List.of("404"), List.of("NOT_FOUND", "MEMBER_NOT_FOUND"), true, new MmiProperties.Stub(false, ""));
     }
 
     @Test
@@ -111,6 +111,62 @@ class RestMmiClientTest {
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
             assertThat(e.detail()).isEqualTo("HTTP_408");
+        });
+    }
+
+    @Test
+    void notFoundWithAnMmiEnvelopeIsANormalAnswer() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://mmi.test/master/member/v1")).andRespond(withStatus(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"clientId\":\"MBRIDSVC\",\"clientType\":\"INT\",\"requestId\":\"x\","
+                        + "\"messages\":[{\"messageType\":\"ERROR\",\"statusCode\":\"404\",\"messageCode\":\"MEMBER_NOT_FOUND\",\"message\":\"No member found\"}],"
+                        + "\"members\":null}"));
+        MmiResult result = new RestMmiClient(builder, props("http://mmi.test"), JSON).search("999999999", "c");
+        assertThat(result.httpStatus()).isEqualTo(404);
+        assertThat(result.response().membersOrEmpty()).isEmpty();
+        assertThat(result.response().messagesOrEmpty()).hasSize(1);
+        assertThat(result.response().messagesOrEmpty().get(0).messageCode()).isEqualTo("MEMBER_NOT_FOUND");
+    }
+
+    @Test
+    void notFoundWithAnEmptyBodyIsANormalAnswer() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://mmi.test/master/member/v1")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+        MmiResult result = new RestMmiClient(builder, props("http://mmi.test"), JSON).search("999999999", "c");
+        assertThat(result.httpStatus()).isEqualTo(404);
+        assertThat(result.response().membersOrEmpty()).isEmpty();
+        assertThat(result.response().messagesOrEmpty()).isEmpty();
+    }
+
+    @Test
+    void notFoundFromAWrongUrlIsRejected502() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        // the servlet container's default error body: MMI itself never answered
+        server.expect(requestTo("http://mmi.test/master/member/v1")).andRespond(withStatus(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"timestamp\":\"2026-10-04T10:00:00Z\",\"status\":404,\"error\":\"Not Found\",\"path\":\"/master/member/v1\"}"));
+        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"), JSON);
+        assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
+            assertThat(e.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
+            assertThat(e.detail()).isEqualTo("HTTP_404");
+            assertThat(e.getMessage()).contains("URL").contains("http://mmi.test/master/member/v1");
+        });
+    }
+
+    @Test
+    void notFoundWithAnHtmlPageIsRejected502() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://mmi.test/master/member/v1")).andRespond(withStatus(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.TEXT_HTML).body("<html><body>Not Found</body></html>"));
+        RestMmiClient client = new RestMmiClient(builder, props("http://mmi.test"), JSON);
+        assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
+            assertThat(e.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
+            assertThat(e.detail()).isEqualTo("HTTP_404");
         });
     }
 

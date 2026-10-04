@@ -207,3 +207,17 @@ See the conversation; answers will be appended here.
   JSON). A real date of birth is still used to pick among several records and a mismatch is still 422.
   `/resolve` keeps its strict validation.
 
+## Feedback 10 (2026-10-04): MMI answers 404 when it has no member; forward MMI's codes and say "member not found"
+
+- MMI returns HTTP 404 for "no results found". The service must not treat that as an MMI failure: it is a
+  normal answer, 200 `NOT_FOUND`. A 404 from this service itself is only for an unknown route. Whatever code MMI
+  returns should be forwarded, or turned into a good message; the owner will share MMI's error-code list.
+- Applied: an MMI 404 whose body is the MMI envelope (messages, no members) or empty is `NOT_FOUND`; a 404 with a
+  non-MMI body (the container's default error page, a proxy's HTML) means a wrong URL and is 502 `HTTP_404` with
+  a message naming the URL. A message whose statusCode / messageCode is in `mmi.not-found-status-codes` /
+  `mmi.not-found-message-codes` (YAML, defaults 404 and NOT_FOUND-like codes) is also `NOT_FOUND`, whatever its
+  messageType. Every 200 now carries one plain `message` sentence ("No member found in MMI for this id", ...),
+  `NOT_FOUND` also carries `mmiMessage` (MMI's type, status, code, text), and a 502 `ERROR_MESSAGE` forwards MMI's
+  code and text. The dev stub answers 404 with an ERROR-typed MEMBER_NOT_FOUND message for unknown ids, like MMI.
+- Pending: align the two YAML lists with the MMI error-code list when it arrives.
+

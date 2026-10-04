@@ -6,10 +6,12 @@ import java.util.List;
 /**
  * The 200 response of {@code POST /api/v1/member-ids/resolve} (one vendor). Optional blocks are absent when
  * they do not apply (global non-null inclusion); the one exception is {@code coverage.span.endDate}, which is
- * an explicit {@code null} for open-ended coverage.
+ * an explicit {@code null} for open-ended coverage. {@code message} is one human-readable sentence for the
+ * outcome; {@code mmiMessage} is what MMI itself said when it had no member for the id (NOT_FOUND only).
  */
 public record ResolveResponse(
         Outcome outcome,
+        String message,
         MemberId memberId,
         String vendor,
         String company,
@@ -20,7 +22,8 @@ public record ResolveResponse(
         Ambiguity ambiguity,
         List<Candidate> candidates,
         String correlationId,
-        String mmiRequestId) {
+        String mmiRequestId,
+        MmiNote mmiMessage) {
 
     /**
      * @param received  as Onyx sent it (surrounding whitespace removed); this exact value was sent to MMI

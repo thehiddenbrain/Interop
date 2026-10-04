@@ -49,6 +49,10 @@ mmi:
   read-timeout: ${MMI_READ_TIMEOUT:5s}
   void-coverage-record: N               # MMI drops void and negative spans; the service also skips voidFlag=Y
   error-message-types: [ERROR]          # messageType values MMI uses for errors (confirm in PQA)
+  # "MMI has no member for this id" = HTTP 404, or a message with one of these statusCode / messageCode values.
+  # Answered 200 NOT_FOUND, never 502, whatever the messageType says. Align with the MMI error-code list when shared.
+  not-found-status-codes: ["404"]
+  not-found-message-codes: [NOT_FOUND, MEMBER_NOT_FOUND, NO_MEMBER_FOUND, NO_MATCH, NO_RECORDS_FOUND]
   log-payloads: ${MMI_LOG_PAYLOADS:false}  # print the full MMI request and response bodies (PHI); dev/fqa/pqa/pqa-lite turn it on
   stub:
     enabled: false                      # true only in the dev and test profiles

@@ -168,6 +168,8 @@ class ResolveScenariosTest {
     void tmpNineDigitCardNumberResolvesToTheOneMember() throws Exception {
         JsonNode r = call(200, req("123456789", "2026-10-15", "evicore"));
         assertThat(r.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(r.get("message").asText()).isEqualTo("Member found; coverage active on 2026-10-15");
+        assertThat(r.has("mmiMessage")).as("MMI's message only matters when nothing was found").isFalse();
         assertThat(r.at("/memberId/received").asText()).isEqualTo("123456789");
         assertThat(r.at("/memberId/stored").asText()).isEqualTo("123456789   01");
         assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("12345678901");
@@ -377,7 +379,14 @@ class ResolveScenariosTest {
         assertThat(r.at("/memberId/received").asText()).isEqualTo("111222333");
         assertThat(r.has("coverage")).isFalse();
         assertThat(r.has("company")).isFalse();
-        assertThat(call(200, req("HP111222333", "2026-10-15", "evicore")).get("outcome").asText()).isEqualTo("NOT_FOUND");
+        JsonNode notFound = call(200, req("HP111222333", "2026-10-15", "evicore"));
+        assertThat(notFound.get("outcome").asText()).isEqualTo("NOT_FOUND");
+        assertThat(notFound.get("message").asText()).isEqualTo("No member found in MMI for this id");
+        assertThat(notFound.at("/mmiMessage/status").asText()).as("MMI's 404 is a normal answer, surfaced as is").isEqualTo("404");
+        assertThat(notFound.at("/mmiMessage/code").asText()).isEqualTo("MEMBER_NOT_FOUND");
+        assertThat(notFound.at("/mmiMessage/type").asText()).as("an ERROR-typed not-found message is still NOT_FOUND, not 502").isEqualTo("ERROR");
+        assertThat(notFound.get("mmiRequestId").asText()).isNotBlank();
+        assertThat(notFound.has("coverage")).isFalse();
     }
 
     @Test
@@ -598,6 +607,8 @@ class ResolveScenariosTest {
     void vendorMapWithoutAnIdentifiedMemberCarriesNoVendorIds() throws Exception {
         JsonNode notFound = callVendorMap(200, Map.of("memberId", "HP111222333", "dateOfService", "2026-10-15"));
         assertThat(notFound.get("outcome").asText()).isEqualTo("NOT_FOUND");
+        assertThat(notFound.get("message").asText()).isEqualTo("No member found in MMI for this id");
+        assertThat(notFound.at("/mmiMessage/code").asText()).isEqualTo("MEMBER_NOT_FOUND");
         assertThat(notFound.has("vendorMemberIds")).isFalse();
         assertThat(notFound.has("coverage")).isFalse();
         assertThat(notFound.at("/memberId/received").asText()).isEqualTo("HP111222333");
@@ -676,7 +687,8 @@ class ResolveScenariosTest {
         JsonNode message = call(502, req("888888888", "2026-10-15", "evicore"));
         assertThat(message.at("/error/code").asText()).isEqualTo("MMI_ERROR");
         assertThat(message.at("/error/details/0/code").asText()).isEqualTo("ERROR_MESSAGE");
-        assertThat(message.toString()).doesNotContain("search backend timed out");
+        assertThat(message.at("/error/message").asText()).as("MMI's own code and text are forwarded so the problem can be read")
+                .contains("code=ES_TIMEOUT").contains("text=search backend timed out (stub)");
 
         JsonNode body = call(502, req("202202202", "2026-10-15", "evicore"));
         assertThat(body.at("/error/code").asText()).isEqualTo("MMI_INVALID_RESPONSE");

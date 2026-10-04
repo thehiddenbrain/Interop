@@ -19,7 +19,8 @@ import org.springframework.core.io.ResourceLoader;
  * In-process MMI for local runs and tests. Serves the records in {@code mmi-stub/members.json} with
  * MMI's documented search behaviour: an exact id match, a 9-digit (policy) match returning every member
  * of the family, a legacy-id match, and the second pass that pulls in records linked through
- * legacyMemberId. A few reserved ids simulate faults (see the README).
+ * legacyMemberId. No member at all is an HTTP 404 with an error-typed message, as the real MMI answers.
+ * A few reserved ids simulate faults (see the README).
  *
  * <p>The service sends the member id exactly as the EMR typed it. The stub ignores separators (spaces, hyphens,
  * anything that is not a letter or digit) and case when matching, which is the leniency the owner describes for
@@ -99,7 +100,7 @@ public class StubMmiClient implements MmiClient {
         try {
             MmiResult result = answer(memberId, requestId);
             if (properties.logPayloads()) {
-                log.info("mmi response (stub) requestId={} status=200\n{}", requestId, objectMapper.writeValueAsString(result.response()));
+                log.info("mmi response (stub) requestId={} status={}\n{}", requestId, result.httpStatus(), objectMapper.writeValueAsString(result.response()));
             }
             return result;
         } catch (MmiException e) {
@@ -119,19 +120,19 @@ public class StubMmiClient implements MmiClient {
             case FAULT_HTTP_400 -> throw MmiException.rejected(requestId, "HTTP_400", "MMI rejected the request with HTTP 400 (stub)");
             case FAULT_BAD_BODY -> throw MmiException.invalidResponse(requestId, "UNPARSEABLE_BODY", "MMI answered 200 with a body that is not the expected JSON (stub)", null);
             case FAULT_ERROR_MESSAGE -> {
-                return new MmiResult(requestId, new MmiResponse(properties.clientId(), properties.clientType(), requestId,
+                return new MmiResult(requestId, 200, new MmiResponse(properties.clientId(), properties.clientType(), requestId,
                         List.of(new MmiMessage("ERROR", "500", "ES_TIMEOUT", "search backend timed out (stub)")), null));
             }
             case FAULT_ERROR_WITH_MEMBER -> {
                 MmiMember member = new MmiMember(FAULT_ERROR_WITH_MEMBER + "   01", null, "01/01/1951", null, "THP", "MCR", "N", null,
                         List.of(new MmiCoverage("01/01/2024", null, "00001111", "N")));
-                return new MmiResult(requestId, new MmiResponse(properties.clientId(), properties.clientType(), requestId,
+                return new MmiResult(requestId, 200, new MmiResponse(properties.clientId(), properties.clientType(), requestId,
                         List.of(new MmiMessage("ERROR", "500", "SECOND_PASS_FAILED", "legacy pass failed (stub)")), List.of(member)));
             }
             case FAULT_NO_MEMBER_ID -> {
                 MmiMember member = new MmiMember(null, null, "01/01/1951", null, "THP", "MCR", "N", null,
                         List.of(new MmiCoverage("01/01/2024", null, "00001111", "N")));
-                return new MmiResult(requestId, new MmiResponse(properties.clientId(), properties.clientType(), requestId, null, List.of(member)));
+                return new MmiResult(requestId, 200, new MmiResponse(properties.clientId(), properties.clientType(), requestId, null, List.of(member)));
             }
             default -> {
                 // fall through to the fixture search
@@ -155,8 +156,12 @@ public class StubMmiClient implements MmiClient {
                 }
             }
         }
-        List<MmiMember> result = found.isEmpty() ? null : new ArrayList<>(found);
-        return new MmiResult(requestId, new MmiResponse(properties.clientId(), properties.clientType(), requestId, null, result));
+        if (found.isEmpty()) {
+            // like the real MMI: no member for this id is an HTTP 404 with a message and no members
+            return new MmiResult(requestId, 404, new MmiResponse(properties.clientId(), properties.clientType(), requestId,
+                    List.of(new MmiMessage("ERROR", "404", "MEMBER_NOT_FOUND", "No member found for the given id (stub)")), null));
+        }
+        return new MmiResult(requestId, 200, new MmiResponse(properties.clientId(), properties.clientType(), requestId, null, new ArrayList<>(found)));
     }
 
     private static boolean matches(String key, MmiMember m) {
