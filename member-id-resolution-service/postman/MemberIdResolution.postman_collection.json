@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "fc06bd8a-2b7b-4a0b-a1a5-d2d605d0da94",
     "name": "Member ID Resolution Service",
-    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (the default: in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One MMI call either way. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient: only the member id is required; a vendor or any unknown property is accepted and ignored; an unusable date is ignored, not rejected, and named in ignoredFields.",
+    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (the default: in-process MMI stub on port 9090). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One MMI call either way. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient: only the member id is required; a vendor or any unknown property is accepted and ignored; an unusable date is ignored, not rejected, and named in ignoredFields. Every 200 carries a one-sentence \"message\" right after \"outcome\". MMI answers 404 when it has no member for the id; that is a normal answer: 200 NOT_FOUND, with MMI's own message in \"mmiMessage\". Only an unknown route of this service is a 404 from this service.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -30,6 +30,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
@@ -86,6 +88,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.forVendor = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -138,6 +141,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -190,6 +194,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.received = 123-456-789 01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123-456-789 01\")); });",
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\".vendor = CARELON\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendor)).to.eql(JSON.stringify(\"CARELON\")); });",
@@ -245,6 +250,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.received = 123456789-01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123456789-01\")); });",
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
@@ -299,6 +305,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.forVendorParts.memberId = 123456789\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendorParts.memberId)).to.eql(JSON.stringify(\"123456789\")); });",
                   "pm.test(\".memberId.forVendorParts.suffix = 01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendorParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
                   "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
@@ -353,6 +360,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -404,6 +412,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".dateOfServiceDefaulted = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -456,6 +465,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Member found; no coverage on 2026-10-15 (COVERAGE_ENDED)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; no coverage on 2026-10-15 (COVERAGE_ENDED)\")); });",
                   "pm.test(\".coverage.active = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(false)); });",
                   "pm.test(\".coverage.reason = COVERAGE_ENDED\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"COVERAGE_ENDED\")); });",
                   "pm.test(\".coverage.lastEndDate = 2025-12-31\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.lastEndDate)).to.eql(JSON.stringify(\"2025-12-31\")); });",
@@ -510,6 +521,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -561,6 +573,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".coverage.reason = NOT_YET_EFFECTIVE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"NOT_YET_EFFECTIVE\")); });",
                   "pm.test(\".coverage.nextEffectiveDate = 2027-01-01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.nextEffectiveDate)).to.eql(JSON.stringify(\"2027-01-01\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -614,6 +627,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".coverage.reason = COVERAGE_ENDED\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"COVERAGE_ENDED\")); });",
                   "pm.test(\".coverage.lastEndDate = 2025-06-30\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.lastEndDate)).to.eql(JSON.stringify(\"2025-06-30\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -667,6 +681,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -718,6 +733,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".company = THP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.company)).to.eql(JSON.stringify(\"THP\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -776,6 +792,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Several members match this id; see candidates and ambiguity.hint\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Several members match this id; see candidates and ambiguity.hint\")); });",
                   "pm.test(\".ambiguity.reason = MULTIPLE_PERSONS\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.ambiguity.reason)).to.eql(JSON.stringify(\"MULTIPLE_PERSONS\")); });",
                   "pm.test(\"3 candidates\", function () { pm.expect(pm.response.json().candidates.length).to.eql(3); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -829,6 +847,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
                   "pm.test(\".memberId.stored = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890101\")); });",
                   "pm.test(\".memberId.forVendor = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"34567890101\")); });",
                   "pm.test(\".lineOfBusiness = PP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"PP\")); });",
@@ -883,6 +903,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".ambiguity.reason = DOB_NOT_DISCRIMINATING\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.ambiguity.reason)).to.eql(JSON.stringify(\"DOB_NOT_DISCRIMINATING\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -935,6 +956,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Member found; no coverage on 2024-08-15 (COVERAGE_GAP)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; no coverage on 2024-08-15 (COVERAGE_GAP)\")); });",
                   "pm.test(\".coverage.reason = COVERAGE_GAP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"COVERAGE_GAP\")); });",
                   "pm.test(\".coverage.lastEndDate = 2024-05-31\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.lastEndDate)).to.eql(JSON.stringify(\"2024-05-31\")); });",
                   "pm.test(\".coverage.nextEffectiveDate = 2025-01-01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.nextEffectiveDate)).to.eql(JSON.stringify(\"2025-01-01\")); });",
@@ -990,6 +1013,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1098,6 +1122,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
                   "pm.test(\".memberId.received = HP-456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP-456789012\")); });",
                   "pm.test(\".memberId.stored = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"HP456789012\")); });",
                   "pm.test(\".memberId.forVendor = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"HP456789012\")); });",
@@ -1153,6 +1179,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.received = hp 4567 89012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"hp 4567 89012\")); });",
                   "pm.test(\".memberId.forVendor = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"HP456789012\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -1206,6 +1233,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.stored = HP567890123\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"HP567890123\")); });",
                   "pm.test(\".company = HPHC\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.company)).to.eql(JSON.stringify(\"HPHC\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -1259,6 +1287,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.stored = 567890123   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"567890123   01\")); });",
                   "pm.test(\".memberId.forVendorParts.suffix = 01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendorParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -1312,6 +1341,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.stored = 567890123   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"567890123   01\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1370,6 +1400,11 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
+                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1421,6 +1456,11 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
+                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1472,6 +1512,9 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
+                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
                   "pm.test(\".memberId.received = 1234567890\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"1234567890\")); });",
                   "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
@@ -1526,6 +1569,9 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
+                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
                   "pm.test(\".memberId.received = 1111111111111111111111111111111111111111\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"1111111111111111111111111111111111111111\")); });",
                   "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
@@ -1580,6 +1626,9 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
+                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
                   "pm.test(\".memberId.received = ABC-123/XYZ_9\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"ABC-123/XYZ_9\")); });",
                   "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
@@ -2239,7 +2288,7 @@
           "response": []
         },
         {
-          "name": "MMI error message, no members: 502 MMI_ERROR",
+          "name": "MMI error message that is not a not-found code (ES_TIMEOUT), no members: 502 MMI_ERROR",
           "event": [
             {
               "listen": "test",
@@ -2248,6 +2297,8 @@
                 "exec": [
                   "pm.test(\"HTTP 502\", function () { pm.response.to.have.status(502); });",
                   "pm.test(\".error.details[0].code = ERROR_MESSAGE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"ERROR_MESSAGE\")); });",
+                  "pm.test(\".error.message contains code=ES_TIMEOUT\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"code=ES_TIMEOUT\"); });",
+                  "pm.test(\".error.message contains text=search backend timed out\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"text=search backend timed out\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2285,7 +2336,66 @@
                   "language": "json"
                 }
               }
+            },
+            "description": "MMI answered with an error-typed message whose code is not a not-found code (ES_TIMEOUT) and no members: that is an MMI error, 502 MMI_ERROR / ERROR_MESSAGE, and the error message forwards MMI's code and text. Compare with the next request: a not-found answer (HTTP 404 or a not-found code such as MEMBER_NOT_FOUND) is 200 NOT_FOUND."
+          },
+          "response": []
+        },
+        {
+          "name": "Unknown id: MMI answers 404, this service answers 200 NOT_FOUND (not an error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
+                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\".memberId.received = 000000001\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"000000001\")); });",
+                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
             }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"000000001\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "MMI answers 404 when it has no member for the id; that is a normal answer: 200 NOT_FOUND with message \"No member found in MMI for this id\" and MMI's own message (type, status, code, text) in mmiMessage. Only an unknown route of this service is a 404 from this service (see \"Wrong route: 404 with the envelope\" in folder 4)."
           },
           "response": []
         },
@@ -2402,6 +2512,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\".outcome = ACTIVE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.outcome)).to.eql(JSON.stringify(\"ACTIVE\")); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2594,6 +2706,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
                   "pm.test(\".memberId.received = 123456789\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123456789\")); });",
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
@@ -2660,6 +2774,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.received = 123456789-01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123456789-01\")); });",
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
@@ -2726,6 +2841,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".dateOfServiceDefaulted = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\".memberId.received = HP-456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP-456789012\")); });",
                   "pm.test(\".memberId.stored = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"HP456789012\")); });",
@@ -2786,6 +2902,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Member found; no coverage on 2024-08-15 (COVERAGE_GAP)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; no coverage on 2024-08-15 (COVERAGE_GAP)\")); });",
                   "pm.test(\".coverage.active = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(false)); });",
                   "pm.test(\".coverage.reason = COVERAGE_GAP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.reason)).to.eql(JSON.stringify(\"COVERAGE_GAP\")); });",
                   "pm.test(\".memberId.stored = 34567890102\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890102\")); });",
@@ -2845,11 +2963,15 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
+                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
                   "pm.test(\".memberId.received = HP111222333\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP111222333\")); });",
                   "pm.test(\"no .vendorMemberIds\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendorMemberIds\"); });",
                   "pm.test(\"no .coverage\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"coverage\"); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
                   "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2901,6 +3023,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".message = Several members match this id; see candidates and ambiguity.hint\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Several members match this id; see candidates and ambiguity.hint\")); });",
                   "pm.test(\".ambiguity.reason = MULTIPLE_PERSONS\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.ambiguity.reason)).to.eql(JSON.stringify(\"MULTIPLE_PERSONS\")); });",
                   "pm.test(\"3 candidates\", function () { pm.expect(pm.response.json().candidates.length).to.eql(3); });",
                   "pm.test(\"no .vendorMemberIds\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendorMemberIds\"); });",
@@ -2956,6 +3080,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.stored = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890101\")); });",
                   "pm.test(\".lineOfBusiness = PP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"PP\")); });",
                   "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
@@ -3067,6 +3192,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".dateOfServiceDefaulted = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(false)); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
                   "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
@@ -3123,6 +3249,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".dateOfServiceDefaulted = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\".ignoredFields = [dateOfService, patient.dateOfBirth]\", function () { const j = pm.response.json(); pm.expect(j.ignoredFields).to.eql([\"dateOfService\", \"patient.dateOfBirth\"]); });",
                   "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
@@ -3178,6 +3305,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".dateOfServiceDefaulted = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\".ignoredFields = [dateOfService]\", function () { const j = pm.response.json(); pm.expect(j.ignoredFields).to.eql([\"dateOfService\"]); });",
                   "pm.test(\"5 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(5); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"OPTUM\"]); });",
