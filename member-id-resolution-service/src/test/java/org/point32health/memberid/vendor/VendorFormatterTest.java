@@ -12,31 +12,52 @@ class VendorFormatterTest {
 
     @ParameterizedTest(name = "[{index}] {1} of ''{0}'' -> ''{2}''")
     @CsvSource(delimiter = '|', value = {
+            // MMI's documented shape: 9 digits, 3 spaces, 2-digit suffix
             "123456789   01 | COMPACT_11 | 12345678901",
             "123456789   01 | SPACED_14  | 123456789   01",
             "123456789   01 | AS_STORED  | 123456789   01",
             "123456789   01 | SPLIT      | 12345678901",
             "123456789 01   | SPACED_14  | 123456789   01",
-            "34567890101    | SPACED_14  | 34567890101",
-            "34567890101    | COMPACT_11 | 34567890101",
-            "HP456789012    | COMPACT_11 | HP456789012",
-            "HP456789012    | SPACED_14  | HP456789012",
             "' 123456789   01 ' | COMPACT_11 | 12345678901",
+            // whatever MMI really puts between the two digit groups
             "'123456789\u00A0\u00A0\u00A001' | COMPACT_11 | 12345678901",
             "'123456789\u00A0\u00A0\u00A001' | SPACED_14  | 123456789   01",
+            "'123456789\u200B\u200B\u200B01' | COMPACT_11 | 12345678901",
             "'123456789\t01'      | COMPACT_11 | 12345678901",
+            "'123456789-01'       | COMPACT_11 | 12345678901",
+            "'123456789 . 01'     | SPLIT      | 12345678901",
             "'123456789 01   '    | COMPACT_11 | 12345678901",
             "'  123456789  01'    | SPLIT      | 12345678901",
             "'123456789   01\u00A0' | SPACED_14 | 123456789   01",
+            "'123456789   001'    | COMPACT_11 | 123456789001",
+            // no separator between the digits: Public Plans, passed as stored even with padding
+            "34567890101    | SPACED_14  | 34567890101",
+            "34567890101    | COMPACT_11 | 34567890101",
+            "'34567890101 '  | SPACED_14  | 34567890101",
+            "'\u00A034567890101' | COMPACT_11 | 34567890101",
+            // too few digits: HPHC, passed as stored
+            "HP456789012    | COMPACT_11 | HP456789012",
+            "HP456789012    | SPACED_14  | HP456789012",
+            "HP-456789012   | COMPACT_11 | HP-456789012",
     })
     void formats(String stored, VendorIdFormat format, String expected) {
         assertThat(formatter.format(stored, format).value()).isEqualTo(expected);
     }
 
     @Test
-    void whitespaceOfAnyKindIsNormalised() {
-        assertThat(VendorFormatter.normalizeWhitespace("\u00A0123456789\u00A0\u00A0\u00A001\t")).isEqualTo("123456789   01");
-        assertThat(VendorFormatter.normalizeWhitespace(null)).isEmpty();
+    void blanksOfAnyKindAreTrimmedFromTheEnds() {
+        assertThat(VendorFormatter.trim("\u00A0 123456789   01\t ")).isEqualTo("123456789   01");
+        assertThat(VendorFormatter.trim(null)).isEmpty();
+    }
+
+    @Test
+    void separatedIdSplitsIntoCoreAndSuffixWhateverTheSeparator() {
+        for (String stored : java.util.List.of("123456789   01", "123456789\u00A0\u00A0\u00A001", "123456789\u200B01", "123456789-01", "123-456-789 01")) {
+            FormattedMemberId f = formatter.format(stored, VendorIdFormat.SPLIT);
+            assertThat(f.parts()).as(stored).isNotNull();
+            assertThat(f.parts().memberId()).isEqualTo("123456789");
+            assertThat(f.parts().suffix()).isEqualTo("01");
+        }
     }
 
     @Test
