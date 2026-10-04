@@ -245,3 +245,11 @@ See the conversation; answers will be appended here.
 - If PQA still shows 14 characters for an 11-character vendor, the `mmi response` payload line or the
   `STORED_ID_NOT_RESHAPED` line shows the exact stored shape to map.
 
+## Feedback 13 (2026-10-04): GitHub into STS instead of zips; default profile pqa
+
+- Applied: README section 1 explains how to clone the branch straight from GitHub into STS (fine-grained token,
+  EGit import, Buildship import of the sub-folder, pull and push) and the command-line equivalent.
+- `spring.profiles.default` is now `pqa`: "Run As → Spring Boot App" with no profile talks to the PQA MMI; the
+  in-process stub needs Profile = `dev`. `run.sh` / `run.cmd` / `run.bat` default to `pqa` too. The deployment rule
+  stays: every deployment sets `SPRING_PROFILES_ACTIVE` explicitly (a pod without it would call the PQA MMI).
+

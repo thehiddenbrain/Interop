@@ -2,7 +2,7 @@ spring:
   application:
     name: member-id-resolution-service
   profiles:
-    default: dev                        # "Run As > Spring Boot App" in STS runs against the in-process MMI stub
+    default: pqa                        # "Run As > Spring Boot App" in STS with no profile talks to the PQA MMI; Profile = dev for the in-process stub
   jackson:
     default-property-inclusion: non_null
     deserialization:

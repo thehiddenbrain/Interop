@@ -939,16 +939,16 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Profile</th><th>MMI</th><th>Notes</th></tr></thead>
 <tbody>
-<tr><td><code>dev</code> (default)</td><td>in-process stub, no network</td><td>what "Run As → Spring Boot App" uses; DEBUG logging for the service package</td></tr>
+<tr><td><code>dev</code></td><td>in-process stub, no network</td><td>Profile = <code>dev</code> in the STS run configuration or <code>--spring.profiles.active=dev</code>; DEBUG logging for the service package</td></tr>
 <tr><td><code>fqa</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp</code></td><td></td></tr>
-<tr><td><code>pqa</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp</code></td><td>the owner's first real target</td></tr>
+<tr><td><code>pqa</code> (default)</td><td><code>http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp</code></td><td>the owner's first real target</td></tr>
 <tr><td><code>pqa-lite</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp</code></td><td></td></tr>
 <tr><td><code>prod</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp</code></td><td>Swagger and OpenAPI off; package logging pinned to INFO</td></tr>
 </tbody></table></div>
 <p>Endpoint on every environment: <code>/master/member/v1</code>. Environment variables override without a rebuild: <code>MMI_BASE_URL</code>, <code>MMI_CLIENT_ID</code>, <code>MMI_READ_TIMEOUT</code>, <code>MMI_CONNECT_TIMEOUT</code>, <code>MMI_LOG_PAYLOADS</code>, <code>SPRING_PROFILES_ACTIVE</code>.</p>
 <pre><code>spring:
   application.name: member-id-resolution-service
-  profiles.default: dev
+  profiles.default: pqa
   jackson: { default-property-inclusion: non_null, deserialization.fail-on-unknown-properties: true }   # /vendor-map's request record opts out: @JsonIgnoreProperties(ignoreUnknown = true)
   mvc.problemdetails.enabled: false
 server: { port: 9090, error: { include-message: never, include-stacktrace: never } }

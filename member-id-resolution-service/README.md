@@ -15,29 +15,69 @@ and returns it in every vendor's format at once. Two operations, one downstream 
 
 ## 1. Run it in STS (or any IDE)
 
+### Get the code straight from GitHub (no zip)
+
+Repository `https://github.com/thehiddenbrain/Interop`, branch `claude/member-id-normalization-design-ihju8o`,
+folder `member-id-resolution-service`. The repository holds other services too; import only this folder as the
+Gradle project.
+
+One-time, a GitHub token (GitHub does not accept the account password for Git any more): GitHub → your avatar →
+**Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**. Resource
+owner: the owner of `Interop`; Repository access: *Only select repositories* → `Interop`; Permissions →
+Repository permissions → **Contents: Read and write**. Copy the token once; it is the "password" below.
+
+In STS (EGit and Buildship are bundled):
+
+1. **File → Import… → Git → Projects from Git (with smart import) → Next → Clone URI → Next.**
+2. URI `https://github.com/thehiddenbrain/Interop.git`; Authentication: User = your GitHub user name,
+   Password = the token, tick *Store in Secure Store* → Next.
+3. Branch selection: untick everything, tick `claude/member-id-normalization-design-ihju8o` → Next.
+4. Local destination: Directory for example `C:\git\Interop`, Initial branch = that branch, Remote name
+   `origin` → Next. The clone runs.
+5. On the *Import Projects* page tick only `member-id-resolution-service` if it is listed as a Gradle project.
+   If only the repository root is offered, **Cancel** here (the clone stays on disk) and use
+   **File → Import… → Gradle → Existing Gradle Project**, Project root directory
+   `C:\git\Interop\member-id-resolution-service` → Finish. Buildship uses the wrapper (Gradle 9.5.0) and
+   downloads the dependencies on the first import.
+6. Right-click `MemberIdResolutionApplication` → **Run As → Spring Boot App**. The default profile is `pqa`
+   (the real PQA MMI, network needed). For the in-process stub open *Run Configurations… → Spring Boot App*
+   and put `dev` in the **Profile** field.
+
+Later updates: right-click the project → **Team → Pull**. If `build.gradle` changed, right-click → **Gradle →
+Refresh Gradle Project**. Your own changes: **Team → Commit… → Commit and Push** (the token's *Contents: Read and
+write* covers it). Command line equivalent:
+`git clone --branch claude/member-id-normalization-design-ihju8o https://github.com/thehiddenbrain/Interop.git`,
+then import the folder as in step 5. Once the branch is merged, switch with **Team → Switch To → Other… →
+origin/main → New Branch**.
+
+### Build and run
+
 The build is the same shape as the EPA Workbench (`patient-access-workbench`): Gradle 9.5.0 wrapper,
 Spring Boot 4.0.7, no toolchain block, `options.release = 17` plus `-parameters`, `springBoot { buildInfo() }`,
 and an `internalRepoUrl` Gradle property that swaps Maven Central for an internal mirror. Only a JDK 17 or
 newer is needed (17, 21 and 25 all work); the wrapper downloads Gradle and the dependencies on first use.
 
-1. **File → Import → Gradle → Existing Gradle Project**, pick this folder (`member-id-resolution-service`;
-   keep the folder name, Buildship wants it equal to the project name), accept the defaults (Gradle wrapper).
-2. Run `MemberIdResolutionApplication` as a **Spring Boot App**. With no profile set it runs the `dev`
-   profile: an **in-process MMI stub** answers from `src/main/resources/mmi-stub/members.json`, so nothing
-   needs network access.
-3. Open `http://localhost:9090/swagger-ui.html` or import the Postman collection in `postman/`.
+1. From a zip instead of GitHub: **File → Import → Gradle → Existing Gradle Project**, pick this folder
+   (`member-id-resolution-service`; keep the folder name, Buildship wants it equal to the project name), accept
+   the defaults (Gradle wrapper).
+2. Run `MemberIdResolutionApplication` as a **Spring Boot App**. With no profile set it runs the **`pqa`**
+   profile and calls the PQA MMI. With Profile = `dev` an **in-process MMI stub** answers from
+   `src/main/resources/mmi-stub/members.json`, so nothing needs network access.
+3. Open `http://localhost:9090/swagger-ui.html` or import the Postman collection in `postman/` (the collection
+   expects the `dev` profile).
 
 Command line: `./run.sh` (Mac/Linux) or `run.cmd` / `run.bat` (Windows) build the jar on first use and start it;
-`./gradlew bootRun` (dev profile) · `./gradlew test` (all tests) · `./gradlew bootJar` then
-`java -jar build/libs/member-id-resolution-service-1.0.0.jar --spring.profiles.active=pqa`.
+`./gradlew bootRun` (pqa, the default) · `./gradlew bootRun --args='--spring.profiles.active=dev'` (stub) ·
+`./gradlew test` (all tests) · `./gradlew bootJar` then `java -jar build/libs/member-id-resolution-service-1.0.0.jar`
+(pqa) or `... --spring.profiles.active=dev` (stub).
 
 ### Point it at a real MMI
 
 | Profile | MMI |
 |---|---|
-| `dev` (default) | in-process stub, no network |
+| `dev` | in-process stub, no network (`--spring.profiles.active=dev`; Profile field `dev` in STS) |
 | `fqa` | `http://mastermemberindexserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp` |
-| `pqa` | `http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` |
+| `pqa` (**default**) | `http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` |
 | `pqa-lite` | `http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` |
 | `prod` | `http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp` |
 
@@ -96,11 +136,11 @@ Overrides without a rebuild (environment variables or `-D` system properties): `
 profile file needed), `MMI_CLIENT_ID` (placeholder `MBRIDSVC`; register the real application name with the
 MMI team), `MMI_CONNECT_TIMEOUT=2s`, `MMI_READ_TIMEOUT=5s`, `MMI_LOG_PAYLOADS=true|false`.
 
-**Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `dev` (the stub) so that
-STS runs with one click. Two guards back the rule: the stub refuses to start with any explicitly active
-profile other than `dev` or `test`, and it refuses to start inside a Kubernetes/OpenShift pod at all
-(it checks `KUBERNETES_SERVICE_HOST`), so a pod that forgot its profile fails loudly instead of answering
-from canned data.
+**Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `pqa` so that "Run As →
+Spring Boot App" in STS talks to the PQA MMI with no setup. A pod that forgets the variable would therefore call
+the PQA MMI, wrong in prod and in FQA: set `prod`, `fqa`, `pqa` or `pqa-lite` explicitly in every deployment. Two
+guards back the stub: it refuses to start with any explicitly active profile other than `dev` or `test`, and it
+refuses to start inside a Kubernetes/OpenShift pod at all (it checks `KUBERNETES_SERVICE_HOST`).
 
 ## 2. The API
 
@@ -384,7 +424,7 @@ member-id:
 Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. A format applies when the stored id is digits, whitespace, digits (any kind or number of spaces, TMP/SCO); a stored id of any other shape is passed on unchanged and, when it is not plain letters and digits, the log says so (`marker=STORED_ID_NOT_RESHAPED` with the shape, never the digits). A new output shape = one constant in
 `VendorIdFormat` + one case in `VendorFormatter` + one test row.
 
-## 5. Stub fixtures (dev profile) and Postman
+## 5. Stub fixtures (dev profile: `--spring.profiles.active=dev`) and Postman
 
 `src/main/resources/mmi-stub/members.json` behaves like MMI: exact match, 9-digit (policy) match returning
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators

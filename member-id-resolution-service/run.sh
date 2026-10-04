@@ -18,5 +18,5 @@ if [ -z "$JAR" ]; then
   ./gradlew -q bootJar
   JAR=$(ls build/libs/member-id-resolution-service-*.jar | grep -v '\-plain\.jar$' | head -n 1)
 fi
-echo "Starting $JAR (profile: ${SPRING_PROFILES_ACTIVE:-dev}) -> http://localhost:${SERVER_PORT:-9090}/swagger-ui.html"
+echo "Starting $JAR (profile: ${SPRING_PROFILES_ACTIVE:-pqa, the default}; SPRING_PROFILES_ACTIVE=dev for the in-process stub) -> http://localhost:${SERVER_PORT:-9090}/swagger-ui.html"
 exec java -jar "$JAR" "$@"

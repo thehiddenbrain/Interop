@@ -56,7 +56,7 @@ public class StubMmiClient implements MmiClient {
                     + Arrays.toString(environment.getActiveProfiles()));
         }
         if (System.getenv("KUBERNETES_SERVICE_HOST") != null) {
-            // the default profile is local, so a pod started without SPRING_PROFILES_ACTIVE would otherwise serve canned answers
+            // a pod must never serve canned answers, whatever profile it was (or was not) started with
             throw new IllegalStateException("the MMI stub must never run inside a Kubernetes/OpenShift pod; set SPRING_PROFILES_ACTIVE "
                     + "to fqa, pqa, pqa-lite or prod");
         }
