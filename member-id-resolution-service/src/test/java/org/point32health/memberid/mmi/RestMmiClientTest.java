@@ -178,7 +178,7 @@ class RestMmiClientTest {
             assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST);
             assertThat(e.code()).isEqualTo(MmiException.BAD_REQUEST);
             assertThat(e.detail()).isEqualTo("HTTP_400");
-            assertThat(e.getMessage()).contains("bad request").contains("INVALID_REQUEST memberId is required");
+            assertThat(e.getMessage()).isEqualTo("The member lookup rejected the request: INVALID_REQUEST memberId is required");
         });
     }
 
@@ -191,7 +191,7 @@ class RestMmiClientTest {
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST);
             assertThat(e.code()).isEqualTo(MmiException.BAD_REQUEST);
-            assertThat(e.getMessage()).isEqualTo("MMI rejected the request as a bad request");
+            assertThat(e.getMessage()).isEqualTo("The member lookup rejected the request");
         });
     }
 
@@ -220,7 +220,7 @@ class RestMmiClientTest {
         assertThatThrownBy(() -> client.search("123456789", "c")).isInstanceOfSatisfying(MmiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.BAD_GATEWAY);
             assertThat(e.detail()).isEqualTo("HTTP_403");
-            assertThat(e.getMessage()).contains("not in MMI's contract").contains("http://mmi.test/master/member/v1");
+            assertThat(e.getMessage()).contains("outside its contract").doesNotContain("MMI").doesNotContain("mmi.test");
         });
     }
 

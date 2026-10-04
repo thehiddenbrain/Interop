@@ -3,7 +3,7 @@ package org.point32health.memberid.service;
 import org.point32health.memberid.api.Candidate;
 import org.point32health.memberid.api.Coverage;
 import org.point32health.memberid.api.MemberIdParts;
-import org.point32health.memberid.api.MmiNote;
+import org.point32health.memberid.api.SourceMessage;
 import org.point32health.memberid.api.Outcome;
 import org.point32health.memberid.api.RequestValidator;
 import org.point32health.memberid.api.ResolveRequest;
@@ -100,7 +100,7 @@ public class ResolutionService {
 
     /** What both operations share once the request is valid: MMI's answer reduced to one outcome. */
     private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String ambiguityReason,
-            List<Candidate> candidates, String mmiRequestId, int records, MmiNote mmiNote) {
+            List<Candidate> candidates, String mmiRequestId, int records, SourceMessage mmiNote) {
 
         String storedMemberId() {
             return record == null ? null : record.storedMemberId();
@@ -137,11 +137,10 @@ public class ResolutionService {
             if (!notFound && hasErrorMessage(messages)) {
                 MmiMessage m = messages.stream().filter(this::isError).findFirst().orElseThrow();
                 throw MmiException.rejected(mmiResult.requestId(), "ERROR_MESSAGE",
-                        "MMI reported an error: type=" + m.messageType() + " status=" + m.statusCode() + " code=" + m.messageCode()
-                                + (m.message() == null ? "" : " text=" + m.message()));
+                        "The member lookup reported an error: " + m.messageCode() + (m.message() == null ? "" : " " + m.message()));
             }
             MmiMessage first = messages.isEmpty() ? null : messages.get(0);
-            MmiNote note = first == null ? null : new MmiNote(first.messageType(), first.statusCode(), first.messageCode(), first.message());
+            SourceMessage note = first == null ? null : new SourceMessage(first.messageType(), first.statusCode(), first.messageCode(), first.message());
             return new Resolved(Outcome.NOT_FOUND, null, null, null, null, mmiResult.requestId(), 0, note);
         }
         if (hasErrorMessage(messages)) {
@@ -150,7 +149,7 @@ public class ResolutionService {
 
         List<MemberRecord> records = members.stream().map(mapper::toRecord).filter(r -> r.matchKey() != null).toList();
         if (records.isEmpty()) {
-            throw MmiException.invalidResponse(mmiResult.requestId(), "NO_MEMBER_ID", "every MMI record lacks a memberId", null);
+            throw MmiException.invalidResponse(mmiResult.requestId(), "NO_MEMBER_ID", "every record returned lacks a member id", null);
         }
 
         SelectionResult selection;
@@ -169,7 +168,7 @@ public class ResolutionService {
         if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
             // every span the member has is unreadable: answering INACTIVE would be a confident wrong answer
             throw MmiException.invalidResponse(mmiResult.requestId(), "UNREADABLE_COVERAGE",
-                    "every coverage span on the MMI record has an unreadable date; coverage cannot be determined", null);
+                    "every coverage span on the member record has an unreadable date; coverage cannot be determined", null);
         }
         CoverageDecision coverage = s.coverage();
         if (s.unreadableSpans() > 0) {
@@ -199,7 +198,7 @@ public class ResolutionService {
                 case COVERAGE_GAP -> "no coverage on " + v.dateOfService() + " (gap between coverage periods)";
                 case COVERED -> throw new IllegalStateException("INACTIVE with reason COVERED");
             };
-            case NOT_FOUND -> "No member found in MMI for this id";
+            case NOT_FOUND -> "No member found for this id";
             case AMBIGUOUS -> MemberSelector.DOB_NOT_DISCRIMINATING.equals(r.ambiguityReason())
                     ? "Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates"
                     : "Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates";

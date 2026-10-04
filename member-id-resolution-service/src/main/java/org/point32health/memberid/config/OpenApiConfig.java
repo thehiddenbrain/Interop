@@ -13,7 +13,7 @@ public class OpenApiConfig {
         return new OpenAPI().info(new Info()
                 .title("Member ID Resolution Service")
                 .version("v1")
-                .description("Resolves an EMR-supplied member ID through MMI, returns it as stored and in the "
+                .description("Resolves an EMR-supplied member ID against the plan's member records, returns it as stored and in the "
                         + "UM vendor's format (/resolve) or in every vendor's format (/vendor-map), and reports whether "
                         + "coverage is active on the date of service."));
     }

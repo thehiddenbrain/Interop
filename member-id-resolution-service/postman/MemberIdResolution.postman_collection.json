@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "fc06bd8a-2b7b-4a0b-a1a5-d2d605d0da94",
     "name": "Member ID Resolution Service",
-    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (in-process MMI stub on port 9090; start the service with --spring.profiles.active=dev, the default profile is pqa). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One MMI call either way. The member id is sent to MMI exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient: only the member id is required; a vendor or any unknown property is accepted and ignored; an unusable date is ignored, not rejected, and named in ignoredFields. Every 200 carries a one-sentence \"message\" right after \"outcome\". MMI's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MMI_BAD_REQUEST with MMI's text; 503 MMI_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. On NOT_FOUND, \"mmiMessage\" (type, status, code, text) carries MMI's own message when MMI sent one.",
+    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (in-process the member lookup stub on port 9090; start the service with --spring.profiles.active=dev, the default profile is pqa). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One the member lookup call either way. The member id is sent to the member lookup exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient: only the member id is required; a vendor or any unknown property is accepted and ignored; an unusable date is ignored, not rejected, and named in ignoredFields. Every 200 carries a one-sentence \"message\" right after \"outcome\". the member lookup's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MEMBER_LOOKUP_REJECTED with the member lookup's text; 503 MEMBER_LOOKUP_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. On NOT_FOUND, \"sourceMessage\" (type, status, code, text) carries the member lookup's own message when the member lookup sent one.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -777,7 +777,7 @@
           "response": []
         },
         {
-          "name": "Company missing on the MMI record (inferred THP)",
+          "name": "Company missing on the the member lookup record (inferred THP)",
           "event": [
             {
               "listen": "test",
@@ -1439,7 +1439,7 @@
     },
     {
       "name": "4 Not found and request validation",
-      "description": "An id MMI does not know is MMI's 404 and this service's 200 NOT_FOUND, with MMI's own message in mmiMessage when MMI sent one. The only 404 from this service is an unknown route (last request in this folder); the other requests are the strict validation of /resolve.",
+      "description": "An id the member lookup does not know is the member lookup's 404 and this service's 200 NOT_FOUND, with the member lookup's own message in sourceMessage when the member lookup sent one. The only 404 from this service is an unknown route (last request in this folder); the other requests are the strict validation of /resolve.",
       "item": [
         {
           "name": "Unknown member: NOT_FOUND",
@@ -1451,10 +1451,10 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
-                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
-                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
-                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\".message = No member found for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found for this id\")); });",
+                  "pm.test(\".sourceMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".sourceMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1507,10 +1507,10 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
-                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
-                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
-                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\".message = No member found for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found for this id\")); });",
+                  "pm.test(\".sourceMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".sourceMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1554,7 +1554,7 @@
           "response": []
         },
         {
-          "name": "10 digits goes to MMI as typed: 200 NOT_FOUND",
+          "name": "10 digits goes to the member lookup as typed: 200 NOT_FOUND",
           "event": [
             {
               "listen": "test",
@@ -1563,11 +1563,11 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
-                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
-                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
-                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\".message = No member found for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found for this id\")); });",
+                  "pm.test(\".sourceMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".sourceMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
                   "pm.test(\".memberId.received = 1234567890\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"1234567890\")); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1611,7 +1611,7 @@
           "response": []
         },
         {
-          "name": "40-character id goes to MMI as typed: 200 NOT_FOUND",
+          "name": "40-character id goes to the member lookup as typed: 200 NOT_FOUND",
           "event": [
             {
               "listen": "test",
@@ -1620,11 +1620,11 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
-                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
-                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
-                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\".message = No member found for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found for this id\")); });",
+                  "pm.test(\".sourceMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".sourceMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
                   "pm.test(\".memberId.received = 1111111111111111111111111111111111111111\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"1111111111111111111111111111111111111111\")); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1668,7 +1668,7 @@
           "response": []
         },
         {
-          "name": "Letters and punctuation go to MMI as typed: 200 NOT_FOUND",
+          "name": "Letters and punctuation go to the member lookup as typed: 200 NOT_FOUND",
           "event": [
             {
               "listen": "test",
@@ -1677,11 +1677,11 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
-                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
-                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
-                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\".message = No member found for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found for this id\")); });",
+                  "pm.test(\".sourceMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".sourceMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
                   "pm.test(\".memberId.received = ABC-123/XYZ_9\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"ABC-123/XYZ_9\")); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -2175,18 +2175,18 @@
                 }
               }
             },
-            "description": "The only 404 this service itself returns: an unknown route (ROUTE_NOT_FOUND), with the same error envelope as every other failure. A member MMI does not know is not a 404 from this service; it is 200 NOT_FOUND (see the NOT_FOUND requests above)."
+            "description": "The only 404 this service itself returns: an unknown route (ROUTE_NOT_FOUND), with the same error envelope as every other failure. A member the member lookup does not know is not a 404 from this service; it is 200 NOT_FOUND (see the NOT_FOUND requests above)."
           },
           "response": []
         }
       ]
     },
     {
-      "name": "5 MMI failures (stub fault ids)",
-      "description": "MMI's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MMI_BAD_REQUEST with MMI's text; 503 MMI_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. Anything else from the MMI endpoint (a gateway or proxy answering, not MMI) is 503 for 5xx / 429 / 408 and 502 otherwise; a connection failure or read timeout is 503; a 2xx body this service cannot read is 502 MMI_INVALID_RESPONSE. The stub's reserved ids drive these answers: 500500500 (MMI 500), 503503503 (read timeout), 400400400 (MMI 400), 888888888 (200 with an error-typed message and no members), 202202202 (unreadable body), 887777777 (error message beside a member), 886666666 (record without a member id), 880000000 (only span unreadable). Any id the stub does not know is MMI's 404: 200 NOT_FOUND.",
+      "name": "5 the member lookup failures (stub fault ids)",
+      "description": "The member lookup's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MEMBER_LOOKUP_REJECTED with the member lookup's text; 503 MEMBER_LOOKUP_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. Anything else from the the member lookup endpoint (a gateway or proxy answering, not the member lookup) is 503 for 5xx / 429 / 408 and 502 otherwise; a connection failure or read timeout is 503; a 2xx body this service cannot read is 502 MEMBER_LOOKUP_INVALID_RESPONSE. The stub's reserved ids drive these answers: 500500500 (the member lookup 500), 503503503 (read timeout), 400400400 (the member lookup 400), 888888888 (200 with an error-typed message and no members), 202202202 (unreadable body), 887777777 (error message beside a member), 886666666 (record without a member id), 880000000 (only span unreadable). Any id the stub does not know is the member lookup's 404: 200 NOT_FOUND.",
       "item": [
         {
-          "name": "MMI answers 500: 503 MMI_UNAVAILABLE",
+          "name": "Member lookup answers 500: 503 MEMBER_LOOKUP_UNAVAILABLE",
           "event": [
             {
               "listen": "test",
@@ -2194,12 +2194,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 503\", function () { pm.response.to.have.status(503); });",
-                  "pm.test(\".error.code = MMI_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_UNAVAILABLE\")); });",
+                  "pm.test(\".error.code = MEMBER_LOOKUP_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MEMBER_LOOKUP_UNAVAILABLE\")); });",
                   "pm.test(\".error.details[0].code = HTTP_500\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"HTTP_500\")); });",
                   "pm.test(\".error.message contains internal error\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"internal error\"); });",
                   "pm.test(\".error.message contains INTERNAL_ERROR\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"INTERNAL_ERROR\"); });",
                   "pm.test(\"Retry-After = 10\", function () { pm.response.to.have.header(\"Retry-After\"); pm.expect(pm.response.headers.get(\"Retry-After\")).to.eql(\"10\"); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2238,12 +2238,12 @@
                 }
               }
             },
-            "description": "MMI's contract: 500 means an internal error in MMI. This service answers 503 MMI_UNAVAILABLE (details[0].code HTTP_500) with Retry-After: 10 so Onyx may retry later; the error message is \"MMI reported an internal error\" followed by MMI's own code and text when MMI sent a message (the stub sends INTERNAL_ERROR)."
+            "description": "The member lookup's contract: 500 means an internal error in the member lookup. This service answers 503 MEMBER_LOOKUP_UNAVAILABLE (details[0].code HTTP_500) with Retry-After: 10 so Onyx may retry later; the error message is \"The member lookup reported an internal error\" followed by the lookup's own code and text when the member lookup sent a message (the stub sends INTERNAL_ERROR)."
           },
           "response": []
         },
         {
-          "name": "MMI times out: 503 READ_TIMEOUT",
+          "name": "Member lookup times out: 503 READ_TIMEOUT",
           "event": [
             {
               "listen": "test",
@@ -2251,10 +2251,10 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 503\", function () { pm.response.to.have.status(503); });",
-                  "pm.test(\".error.code = MMI_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_UNAVAILABLE\")); });",
+                  "pm.test(\".error.code = MEMBER_LOOKUP_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MEMBER_LOOKUP_UNAVAILABLE\")); });",
                   "pm.test(\".error.details[0].code = READ_TIMEOUT\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"READ_TIMEOUT\")); });",
                   "pm.test(\"Retry-After = 10\", function () { pm.response.to.have.header(\"Retry-After\"); pm.expect(pm.response.headers.get(\"Retry-After\")).to.eql(\"10\"); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2297,7 +2297,7 @@
           "response": []
         },
         {
-          "name": "MMI answers 400 (bad request): forwarded as 400 MMI_BAD_REQUEST",
+          "name": "Member lookup answers 400 (bad request): forwarded as 400 MEMBER_LOOKUP_REJECTED",
           "event": [
             {
               "listen": "test",
@@ -2305,12 +2305,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
-                  "pm.test(\".error.code = MMI_BAD_REQUEST\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_BAD_REQUEST\")); });",
+                  "pm.test(\".error.code = MEMBER_LOOKUP_REJECTED\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MEMBER_LOOKUP_REJECTED\")); });",
                   "pm.test(\".error.details[0].code = HTTP_400\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"HTTP_400\")); });",
-                  "pm.test(\".error.message contains bad request\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"bad request\"); });",
+                  "pm.test(\".error.message starts with: The member lookup rejected the request\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.match(/^The member lookup rejected the request: INVALID_REQUEST/); });",
                   "pm.test(\".error.message contains INVALID_REQUEST\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"INVALID_REQUEST\"); });",
                   "pm.test(\"no Retry-After header\", function () { pm.expect(pm.response.headers.has(\"Retry-After\")).to.eql(false); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2349,12 +2349,12 @@
                 }
               }
             },
-            "description": "MMI's contract: 400 means MMI could not process the request as sent. This service forwards it as 400 MMI_BAD_REQUEST (details[0].code HTTP_400); the error message is \"MMI rejected the request as a bad request\" followed by MMI's own code and text when MMI sent a message (the stub sends INVALID_REQUEST). No Retry-After: Onyx must not retry as is. mmiRequestId is present because the id was sent to MMI."
+            "description": "The member lookup's contract: 400 means the member lookup could not process the request as sent. This service forwards it as 400 MEMBER_LOOKUP_REJECTED (details[0].code HTTP_400); the error message is \"The member lookup rejected the request\" followed by the lookup's own code and text when the member lookup sent a message (the stub sends INVALID_REQUEST). No Retry-After: Onyx must not retry as is. traceId is present because the lookup was made."
           },
           "response": []
         },
         {
-          "name": "MMI 200 with an error-typed message (ES_TIMEOUT) and no members: 502 MMI_ERROR",
+          "name": "Member lookup 200 with an error-typed message (ES_TIMEOUT) and no members: 502 MEMBER_LOOKUP_ERROR",
           "event": [
             {
               "listen": "test",
@@ -2362,11 +2362,10 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 502\", function () { pm.response.to.have.status(502); });",
-                  "pm.test(\".error.code = MMI_ERROR\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_ERROR\")); });",
+                  "pm.test(\".error.code = MEMBER_LOOKUP_ERROR\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MEMBER_LOOKUP_ERROR\")); });",
                   "pm.test(\".error.details[0].code = ERROR_MESSAGE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"ERROR_MESSAGE\")); });",
-                  "pm.test(\".error.message contains code=ES_TIMEOUT\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"code=ES_TIMEOUT\"); });",
-                  "pm.test(\".error.message contains text=search backend timed out\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"text=search backend timed out\"); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\".error.message = The member lookup reported an error: ES_TIMEOUT search backend timed out (stub)\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.eql(\"The member lookup reported an error: ES_TIMEOUT search backend timed out (stub)\"); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2405,12 +2404,12 @@
                 }
               }
             },
-            "description": "MMI answered 200, no members, and an error-typed message (ES_TIMEOUT): MMI itself reported an error, so this is 502 MMI_ERROR / ERROR_MESSAGE and the error message forwards MMI's code and text. A 200 with no members and no error-typed message would be 200 NOT_FOUND. Compare with the next request: MMI's 404 (no member for this id) is 200 NOT_FOUND, never an error."
+            "description": "Member lookup answered 200, no members, and an error-typed message (ES_TIMEOUT): the member lookup itself reported an error, so this is 502 MEMBER_LOOKUP_ERROR / ERROR_MESSAGE and the error message forwards the member lookup's code and text. A 200 with no members and no error-typed message would be 200 NOT_FOUND. Compare with the next request: the member lookup's 404 (no member for this id) is 200 NOT_FOUND, never an error."
           },
           "response": []
         },
         {
-          "name": "Unknown id: MMI answers 404, this service answers 200 NOT_FOUND (not an error)",
+          "name": "Unknown id: the member lookup answers 404, this service answers 200 NOT_FOUND (not an error)",
           "event": [
             {
               "listen": "test",
@@ -2419,11 +2418,11 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
-                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
-                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
-                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\".message = No member found for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found for this id\")); });",
+                  "pm.test(\".sourceMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".sourceMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
                   "pm.test(\".memberId.received = 000000001\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"000000001\")); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -2463,12 +2462,12 @@
                 }
               }
             },
-            "description": "MMI answers 404 when it has no member for the id; that is a normal answer: 200 NOT_FOUND with message \"No member found in MMI for this id\" and MMI's own message (type, status, code, text) in mmiMessage. Only an unknown route of this service is a 404 from this service (see \"Wrong route: 404 with the envelope\" in folder 4)."
+            "description": "Member lookup answers 404 when it has no member for the id; that is a normal answer: 200 NOT_FOUND with message \"No member found for this id\" and the member lookup's own message (type, status, code, text) in sourceMessage. Only an unknown route of this service is a 404 from this service (see \"Wrong route: 404 with the envelope\" in folder 4)."
           },
           "response": []
         },
         {
-          "name": "MMI unreadable body: 502 MMI_INVALID_RESPONSE",
+          "name": "Member lookup unreadable body: 502 MEMBER_LOOKUP_INVALID_RESPONSE",
           "event": [
             {
               "listen": "test",
@@ -2476,7 +2475,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 502\", function () { pm.response.to.have.status(502); });",
-                  "pm.test(\".error.code = MMI_INVALID_RESPONSE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_INVALID_RESPONSE\")); });",
+                  "pm.test(\".error.code = MEMBER_LOOKUP_INVALID_RESPONSE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MEMBER_LOOKUP_INVALID_RESPONSE\")); });",
                   "pm.test(\".error.details[0].code = UNPARSEABLE_BODY\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"UNPARSEABLE_BODY\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -2528,7 +2527,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 502\", function () { pm.response.to.have.status(502); });",
-                  "pm.test(\".error.code = MMI_INVALID_RESPONSE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_INVALID_RESPONSE\")); });",
+                  "pm.test(\".error.code = MEMBER_LOOKUP_INVALID_RESPONSE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MEMBER_LOOKUP_INVALID_RESPONSE\")); });",
                   "pm.test(\".error.details[0].code = UNREADABLE_COVERAGE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"UNREADABLE_COVERAGE\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -2572,7 +2571,7 @@
           "response": []
         },
         {
-          "name": "MMI error message beside a member: 200 with a warning",
+          "name": "Member lookup error message beside a member: 200 with a warning",
           "event": [
             {
               "listen": "test",
@@ -2626,7 +2625,7 @@
           "response": []
         },
         {
-          "name": "MMI record without a member id: 502 NO_MEMBER_ID",
+          "name": "Member lookup record without a member id: 502 NO_MEMBER_ID",
           "event": [
             {
               "listen": "test",
@@ -2793,7 +2792,7 @@
                   "pm.test(\"OPTUM memberIdParts = {123456789, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberIdParts.memberId)).to.eql(JSON.stringify(\"123456789\")); pm.expect(JSON.stringify(v.memberIdParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
                   "pm.test(\"EVICORE has no memberIdParts\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(v).to.not.have.property(\"memberIdParts\"); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2917,7 +2916,7 @@
                   "pm.test(\"OPTUM memberIdParts = {123456789, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberIdParts.memberId)).to.eql(JSON.stringify(\"123456789\")); pm.expect(JSON.stringify(v.memberIdParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
                   "pm.test(\"EVICORE has no memberIdParts\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(v).to.not.have.property(\"memberIdParts\"); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2978,7 +2977,7 @@
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = HP456789012\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"HP456789012\")); }); });",
                   "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3039,7 +3038,7 @@
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = 34567890102\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890102\")); }); });",
                   "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3091,14 +3090,14 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome NOT_FOUND\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
-                  "pm.test(\".message = No member found in MMI for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found in MMI for this id\")); });",
-                  "pm.test(\".mmiMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.status)).to.eql(JSON.stringify(\"404\")); });",
-                  "pm.test(\".mmiMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.mmiMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
+                  "pm.test(\".message = No member found for this id\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"No member found for this id\")); });",
+                  "pm.test(\".sourceMessage.status = 404\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.status)).to.eql(JSON.stringify(\"404\")); });",
+                  "pm.test(\".sourceMessage.code = MEMBER_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.sourceMessage.code)).to.eql(JSON.stringify(\"MEMBER_NOT_FOUND\")); });",
                   "pm.test(\".memberId.received = HP111222333\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP111222333\")); });",
                   "pm.test(\"no .vendorMemberIds\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendorMemberIds\"); });",
                   "pm.test(\"no .coverage\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"coverage\"); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no error block\", function () { pm.expect(pm.response.json()).to.not.have.property(\"error\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -3156,7 +3155,7 @@
                   "pm.test(\"no .ambiguity block (the guidance is in .message)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ambiguity\"); });",
                   "pm.test(\"3 candidates\", function () { pm.expect(pm.response.json().candidates.length).to.eql(3); });",
                   "pm.test(\"no .vendorMemberIds\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendorMemberIds\"); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3215,7 +3214,7 @@
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = 34567890101\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890101\")); }); });",
                   "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3268,7 +3267,7 @@
                   "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
                   "pm.test(\".error.code = INVALID_REQUEST\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"INVALID_REQUEST\")); });",
                   "pm.test(\".error.details has memberId MEMBER_ID_MISSING\", function () { const d = pm.response.json().error.details; pm.expect(d.some(function (x) { return x.field === \"memberId\" && x.code === \"MEMBER_ID_MISSING\"; })).to.eql(true); });",
-                  "pm.test(\"no .mmiRequestId\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"mmiRequestId\"); });",
+                  "pm.test(\"no .traceId\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"traceId\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3325,7 +3324,7 @@
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
                   "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3381,7 +3380,7 @@
                   "pm.test(\".dateOfServiceDefaulted = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\".ignoredFields = [dateOfService, patient.dateOfBirth]\", function () { const j = pm.response.json(); pm.expect(j.ignoredFields).to.eql([\"dateOfService\", \"patient.dateOfBirth\"]); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3437,7 +3436,7 @@
                   "pm.test(\".dateOfServiceDefaulted = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\".ignoredFields = [dateOfService]\", function () { const j = pm.response.json(); pm.expect(j.ignoredFields).to.eql([\"dateOfService\"]); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3489,7 +3488,7 @@
                 "exec": [
                   "pm.test(\"HTTP 422\", function () { pm.response.to.have.status(422); });",
                   "pm.test(\".error.code = DOB_MISMATCH\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"DOB_MISMATCH\")); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3532,7 +3531,7 @@
           "response": []
         },
         {
-          "name": "MMI answers 500: 503 MMI_UNAVAILABLE (same envelope)",
+          "name": "Member lookup answers 500: 503 MEMBER_LOOKUP_UNAVAILABLE (same envelope)",
           "event": [
             {
               "listen": "test",
@@ -3540,12 +3539,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 503\", function () { pm.response.to.have.status(503); });",
-                  "pm.test(\".error.code = MMI_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MMI_UNAVAILABLE\")); });",
+                  "pm.test(\".error.code = MEMBER_LOOKUP_UNAVAILABLE\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"MEMBER_LOOKUP_UNAVAILABLE\")); });",
                   "pm.test(\".error.details[0].code = HTTP_500\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"HTTP_500\")); });",
                   "pm.test(\".error.message contains internal error\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"internal error\"); });",
                   "pm.test(\".error.message contains INTERNAL_ERROR\", function () { const j = pm.response.json(); pm.expect(j.error.message).to.include(\"INTERNAL_ERROR\"); });",
                   "pm.test(\"Retry-After = 10\", function () { pm.response.to.have.header(\"Retry-After\"); pm.expect(pm.response.headers.get(\"Retry-After\")).to.eql(\"10\"); });",
-                  "pm.test(\"mmiRequestId present (the id was sent to MMI)\", function () { const j = pm.response.json(); pm.expect(j.mmiRequestId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.mmiRequestId)).to.eql(true); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }

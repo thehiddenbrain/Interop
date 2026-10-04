@@ -27,7 +27,7 @@ import tools.jackson.databind.ObjectMapper;
  * <p>MMI's contract has four statuses, mapped as follows. 200: the answer is parsed. 404: no member for this id, a normal
  * result answered 200 NOT_FOUND (a 404 whose body is not MMI's envelope is still NOT_FOUND, with a warning in the log,
  * because a wrong URL would also look like that). 400: MMI could not process the request, forwarded as 400
- * {@code MMI_BAD_REQUEST} with MMI's text. 500: MMI internal error, 503 {@code MMI_UNAVAILABLE} so Onyx may retry later.
+ * {@code MEMBER_LOOKUP_REJECTED} with MMI's text. 500: MMI internal error, 503 {@code MEMBER_LOOKUP_UNAVAILABLE} so Onyx may retry later.
  * Any other status is not MMI speaking (a gateway, proxy or container): 5xx, 429 and 408 are 503, the rest 502, each
  * saying so.
  *
@@ -83,7 +83,7 @@ public class RestMmiClient implements MmiClient {
                         } catch (RuntimeException e) {
                             if (hasIoCause(e)) {
                                 String detail = classify(e);
-                                throw MmiException.unavailable(requestId, detail, "MMI connection failed while reading the body: " + detail, e);
+                                throw MmiException.unavailable(requestId, detail, "The member lookup connection failed while reading the answer: " + detail, e);
                             }
                             throw e;
                         }
@@ -93,13 +93,13 @@ public class RestMmiClient implements MmiClient {
                         }
                         if (status.is2xxSuccessful()) {
                             if (text.isBlank()) {
-                                throw MmiException.invalidResponse(requestId, "EMPTY_BODY", "MMI answered " + status.value() + " with no body", null);
+                                throw MmiException.invalidResponse(requestId, "EMPTY_BODY", "The member lookup answered " + status.value() + " with no body", null);
                             }
                             try {
                                 return new MmiResult(requestId, status.value(), objectMapper.readValue(text, MmiResponse.class));
                             } catch (JacksonException e) {
                                 throw MmiException.invalidResponse(requestId, "UNPARSEABLE_BODY",
-                                        "MMI answered " + status.value() + " with a body that is not the expected JSON", e);
+                                        "The member lookup answered " + status.value() + " with an unreadable body", e);
                             }
                         }
                         int code = status.value();
@@ -118,16 +118,17 @@ public class RestMmiClient implements MmiClient {
                         if (code == 400) {
                             // MMI's contract: 400 means MMI could not process the request as sent. Forwarded with MMI's text.
                             throw MmiException.badRequest(requestId, "HTTP_400",
-                                    "MMI rejected the request as a bad request" + (mmiText == null ? "" : ": " + mmiText));
+                                    "The member lookup rejected the request" + (mmiText == null ? "" : ": " + mmiText));
                         }
                         if (code == 500) {
                             // MMI's contract: 500 means an internal error in MMI. Onyx may retry later.
                             throw MmiException.unavailable(requestId, "HTTP_500",
-                                    "MMI reported an internal error" + (mmiText == null ? "" : ": " + mmiText), null);
+                                    "The member lookup reported an internal error" + (mmiText == null ? "" : ": " + mmiText), null);
                         }
                         // Anything else is outside MMI's contract (200, 400, 404, 500): a gateway, proxy or container answered.
-                        String outside = "HTTP " + code + " from the MMI endpoint, which is not in MMI's contract (200, 400, 404, 500): "
-                                + "a gateway or proxy answered, not MMI (" + url + ")";
+                        // The URL stays in the log (below); nothing a caller receives names MMI or its address.
+                        String outside = "HTTP " + code + " from the member lookup, outside its contract (200, 400, 404, 500): "
+                                + "a gateway or proxy answered";
                         if (status.is5xxServerError() || code == 429 || code == 408) {
                             throw MmiException.unavailable(requestId, "HTTP_" + code, outside, null);
                         }
@@ -137,18 +138,18 @@ public class RestMmiClient implements MmiClient {
                     result.httpStatus(), result.response().membersOrEmpty().size(), elapsedMs(start));
             return result;
         } catch (MmiException e) {
-            log.warn("mmi call failed requestId={} memberId={} code={} detail={} ms={} cause={}", requestId, Masking.memberId(memberId),
-                    e.code(), e.detail(), elapsedMs(start), e.getCause() == null ? "-" : rootMessage(e.getCause()));
+            log.warn("mmi call failed requestId={} memberId={} code={} detail={} url={} ms={} cause={}", requestId, Masking.memberId(memberId),
+                    e.code(), e.detail(), url, elapsedMs(start), e.getCause() == null ? "-" : rootMessage(e.getCause()));
             throw e;
         } catch (ResourceAccessException e) {
             String detail = classify(e);
             log.warn("mmi call failed requestId={} memberId={} code={} detail={} url={} ms={} cause={}", requestId,
                     Masking.memberId(memberId), MmiException.UNAVAILABLE, detail, url, elapsedMs(start), rootMessage(e));
-            throw MmiException.unavailable(requestId, detail, "MMI could not be reached: " + detail, e);
+            throw MmiException.unavailable(requestId, detail, "The member lookup could not be reached: " + detail, e);
         } catch (RestClientException e) {
             log.warn("mmi call failed requestId={} memberId={} code={} ms={} cause={}", requestId, Masking.memberId(memberId),
                     MmiException.INVALID_RESPONSE, elapsedMs(start), rootMessage(e));
-            throw MmiException.invalidResponse(requestId, "CLIENT_ERROR", "MMI call failed: " + e.getClass().getSimpleName(), e);
+            throw MmiException.invalidResponse(requestId, "CLIENT_ERROR", "The member lookup call failed: " + e.getClass().getSimpleName(), e);
         }
     }
 

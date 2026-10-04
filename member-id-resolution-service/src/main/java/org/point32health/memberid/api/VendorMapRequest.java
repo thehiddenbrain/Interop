@@ -13,18 +13,18 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Schema(description = "Vendor map request: the member id; everything else is optional and never causes a rejection")
 public record VendorMapRequest(
-        @Schema(description = "The member id exactly as the EMR supplied it. Sent to MMI unchanged (surrounding whitespace removed); no shape, length or character check",
+        @Schema(description = "The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed); no shape, length or character check",
                 example = "123456789", requiredMode = Schema.RequiredMode.REQUIRED) String memberId,
         @Schema(description = "Date of service, yyyy-MM-dd. Defaults to today when omitted (dateOfServiceDefaulted is true). An unusable value is ignored: it also defaults to today and ignoredFields names it.",
                 example = "2026-10-15") String dateOfService,
         @Schema(type = "string", description = "Accepted and ignored, whatever its JSON type: this operation answers for every vendor. Lets Onyx send the /resolve payload unchanged.",
                 example = "EVICORE") Object vendor,
-        @Schema(description = "Optional patient hints used only to pick among the records MMI returned; an unusable value is ignored") Patient patient) {
+        @Schema(description = "Optional patient hints used only to pick among the records the lookup returned; an unusable value is ignored") Patient patient) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     @Schema(name = "VendorMapPatient") // distinct from ResolveRequest.Patient in the OpenAPI document
     public record Patient(
-            @Schema(description = "Patient date of birth, yyyy-MM-dd. Never sent to MMI, never logged, never echoed.", example = "1950-03-15") String dateOfBirth) {
+            @Schema(description = "Patient date of birth, yyyy-MM-dd. Used only inside this service; never logged, never echoed.", example = "1950-03-15") String dateOfBirth) {
 
         @Override
         public String toString() {

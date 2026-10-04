@@ -145,14 +145,15 @@ class ResolveScenariosTest {
     private void assertNoPhi(String body) {
         if (body != null) {
             assertThat(body).doesNotContain("memberFirstName", "memberLastName", "socialSecurityNumber", "memberDob", "Morgan", "Rivera", "***-**");
+            assertThat(body).as("nothing a caller receives names MMI (owner): no field, code, message or URL").doesNotContain("MMI", "mmi");
         }
         for (ILoggingEvent e : logs.list) {
             StringBuilder text = new StringBuilder(e.getFormattedMessage());
             if (e.getThrowableProxy() != null) {
                 text.append(' ').append(e.getThrowableProxy().getMessage());
             }
-            // the MDC holds only the correlation id, an opaque token Onyx chooses (a generated UUID can contain a 9-digit run)
-            String line = text.toString();
+            // a generated correlation id (UUID) is not PHI but its hex can contain a 9-digit run: blank UUIDs before matching
+            String line = text.toString().replaceAll("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "<uuid>");
             assertThat(PHI.matcher(line).find()).as("unmasked member id or MM/dd/yyyy date in log line: %s", line).isFalse();
             assertThat(line).doesNotContain("1950-03-15", "2012-09-09", "Morgan", "Rivera");
         }
@@ -169,7 +170,7 @@ class ResolveScenariosTest {
         JsonNode r = call(200, req("123456789", "2026-10-15", "evicore"));
         assertThat(r.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(r.get("message").asText()).isEqualTo("Member found; coverage active on 2026-10-15");
-        assertThat(r.has("mmiMessage")).as("MMI's message only matters when nothing was found").isFalse();
+        assertThat(r.has("sourceMessage")).as("MMI's message only matters when nothing was found").isFalse();
         assertThat(r.at("/memberId/received").asText()).isEqualTo("123456789");
         assertThat(r.at("/memberId/stored").asText()).isEqualTo("123456789   01");
         assertThat(r.at("/memberId/forVendor").asText()).isEqualTo("12345678901");
@@ -184,7 +185,7 @@ class ResolveScenariosTest {
         assertThat(r.at("/coverage/span").has("endDate")).as("open-ended end is an explicit null").isTrue();
         assertThat(r.at("/coverage/span/endDate").isNull()).isTrue();
         assertThat(r.get("dateOfServiceDefaulted").asBoolean()).isFalse();
-        assertThat(r.get("mmiRequestId").asText()).matches("MBRIDSVC-\\d{13}-\\d{5}");
+        assertThat(r.get("traceId").asText()).matches("MBRIDSVC-\\d{13}-\\d{5}");
     }
 
     @Test
@@ -407,11 +408,11 @@ class ResolveScenariosTest {
         assertThat(r.has("lineOfBusiness")).isFalse();
         JsonNode notFound = call(200, req("HP111222333", "2026-10-15", "evicore"));
         assertThat(notFound.get("outcome").asText()).isEqualTo("NOT_FOUND");
-        assertThat(notFound.get("message").asText()).isEqualTo("No member found in MMI for this id");
-        assertThat(notFound.at("/mmiMessage/status").asText()).as("MMI's 404 is a normal answer, surfaced as is").isEqualTo("404");
-        assertThat(notFound.at("/mmiMessage/code").asText()).isEqualTo("MEMBER_NOT_FOUND");
-        assertThat(notFound.at("/mmiMessage/type").asText()).as("an ERROR-typed not-found message is still NOT_FOUND, not 502").isEqualTo("ERROR");
-        assertThat(notFound.get("mmiRequestId").asText()).isNotBlank();
+        assertThat(notFound.get("message").asText()).isEqualTo("No member found for this id");
+        assertThat(notFound.at("/sourceMessage/status").asText()).as("MMI's 404 is a normal answer, surfaced as is").isEqualTo("404");
+        assertThat(notFound.at("/sourceMessage/code").asText()).isEqualTo("MEMBER_NOT_FOUND");
+        assertThat(notFound.at("/sourceMessage/type").asText()).as("an ERROR-typed not-found message is still NOT_FOUND, not 502").isEqualTo("ERROR");
+        assertThat(notFound.get("traceId").asText()).isNotBlank();
         assertThat(notFound.has("coverage")).isFalse();
     }
 
@@ -419,7 +420,7 @@ class ResolveScenariosTest {
     void everyValidationProblemIsReportedTogetherAndMmiIsNotCalled() throws Exception {
         JsonNode r = call(400, Map.of("memberId", "   ", "dateOfService", "10/15/2026", "vendor", "", "patient", Map.of("dateOfBirth", "2099-01-01")));
         assertThat(r.at("/error/code").asText()).isEqualTo("INVALID_REQUEST");
-        assertThat(r.get("mmiRequestId")).isNull();
+        assertThat(r.get("traceId")).isNull();
         List<String> codes = new java.util.ArrayList<>();
         r.at("/error/details").forEach(d -> codes.add(d.get("code").asText()));
         assertThat(codes).containsExactlyInAnyOrder("MEMBER_ID_MISSING", "DATE_OF_SERVICE_INVALID", "VENDOR_MISSING", "DATE_OF_BIRTH_OUT_OF_RANGE");
@@ -506,9 +507,9 @@ class ResolveScenariosTest {
     @Test
     void memberWhoseOnlySpanIsUnreadableIsRefusedNotInactive() throws Exception {
         JsonNode r = call(502, req("880000000", "2026-10-15", "evicore"));
-        assertThat(r.at("/error/code").asText()).isEqualTo("MMI_INVALID_RESPONSE");
+        assertThat(r.at("/error/code").asText()).isEqualTo("MEMBER_LOOKUP_INVALID_RESPONSE");
         assertThat(r.at("/error/details/0/code").asText()).isEqualTo("UNREADABLE_COVERAGE");
-        assertThat(r.get("mmiRequestId").asText()).startsWith("MBRIDSVC-");
+        assertThat(r.get("traceId").asText()).startsWith("MBRIDSVC-");
     }
 
     @Test
@@ -527,7 +528,7 @@ class ResolveScenariosTest {
     @Test
     void dobMismatchCarriesTheMmiRequestId() throws Exception {
         JsonNode r = call(422, reqDob("123456789", "2026-10-15", "evicore", "1999-09-09"));
-        assertThat(r.get("mmiRequestId").asText()).startsWith("MBRIDSVC-");
+        assertThat(r.get("traceId").asText()).startsWith("MBRIDSVC-");
     }
 
     @Test
@@ -562,7 +563,7 @@ class ResolveScenariosTest {
             assertThat(r.get("outcome").asText()).as(odd).isEqualTo("NOT_FOUND");
             assertThat(r.at("/memberId/received").asText()).isEqualTo(odd);
             assertThat(stub.lastSearched()).as("sent to MMI exactly as typed: " + odd).isEqualTo(odd);
-            assertThat(r.get("mmiRequestId").asText()).startsWith("MBRIDSVC-");
+            assertThat(r.get("traceId").asText()).startsWith("MBRIDSVC-");
         }
         // a known member typed with a hyphen or in pieces still resolves: the (lenient) MMI matches it, not this service
         for (String typed : List.of("123456789-01", "123-456-789 01", "  12345678901  ")) {
@@ -594,7 +595,7 @@ class ResolveScenariosTest {
         assertThat(r.get("dateOfServiceDefaulted").asBoolean()).isFalse();
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
         assertThat(r.at("/coverage/reason").isMissingNode()).isTrue();
-        assertThat(r.get("mmiRequestId").asText()).isNotBlank();
+        assertThat(r.get("traceId").asText()).isNotBlank();
 
         Map<String, JsonNode> byVendor = new java.util.LinkedHashMap<>();
         r.get("vendorMemberIds").forEach(e -> byVendor.put(e.get("vendor").asText(), e));
@@ -636,12 +637,12 @@ class ResolveScenariosTest {
     void vendorMapWithoutAnIdentifiedMemberCarriesNoVendorIds() throws Exception {
         JsonNode notFound = callVendorMap(200, Map.of("memberId", "HP111222333", "dateOfService", "2026-10-15"));
         assertThat(notFound.get("outcome").asText()).isEqualTo("NOT_FOUND");
-        assertThat(notFound.get("message").asText()).isEqualTo("No member found in MMI for this id");
-        assertThat(notFound.at("/mmiMessage/code").asText()).isEqualTo("MEMBER_NOT_FOUND");
+        assertThat(notFound.get("message").asText()).isEqualTo("No member found for this id");
+        assertThat(notFound.at("/sourceMessage/code").asText()).isEqualTo("MEMBER_NOT_FOUND");
         assertThat(notFound.has("vendorMemberIds")).isFalse();
         assertThat(notFound.has("coverage")).isFalse();
         assertThat(notFound.at("/memberId/received").asText()).isEqualTo("HP111222333");
-        assertThat(notFound.get("mmiRequestId").asText()).isNotBlank();
+        assertThat(notFound.get("traceId").asText()).isNotBlank();
 
         JsonNode ambiguous = callVendorMap(200, Map.of("memberId", "345678901", "dateOfService", "2026-10-15"));
         assertThat(ambiguous.get("outcome").asText()).isEqualTo("AMBIGUOUS");
@@ -698,7 +699,7 @@ class ResolveScenariosTest {
         JsonNode dobMismatch = callVendorMap(422, Map.of("memberId", "123456789", "dateOfService", "2026-10-15",
                 "patient", Map.of("dateOfBirth", "1999-12-31")));
         assertThat(dobMismatch.at("/error/code").asText()).isEqualTo("DOB_MISMATCH");
-        assertThat(dobMismatch.get("mmiRequestId").asText()).isNotBlank();
+        assertThat(dobMismatch.get("traceId").asText()).isNotBlank();
 
         // /resolve keeps its strict contract
         JsonNode strict = call(400, Map.of("memberId", "123456789", "dateOfService", "10/15/2026", "vendor", "EVICORE", "anything", "goes"));
@@ -710,9 +711,9 @@ class ResolveScenariosTest {
     @Test
     void mmiFailuresMapToClearStatuses() throws Exception {
         JsonNode down = call(503, req("500500500", "2026-10-15", "evicore"));
-        assertThat(down.at("/error/code").asText()).isEqualTo("MMI_UNAVAILABLE");
+        assertThat(down.at("/error/code").asText()).isEqualTo("MEMBER_LOOKUP_UNAVAILABLE");
         assertThat(down.at("/error/details/0/code").asText()).isEqualTo("HTTP_500");
-        assertThat(down.get("mmiRequestId").asText()).startsWith("MBRIDSVC-");
+        assertThat(down.get("traceId").asText()).startsWith("MBRIDSVC-");
         assertThat(post(req("500500500", "2026-10-15", "evicore")).header("Retry-After")).isEqualTo("10");
 
         JsonNode timeout = call(503, req("503503503", "2026-10-15", "evicore"));
@@ -722,18 +723,18 @@ class ResolveScenariosTest {
         assertThat(badRequest.status()).as("MMI's 400 is forwarded as a 400, not hidden behind a 502").isEqualTo(400);
         assertThat(badRequest.header("Retry-After")).isNull();
         JsonNode rejected = json.readTree(badRequest.body());
-        assertThat(rejected.at("/error/code").asText()).isEqualTo("MMI_BAD_REQUEST");
+        assertThat(rejected.at("/error/code").asText()).isEqualTo("MEMBER_LOOKUP_REJECTED");
         assertThat(rejected.at("/error/details/0/code").asText()).isEqualTo("HTTP_400");
-        assertThat(rejected.at("/error/message").asText()).contains("bad request").contains("INVALID_REQUEST");
-        assertThat(rejected.get("mmiRequestId").asText()).isNotBlank();
+        assertThat(rejected.at("/error/message").asText()).startsWith("The member lookup rejected the request: INVALID_REQUEST");
+        assertThat(rejected.get("traceId").asText()).isNotBlank();
 
         JsonNode message = call(502, req("888888888", "2026-10-15", "evicore"));
-        assertThat(message.at("/error/code").asText()).isEqualTo("MMI_ERROR");
+        assertThat(message.at("/error/code").asText()).isEqualTo("MEMBER_LOOKUP_ERROR");
         assertThat(message.at("/error/details/0/code").asText()).isEqualTo("ERROR_MESSAGE");
-        assertThat(message.at("/error/message").asText()).as("MMI's own code and text are forwarded so the problem can be read")
-                .contains("code=ES_TIMEOUT").contains("text=search backend timed out (stub)");
+        assertThat(message.at("/error/message").asText()).as("the lookup's own code and text are forwarded so the problem can be read")
+                .isEqualTo("The member lookup reported an error: ES_TIMEOUT search backend timed out (stub)");
 
         JsonNode body = call(502, req("202202202", "2026-10-15", "evicore"));
-        assertThat(body.at("/error/code").asText()).isEqualTo("MMI_INVALID_RESPONSE");
+        assertThat(body.at("/error/code").asText()).isEqualTo("MEMBER_LOOKUP_INVALID_RESPONSE");
     }
 }

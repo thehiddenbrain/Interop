@@ -4,16 +4,17 @@ import org.springframework.http.HttpStatus;
 
 /**
  * MMI could not give a usable answer. MMI's contract has three error statuses: 404 (no member: not an exception,
- * answered 200 NOT_FOUND), 400 (bad request: forwarded as 400 {@code MMI_BAD_REQUEST} with MMI's text) and 500
- * (internal error: 503 {@code MMI_UNAVAILABLE}, Onyx may retry later). 503 is also the answer when MMI cannot be
+ * answered 200 NOT_FOUND), 400 (bad request: forwarded as 400 {@code MEMBER_LOOKUP_REJECTED} with MMI's text) and 500
+ * (internal error: 503 {@code MEMBER_LOOKUP_UNAVAILABLE}, Onyx may retry later). 503 is also the answer when MMI cannot be
  * reached; 502 when the endpoint answered something outside MMI's contract or a body the service cannot read.
+ * Nothing in the codes or messages a caller receives names MMI (owner): the wording is "the member lookup".
  */
 public class MmiException extends RuntimeException {
 
-    public static final String UNAVAILABLE = "MMI_UNAVAILABLE";
-    public static final String BAD_REQUEST = "MMI_BAD_REQUEST";
-    public static final String REJECTED = "MMI_ERROR";
-    public static final String INVALID_RESPONSE = "MMI_INVALID_RESPONSE";
+    public static final String UNAVAILABLE = "MEMBER_LOOKUP_UNAVAILABLE";
+    public static final String BAD_REQUEST = "MEMBER_LOOKUP_REJECTED";
+    public static final String REJECTED = "MEMBER_LOOKUP_ERROR";
+    public static final String INVALID_RESPONSE = "MEMBER_LOOKUP_INVALID_RESPONSE";
 
     private final HttpStatus status;
     private final String code;

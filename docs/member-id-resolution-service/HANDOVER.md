@@ -25,7 +25,7 @@ date of service. No database, no state, no security code (Azure API Management i
 - Design document: `docs/member-id-resolution-service/design.html`, generated from `design-src/` (see its README);
   published as the claude.ai artifact `https://claude.ai/artifact/A6PfmrLch1RronSwsDQKRp` (republish `design-src/artifact_v2.html`
   to that URL after changes; a new session must `read` the URL once before it can publish to it).
-- Owner feedback and decisions: `docs/member-id-resolution-service/feedback-log.md` (15 numbered feedback rounds so far).
+- Owner feedback and decisions: `docs/member-id-resolution-service/feedback-log.md` (16 numbered feedback rounds so far).
 
 ## The owner's standing rules (their words, condensed)
 
@@ -39,6 +39,8 @@ date of service. No database, no state, no security code (Azure API Management i
   no toolchain block, `springBoot { buildInfo() }`, `internalRepoUrl` repository switch, `application.yaml` files.
 - The incoming member id is **never validated or reshaped**: presence only, sent to MMI exactly as typed
   (surrounding whitespace removed). "The service is just passing through to MMI. Don't try to be over smart."
+- Nothing a caller receives names MMI (feedback 16): no field name, error code, message text, URL or Swagger text.
+  The bodies say "the member lookup"; `traceId` and `sourceMessage` are the outward names. Logs may say MMI.
 - Ask the owner when unsure; do not assume.
 
 ## Current behaviour (as of feedback 15, 2026-10-04)
@@ -58,19 +60,19 @@ forVendorParts }` on /resolve or `memberId { received, stored }` plus `vendorMem
 memberIdParts? } ]` (sorted by vendor code, present for ACTIVE and INACTIVE) on /vendor-map, `lineOfBusiness` (Onyx
 routes on it), `dateOfService`, `dateOfServiceDefaulted`, `ignoredFields[]` on /vendor-map when something was ignored,
 `coverage { active, span? }` (the flag and the covering period), `candidates[ { storedMemberId, lineOfBusiness,
-coverageActive } ]` on AMBIGUOUS, `mmiRequestId`, and `mmiMessage { type, status, code, text }` on NOT_FOUND when MMI
+coverageActive } ]` on AMBIGUOUS, `traceId`, and `sourceMessage { type, status, code, text }` on NOT_FOUND when MMI
 sent a message. Not in a 200 body any more: `company`, `vendor`, `coverage.reason`, `coverage.lastEndDate`,
 `coverage.nextEffectiveDate`, `ambiguity`, `correlationId` (the `X-Correlation-Id` response header carries it).
-Errors, unchanged: `{ error { code, message, details[ { field, code, message } ] }, correlationId, mmiRequestId }`.
+Errors, unchanged: `{ error { code, message, details[ { field, code, message } ] }, correlationId, traceId }`.
 
 MMI's HTTP contract (owner, definitive) and the mapping, fixed in `mmi/RestMmiClient` and `service/ResolutionService`:
 200 success → outcome from the records (one record = the member; several: DOB picks one, else AMBIGUOUS with
 candidates; a real DOB matching nothing = 422 DOB_MISMATCH); 404 = member not found → 200 NOT_FOUND whatever the
 body (a 404 without MMI's envelope still answers NOT_FOUND but logs `marker=MMI_404_WITHOUT_ENVELOPE` naming the URL,
-since a wrong URL looks the same); 400 bad request → 400 `MMI_BAD_REQUEST` forwarding MMI's code and text;
-500 internal error → 503 `MMI_UNAVAILABLE` (Retry-After 10) with MMI's text; any other status is a gateway or proxy,
+since a wrong URL looks the same); 400 bad request → 400 `MEMBER_LOOKUP_REJECTED` forwarding MMI's code and text;
+500 internal error → 503 `MEMBER_LOOKUP_UNAVAILABLE` (Retry-After 10) with MMI's text; any other status is a gateway or proxy,
 not MMI → 503 (5xx, 429, 408) or 502 saying so; cannot reach / timeout → 503 CONNECT_FAILED / READ_TIMEOUT;
-unparseable or empty 2xx body → 502 MMI_INVALID_RESPONSE. The only 404 this service returns is an unknown route.
+unparseable or empty 2xx body → 502 MEMBER_LOOKUP_INVALID_RESPONSE. The only 404 this service returns is an unknown route.
 A 200 with no members and an error-typed message → 502 ERROR_MESSAGE forwarding MMI's code and text.
 
 Vendor formats (`vendor/VendorFormatter`, `member-id.vendors` in `application.yaml`; adding a vendor is one YAML
@@ -96,7 +98,7 @@ markers for data anomalies, correlation id in the pattern. A test asserts no unm
 - `./gradlew clean build --no-daemon`: 119 tests green (unit tests per component, REST client against a mock server,
   configuration validation, end-to-end scenarios over HTTP against the stub with "today" fixed at 2026-10-03).
 - Postman: `postman/MemberIdResolution.postman_collection.json` + `postman/Local.postman_environment.json`, 65
-  requests in 7 folders, 438 assertions; run with the service on the dev profile:
+  requests in 7 folders, 437 assertions; run with the service on the dev profile:
   `npx -y newman@6 run postman/MemberIdResolution.postman_collection.json -e postman/Local.postman_environment.json`.
 - Tooling notes: never `pkill -f <jar name>` (it kills the shell); stop a local run with `lsof -ti:9090 | xargs -r kill`.
   Commit with the attribution footer the session requires and push to the branch after every change (a stop hook
@@ -107,7 +109,7 @@ markers for data anomalies, correlation id in the pattern. A test asserts no unm
 1. Confirm in PQA with a real id that the four 11-character vendors now receive 11 characters with the leading
    letter kept, and MHK 14. If not, the `mmi response` payload line or a `STORED_ID_NOT_RESHAPED` line shows the
    stored shape; never paste it into the chat, describe it as a masked pattern.
-2. Confirm in PQA that MMI's 404 carries its envelope (messages with code and text) so `mmiMessage` is filled; if
+2. Confirm in PQA that MMI's 404 carries its envelope (messages with code and text) so `sourceMessage` is filled; if
    the log shows `MMI_404_WITHOUT_ENVELOPE` for ids that exist nowhere, MMI's 404 body is bare.
 3. Register the real application name with the MMI team (`mmi.client-id`, placeholder MBRIDSVC) and confirm
    `mmi.error-message-types`.

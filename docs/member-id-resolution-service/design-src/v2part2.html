@@ -25,7 +25,7 @@
 <thead><tr><th>Field</th><th>ACTIVE</th><th>INACTIVE</th><th>NOT_FOUND</th><th>AMBIGUOUS</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>outcome</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>The field Onyx branches on.</td></tr>
-<tr><td><code>message</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>One sentence for a person reading the response, right after <code>outcome</code>: ACTIVE <code>Member found; coverage active on &lt;dateOfService&gt;</code>; INACTIVE <code>Member found; coverage ended before &lt;dateOfService&gt;</code> · <code>Member found; coverage not yet effective on &lt;dateOfService&gt;</code> · <code>Member found; no coverage on &lt;dateOfService&gt; (gap between coverage periods)</code> · <code>Member found; no coverage on record</code>; NOT_FOUND <code>No member found in MMI for this id</code>; AMBIGUOUS <code>Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates</code> (with a DOB that several share: <code>Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates</code>). Onyx branches on <code>outcome</code>, not on this text; the text is what intake reads.</td></tr>
+<tr><td><code>message</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>One sentence for a person reading the response, right after <code>outcome</code>: ACTIVE <code>Member found; coverage active on &lt;dateOfService&gt;</code>; INACTIVE <code>Member found; coverage ended before &lt;dateOfService&gt;</code> · <code>Member found; coverage not yet effective on &lt;dateOfService&gt;</code> · <code>Member found; no coverage on &lt;dateOfService&gt; (gap between coverage periods)</code> · <code>Member found; no coverage on record</code>; NOT_FOUND <code>No member found for this id</code>; AMBIGUOUS <code>Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates</code> (with a DOB that several share: <code>Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates</code>). Onyx branches on <code>outcome</code>, not on this text; the text is what intake reads.</td></tr>
 <tr><td><code>memberId.received</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>As Onyx sent it, surrounding whitespace removed; exactly the value sent to MMI.</td></tr>
 <tr><td><code>memberId.stored</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The ID exactly as MMI stores it.</td></tr>
 <tr><td><code>memberId.forVendor</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The stored ID in the vendor's format. The only value that goes into a vendor payload.</td></tr>
@@ -35,23 +35,23 @@
 <tr><td><code>coverage.active</code></td><td><code>true</code></td><td><code>false</code></td><td>–</td><td>–</td><td><b>The flag.</b></td></tr>
 <tr><td><code>coverage.span</code></td><td>✓</td><td>–</td><td>–</td><td>–</td><td>The coverage period: <code>{ effectiveDate, endDate }</code> of the span covering the date; <code>endDate</code> is an explicit <code>null</code> when open-ended. Absent when inactive; the <code>message</code> then says why.</td></tr>
 <tr><td><code>candidates[]</code></td><td>–</td><td>–</td><td>–</td><td>✓</td><td><code>{ storedMemberId, lineOfBusiness, coverageActive }</code>, one per person, sorted by id, no DOB. What to do about it is in <code>message</code>.</td></tr>
-<tr><td><code>mmiRequestId</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>For support: the id we sent to MMI. The Onyx correlation id is in the <code>X-Correlation-Id</code> response header, not in a 200 body.</td></tr>
-<tr><td><code>mmiMessage</code></td><td>–</td><td>–</td><td>opt</td><td>–</td><td><code>{ type, status, code, text }</code>: the first entry of MMI's <code>messages[]</code>, forwarded as MMI sent it, when MMI said it has no member for the id (for example type <code>ERROR</code>, status <code>404</code>, code <code>MEMBER_NOT_FOUND</code>). Present on NOT_FOUND only, and only when MMI sent a message (MMI's 404 with an empty body has none); absent on every other outcome. Last field in the JSON.</td></tr>
+<tr><td><code>traceId</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>For support: the id we sent to MMI. The Onyx correlation id is in the <code>X-Correlation-Id</code> response header, not in a 200 body.</td></tr>
+<tr><td><code>sourceMessage</code></td><td>–</td><td>–</td><td>opt</td><td>–</td><td><code>{ type, status, code, text }</code>: the first entry of MMI's <code>messages[]</code>, forwarded as MMI sent it, when MMI said it has no member for the id (for example type <code>ERROR</code>, status <code>404</code>, code <code>MEMBER_NOT_FOUND</code>). Present on NOT_FOUND only, and only when MMI sent a message (MMI's 404 with an empty body has none); absent on every other outcome. Last field in the JSON.</td></tr>
 </tbody></table></div>
 <p class="small">Fields that do not apply are absent (not null), so a consumer that ignores unknown or missing fields keeps working if a field is added later.</p>
 
 <h3>6.4 Errors (HTTP 4xx / 5xx)</h3>
-<p>One shape: <code>{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "mmiRequestId" }</code>. <code>mmiRequestId</code> is present whenever MMI was called, on a 422 too, so identity review has the trace id. The same envelope serves both operations, but not the same codes: <code>/vendor-map</code> is lenient, and the only 400s of its own validation are <code>MEMBER_ID_MISSING</code> and a body that is not JSON for the operation (<code>MALFORMED_JSON</code>, or <code>WRONG_JSON_TYPE</code> when the body or a field has the wrong JSON type, for example an array where text is expected). The date codes, the vendor codes (<code>VENDOR_MISSING</code>, <code>VENDOR_INVALID</code>, <code>UNKNOWN_VENDOR</code>) and <code>UNKNOWN_PROPERTY</code> come only from <code>/resolve</code>. MMI's own 400 is forwarded as 400 <code>MMI_BAD_REQUEST</code> on both operations.</p>
+<p>One shape: <code>{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "traceId" }</code>. Nothing in it names MMI (owner feedback 16): the codes say <code>MEMBER_LOOKUP_</code>, the messages say "the member lookup", and no URL is returned. <code>traceId</code> is present whenever MMI was called, on a 422 too, so identity review has the trace id. The same envelope serves both operations, but not the same codes: <code>/vendor-map</code> is lenient, and the only 400s of its own validation are <code>MEMBER_ID_MISSING</code> and a body that is not JSON for the operation (<code>MALFORMED_JSON</code>, or <code>WRONG_JSON_TYPE</code> when the body or a field has the wrong JSON type, for example an array where text is expected). The date codes, the vendor codes (<code>VENDOR_MISSING</code>, <code>VENDOR_INVALID</code>, <code>UNKNOWN_VENDOR</code>) and <code>UNKNOWN_PROPERTY</code> come only from <code>/resolve</code>. MMI's own 400 is forwarded as 400 <code>MEMBER_LOOKUP_REJECTED</code> on both operations.</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>HTTP</th><th><code>error.code</code></th><th><code>details[].code</code></th><th>Onyx</th></tr></thead>
 <tbody>
 <tr><td><span class="pill bad">400</span></td><td><code>INVALID_REQUEST</code></td><td class="wrap"><code>MEMBER_ID_MISSING DATE_OF_SERVICE_INVALID DATE_OF_SERVICE_OUT_OF_RANGE DATE_OF_BIRTH_INVALID DATE_OF_BIRTH_OUT_OF_RANGE VENDOR_MISSING VENDOR_INVALID MALFORMED_JSON UNKNOWN_PROPERTY WRONG_JSON_TYPE</code><br>On <code>/vendor-map</code> only <code>MEMBER_ID_MISSING</code>, <code>MALFORMED_JSON</code> and <code>WRONG_JSON_TYPE</code>.</td><td>Never retry. <code>MEMBER_ID_MISSING</code> and <code>DATE_OF_SERVICE_OUT_OF_RANGE</code> are provider data; the rest are Onyx mapping defects.</td></tr>
 <tr><td><span class="pill bad">400</span></td><td><code>UNKNOWN_VENDOR</code></td><td><code>KNOWN_VENDORS</code> (message lists them)</td><td><code>/resolve</code> only. Never retry; routing and this table disagree.</td></tr>
-<tr><td><span class="pill bad">400</span></td><td><code>MMI_BAD_REQUEST</code></td><td><code>HTTP_400</code></td><td>Both operations. MMI itself answered 400: it could not process the request as sent. <code>error.message</code> is <code>MMI rejected the request as a bad request</code>, followed by MMI's message code and text when MMI sent a message. Never retry; send the request and MMI's text to the MMI team. <code>mmiRequestId</code> present; no <code>Retry-After</code>.</td></tr>
+<tr><td><span class="pill bad">400</span></td><td><code>MEMBER_LOOKUP_REJECTED</code></td><td><code>HTTP_400</code></td><td>Both operations. MMI itself answered 400: it could not process the request as sent. <code>error.message</code> is <code>The member lookup rejected the request</code>, followed by MMI's message code and text when MMI sent a message. Never retry; send the request and MMI's text to the MMI team. <code>traceId</code> present; no <code>Retry-After</code>.</td></tr>
 <tr><td><span class="pill warn">422</span></td><td><code>DOB_MISMATCH</code></td><td><code>DOB_MISMATCH</code></td><td>Manual identity review; never file the auth.</td></tr>
 <tr><td><span class="pill bad">404 405 406 415</span></td><td><code>INVALID_REQUEST</code></td><td><code>ROUTE_NOT_FOUND METHOD_NOT_ALLOWED NOT_ACCEPTABLE UNSUPPORTED_MEDIA_TYPE</code></td><td>Deployment or connector defect. <code>ROUTE_NOT_FOUND</code> is the only 404 this service returns; MMI's 404 for an unknown member is <span class="pill ok">200</span> <code>NOT_FOUND</code>. (A request Tomcat rejects before the application sees it returns Spring Boot's default error JSON instead.)</td></tr>
-<tr><td><span class="pill bad">502</span></td><td><code>MMI_ERROR</code> · <code>MMI_INVALID_RESPONSE</code></td><td><code>HTTP_&lt;code&gt; ERROR_MESSAGE</code> · <code>UNPARSEABLE_BODY EMPTY_BODY NO_MEMBER_ID UNREADABLE_COVERAGE CLIENT_ERROR</code></td><td>Retry later; alert the service owners. <code>HTTP_&lt;code&gt;</code>: a 4xx other than 400, 404, 408 and 429, which is not in MMI's contract; a gateway or proxy answered, not MMI, and the message names the URL. <code>ERROR_MESSAGE</code>: MMI answered 200 with no members and an error-typed message; <code>error.message</code> forwards MMI's type, status, code and text. <code>UNREADABLE_COVERAGE</code> means the member's only spans have unreadable dates: the service refuses to say INACTIVE on data it cannot read.</td></tr>
-<tr><td><span class="pill bad">503</span></td><td><code>MMI_UNAVAILABLE</code></td><td><code>CONNECT_FAILED READ_TIMEOUT HTTP_500 HTTP_5xx HTTP_429 HTTP_408</code></td><td>Retry later (<code>Retry-After: 10</code>). <code>HTTP_500</code> is MMI's own internal error; <code>error.message</code> is <code>MMI reported an internal error</code>, followed by MMI's code and text when MMI sent them. The other <code>HTTP_</code> codes are a gateway or proxy answering in MMI's place.</td></tr>
+<tr><td><span class="pill bad">502</span></td><td><code>MEMBER_LOOKUP_ERROR</code> · <code>MEMBER_LOOKUP_INVALID_RESPONSE</code></td><td><code>HTTP_&lt;code&gt; ERROR_MESSAGE</code> · <code>UNPARSEABLE_BODY EMPTY_BODY NO_MEMBER_ID UNREADABLE_COVERAGE CLIENT_ERROR</code></td><td>Retry later; alert the service owners. <code>HTTP_&lt;code&gt;</code>: a 4xx other than 400, 404, 408 and 429, which is not in MMI's contract; a gateway or proxy answered, not MMI, and the message names the URL. <code>ERROR_MESSAGE</code>: MMI answered 200 with no members and an error-typed message; <code>error.message</code> forwards MMI's type, status, code and text. <code>UNREADABLE_COVERAGE</code> means the member's only spans have unreadable dates: the service refuses to say INACTIVE on data it cannot read.</td></tr>
+<tr><td><span class="pill bad">503</span></td><td><code>MEMBER_LOOKUP_UNAVAILABLE</code></td><td><code>CONNECT_FAILED READ_TIMEOUT HTTP_500 HTTP_5xx HTTP_429 HTTP_408</code></td><td>Retry later (<code>Retry-After: 10</code>). <code>HTTP_500</code> is MMI's own internal error; <code>error.message</code> is <code>The member lookup reported an internal error</code>, followed by MMI's code and text when MMI sent them. The other <code>HTTP_</code> codes are a gateway or proxy answering in MMI's place.</td></tr>
 <tr><td><span class="pill bad">500</span></td><td><code>INTERNAL_ERROR</code></td><td>–</td><td>Retry once later; alert the service owners.</td></tr>
 </tbody></table></div>
 
@@ -72,7 +72,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": true, "span": { "effectiveDate": "2024-01-01", "endDate": null } },
-  "mmiRequestId": "MBRIDSVC-1791086059251-93795" }</code></pre>
+  "traceId": "MBRIDSVC-1791086059251-93795" }</code></pre>
 </div>
 <div>
 <h4><span class="pill ok">200</span> ACTIVE, same member, Optum (two fields)</h4>
@@ -83,7 +83,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": true, "span": { "effectiveDate": "2024-01-01", "endDate": null } },
-  "mmiRequestId": "MBRIDSVC-1791086059288-18116" }</code></pre>
+  "traceId": "MBRIDSVC-1791086059288-18116" }</code></pre>
 </div>
 <div>
 <h4><span class="pill warn">200</span> INACTIVE, SCO member, MHK</h4>
@@ -93,7 +93,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": false },
-  "mmiRequestId": "MBRIDSVC-1791086059300-44852" }</code></pre>
+  "traceId": "MBRIDSVC-1791086059300-44852" }</code></pre>
 </div>
 <div>
 <h4><span class="pill warn">200</span> INACTIVE, Public Plans dependent in a gap</h4>
@@ -103,7 +103,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "lineOfBusiness": "PP",
   "dateOfService": "2024-08-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": false },
-  "mmiRequestId": "MBRIDSVC-1791086059313-75939" }</code></pre>
+  "traceId": "MBRIDSVC-1791086059313-75939" }</code></pre>
 </div>
 <div>
 <h4><span class="pill info">200</span> AMBIGUOUS, 9-character Together family, no DOB</h4>
@@ -115,26 +115,26 @@ X-Correlation-Id: ONYX-PA-2026-000123
     { "storedMemberId": "34567890101", "lineOfBusiness": "PP", "coverageActive": true },
     { "storedMemberId": "34567890102", "lineOfBusiness": "PP", "coverageActive": true },
     { "storedMemberId": "34567890103", "lineOfBusiness": "PP", "coverageActive": false } ],
-  "mmiRequestId": "MBRIDSVC-1791086059324-58853" }</code></pre>
+  "traceId": "MBRIDSVC-1791086059324-58853" }</code></pre>
 </div>
 <div>
-<h4><span class="pill neutral">200</span> NOT_FOUND, no date of service sent: MMI answered 404, forwarded in <code>mmiMessage</code></h4>
+<h4><span class="pill neutral">200</span> NOT_FOUND, no date of service sent: MMI answered 404, forwarded in <code>sourceMessage</code></h4>
 <pre><code>{ "outcome": "NOT_FOUND",
-  "message": "No member found in MMI for this id",
+  "message": "No member found for this id",
   "memberId": { "received": "HP-111222333" },
   "dateOfService": "2026-10-04", "dateOfServiceDefaulted": true,
-  "mmiRequestId": "MBRIDSVC-1791124771577-99346",
-  "mmiMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND",
+  "traceId": "MBRIDSVC-1791124771577-99346",
+  "sourceMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND",
                   "text": "No member found for the given id (stub)" } }</code></pre>
 </div>
 <div>
 <h4><span class="pill neutral">200</span> NOT_FOUND, 10-digit id: sent to MMI as typed, MMI has no record</h4>
 <pre><code>{ "outcome": "NOT_FOUND",
-  "message": "No member found in MMI for this id",
+  "message": "No member found for this id",
   "memberId": { "received": "1234567890" },
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "mmiRequestId": "MBRIDSVC-1791124771589-17431",
-  "mmiMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND",
+  "traceId": "MBRIDSVC-1791124771589-17431",
+  "sourceMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND",
                   "text": "No member found for the given id (stub)" } }</code></pre>
 </div>
 <div>
@@ -145,7 +145,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "lineOfBusiness": "COM",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": true, "span": { "effectiveDate": "2025-01-01", "endDate": null } },
-  "mmiRequestId": "MBRIDSVC-1791086059360-94013" }</code></pre>
+  "traceId": "MBRIDSVC-1791086059360-94013" }</code></pre>
 </div>
 <div>
 <h4><span class="pill warn">422</span> DOB_MISMATCH</h4>
@@ -154,7 +154,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     "details": [ { "field": "patient.dateOfBirth", "code": "DOB_MISMATCH",
                    "message": "no returned record has this date of birth" } ] },
   "correlationId": "ONYX-PA-2026-000123",
-  "mmiRequestId": "MBRIDSVC-1791086059371-80920" }</code></pre>
+  "traceId": "MBRIDSVC-1791086059371-80920" }</code></pre>
 </div>
 <div>
 <h4><span class="pill bad">400</span> INVALID_REQUEST, two problems at once</h4>
@@ -167,36 +167,36 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "correlationId": "ONYX-PA-2026-000123" }</code></pre>
 </div>
 <div>
-<h4><span class="pill bad">400</span> UNKNOWN_VENDOR · <span class="pill bad">503</span> MMI_UNAVAILABLE: MMI's 500, its code and text forwarded, <code>Retry-After: 10</code></h4>
+<h4><span class="pill bad">400</span> UNKNOWN_VENDOR · <span class="pill bad">503</span> MEMBER_LOOKUP_UNAVAILABLE: MMI's 500, its code and text forwarded, <code>Retry-After: 10</code></h4>
 <pre><code>{ "error": { "code": "UNKNOWN_VENDOR", "message": "vendor is not configured",
     "details": [ { "field": "vendor", "code": "KNOWN_VENDORS",
                    "message": "CARELON, EVICORE, EVOLENT, MHK, ONYX, OPTUM" } ] },
   "correlationId": "ONYX-PA-2026-000123" }
 
-{ "error": { "code": "MMI_UNAVAILABLE",
-    "message": "MMI reported an internal error: INTERNAL_ERROR search failed (stub)",
+{ "error": { "code": "MEMBER_LOOKUP_UNAVAILABLE",
+    "message": "The member lookup reported an internal error: INTERNAL_ERROR search failed (stub)",
     "details": [ { "code": "HTTP_500",
-                   "message": "MMI reported an internal error: INTERNAL_ERROR search failed (stub)" } ] },
+                   "message": "The member lookup reported an internal error: INTERNAL_ERROR search failed (stub)" } ] },
   "correlationId": "ONYX-PA-2026-000123",
-  "mmiRequestId": "MBRIDSVC-1791126166657-29087" }</code></pre>
+  "traceId": "MBRIDSVC-1791126166657-29087" }</code></pre>
 </div>
 <div>
-<h4><span class="pill bad">400</span> MMI_BAD_REQUEST: MMI itself answered 400; its code and text forwarded, no <code>Retry-After</code></h4>
-<pre><code>{ "error": { "code": "MMI_BAD_REQUEST",
-    "message": "MMI rejected the request as a bad request: INVALID_REQUEST memberId could not be processed (stub)",
+<h4><span class="pill bad">400</span> MEMBER_LOOKUP_REJECTED: MMI itself answered 400; its code and text forwarded, no <code>Retry-After</code></h4>
+<pre><code>{ "error": { "code": "MEMBER_LOOKUP_REJECTED",
+    "message": "The member lookup rejected the request: INVALID_REQUEST memberId could not be processed (stub)",
     "details": [ { "code": "HTTP_400",
-                   "message": "MMI rejected the request as a bad request: INVALID_REQUEST memberId could not be processed (stub)" } ] },
+                   "message": "The member lookup rejected the request: INVALID_REQUEST memberId could not be processed (stub)" } ] },
   "correlationId": "ONYX-PA-2026-000123",
-  "mmiRequestId": "MBRIDSVC-1791126166597-41674" }</code></pre>
+  "traceId": "MBRIDSVC-1791126166597-41674" }</code></pre>
 </div>
 <div>
-<h4><span class="pill bad">502</span> MMI_ERROR / ERROR_MESSAGE: MMI reported an error and no member; its code and text forwarded</h4>
-<pre><code>{ "error": { "code": "MMI_ERROR",
-    "message": "MMI reported an error: type=ERROR status=500 code=ES_TIMEOUT text=search backend timed out (stub)",
+<h4><span class="pill bad">502</span> MEMBER_LOOKUP_ERROR / ERROR_MESSAGE: MMI reported an error and no member; its code and text forwarded</h4>
+<pre><code>{ "error": { "code": "MEMBER_LOOKUP_ERROR",
+    "message": "The member lookup reported an error: ES_TIMEOUT search backend timed out (stub)",
     "details": [ { "code": "ERROR_MESSAGE",
-                   "message": "MMI reported an error: type=ERROR status=500 code=ES_TIMEOUT text=search backend timed out (stub)" } ] },
+                   "message": "The member lookup reported an error: ES_TIMEOUT search backend timed out (stub)" } ] },
   "correlationId": "ONYX-PA-2026-000123",
-  "mmiRequestId": "MBRIDSVC-1791124771603-17248" }</code></pre>
+  "traceId": "MBRIDSVC-1791124771603-17248" }</code></pre>
 </div>
 </div>
 
@@ -212,7 +212,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <tr><td><code>patient.dateOfBirth</code></td><td>no</td><td>A real <code>yyyy-MM-dd</code> date, not in the future and not more than 125 years ago, is used as in 6.2 to verify or pick among the records MMI returned; one that matches no record is still <span class="pill warn">422</span> <code>DOB_MISMATCH</code>. Not a real date, or implausible: <b>ignored</b>, takes no part in the selection, and <code>"patient.dateOfBirth"</code> is listed in <code>ignoredFields</code>. Never sent to MMI, never logged, never echoed.</td></tr>
 <tr><td>any other property</td><td>–</td><td>Ignored, at the top level and inside <code>patient</code> alike; not an error and not listed in <code>ignoredFields</code>.</td></tr>
 </tbody></table></div>
-<p>The only 400s of this operation are a missing or blank <code>memberId</code> (<code>MEMBER_ID_MISSING</code>) and a body that is not JSON for the operation (<code>MALFORMED_JSON</code>; <code>WRONG_JSON_TYPE</code> when the body or a field has the wrong JSON type, for example <code>"patient": "x"</code>). Neither reaches MMI. Everything else is answered. The one other 400 comes from MMI itself: its 400 is forwarded as <code>MMI_BAD_REQUEST</code> on both operations (6.4).</p>
+<p>The only 400s of this operation are a missing or blank <code>memberId</code> (<code>MEMBER_ID_MISSING</code>) and a body that is not JSON for the operation (<code>MALFORMED_JSON</code>; <code>WRONG_JSON_TYPE</code> when the body or a field has the wrong JSON type, for example <code>"patient": "x"</code>). Neither reaches MMI. Everything else is answered. The one other 400 comes from MMI itself: its 400 is forwarded as <code>MEMBER_LOOKUP_REJECTED</code> on both operations (6.4).</p>
 <h4>Response (HTTP 200)</h4>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Field</th><th>ACTIVE</th><th>INACTIVE</th><th>NOT_FOUND</th><th>AMBIGUOUS</th><th>Meaning</th></tr></thead>
@@ -221,15 +221,15 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <tr><td><code>message</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>As in 6.3: one sentence for the outcome, right after <code>outcome</code>.</td></tr>
 <tr><td><code>memberId.received</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>As Onyx sent it, surrounding whitespace removed; exactly the value sent to MMI.</td></tr>
 <tr><td><code>memberId.stored</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The ID exactly as MMI stores it. There is no <code>memberId.forVendor</code> and no <code>vendor</code> in this response.</td></tr>
-<tr><td><code>lineOfBusiness</code>, <code>dateOfService</code>, <code>dateOfServiceDefaulted</code>, <code>coverage</code>, <code>candidates[]</code>, <code>mmiRequestId</code></td><td colspan="4">as in 6.3</td><td>Same blocks, same rules, same presence per outcome as on <code>/resolve</code>.</td></tr>
+<tr><td><code>lineOfBusiness</code>, <code>dateOfService</code>, <code>dateOfServiceDefaulted</code>, <code>coverage</code>, <code>candidates[]</code>, <code>traceId</code></td><td colspan="4">as in 6.3</td><td>Same blocks, same rules, same presence per outcome as on <code>/resolve</code>.</td></tr>
 <tr><td><code>ignoredFields[]</code></td><td>opt</td><td>opt</td><td>opt</td><td>opt</td><td>Only on this operation. Present when a request field was present but unusable and therefore ignored: <code>"dateOfService"</code> (not a real date, or outside the window; today was evaluated) and/or <code>"patient.dateOfBirth"</code> (not a real date, or implausible; not used for the selection). Absent when nothing was ignored. In the JSON it follows <code>dateOfServiceDefaulted</code> and precedes <code>coverage</code>.</td></tr>
 <tr><td><code>vendorMemberIds[]</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>Present only when a member was identified. One entry per configured vendor, sorted by vendor code; five with the delivered table.</td></tr>
 <tr><td><code>vendorMemberIds[].vendor</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The vendor code as configured (<code>CARELON</code>, <code>EVICORE</code>, <code>EVOLENT</code>, <code>MHK</code>, <code>OPTUM</code>).</td></tr>
 <tr><td><code>vendorMemberIds[].memberId</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The stored ID in that vendor's format: what goes into that vendor's payload. Public Plans and HPHC ids are the stored value on every entry (section 12).</td></tr>
 <tr><td><code>vendorMemberIds[].memberIdParts</code></td><td>opt</td><td>opt</td><td>–</td><td>–</td><td><code>{ memberId, suffix }</code>, only on entries for vendors configured <code>SPLIT</code> (Optum) and only when the stored ID has the TMP shape.</td></tr>
-<tr><td><code>mmiMessage</code></td><td>–</td><td>–</td><td>opt</td><td>–</td><td>As in 6.3: what MMI said when it had no member for the id, <code>{ type, status, code, text }</code>; NOT_FOUND only, when MMI sent a message; last field in the JSON.</td></tr>
+<tr><td><code>sourceMessage</code></td><td>–</td><td>–</td><td>opt</td><td>–</td><td>As in 6.3: what MMI said when it had no member for the id, <code>{ type, status, code, text }</code>; NOT_FOUND only, when MMI sent a message; last field in the JSON.</td></tr>
 </tbody></table></div>
-<p class="small">As on <code>/resolve</code>, fields that do not apply are absent, not null. Errors use the envelope of 6.4; of its validation codes only <code>MEMBER_ID_MISSING</code>, <code>MALFORMED_JSON</code> and <code>WRONG_JSON_TYPE</code> can occur on this operation; the 400 <code>MMI_BAD_REQUEST</code>, the 422, the 5xx codes and the 404 / 405 / 406 / 415 of 6.4 apply as on <code>/resolve</code>.</p>
+<p class="small">As on <code>/resolve</code>, fields that do not apply are absent, not null. Errors use the envelope of 6.4; of its validation codes only <code>MEMBER_ID_MISSING</code>, <code>MALFORMED_JSON</code> and <code>WRONG_JSON_TYPE</code> can occur on this operation; the 400 <code>MEMBER_LOOKUP_REJECTED</code>, the 422, the 5xx codes and the 404 / 405 / 406 / 415 of 6.4 apply as on <code>/resolve</code>.</p>
 <h4>Examples (real output of the delivered service against the stub)</h4>
 <pre><code>POST /api/v1/member-ids/vendor-map
 Content-Type: application/json
@@ -251,7 +251,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     { "vendor": "ONYX",    "memberId": "12345678901" },
     { "vendor": "OPTUM",   "memberId": "12345678901",
       "memberIdParts": { "memberId": "123456789", "suffix": "01" } } ],
-  "mmiRequestId": "MBRIDSVC-1791086474668-03584" }</code></pre>
+  "traceId": "MBRIDSVC-1791086474668-03584" }</code></pre>
 <div class="two">
 <div>
 <h4><span class="pill ok">200</span> ACTIVE, HPHC card form, no date of service sent: the stored id on every entry</h4>
@@ -268,7 +268,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     { "vendor": "MHK",     "memberId": "HP456789012" },
     { "vendor": "ONYX",    "memberId": "HP456789012" },
     { "vendor": "OPTUM",   "memberId": "HP456789012" } ],
-  "mmiRequestId": "MBRIDSVC-1791086474713-48882" }</code></pre>
+  "traceId": "MBRIDSVC-1791086474713-48882" }</code></pre>
 </div>
 <div>
 <h4><span class="pill info">200</span> AMBIGUOUS, no <code>vendorMemberIds</code> (candidates as in 6.5, shortened here)</h4>
@@ -278,16 +278,16 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "candidates": [ { "storedMemberId": "34567890101", ... }, { "storedMemberId": "34567890102", ... },
                   { "storedMemberId": "34567890103", ... } ],
-  "mmiRequestId": "MBRIDSVC-1791086474726-99622" }</code></pre>
+  "traceId": "MBRIDSVC-1791086474726-99622" }</code></pre>
 </div>
 <div>
-<h4><span class="pill neutral">200</span> NOT_FOUND, no <code>vendorMemberIds</code>; MMI's 404 forwarded in <code>mmiMessage</code></h4>
+<h4><span class="pill neutral">200</span> NOT_FOUND, no <code>vendorMemberIds</code>; MMI's 404 forwarded in <code>sourceMessage</code></h4>
 <pre><code>{ "outcome": "NOT_FOUND",
-  "message": "No member found in MMI for this id",
+  "message": "No member found for this id",
   "memberId": { "received": "HP111222333" },
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "mmiRequestId": "MBRIDSVC-1791124771688-83324",
-  "mmiMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND",
+  "traceId": "MBRIDSVC-1791124771688-83324",
+  "sourceMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND",
                   "text": "No member found for the given id (stub)" } }</code></pre>
 </div>
 </div>
@@ -310,7 +310,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     { "vendor": "ONYX",    "memberId": "12345678901" },
     { "vendor": "OPTUM",   "memberId": "12345678901",
       "memberIdParts": { "memberId": "123456789", "suffix": "01" } } ],
-  "mmiRequestId": "MBRIDSVC-1791123403610-90120" }</code></pre>
+  "traceId": "MBRIDSVC-1791123403610-90120" }</code></pre>
 <p class="small">The date of service was not usable, so today was evaluated; the date of birth was not usable, so it took no part in the selection; the vendor was not needed. Had the date of birth been a real date matching no record, the answer would still be 422 <code>DOB_MISMATCH</code>.</p>
 
 <h2 id="onyx"><span class="num">7</span>What Onyx does with each answer</h2>
@@ -320,9 +320,9 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <tbody>
 <tr><td><span class="pill ok">200</span> <code>ACTIVE</code></td><td>Member verified; <code>coverage.active = true</code>.</td><td>Put <code>memberId.forVendor</code> (for Optum, the two <code>forVendorParts</code>) in the vendor payload. From a vendor map: the <code>vendorMemberIds</code> entry whose <code>vendor</code> is the chosen one, its <code>memberId</code> (for Optum, its <code>memberIdParts</code>). Nothing else from the response goes to the vendor.</td></tr>
 <tr><td><span class="pill warn">200</span> <code>INACTIVE</code></td><td>Member verified; not covered on that date; <code>message</code> says why (ended, not yet effective, gap, no coverage on record).</td><td>Hold for intake (D3). The vendor-formatted ID (or the vendor map) is still there if the business rule says to submit anyway.</td></tr>
-<tr><td><span class="pill neutral">200</span> <code>NOT_FOUND</code></td><td>MMI has no member for this id: its 404 (or a 200 with no members). <code>mmiMessage</code> carries what MMI said when MMI sent a message (6.3).</td><td>"Member not found" worklist. If Onyx holds a fuller form of the id (for instance with the suffix), one resend with it.</td></tr>
+<tr><td><span class="pill neutral">200</span> <code>NOT_FOUND</code></td><td>MMI has no member for this id: its 404 (or a 200 with no members). <code>sourceMessage</code> carries what MMI said when MMI sent a message (6.3).</td><td>"Member not found" worklist. If Onyx holds a fuller form of the id (for instance with the suffix), one resend with it.</td></tr>
 <tr><td><span class="pill info">200</span> <code>AMBIGUOUS</code></td><td>A family behind a 9-character ID; no DOB settled it.</td><td>One resend with <code>patient.dateOfBirth</code> or the member's full id including the suffix. Otherwise intake picks from <code>candidates[]</code>. Never pick a candidate automatically.</td></tr>
-<tr><td><span class="pill bad">400</span> / <span class="pill warn">422</span></td><td>Request or identity problem. A 400 <code>MMI_BAD_REQUEST</code> is MMI itself rejecting the request, its text in the message. On <code>/vendor-map</code> any other 400 is a missing member id or a body that is not JSON.</td><td>Never retry. Route by <code>error.code</code> and <code>details[].code</code> (section 6.4).</td></tr>
+<tr><td><span class="pill bad">400</span> / <span class="pill warn">422</span></td><td>Request or identity problem. A 400 <code>MEMBER_LOOKUP_REJECTED</code> is MMI itself rejecting the request, its text in the message. On <code>/vendor-map</code> any other 400 is a missing member id or a body that is not JSON.</td><td>Never retry. Route by <code>error.code</code> and <code>details[].code</code> (section 6.4).</td></tr>
 <tr><td><span class="pill bad">502</span> / <span class="pill bad">503</span> / <span class="pill bad">500</span></td><td>MMI, or this service, could not answer.</td><td>Retry later (honour <code>Retry-After</code>); if it persists, park the transaction and alert the service owners. MMI outages are rare and short.</td></tr>
 <tr><td>No response at all (connection refused, timeout)</td><td>This service is down or unreachable.</td><td><b>Owner's rule:</b> pass the member ID to the UM vendor exactly as it was received from the EMR, whichever operation Onyx was calling. Record the correlation id so the transaction can be reconciled later.</td></tr>
 </tbody></table></div>
@@ -354,36 +354,36 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <ul>
 <li><code>memberId</code> and <code>legacyMemberId</code> both carry the id exactly as received: the MMI spec's advice to improve the hit rate, and exactly the converted-member case (an EMR still holding the pre-conversion ID).</li>
 <li>No <code>dosStartDate</code>/<code>dosEndDate</code>: the full history is evaluated locally so INACTIVE can say why. No <code>searchMode</code>. No demographics ever.</li>
-<li><code>requestId</code> follows MMI's convention, new per call, logged with the correlation id and returned to Onyx as <code>mmiRequestId</code>.</li>
+<li><code>requestId</code> follows MMI's convention, new per call, logged with the correlation id and returned to Onyx as <code>traceId</code>.</li>
 <li>Timeouts: connect 2 s, read 5 s (<code>mmi.connect-timeout</code> / <code>mmi.read-timeout</code>). No retry: MMI is a core service that answers quickly in normal operation; a 5-second answer is a problem worth surfacing, and Onyx retries later on a 503.</li>
 </ul>
 <h3>9.2 What we read</h3>
 <p>The MMI DTOs declare only <code>memberId</code>, <code>subscriberMemberId</code>, <code>memberDob</code>, <code>legacyMemberId</code>, <code>company</code>, <code>lineOfBusiness</code>, <code>restrictedData</code>, <code>migrationEffectiveDate</code> and <code>coverage[]{effDate, endDate, groupId, voidFlag}</code>, plus the envelope's <code>messages[]</code>. Names, SSN, gender, PCP, group name, MBI and agency numbers are discarded during deserialization and cannot be logged or returned by accident. Dates are <code>MM/dd/yyyy</code>, parsed strictly; <code>endDate</code> null, blank or <code>12/31/9999</code> means open-ended.</p>
 <h3>9.3 Interpreting the answer</h3>
-<p>MMI's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: on 200 the records decide the outcome; MMI's 404 is <span class="pill ok">200</span> <code>NOT_FOUND</code>; MMI's 400 is <span class="pill bad">400</span> <code>MMI_BAD_REQUEST</code> with MMI's text; MMI's 500 is <span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code>. Only an unknown route of this service is a 404 from this service. The mapping is fixed in <code>RestMmiClient</code> and <code>ResolutionService</code>; nothing about it is configurable. MMI's first message is returned to Onyx as <code>mmiMessage</code> on NOT_FOUND, and MMI's message code and text are appended to the 400 and 503 messages when MMI sent them. Any status outside the four is not MMI speaking but a gateway, proxy or container, and the answer says so.</p>
+<p>MMI's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: on 200 the records decide the outcome; MMI's 404 is <span class="pill ok">200</span> <code>NOT_FOUND</code>; MMI's 400 is <span class="pill bad">400</span> <code>MEMBER_LOOKUP_REJECTED</code> with MMI's text; MMI's 500 is <span class="pill bad">503</span> <code>MEMBER_LOOKUP_UNAVAILABLE</code>. Only an unknown route of this service is a 404 from this service. The mapping is fixed in <code>RestMmiClient</code> and <code>ResolutionService</code>; nothing about it is configurable. MMI's first message is returned to Onyx as <code>sourceMessage</code> on NOT_FOUND, and MMI's message code and text are appended to the 400 and 503 messages when MMI sent them. Any status outside the four is not MMI speaking but a gateway, proxy or container, and the answer says so.</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>MMI contract</th><th>This service</th></tr></thead>
 <tbody>
-<tr><td><b>200</b> success: a JSON envelope with <code>members[]</code> and <code>messages[]</code></td><td>The records decide the outcome (next table): ACTIVE, INACTIVE, AMBIGUOUS, or <span class="pill ok">200</span> <code>NOT_FOUND</code> when there are no members. A 200 with no members and an error-typed message is <span class="pill bad">502</span> <code>MMI_ERROR</code> / <code>ERROR_MESSAGE</code> forwarding MMI's code and text</td></tr>
-<tr><td><b>404</b> member not found, whatever the body</td><td><span class="pill ok">200</span> <code>NOT_FOUND</code>; the first MMI message, when there is one, in <code>mmiMessage</code>. When the body is not MMI's envelope (a JSON object with any of <code>members</code>, <code>messages</code>, <code>clientId</code>, <code>requestId</code>, or an empty body) the answer is still NOT_FOUND and the log gets a WARN, <code>marker=MMI_404_WITHOUT_ENVELOPE</code>, naming the URL: a wrong <code>mmi.base-url</code> or <code>mmi.path</code> looks exactly like that. <code>MmiResult</code> carries the HTTP status</td></tr>
-<tr><td><b>400</b> bad request: MMI could not process the request as sent</td><td><span class="pill bad">400</span> <code>MMI_BAD_REQUEST</code> / <code>HTTP_400</code>, message <code>MMI rejected the request as a bad request</code> + <code>: &lt;MMI messageCode&gt; &lt;MMI text&gt;</code> when MMI sent a message; <code>mmiRequestId</code> present, no <code>Retry-After</code></td></tr>
-<tr><td><b>500</b> internal error in MMI</td><td><span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code> / <code>HTTP_500</code>, message <code>MMI reported an internal error</code> + <code>: &lt;code&gt; &lt;text&gt;</code> when present, <code>Retry-After: 10</code></td></tr>
-<tr><td><b>Any other status</b>: not MMI speaking but a gateway, proxy or container</td><td>5xx, 429, 408: <span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code> / <code>HTTP_&lt;code&gt;</code>; any other 4xx: <span class="pill bad">502</span> <code>MMI_ERROR</code> / <code>HTTP_&lt;code&gt;</code>. Message: <code>HTTP &lt;code&gt; from the MMI endpoint, which is not in MMI's contract (200, 400, 404, 500): a gateway or proxy answered, not MMI (&lt;url&gt;)</code></td></tr>
-<tr><td><b>Cannot reach MMI, or it does not answer in time</b>: connect failure, unknown host, read timeout, a connection that breaks while the body is being read</td><td><span class="pill bad">503</span> <code>MMI_UNAVAILABLE</code> / <code>CONNECT_FAILED</code> or <code>READ_TIMEOUT</code>, <code>Retry-After: 10</code></td></tr>
-<tr><td><b>Unreadable body</b> on a 2xx: not the expected JSON, or empty</td><td><span class="pill bad">502</span> <code>MMI_INVALID_RESPONSE</code> / <code>UNPARSEABLE_BODY</code> or <code>EMPTY_BODY</code></td></tr>
+<tr><td><b>200</b> success: a JSON envelope with <code>members[]</code> and <code>messages[]</code></td><td>The records decide the outcome (next table): ACTIVE, INACTIVE, AMBIGUOUS, or <span class="pill ok">200</span> <code>NOT_FOUND</code> when there are no members. A 200 with no members and an error-typed message is <span class="pill bad">502</span> <code>MEMBER_LOOKUP_ERROR</code> / <code>ERROR_MESSAGE</code> forwarding MMI's code and text</td></tr>
+<tr><td><b>404</b> member not found, whatever the body</td><td><span class="pill ok">200</span> <code>NOT_FOUND</code>; the first MMI message, when there is one, in <code>sourceMessage</code>. When the body is not MMI's envelope (a JSON object with any of <code>members</code>, <code>messages</code>, <code>clientId</code>, <code>requestId</code>, or an empty body) the answer is still NOT_FOUND and the log gets a WARN, <code>marker=MMI_404_WITHOUT_ENVELOPE</code>, naming the URL: a wrong <code>mmi.base-url</code> or <code>mmi.path</code> looks exactly like that. <code>MmiResult</code> carries the HTTP status</td></tr>
+<tr><td><b>400</b> bad request: MMI could not process the request as sent</td><td><span class="pill bad">400</span> <code>MEMBER_LOOKUP_REJECTED</code> / <code>HTTP_400</code>, message <code>The member lookup rejected the request</code> + <code>: &lt;MMI messageCode&gt; &lt;MMI text&gt;</code> when MMI sent a message; <code>traceId</code> present, no <code>Retry-After</code></td></tr>
+<tr><td><b>500</b> internal error in MMI</td><td><span class="pill bad">503</span> <code>MEMBER_LOOKUP_UNAVAILABLE</code> / <code>HTTP_500</code>, message <code>The member lookup reported an internal error</code> + <code>: &lt;code&gt; &lt;text&gt;</code> when present, <code>Retry-After: 10</code></td></tr>
+<tr><td><b>Any other status</b>: not MMI speaking but a gateway, proxy or container</td><td>5xx, 429, 408: <span class="pill bad">503</span> <code>MEMBER_LOOKUP_UNAVAILABLE</code> / <code>HTTP_&lt;code&gt;</code>; any other 4xx: <span class="pill bad">502</span> <code>MEMBER_LOOKUP_ERROR</code> / <code>HTTP_&lt;code&gt;</code>. Message: <code>HTTP &lt;code&gt; from the member lookup, outside its contract (200, 400, 404, 500): a gateway or proxy answered</code> (the URL goes to the log only)</td></tr>
+<tr><td><b>Cannot reach MMI, or it does not answer in time</b>: connect failure, unknown host, read timeout, a connection that breaks while the body is being read</td><td><span class="pill bad">503</span> <code>MEMBER_LOOKUP_UNAVAILABLE</code> / <code>CONNECT_FAILED</code> or <code>READ_TIMEOUT</code>, <code>Retry-After: 10</code></td></tr>
+<tr><td><b>Unreadable body</b> on a 2xx: not the expected JSON, or empty</td><td><span class="pill bad">502</span> <code>MEMBER_LOOKUP_INVALID_RESPONSE</code> / <code>UNPARSEABLE_BODY</code> or <code>EMPTY_BODY</code></td></tr>
 </tbody></table></div>
 <p>Reading the records of a 200 (and of a 404 that carries them):</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>In the envelope</th><th>Service answer</th></tr></thead>
 <tbody>
 <tr><td><code>members[]</code> present</td><td>continue; an error-typed message beside members is logged as a warning (<code>MMI_ERROR_MESSAGE_WITH_MEMBERS</code>) and the members are used; so are members on a 404, logged as <code>MMI_NOT_FOUND_WITH_MEMBERS</code></td></tr>
-<tr><td>No members (<code>members</code> absent or empty), no error-typed message (<code>mmi.error-message-types</code>, default <code>ERROR</code>)</td><td><span class="pill ok">200</span> <code>NOT_FOUND</code>; the first message, when there is one, in <code>mmiMessage</code></td></tr>
-<tr><td>No members on a 200, an error-typed message (for example <code>ES_TIMEOUT</code>)</td><td><span class="pill bad">502</span> <code>MMI_ERROR</code> / <code>ERROR_MESSAGE</code>, message <code>MMI reported an error: type=ERROR status=500 code=ES_TIMEOUT text=&lt;MMI text&gt;</code> (MMI's code and text forwarded). On a 404 the same message is a not-found answer and goes into <code>mmiMessage</code></td></tr>
-<tr><td>Every record lacks a <code>memberId</code></td><td><span class="pill bad">502</span> <code>MMI_INVALID_RESPONSE</code> / <code>NO_MEMBER_ID</code></td></tr>
+<tr><td>No members (<code>members</code> absent or empty), no error-typed message (<code>mmi.error-message-types</code>, default <code>ERROR</code>)</td><td><span class="pill ok">200</span> <code>NOT_FOUND</code>; the first message, when there is one, in <code>sourceMessage</code></td></tr>
+<tr><td>No members on a 200, an error-typed message (for example <code>ES_TIMEOUT</code>)</td><td><span class="pill bad">502</span> <code>MEMBER_LOOKUP_ERROR</code> / <code>ERROR_MESSAGE</code>, message <code>The member lookup reported an error: ES_TIMEOUT &lt;MMI text&gt;</code> (MMI's code and text forwarded). On a 404 the same message is a not-found answer and goes into <code>sourceMessage</code></td></tr>
+<tr><td>Every record lacks a <code>memberId</code></td><td><span class="pill bad">502</span> <code>MEMBER_LOOKUP_INVALID_RESPONSE</code> / <code>NO_MEMBER_ID</code></td></tr>
 <tr><td><code>company</code> missing on a record</td><td>inferred from the stored id (starts with <code>HP</code> → HPHC, else THP), warning logged</td></tr>
 <tr><td>Void span (<code>voidFlag = Y</code>)</td><td>skipped</td></tr>
 <tr><td>Span with an unreadable date, or end before start</td><td>skipped, warning <code>marker=UNREADABLE_SPAN</code> (the shape of the value, never the value); the remaining spans decide</td></tr>
-<tr><td>Member with unreadable spans and no readable one</td><td><span class="pill bad">502</span> <code>MMI_INVALID_RESPONSE</code> / <code>UNREADABLE_COVERAGE</code>: refusing is the only answer that is never wrong</td></tr>
+<tr><td>Member with unreadable spans and no readable one</td><td><span class="pill bad">502</span> <code>MEMBER_LOOKUP_INVALID_RESPONSE</code> / <code>UNREADABLE_COVERAGE</code>: refusing is the only answer that is never wrong</td></tr>
 </tbody></table></div>
 <h3>9.4 The stub</h3>
-<p>For developer runs and tests an in-process stub answers from <code>mmi-stub/members.json</code> with MMI's documented behaviour: exact match, 9-character match returning the family, legacy-id match and the second pass through <code>legacyMemberId</code>. It receives the id exactly as the service got it from Onyx and matches its fixtures ignoring separators and case (anything that is not a letter or digit is ignored), which is the leniency the owner describes for the real MMI; <code>lastSearched()</code> hands tests the id as the stub received it, so they can prove nothing was reshaped on the way. An id that matches no fixture is answered like the real MMI: HTTP 404 with <code>messages: [ { "messageType": "ERROR", "statusCode": "404", "messageCode": "MEMBER_NOT_FOUND", "message": "No member found for the given id (stub)" } ]</code> and no members, so a dev-profile NOT_FOUND carries that <code>mmiMessage</code>, and the stub's payload log line prints <code>status=404</code>. Reserved ids (recognised by the first 9 characters of that compacted key) simulate the rest of MMI's contract and the data faults: <code>500500500</code> MMI's 500 → 503 <code>HTTP_500</code> (message <code>MMI reported an internal error: INTERNAL_ERROR search failed (stub)</code>); <code>503503503</code> → 503 <code>READ_TIMEOUT</code>; <code>400400400</code> MMI's 400 → 400 <code>MMI_BAD_REQUEST</code> / <code>HTTP_400</code> (message <code>MMI rejected the request as a bad request: INVALID_REQUEST memberId could not be processed (stub)</code>); <code>888888888</code> → 502 <code>ERROR_MESSAGE</code> (<code>ES_TIMEOUT</code>, text <code>search backend timed out (stub)</code>); <code>202202202</code> → 502 <code>UNPARSEABLE_BODY</code>; <code>887777777</code> → 200 with a warning (an error message beside a member); <code>886666666</code> → 502 <code>NO_MEMBER_ID</code>; <code>880000000</code> → 502 <code>UNREADABLE_COVERAGE</code>. In Postman the stub's "today" is the real date. Two guards keep canned answers out of PQA and PROD: the stub refuses to start with any explicitly active profile other than <code>dev</code> or <code>test</code>, and it refuses to start inside a Kubernetes/OpenShift pod at all (<code>KUBERNETES_SERVICE_HOST</code>). Because the default profile is <code>dev</code> (so STS runs with one click), every deployment must set <code>SPRING_PROFILES_ACTIVE</code>; a pod that forgets it fails at startup instead of answering from fixtures.</p>
+<p>For developer runs and tests an in-process stub answers from <code>mmi-stub/members.json</code> with MMI's documented behaviour: exact match, 9-character match returning the family, legacy-id match and the second pass through <code>legacyMemberId</code>. It receives the id exactly as the service got it from Onyx and matches its fixtures ignoring separators and case (anything that is not a letter or digit is ignored), which is the leniency the owner describes for the real MMI; <code>lastSearched()</code> hands tests the id as the stub received it, so they can prove nothing was reshaped on the way. An id that matches no fixture is answered like the real MMI: HTTP 404 with <code>messages: [ { "messageType": "ERROR", "statusCode": "404", "messageCode": "MEMBER_NOT_FOUND", "message": "No member found for the given id (stub)" } ]</code> and no members, so a dev-profile NOT_FOUND carries that <code>sourceMessage</code>, and the stub's payload log line prints <code>status=404</code>. Reserved ids (recognised by the first 9 characters of that compacted key) simulate the rest of MMI's contract and the data faults: <code>500500500</code> MMI's 500 → 503 <code>HTTP_500</code> (message <code>The member lookup reported an internal error: INTERNAL_ERROR search failed (stub)</code>); <code>503503503</code> → 503 <code>READ_TIMEOUT</code>; <code>400400400</code> MMI's 400 → 400 <code>MEMBER_LOOKUP_REJECTED</code> / <code>HTTP_400</code> (message <code>The member lookup rejected the request: INVALID_REQUEST memberId could not be processed (stub)</code>); <code>888888888</code> → 502 <code>ERROR_MESSAGE</code> (<code>ES_TIMEOUT</code>, text <code>search backend timed out (stub)</code>); <code>202202202</code> → 502 <code>UNPARSEABLE_BODY</code>; <code>887777777</code> → 200 with a warning (an error message beside a member); <code>886666666</code> → 502 <code>NO_MEMBER_ID</code>; <code>880000000</code> → 502 <code>UNREADABLE_COVERAGE</code>. In Postman the stub's "today" is the real date. Two guards keep canned answers out of PQA and PROD: the stub refuses to start with any explicitly active profile other than <code>dev</code> or <code>test</code>, and it refuses to start inside a Kubernetes/OpenShift pod at all (<code>KUBERNETES_SERVICE_HOST</code>). Because the default profile is <code>dev</code> (so STS runs with one click), every deployment must set <code>SPRING_PROFILES_ACTIVE</code>; a pod that forgets it fails at startup instead of answering from fixtures.</p>

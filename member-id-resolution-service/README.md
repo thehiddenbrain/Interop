@@ -94,12 +94,12 @@ that profile's `application-<profile>.yaml`; nothing else changes.
    URL. If it says `STUB`, the profile did not apply. `http://localhost:9090/actuator/info` shows the build.
 4. **Network**: your machine (or the pod) must reach `mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp`
    on port 80 (plain HTTP, no token, as the MMI contract states). If it cannot, every call answers
-   `503 MMI_UNAVAILABLE` with `CONNECT_FAILED` and the log line `mmi call failed ... cause=...` names the reason.
+   `503 MEMBER_LOOKUP_UNAVAILABLE` with `CONNECT_FAILED` and the log line `mmi call failed ... cause=...` names the reason.
 5. **Try it**: a Postman resolve request with a real PQA member id, typed as the EMR has it, or
    `curl -X POST http://localhost:9090/api/v1/member-ids/resolve -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\",\"vendor\":\"EVICORE\"}"`;
    for the id in every vendor's format,
    `curl -X POST http://localhost:9090/api/v1/member-ids/vendor-map -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\"}"`.
-   Either response carries `mmiRequestId` (`MBRIDSVC-<millis>-<5 digits>`), which the MMI team can find in their logs.
+   Either response carries `traceId` (`MBRIDSVC-<millis>-<5 digits>`), which the MMI team can find in their logs.
 
 #### Reading the MMI request and response when something fails
 
@@ -120,14 +120,14 @@ What the lines tell you:
 | You see | Meaning | What to do |
 |---|---|---|
 | `mmi request ...` then `mmi call failed ... detail=CONNECT_FAILED cause=...` and no `mmi response` line | The host could not be reached (DNS, VPN, firewall) | Fix the network path to the MMI host; check `cause=` |
-| `mmi response ... status=404`, this service answers `200 NOT_FOUND` | Member not found: MMI's normal answer when it has no member for that id in that environment; `mmiMessage` in the response carries MMI's message when the body had one. If every id comes back `NOT_FOUND`, check the URL: a 404 whose body is not MMI's envelope (Spring's default error JSON with `status` / `error` / `path`, an HTML page) is still `NOT_FOUND`, but the log shows `marker=MMI_404_WITHOUT_ENVELOPE` with the URL | Use an id that exists in PQA. If the marker appears, compare the URL on the `mmi request` line with the MMI team's; `mmi.path` is `/master/member/v1` |
-| `mmi response ... status=400`, this service answers `400 MMI_BAD_REQUEST` with `HTTP_400` | MMI could not process the request as sent; the error message forwards MMI's code and text when the body had a message | Send the request line's JSON and MMI's text to the MMI team; adjust `mmi.client-id` / `mmi.client-type` if they ask |
-| `mmi response ... status=500`, this service answers `503 MMI_UNAVAILABLE` with `HTTP_500` and `Retry-After: 10` | An internal error in MMI; the error message forwards MMI's code and text when the body had a message | Retry later; if it persists, send the request line's JSON and MMI's message to the MMI team |
-| `mmi response ... status=<anything else>` (403, 502, 503 ...), this service answers `503 MMI_UNAVAILABLE` (5xx, 429, 408) or `502 MMI_ERROR` (other 4xx) with `HTTP_<code>` | The status is outside MMI's contract: a gateway, proxy or container answered, not MMI; the error message says so and repeats the URL | Check the host, the proxy settings and the URL on the `mmi request` line |
-| `mmi response ... status=200` then `502 MMI_INVALID_RESPONSE` with `UNPARSEABLE_BODY` from this service | The body is not the MMI JSON (often an HTML sign-in or proxy page, `contentType=text/html`) | The call is being intercepted before MMI; check proxy settings and the host |
+| `mmi response ... status=404`, this service answers `200 NOT_FOUND` | Member not found: MMI's normal answer when it has no member for that id in that environment; `sourceMessage` in the response carries MMI's message when the body had one. If every id comes back `NOT_FOUND`, check the URL: a 404 whose body is not MMI's envelope (Spring's default error JSON with `status` / `error` / `path`, an HTML page) is still `NOT_FOUND`, but the log shows `marker=MMI_404_WITHOUT_ENVELOPE` with the URL | Use an id that exists in PQA. If the marker appears, compare the URL on the `mmi request` line with the MMI team's; `mmi.path` is `/master/member/v1` |
+| `mmi response ... status=400`, this service answers `400 MEMBER_LOOKUP_REJECTED` with `HTTP_400` | MMI could not process the request as sent; the error message forwards MMI's code and text when the body had a message | Send the request line's JSON and MMI's text to the MMI team; adjust `mmi.client-id` / `mmi.client-type` if they ask |
+| `mmi response ... status=500`, this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` with `HTTP_500` and `Retry-After: 10` | An internal error in MMI; the error message forwards MMI's code and text when the body had a message | Retry later; if it persists, send the request line's JSON and MMI's message to the MMI team |
+| `mmi response ... status=<anything else>` (403, 502, 503 ...), this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` (5xx, 429, 408) or `502 MEMBER_LOOKUP_ERROR` (other 4xx) with `HTTP_<code>` | The status is outside MMI's contract: a gateway, proxy or container answered, not MMI; the error message says so and repeats the URL | Check the host, the proxy settings and the URL on the `mmi request` line |
+| `mmi response ... status=200` then `502 MEMBER_LOOKUP_INVALID_RESPONSE` with `UNPARSEABLE_BODY` from this service | The body is not the MMI JSON (often an HTML sign-in or proxy page, `contentType=text/html`) | The call is being intercepted before MMI; check proxy settings and the host |
 | `mmi response ... status=200` and the body has fields this service does not know | MMI added or renamed fields | Paste the response line; the DTOs in `org.point32health.memberid.mmi` are updated to match |
 | `mmi response ... status=200`, `members` is empty and `messages[]` has no `ERROR` message, this service answers `200 NOT_FOUND` | MMI answered 200 with no member (MMI's contract uses 404 for that; this form is kept as `NOT_FOUND` too) | Use an id that exists in PQA |
-| `mmi response ... status=200`, `members` is empty and `messages[]` has an `ERROR` message (for example `ES_TIMEOUT`), this service answers `502 MMI_ERROR` with `ERROR_MESSAGE` | MMI reported a failure of its own; the 502 message forwards MMI's `code=` and `text=` | Send the request line's JSON and MMI's message to the MMI team |
+| `mmi response ... status=200`, `members` is empty and `messages[]` has an `ERROR` message (for example `ES_TIMEOUT`), this service answers `502 MEMBER_LOOKUP_ERROR` with `ERROR_MESSAGE` | MMI reported a failure of its own; the 502 message forwards MMI's `code=` and `text=` | Send the request line's JSON and MMI's message to the MMI team |
 
 Turn it off with `mmi.log-payloads: false` in the profile file, or `MMI_LOG_PAYLOADS=false` once the
 problem is found. Everything else in the log stays masked whether or not payload logging is on.
@@ -145,7 +145,8 @@ refuses to start inside a Kubernetes/OpenShift pod at all (it checks `KUBERNETES
 ## 2. The API
 
 Two operations, both `POST` with a JSON body (the member id is PHI and must not appear in a URL), both pure
-reads that may be repeated. **Resolve** answers for one vendor; **vendor map** answers for every vendor at once.
+reads that may be repeated. Nothing a caller receives names MMI (owner's rule): the bodies speak of "the member
+lookup", the trace id of that lookup is `traceId`, and what the lookup said on a miss is `sourceMessage`. **Resolve** answers for one vendor; **vendor map** answers for every vendor at once.
 
 ### Resolve: `POST /api/v1/member-ids/resolve`
 
@@ -169,7 +170,7 @@ The service does not validate or reshape the incoming member id. Whatever the EM
 characters, hyphens, spaces, letters, any length) goes to MMI as is, with only surrounding whitespace removed,
 and MMI decides whether it knows the id. A missing or blank `memberId` is the only member-id error this service raises itself
 (400 `INVALID_REQUEST`, detail code `MEMBER_ID_MISSING`); when MMI cannot process the id it is sent, MMI's 400 comes
-back as 400 `MMI_BAD_REQUEST` with MMI's text.
+back as 400 `MEMBER_LOOKUP_REJECTED` with MMI's text.
 
 ### Resolve: response (HTTP 200), branch on `outcome`
 
@@ -177,7 +178,7 @@ back as 400 `MMI_BAD_REQUEST` with MMI's text.
 |---|---|---|
 | `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Put `memberId.forVendor` in the vendor payload. For Optum use `forVendorParts` when it is present (TMP/SCO ids); for Public Plans and HPHC ids there are no parts, send `forVendor`. |
 | `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, a gap, or no coverage on record) | Hold for intake (owner decision). |
-| `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found in MMI for this id" and, when MMI sent a message, `mmiMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
+| `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
 | `AMBIGUOUS` | MMI matched the ID to several persons (a 9-character ID of a population with dependents) and no DOB settled it | Resend with the member's full ID including the suffix, or with `patient.dateOfBirth`, else intake picks from `candidates[]`. |
 
 ```json
@@ -187,7 +188,7 @@ back as 400 `MMI_BAD_REQUEST` with MMI's text.
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": true, "span": { "effectiveDate": "2024-01-01", "endDate": null } },
-  "mmiRequestId": "MBRIDSVC-1760000000000-48213" }
+  "traceId": "MBRIDSVC-1760000000000-48213" }
 ```
 
 `memberId.received` is the ID as Onyx sent it (surrounding whitespace removed): exactly what was sent to MMI.
@@ -208,13 +209,13 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | Field | Present | Content |
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
-| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` · `Member found; coverage ended before <dateOfService>` · `Member found; coverage not yet effective on <dateOfService>` · `Member found; no coverage on <dateOfService> (gap between coverage periods)` · `Member found; no coverage on record` · `No member found in MMI for this id` · `Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates`) |
+| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` · `Member found; coverage ended before <dateOfService>` · `Member found; coverage not yet effective on <dateOfService>` · `Member found; no coverage on <dateOfService> (gap between coverage periods)` · `Member found; no coverage on record` · `No member found for this id` · `Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates`) |
 | `memberId` | always | `received`; `stored`, `forVendor`, `forVendorParts` when a member was identified |
 | `dateOfService`, `dateOfServiceDefaulted` | always | The date evaluated and whether it was defaulted to today |
 | `lineOfBusiness`, `coverage` | `ACTIVE`, `INACTIVE` | From the stored record and the coverage decision: `coverage { active, span? }` |
 | `candidates[]` | `AMBIGUOUS` | `{ storedMemberId, lineOfBusiness, coverageActive }` per person, sorted by id |
-| `mmiRequestId` | always | For the logs on both sides (the correlation id is in the response header) |
-| `mmiMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
+| `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
+| `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
 
 A `NOT_FOUND` answer from the dev stub (the real MMI's values will differ; the stub answers HTTP 404, as the owner
 describes for MMI, with an `ERROR`-typed `MEMBER_NOT_FOUND` message of its own; whether the real 404 carries such a
@@ -222,11 +223,11 @@ message is confirmed in PQA (section 7)):
 
 ```json
 { "outcome": "NOT_FOUND",
-  "message": "No member found in MMI for this id",
+  "message": "No member found for this id",
   "memberId": { "received": "HP111222333" },
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "mmiRequestId": "MBRIDSVC-1760000000000-48215",
-  "mmiMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND", "text": "No member found for the given id (stub)" } }
+  "traceId": "MBRIDSVC-1760000000000-48215",
+  "sourceMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND", "text": "No member found for the given id (stub)" } }
 ```
 
 ### Vendor map: `POST /api/v1/member-ids/vendor-map`
@@ -268,7 +269,7 @@ answers 200 `ACTIVE` with `"dateOfService": <today>`, `"dateOfServiceDefaulted":
 `"ignoredFields": ["dateOfService", "patient.dateOfBirth"]` and the full `vendorMemberIds` list.
 
 **Response (HTTP 200)**: the same `outcome` values and `message` sentences, the same `coverage`,
-`candidates[]` and `mmiMessage` blocks and the same Onyx actions as the tables above, with two differences.
+`candidates[]` and `sourceMessage` blocks and the same Onyx actions as the tables above, with two differences.
 There is no `vendor`, no `forVendor` and no `forVendorParts`; instead `vendorMemberIds[]` carries one entry per
 configured vendor, sorted by vendor code, and for `ACTIVE` Onyx picks the entry for its vendor and puts that
 `memberId` (for Optum, `memberIdParts` when present) in the vendor payload. And `ignoredFields[]` (after
@@ -283,8 +284,8 @@ therefore ignored; it is absent when nothing was ignored, as below.
 | `ignoredFields[]` | when a request field was unusable | `dateOfService`, `patient.dateOfBirth` |
 | `coverage`, `candidates[]` | as on `/resolve` | |
 | `vendorMemberIds[]` | `ACTIVE`, `INACTIVE` | `{ vendor, memberId, memberIdParts? }` per configured vendor, sorted by vendor code |
-| `mmiRequestId` | always | |
-| `mmiMessage` | `NOT_FOUND`, only when MMI sent a message | The first entry of MMI's `messages[]`, as on `/resolve` |
+| `traceId` | always | |
+| `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | The first entry of MMI's `messages[]`, as on `/resolve` |
 
 For the TMP id `123456789` (stored `123456789   01`):
 
@@ -303,12 +304,12 @@ For the TMP id `123456789` (stored `123456789   01`):
     { "vendor": "ONYX",    "memberId": "12345678901" },
     { "vendor": "OPTUM",   "memberId": "12345678901", "memberIdParts": { "memberId": "123456789", "suffix": "01" } }
   ],
-  "mmiRequestId": "MBRIDSVC-1760000000000-48214" }
+  "traceId": "MBRIDSVC-1760000000000-48214" }
 ```
 
 `vendorMemberIds` is present **only when a member was identified**, that is for `ACTIVE` and `INACTIVE`.
 `NOT_FOUND` and `AMBIGUOUS` answers carry no `vendorMemberIds` and no `memberId.stored`; a `NOT_FOUND` answer
-carries `message` "No member found in MMI for this id" and `mmiMessage` when MMI sent a message, exactly as on
+carries `message` "No member found for this id" and `sourceMessage` when MMI sent a message, exactly as on
 `/resolve`; an `AMBIGUOUS` answer carries `candidates[]` and the same `message` exactly as on `/resolve`, and a resend
 with `patient.dateOfBirth` settles it. `memberIdParts` appears only on vendors whose format is `SPLIT` (Optum) and only for a TMP/SCO id.
 For an HPHC id (stored `HP456789012`) or a Public Plans id (`34567890102`) every entry carries the stored id
@@ -320,9 +321,9 @@ and pick the entry for the vendor later. The same payload can go to either: `/ve
 Either way there is one MMI call, and if this service is down Onyx's fallback is unchanged: pass the EMR's id
 through to the vendor as received.
 
-### Errors (non-200), both operations: `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "mmiRequestId" }`
+### Errors (non-200), both operations: `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "traceId" }`
 
-Every answer the application produces, on `/resolve` and on `/vendor-map` alike, has this shape (`mmiRequestId`
+Every answer the application produces, on `/resolve` and on `/vendor-map` alike, has this shape (`traceId`
 is present once MMI was called, including on a 422). The one exception is a request Tomcat rejects before it
 reaches the application (malformed percent-encoding in the URL, a header block over 8 KB): that returns Spring
 Boot's default error JSON. `UNKNOWN_VENDOR` cannot occur on `/vendor-map`: a `vendor` sent to it is accepted
@@ -334,22 +335,22 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 
 | MMI | This service |
 |---|---|
-| 200 | `outcome` from the records: `ACTIVE`, `INACTIVE` or `AMBIGUOUS`. No members → 200 `NOT_FOUND`, unless `messages[]` carries an `ERROR`-typed message (`mmi.error-message-types`): then 502 `MMI_ERROR` / `ERROR_MESSAGE`, forwarding MMI's code and text (`MMI reported an error: type=ERROR status=500 code=ES_TIMEOUT text=...`) |
-| 404 (member not found) | 200 `NOT_FOUND`, whatever the body; `mmiMessage` carries MMI's first message when there is one. MMI's envelope is a JSON object with any of `members` / `messages` / `clientId` / `requestId`; an empty body counts as one. A 404 with any other body (a container's default error JSON, an HTML page) is still `NOT_FOUND`, and the log gets a WARN with `marker=MMI_404_WITHOUT_ENVELOPE` naming the URL, because a wrong `mmi.base-url` / `mmi.path` looks exactly like that |
-| 400 (bad request) | 400 `MMI_BAD_REQUEST`, `details[0].code` `HTTP_400`, message `MMI rejected the request as a bad request` + `: <MMI code> <MMI text>` when MMI sent a message. No `Retry-After`; `mmiRequestId` present |
-| 500 (internal error) | 503 `MMI_UNAVAILABLE`, `details[0].code` `HTTP_500`, message `MMI reported an internal error` + `: <code> <text>` when present; `Retry-After: 10` |
-| any other status | A gateway, proxy or container answered, not MMI. 5xx, 429, 408 → 503 `MMI_UNAVAILABLE` `HTTP_<code>`; other 4xx → 502 `MMI_ERROR` `HTTP_<code>`. The message reads `HTTP <code> from the MMI endpoint, which is not in MMI's contract (200, 400, 404, 500): a gateway or proxy answered, not MMI (<url>)` |
-| cannot reach / timeout | 503 `MMI_UNAVAILABLE`, `CONNECT_FAILED` or `READ_TIMEOUT`; `Retry-After: 10` |
-| unreadable body | 502 `MMI_INVALID_RESPONSE`: a 2xx with an empty or non-JSON body (`EMPTY_BODY`, `UNPARSEABLE_BODY`), records without a member id (`NO_MEMBER_ID`), or a member whose only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`) |
+| 200 | `outcome` from the records: `ACTIVE`, `INACTIVE` or `AMBIGUOUS`. No members → 200 `NOT_FOUND`, unless `messages[]` carries an `ERROR`-typed message (`mmi.error-message-types`): then 502 `MEMBER_LOOKUP_ERROR` / `ERROR_MESSAGE`, forwarding MMI's code and text (`The member lookup reported an error: ES_TIMEOUT ...`) |
+| 404 (member not found) | 200 `NOT_FOUND`, whatever the body; `sourceMessage` carries MMI's first message when there is one. MMI's envelope is a JSON object with any of `members` / `messages` / `clientId` / `requestId`; an empty body counts as one. A 404 with any other body (a container's default error JSON, an HTML page) is still `NOT_FOUND`, and the log gets a WARN with `marker=MMI_404_WITHOUT_ENVELOPE` naming the URL, because a wrong `mmi.base-url` / `mmi.path` looks exactly like that |
+| 400 (bad request) | 400 `MEMBER_LOOKUP_REJECTED`, `details[0].code` `HTTP_400`, message `The member lookup rejected the request` + `: <MMI code> <MMI text>` when MMI sent a message. No `Retry-After`; `traceId` present |
+| 500 (internal error) | 503 `MEMBER_LOOKUP_UNAVAILABLE`, `details[0].code` `HTTP_500`, message `The member lookup reported an internal error` + `: <code> <text>` when present; `Retry-After: 10` |
+| any other status | A gateway, proxy or container answered, not MMI. 5xx, 429, 408 → 503 `MEMBER_LOOKUP_UNAVAILABLE` `HTTP_<code>`; other 4xx → 502 `MEMBER_LOOKUP_ERROR` `HTTP_<code>`. The message reads `HTTP <code> from the member lookup, outside its contract (200, 400, 404, 500): a gateway or proxy answered` (the URL goes to the log only) |
+| cannot reach / timeout | 503 `MEMBER_LOOKUP_UNAVAILABLE`, `CONNECT_FAILED` or `READ_TIMEOUT`; `Retry-After: 10` |
+| unreadable body | 502 `MEMBER_LOOKUP_INVALID_RESPONSE`: a 2xx with an empty or non-JSON body (`EMPTY_BODY`, `UNPARSEABLE_BODY`), records without a member id (`NO_MEMBER_ID`), or a member whose only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`) |
 
 | HTTP | `error.code` | When | Onyx action |
 |---|---|---|---|
 | 400 | `INVALID_REQUEST` | `/resolve`: missing member ID, bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE`, `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), missing or malformed vendor (`VENDOR_MISSING`, `VENDOR_INVALID`), unknown property (`UNKNOWN_PROPERTY`), malformed JSON, wrong JSON type; every problem is listed in `details[]`. `/vendor-map`: only a missing or blank member ID (`MEMBER_ID_MISSING`) or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); bad dates and unknown properties are ignored there, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operations are POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
 | 400 | `UNKNOWN_VENDOR` | `/resolve` only: vendor not in the table; `details[0].message` lists the known codes | Never retry; routing table and this table disagree. |
-| 400 | `MMI_BAD_REQUEST` | MMI answered 400: it could not process the request as sent (`details[0].code` `HTTP_400`; the message forwards MMI's code and text when MMI sent a message). `mmiRequestId` present, no `Retry-After`. | Never retry as is. Alert the service owners with the `mmiRequestId`; MMI's text says what it did not accept. |
+| 400 | `MEMBER_LOOKUP_REJECTED` | MMI answered 400: it could not process the request as sent (`details[0].code` `HTTP_400`; the message forwards MMI's code and text when MMI sent a message). `traceId` present, no `Retry-After`. | Never retry as is. Alert the service owners with the `traceId`; MMI's text says what it did not accept. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
-| 502 | `MMI_ERROR`, `MMI_INVALID_RESPONSE` | MMI reported an error of its own in `messages[]` with no members (`ERROR_MESSAGE`; the message forwards MMI's code and text: `MMI reported an error: type=ERROR status=500 code=ES_TIMEOUT text=...`); a 4xx other than 400 and 404 from the MMI endpoint, which is a gateway or proxy answering, not MMI (`HTTP_<code>`; the message says so and repeats the URL); an unreadable 2xx body (`EMPTY_BODY`, `UNPARSEABLE_BODY`); records without a member id (`NO_MEMBER_ID`); or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read). | Park, alert the service owners. |
-| 503 | `MMI_UNAVAILABLE` (`Retry-After: 10`) | MMI unreachable (`CONNECT_FAILED`) or timed out (`READ_TIMEOUT`); MMI 500 (`HTTP_500`; the message forwards MMI's code and text when present); a 5xx, 429 or 408 from a gateway in front of MMI (`HTTP_<code>`). | Retry later. |
+| 502 | `MEMBER_LOOKUP_ERROR`, `MEMBER_LOOKUP_INVALID_RESPONSE` | MMI reported an error of its own in `messages[]` with no members (`ERROR_MESSAGE`; the message forwards MMI's code and text: `The member lookup reported an error: ES_TIMEOUT ...`); a 4xx other than 400 and 404 from the MMI endpoint, which is a gateway or proxy answering, not MMI (`HTTP_<code>`; the message says so and repeats the URL); an unreadable 2xx body (`EMPTY_BODY`, `UNPARSEABLE_BODY`); records without a member id (`NO_MEMBER_ID`); or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read). | Park, alert the service owners. |
+| 503 | `MEMBER_LOOKUP_UNAVAILABLE` (`Retry-After: 10`) | MMI unreachable (`CONNECT_FAILED`) or timed out (`READ_TIMEOUT`); MMI 500 (`HTTP_500`; the message forwards MMI's code and text when present); a 5xx, 429 or 408 from a gateway in front of MMI (`HTTP_<code>`). | Retry later. |
 | 500 | `INTERNAL_ERROR` | a bug here | Retry once later, alert the service owners. |
 
 **If this service itself is unreachable**, Onyx's agreed fallback is to pass the member ID exactly as it
@@ -365,12 +366,12 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    INACTIVE can say why. No demographics are ever sent.
    MMI's HTTP status is kept with the answer and mapped as in the table in section 2 (Errors): 200 is parsed;
    404 is MMI's "no member for this id", a normal answer (`NOT_FOUND`) whatever the body, and a body that is not
-   MMI's envelope only adds `marker=MMI_404_WITHOUT_ENVELOPE` to the log; 400 is 400 `MMI_BAD_REQUEST` with MMI's
-   text; 500 is 503 `MMI_UNAVAILABLE`; any other status is a gateway or proxy, not MMI: 503 for 5xx, 429 and 408,
+   MMI's envelope only adds `marker=MMI_404_WITHOUT_ENVELOPE` to the log; 400 is 400 `MEMBER_LOOKUP_REJECTED` with MMI's
+   text; 500 is 503 `MEMBER_LOOKUP_UNAVAILABLE`; any other status is a gateway or proxy, not MMI: 503 for 5xx, 429 and 408,
    502 `HTTP_<code>` for the rest. Nothing in this mapping is configurable. A 200 with no members is `NOT_FOUND`
    too, unless `messages[]` carries an `ERROR`-typed message (`mmi.error-message-types`, for example `ES_TIMEOUT`):
-   then 502 `MMI_ERROR` / `ERROR_MESSAGE`, forwarding MMI's code and text. A `NOT_FOUND` answer carries MMI's first
-   message in `mmiMessage` when there is one. Members beside a 404 are ignored (the status wins) and `marker=MMI_NOT_FOUND_WITH_MEMBERS` is logged.
+   then 502 `MEMBER_LOOKUP_ERROR` / `ERROR_MESSAGE`, forwarding MMI's code and text. A `NOT_FOUND` answer carries MMI's first
+   message in `sourceMessage` when there is one. Members beside a 404 are ignored (the status wins) and `marker=MMI_NOT_FOUND_WITH_MEMBERS` is logged.
 3. Reduce the records: identical records merged; records linked through `legacyMemberId` (THP↔HPHC
    conversion) are one person and the record covering the date of service wins; a supplied DOB picks one
    person or proves a mismatch; several persons without a DOB → `AMBIGUOUS`.
@@ -446,9 +447,9 @@ separators removed. The same fixtures serve `/resolve` and `/vendor-map`.
 | `890123456` | one unreadable span + one valid → ACTIVE with a warning |
 | `880000000` | only an unreadable span → 502 `UNREADABLE_COVERAGE` |
 | `901234567` | company missing on the record (inferred), restrictedData Y |
-| `500500500` · `503503503` · `400400400` · `888888888` · `202202202` | faults: MMI 500 → 503 `MMI_UNAVAILABLE` `HTTP_500` (message `MMI reported an internal error: INTERNAL_ERROR search failed (stub)`), timeout → 503 `READ_TIMEOUT`, MMI 400 → 400 `MMI_BAD_REQUEST` `HTTP_400` (message `MMI rejected the request as a bad request: INVALID_REQUEST memberId could not be processed (stub)`), an `ERROR` message `ES_TIMEOUT` with no members → 502 `ERROR_MESSAGE` (the message carries `code=ES_TIMEOUT text=search backend timed out (stub)`), bad body → 502 `UNPARSEABLE_BODY` |
+| `500500500` · `503503503` · `400400400` · `888888888` · `202202202` | faults: MMI 500 → 503 `MEMBER_LOOKUP_UNAVAILABLE` `HTTP_500` (message `The member lookup reported an internal error: INTERNAL_ERROR search failed (stub)`), timeout → 503 `READ_TIMEOUT`, MMI 400 → 400 `MEMBER_LOOKUP_REJECTED` `HTTP_400` (message `The member lookup rejected the request: INVALID_REQUEST memberId could not be processed (stub)`), an `ERROR` message `ES_TIMEOUT` with no members → 502 `ERROR_MESSAGE` (the message carries `code=ES_TIMEOUT text=search backend timed out (stub)`), bad body → 502 `UNPARSEABLE_BODY` |
 | `887777777` · `886666666` | an error message beside a member record → 200 with a warning; a record without a member id → 502 `NO_MEMBER_ID` |
-| anything else (for example `HP111222333`) | NOT_FOUND: the stub answers like the real MMI, HTTP 404 with `messages: [ { messageType ERROR, statusCode "404", messageCode MEMBER_NOT_FOUND, message "No member found for the given id (stub)" } ]` and no members; the service answers 200 `NOT_FOUND` with that message in `mmiMessage`. The payload log line for the stub prints `status=404` |
+| anything else (for example `HP111222333`) | NOT_FOUND: the stub answers like the real MMI, HTTP 404 with `messages: [ { messageType ERROR, statusCode "404", messageCode MEMBER_NOT_FOUND, message "No member found for the given id (stub)" } ]` and no members; the service answers 200 `NOT_FOUND` with that message in `sourceMessage`. The payload log line for the stub prints `status=404` |
 
 Postman: import `postman/MemberIdResolution.postman_collection.json` and
 `postman/Local.postman_environment.json` (`baseUrl = http://localhost:9090`). Every request carries tests;
@@ -467,8 +468,8 @@ a gap and with overlapping records), vendor formats, MMI mapping, the REST clien
 `badRequestWithoutABodyIsStillForwardedAs400`, `internalErrorIsUnavailable503WithMmiText`,
 `statusOutsideMmiContractSaysSo`, plus 429, 408, read timeout, connection refused and unparseable body),
 configuration validation, and the end-to-end scenario matrix over HTTP against the stub with "today" fixed at
-2026-10-03. The scenarios assert `message` on `ACTIVE`, `message` and `mmiMessage` on `NOT_FOUND` on both
-operations, that `400400400` is 400 `MMI_BAD_REQUEST` / `HTTP_400` with MMI's text and no `Retry-After`, and that
+2026-10-03. The scenarios assert `message` on `ACTIVE`, `message` and `sourceMessage` on `NOT_FOUND` on both
+operations, that `400400400` is 400 `MEMBER_LOOKUP_REJECTED` / `HTTP_400` with MMI's text and no `Retry-After`, and that
 the 502 `ERROR_MESSAGE` body carries MMI's `code=ES_TIMEOUT` and `text=`. Four of the scenarios cover
 `/vendor-map`: the TMP id rendered for every vendor from one MMI call (Optum with `memberIdParts`, no `vendor`
 or `forVendor` in the response); HPHC and Public Plans ids passed as stored to every vendor, with the defaulted
@@ -478,7 +479,7 @@ only request-validation 400 (`INVALID_REQUEST`, `MEMBER_ID_MISSING`) and never r
 `ignoredFields`), that an unknown property, a `10/15/2026` date of service and a `not-a-date` date of birth
 answer 200 with today's date, `dateOfServiceDefaulted: true` and `ignoredFields: ["dateOfService",
 "patient.dateOfBirth"]`, that an out-of-window date of service is defaulted the same way, that a real but wrong
-DOB is still 422 `DOB_MISMATCH` after the one MMI call (`mmiRequestId` present), and that an unknown property with a
+DOB is still 422 `DOB_MISMATCH` after the one MMI call (`traceId` present), and that an unknown property with a
 `10/15/2026` date of service on `/resolve` is still 400 `INVALID_REQUEST`. A capturing log appender
 asserts no log line (message or exception text; payload logging is off in the `test` profile) contains an
 unmasked 9- or 11-digit run or an MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
@@ -493,7 +494,7 @@ untouched.
   `legacyMemberId`. The stub assumes the same.
 - A single record returned for any population is the member (TMP/SCO always return one).
 - MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500 (owner);
-  confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `mmiMessage`
+  confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `sourceMessage`
   can be filled: if the log shows `MMI_404_WITHOUT_ENVELOPE` for an id that exists nowhere, it does not.
 - `coverage.active` is the flag; the span is supporting detail. Legacy IDs, migration dates, PCP and
   group names are intentionally not returned.

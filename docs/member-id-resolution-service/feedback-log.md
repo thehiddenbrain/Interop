@@ -291,3 +291,24 @@ See the conversation; answers will be appended here.
 - Code: `Coverage` is `{ active, span }`, `CoverageDecision` and `CoverageEvaluator` no longer compute the nearest
   dates, `Ambiguity` is deleted, `Candidate` loses `company`, both response records are trimmed. 119 tests and the
   65-request Postman collection (438 assertions) are green; README, design and this log updated.
+
+## Feedback 16 (2026-10-04): never name MMI towards the caller
+
+- "MMI is internal, you don't need to surface that to the outside world. All the messaging within the service, don't
+  say anything about MMI." Nothing a caller receives may name MMI: no field name, no error code, no message text, no
+  URL, nothing in Swagger.
+- Applied. Fields: `mmiRequestId` is now `traceId` (200 and error bodies), `mmiMessage` is `sourceMessage` (record
+  `SourceMessage`, was `MmiNote`). Error codes: `MMI_UNAVAILABLE` → `MEMBER_LOOKUP_UNAVAILABLE`, `MMI_BAD_REQUEST` →
+  `MEMBER_LOOKUP_REJECTED`, `MMI_ERROR` → `MEMBER_LOOKUP_ERROR`, `MMI_INVALID_RESPONSE` → `MEMBER_LOOKUP_INVALID_RESPONSE`;
+  the detail codes (`HTTP_500`, `CONNECT_FAILED`, `READ_TIMEOUT`, `ERROR_MESSAGE`, ...) were already neutral. Messages:
+  "No member found for this id"; "The member lookup rejected the request: <code> <text>"; "The member lookup reported an
+  internal error: <code> <text>"; "The member lookup reported an error: <code> <text>"; "The member lookup could not be
+  reached: <detail>"; "HTTP <code> from the member lookup, outside its contract (200, 400, 404, 500): a gateway or proxy
+  answered", which no longer carries the MMI URL (the URL is in the log line instead). Swagger descriptions say "the
+  plan's member records" / "the lookup". The code and text MMI sends are still forwarded (feedback 10), under the
+  neutral wording.
+- Not changed: the logs (internal) keep MMI, their markers (`MMI_404_WITHOUT_ENVELOPE`, ...) and the payload lines; the
+  package, class and property names (`mmi.*`, `RestMmiClient`) stay, they are not visible to a caller.
+- A test guard now asserts that no response body of any scenario contains "MMI" or "mmi".
+- 119 tests and the 65-request Postman collection (437 assertions) are green; every response body replayed from the
+  collection and the OpenAPI document were scanned and contain no "MMI".
