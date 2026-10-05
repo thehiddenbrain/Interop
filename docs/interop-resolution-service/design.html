@@ -293,7 +293,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 
 <div class="callout">
   <div class="label">Revised 2026-10-05 (owner feedback 23 and 24, built on the owner's go)</div>
-  <p>Optum confirmed that it stores only the 9 characters of the member ID, the number printed on the card, not the 11 characters with the suffix. Optum's format is now <code>CORE_9</code>: <code>memberId.forVendor</code> and the Optum entry of <code>vendorMemberIds[]</code> carry the core alone for a TMP/SCO id (Public Plans and HPHC ids stay as stored, as for every vendor); the "two fields" form, <code>forVendorParts</code> and <code>memberIdParts</code>, is gone. And <code>coverage</code> gains <code>coverageId</code>, an id for the coverage period behind the answer: the stored member id without its spaces, the period's effective date and its end date as <code>yyyyMMdd</code>, hyphen-joined (<code>99991231</code> for an open-ended period), present whenever <code>coverage.span</code> is. Sections 2.1, 6, 7, 12, 16 and 17 are updated; the decision log in section 18 has both entries.</p>
+  <p>Optum confirmed that it stores only the 9 characters of the member ID, the number printed on the card, not the 11 characters with the suffix. Optum's format is now <code>CORE_9</code>: <code>memberId.forVendor</code> and the Optum entry of <code>vendorMemberIds[]</code> carry the core alone for a TMP/SCO id (Public Plans and HPHC ids stay as stored, as for every vendor); the "two fields" form, <code>forVendorParts</code> and <code>memberIdParts</code>, is gone. And <code>coverage</code> gains <code>coverageId</code>, an id for the coverage period behind the answer: <code>MEMBER_ID</code> + <code>EFF_DATE</code> + <code>END_DATE</code> run together (the Onyx requirement, feedback 28): the stored member id reduced to letters and digits, then the period's effective and end dates as <code>yyyyMMdd</code>, no separator (<code>99991231</code> for an open-ended period), present whenever <code>coverage.span</code> is. Sections 2.1, 6, 7, 12, 16 and 17 are updated; the decision log in section 18 has both entries.</p>
 </div>
 
 <div class="callout">
@@ -427,7 +427,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <tr><td><code>dateOfServiceEnd</code></td><td>opt</td><td>opt</td><td>opt</td><td>opt</td><td>The last date evaluated, echoed when the request asked about a period.</td></tr>
 <tr><td><code>coverage.active</code></td><td><code>true</code></td><td><code>false</code></td><td>–</td><td>–</td><td><b>The flag.</b></td></tr>
 <tr><td><code>coverage.span</code></td><td>✓</td><td>opt</td><td>–</td><td>–</td><td>The continuous coverage period covering the (first) date of service, <code>{ effectiveDate, endDate }</code>; records that overlap or touch are one period; <code>endDate</code> is an explicit <code>null</code> when open-ended. Present when active, and when inactive only because the period ends before the last day asked about (so intake sees how far coverage goes); otherwise absent, and the <code>message</code> says why.</td></tr>
-<tr><td><code>coverage.coverageId</code></td><td>✓</td><td>opt</td><td>–</td><td>–</td><td>An id for the period in <code>coverage.span</code>, present whenever <code>span</code> is: the stored member id without its spaces, the period's effective date and its end date as <code>yyyyMMdd</code>, joined with hyphens (<code>99991231</code> stands for an open-ended period). The same member with the same coverage always gets the same value (owner feedback 24).</td></tr>
+<tr><td><code>coverage.coverageId</code></td><td>✓</td><td>opt</td><td>–</td><td>–</td><td>An id for the period in <code>coverage.span</code>, present whenever <code>span</code> is: <code>MEMBER_ID</code> + <code>EFF_DATE</code> + <code>END_DATE</code> run together with no separator, the stored member id reduced to letters and digits, the dates as <code>yyyyMMdd</code> (<code>99991231</code> stands for an open-ended period); letters and digits only, as the Onyx requirement states. The same member with the same coverage always gets the same value (owner feedback 24 and 28).</td></tr>
 <tr><td><code>candidates[]</code></td><td>–</td><td>–</td><td>–</td><td>✓</td><td><code>{ storedMemberId, lineOfBusiness, coverageActive }</code>, one per person, sorted by id, no DOB. What to do about it is in <code>message</code>.</td></tr>
 <tr><td><code>traceId</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>For support: the id we sent to MMI. The Onyx correlation id is in the <code>X-Correlation-Id</code> response header, not in a 200 body.</td></tr>
 <tr><td><code>sourceMessage</code></td><td>–</td><td>–</td><td>opt</td><td>–</td><td><code>{ type, status, code, text }</code>: the first entry of MMI's <code>messages[]</code>, forwarded as MMI sent it, when MMI said it has no member for the id (for example type <code>ERROR</code>, status <code>404</code>, code <code>MEMBER_NOT_FOUND</code>). Present on NOT_FOUND only, and only when MMI sent a message (MMI's 404 with an empty body has none); absent on every other outcome. Last field in the JSON.</td></tr>
@@ -465,7 +465,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "123456789", "stored": "123456789   01", "forVendor": "12345678901" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "123456789012021010199991231" },
   "traceId": "INTEROP-1791086059251-93795" }</code></pre>
 </div>
 <div>
@@ -475,7 +475,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "123456789-01", "stored": "123456789   01", "forVendor": "123456789" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "123456789012021010199991231" },
   "traceId": "INTEROP-1791086059288-18116" }</code></pre>
 </div>
 <div>
@@ -537,7 +537,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "567890123 01", "stored": "HP567890123", "forVendor": "HP567890123" },
   "lineOfBusiness": "COM",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2020-01-01", "endDate": null }, "coverageId": "HP567890123-20200101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2020-01-01", "endDate": null }, "coverageId": "HP5678901232020010199991231" },
   "traceId": "INTEROP-1791086059360-94013" }</code></pre>
 </div>
 <div>
@@ -634,7 +634,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "123456789", "stored": "123456789   01" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "123456789012021010199991231" },
   "vendorMemberIds": [
     { "vendor": "CARELON", "memberId": "12345678901" },
     { "vendor": "EVICORE", "memberId": "12345678901" },
@@ -651,7 +651,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "HP-456789012", "stored": "HP456789012" },
   "lineOfBusiness": "COM",
   "dateOfService": "2026-10-04", "dateOfServiceDefaulted": true,
-  "coverage": { "active": true, "span": { "effectiveDate": "2013-03-01", "endDate": null }, "coverageId": "HP456789012-20130301-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2013-03-01", "endDate": null }, "coverageId": "HP4567890122013030199991231" },
   "vendorMemberIds": [
     { "vendor": "CARELON", "memberId": "HP456789012" },
     { "vendor": "EVICORE", "memberId": "HP456789012" },
@@ -708,7 +708,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   &quot;memberId&quot;: { &quot;received&quot;: &quot;U20252026&quot;, &quot;stored&quot;: &quot;U20252026   01&quot; },
   &quot;lineOfBusiness&quot;: &quot;MCR&quot;,
   &quot;dateOfService&quot;: &quot;2025-12-20&quot;, &quot;dateOfServiceEnd&quot;: &quot;2026-01-05&quot;, &quot;dateOfServiceDefaulted&quot;: false,
-  &quot;coverage&quot;: { &quot;active&quot;: true, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;}, &quot;coverageId&quot;: &quot;U2025202601-20250101-20261231&quot; },
+  &quot;coverage&quot;: { &quot;active&quot;: true, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;}, &quot;coverageId&quot;: &quot;U20252026012025010120261231&quot; },
   &quot;vendorMemberIds&quot;: [
     { &quot;vendor&quot;: &quot;CARELON&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
     { &quot;vendor&quot;: &quot;EVICORE&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
@@ -726,7 +726,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   &quot;memberId&quot;: { &quot;received&quot;: &quot;U20252026&quot;, &quot;stored&quot;: &quot;U20252026   01&quot; },
   &quot;lineOfBusiness&quot;: &quot;MCR&quot;,
   &quot;dateOfService&quot;: &quot;2026-12-20&quot;, &quot;dateOfServiceEnd&quot;: &quot;2027-01-05&quot;, &quot;dateOfServiceDefaulted&quot;: false,
-  &quot;coverage&quot;: { &quot;active&quot;: false, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;}, &quot;coverageId&quot;: &quot;U2025202601-20250101-20261231&quot; },
+  &quot;coverage&quot;: { &quot;active&quot;: false, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;}, &quot;coverageId&quot;: &quot;U20252026012025010120261231&quot; },
   &quot;vendorMemberIds&quot;: [
     { &quot;vendor&quot;: &quot;CARELON&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
     { &quot;vendor&quot;: &quot;EVICORE&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
@@ -1105,9 +1105,10 @@ member-id:
 <tr><td>2026-10-05</td><td>owner feedback 20</td><td>A 2027 date of service came back ACTIVE in PQA. Cause: on <code>/vendor-map</code> an unusable or out-of-window date was dropped and today was judged (<code>dateOfServiceDefaulted: true</code>, <code>ignoredFields</code>); 2027-10-15 was also beyond the 366-day forward limit, and a 400 on <code>/resolve</code>. Applied: the date sent is always the date judged on both operations; an unusable date (not <code>yyyy-MM-dd</code>, or more than 10 years back) is a 400 on <code>/vendor-map</code> too; the forward limit (<code>member-id.date-of-service.max-future-days</code>) is removed, so a future date is judged on the coverage on record; a sent date of birth is validated the same way; <code>ignoredFields</code> is removed from the response and <code>Validated</code>. New stub member with one record 01/01/2026 to 12/31/2026; tests 119 → 121. Left as it was, to confirm with the owner: an open-ended record counts as covering every future date.</td></tr>
 <tr><td>2026-10-05</td><td>owner feedback 21</td><td>A period of service: optional <code>dateOfServiceEnd</code> on both requests (a real date, not before the start, never alone: <code>DATE_OF_SERVICE_END_INVALID</code> / <code>_BEFORE_START</code> / <code>_WITHOUT_START</code>), echoed in the response when sent. <code>CoverageEvaluator</code> joins spans that overlap or touch into continuous periods and answers ACTIVE only when one period covers every day asked about; the reported span is that period (so adjacent plan-year records now show as one period from the earliest start, for a single date too). New reason <code>COVERAGE_ENDS_WITHIN_PERIOD</code> with the message <code>coverage active on &lt;start&gt; but ends &lt;end&gt;, before &lt;last&gt;</code> and the period in <code>coverage.span</code>. <code>MemberSelector</code> picks the record covering the first day. Onyx uses <code>/vendor-map</code> (one call serves every vendor of a multi-code prior authorization); <code>/resolve</code> stays. New stub member with adjacent 2025 and 2026 records; tests 121 → 127.</td></tr>
 <tr><td>2026-10-05</td><td>owner feedback 23</td><td>Optum stores the 9-character core of the member ID (the number printed on the card), not the 11 characters. Optum's format is <code>CORE_9</code> (new constant, one <code>switch</code> case, one YAML line); <code>SPLIT</code>, <code>MemberIdParts</code>, <code>forVendorParts</code> and <code>memberIdParts</code> are removed, since no vendor needs two fields. Held until the owner's go, built the same day.</td></tr>
-<tr><td>2026-10-05</td><td>owner feedback 24</td><td><code>coverage.coverageId</code> = the stored member id without its spaces + <code>-</code> + the period's effective date (<code>yyyyMMdd</code>) + <code>-</code> + its end date (<code>yyyyMMdd</code>, <code>99991231</code> when open-ended), present whenever <code>coverage.span</code> is, on both operations. The owner may adjust the form; each part is a one-line change in <code>ResolutionService</code>.</td></tr>
+<tr><td>2026-10-05</td><td>owner feedback 24</td><td><code>coverage.coverageId</code> = the stored member id without its spaces, the period's effective date and its end date (<code>yyyyMMdd</code>, <code>99991231</code> when open-ended), at first hyphen-joined, present whenever <code>coverage.span</code> is, on both operations. The form was settled by feedback 28 the same day.</td></tr>
 <tr><td>2026-10-05</td><td>owner feedback 25</td><td>Base package <code>org.p32h</code> (every class under <code>org.p32h.interop</code>, Gradle group <code>org.p32h</code>; folder, jar, application name, main class and API paths unchanged). One configuration file per environment, named in upper case: <code>application-DEV.yaml</code>, <code>-FQA</code>, <code>-PQA</code> (default), <code>-PQA-LITE</code>, <code>-PRD</code> (was <code>prod</code>); the profile name is the suffix; the stub guard accepts <code>DEV</code> and <code>test</code>; run scripts and the Postman description follow.</td></tr>
 <tr><td>2026-10-05</td><td>owner feedback 26</td><td>STS showed errors in every test file and could not load the main class after the package rename. The sources compile (Gradle, and ECJ at Java 17); the cause was the build: Buildship takes the Eclipse Java level from <code>java.sourceCompatibility</code>, which defaulted to the JDK running Gradle (25 on the workstation), not from <code>release 17</code>. Pinned <code>sourceCompatibility</code> / <code>targetCompatibility</code> to 17; javac still gets <code>--release 17</code>.</td></tr>
+<tr><td>2026-10-05</td><td>owner feedback 28</td><td>The coverage identifier's form from the Onyx requirement: concatenate <code>MEMBER_ID</code>, <code>EFF_DATE</code> and <code>END_DATE</code>, dates <code>YYYYMMDD</code>, no spaces and no special characters. The hyphens of the feedback 24 proposal are gone; the stored id is reduced to letters and digits; <code>99991231</code> stands for an open-ended period. The field keeps the name <code>coverageId</code>.</td></tr>
 <tr><td>2026-10-05</td><td>owner feedback 22</td><td>Renamed to Interop Resolution Service: folder <code>interop-resolution-service</code>, root project, application name and jar <code>interop-resolution-service</code>, package <code>org.point32health.interop</code> (since feedback 25: <code>org.p32h.interop</code>), main class <code>InteropResolutionApplication</code>, Postman collection <code>InteropResolution.postman_collection.json</code>, docs folder <code>docs/interop-resolution-service</code>, MMI client id placeholder <code>INTEROP</code> (trace ids now <code>INTEROP-…</code>). The API paths, the contract and the behaviour are unchanged. Reason: the service will also serve payer ID and payer organization name lookups for Onyx.</td></tr>
 </tbody></table></div>
 
@@ -1132,7 +1133,7 @@ member-id:
   <dt>UM vendor</dt><dd>Utilization-management partner: eviCore, Evolent, Carelon, MHK, Optum (which stores the 9-character core only); Onyx itself is also configured as a vendor (11 characters).</dd>
   <dt>Stored ID</dt><dd>The member ID exactly as MMI holds it (<code>memberId.stored</code>).</dd>
   <dt>For-vendor ID</dt><dd>The stored ID rendered in a vendor's format (<code>memberId.forVendor</code> on <code>/resolve</code>, <code>vendorMemberIds[].memberId</code> on the vendor map); the only value Onyx forwards.</dd>
-  <dt>Coverage id</dt><dd><code>coverage.coverageId</code>: the stored member id without spaces, the coverage period's effective and end dates as <code>yyyyMMdd</code>, hyphen-joined; names the period behind an answer.</dd>
+  <dt>Coverage id</dt><dd><code>coverage.coverageId</code>: <code>MEMBER_ID</code> + <code>EFF_DATE</code> + <code>END_DATE</code> run together, letters and digits only, dates <code>yyyyMMdd</code>; names the period behind an answer.</dd>
   <dt>Vendor map</dt><dd>The second operation, <code>POST /api/v1/member-ids/vendor-map</code>: the member id in every vendor's format at once, <code>vendorMemberIds[]</code>, for when Onyx does not yet know the vendor.</dd>
   <dt>MMI message</dt><dd>What MMI said in its <code>messages[]</code> when it had no member for the id, forwarded as <code>sourceMessage</code> <code>{ type, status, code, text }</code> on NOT_FOUND. MMI's 404 is such an answer, not a failure.</dd>
   <dt>Received ID</dt><dd>The member ID as Onyx sent it, surrounding whitespace removed (<code>memberId.received</code>); exactly the value sent to MMI.</dd>

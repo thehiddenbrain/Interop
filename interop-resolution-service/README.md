@@ -231,7 +231,7 @@ back as 400 `MEMBER_LOOKUP_REJECTED` with MMI's text.
   "memberId": { "received": "123456789", "stored": "123456789   01", "forVendor": "12345678901" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "123456789012021010199991231" },
   "traceId": "INTEROP-1760000000000-48213" }
 ```
 
@@ -246,9 +246,10 @@ that covers the (first) date of service (`endDate` is an explicit `null` for ope
 as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true only when
 that period covers every day asked about; when it covers the first day but ends before the last, `active` is false and
 the period is still shown so intake sees how far coverage goes. Otherwise there is no period and `message` says why.
-`coverage.coverageId` names that period (owner feedback 24): the stored member id without its spaces, the period's
-effective date and its end date as `yyyyMMdd`, joined with hyphens (`<id>-<yyyyMMdd>-<yyyyMMdd>`; `99991231` stands for
-an open-ended period). It is present whenever `span` is, and the same member with the same coverage always gets the same
+`coverage.coverageId` names that period (owner feedback 24, form from the Onyx requirement, feedback 28): the stored member
+id with its spaces and any punctuation removed, then the period's effective date, then its end date, both `yyyyMMdd`, run
+together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `99991231` stands for an open-ended
+period). It is present whenever `span` is, and the same member with the same coverage always gets the same
 value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring span dates.
 `lineOfBusiness` is MMI's value (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it. The company (THP or
 HPHC) is not returned: the stored id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
@@ -345,7 +346,7 @@ For the TMP id `123456789` (stored `123456789   01`):
   "memberId": { "received": "123456789", "stored": "123456789   01" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "123456789012021010199991231" },
   "vendorMemberIds": [
     { "vendor": "CARELON", "memberId": "12345678901" },
     { "vendor": "EVICORE", "memberId": "12345678901" },

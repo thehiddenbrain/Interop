@@ -125,10 +125,14 @@ public class ResolutionService {
             return new Coverage(coverage.active(), span, coverageId(record.storedMemberId(), coverage.span()));
         }
 
-        /** Feedback 24: the stored id without its spaces, the period's effective and end dates as yyyyMMdd, hyphen-joined. */
+        /**
+         * Feedback 24, form fixed by feedback 28 (Onyx requirement): MEMBER_ID + EFF_DATE + END_DATE run together, no
+         * separator, dates as yyyyMMdd, letters and digits only (the stored id loses its spaces and any punctuation);
+         * 99991231 stands for an open-ended period.
+         */
         private static String coverageId(String storedMemberId, CoverageSpan period) {
             DateTimeFormatter compact = DateTimeFormatter.BASIC_ISO_DATE;
-            return storedMemberId.replaceAll("\\s+", "") + "-" + period.effective().format(compact) + "-"
+            return storedMemberId.replaceAll("[^A-Za-z0-9]", "") + period.effective().format(compact)
                     + (period.end() == null ? "99991231" : period.end().format(compact));
         }
     }

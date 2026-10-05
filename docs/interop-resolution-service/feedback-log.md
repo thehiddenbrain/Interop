@@ -436,6 +436,8 @@ See the conversation; answers will be appended here.
   `vendorMemberIds[]` carry the core alone for a TMP/SCO id; Public Plans and HPHC ids stay as stored for Optum, as
   for every vendor. Tests, Postman, README, the design (sections 1, 2.1, 6, 7, 12, 16, 17, 18) and the vendor
   diagram's example sentence follow.
+- Re-confirmed by the owner later on 2026-10-05 ("Optum format is only 9 chars for all TMP"): that is what `CORE_9`
+  does for every TMP/SCO member, verified against all nine TMP/SCO fixture members; nothing further to change.
 
 ## Feedback 24 (2026-10-05): a coverageId in the response
 
@@ -491,3 +493,14 @@ See the conversation; answers will be appended here.
 - Also added `spring-boot-configuration-processor` as an annotation processor: it generates the metadata for the
   service's own `mmi.*` and `member-id.*` properties, so the STS YAML editor completes them instead of marking them
   unknown.
+
+## Feedback 28 (2026-10-05): the coverage identifier's form, from the Onyx requirement
+
+- Onyx's requirement for the coverage identifier: concatenate three fields, `MEMBER_ID`, `EFF_DATE`, `END_DATE`; the
+  dates in `YYYYMMDD`; no spaces and no special characters.
+- Applied: `coverage.coverageId` is now the three fields run together with nothing between them (the hyphens of the
+  feedback 24 proposal are gone), the stored member id reduced to letters and digits (spaces and any punctuation
+  removed), the dates as `yyyyMMdd`, `99991231` for an open-ended period. One line in `ResolutionService`; the five
+  scenario assertions, the three Postman tests, README, handover and design examples follow. The field keeps the name
+  `coverageId` the owner gave in feedback 24; if Onyx's contract names it `coverageIdentifier`, that is a one-word change
+  in the `Coverage` record.

@@ -36,7 +36,7 @@
                   "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\"no .company (lean response: lineOfBusiness is what Onyx routes on)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"company\"); });",
-                  "pm.test(\".coverage.coverageId = stored id without spaces + -20210101-99991231\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/\\s+/g, \"\") + \"-20210101-99991231\"); });",
+                  "pm.test(\".coverage.coverageId = stored id (letters and digits only) + 20210101 + 99991231\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/[^A-Za-z0-9]/g, \"\") + \"2021010199991231\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -579,7 +579,7 @@
                   "pm.test(\".dateOfService = 2026-10-15 (the date asked about)\", function () { const j = pm.response.json(); pm.expect(j.dateOfService).to.eql(\"2026-10-15\"); });",
                   "pm.test(\".coverage.span.endDate = 2026-12-31\", function () { const j = pm.response.json(); pm.expect(j.coverage.span.endDate).to.eql(\"2026-12-31\"); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
-                  "pm.test(\".coverage.coverageId = stored id without spaces + -20260101-20261231\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/\\s+/g, \"\") + \"-20260101-20261231\"); });",
+                  "pm.test(\".coverage.coverageId = stored id (letters and digits only) + 20260101 + 20261231\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/[^A-Za-z0-9]/g, \"\") + \"2026010120261231\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3765,7 +3765,7 @@
                   "pm.test(\".coverage.span.endDate = 2026-12-31 (how far coverage goes)\", function () { const j = pm.response.json(); pm.expect(j.coverage.span.endDate).to.eql(\"2026-12-31\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
-                  "pm.test(\".coverage.coverageId present on the partly covered period\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/\\s+/g, \"\") + \"-20250101-20261231\"); });",
+                  "pm.test(\".coverage.coverageId present on the partly covered period\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/[^A-Za-z0-9]/g, \"\") + \"2025010120261231\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }

@@ -35,7 +35,7 @@
 <tr><td><code>dateOfServiceEnd</code></td><td>opt</td><td>opt</td><td>opt</td><td>opt</td><td>The last date evaluated, echoed when the request asked about a period.</td></tr>
 <tr><td><code>coverage.active</code></td><td><code>true</code></td><td><code>false</code></td><td>–</td><td>–</td><td><b>The flag.</b></td></tr>
 <tr><td><code>coverage.span</code></td><td>✓</td><td>opt</td><td>–</td><td>–</td><td>The continuous coverage period covering the (first) date of service, <code>{ effectiveDate, endDate }</code>; records that overlap or touch are one period; <code>endDate</code> is an explicit <code>null</code> when open-ended. Present when active, and when inactive only because the period ends before the last day asked about (so intake sees how far coverage goes); otherwise absent, and the <code>message</code> says why.</td></tr>
-<tr><td><code>coverage.coverageId</code></td><td>✓</td><td>opt</td><td>–</td><td>–</td><td>An id for the period in <code>coverage.span</code>, present whenever <code>span</code> is: the stored member id without its spaces, the period's effective date and its end date as <code>yyyyMMdd</code>, joined with hyphens (<code>99991231</code> stands for an open-ended period). The same member with the same coverage always gets the same value (owner feedback 24).</td></tr>
+<tr><td><code>coverage.coverageId</code></td><td>✓</td><td>opt</td><td>–</td><td>–</td><td>An id for the period in <code>coverage.span</code>, present whenever <code>span</code> is: <code>MEMBER_ID</code> + <code>EFF_DATE</code> + <code>END_DATE</code> run together with no separator, the stored member id reduced to letters and digits, the dates as <code>yyyyMMdd</code> (<code>99991231</code> stands for an open-ended period); letters and digits only, as the Onyx requirement states. The same member with the same coverage always gets the same value (owner feedback 24 and 28).</td></tr>
 <tr><td><code>candidates[]</code></td><td>–</td><td>–</td><td>–</td><td>✓</td><td><code>{ storedMemberId, lineOfBusiness, coverageActive }</code>, one per person, sorted by id, no DOB. What to do about it is in <code>message</code>.</td></tr>
 <tr><td><code>traceId</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>For support: the id we sent to MMI. The Onyx correlation id is in the <code>X-Correlation-Id</code> response header, not in a 200 body.</td></tr>
 <tr><td><code>sourceMessage</code></td><td>–</td><td>–</td><td>opt</td><td>–</td><td><code>{ type, status, code, text }</code>: the first entry of MMI's <code>messages[]</code>, forwarded as MMI sent it, when MMI said it has no member for the id (for example type <code>ERROR</code>, status <code>404</code>, code <code>MEMBER_NOT_FOUND</code>). Present on NOT_FOUND only, and only when MMI sent a message (MMI's 404 with an empty body has none); absent on every other outcome. Last field in the JSON.</td></tr>
@@ -73,7 +73,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "123456789", "stored": "123456789   01", "forVendor": "12345678901" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "123456789012021010199991231" },
   "traceId": "INTEROP-1791086059251-93795" }</code></pre>
 </div>
 <div>
@@ -83,7 +83,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "123456789-01", "stored": "123456789   01", "forVendor": "123456789" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "123456789012021010199991231" },
   "traceId": "INTEROP-1791086059288-18116" }</code></pre>
 </div>
 <div>
@@ -145,7 +145,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "567890123 01", "stored": "HP567890123", "forVendor": "HP567890123" },
   "lineOfBusiness": "COM",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2020-01-01", "endDate": null }, "coverageId": "HP567890123-20200101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2020-01-01", "endDate": null }, "coverageId": "HP5678901232020010199991231" },
   "traceId": "INTEROP-1791086059360-94013" }</code></pre>
 </div>
 <div>
@@ -242,7 +242,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "123456789", "stored": "123456789   01" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "123456789012021010199991231" },
   "vendorMemberIds": [
     { "vendor": "CARELON", "memberId": "12345678901" },
     { "vendor": "EVICORE", "memberId": "12345678901" },
@@ -259,7 +259,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "HP-456789012", "stored": "HP456789012" },
   "lineOfBusiness": "COM",
   "dateOfService": "2026-10-04", "dateOfServiceDefaulted": true,
-  "coverage": { "active": true, "span": { "effectiveDate": "2013-03-01", "endDate": null }, "coverageId": "HP456789012-20130301-99991231" },
+  "coverage": { "active": true, "span": { "effectiveDate": "2013-03-01", "endDate": null }, "coverageId": "HP4567890122013030199991231" },
   "vendorMemberIds": [
     { "vendor": "CARELON", "memberId": "HP456789012" },
     { "vendor": "EVICORE", "memberId": "HP456789012" },
@@ -316,7 +316,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   &quot;memberId&quot;: { &quot;received&quot;: &quot;U20252026&quot;, &quot;stored&quot;: &quot;U20252026   01&quot; },
   &quot;lineOfBusiness&quot;: &quot;MCR&quot;,
   &quot;dateOfService&quot;: &quot;2025-12-20&quot;, &quot;dateOfServiceEnd&quot;: &quot;2026-01-05&quot;, &quot;dateOfServiceDefaulted&quot;: false,
-  &quot;coverage&quot;: { &quot;active&quot;: true, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;}, &quot;coverageId&quot;: &quot;U2025202601-20250101-20261231&quot; },
+  &quot;coverage&quot;: { &quot;active&quot;: true, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;}, &quot;coverageId&quot;: &quot;U20252026012025010120261231&quot; },
   &quot;vendorMemberIds&quot;: [
     { &quot;vendor&quot;: &quot;CARELON&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
     { &quot;vendor&quot;: &quot;EVICORE&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
@@ -334,7 +334,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   &quot;memberId&quot;: { &quot;received&quot;: &quot;U20252026&quot;, &quot;stored&quot;: &quot;U20252026   01&quot; },
   &quot;lineOfBusiness&quot;: &quot;MCR&quot;,
   &quot;dateOfService&quot;: &quot;2026-12-20&quot;, &quot;dateOfServiceEnd&quot;: &quot;2027-01-05&quot;, &quot;dateOfServiceDefaulted&quot;: false,
-  &quot;coverage&quot;: { &quot;active&quot;: false, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;}, &quot;coverageId&quot;: &quot;U2025202601-20250101-20261231&quot; },
+  &quot;coverage&quot;: { &quot;active&quot;: false, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;}, &quot;coverageId&quot;: &quot;U20252026012025010120261231&quot; },
   &quot;vendorMemberIds&quot;: [
     { &quot;vendor&quot;: &quot;CARELON&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
     { &quot;vendor&quot;: &quot;EVICORE&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
