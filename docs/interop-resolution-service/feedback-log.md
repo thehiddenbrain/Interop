@@ -423,3 +423,15 @@ See the conversation; answers will be appended here.
   `/api/v1/payers/…`. The branch name and the design artifact URL are unchanged.
 - For the owner's STS workspace: the project folder changed, so delete the old project from the workspace (not from
   disk), pull, and import `interop-resolution-service` (README section 1).
+
+## Feedback 23 (2026-10-05), PENDING, not applied: Optum stores the 9-character core only
+
+- Optum confirmed that they store only the 9 characters of the member ID (the card number, a letter and 8 digits
+  for TMP/SCO), not the 11 characters with the suffix. This replaces the feedback 1 note that Optum receives the core
+  and the suffix as two fields and concatenates them.
+- The owner's instruction: do not change anything yet; keep the feedback; generate the new code only on "go".
+- What the change will be, when it comes: Optum's format becomes the 9-character core (a new `CORE_9` constant in
+  `VendorIdFormat`, one case in `VendorFormatter`, one YAML line for `OPTUM`); `SPLIT` and `memberIdParts` go away
+  unless another vendor needs two fields; the tests, the Postman requests, README section 4, the design (sections 2.1,
+  6 and 12) and the vendor diagram's example sentence ("the member's full ID, with the suffix") follow. Public Plans
+  and HPHC ids stay as stored for Optum, as for every vendor.
