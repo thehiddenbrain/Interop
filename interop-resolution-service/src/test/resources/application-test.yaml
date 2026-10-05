@@ -1,0 +1,8 @@
+mmi:
+  base-url: http://mmi-stub.test
+  stub:
+    enabled: true
+  log-payloads: false
+logging:
+  level:
+    org.point32health.interop: DEBUG

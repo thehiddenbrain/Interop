@@ -1,0 +1,305 @@
+<title>Interop Resolution Service</title>
+<meta name="description" content="Design for the Spring Boot service that resolves an EMR-supplied member ID through MMI, formats it for the UM vendor, and reports coverage status on the date of service.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a fixed left rail of section links on wide screens, one long reading column (65ch prose, full-width tables) on the right. */
+:root {
+  --bg: #f4f6f7;
+  --surface: #ffffff;
+  --fg: #1a2430;
+  --muted: #5a6673;
+  --line: #d3dae0;
+  --line-soft: #e6ebef;
+  --accent: #123f55;        /* the navy of the plan's own API documents */
+  --accent-ink: #ffffff;
+  --accent-soft: #e3edf2;
+  --decide: #a8521d;        /* decisions and open items */
+  --decide-soft: #f8ece3;
+  --ok: #2d7a4f;  --ok-soft: #e2f1e7;
+  --warn: #9a6a00; --warn-soft: #f7efd6;
+  --bad: #a33a3f;  --bad-soft: #f6e3e4;
+  --info: #35618f; --info-soft: #e4ecf6;
+  --code-bg: #eceff2;
+  --font-display: "Libre Franklin", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151b; --surface: #161e26; --fg: #e4e8ec; --muted: #9ba7b3;
+    --line: #2b3640; --line-soft: #222c35;
+    --accent: #8fc7d8; --accent-ink: #0b1a21; --accent-soft: #17333f;
+    --decide: #e49a63; --decide-soft: #3a2518;
+    --ok: #74c395; --ok-soft: #173224; --warn: #e0b64a; --warn-soft: #3a3013;
+    --bad: #e68489; --bad-soft: #3c1d20; --info: #8db6e6; --info-soft: #1b2c40;
+    --code-bg: #1d262f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151b; --surface: #161e26; --fg: #e4e8ec; --muted: #9ba7b3;
+  --line: #2b3640; --line-soft: #222c35;
+  --accent: #8fc7d8; --accent-ink: #0b1a21; --accent-soft: #17333f;
+  --decide: #e49a63; --decide-soft: #3a2518;
+  --ok: #74c395; --ok-soft: #173224; --warn: #e0b64a; --warn-soft: #3a3013;
+  --bad: #e68489; --bad-soft: #3c1d20; --info: #8db6e6; --info-soft: #1b2c40;
+  --code-bg: #1d262f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.55; margin: 0; }
+.page { max-width: 1360px; margin: 0 auto; padding-block: 24px 80px; padding-inline: 16px; display: grid; grid-template-columns: 1fr; gap: 32px; }
+@media (min-width: 1100px) {
+  .page { grid-template-columns: 240px minmax(0, 1fr); padding-inline: 32px; }
+  .rail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); align-self: start; max-height: calc(100vh - 32px); overflow-y: auto; }
+}
+main { min-width: 0; }
+.rail { font-size: 14px; }
+.rail ol { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line); }
+.rail li a { display: block; padding: 4px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid transparent; margin-left: -2px; }
+.rail li a:hover, .rail li a:focus-visible { color: var(--fg); border-left-color: var(--accent); outline: none; }
+.rail li a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+@media (max-width: 1099px) {
+  .rail ol { border-left: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .rail li a { padding: 2px 0; border: 0; margin: 0; }
+}
+.eyebrow { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 600; color: var(--muted); }
+h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; line-height: 1.2; color: var(--fg); }
+h1 { font-size: clamp(30px, 4vw, 42px); font-weight: 700; margin: 6px 0 10px; }
+h2 { font-size: 26px; font-weight: 700; margin: 56px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+h2 .num { color: var(--accent); margin-right: 10px; font-variant-numeric: tabular-nums; }
+h3 { font-size: 19px; font-weight: 600; margin: 30px 0 8px; }
+h4 { font-size: 16px; font-weight: 600; margin: 20px 0 6px; }
+p, ul, ol { max-width: 68ch; }
+li { margin: 3px 0; }
+.lede { font-size: 19px; color: var(--muted); max-width: 70ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--muted); margin: 10px 0 0; }
+.meta b { color: var(--fg); font-weight: 600; }
+a { color: var(--accent); }
+code, pre, .mono { font-family: var(--font-mono); font-size: .88em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; white-space: pre-wrap; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); border: 1px solid var(--line-soft); border-radius: 6px; padding: 12px 14px; overflow-x: auto; line-height: 1.45; margin: 10px 0 16px; }
+pre code { background: none; padding: 0; white-space: pre; }
+.tablewrap { overflow-x: auto; margin: 10px 0 18px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
+th { background: var(--accent); color: var(--accent-ink); font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: .02em; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td code { white-space: pre; }
+td.wrap code { white-space: pre-wrap; }
+.tight td, .tight th { padding: 5px 8px; }
+.num-col { font-variant-numeric: tabular-nums; text-align: right; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; line-height: 1.5; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.info { background: var(--info-soft); color: var(--info); }
+.pill.neutral { background: var(--code-bg); color: var(--muted); }
+.callout { border-left: 4px solid var(--accent); background: var(--surface); padding: 12px 16px; margin: 16px 0; border-radius: 0 6px 6px 0; max-width: 80ch; }
+.callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+.callout.decide { border-left-color: var(--decide); background: var(--decide-soft); }
+.callout.rule { border-left-color: var(--ok); }
+.callout .label { font-family: var(--font-display); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--decide); margin-bottom: 4px; }
+.callout:not(.decide) .label { color: var(--accent); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 14px 0 20px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+.card h4 { margin: 0 0 6px; font-size: 15px; }
+.card p { margin: 0; font-size: 15px; color: var(--muted); }
+figure { margin: 18px 0 22px; max-width: 100%; }
+figure svg { max-width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 80ch; }
+.idgrid { display: grid; grid-template-columns: 150px repeat(14, 28px) auto; gap: 3px; align-items: center; font-size: 14px; margin: 12px 0 6px; overflow-x: auto; padding-bottom: 4px; }
+.idgrid .lbl { color: var(--muted); font-weight: 600; padding-right: 8px; white-space: nowrap; }
+.idgrid .cell { height: 32px; border: 1px solid var(--line); border-radius: 3px; display: grid; place-items: center; font-family: var(--font-mono); font-size: 14px; background: var(--surface); }
+.idgrid .cell.sp { background: var(--warn-soft); color: var(--warn); border-style: dashed; }
+.idgrid .cell.sx { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.idgrid .cell.off { visibility: hidden; }
+.idgrid .cell.hp { background: var(--info-soft); color: var(--info); font-weight: 600; }
+.idgrid .note { color: var(--muted); padding-left: 10px; white-space: nowrap; }
+.kv { display: grid; grid-template-columns: minmax(90px, max-content) minmax(0, 1fr); gap: 4px 16px; font-size: 15px; max-width: 80ch; }
+@media (max-width: 600px) { .kv { grid-template-columns: 1fr; gap: 2px 0; } .kv dd { margin-bottom: 8px; } }
+.kv dt { font-weight: 600; } .kv dd { margin: 0; color: var(--muted); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 0 24px; }
+.two > * { min-width: 0; }
+.small { font-size: 14px; color: var(--muted); }
+.check li { list-style: none; position: relative; padding-left: 26px; }
+.check li::before { content: ""; position: absolute; left: 0; top: 7px; width: 14px; height: 14px; border: 2px solid var(--decide); border-radius: 3px; }
+.check { padding-left: 0; }
+.footer { margin-top: 60px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+@media (max-width: 600px) { body { font-size: 16px; } .lede { font-size: 17px; } h2 { font-size: 23px; } }
+</style>
+
+<div class="page">
+<nav class="rail" aria-label="Sections">
+  <ol>
+    <li><a href="#summary">1 Summary</a></li>
+    <li><a href="#decisions">2 Decisions needed</a></li>
+    <li><a href="#scope">3 Scope</a></li>
+    <li><a href="#flow">4 Request flow</a></li>
+    <li><a href="#api">5 API contract</a></li>
+    <li><a href="#onyx">6 Onyx guidance</a></li>
+    <li><a href="#parsing">7 Member ID parsing</a></li>
+    <li><a href="#mmi">8 MMI integration</a></li>
+    <li><a href="#selection">9 Candidate selection</a></li>
+    <li><a href="#coverage">10 Coverage status</a></li>
+    <li><a href="#vendors">11 Vendor mapping</a></li>
+    <li><a href="#errors">12 Error catalog</a></li>
+    <li><a href="#resilience">13 Resilience</a></li>
+    <li><a href="#security">14 Security and PHI</a></li>
+    <li><a href="#ops">15 Observability</a></li>
+    <li><a href="#config">16 Configuration</a></li>
+    <li><a href="#project">17 Project layout</a></li>
+    <li><a href="#testing">18 Testing and go-live</a></li>
+    <li><a href="#keydecisions">19 Key decisions</a></li>
+    <li><a href="#questions">20 Open questions</a></li>
+    <li><a href="#glossary">21 Glossary</a></li>
+  </ol>
+</nav>
+
+<main>
+<header>
+  <div class="eyebrow">Design · Point32Health interop · Onyx → MMI</div>
+  <h1>Interop Resolution Service</h1>
+  <p class="lede">A small Spring Boot REST service that takes the member ID Onyx received from a provider's EMR, verifies it against the Master Member Index (MMI), returns the ID exactly as stored and in the format the chosen UM vendor expects, and says whether coverage is active on the date of service.</p>
+  <div class="meta">
+    <span><b>Status</b> draft v0.1 for review, no code yet</span>
+    <span><b>Date</b> 2026-10-03</span>
+    <span><b>Stack</b> Java 17 · Spring Boot 3.5 · Gradle · STS-importable</span>
+    <span><b>Sample vendors</b> eviCore · Carelon · Optum · MHK (placeholders)</span>
+  </div>
+</header>
+
+<h2 id="summary"><span class="num">1</span>Summary</h2>
+<p>Every UM vendor wants the member ID in its own shape. THP cards show 9 digits; our system of record stores 9 digits, three spaces and a two-digit suffix (14 characters); EMRs send anything in between; HPHC IDs start with <code>HP</code>. Today the mismatch is discovered at the vendor. This service moves the check to the front of the flow and answers one call from Onyx with four things: the ID as received, the ID as stored in MMI, the ID rendered for the vendor, and the coverage status on the date of service.</p>
+
+<figure>
+<svg viewBox="0 0 980 300" role="img" aria-label="Request path: the EMR sends a member ID to Onyx; Onyx posts member ID, date of service and vendor to the Interop Resolution Service; the service posts a member search to MMI inside the internal network; MMI returns member records with coverage spans; the service returns an outcome with canonical and vendor-formatted IDs; Onyx sends only the vendor-formatted ID to the UM vendor." style="color: var(--fg)">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+  </defs>
+  <g font-family="Source Sans 3, Arial, sans-serif" font-size="13" fill="currentColor">
+    <rect x="405" y="22" width="560" height="256" rx="8" fill="none" stroke="currentColor" stroke-dasharray="6 5" opacity=".55"/>
+    <text x="419" y="42" font-size="12" opacity=".7" font-style="italic">Point32Health internal network · MMI is never exposed outside</text>
+
+    <rect x="10" y="110" width="100" height="60" rx="6" fill="none" stroke="currentColor"/>
+    <text x="60" y="135" text-anchor="middle" font-weight="600">Provider EMR</text>
+    <text x="60" y="153" text-anchor="middle" font-size="12" opacity=".75">ID as typed</text>
+
+    <rect x="190" y="110" width="110" height="60" rx="6" fill="none" stroke="currentColor"/>
+    <text x="245" y="135" text-anchor="middle" font-weight="600">Onyx</text>
+    <text x="245" y="153" text-anchor="middle" font-size="12" opacity=".75">routes prior auth</text>
+
+    <rect x="450" y="96" width="190" height="88" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="545" y="124" text-anchor="middle" font-weight="700" fill="var(--accent)">Member ID Resolution</text>
+    <text x="545" y="142" text-anchor="middle" font-weight="700" fill="var(--accent)">Service (new)</text>
+    <text x="545" y="162" text-anchor="middle" font-size="12" opacity=".8">parse · select · coverage · format</text>
+    <text x="545" y="177" text-anchor="middle" font-size="12" opacity=".8">vendor table inside</text>
+
+    <rect x="810" y="110" width="140" height="60" rx="6" fill="none" stroke="currentColor"/>
+    <text x="880" y="135" text-anchor="middle" font-weight="600">MMI</text>
+    <text x="880" y="153" text-anchor="middle" font-size="12" opacity=".75">/master/member/v1</text>
+
+    <rect x="190" y="222" width="110" height="52" rx="6" fill="none" stroke="currentColor"/>
+    <text x="245" y="244" text-anchor="middle" font-weight="600">UM vendor</text>
+    <text x="245" y="261" text-anchor="middle" font-size="12" opacity=".75">eviCore · Optum · …</text>
+
+    <line x1="110" y1="140" x2="188" y2="140" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="149" y="131" text-anchor="middle" font-size="11">auth request</text>
+
+    <line x1="300" y1="126" x2="448" y2="126" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="374" y="117" text-anchor="middle" font-size="11">memberId, DOS, vendor</text>
+    <line x1="448" y1="156" x2="302" y2="156" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="374" y="174" text-anchor="middle" font-size="11">outcome, IDs, coverage</text>
+
+    <line x1="640" y1="126" x2="808" y2="126" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="724" y="117" text-anchor="middle" font-size="11">normalized ID, void = N</text>
+    <line x1="808" y1="156" x2="642" y2="156" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="724" y="174" text-anchor="middle" font-size="11">members[] + coverage[]</text>
+
+    <line x1="245" y1="170" x2="245" y2="220" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="252" y="200" font-size="11">vendorFormatted only, when ACTIVE</text>
+  </g>
+</svg>
+<figcaption>One synchronous hop in, one out. The service holds no state and calls nothing but MMI; Onyx is the only caller and the system of record for the decision.</figcaption>
+</figure>
+
+<div class="cards">
+  <div class="card"><h4>Four business answers (HTTP 200)</h4><p><span class="pill ok">ACTIVE</span> <span class="pill warn">INACTIVE</span> <span class="pill neutral">NOT_FOUND</span> <span class="pill info">AMBIGUOUS</span><br>Onyx branches on one field, <code>outcome</code>.</p></div>
+  <div class="card"><h4>Three Onyx branches</h4><p>200: act on <code>outcome</code>. Any 4xx or 422: never retry, route by code. Any 5xx or no response: one retry-and-park ladder.</p></div>
+  <div class="card"><h4>What it never does</h4><p>Never guesses a suffix, never returns an ID MMI did not confirm, never sends names or DOB to MMI, never returns names or SSN, never caches, no database, no queue.</p></div>
+  <div class="card"><h4>Shape of the code</h4><p>One controller, one orchestrator, four pure domain components (parser, selector, coverage evaluator, formatter), one MMI client behind a retry and a circuit breaker. About 40 small classes.</p></div>
+</div>
+
+<div class="callout decide">
+  <div class="label">The one thing to read if nothing else</div>
+  <p>A 9-digit THP card number identifies a policy, not a person. MMI may return the whole family or only the subscriber for it, and we do not yet know which. The service therefore treats a 9-digit input without the patient's date of birth as <em>not confirmed</em>: it answers <code>AMBIGUOUS</code> instead of picking someone. If Onyx sends the patient's date of birth (it has it from the EMR request), the same input resolves safely. <strong>Whether Onyx can send the DOB on every request is the first decision below, and it is load-bearing.</strong></p>
+</div>
+
+<h2 id="decisions"><span class="num">2</span>Decisions needed before build</h2>
+<p>Everything else in this document has a recommended default and can proceed. These eight need an answer from you, Onyx, or the platform team; the recommendation is what the design assumes until told otherwise.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>#</th><th>Decision</th><th>Why it matters</th><th>Recommendation (assumed)</th></tr></thead>
+<tbody>
+<tr><td>D1</td><td><b>Does Onyx send <code>patient.dateOfBirth</code> on every request?</b></td><td>Without it a 9-digit card ID can never resolve to ACTIVE (it lands on a worklist or needs a resend). With it, dependents are picked correctly and an EMR that guessed suffix 01 is caught instead of filing the auth under the subscriber.</td><td>Yes, always. The DOB is never sent to MMI, logged, or echoed back.</td></tr>
+<tr><td>D2</td><td><b>The real vendor table</b>: the vendor codes Onyx sends, the THP format and the HPHC format per vendor, aliases.</td><td>The service refuses to start in PQA/PROD while the table is still marked SAMPLE.</td><td>Sample: eviCore 11, Carelon 11, Optum 14, MHK 14; HPHC as stored. Replace in one YAML block.</td></tr>
+<tr><td>D3</td><td><b>What Onyx does with INACTIVE.</b></td><td>The service reports; it does not decide whether an auth may still be filed.</td><td>Hold on a "coverage inactive" intake worklist. Per-vendor override later if needed.</td></tr>
+<tr><td>D4</td><td><b>Restricted members</b> (<code>restrictedData = Y</code>).</td><td>The flag exists to gate disclosure; sending such a member's ID to an external vendor automatically may be wrong.</td><td>Service reports <code>member.restricted: true</code>; Onyx holds for manual review. A "withhold" mode is not built until you say so.</td></tr>
+<tr><td>D5</td><td><b>Onyx connector capabilities</b>: can it read the JSON body on non-2xx responses, honour <code>Retry-After</code>, park and replay with a per-priority maximum age, tolerate unknown JSON fields, set a 10 s timeout, and send a correlation header?</td><td>Decides whether Onyx branches on <code>outcome</code> or only on HTTP status class, and whether the retry ladder in section 6 is implementable as written.</td><td>Design works either way; the status-class fallback is documented.</td></tr>
+<tr><td>D6</td><td><b>Date-of-service window.</b></td><td>MMI returns at most 10 years of coverage; a DOS near that edge gets a confident but possibly false INACTIVE.</td><td>2 years back (hard cap 9), 365 days forward. Out of range is a 400 routed to intake, not an integration defect.</td></tr>
+<tr><td>D7</td><td><b>Onyx → service security.</b></td><td>MMI itself is unauthenticated inside the network; this service is the only gate in the Onyx path.</td><td>TLS at the OpenShift route, one static API key per environment, NetworkPolicy from the Onyx namespace. mTLS or OAuth only if the platform team mandates it.</td></tr>
+<tr><td>D8</td><td><b>Sign-off on the FQA discovery plan</b> (section 18.4) and the go-live gate.</td><td>Several rules depend on MMI behaviour the spec does not state; FQA answers them before anything is relaxed.</td><td>Run the plan in the first FQA week; nothing ships to PROD with a gate item open.</td></tr>
+</tbody></table></div>
+
+<h2 id="scope"><span class="num">3</span>Scope and non-goals</h2>
+<div class="two">
+<div>
+<h3>In scope (v1)</h3>
+<ul>
+<li>One endpoint, <code>POST /api/v1/member-ids/resolve</code>: validate the ID through MMI, return received / normalized / canonical / vendor-formatted IDs and the coverage status on one date of service.</li>
+<li>Parsing of every variation named so far: 9, 11 and 14 characters, any separator, HPHC prefix, any case. Strict rejection of everything else.</li>
+<li>One MMI call per request plus at most one retry; timeouts, circuit breaker, fast-fail 503.</li>
+<li>Deterministic handling of 0 / 1 / many MMI records: dependents, converted THP↔HPHC members, duplicates, unrelated records.</li>
+<li>Optional patient DOB used only to verify or pick among records MMI already returned.</li>
+<li>Vendor → format mapping inside the service (YAML plus two enums), validated at startup.</li>
+<li>Closed outcome and error vocabulary with HTTP status, stable code, <code>retryable</code> flag and the Onyx action for each.</li>
+<li>Correlation between the Onyx transaction and MMI's <code>requestId</code>, metrics, alerts, health, PHI-safe logging, Spring profiles with the four MMI URLs.</li>
+<li>In-process stub MMI for local runs in STS, same fixtures as the tests.</li>
+</ul>
+</div>
+<div>
+<h3>Non-goals</h3>
+<ul>
+<li>No demographic search of MMI. The ID is the only search key; the DOB never leaves the service.</li>
+<li>No caching, persistence, audit database, batch or asynchronous mode. Onyx stores the full response with its transaction and is the system of record.</li>
+<li>No degraded or best-effort answer when MMI is down (rationale in section 13).</li>
+<li>No coverage over a date range, no benefit or PCP adjudication, no vendor transport.</li>
+<li>No person-wide search: a patient who also holds another plan ID (dual coverage) is not looked up by the other ID.</li>
+<li>No pass-through of names, SSN, MBI, PCP, group name or any demographic. Only identifiers and coverage facts leave the service.</li>
+<li>No public vendor-list endpoint; the effective table is on the management port and in the startup log.</li>
+</ul>
+</div>
+</div>
+
+<h2 id="flow"><span class="num">4</span>How a request flows</h2>
+<p>Everything runs synchronously on the request thread. No executors, no async, no state between requests.</p>
+<ol>
+<li><b>Edge filters.</b> Read or generate <code>X-Correlation-Id</code>, put it in the log context and the response header. Check <code>X-Api-Key</code> (constant-time compare) → 401.</li>
+<li><b>Deserialize</b> with the strict mapper (unknown property, wrong JSON type, malformed JSON → 400). Body larger than 16 KB → 413.</li>
+<li><b>Validate everything in one pass</b>: member ID shape, date of service format and window, DOB format and plausibility, vendor present and well-formed. All problems are returned together in <code>error.details[]</code>. No MMI call for an invalid request.</li>
+<li><b>Resolve the vendor</b> by key or alias → 400 <code>UNKNOWN_VENDOR</code>.</li>
+<li><b>Parse the member ID</b> into one of three shapes: <code>THP_9</code>, <code>THP_11</code>, <code>HPHC</code> (section 7).</li>
+<li><b>Build the MMI request</b>: the normalized ID in both <code>memberId</code> and <code>legacyMemberId</code>, <code>voidCoverageRecord = N</code>, our <code>clientId</code>, <code>clientType = INT</code>, a fresh <code>requestId</code>. No DOS range, no demographics, no <code>searchMode</code>.</li>
+<li><b>Call MMI</b> through the circuit breaker and the one-retry rule (section 13). Transport failures → 503; MMI rejections and unusable bodies → 502.</li>
+<li><b>Interpret the envelope</b> with the message-classification table (section 8.4): not found, usable, or rejected.</li>
+<li><b>Normalize the records</b>: keep <code>memberId</code> verbatim as the canonical value, parse it for matching, parse dates strictly, classify each coverage span as valid, void or unreadable.</li>
+<li><b>Select the candidate</b> (section 9): relate every record to the input, drop unrelated ones, merge duplicates, group into persons, apply the DOB, choose the record that represents the patient on the date of service. Result: one record, or <code>NOT_FOUND</code>, <code>AMBIGUOUS</code>, <code>IDENTITY_MISMATCH</code>.</li>
+<li><b>Evaluate coverage</b> on the selected person (section 10) → ACTIVE or INACTIVE with a reason, or 502 when an unreadable span could be the covering one.</li>
+<li><b>Format for the vendor</b> (section 11) from the stored ID's parts, never from the input. <code>NOT_SUPPORTED</code> → 422.</li>
+<li><b>Respond</b>, write one INFO line per request, increment <code>memberid_resolve_total{outcome,vendor}</code>.</li>
+</ol>
+<div class="callout rule">
+  <div class="label">Precedence rule</div>
+  <p>Coverage is evaluated before formatting, but a vendor that cannot take this member's company wins: an INACTIVE THP member sent to a vendor configured <code>NOT_SUPPORTED</code> for THP is 422 <code>UNSUPPORTED_FOR_VENDOR</code>, not 200 INACTIVE. The vendor cannot be used regardless of coverage.</p>
+</div>
