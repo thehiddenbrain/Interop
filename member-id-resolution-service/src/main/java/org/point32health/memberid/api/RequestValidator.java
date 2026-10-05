@@ -19,9 +19,14 @@ import org.springframework.stereotype.Component;
  * spaces, letters) is sent to MMI exactly as received, with only surrounding whitespace removed; MMI decides whether it
  * knows the id. This service never judges the shape of a member id.
  *
- * <p>Two modes. {@code /resolve} is strict: a bad date or a missing vendor is a 400 naming every problem. {@code /vendor-map}
- * is lenient: only the member id is required; an unusable date of service or date of birth is ignored (the date of
- * service then defaults to today) and reported back under {@code ignoredFields}, never rejected.
+ * <p>The date of service is the date the answer is about (owner feedback 20). A date that was sent is always the
+ * date evaluated, never replaced by today: a value that is not a real {@code yyyy-MM-dd} date, or is older than the
+ * coverage history MMI keeps, is a 400 on both operations. Only a missing or blank date defaults to today. There is no
+ * upper limit: a future date is judged against the coverage on record, which is the only way a 2027 date can be told
+ * apart from a 2026 one. The same holds for a sent date of birth: unusable means 400, never silently dropped.
+ *
+ * <p>Two modes. {@code /resolve} is strict and needs a vendor. {@code /vendor-map} is lenient about what it does not
+ * need: the vendor and unknown properties are accepted and ignored, and only the member id is required.
  */
 @Component
 public class RequestValidator {
@@ -30,12 +35,11 @@ public class RequestValidator {
     private static final Pattern VENDOR = Pattern.compile("^[A-Za-z0-9 _.()-]{1,40}$");
 
     /**
-     * @param memberId      the id as Onyx sent it, surrounding whitespace removed: what is sent to MMI and echoed back
-     * @param vendor        the vendor code or alias as sent; null for the vendor-map operation
-     * @param ignoredFields request fields that were present but unusable and therefore ignored (lenient mode only)
+     * @param memberId the id as Onyx sent it, surrounding whitespace removed: what is sent to MMI and echoed back
+     * @param vendor   the vendor code or alias as sent; null for the vendor-map operation
      */
     public record Validated(String memberId, LocalDate dateOfService, boolean dateOfServiceDefaulted,
-            LocalDate dateOfBirth, String vendor, List<String> ignoredFields) {
+            LocalDate dateOfBirth, String vendor) {
     }
 
     private enum Mode { STRICT, LENIENT }
@@ -54,7 +58,7 @@ public class RequestValidator {
         return validate(request.memberId(), request.dateOfService(), dob, request.vendor(), Mode.STRICT);
     }
 
-    /** Operation 2 ({@code /vendor-map}), lenient: only the member id is required; unusable dates are ignored. */
+    /** Operation 2 ({@code /vendor-map}), lenient: only the member id is required; a vendor is ignored. */
     public Validated validate(VendorMapRequest request) {
         String dob = request.patient() == null ? null : request.patient().dateOfBirth();
         return validate(request.memberId(), request.dateOfService(), dob, null, Mode.LENIENT);
@@ -62,7 +66,6 @@ public class RequestValidator {
 
     private Validated validate(String rawMemberId, String rawDateOfService, String rawDob, String rawVendor, Mode mode) {
         List<ErrorDetail> details = new ArrayList<>();
-        List<String> ignored = new ArrayList<>();
         LocalDate today = LocalDate.now(clock);
 
         String memberId = rawMemberId == null ? "" : rawMemberId.strip();
@@ -70,30 +73,20 @@ public class RequestValidator {
             details.add(new ErrorDetail("memberId", "MEMBER_ID_MISSING", "memberId is required"));
         }
 
-        LocalDate dos = null;
+        LocalDate dos;
         boolean defaulted = false;
         if (rawDateOfService == null || rawDateOfService.isBlank()) {
             dos = today;
             defaulted = true;
         } else {
             dos = parseDate(rawDateOfService);
-            ErrorDetail problem = null;
             if (dos == null) {
-                problem = new ErrorDetail("dateOfService", "DATE_OF_SERVICE_INVALID", "expected a real date in yyyy-MM-dd");
+                details.add(new ErrorDetail("dateOfService", "DATE_OF_SERVICE_INVALID", "expected a real date in yyyy-MM-dd"));
             } else {
                 LocalDate min = today.minusYears(properties.dateOfService().maxPastYears());
-                LocalDate max = today.plusDays(properties.dateOfService().maxFutureDays());
-                if (dos.isBefore(min) || dos.isAfter(max)) {
-                    problem = new ErrorDetail("dateOfService", "DATE_OF_SERVICE_OUT_OF_RANGE", "must be between " + min + " and " + max);
-                }
-            }
-            if (problem != null) {
-                if (mode == Mode.STRICT) {
-                    details.add(problem);
-                } else {
-                    ignored.add("dateOfService");
-                    dos = today;
-                    defaulted = true;
+                if (dos.isBefore(min)) {
+                    details.add(new ErrorDetail("dateOfService", "DATE_OF_SERVICE_OUT_OF_RANGE",
+                            "must not be before " + min + " (older than the coverage history on record)"));
                 }
             }
         }
@@ -101,21 +94,11 @@ public class RequestValidator {
         LocalDate dob = null;
         if (rawDob != null && !rawDob.isBlank()) {
             dob = parseDate(rawDob);
-            ErrorDetail problem = null;
             if (dob == null) {
-                problem = new ErrorDetail("patient.dateOfBirth", "DATE_OF_BIRTH_INVALID", "expected a real date in yyyy-MM-dd");
+                details.add(new ErrorDetail("patient.dateOfBirth", "DATE_OF_BIRTH_INVALID", "expected a real date in yyyy-MM-dd"));
             } else if (dob.isAfter(today) || dob.isBefore(today.minusYears(properties.dateOfBirthMaxAgeYears()))) {
-                problem = new ErrorDetail("patient.dateOfBirth", "DATE_OF_BIRTH_OUT_OF_RANGE",
-                        "must not be in the future or more than " + properties.dateOfBirthMaxAgeYears() + " years ago");
-                dob = null;
-            }
-            if (problem != null) {
-                if (mode == Mode.STRICT) {
-                    details.add(problem);
-                } else {
-                    ignored.add("patient.dateOfBirth");
-                    dob = null;
-                }
+                details.add(new ErrorDetail("patient.dateOfBirth", "DATE_OF_BIRTH_OUT_OF_RANGE",
+                        "must not be in the future or more than " + properties.dateOfBirthMaxAgeYears() + " years ago"));
             }
         }
 
@@ -132,7 +115,7 @@ public class RequestValidator {
         if (!details.isEmpty()) {
             throw new InvalidRequestException(details);
         }
-        return new Validated(memberId, dos, defaulted, dob, vendor, List.copyOf(ignored));
+        return new Validated(memberId, dos, defaulted, dob, vendor);
     }
 
     private static LocalDate parseDate(String value) {

@@ -15,7 +15,7 @@
 <thead><tr><th>Field</th><th>Required</th><th>Rules</th></tr></thead>
 <tbody>
 <tr><td><code>memberId</code></td><td>yes</td><td>Non-blank. Sent to MMI exactly as the EMR typed it, with only surrounding whitespace removed; this service applies no length, shape or character rule to it (section 8).</td></tr>
-<tr><td><code>dateOfService</code></td><td>no</td><td><code>yyyy-MM-dd</code>, strictly resolved. Within 10 years back and 366 days forward of today (<code>America/New_York</code>). <b>Omitted or blank: today</b>, and the response says <code>dateOfServiceDefaulted: true</code>.</td></tr>
+<tr><td><code>dateOfService</code></td><td>no</td><td><code>yyyy-MM-dd</code>, strictly resolved. The date judged is always the date sent: any future date is judged against the coverage on record; a date more than 10 years back (the coverage history MMI keeps, zone <code>America/New_York</code>) is a 400. <b>Omitted or blank: today</b>, and the response says <code>dateOfServiceDefaulted: true</code>.</td></tr>
 <tr><td><code>vendor</code></td><td>yes</td><td>Code or alias from the vendor table, case-insensitive; 1–40 characters of letters, digits, spaces or <code>_ . ( ) -</code>. The value is never echoed or logged.</td></tr>
 <tr><td><code>patient.dateOfBirth</code></td><td>no (recommended for populations with dependents)</td><td><code>yyyy-MM-dd</code>; not in the future, not more than 125 years ago. <code>patient</code> absent, <code>null</code>, <code>{}</code>, or a null/blank date all mean "not supplied". Used only to verify or pick among records MMI returned; never sent to MMI, never logged, never echoed.</td></tr>
 </tbody></table></div>
@@ -201,18 +201,18 @@ X-Correlation-Id: ONYX-PA-2026-000123
 </div>
 
 <h3 id="vendor-map">6.6 Vendor map: <code>POST /api/v1/member-ids/vendor-map</code></h3>
-<p>Onyx does not always know which vendor will receive the authorization when it checks the member id. The vendor map is the same lookup without needing a vendor: one MMI call, the same selection and the same coverage decision, and the stored id rendered in every configured vendor's format instead of one. It is lenient: only the member id is required; a <code>vendor</code> or any unknown property is accepted and ignored, so Onyx may send its <code>/resolve</code> payload as is; an unusable date is ignored, not rejected, and named in <code>ignoredFields</code>. Onyx keeps the list with its transaction and takes the entry for the vendor once it knows it.</p>
+<p>Onyx does not always know which vendor will receive the authorization when it checks the member id. The vendor map is the same lookup without needing a vendor: one MMI call, the same selection and the same coverage decision, and the stored id rendered in every configured vendor's format instead of one. It is lenient about what it does not need: only the member id is required; a <code>vendor</code> or any unknown property is accepted and ignored, so Onyx may send its <code>/resolve</code> payload as is. A sent date is validated exactly as on <code>/resolve</code>: the date of service is the date the answer is about, never replaced by today (feedback 20). Onyx keeps the list with its transaction and takes the entry for the vendor once it knows it.</p>
 <h4>Request</h4>
 <div class="tablewrap"><table>
 <thead><tr><th>Field</th><th>Required</th><th>Rules</th></tr></thead>
 <tbody>
 <tr><td><code>memberId</code></td><td>yes</td><td>As in 6.2: presence only, sent to MMI exactly as typed with surrounding whitespace removed. Missing or blank is the one validation error of this operation: <span class="pill bad">400</span> <code>INVALID_REQUEST</code> / <code>MEMBER_ID_MISSING</code>, MMI not called.</td></tr>
-<tr><td><code>dateOfService</code></td><td>no</td><td><code>yyyy-MM-dd</code> within the window of 6.2. Omitted or blank: today, <code>dateOfServiceDefaulted: true</code>. Not a real date, or outside the window: <b>ignored</b>, today is evaluated, <code>dateOfServiceDefaulted</code> is true and <code>"dateOfService"</code> is listed in <code>ignoredFields</code>. Never a 400.</td></tr>
+<tr><td><code>dateOfService</code></td><td>no</td><td>As in 6.2: <code>yyyy-MM-dd</code>, the date judged; any future date is judged on the coverage on record. Omitted or blank: today, <code>dateOfServiceDefaulted: true</code>. Not a real date, or more than 10 years back: <span class="pill bad">400</span> <code>DATE_OF_SERVICE_INVALID</code> / <code>DATE_OF_SERVICE_OUT_OF_RANGE</code>, never answered for today.</td></tr>
 <tr><td><code>vendor</code></td><td>no</td><td><b>Accepted and ignored</b>: the answer is always for every vendor. Lets Onyx send the <code>/resolve</code> payload unchanged. The value is never echoed or logged.</td></tr>
-<tr><td><code>patient.dateOfBirth</code></td><td>no</td><td>A real <code>yyyy-MM-dd</code> date, not in the future and not more than 125 years ago, is used as in 6.2 to verify or pick among the records MMI returned; one that matches no record is still <span class="pill warn">422</span> <code>DOB_MISMATCH</code>. Not a real date, or implausible: <b>ignored</b>, takes no part in the selection, and <code>"patient.dateOfBirth"</code> is listed in <code>ignoredFields</code>. Never sent to MMI, never logged, never echoed.</td></tr>
-<tr><td>any other property</td><td>–</td><td>Ignored, at the top level and inside <code>patient</code> alike; not an error and not listed in <code>ignoredFields</code>.</td></tr>
+<tr><td><code>patient.dateOfBirth</code></td><td>no</td><td>A real <code>yyyy-MM-dd</code> date, not in the future and not more than 125 years ago, is used as in 6.2 to verify or pick among the records MMI returned; one that matches no record is still <span class="pill warn">422</span> <code>DOB_MISMATCH</code>. Not a real date, or implausible: <span class="pill bad">400</span> <code>DATE_OF_BIRTH_INVALID</code> / <code>DATE_OF_BIRTH_OUT_OF_RANGE</code>, as on <code>/resolve</code>. Never sent to MMI, never logged, never echoed.</td></tr>
+<tr><td>any other property</td><td>–</td><td>Ignored, at the top level and inside <code>patient</code> alike; not an error.</td></tr>
 </tbody></table></div>
-<p>The only 400s of this operation are a missing or blank <code>memberId</code> (<code>MEMBER_ID_MISSING</code>) and a body that is not JSON for the operation (<code>MALFORMED_JSON</code>; <code>WRONG_JSON_TYPE</code> when the body or a field has the wrong JSON type, for example <code>"patient": "x"</code>). Neither reaches MMI. Everything else is answered. The one other 400 comes from MMI itself: its 400 is forwarded as <code>MEMBER_LOOKUP_REJECTED</code> on both operations (6.4).</p>
+<p>The 400s of this operation are a missing or blank <code>memberId</code> (<code>MEMBER_ID_MISSING</code>), an unusable date of service or date of birth (the date codes of 6.4) and a body that is not JSON for the operation (<code>MALFORMED_JSON</code>; <code>WRONG_JSON_TYPE</code> when the body or a field has the wrong JSON type, for example <code>"patient": "x"</code>). Neither reaches MMI. Everything else is answered. The one other 400 comes from MMI itself: its 400 is forwarded as <code>MEMBER_LOOKUP_REJECTED</code> on both operations (6.4).</p>
 <h4>Response (HTTP 200)</h4>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Field</th><th>ACTIVE</th><th>INACTIVE</th><th>NOT_FOUND</th><th>AMBIGUOUS</th><th>Meaning</th></tr></thead>
@@ -222,7 +222,6 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <tr><td><code>memberId.received</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>As Onyx sent it, surrounding whitespace removed; exactly the value sent to MMI.</td></tr>
 <tr><td><code>memberId.stored</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The ID exactly as MMI stores it. There is no <code>memberId.forVendor</code> and no <code>vendor</code> in this response.</td></tr>
 <tr><td><code>lineOfBusiness</code>, <code>dateOfService</code>, <code>dateOfServiceDefaulted</code>, <code>coverage</code>, <code>candidates[]</code>, <code>traceId</code></td><td colspan="4">as in 6.3</td><td>Same blocks, same rules, same presence per outcome as on <code>/resolve</code>.</td></tr>
-<tr><td><code>ignoredFields[]</code></td><td>opt</td><td>opt</td><td>opt</td><td>opt</td><td>Only on this operation. Present when a request field was present but unusable and therefore ignored: <code>"dateOfService"</code> (not a real date, or outside the window; today was evaluated) and/or <code>"patient.dateOfBirth"</code> (not a real date, or implausible; not used for the selection). Absent when nothing was ignored. In the JSON it follows <code>dateOfServiceDefaulted</code> and precedes <code>coverage</code>.</td></tr>
 <tr><td><code>vendorMemberIds[]</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>Present only when a member was identified. One entry per configured vendor, sorted by vendor code; five with the delivered table.</td></tr>
 <tr><td><code>vendorMemberIds[].vendor</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The vendor code as configured (<code>CARELON</code>, <code>EVICORE</code>, <code>EVOLENT</code>, <code>MHK</code>, <code>OPTUM</code>).</td></tr>
 <tr><td><code>vendorMemberIds[].memberId</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The stored ID in that vendor's format: what goes into that vendor's payload. Public Plans and HPHC ids are the stored value on every entry (section 12).</td></tr>
@@ -291,30 +290,36 @@ X-Correlation-Id: ONYX-PA-2026-000123
                   "text": "No member found for the given id (stub)" } }</code></pre>
 </div>
 </div>
-<h4><span class="pill ok">200</span> ACTIVE from the <code>/resolve</code> payload sent as is: the vendor ignored, an unusable date of service and date of birth ignored and named</h4>
-<pre><code>{ "memberId": "123456789", "dateOfService": "10/15/2026", "vendor": "EVICORE",
-  "patient": { "dateOfBirth": "not-a-date" } }
+<h4><span class="pill warn">200</span> INACTIVE for a 2027 date of service on a record that ends 12/31/2026 (owner feedback 20); the <code>/resolve</code> payload sent as is, its vendor and an unknown property ignored</h4>
+<pre><code>{ "memberId": "T20262026", "dateOfService": "2027-10-15", "vendor": "EVICORE", "anything": "goes" }
 
-{ "outcome": "ACTIVE",
-  "message": "Member found; coverage active on 2026-10-04",
-  "memberId": { "received": "123456789", "stored": "123456789   01" },
-  "lineOfBusiness": "MCR",
-  "dateOfService": "2026-10-04", "dateOfServiceDefaulted": true,
-  "ignoredFields": [ "dateOfService", "patient.dateOfBirth" ],
-  "coverage": { "active": true, "span": { "effectiveDate": "2024-01-01", "endDate": null } },
-  "vendorMemberIds": [
-    { "vendor": "CARELON", "memberId": "12345678901" },
-    { "vendor": "EVICORE", "memberId": "12345678901" },
-    { "vendor": "EVOLENT", "memberId": "12345678901" },
-    { "vendor": "MHK",     "memberId": "123456789   01" },
-    { "vendor": "ONYX",    "memberId": "12345678901" },
-    { "vendor": "OPTUM",   "memberId": "12345678901",
-      "memberIdParts": { "memberId": "123456789", "suffix": "01" } } ],
-  "traceId": "MBRIDSVC-1791123403610-90120" }</code></pre>
-<p class="small">The date of service was not usable, so today was evaluated; the date of birth was not usable, so it took no part in the selection; the vendor was not needed. Had the date of birth been a real date matching no record, the answer would still be 422 <code>DOB_MISMATCH</code>.</p>
+{ &quot;outcome&quot;: &quot;INACTIVE&quot;,
+  &quot;message&quot;: &quot;Member found; coverage ended before 2027-10-15&quot;,
+  &quot;memberId&quot;: { &quot;received&quot;: &quot;T20262026&quot;, &quot;stored&quot;: &quot;T20262026   01&quot; },
+  &quot;lineOfBusiness&quot;: &quot;MCR&quot;,
+  &quot;dateOfService&quot;: &quot;2027-10-15&quot;, &quot;dateOfServiceDefaulted&quot;: false,
+  &quot;coverage&quot;: { &quot;active&quot;: false },
+  &quot;vendorMemberIds&quot;: [
+    { &quot;vendor&quot;: &quot;CARELON&quot;  &quot;memberId&quot;: &quot;T2026202601&quot; },
+    { &quot;vendor&quot;: &quot;EVICORE&quot;  &quot;memberId&quot;: &quot;T2026202601&quot; },
+    { &quot;vendor&quot;: &quot;EVOLENT&quot;  &quot;memberId&quot;: &quot;T2026202601&quot; },
+    { &quot;vendor&quot;: &quot;MHK&quot;      &quot;memberId&quot;: &quot;T20262026   01&quot; },
+    { &quot;vendor&quot;: &quot;ONYX&quot;     &quot;memberId&quot;: &quot;T2026202601&quot; },
+    { &quot;vendor&quot;: &quot;OPTUM&quot;    &quot;memberId&quot;: &quot;T2026202601&quot;,
+      &quot;memberIdParts&quot;: {&quot;memberId&quot;: &quot;T20262026&quot;, &quot;suffix&quot;: &quot;01&quot;} } ],
+  &quot;traceId&quot;: &quot;MBRIDSVC-1791205854764-53525&quot; }</code></pre>
+<p class="small">The date judged is the date that was sent. This stub member's only record runs 01/01/2026 to 12/31/2026, so 2026-10-15 is ACTIVE and 2027-10-15 is INACTIVE, on both operations. A record with no end date (blank or <code>12/31/9999</code>) would make a 2027 date ACTIVE, because that is what the record says (section 11).</p>
+<h4><span class="pill bad">400</span> An unusable date of service is refused, never answered for today</h4>
+<pre><code>{ "memberId": "T20262026", "dateOfService": "10/15/2027" }
+
+{ &quot;error&quot;: { &quot;code&quot;: &quot;INVALID_REQUEST&quot;, &quot;message&quot;: &quot;request rejected&quot;,
+    &quot;details&quot;: [ { &quot;field&quot;: &quot;dateOfService&quot;, &quot;code&quot;: &quot;DATE_OF_SERVICE_INVALID&quot;,
+                   &quot;message&quot;: &quot;expected a real date in yyyy-MM-dd&quot; } ] },
+  &quot;correlationId&quot;: &quot;ONYX-PA-2026-000123&quot; }</code></pre>
+<p class="small">Before feedback 20 this request answered 200 ACTIVE for today, with <code>dateOfServiceDefaulted: true</code>, which read as "active for 2027".</p>
 
 <h2 id="onyx"><span class="num">7</span>What Onyx does with each answer</h2>
-<p>Which operation: <code>/resolve</code> when Onyx already knows the vendor; <code>/vendor-map</code> when it does not, in which case Onyx keeps <code>vendorMemberIds[]</code> with the transaction and takes the entry for the vendor once it is known. One MMI call either way, and the rows below apply to both: the vendor map carries the same <code>outcome</code>, <code>message</code>, <code>coverage</code> and <code>candidates</code>. Onyx may send the same payload to both: on <code>/vendor-map</code> the vendor and any property the operation does not need are ignored, and an unusable date is ignored and named in <code>ignoredFields</code> rather than rejected. When <code>ignoredFields</code> is present the answer is complete and usable; the field tells Onyx support which request field was sent in a shape the service could not use.</p>
+<p>Which operation: <code>/resolve</code> when Onyx already knows the vendor; <code>/vendor-map</code> when it does not, in which case Onyx keeps <code>vendorMemberIds[]</code> with the transaction and takes the entry for the vendor once it is known. One MMI call either way, and the rows below apply to both: the vendor map carries the same <code>outcome</code>, <code>message</code>, <code>coverage</code> and <code>candidates</code>. Onyx may send the same payload to both: on <code>/vendor-map</code> the vendor and any property the operation does not need are ignored; a date that cannot be used is a 400 on both, because the answer is always about the date that was sent.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Signal</th><th>Meaning</th><th>Onyx action</th></tr></thead>
 <tbody>

@@ -427,10 +427,59 @@ class ResolveScenariosTest {
     }
 
     @Test
-    void dateOfServiceOutsideTheWindowIsRejected() throws Exception {
+    void dateOfServiceOlderThanTheCoverageHistoryIsRejectedButAFutureDateIsJudged() throws Exception {
         JsonNode r = call(400, req("123456789", "2010-01-01", "evicore"));
         assertThat(r.at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_OUT_OF_RANGE");
         assertThat(call(400, req("123456789", "2026-02-30", "evicore")).at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_INVALID");
+        JsonNode farFuture = call(200, req("123456789", "2036-01-01", "evicore"));
+        assertThat(farFuture.get("dateOfService").asText()).as("no upper limit: the date is judged on the coverage on record").isEqualTo("2036-01-01");
+        assertThat(farFuture.get("outcome").asText()).as("this member's coverage on record is open-ended").isEqualTo("ACTIVE");
+    }
+
+    // ---------------------------------------------------------------- the date of service is the date judged (owner feedback 20)
+
+    @Test
+    void aFutureDateOfServiceIsJudgedOnTheCoverageOnRecord() throws Exception {
+        // a member whose only record runs 01/01/2026 to 12/31/2026: the owner's PQA case
+        JsonNode inYear = call(200, req("T20262026", "2026-10-15", "evicore"));
+        assertThat(inYear.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(inYear.get("message").asText()).isEqualTo("Member found; coverage active on 2026-10-15");
+        assertThat(inYear.at("/coverage/span/endDate").asText()).isEqualTo("2026-12-31");
+
+        JsonNode nextYear = call(200, req("T20262026", "2027-10-15", "evicore"));
+        assertThat(nextYear.get("outcome").asText()).as("no record covers 2027").isEqualTo("INACTIVE");
+        assertThat(nextYear.at("/coverage/active").asBoolean()).isFalse();
+        assertThat(nextYear.get("message").asText()).isEqualTo("Member found; coverage ended before 2027-10-15");
+        assertThat(nextYear.get("dateOfService").asText()).as("the date asked about, never today").isEqualTo("2027-10-15");
+        assertThat(nextYear.get("dateOfServiceDefaulted").asBoolean()).isFalse();
+        assertThat(nextYear.at("/memberId/forVendor").asText()).as("the id is still returned when inactive").isEqualTo("T2026202601");
+
+        JsonNode map = callVendorMap(200, Map.of("memberId", "T20262026", "dateOfService", "2027-10-15"));
+        assertThat(map.get("outcome").asText()).as("same judgement on the vendor map").isEqualTo("INACTIVE");
+        assertThat(map.get("dateOfService").asText()).isEqualTo("2027-10-15");
+        assertThat(map.get("dateOfServiceDefaulted").asBoolean()).isFalse();
+        assertThat(map.get("vendorMemberIds")).hasSize(6);
+
+        JsonNode firstDay = call(200, req("T20262026", "2027-01-01", "evicore"));
+        assertThat(firstDay.get("outcome").asText()).as("the day after the record ends is already inactive").isEqualTo("INACTIVE");
+        assertThat(call(200, req("T20262026", "2026-12-31", "evicore")).get("outcome").asText()).as("the last covered day").isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void aSentDateOfServiceIsNeverReplacedByToday() throws Exception {
+        // an unusable date must not become "active for today" on either operation
+        for (String bad : List.of("10/15/2027", "2027-13-01", "next year")) {
+            JsonNode map = callVendorMap(400, Map.of("memberId", "T20262026", "dateOfService", bad));
+            assertThat(map.at("/error/code").asText()).as(bad).isEqualTo("INVALID_REQUEST");
+            assertThat(map.at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_INVALID");
+            assertThat(call(400, req("T20262026", bad, "evicore")).at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_INVALID");
+        }
+        JsonNode old = callVendorMap(400, Map.of("memberId", "T20262026", "dateOfService", "1999-01-01"));
+        assertThat(old.at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_OUT_OF_RANGE");
+        // only a missing date defaults to today, and the response says so
+        JsonNode none = callVendorMap(200, Map.of("memberId", "T20262026"));
+        assertThat(none.get("dateOfService").asText()).isEqualTo("2026-10-03");
+        assertThat(none.get("dateOfServiceDefaulted").asBoolean()).isTrue();
     }
 
     @Test
@@ -671,29 +720,27 @@ class ResolveScenariosTest {
         JsonNode withVendor = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "vendor", "EVICORE"));
         assertThat(withVendor.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(withVendor.get("vendorMemberIds")).hasSize(6);
-        assertThat(withVendor.has("ignoredFields")).isFalse();
         // whatever shape the vendor takes (unknown code, object, array, number), it is ignored, never looked up or rejected
         for (Object vendor : List.of("NO_SUCH_VENDOR", Map.of("code", "EVICORE"), List.of("EVICORE"), 5)) {
             JsonNode r = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "vendor", vendor));
             assertThat(r.get("outcome").asText()).as("vendor=" + vendor).isEqualTo("ACTIVE");
             assertThat(r.get("vendorMemberIds")).hasSize(6);
-            assertThat(r.has("ignoredFields")).isFalse();
         }
 
-        // unknown properties, an unusable date of service and an unusable date of birth are ignored, not rejected
-        JsonNode odd = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "10/15/2026", "anything", "goes",
-                "patient", Map.of("dateOfBirth", "not-a-date", "name", "ignored too")));
+        // unknown properties, at the top level and inside patient, are ignored
+        JsonNode odd = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "anything", "goes",
+                "patient", Map.of("dateOfBirth", "1950-03-15", "name", "ignored too")));
         assertThat(odd.get("outcome").asText()).isEqualTo("ACTIVE");
-        assertThat(odd.get("dateOfService").asText()).as("unusable date -> today").isEqualTo("2026-10-03");
-        assertThat(odd.get("dateOfServiceDefaulted").asBoolean()).isTrue();
-        List<String> ignored = new java.util.ArrayList<>();
-        odd.get("ignoredFields").forEach(n -> ignored.add(n.asText()));
-        assertThat(ignored).containsExactly("dateOfService", "patient.dateOfBirth");
+        assertThat(odd.get("dateOfService").asText()).isEqualTo("2026-10-15");
+        assertThat(odd.has("ignoredFields")).as("nothing is silently ignored and reported any more").isFalse();
         assertThat(odd.get("vendorMemberIds")).hasSize(6);
 
-        JsonNode farPast = callVendorMap(200, Map.of("memberId", "123456789", "dateOfService", "1999-01-01"));
-        assertThat(farPast.get("dateOfServiceDefaulted").asBoolean()).as("out-of-window date -> today").isTrue();
-        assertThat(farPast.get("ignoredFields").get(0).asText()).isEqualTo("dateOfService");
+        // a sent value that cannot be used is a 400, never dropped (feedback 20): dates are the same on both operations
+        JsonNode badDob = callVendorMap(400, Map.of("memberId", "123456789", "dateOfService", "2026-10-15",
+                "patient", Map.of("dateOfBirth", "not-a-date")));
+        assertThat(badDob.at("/error/details/0/code").asText()).isEqualTo("DATE_OF_BIRTH_INVALID");
+        assertThat(callVendorMap(400, Map.of("memberId", "123456789", "dateOfService", "10/15/2026")).at("/error/details/0/code").asText())
+                .isEqualTo("DATE_OF_SERVICE_INVALID");
 
         // a real date of birth is still used, and still protects against the wrong person
         JsonNode dobMismatch = callVendorMap(422, Map.of("memberId", "123456789", "dateOfService", "2026-10-15",

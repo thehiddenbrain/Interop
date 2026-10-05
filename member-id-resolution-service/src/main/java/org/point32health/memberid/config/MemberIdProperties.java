@@ -24,9 +24,9 @@ public record MemberIdProperties(
         @DefaultValue("125") @Positive int dateOfBirthMaxAgeYears,
         @Valid @NotEmpty Map<String, VendorConfig> vendors) {
 
+    /** No upper limit on the date of service: a future date is judged against the coverage on record (feedback 20). */
     public record DateOfService(
             @DefaultValue("10") @Positive int maxPastYears,
-            @DefaultValue("366") @Positive int maxFutureDays,
             @DefaultValue("America/New_York") @NotBlank String zone) {
     }
 

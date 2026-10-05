@@ -51,8 +51,8 @@ public class StartupReport implements ApplicationRunner {
         sb.append("mmi clientId      : ").append(mmi.clientId()).append('\n');
         sb.append("mmi timeouts      : connect=").append(mmi.connectTimeout()).append(" read=").append(mmi.readTimeout()).append('\n');
         sb.append("mmi payload log   : ").append(mmi.logPayloads() ? "ON (request and response bodies, contains PHI)" : "off").append('\n');
-        sb.append("dos window        : -").append(memberId.dateOfService().maxPastYears()).append("y / +")
-          .append(memberId.dateOfService().maxFutureDays()).append("d (").append(memberId.dateOfService().zone()).append(")\n");
+        sb.append("dos limit         : not older than ").append(memberId.dateOfService().maxPastYears())
+          .append("y; any future date is judged on the coverage on record (").append(memberId.dateOfService().zone()).append(")\n");
         sb.append("vendor formats (sample stored id 'S12345678   01' -> what the vendor receives):\n");
         vendors.all().forEach(v -> sb.append(String.format("  %-10s %-14s %s%n", v.code(), v.format(),
                 formatter.format("S12345678   01", v.format()).describe())));

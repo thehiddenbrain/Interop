@@ -8,8 +8,6 @@ import java.util.List;
  * The 200 response of {@code POST /api/v1/member-ids/vendor-map}: the same verification and coverage answer as
  * {@code /resolve}, with the stored id rendered for every configured vendor instead of one. {@code vendorMemberIds}
  * is present only when a member was identified (ACTIVE / INACTIVE), one entry per vendor, sorted by vendor code.
- * {@code ignoredFields} is present when a request field was unusable and ignored (for example a date that is not a
- * real date): the answer is still given, with the date of service defaulted to today where needed.
  * {@code message} is one human-readable sentence for the outcome; {@code sourceMessage} is what the member lookup said
  * when it had no member for the id (NOT_FOUND only). Nothing in the body names MMI (owner). The correlation id travels in the {@code X-Correlation-Id} header.
  */
@@ -20,7 +18,6 @@ public record VendorMapResponse(
         String lineOfBusiness,
         LocalDate dateOfService,
         boolean dateOfServiceDefaulted,
-        List<String> ignoredFields,
         Coverage coverage,
         List<Candidate> candidates,
         List<VendorMemberId> vendorMemberIds,

@@ -106,6 +106,30 @@
     ]
   },
   {
+    "_comment": "TMP member with a calendar-year record only: coverage 01/01/2026 to 12/31/2026. A 2026 date of service is ACTIVE; a 2027 one is INACTIVE (coverage ended), the owner's PQA case (feedback 20).",
+    "memberId": "T20262026   01",
+    "subscriberMemberId": "T20262026   01",
+    "policyId": "T20262026",
+    "memberFirstName": "Taylor",
+    "memberLastName": "Yearly",
+    "memberDob": "04/12/1951",
+    "gender": "F",
+    "socialSecurityNumber": "***-**-2026",
+    "legacyMemberId": null,
+    "company": "THP",
+    "lineOfBusiness": "MCR",
+    "restrictedData": "N",
+    "coverage": [
+      {
+        "effDate": "01/01/2026",
+        "endDate": "12/31/2026",
+        "groupId": "00001111",
+        "groupName": "Tufts Medicare Preferred",
+        "voidFlag": "N"
+      }
+    ]
+  },
+  {
     "_comment": "Public Plans (Together) subscriber. Ids are 11 continuous characters.",
     "memberId": "34567890101",
     "subscriberMemberId": "34567890101",

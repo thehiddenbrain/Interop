@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "fc06bd8a-2b7b-4a0b-a1a5-d2d605d0da94",
     "name": "Member ID Resolution Service",
-    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (in-process the member lookup stub on port 9090; start the service with --spring.profiles.active=dev, the default profile is pqa). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One the member lookup call either way. The member id is sent to the member lookup exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient: only the member id is required; a vendor or any unknown property is accepted and ignored; an unusable date is ignored, not rejected, and named in ignoredFields. Every 200 carries a one-sentence \"message\" right after \"outcome\". the member lookup's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MEMBER_LOOKUP_REJECTED with the member lookup's text; 503 MEMBER_LOOKUP_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. On NOT_FOUND, \"sourceMessage\" (type, status, code, text) carries the member lookup's own message when the member lookup sent one.",
+    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the dev profile (in-process the member lookup stub on port 9090; start the service with --spring.profiles.active=dev, the default profile is pqa). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One the member lookup call either way. The member id is sent to the member lookup exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient about what it does not need: only the member id is required; a vendor or any unknown property is accepted and ignored. A sent date is the date judged: an unusable one is a 400, never replaced by today (feedback 20). Every 200 carries a one-sentence \"message\" right after \"outcome\". the member lookup's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MEMBER_LOOKUP_REJECTED with the member lookup's text; 503 MEMBER_LOOKUP_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. On NOT_FOUND, \"sourceMessage\" (type, status, code, text) carries the member lookup's own message when the member lookup sent one.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -561,6 +561,120 @@
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Calendar-year record, 2026 date of service: ACTIVE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage active on 2026-10-15\"); });",
+                  "pm.test(\".dateOfService = 2026-10-15 (the date asked about)\", function () { const j = pm.response.json(); pm.expect(j.dateOfService).to.eql(\"2026-10-15\"); });",
+                  "pm.test(\".coverage.span.endDate = 2026-12-31\", function () { const j = pm.response.json(); pm.expect(j.coverage.span.endDate).to.eql(\"2026-12-31\"); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "This member has one coverage record, 01/01/2026 to 12/31/2026. The date of service is inside it."
+          },
+          "response": []
+        },
+        {
+          "name": "Calendar-year record, 2027 date of service: INACTIVE (coverage ended)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
+                  "pm.test(\".coverage.active = false\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); });",
+                  "pm.test(\".message = Member found; coverage ended before 2027-10-15\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage ended before 2027-10-15\"); });",
+                  "pm.test(\".dateOfService = 2027-10-15 (the date asked about, never today)\", function () { const j = pm.response.json(); pm.expect(j.dateOfService).to.eql(\"2027-10-15\"); });",
+                  "pm.test(\".dateOfServiceDefaulted = false\", function () { const j = pm.response.json(); pm.expect(j.dateOfServiceDefaulted).to.eql(false); });",
+                  "pm.test(\".memberId.forVendor still returned\", function () { const j = pm.response.json(); pm.expect(j.memberId.forVendor).to.eql(\"T2026202601\"); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"2027-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The owner's PQA case (feedback 20): no record covers 2027, so the answer is INACTIVE. A future date is judged on the coverage on record; it is never replaced by today."
           },
           "response": []
         },
@@ -1829,7 +1943,7 @@
           "response": []
         },
         {
-          "name": "Date of service out of the window",
+          "name": "Date of service older than the 10-year history: 400 DATE_OF_SERVICE_OUT_OF_RANGE",
           "event": [
             {
               "listen": "test",
@@ -1875,7 +1989,63 @@
                   "language": "json"
                 }
               }
+            },
+            "description": "Only the past is limited (the lookup keeps about 10 years of coverage). There is no upper limit on the date of service."
+          },
+          "response": []
+        },
+        {
+          "name": "Far-future date of service is not refused: judged on the coverage on record",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".dateOfService = 2036-01-01\", function () { const j = pm.response.json(); pm.expect(j.dateOfService).to.eql(\"2036-01-01\"); });",
+                  "pm.test(\".coverage.span.endDate = null (this member's record is open-ended)\", function () { const j = pm.response.json(); pm.expect(j.coverage.span.endDate).to.eql(null); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
             }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2036-01-01\",\n  \"vendor\": \"EVICORE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "No upper limit on the date of service: this member's coverage on record has no end date, so a 2036 date is active on what is on record."
           },
           "response": []
         },
@@ -2781,7 +2951,6 @@
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
                   "pm.test(\"no .memberId.forVendor\", function () { const j = pm.response.json(); pm.expect(j.memberId).to.not.have.property(\"forVendor\"); });",
-                  "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"EVICORE memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"EVOLENT memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVOLENT\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
@@ -2906,7 +3075,6 @@
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
                   "pm.test(\"no .memberId.forVendor\", function () { const j = pm.response.json(); pm.expect(j.memberId).to.not.have.property(\"forVendor\"); });",
-                  "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"EVICORE memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"EVOLENT memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVOLENT\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
@@ -2973,7 +3141,6 @@
                   "pm.test(\".memberId.received = HP-456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP-456789012\")); });",
                   "pm.test(\".memberId.stored = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"HP456789012\")); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
-                  "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = HP456789012\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"HP456789012\")); }); });",
                   "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
@@ -3034,7 +3201,6 @@
                   "pm.test(\".coverage.active = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(false)); });",
                   "pm.test(\"no .coverage.reason (the reason is in .message)\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"reason\"); });",
                   "pm.test(\".memberId.stored = 34567890102\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890102\")); });",
-                  "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = 34567890102\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890102\")); }); });",
                   "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
@@ -3210,7 +3376,6 @@
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.stored = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890101\")); });",
                   "pm.test(\".lineOfBusiness = PP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"PP\")); });",
-                  "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = 34567890101\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890101\")); }); });",
                   "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
@@ -3322,7 +3487,6 @@
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".dateOfServiceDefaulted = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(false)); });",
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
-                  "pm.test(\"no .ignoredFields\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -3367,7 +3531,7 @@
           "response": []
         },
         {
-          "name": "Unusable dates and unknown fields are ignored, not rejected",
+          "name": "Unknown fields and the vendor are ignored: 200",
           "event": [
             {
               "listen": "test",
@@ -3376,9 +3540,9 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
-                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".dateOfServiceDefaulted = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(true)); });",
-                  "pm.test(\".ignoredFields = [dateOfService, patient.dateOfBirth]\", function () { const j = pm.response.json(); pm.expect(j.ignoredFields).to.eql([\"dateOfService\", \"patient.dateOfBirth\"]); });",
+                  "pm.test(\".dateOfService = 2026-10-15\", function () { const j = pm.response.json(); pm.expect(j.dateOfService).to.eql(\"2026-10-15\"); });",
+                  "pm.test(\".dateOfServiceDefaulted = false\", function () { const j = pm.response.json(); pm.expect(j.dateOfServiceDefaulted).to.eql(false); });",
+                  "pm.test(\"no .ignoredFields (nothing is dropped and reported any more)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ignoredFields\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -3412,18 +3576,73 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"10/15/2026\",\n  \"anything\": \"goes\",\n  \"patient\": {\n    \"dateOfBirth\": \"not-a-date\",\n    \"name\": \"ignored\"\n  }\n}",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\",\n  \"anything\": \"goes\",\n  \"patient\": {\n    \"name\": \"ignored\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "Leniency is about what the operation does not need: the vendor and unknown properties, at the top level and inside patient. A sent date must be usable (next request)."
           },
           "response": []
         },
         {
-          "name": "Date of service out of the window is ignored",
+          "name": "Unusable date of service: 400 DATE_OF_SERVICE_INVALID, never answered for today",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\".error.code = INVALID_REQUEST\", function () { const j = pm.response.json(); pm.expect(j.error.code).to.eql(\"INVALID_REQUEST\"); });",
+                  "pm.test(\".error.details[0].code = DATE_OF_SERVICE_INVALID\", function () { const j = pm.response.json(); pm.expect(j.error.details[0].code).to.eql(\"DATE_OF_SERVICE_INVALID\"); });",
+                  "pm.test(\"no traceId (the lookup is not made)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"traceId\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"10/15/2027\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Before feedback 20 this answered 200 ACTIVE for today, which read as \"active for 2027\". A date that was sent is never replaced by today."
+          },
+          "response": []
+        },
+        {
+          "name": "2027 date of service on a calendar-year record: INACTIVE",
           "event": [
             {
               "listen": "test",
@@ -3431,10 +3650,11 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
-                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".dateOfServiceDefaulted = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.dateOfServiceDefaulted)).to.eql(JSON.stringify(true)); });",
-                  "pm.test(\".ignoredFields = [dateOfService]\", function () { const j = pm.response.json(); pm.expect(j.ignoredFields).to.eql([\"dateOfService\"]); });",
+                  "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
+                  "pm.test(\".coverage.active = false\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); });",
+                  "pm.test(\".message = Member found; coverage ended before 2027-10-15\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage ended before 2027-10-15\"); });",
+                  "pm.test(\".dateOfService = 2027-10-15\", function () { const j = pm.response.json(); pm.expect(j.dateOfService).to.eql(\"2027-10-15\"); });",
+                  "pm.test(\".dateOfServiceDefaulted = false\", function () { const j = pm.response.json(); pm.expect(j.dateOfServiceDefaulted).to.eql(false); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -3468,7 +3688,59 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"1999-01-01\"\n}",
+              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"2027-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The owner's PQA case on the vendor map: the member's only record ends 12/31/2026."
+          },
+          "response": []
+        },
+        {
+          "name": "Date of service older than the history: 400 DATE_OF_SERVICE_OUT_OF_RANGE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\".error.details[0].code = DATE_OF_SERVICE_OUT_OF_RANGE\", function () { const j = pm.response.json(); pm.expect(j.error.details[0].code).to.eql(\"DATE_OF_SERVICE_OUT_OF_RANGE\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"1999-01-01\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

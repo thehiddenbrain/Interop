@@ -356,3 +356,29 @@ See the conversation; answers will be appended here.
 - Removed: the step numbers, the two callouts, the coverage status, the member records box, the strip of masked ID
   patterns, the dashed fallback line and the footnote.
 - Rule: vendor material says one thing in plain words, with no codes or ID patterns.
+
+## Feedback 20 (2026-10-05): a 2027 date of service came back ACTIVE
+
+- The owner, testing in PQA: with a date of service in 2027 the answer is still ACTIVE, although MMI has no coverage
+  record for 2027. The service must compare the date of service with the coverage MMI returns and say ACTIVE only
+  when a record covers that date.
+- Cause, in `RequestValidator`: on `/vendor-map` a date of service that could not be used (not `yyyy-MM-dd`) or fell
+  outside the window (10 years back, 366 days forward) was dropped, today was evaluated instead, and the answer came
+  back ACTIVE with `dateOfServiceDefaulted: true` and `ignoredFields: ["dateOfService"]`, easy to read as "active for
+  2027". A 2027-10-15 date is also beyond the 366-day window from today. On `/resolve` the same date was a 400
+  `DATE_OF_SERVICE_OUT_OF_RANGE`. Neither compared the date with the coverage.
+- Applied: a date of service that was sent is always the date judged, on both operations. An unusable value (not a
+  real `yyyy-MM-dd` date, or more than 10 years back) is a 400 (`DATE_OF_SERVICE_INVALID` / `DATE_OF_SERVICE_OUT_OF_RANGE`)
+  on `/vendor-map` too, never replaced by today; only a missing date defaults to today. The forward limit is gone: a
+  future date is judged against the coverage on record (a record ending 12/31/2026 gives INACTIVE "coverage ended
+  before 2027-10-15" for a 2027 date). The same for a sent date of birth: unusable means 400. `/vendor-map` stays
+  lenient about the vendor and unknown properties. `ignoredFields` is removed from the response and
+  `member-id.date-of-service.max-future-days` from the configuration.
+- Verification: a new stub member with one calendar-year record (01/01/2026 to 12/31/2026) reproduces the case;
+  tests on both operations assert ACTIVE for 2026-10-15, INACTIVE for 2027-10-15 with the date asked about in the
+  response, 400 for `10/15/2027`, today only when no date is sent, and a far-future date judged rather than refused.
+  121 tests; Postman 70 requests. README, design and handover updated.
+- Left as it was, to confirm with the owner: a coverage record with no end date (blank or 12/31/9999) counts as
+  covering every future date, so for such a member a 2027 date is still ACTIVE, and the response shows
+  `coverage.span.endDate: null`. If the PQA member's record is open-ended and the owner still wants 2027 INACTIVE,
+  the rule to add is a cap on how far an open-ended record counts (for example the end of the current calendar year).

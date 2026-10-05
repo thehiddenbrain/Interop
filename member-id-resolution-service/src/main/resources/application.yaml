@@ -59,8 +59,7 @@ mmi:
 
 member-id:
   date-of-service:
-    max-past-years: 10                  # MMI keeps 10 years of coverage history
-    max-future-days: 366                # prior auths for future dates are normal
+    max-past-years: 10                  # MMI keeps 10 years of coverage history; no upper limit: a future date is judged on the coverage on record
     zone: America/New_York              # "today" for a defaulted date of service
   date-of-birth-max-age-years: 125
   # ------------------------------------------------------------------------------------------------------
