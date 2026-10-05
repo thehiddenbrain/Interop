@@ -1,0 +1,4 @@
+# PQA-LITE environment: the PQA-lite MMI.
+mmi:
+  base-url: http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp
+  log-payloads: ${MMI_LOG_PAYLOADS:true}                    # show the exact MMI request and response in the console (PHI; turn off when done)

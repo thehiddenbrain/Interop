@@ -2,7 +2,8 @@ spring:
   application:
     name: interop-resolution-service
   profiles:
-    default: pqa                        # "Run As > Spring Boot App" in STS with no profile talks to the PQA MMI; Profile = dev for the in-process stub
+    default: PQA                        # "Run As > Spring Boot App" in STS with no profile talks to the PQA MMI; Profile = DEV for the in-process stub.
+                                        # One file per environment: application-DEV.yaml, -FQA, -PQA, -PQA-LITE, -PRD (the profile name is the suffix)
   jackson:
     default-property-inclusion: non_null
     deserialization:
@@ -41,7 +42,7 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{correlationId:-}] %logger{36} - %msg%n"
 
 mmi:
-  base-url: ${MMI_BASE_URL:}            # set per profile (application-<env>.yml) or by environment variable
+  base-url: ${MMI_BASE_URL:}            # set per environment (application-<ENV>.yaml) or by environment variable
   path: /master/member/v1
   client-id: ${MMI_CLIENT_ID:INTEROP}  # PLACEHOLDER: register this application's name with the MMI team
   client-type: INT
@@ -51,11 +52,11 @@ mmi:
   error-message-types: [ERROR]          # messageType values MMI uses for errors in a 200 envelope
   # MMI's HTTP contract and how this service answers (fixed in RestMmiClient, not configurable):
   #   200 -> outcome from the records      404 (no member) -> 200 NOT_FOUND
-  #   400 (bad request) -> 400 MMI_BAD_REQUEST with MMI's text      500 (internal error) -> 503 MMI_UNAVAILABLE
+  #   400 (bad request) -> 400 MEMBER_LOOKUP_REJECTED with MMI's text      500 (internal error) -> 503 MEMBER_LOOKUP_UNAVAILABLE
   #   anything else is a gateway or proxy, not MMI: 503 (5xx/429/408) or 502
-  log-payloads: ${MMI_LOG_PAYLOADS:false}  # print the full MMI request and response bodies (PHI); dev/fqa/pqa/pqa-lite turn it on
+  log-payloads: ${MMI_LOG_PAYLOADS:false}  # print the full MMI request and response bodies (PHI); DEV/FQA/PQA/PQA-LITE turn it on
   stub:
-    enabled: false                      # true only in the dev and test profiles
+    enabled: false                      # true only in the DEV and test profiles
 
 member-id:
   date-of-service:

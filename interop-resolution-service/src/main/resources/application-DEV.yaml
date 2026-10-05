@@ -1,0 +1,10 @@
+# DEV: developer profile (activate with --spring.profiles.active=DEV, or Profile = DEV in the STS run configuration):
+# no network, in-process MMI stub with the fixtures in mmi-stub/members.json.
+mmi:
+  base-url: http://mmi-stub.local
+  stub:
+    enabled: true
+  log-payloads: ${MMI_LOG_PAYLOADS:true}                    # show the exact MMI request and response in the console
+logging:
+  level:
+    org.p32h.interop: DEBUG

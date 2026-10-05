@@ -450,3 +450,17 @@ See the conversation; answers will be appended here.
 - The owner may still adjust any part of the form: which form of the member ID (stored with spaces, 11 characters
   without spaces, or the 9-character core), the separator and date format, the token for an open-ended period, and
   whether `coverageId` sits inside `coverage` or at the top level. Each is a one-line change in `ResolutionService`.
+
+## Feedback 25 (2026-10-05): package `org.p32h`; one configuration file per environment, DEV / FQA / PQA / PRD
+
+- The base package is `org.p32h` (was `org.point32health`): every class is under `org.p32h.interop`, the Gradle `group`
+  is `org.p32h`, and the logger names in the profile files follow. Folder, jar, application name, main class and the
+  API paths are unchanged.
+- Environment-specific configuration files, named by the environment in upper case: `application-DEV.yaml` (in-process
+  stub), `application-FQA.yaml`, `application-PQA.yaml`, `application-PRD.yaml` (was `prod`), plus
+  `application-PQA-LITE.yaml` for the PQA-lite MMI the owner gave earlier (one file to delete if that environment is not
+  wanted). The profile name is the file suffix (`SPRING_PROFILES_ACTIVE=DEV|FQA|PQA|PQA-LITE|PRD`); the default stays
+  PQA; the stub guard accepts DEV and test; `application.yaml` holds what every environment shares. Run scripts, README,
+  handover, design and the Postman description follow.
+- For the owner's STS workspace: pull, then right-click the project → Gradle → Refresh Gradle Project; the run
+  configuration's Profile field becomes `DEV` (was `dev`).

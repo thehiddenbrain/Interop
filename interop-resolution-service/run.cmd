@@ -8,7 +8,7 @@ rem
 rem  Options (environment variables, set them before running):
 rem    INTEROP_JAVA_HOME=C:\Program Files\Java\jdk-17   use this JDK for the build and the app
 rem    SERVER_PORT=9091                               change the port
-rem    SPRING_PROFILES_ACTIVE=dev                     in-process MMI stub instead of the PQA MMI (the default profile is pqa)
+rem    SPRING_PROFILES_ACTIVE=DEV                     in-process MMI stub instead of the PQA MMI (the default profile is PQA)
 rem =====================================================================
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
@@ -45,7 +45,7 @@ if not defined JAR (
     echo %%~nxf | findstr /i /v "\-plain" >nul && set "JAR=%%~f"
   )
 )
-if not defined SPRING_PROFILES_ACTIVE set "SPRING_PROFILES_ACTIVE=pqa"
+if not defined SPRING_PROFILES_ACTIVE set "SPRING_PROFILES_ACTIVE=PQA"
 if not defined SERVER_PORT set "SERVER_PORT=9090"
 echo Starting %JAR% (profile: %SPRING_PROFILES_ACTIVE%) -^> http://localhost:%SERVER_PORT%/swagger-ui.html
 "%JAVA_EXE%" -jar "%JAR%" %*

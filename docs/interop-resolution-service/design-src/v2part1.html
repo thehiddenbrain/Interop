@@ -92,12 +92,17 @@
 
 <div class="callout">
   <div class="label">Revised 2026-10-05 (owner feedback 22)</div>
-  <p>Renamed from Member ID Resolution Service to <b>Interop Resolution Service</b>: the service will also answer other interop lookups for Onyx, such as payer IDs and payer organization names, so its name now says what it is for rather than what its first capability is. Folder <code>interop-resolution-service</code>, package <code>org.point32health.interop</code>, main class <code>InteropResolutionApplication</code>, application name and jar <code>interop-resolution-service</code>; the API paths are unchanged (<code>/api/v1/member-ids/…</code>; a payer capability would add <code>/api/v1/payers/…</code>). The MMI client id placeholder is now <code>INTEROP</code>, still to be registered.</p>
+  <p>Renamed from Member ID Resolution Service to <b>Interop Resolution Service</b>: the service will also answer other interop lookups for Onyx, such as payer IDs and payer organization names, so its name now says what it is for rather than what its first capability is. Folder <code>interop-resolution-service</code>, package <code>org.point32health.interop</code> (since feedback 25: <code>org.p32h.interop</code>), main class <code>InteropResolutionApplication</code>, application name and jar <code>interop-resolution-service</code>; the API paths are unchanged (<code>/api/v1/member-ids/…</code>; a payer capability would add <code>/api/v1/payers/…</code>). The MMI client id placeholder is now <code>INTEROP</code>, still to be registered.</p>
 </div>
 
 <div class="callout">
   <div class="label">Revised 2026-10-05 (owner feedback 23 and 24, built on the owner's go)</div>
   <p>Optum confirmed that it stores only the 9 characters of the member ID, the number printed on the card, not the 11 characters with the suffix. Optum's format is now <code>CORE_9</code>: <code>memberId.forVendor</code> and the Optum entry of <code>vendorMemberIds[]</code> carry the core alone for a TMP/SCO id (Public Plans and HPHC ids stay as stored, as for every vendor); the "two fields" form, <code>forVendorParts</code> and <code>memberIdParts</code>, is gone. And <code>coverage</code> gains <code>coverageId</code>, an id for the coverage period behind the answer: the stored member id without its spaces, the period's effective date and its end date as <code>yyyyMMdd</code>, hyphen-joined (<code>99991231</code> for an open-ended period), present whenever <code>coverage.span</code> is. Sections 2.1, 6, 7, 12, 16 and 17 are updated; the decision log in section 18 has both entries.</p>
+</div>
+
+<div class="callout">
+  <div class="label">Revised 2026-10-05 (owner feedback 25)</div>
+  <p>The base package is <code>org.p32h</code>: every class lives under <code>org.p32h.interop</code> (was <code>org.point32health.interop</code>). Configuration is one file per environment, named by it in upper case: <code>application-DEV.yaml</code> (in-process stub), <code>application-FQA.yaml</code>, <code>application-PQA.yaml</code> (the default), <code>application-PQA-LITE.yaml</code>, <code>application-PRD.yaml</code>; the profile name is the file suffix and <code>application.yaml</code> holds what every environment shares. Sections 9.4, 14, 15 and 16 are updated; the decision log in section 18 has the entry.</p>
 </div>
 
 <div class="callout">

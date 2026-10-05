@@ -16,7 +16,7 @@ period (`dateOfService` to `dateOfServiceEnd`). Two operations, one downstream (
 |---|---|
 | Endpoints | `POST /api/v1/member-ids/resolve` (one vendor) · `POST /api/v1/member-ids/vendor-map` (every vendor), port **9090** |
 | Stack | Spring Boot 4.0.7 (Spring Framework 7, Jackson 3) / Java 17+ / Gradle 9.5 wrapper, springdoc 3: the same build shape as the EPA Workbench and the member profile service |
-| Swagger UI | `http://localhost:9090/swagger-ui.html` (off in `prod`) |
+| Swagger UI | `http://localhost:9090/swagger-ui.html` (off in `PRD`) |
 | Health | `http://localhost:9090/actuator/health` |
 
 ## 1. Run it in STS (or any IDE)
@@ -47,9 +47,9 @@ In STS (EGit and Buildship are bundled):
    **File → Import… → Gradle → Existing Gradle Project**, Project root directory
    `C:\git\Interop\interop-resolution-service` → Finish. Buildship uses the wrapper (Gradle 9.5.0) and
    downloads the dependencies on the first import.
-6. Right-click `InteropResolutionApplication` → **Run As → Spring Boot App**. The default profile is `pqa`
+6. Right-click `InteropResolutionApplication` → **Run As → Spring Boot App**. The default profile is `PQA`
    (the real PQA MMI, network needed). For the in-process stub open *Run Configurations… → Spring Boot App*
-   and put `dev` in the **Profile** field.
+   and put `DEV` in the **Profile** field.
 
 Later updates: right-click the project → **Team → Pull**. If `build.gradle` changed, right-click → **Gradle →
 Refresh Gradle Project**. Your own changes: **Team → Commit… → Commit and Push** (the token's *Contents: Read and
@@ -87,37 +87,42 @@ newer is needed (17, 21 and 25 all work); the wrapper downloads Gradle and the d
 1. From a zip instead of GitHub: **File → Import → Gradle → Existing Gradle Project**, pick this folder
    (`interop-resolution-service`; keep the folder name, Buildship wants it equal to the project name), accept
    the defaults (Gradle wrapper).
-2. Run `InteropResolutionApplication` as a **Spring Boot App**. With no profile set it runs the **`pqa`**
-   profile and calls the PQA MMI. With Profile = `dev` an **in-process MMI stub** answers from
+2. Run `InteropResolutionApplication` as a **Spring Boot App**. With no profile set it runs the **`PQA`**
+   profile and calls the PQA MMI. With Profile = `DEV` an **in-process MMI stub** answers from
    `src/main/resources/mmi-stub/members.json`, so nothing needs network access.
 3. Open `http://localhost:9090/swagger-ui.html` or import the Postman collection in `postman/` (the collection
-   expects the `dev` profile).
+   expects the `DEV` profile).
 
 Command line: `./run.sh` (Mac/Linux) or `run.cmd` / `run.bat` (Windows) build the jar on first use and start it;
-`./gradlew bootRun` (pqa, the default) · `./gradlew bootRun --args='--spring.profiles.active=dev'` (stub) ·
+`./gradlew bootRun` (PQA, the default) · `./gradlew bootRun --args='--spring.profiles.active=DEV'` (stub) ·
 `./gradlew test` (all tests) · `./gradlew bootJar` then `java -jar build/libs/interop-resolution-service-1.0.0.jar`
-(pqa) or `... --spring.profiles.active=dev` (stub).
+(PQA) or `... --spring.profiles.active=DEV` (stub).
 
 ### Point it at a real MMI
 
-| Profile | MMI |
+| Profile = file | MMI |
 |---|---|
-| `dev` | in-process stub, no network (`--spring.profiles.active=dev`; Profile field `dev` in STS) |
-| `fqa` | `http://mastermemberindexserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp` |
-| `pqa` (**default**) | `http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` |
-| `pqa-lite` | `http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` |
-| `prod` | `http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp` |
+| `DEV` = `application-DEV.yaml` | in-process stub, no network (`--spring.profiles.active=DEV`; Profile field `DEV` in STS) |
+| `FQA` = `application-FQA.yaml` | `http://mastermemberindexserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp` |
+| `PQA` = `application-PQA.yaml` (**default**) | `http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` |
+| `PQA-LITE` = `application-PQA-LITE.yaml` | `http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` |
+| `PRD` = `application-PRD.yaml` | `http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp` |
+
+One configuration file per environment in `src/main/resources`, named by the environment in upper case; the profile
+name is the file suffix (`SPRING_PROFILES_ACTIVE=DEV|FQA|PQA|PQA-LITE|PRD`). `application.yaml` holds what every
+environment shares (port, JSON rules, MMI path and timeouts, the vendor table); an environment file sets only what differs
+(the MMI URL, payload logging, the stub, Swagger, log levels).
 
 #### Pointing at the real MMI, step by step
 
-The profile is the only switch. Any profile other than `dev` turns the stub off and uses the MMI URL from
-that profile's `application-<profile>.yaml`; nothing else changes.
+The profile is the only switch. Any profile other than `DEV` turns the stub off and uses the MMI URL from
+that environment's `application-<ENV>.yaml`; nothing else changes.
 
 1. **STS**: Run → Run Configurations → Spring Boot App → `InteropResolutionApplication` → **Profile** field:
-   `pqa` (or on the Arguments tab, Program arguments: `--spring.profiles.active=pqa`). Apply, Run.
-2. **Command line**: `set SPRING_PROFILES_ACTIVE=pqa` then `run.cmd` (Windows), or
-   `SPRING_PROFILES_ACTIVE=pqa ./run.sh`, or `java -jar build/libs/interop-resolution-service-1.0.0.jar --spring.profiles.active=pqa`.
-3. **Check the startup banner** in the console. It must say `profiles : [pqa]`, `mmi client : REST` and the PQA
+   `PQA` (or on the Arguments tab, Program arguments: `--spring.profiles.active=PQA`). Apply, Run.
+2. **Command line**: `set SPRING_PROFILES_ACTIVE=PQA` then `run.cmd` (Windows), or
+   `SPRING_PROFILES_ACTIVE=PQA ./run.sh`, or `java -jar build/libs/interop-resolution-service-1.0.0.jar --spring.profiles.active=PQA`.
+3. **Check the startup banner** in the console. It must say `profiles : [PQA]`, `mmi client : REST` and the PQA
    URL. If it says `STUB`, the profile did not apply. `http://localhost:9090/actuator/info` shows the build.
 4. **Network**: your machine (or the pod) must reach `mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp`
    on port 80 (plain HTTP, no token, as the MMI contract states). If it cannot, every call answers
@@ -131,12 +136,12 @@ that profile's `application-<profile>.yaml`; nothing else changes.
 #### Reading the MMI request and response when something fails
 
 `mmi.log-payloads: true` makes the MMI client write the exact request body and the raw response body to the
-console, unmasked, as two lines per call. It is on in `dev`, `fqa`, `pqa` and `pqa-lite` and off in `prod`
+console, unmasked, as two lines per call. It is on in `DEV`, `FQA`, `PQA` and `PQA-LITE` and off in `PRD`
 (the bodies contain PHI). The startup banner shows `mmi payload log : ON` when it is active. A real call
 looks like this:
 
 ```
-INFO  [<correlationId>] o.p.memberid.mmi.RestMmiClient - mmi request requestId=INTEROP-1791083521042-40296 POST http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp/master/member/v1
+INFO  [<correlationId>] org.p32h.interop.mmi.RestMmiClient - mmi request requestId=INTEROP-1791083521042-40296 POST http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp/master/member/v1
 {"memberId":"123456789","legacyMemberId":"123456789","voidCoverageRecord":"N","clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296"}
 INFO  [<correlationId>] o.p.memberid.mmi.RestMmiClient - mmi response requestId=INTEROP-1791083521042-40296 status=200 contentType=application/json ms=18
 {"clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296","messages":null,"members":[ ... ]}
@@ -152,7 +157,7 @@ What the lines tell you:
 | `mmi response ... status=500`, this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` with `HTTP_500` and `Retry-After: 10` | An internal error in MMI; the error message forwards MMI's code and text when the body had a message | Retry later; if it persists, send the request line's JSON and MMI's message to the MMI team |
 | `mmi response ... status=<anything else>` (403, 502, 503 ...), this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` (5xx, 429, 408) or `502 MEMBER_LOOKUP_ERROR` (other 4xx) with `HTTP_<code>` | The status is outside MMI's contract: a gateway, proxy or container answered, not MMI; the error message says so and repeats the URL | Check the host, the proxy settings and the URL on the `mmi request` line |
 | `mmi response ... status=200` then `502 MEMBER_LOOKUP_INVALID_RESPONSE` with `UNPARSEABLE_BODY` from this service | The body is not the MMI JSON (often an HTML sign-in or proxy page, `contentType=text/html`) | The call is being intercepted before MMI; check proxy settings and the host |
-| `mmi response ... status=200` and the body has fields this service does not know | MMI added or renamed fields | Paste the response line; the DTOs in `org.point32health.interop.mmi` are updated to match |
+| `mmi response ... status=200` and the body has fields this service does not know | MMI added or renamed fields | Paste the response line; the DTOs in `org.p32h.interop.mmi` are updated to match |
 | `mmi response ... status=200`, `members` is empty and `messages[]` has no `ERROR` message, this service answers `200 NOT_FOUND` | MMI answered 200 with no member (MMI's contract uses 404 for that; this form is kept as `NOT_FOUND` too) | Use an id that exists in PQA |
 | `mmi response ... status=200`, `members` is empty and `messages[]` has an `ERROR` message (for example `ES_TIMEOUT`), this service answers `502 MEMBER_LOOKUP_ERROR` with `ERROR_MESSAGE` | MMI reported a failure of its own; the 502 message forwards MMI's `code=` and `text=` | Send the request line's JSON and MMI's message to the MMI team |
 
@@ -163,10 +168,10 @@ Overrides without a rebuild (environment variables or `-D` system properties): `
 profile file needed), `MMI_CLIENT_ID` (placeholder `INTEROP`; register the real application name with the
 MMI team), `MMI_CONNECT_TIMEOUT=2s`, `MMI_READ_TIMEOUT=5s`, `MMI_LOG_PAYLOADS=true|false`.
 
-**Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `pqa` so that "Run As →
+**Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `PQA` so that "Run As →
 Spring Boot App" in STS talks to the PQA MMI with no setup. A pod that forgets the variable would therefore call
-the PQA MMI, wrong in prod and in FQA: set `prod`, `fqa`, `pqa` or `pqa-lite` explicitly in every deployment. Two
-guards back the stub: it refuses to start with any explicitly active profile other than `dev` or `test`, and it
+the PQA MMI, wrong in PRD and in FQA: set `PRD`, `FQA`, `PQA` or `PQA-LITE` explicitly in every deployment. Two
+guards back the stub: it refuses to start with any explicitly active profile other than `DEV` or `test`, and it
 refuses to start inside a Kubernetes/OpenShift pod at all (it checks `KUBERNETES_SERVICE_HOST`).
 
 ## 2. The API
@@ -252,7 +257,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
 
-A `NOT_FOUND` answer from the dev stub (the real MMI's values will differ; the stub answers HTTP 404, as the owner
+A `NOT_FOUND` answer from the DEV stub (the real MMI's values will differ; the stub answers HTTP 404, as the owner
 describes for MMI, with an `ERROR`-typed `MEMBER_NOT_FOUND` message of its own; whether the real 404 carries such a
 message is confirmed in PQA (section 7)):
 
@@ -468,7 +473,7 @@ member-id:
 Formats: `COMPACT_11`, `SPACED_14`, `CORE_9`, `AS_STORED`. The TMP core is **9 characters, a letter and 8 digits** (`S12345678`), stored with three spaces and the suffix `01`: `S12345678   01`. A format applies when the stored id is a run of letters and digits, a separator (any blanks or punctuation) and a short numeric suffix; the core and the suffix are copied character for character, so the `S` is always kept (`S1234567801`, `S12345678   01`; Optum receives the core alone, `S12345678`). A stored id of any other shape is passed on unchanged and, when it is not plain letters and digits, the log says so (`marker=STORED_ID_NOT_RESHAPED` with the shape, never the characters). A new output shape = one constant in
 `VendorIdFormat` + one case in `VendorFormatter` + one test row.
 
-## 5. Stub fixtures (dev profile: `--spring.profiles.active=dev`) and Postman
+## 5. Stub fixtures (DEV profile: `--spring.profiles.active=DEV`) and Postman
 
 `src/main/resources/mmi-stub/members.json` behaves like MMI: exact match, 9-character (policy) match returning
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
@@ -497,7 +502,7 @@ Postman: import `postman/InteropResolution.postman_collection.json` and
 run the whole collection with the Collection Runner for a green scenario pass. Folders 1 to 5 exercise
 `/resolve` (folder 6 is health and the OpenAPI document); folder **7 Vendor map** exercises `/vendor-map` with the same fixtures (the TMP id in every
 vendor's format, HPHC and Public Plans ids passed as stored, answers without `vendorMemberIds`, and the lenient
-request: a `vendor` or an unusable date accepted and ignored, only a missing member id answered 400 `INVALID_REQUEST`). The dev
+request: a `vendor` or an unusable date accepted and ignored, only a missing member id answered 400 `INVALID_REQUEST`). The DEV
 stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` is true rather than a specific date.
 
 ## 6. Tests

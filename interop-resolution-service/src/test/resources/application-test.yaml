@@ -5,4 +5,4 @@ mmi:
   log-payloads: false
 logging:
   level:
-    org.point32health.interop: DEBUG
+    org.p32h.interop: DEBUG
