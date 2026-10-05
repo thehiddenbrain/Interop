@@ -435,3 +435,16 @@ See the conversation; answers will be appended here.
   unless another vendor needs two fields; the tests, the Postman requests, README section 4, the design (sections 2.1,
   6 and 12) and the vendor diagram's example sentence ("the member's full ID, with the suffix") follow. Public Plans
   and HPHC ids stay as stored for Optum, as for every vendor.
+
+## Feedback 24 (2026-10-05), PENDING, not applied: a coverageId in the response
+
+- Add `coverageId` to the response for Onyx: coverageId = member ID + effective date + end date.
+- Proposal to build on "go" (the owner may adjust any part): `coverageId` inside the `coverage` block, next to
+  `active` and `span`, present whenever `span` is present (ACTIVE, and INACTIVE because the period ends within the
+  period of service), on both operations. Value = the stored member ID without its spaces (the 11-character form for
+  TMP/SCO, as stored for Public Plans and HPHC) + `-` + the period's effective date as `yyyyMMdd` + `-` + its end date
+  as `yyyyMMdd`, with `99991231` when the period has no end date. The period is the continuous coverage period of
+  `coverage.span` (feedback 21), so the id is stable across calls for the same member and the same coverage.
+- Open to confirm with the owner: which form of the member ID (stored with spaces, 11 characters without spaces, or the
+  9-character core), the separator and date format, the token for an open-ended period, and whether `coverageId`
+  sits inside `coverage` or at the top level.
