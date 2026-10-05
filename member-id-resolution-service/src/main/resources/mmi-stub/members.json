@@ -130,6 +130,37 @@
     ]
   },
   {
+    "_comment": "TMP member re-enrolled year after year: two adjacent plan-year records, 01/01/2025 to 12/31/2025 and 01/01/2026 to 12/31/2026. They are one continuous coverage period, so a period of service across the year boundary is ACTIVE; one running into 2027 is INACTIVE (feedback 21).",
+    "memberId": "U20252026   01",
+    "subscriberMemberId": "U20252026   01",
+    "policyId": "U20252026",
+    "memberFirstName": "Uma",
+    "memberLastName": "Continuous",
+    "memberDob": "07/23/1948",
+    "gender": "F",
+    "socialSecurityNumber": "***-**-2025",
+    "legacyMemberId": null,
+    "company": "THP",
+    "lineOfBusiness": "MCR",
+    "restrictedData": "N",
+    "coverage": [
+      {
+        "effDate": "01/01/2026",
+        "endDate": "12/31/2026",
+        "groupId": "00001111",
+        "groupName": "Tufts Medicare Preferred",
+        "voidFlag": "N"
+      },
+      {
+        "effDate": "01/01/2025",
+        "endDate": "12/31/2025",
+        "groupId": "00001111",
+        "groupName": "Tufts Medicare Preferred",
+        "voidFlag": "N"
+      }
+    ]
+  },
+  {
     "_comment": "Public Plans (Together) subscriber. Ids are 11 continuous characters.",
     "memberId": "34567890101",
     "subscriberMemberId": "34567890101",

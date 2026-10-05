@@ -23,7 +23,9 @@ import org.springframework.stereotype.Component;
  * date evaluated, never replaced by today: a value that is not a real {@code yyyy-MM-dd} date, or is older than the
  * coverage history MMI keeps, is a 400 on both operations. Only a missing or blank date defaults to today. There is no
  * upper limit: a future date is judged against the coverage on record, which is the only way a 2027 date can be told
- * apart from a 2026 one. The same holds for a sent date of birth: unusable means 400, never silently dropped.
+ * apart from a 2026 one. A prior authorization may cover a period (feedback 21): {@code dateOfServiceEnd}, optional,
+ * makes the request about every day from {@code dateOfService} to it; it must be a real date, not before the start,
+ * and never comes alone. The same holds for a sent date of birth: unusable means 400, never silently dropped.
  *
  * <p>Two modes. {@code /resolve} is strict and needs a vendor. {@code /vendor-map} is lenient about what it does not
  * need: the vendor and unknown properties are accepted and ignored, and only the member id is required.
@@ -35,11 +37,23 @@ public class RequestValidator {
     private static final Pattern VENDOR = Pattern.compile("^[A-Za-z0-9 _.()-]{1,40}$");
 
     /**
-     * @param memberId the id as Onyx sent it, surrounding whitespace removed: what is sent to MMI and echoed back
-     * @param vendor   the vendor code or alias as sent; null for the vendor-map operation
+     * @param memberId         the id as Onyx sent it, surrounding whitespace removed: what is sent to MMI and echoed back
+     * @param dateOfService    the first (or only) date of service
+     * @param dateOfServiceEnd the last date of service when a period was sent, else null
+     * @param vendor           the vendor code or alias as sent; null for the vendor-map operation
      */
-    public record Validated(String memberId, LocalDate dateOfService, boolean dateOfServiceDefaulted,
+    public record Validated(String memberId, LocalDate dateOfService, LocalDate dateOfServiceEnd, boolean dateOfServiceDefaulted,
             LocalDate dateOfBirth, String vendor) {
+
+        /** The last date the answer is about: the end of the period, or the single date itself. */
+        public LocalDate lastDateOfService() {
+            return dateOfServiceEnd == null ? dateOfService : dateOfServiceEnd;
+        }
+
+        /** True when the request asked about more than one day. */
+        public boolean isPeriod() {
+            return dateOfServiceEnd != null && dateOfServiceEnd.isAfter(dateOfService);
+        }
     }
 
     private enum Mode { STRICT, LENIENT }
@@ -55,16 +69,17 @@ public class RequestValidator {
     /** Operation 1 ({@code /resolve}), strict: member id, dates and a vendor; every problem is reported. */
     public Validated validate(ResolveRequest request) {
         String dob = request.patient() == null ? null : request.patient().dateOfBirth();
-        return validate(request.memberId(), request.dateOfService(), dob, request.vendor(), Mode.STRICT);
+        return validate(request.memberId(), request.dateOfService(), request.dateOfServiceEnd(), dob, request.vendor(), Mode.STRICT);
     }
 
     /** Operation 2 ({@code /vendor-map}), lenient: only the member id is required; a vendor is ignored. */
     public Validated validate(VendorMapRequest request) {
         String dob = request.patient() == null ? null : request.patient().dateOfBirth();
-        return validate(request.memberId(), request.dateOfService(), dob, null, Mode.LENIENT);
+        return validate(request.memberId(), request.dateOfService(), request.dateOfServiceEnd(), dob, null, Mode.LENIENT);
     }
 
-    private Validated validate(String rawMemberId, String rawDateOfService, String rawDob, String rawVendor, Mode mode) {
+    private Validated validate(String rawMemberId, String rawDateOfService, String rawDateOfServiceEnd, String rawDob, String rawVendor,
+            Mode mode) {
         List<ErrorDetail> details = new ArrayList<>();
         LocalDate today = LocalDate.now(clock);
 
@@ -88,6 +103,20 @@ public class RequestValidator {
                     details.add(new ErrorDetail("dateOfService", "DATE_OF_SERVICE_OUT_OF_RANGE",
                             "must not be before " + min + " (older than the coverage history on record)"));
                 }
+            }
+        }
+
+        LocalDate dosEnd = null;
+        if (rawDateOfServiceEnd != null && !rawDateOfServiceEnd.isBlank()) {
+            dosEnd = parseDate(rawDateOfServiceEnd);
+            if (dosEnd == null) {
+                details.add(new ErrorDetail("dateOfServiceEnd", "DATE_OF_SERVICE_END_INVALID", "expected a real date in yyyy-MM-dd"));
+            } else if (defaulted) {
+                details.add(new ErrorDetail("dateOfServiceEnd", "DATE_OF_SERVICE_END_WITHOUT_START",
+                        "dateOfServiceEnd needs dateOfService, the first date of the period"));
+            } else if (dos != null && dosEnd.isBefore(dos)) {
+                details.add(new ErrorDetail("dateOfServiceEnd", "DATE_OF_SERVICE_END_BEFORE_START",
+                        "dateOfServiceEnd must not be before dateOfService"));
             }
         }
 
@@ -115,7 +144,7 @@ public class RequestValidator {
         if (!details.isEmpty()) {
             throw new InvalidRequestException(details);
         }
-        return new Validated(memberId, dos, defaulted, dob, vendor);
+        return new Validated(memberId, dos, dosEnd, defaulted, dob, vendor);
     }
 
     private static LocalDate parseDate(String value) {

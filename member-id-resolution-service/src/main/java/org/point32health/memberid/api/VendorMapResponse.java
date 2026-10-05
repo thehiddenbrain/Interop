@@ -17,6 +17,7 @@ public record VendorMapResponse(
         MemberId memberId,
         String lineOfBusiness,
         LocalDate dateOfService,
+        LocalDate dateOfServiceEnd,
         boolean dateOfServiceDefaulted,
         Coverage coverage,
         List<Candidate> candidates,

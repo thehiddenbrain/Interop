@@ -36,7 +36,16 @@ public final class MemberSelector {
         this.evaluator = evaluator;
     }
 
+    /** A single date of service. */
     public SelectionResult select(List<MemberRecord> records, LocalDate dateOfBirth, LocalDate dateOfService) {
+        return select(records, dateOfBirth, dateOfService, dateOfService);
+    }
+
+    /**
+     * @param start the first date of service: the record that covers it is the one whose stored id is returned
+     * @param end   the last date of service (equal to {@code start} for a single date); coverage must hold throughout
+     */
+    public SelectionResult select(List<MemberRecord> records, LocalDate dateOfBirth, LocalDate start, LocalDate end) {
         List<MemberRecord> merged = mergeDuplicates(records);
         List<List<MemberRecord>> persons = groupPersons(merged);
 
@@ -58,17 +67,17 @@ public final class MemberSelector {
 
         if (persons.size() == 1) {
             List<MemberRecord> person = persons.get(0);
-            MemberRecord chosen = chooseWithinPerson(person, dateOfService);
+            MemberRecord chosen = chooseWithinPerson(person, start);
             List<CoverageSpan> union = personSpans(person);
-            return new SelectionResult.Selected(chosen, evaluator.evaluate(union, dateOfService), union.size(),
+            return new SelectionResult.Selected(chosen, evaluator.evaluate(union, start, end), union.size(),
                     person.stream().mapToInt(MemberRecord::unreadableSpans).sum());
         }
         List<SelectionResult.Candidate> candidates = persons.stream()
-                .sorted(Comparator.comparing((List<MemberRecord> p) -> chooseWithinPerson(p, dateOfService).matchKey()))
+                .sorted(Comparator.comparing((List<MemberRecord> p) -> chooseWithinPerson(p, start).matchKey()))
                 .map(p -> {
-                    MemberRecord r = chooseWithinPerson(p, dateOfService);
+                    MemberRecord r = chooseWithinPerson(p, start);
                     return new SelectionResult.Candidate(r.storedMemberId(), r.lineOfBusiness(),
-                            evaluator.evaluate(personSpans(p), dateOfService).active());
+                            evaluator.evaluate(personSpans(p), start, end).active());
                 })
                 .toList();
         return new SelectionResult.Ambiguous(dobApplied ? DOB_NOT_DISCRIMINATING : MULTIPLE_PERSONS, candidates);

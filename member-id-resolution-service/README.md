@@ -3,8 +3,10 @@
 Spring Boot service for Onyx. Onyx sends the member ID exactly as the provider's EMR supplied it, the
 date of service and the UM vendor; the service verifies the ID with MMI (Master Member Index), returns it
 **as stored**, returns it **in the vendor's format**, and says whether coverage is **active** on the date
-of service. When Onyx does not yet know the vendor, the **vendor map** operation needs only the member id (anything else sent with it is accepted)
-and returns it in every vendor's format at once. Two operations, one downstream (MMI), no database, no state.
+of service. The **vendor map** operation needs only the member id (anything else sent with it is accepted) and returns it in
+every vendor's format at once; it is the operation Onyx uses, because a prior authorization with several codes may go
+to several vendors and one call then serves them all (owner, 2026-10-05). The date of service may be a single day or a
+period (`dateOfService` to `dateOfServiceEnd`). Two operations, one downstream (MMI), no database, no state.
 
 | | |
 |---|---|
@@ -162,7 +164,8 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed in the response h
 | Field | Required | Notes |
 |---|---|---|
 | `memberId` | yes | As the EMR typed it. Only checked for presence; sent to MMI exactly as received, with surrounding whitespace removed. Not validated or reshaped here. |
-| `dateOfService` | no | `yyyy-MM-dd`. **Defaults to today** when omitted (`dateOfServiceDefaulted: true` in the response). A date that is sent is the date judged, never replaced by today: any future date is judged against the coverage on record; a value that is not a real date, or more than 10 years back, is a 400. |
+| `dateOfService` | no | `yyyy-MM-dd`; the first day when the service covers a period. **Defaults to today** when omitted (`dateOfServiceDefaulted: true` in the response). A date that is sent is the date judged, never replaced by today: any future date is judged against the coverage on record; a value that is not a real date, or more than 10 years back, is a 400. |
+| `dateOfServiceEnd` | no | `yyyy-MM-dd`, the last day when the service covers a period: coverage must then hold on every day from `dateOfService` to it. Not before `dateOfService` (`DATE_OF_SERVICE_END_BEFORE_START`), never alone (`DATE_OF_SERVICE_END_WITHOUT_START`), a real date (`DATE_OF_SERVICE_END_INVALID`). |
 | `vendor` | yes | Code or alias from the vendor table, case-insensitive: `EVICORE`, `MHK`, `EVOLENT`, `CARELON`, `OPTUM`, `ONYX`. |
 | `patient.dateOfBirth` | recommended | `yyyy-MM-dd`. Used only to verify or pick among the records MMI returned. Never sent to MMI, never logged, never echoed. |
 
@@ -187,7 +190,7 @@ back as 400 `MEMBER_LOOKUP_REJECTED` with MMI's text.
   "memberId": { "received": "123456789", "stored": "123456789   01", "forVendor": "12345678901" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2024-01-01", "endDate": null } },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null } },
   "traceId": "MBRIDSVC-1760000000000-48213" }
 ```
 
@@ -197,9 +200,11 @@ For Optum (`SPLIT`) **and a TMP/SCO id** the response also carries `forVendorPar
 "suffix": "01" }`; for Public Plans and HPHC ids only `forVendor` is returned.
 Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 characters, spaces, 2 digits); any other
 stored ID (Public Plans, HPHC) is passed as stored for every vendor.
-`coverage` is the flag and, when active, the coverage period: `coverage.span { effectiveDate, endDate }` is the span
-that covers the date of service (`endDate` is an explicit `null` for open-ended coverage). When inactive there is no
-period and `message` says why. Nothing else is returned about coverage: no reason code, no neighbouring span dates.
+`coverage` is the flag and the coverage period: `coverage.span { effectiveDate, endDate }` is the continuous period
+that covers the (first) date of service (`endDate` is an explicit `null` for open-ended coverage). Records that touch,
+as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true only when
+that period covers every day asked about; when it covers the first day but ends before the last, `active` is false and
+the period is still shown so intake sees how far coverage goes. Otherwise there is no period and `message` says why. Nothing else is returned about coverage: no reason code, no neighbouring span dates.
 `lineOfBusiness` is MMI's value (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it. The company (THP or
 HPHC) is not returned: the stored id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
 to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body.
@@ -209,9 +214,10 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | Field | Present | Content |
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
-| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` · `Member found; coverage ended before <dateOfService>` · `Member found; coverage not yet effective on <dateOfService>` · `Member found; no coverage on <dateOfService> (gap between coverage periods)` · `Member found; no coverage on record` · `No member found for this id` · `Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates`) |
+| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) · `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` · `Member found; coverage ended before <dateOfService>` · `Member found; coverage not yet effective on <dateOfService>` · `Member found; no coverage on <dateOfService> (gap between coverage periods)` · `Member found; no coverage on record` · `No member found for this id` · `Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates`) |
 | `memberId` | always | `received`; `stored`, `forVendor`, `forVendorParts` when a member was identified |
-| `dateOfService`, `dateOfServiceDefaulted` | always | The date evaluated and whether it was defaulted to today |
+| `dateOfService`, `dateOfServiceDefaulted` | always | The (first) date evaluated and whether it was defaulted to today |
+| `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `lineOfBusiness`, `coverage` | `ACTIVE`, `INACTIVE` | From the stored record and the coverage decision: `coverage { active, span? }` |
 | `candidates[]` | `AMBIGUOUS` | `{ storedMemberId, lineOfBusiness, coverageActive }` per person, sorted by id |
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
@@ -250,6 +256,7 @@ X-Correlation-Id: ONYX-PA-2026-000124        (optional; echoed in the response h
 |---|---|---|
 | `memberId` | yes | As the EMR typed it. Same rule as `/resolve`: checked for presence only, sent to MMI exactly as received with surrounding whitespace removed. The only field whose value can cause a 400 (blank: `MEMBER_ID_MISSING`). A field sent as the wrong JSON type (an object or array where a string is expected, a string where `patient` is expected) is a body the service cannot read: 400 `WRONG_JSON_TYPE`, on either operation. |
 | `dateOfService` | no | `yyyy-MM-dd`. Same rule as `/resolve`: **defaults to today** only when omitted; a sent date is the date judged (any future date is judged on the coverage on record; not a real date, or more than 10 years back, is a 400). |
+| `dateOfServiceEnd` | no | Same rule as `/resolve`: the last day of a period of service; coverage must hold on every day of it. |
 | `vendor` | no | **Accepted and ignored**: this operation answers for every vendor. Lets Onyx send the `/resolve` payload as is. |
 | `patient.dateOfBirth` | recommended | `yyyy-MM-dd`. Same rule as `/resolve`: a real date is used to verify or pick among the records MMI returned (a date that matches no record is still 422 `DOB_MISMATCH`); a value that is not a real date, is in the future or is more than 125 years ago is a 400. Never sent to MMI, never logged, never echoed. |
 
@@ -279,7 +286,7 @@ configured vendor, sorted by vendor code, and for `ACTIVE` Onyx picks the entry 
 |---|---|---|
 | `outcome`, `message` | always | Same values and sentences as `/resolve` |
 | `memberId` | always | `received`; `stored` when a member was identified |
-| `lineOfBusiness`, `dateOfService`, `dateOfServiceDefaulted` | as on `/resolve` | |
+| `lineOfBusiness`, `dateOfService`, `dateOfServiceEnd`, `dateOfServiceDefaulted` | as on `/resolve` | |
 | `coverage`, `candidates[]` | as on `/resolve` | |
 | `vendorMemberIds[]` | `ACTIVE`, `INACTIVE` | `{ vendor, memberId, memberIdParts? }` per configured vendor, sorted by vendor code |
 | `traceId` | always | |
@@ -293,7 +300,7 @@ For the TMP id `123456789` (stored `123456789   01`):
   "memberId": { "received": "123456789", "stored": "123456789   01" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2024-01-01", "endDate": null } },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null } },
   "vendorMemberIds": [
     { "vendor": "CARELON", "memberId": "12345678901" },
     { "vendor": "EVICORE", "memberId": "12345678901" },
@@ -314,8 +321,9 @@ For an HPHC id (stored `HP456789012`) or a Public Plans id (`34567890102`) every
 unchanged and no entry has `memberIdParts`: the same rule as `forVendor` on `/resolve`. Absent blocks are
 omitted, not sent as `null`.
 
-**Which one to call.** Call `/resolve` when Onyx already knows the vendor; call `/vendor-map` when it does not,
-and pick the entry for the vendor later. The same payload can go to either: `/vendor-map` ignores the `vendor`.
+**Which one to call.** Onyx calls `/vendor-map` (owner, 2026-10-05): a prior authorization with several codes may go
+to several vendors, and one call gives every vendor's format. `/resolve` stays available for a caller that knows its
+one vendor. The same payload can go to either: `/vendor-map` ignores the `vendor`.
 Either way there is one MMI call, and if this service is down Onyx's fallback is unchanged: pass the EMR's id
 through to the vendor as received.
 
@@ -343,7 +351,7 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 
 | HTTP | `error.code` | When | Onyx action |
 |---|---|---|---|
-| 400 | `INVALID_REQUEST` | `/resolve`: missing member ID, bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE` for a date more than 10 years back; there is no upper limit, a future date is judged on the coverage on record; `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), missing or malformed vendor (`VENDOR_MISSING`, `VENDOR_INVALID`), unknown property (`UNKNOWN_PROPERTY`), malformed JSON, wrong JSON type; every problem is listed in `details[]`. `/vendor-map`: a missing or blank member ID (`MEMBER_ID_MISSING`), the same bad-date codes, or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); a vendor and unknown properties are ignored there, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operations are POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
+| 400 | `INVALID_REQUEST` | `/resolve`: missing member ID, bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE` for a date more than 10 years back; there is no upper limit, a future date is judged on the coverage on record; `DATE_OF_SERVICE_END_INVALID`, `DATE_OF_SERVICE_END_BEFORE_START`, `DATE_OF_SERVICE_END_WITHOUT_START` for the end of a period of service; `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), missing or malformed vendor (`VENDOR_MISSING`, `VENDOR_INVALID`), unknown property (`UNKNOWN_PROPERTY`), malformed JSON, wrong JSON type; every problem is listed in `details[]`. `/vendor-map`: a missing or blank member ID (`MEMBER_ID_MISSING`), the same bad-date codes, or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); a vendor and unknown properties are ignored there, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operations are POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
 | 400 | `UNKNOWN_VENDOR` | `/resolve` only: vendor not in the table; `details[0].message` lists the known codes | Never retry; routing table and this table disagree. |
 | 400 | `MEMBER_LOOKUP_REJECTED` | MMI answered 400: it could not process the request as sent (`details[0].code` `HTTP_400`; the message forwards MMI's code and text when MMI sent a message). `traceId` present, no `Retry-After`. | Never retry as is. Alert the service owners with the `traceId`; MMI's text says what it did not accept. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
@@ -373,10 +381,13 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
 3. Reduce the records: identical records merged; records linked through `legacyMemberId` (THP↔HPHC
    conversion) are one person and the record covering the date of service wins; a supplied DOB picks one
    person or proves a mismatch; several persons without a DOB → `AMBIGUOUS`.
-4. Coverage: a non-void span with `effDate ≤ DOS ≤ endDate` (inclusive; null or `12/31/9999` = open)
-   → active. The date of service is always the date that was sent (today only when none was sent), whatever year
-   it is in: a 2027 date against a record that ends 12/31/2026 is `INACTIVE` ("coverage ended before"), and against
-   a record with no end date it is `ACTIVE`, because that is what the record says. A span with an unreadable date is skipped and logged with `marker=UNREADABLE_SPAN`; the
+4. Coverage: the readable, non-void spans that overlap or touch are joined into continuous periods; `active` when one
+   period covers every day from the first to the last date of service (inclusive; an end of null or `12/31/9999` is
+   open). The dates are always the ones that were sent (today only when none was sent), whatever year they are in:
+   a 2027 date against a record that ends 12/31/2026 is `INACTIVE` ("coverage ended before"), a period from
+   2025-12-20 to 2026-01-05 against records for 2025 and 2026 is `ACTIVE` (one continuous period), a period that
+   runs past the end of coverage is `INACTIVE` ("coverage active on ... but ends ..., before ..."), and any date
+   against a record with no end date is `ACTIVE`, because that is what the record says. A span with an unreadable date is skipped and logged with `marker=UNREADABLE_SPAN`; the
    remaining spans decide. If a member has unreadable spans and no readable one, the answer is 502
    `UNREADABLE_COVERAGE`, never a confident INACTIVE. For a converted member the two records' spans are
    evaluated together, so a gap between the old and the new record is reported as a gap.
@@ -480,7 +491,10 @@ that unknown properties are ignored, and that an unusable date of service or dat
 DOB is still 422 `DOB_MISMATCH` after the one MMI call (`traceId` present). `aFutureDateOfServiceIsJudgedOnTheCoverageOnRecord` and
 `aSentDateOfServiceIsNeverReplacedByToday` are the owner's PQA case (feedback 20): a member whose only record runs 01/01/2026 to 12/31/2026 is
 ACTIVE for 2026-10-15 and INACTIVE for 2027-10-15 on both operations, the response carries the date asked about, an unusable date is a 400
-and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. A capturing log appender
+and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. `aPeriodOfServiceMustBeCoveredOnEveryDay` (feedback 21): a member with
+adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the merged period in `coverage.span`, INACTIVE
+from 2026-12-20 to 2027-01-05 ("coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05"), `dateOfServiceEnd`
+is echoed only when sent, and an end before the start, without a start or not a date is a 400 on both operations. A capturing log appender
 asserts no log line (message or exception text; payload logging is off in the `test` profile) contains an
 unmasked 9- or 11-digit run or an MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI

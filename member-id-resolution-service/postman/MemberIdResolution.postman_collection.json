@@ -3700,6 +3700,222 @@
           "response": []
         },
         {
+          "name": "Period of service across two adjacent plan-year records: ACTIVE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message = Member found; coverage active from 2025-12-20 to 2026-01-05\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage active from 2025-12-20 to 2026-01-05\"); });",
+                  "pm.test(\".dateOfServiceEnd = 2026-01-05 (echoed when a period was asked about)\", function () { const j = pm.response.json(); pm.expect(j.dateOfServiceEnd).to.eql(\"2026-01-05\"); });",
+                  "pm.test(\".coverage.span = 2025-01-01 .. 2026-12-31 (two records, one continuous period)\", function () { const j = pm.response.json(); pm.expect(j.coverage.span.effectiveDate).to.eql(\"2025-01-01\"); pm.expect(j.coverage.span.endDate).to.eql(\"2026-12-31\"); });",
+                  "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"U20252026\",\n  \"dateOfService\": \"2025-12-20\",\n  \"dateOfServiceEnd\": \"2026-01-05\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "A prior authorization may cover a period (feedback 21): dateOfService is its first day, dateOfServiceEnd its last. Records that touch (12/31 then 01/01) are one continuous coverage period."
+          },
+          "response": []
+        },
+        {
+          "name": "Period of service that outlasts the coverage: INACTIVE (ends within the period)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
+                  "pm.test(\".coverage.active = false\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); });",
+                  "pm.test(\".message = Member found; coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05\"); });",
+                  "pm.test(\".coverage.span.endDate = 2026-12-31 (how far coverage goes)\", function () { const j = pm.response.json(); pm.expect(j.coverage.span.endDate).to.eql(\"2026-12-31\"); });",
+                  "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"U20252026\",\n  \"dateOfService\": \"2026-12-20\",\n  \"dateOfServiceEnd\": \"2027-01-05\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Coverage must hold on every day of the period. Here it covers the first day but ends before the last one."
+          },
+          "response": []
+        },
+        {
+          "name": "Period end before its start: 400 DATE_OF_SERVICE_END_BEFORE_START",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\".error.details[0].code = DATE_OF_SERVICE_END_BEFORE_START\", function () { const j = pm.response.json(); pm.expect(j.error.details[0].code).to.eql(\"DATE_OF_SERVICE_END_BEFORE_START\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"2026-10-15\",\n  \"dateOfServiceEnd\": \"2026-10-14\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Period end without a start: 400 DATE_OF_SERVICE_END_WITHOUT_START",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\".error.details[0].code = DATE_OF_SERVICE_END_WITHOUT_START\", function () { const j = pm.response.json(); pm.expect(j.error.details[0].code).to.eql(\"DATE_OF_SERVICE_END_WITHOUT_START\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "member-ids",
+                "vendor-map"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfServiceEnd\": \"2026-10-20\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Date of service older than the history: 400 DATE_OF_SERVICE_OUT_OF_RANGE",
           "event": [
             {

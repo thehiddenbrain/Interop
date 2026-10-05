@@ -15,7 +15,8 @@
 <thead><tr><th>Field</th><th>Required</th><th>Rules</th></tr></thead>
 <tbody>
 <tr><td><code>memberId</code></td><td>yes</td><td>Non-blank. Sent to MMI exactly as the EMR typed it, with only surrounding whitespace removed; this service applies no length, shape or character rule to it (section 8).</td></tr>
-<tr><td><code>dateOfService</code></td><td>no</td><td><code>yyyy-MM-dd</code>, strictly resolved. The date judged is always the date sent: any future date is judged against the coverage on record; a date more than 10 years back (the coverage history MMI keeps, zone <code>America/New_York</code>) is a 400. <b>Omitted or blank: today</b>, and the response says <code>dateOfServiceDefaulted: true</code>.</td></tr>
+<tr><td><code>dateOfService</code></td><td>no</td><td><code>yyyy-MM-dd</code>, strictly resolved; the first day when the service covers a period. The date judged is always the date sent: any future date is judged against the coverage on record; a date more than 10 years back (the coverage history MMI keeps, zone <code>America/New_York</code>) is a 400. <b>Omitted or blank: today</b>, and the response says <code>dateOfServiceDefaulted: true</code>.</td></tr>
+<tr><td><code>dateOfServiceEnd</code></td><td>no</td><td><code>yyyy-MM-dd</code>, the last day when the service covers a period (feedback 21): coverage must then hold on every day from <code>dateOfService</code> to it. A real date (<code>DATE_OF_SERVICE_END_INVALID</code>), not before the start (<code>DATE_OF_SERVICE_END_BEFORE_START</code>), never alone (<code>DATE_OF_SERVICE_END_WITHOUT_START</code>). Echoed in the response when sent.</td></tr>
 <tr><td><code>vendor</code></td><td>yes</td><td>Code or alias from the vendor table, case-insensitive; 1–40 characters of letters, digits, spaces or <code>_ . ( ) -</code>. The value is never echoed or logged.</td></tr>
 <tr><td><code>patient.dateOfBirth</code></td><td>no (recommended for populations with dependents)</td><td><code>yyyy-MM-dd</code>; not in the future, not more than 125 years ago. <code>patient</code> absent, <code>null</code>, <code>{}</code>, or a null/blank date all mean "not supplied". Used only to verify or pick among records MMI returned; never sent to MMI, never logged, never echoed.</td></tr>
 </tbody></table></div>
@@ -25,15 +26,16 @@
 <thead><tr><th>Field</th><th>ACTIVE</th><th>INACTIVE</th><th>NOT_FOUND</th><th>AMBIGUOUS</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>outcome</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>The field Onyx branches on.</td></tr>
-<tr><td><code>message</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>One sentence for a person reading the response, right after <code>outcome</code>: ACTIVE <code>Member found; coverage active on &lt;dateOfService&gt;</code>; INACTIVE <code>Member found; coverage ended before &lt;dateOfService&gt;</code> · <code>Member found; coverage not yet effective on &lt;dateOfService&gt;</code> · <code>Member found; no coverage on &lt;dateOfService&gt; (gap between coverage periods)</code> · <code>Member found; no coverage on record</code>; NOT_FOUND <code>No member found for this id</code>; AMBIGUOUS <code>Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates</code> (with a DOB that several share: <code>Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates</code>). Onyx branches on <code>outcome</code>, not on this text; the text is what intake reads.</td></tr>
+<tr><td><code>message</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>One sentence for a person reading the response, right after <code>outcome</code>: ACTIVE <code>Member found; coverage active on &lt;dateOfService&gt;</code>; ACTIVE for a period <code>Member found; coverage active from &lt;dateOfService&gt; to &lt;dateOfServiceEnd&gt;</code>; INACTIVE <code>Member found; coverage active on &lt;dateOfService&gt; but ends &lt;end of the coverage period&gt;, before &lt;dateOfServiceEnd&gt;</code> · <code>Member found; coverage ended before &lt;dateOfService&gt;</code> · <code>Member found; coverage not yet effective on &lt;dateOfService&gt;</code> · <code>Member found; no coverage on &lt;dateOfService&gt; (gap between coverage periods)</code> · <code>Member found; no coverage on record</code>; NOT_FOUND <code>No member found for this id</code>; AMBIGUOUS <code>Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates</code> (with a DOB that several share: <code>Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates</code>). Onyx branches on <code>outcome</code>, not on this text; the text is what intake reads.</td></tr>
 <tr><td><code>memberId.received</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>As Onyx sent it, surrounding whitespace removed; exactly the value sent to MMI.</td></tr>
 <tr><td><code>memberId.stored</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The ID exactly as MMI stores it.</td></tr>
 <tr><td><code>memberId.forVendor</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The stored ID in the vendor's format. The only value that goes into a vendor payload.</td></tr>
 <tr><td><code>memberId.forVendorParts</code></td><td>opt</td><td>opt</td><td>–</td><td>–</td><td><code>{ memberId, suffix }</code> for vendors configured <code>SPLIT</code> (Optum) when the stored ID has the TMP shape.</td></tr>
 <tr><td><code>lineOfBusiness</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>MMI's line of business (<code>MCR</code>, <code>PP</code>, <code>COM</code>…); Onyx routes the transaction on it. The company (THP or HPHC) is not returned: the stored id already tells it apart (<code>HP</code> prefix) and Onyx does not act on it.</td></tr>
-<tr><td><code>dateOfService</code>, <code>dateOfServiceDefaulted</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>The date evaluated and whether it was defaulted to today.</td></tr>
+<tr><td><code>dateOfService</code>, <code>dateOfServiceDefaulted</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>The (first) date evaluated and whether it was defaulted to today.</td></tr>
+<tr><td><code>dateOfServiceEnd</code></td><td>opt</td><td>opt</td><td>opt</td><td>opt</td><td>The last date evaluated, echoed when the request asked about a period.</td></tr>
 <tr><td><code>coverage.active</code></td><td><code>true</code></td><td><code>false</code></td><td>–</td><td>–</td><td><b>The flag.</b></td></tr>
-<tr><td><code>coverage.span</code></td><td>✓</td><td>–</td><td>–</td><td>–</td><td>The coverage period: <code>{ effectiveDate, endDate }</code> of the span covering the date; <code>endDate</code> is an explicit <code>null</code> when open-ended. Absent when inactive; the <code>message</code> then says why.</td></tr>
+<tr><td><code>coverage.span</code></td><td>✓</td><td>opt</td><td>–</td><td>–</td><td>The continuous coverage period covering the (first) date of service, <code>{ effectiveDate, endDate }</code>; records that overlap or touch are one period; <code>endDate</code> is an explicit <code>null</code> when open-ended. Present when active, and when inactive only because the period ends before the last day asked about (so intake sees how far coverage goes); otherwise absent, and the <code>message</code> says why.</td></tr>
 <tr><td><code>candidates[]</code></td><td>–</td><td>–</td><td>–</td><td>✓</td><td><code>{ storedMemberId, lineOfBusiness, coverageActive }</code>, one per person, sorted by id, no DOB. What to do about it is in <code>message</code>.</td></tr>
 <tr><td><code>traceId</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>For support: the id we sent to MMI. The Onyx correlation id is in the <code>X-Correlation-Id</code> response header, not in a 200 body.</td></tr>
 <tr><td><code>sourceMessage</code></td><td>–</td><td>–</td><td>opt</td><td>–</td><td><code>{ type, status, code, text }</code>: the first entry of MMI's <code>messages[]</code>, forwarded as MMI sent it, when MMI said it has no member for the id (for example type <code>ERROR</code>, status <code>404</code>, code <code>MEMBER_NOT_FOUND</code>). Present on NOT_FOUND only, and only when MMI sent a message (MMI's 404 with an empty body has none); absent on every other outcome. Last field in the JSON.</td></tr>
@@ -41,11 +43,11 @@
 <p class="small">Fields that do not apply are absent (not null), so a consumer that ignores unknown or missing fields keeps working if a field is added later.</p>
 
 <h3>6.4 Errors (HTTP 4xx / 5xx)</h3>
-<p>One shape: <code>{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "traceId" }</code>. Nothing in it names MMI (owner feedback 16): the codes say <code>MEMBER_LOOKUP_</code>, the messages say "the member lookup", and no URL is returned. <code>traceId</code> is present whenever MMI was called, on a 422 too, so identity review has the trace id. The same envelope serves both operations, but not the same codes: <code>/vendor-map</code> is lenient, and the only 400s of its own validation are <code>MEMBER_ID_MISSING</code> and a body that is not JSON for the operation (<code>MALFORMED_JSON</code>, or <code>WRONG_JSON_TYPE</code> when the body or a field has the wrong JSON type, for example an array where text is expected). The date codes, the vendor codes (<code>VENDOR_MISSING</code>, <code>VENDOR_INVALID</code>, <code>UNKNOWN_VENDOR</code>) and <code>UNKNOWN_PROPERTY</code> come only from <code>/resolve</code>. MMI's own 400 is forwarded as 400 <code>MEMBER_LOOKUP_REJECTED</code> on both operations.</p>
+<p>One shape: <code>{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "traceId" }</code>. Nothing in it names MMI (owner feedback 16): the codes say <code>MEMBER_LOOKUP_</code>, the messages say "the member lookup", and no URL is returned. <code>traceId</code> is present whenever MMI was called, on a 422 too, so identity review has the trace id. The same envelope serves both operations, but not quite the same codes: the vendor codes (<code>VENDOR_MISSING</code>, <code>VENDOR_INVALID</code>, <code>UNKNOWN_VENDOR</code>) and <code>UNKNOWN_PROPERTY</code> come only from <code>/resolve</code>; the member id, date and body codes come from both (feedback 20). MMI's own 400 is forwarded as 400 <code>MEMBER_LOOKUP_REJECTED</code> on both operations.</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>HTTP</th><th><code>error.code</code></th><th><code>details[].code</code></th><th>Onyx</th></tr></thead>
 <tbody>
-<tr><td><span class="pill bad">400</span></td><td><code>INVALID_REQUEST</code></td><td class="wrap"><code>MEMBER_ID_MISSING DATE_OF_SERVICE_INVALID DATE_OF_SERVICE_OUT_OF_RANGE DATE_OF_BIRTH_INVALID DATE_OF_BIRTH_OUT_OF_RANGE VENDOR_MISSING VENDOR_INVALID MALFORMED_JSON UNKNOWN_PROPERTY WRONG_JSON_TYPE</code><br>On <code>/vendor-map</code> only <code>MEMBER_ID_MISSING</code>, <code>MALFORMED_JSON</code> and <code>WRONG_JSON_TYPE</code>.</td><td>Never retry. <code>MEMBER_ID_MISSING</code> and <code>DATE_OF_SERVICE_OUT_OF_RANGE</code> are provider data; the rest are Onyx mapping defects.</td></tr>
+<tr><td><span class="pill bad">400</span></td><td><code>INVALID_REQUEST</code></td><td class="wrap"><code>MEMBER_ID_MISSING DATE_OF_SERVICE_INVALID DATE_OF_SERVICE_OUT_OF_RANGE DATE_OF_SERVICE_END_INVALID DATE_OF_SERVICE_END_BEFORE_START DATE_OF_SERVICE_END_WITHOUT_START DATE_OF_BIRTH_INVALID DATE_OF_BIRTH_OUT_OF_RANGE VENDOR_MISSING VENDOR_INVALID MALFORMED_JSON UNKNOWN_PROPERTY WRONG_JSON_TYPE</code><br>On <code>/vendor-map</code> all of these but the vendor codes and <code>UNKNOWN_PROPERTY</code>.</td><td>Never retry. <code>MEMBER_ID_MISSING</code> and <code>DATE_OF_SERVICE_OUT_OF_RANGE</code> are provider data; the rest are Onyx mapping defects.</td></tr>
 <tr><td><span class="pill bad">400</span></td><td><code>UNKNOWN_VENDOR</code></td><td><code>KNOWN_VENDORS</code> (message lists them)</td><td><code>/resolve</code> only. Never retry; routing and this table disagree.</td></tr>
 <tr><td><span class="pill bad">400</span></td><td><code>MEMBER_LOOKUP_REJECTED</code></td><td><code>HTTP_400</code></td><td>Both operations. MMI itself answered 400: it could not process the request as sent. <code>error.message</code> is <code>The member lookup rejected the request</code>, followed by MMI's message code and text when MMI sent a message. Never retry; send the request and MMI's text to the MMI team. <code>traceId</code> present; no <code>Retry-After</code>.</td></tr>
 <tr><td><span class="pill warn">422</span></td><td><code>DOB_MISMATCH</code></td><td><code>DOB_MISMATCH</code></td><td>Manual identity review; never file the auth.</td></tr>
@@ -71,7 +73,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "123456789", "stored": "123456789   01", "forVendor": "12345678901" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2024-01-01", "endDate": null } },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null } },
   "traceId": "MBRIDSVC-1791086059251-93795" }</code></pre>
 </div>
 <div>
@@ -82,7 +84,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
                 "forVendorParts": { "memberId": "123456789", "suffix": "01" } },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2024-01-01", "endDate": null } },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null } },
   "traceId": "MBRIDSVC-1791086059288-18116" }</code></pre>
 </div>
 <div>
@@ -144,7 +146,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "567890123 01", "stored": "HP567890123", "forVendor": "HP567890123" },
   "lineOfBusiness": "COM",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2025-01-01", "endDate": null } },
+  "coverage": { "active": true, "span": { "effectiveDate": "2020-01-01", "endDate": null } },
   "traceId": "MBRIDSVC-1791086059360-94013" }</code></pre>
 </div>
 <div>
@@ -208,6 +210,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <tbody>
 <tr><td><code>memberId</code></td><td>yes</td><td>As in 6.2: presence only, sent to MMI exactly as typed with surrounding whitespace removed. Missing or blank is the one validation error of this operation: <span class="pill bad">400</span> <code>INVALID_REQUEST</code> / <code>MEMBER_ID_MISSING</code>, MMI not called.</td></tr>
 <tr><td><code>dateOfService</code></td><td>no</td><td>As in 6.2: <code>yyyy-MM-dd</code>, the date judged; any future date is judged on the coverage on record. Omitted or blank: today, <code>dateOfServiceDefaulted: true</code>. Not a real date, or more than 10 years back: <span class="pill bad">400</span> <code>DATE_OF_SERVICE_INVALID</code> / <code>DATE_OF_SERVICE_OUT_OF_RANGE</code>, never answered for today.</td></tr>
+<tr><td><code>dateOfServiceEnd</code></td><td>no</td><td>As in 6.2: the last day of a period of service; coverage must hold on every day of it.</td></tr>
 <tr><td><code>vendor</code></td><td>no</td><td><b>Accepted and ignored</b>: the answer is always for every vendor. Lets Onyx send the <code>/resolve</code> payload unchanged. The value is never echoed or logged.</td></tr>
 <tr><td><code>patient.dateOfBirth</code></td><td>no</td><td>A real <code>yyyy-MM-dd</code> date, not in the future and not more than 125 years ago, is used as in 6.2 to verify or pick among the records MMI returned; one that matches no record is still <span class="pill warn">422</span> <code>DOB_MISMATCH</code>. Not a real date, or implausible: <span class="pill bad">400</span> <code>DATE_OF_BIRTH_INVALID</code> / <code>DATE_OF_BIRTH_OUT_OF_RANGE</code>, as on <code>/resolve</code>. Never sent to MMI, never logged, never echoed.</td></tr>
 <tr><td>any other property</td><td>–</td><td>Ignored, at the top level and inside <code>patient</code> alike; not an error.</td></tr>
@@ -221,7 +224,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <tr><td><code>message</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>As in 6.3: one sentence for the outcome, right after <code>outcome</code>.</td></tr>
 <tr><td><code>memberId.received</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>As Onyx sent it, surrounding whitespace removed; exactly the value sent to MMI.</td></tr>
 <tr><td><code>memberId.stored</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The ID exactly as MMI stores it. There is no <code>memberId.forVendor</code> and no <code>vendor</code> in this response.</td></tr>
-<tr><td><code>lineOfBusiness</code>, <code>dateOfService</code>, <code>dateOfServiceDefaulted</code>, <code>coverage</code>, <code>candidates[]</code>, <code>traceId</code></td><td colspan="4">as in 6.3</td><td>Same blocks, same rules, same presence per outcome as on <code>/resolve</code>.</td></tr>
+<tr><td><code>lineOfBusiness</code>, <code>dateOfService</code>, <code>dateOfServiceEnd</code>, <code>dateOfServiceDefaulted</code>, <code>coverage</code>, <code>candidates[]</code>, <code>traceId</code></td><td colspan="4">as in 6.3</td><td>Same blocks, same rules, same presence per outcome as on <code>/resolve</code>.</td></tr>
 <tr><td><code>vendorMemberIds[]</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>Present only when a member was identified. One entry per configured vendor, sorted by vendor code; five with the delivered table.</td></tr>
 <tr><td><code>vendorMemberIds[].vendor</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The vendor code as configured (<code>CARELON</code>, <code>EVICORE</code>, <code>EVOLENT</code>, <code>MHK</code>, <code>OPTUM</code>).</td></tr>
 <tr><td><code>vendorMemberIds[].memberId</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The stored ID in that vendor's format: what goes into that vendor's payload. Public Plans and HPHC ids are the stored value on every entry (section 12).</td></tr>
@@ -241,7 +244,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "123456789", "stored": "123456789   01" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2024-01-01", "endDate": null } },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null } },
   "vendorMemberIds": [
     { "vendor": "CARELON", "memberId": "12345678901" },
     { "vendor": "EVICORE", "memberId": "12345678901" },
@@ -309,6 +312,44 @@ X-Correlation-Id: ONYX-PA-2026-000123
       &quot;memberIdParts&quot;: {&quot;memberId&quot;: &quot;T20262026&quot;, &quot;suffix&quot;: &quot;01&quot;} } ],
   &quot;traceId&quot;: &quot;MBRIDSVC-1791205854764-53525&quot; }</code></pre>
 <p class="small">The date judged is the date that was sent. This stub member's only record runs 01/01/2026 to 12/31/2026, so 2026-10-15 is ACTIVE and 2027-10-15 is INACTIVE, on both operations. A record with no end date (blank or <code>12/31/9999</code>) would make a 2027 date ACTIVE, because that is what the record says (section 11).</p>
+<h4><span class="pill ok">200</span> ACTIVE for a period of service across two plan-year records (feedback 21)</h4>
+<pre><code>{ "memberId": "U20252026", "dateOfService": "2025-12-20", "dateOfServiceEnd": "2026-01-05" }
+
+{ &quot;outcome&quot;: &quot;ACTIVE&quot;,
+  &quot;message&quot;: &quot;Member found; coverage active from 2025-12-20 to 2026-01-05&quot;,
+  &quot;memberId&quot;: { &quot;received&quot;: &quot;U20252026&quot;, &quot;stored&quot;: &quot;U20252026   01&quot; },
+  &quot;lineOfBusiness&quot;: &quot;MCR&quot;,
+  &quot;dateOfService&quot;: &quot;2025-12-20&quot;, &quot;dateOfServiceEnd&quot;: &quot;2026-01-05&quot;, &quot;dateOfServiceDefaulted&quot;: false,
+  &quot;coverage&quot;: { &quot;active&quot;: true, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;} },
+  &quot;vendorMemberIds&quot;: [
+    { &quot;vendor&quot;: &quot;CARELON&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
+    { &quot;vendor&quot;: &quot;EVICORE&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
+    { &quot;vendor&quot;: &quot;EVOLENT&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
+    { &quot;vendor&quot;: &quot;MHK&quot;      &quot;memberId&quot;: &quot;U20252026   01&quot; },
+    { &quot;vendor&quot;: &quot;ONYX&quot;     &quot;memberId&quot;: &quot;U2025202601&quot; },
+    { &quot;vendor&quot;: &quot;OPTUM&quot;    &quot;memberId&quot;: &quot;U2025202601&quot;,
+      &quot;memberIdParts&quot;: {&quot;memberId&quot;: &quot;U20252026&quot;, &quot;suffix&quot;: &quot;01&quot;} } ],
+  &quot;traceId&quot;: &quot;MBRIDSVC-1791210387881-06393&quot; }</code></pre>
+<p class="small">This stub member has one record for 2025 and one for 2026. They touch, so they are one continuous period, 2025-01-01 to 2026-12-31, and the period of service inside it is ACTIVE.</p>
+<h4><span class="pill warn">200</span> INACTIVE for a period of service that outlasts the coverage</h4>
+<pre><code>{ "memberId": "U20252026", "dateOfService": "2026-12-20", "dateOfServiceEnd": "2027-01-05" }
+
+{ &quot;outcome&quot;: &quot;INACTIVE&quot;,
+  &quot;message&quot;: &quot;Member found; coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05&quot;,
+  &quot;memberId&quot;: { &quot;received&quot;: &quot;U20252026&quot;, &quot;stored&quot;: &quot;U20252026   01&quot; },
+  &quot;lineOfBusiness&quot;: &quot;MCR&quot;,
+  &quot;dateOfService&quot;: &quot;2026-12-20&quot;, &quot;dateOfServiceEnd&quot;: &quot;2027-01-05&quot;, &quot;dateOfServiceDefaulted&quot;: false,
+  &quot;coverage&quot;: { &quot;active&quot;: false, &quot;span&quot;: {&quot;effectiveDate&quot;: &quot;2025-01-01&quot;, &quot;endDate&quot;: &quot;2026-12-31&quot;} },
+  &quot;vendorMemberIds&quot;: [
+    { &quot;vendor&quot;: &quot;CARELON&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
+    { &quot;vendor&quot;: &quot;EVICORE&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
+    { &quot;vendor&quot;: &quot;EVOLENT&quot;  &quot;memberId&quot;: &quot;U2025202601&quot; },
+    { &quot;vendor&quot;: &quot;MHK&quot;      &quot;memberId&quot;: &quot;U20252026   01&quot; },
+    { &quot;vendor&quot;: &quot;ONYX&quot;     &quot;memberId&quot;: &quot;U2025202601&quot; },
+    { &quot;vendor&quot;: &quot;OPTUM&quot;    &quot;memberId&quot;: &quot;U2025202601&quot;,
+      &quot;memberIdParts&quot;: {&quot;memberId&quot;: &quot;U20252026&quot;, &quot;suffix&quot;: &quot;01&quot;} } ],
+  &quot;traceId&quot;: &quot;MBRIDSVC-1791210387892-43141&quot; }</code></pre>
+<p class="small">Covered on the first day, not on the last: the flag is false, the message says where coverage ends, and the period is still shown so intake sees how far it goes.</p>
 <h4><span class="pill bad">400</span> An unusable date of service is refused, never answered for today</h4>
 <pre><code>{ "memberId": "T20262026", "dateOfService": "10/15/2027" }
 
@@ -319,12 +360,12 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <p class="small">Before feedback 20 this request answered 200 ACTIVE for today, with <code>dateOfServiceDefaulted: true</code>, which read as "active for 2027".</p>
 
 <h2 id="onyx"><span class="num">7</span>What Onyx does with each answer</h2>
-<p>Which operation: <code>/resolve</code> when Onyx already knows the vendor; <code>/vendor-map</code> when it does not, in which case Onyx keeps <code>vendorMemberIds[]</code> with the transaction and takes the entry for the vendor once it is known. One MMI call either way, and the rows below apply to both: the vendor map carries the same <code>outcome</code>, <code>message</code>, <code>coverage</code> and <code>candidates</code>. Onyx may send the same payload to both: on <code>/vendor-map</code> the vendor and any property the operation does not need are ignored; a date that cannot be used is a 400 on both, because the answer is always about the date that was sent.</p>
+<p>Which operation: Onyx calls <code>/vendor-map</code> (owner, 2026-10-05): a prior authorization with several codes may go to several vendors, and one call gives every vendor's format; Onyx keeps <code>vendorMemberIds[]</code> with the transaction and takes the entry for each vendor. <code>/resolve</code> stays available for a caller that knows its one vendor. One MMI call either way, and the rows below apply to both: the vendor map carries the same <code>outcome</code>, <code>message</code>, <code>coverage</code> and <code>candidates</code>. Onyx may send the same payload to both: on <code>/vendor-map</code> the vendor and any property the operation does not need are ignored; a date that cannot be used is a 400 on both, because the answer is always about the date that was sent.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Signal</th><th>Meaning</th><th>Onyx action</th></tr></thead>
 <tbody>
 <tr><td><span class="pill ok">200</span> <code>ACTIVE</code></td><td>Member verified; <code>coverage.active = true</code>.</td><td>Put <code>memberId.forVendor</code> (for Optum, the two <code>forVendorParts</code>) in the vendor payload. From a vendor map: the <code>vendorMemberIds</code> entry whose <code>vendor</code> is the chosen one, its <code>memberId</code> (for Optum, its <code>memberIdParts</code>). Nothing else from the response goes to the vendor.</td></tr>
-<tr><td><span class="pill warn">200</span> <code>INACTIVE</code></td><td>Member verified; not covered on that date; <code>message</code> says why (ended, not yet effective, gap, no coverage on record).</td><td>Hold for intake (D3). The vendor-formatted ID (or the vendor map) is still there if the business rule says to submit anyway.</td></tr>
+<tr><td><span class="pill warn">200</span> <code>INACTIVE</code></td><td>Member verified; not covered on that date, or not on every day of the period; <code>message</code> says why (ended, not yet effective, gap, no coverage on record, ends within the period of service).</td><td>Hold for intake (D3). The vendor-formatted ID (or the vendor map) is still there if the business rule says to submit anyway.</td></tr>
 <tr><td><span class="pill neutral">200</span> <code>NOT_FOUND</code></td><td>MMI has no member for this id: its 404 (or a 200 with no members). <code>sourceMessage</code> carries what MMI said when MMI sent a message (6.3).</td><td>"Member not found" worklist. If Onyx holds a fuller form of the id (for instance with the suffix), one resend with it.</td></tr>
 <tr><td><span class="pill info">200</span> <code>AMBIGUOUS</code></td><td>A family behind a 9-character ID; no DOB settled it.</td><td>One resend with <code>patient.dateOfBirth</code> or the member's full id including the suffix. Otherwise intake picks from <code>candidates[]</code>. Never pick a candidate automatically.</td></tr>
 <tr><td><span class="pill bad">400</span> / <span class="pill warn">422</span></td><td>Request or identity problem. A 400 <code>MEMBER_LOOKUP_REJECTED</code> is MMI itself rejecting the request, its text in the message. On <code>/vendor-map</code> any other 400 is a missing member id or a body that is not JSON.</td><td>Never retry. Route by <code>error.code</code> and <code>details[].code</code> (section 6.4).</td></tr>

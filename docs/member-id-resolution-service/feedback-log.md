@@ -382,3 +382,26 @@ See the conversation; answers will be appended here.
   covering every future date, so for such a member a 2027 date is still ACTIVE, and the response shows
   `coverage.span.endDate: null`. If the PQA member's record is open-ended and the owner still wants 2027 INACTIVE,
   the rule to add is a cap on how far an open-ended record counts (for example the end of the current calendar year).
+
+## Feedback 21 (2026-10-05): a period of service; Onyx uses the vendor map
+
+- The date of service can be a range, start date to end date; accommodate it. Onyx agreed to use the vendor-map
+  operation: it gives every vendor's format at once, so a prior authorization with several codes going to several
+  vendors needs one call. (The rename of the service that came with this message is feedback 22.)
+- Applied, period of service: a new optional request field `dateOfServiceEnd` on both operations makes the request
+  about every day from `dateOfService` to it. Validation like the start: a real `yyyy-MM-dd` date
+  (`DATE_OF_SERVICE_END_INVALID`), not before the start (`DATE_OF_SERVICE_END_BEFORE_START`), never without a start
+  (`DATE_OF_SERVICE_END_WITHOUT_START`). The response echoes `dateOfServiceEnd` when it was sent. Coverage: spans that
+  overlap or touch (one ends 12/31, the next starts 01/01, as plan-year records do) are joined into continuous
+  periods; ACTIVE only when one period covers every day asked about, and `coverage.span` is that period (so for a
+  single date too, adjacent records now show as one period from the earliest start). When the period covers the
+  first day but ends before the last, INACTIVE with the new reason `COVERAGE_ENDS_WITHIN_PERIOD`, the message
+  "Member found; coverage active on <start> but ends <end>, before <last>" and the period in `coverage.span` so
+  intake sees how far coverage goes. The record returned for a converted member is the one covering the first day.
+  Messages for a period read "coverage active from <start> to <end>".
+- Applied, Onyx's operation: README, design and handover now say Onyx calls `/vendor-map`; `/resolve` stays available
+  for a caller that knows its one vendor. Nothing was removed; the owner may say if `/resolve` should go.
+- Verification: a new stub member with adjacent 2025 and 2026 records; evaluator rows for merging, one-day holes and
+  periods; scenarios on both operations (ACTIVE across the year boundary with the merged period, INACTIVE when the
+  period outlasts coverage, the three 400s, a one-day period reads like a single date). 127 tests; Postman 74
+  requests. README, design and handover updated.

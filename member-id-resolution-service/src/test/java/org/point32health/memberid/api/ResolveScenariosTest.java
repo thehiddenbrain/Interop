@@ -181,7 +181,7 @@ class ResolveScenariosTest {
         assertThat(r.get("lineOfBusiness").asText()).isEqualTo("MCR");
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
         assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("flag and period only").containsExactly("active", "span");
-        assertThat(r.at("/coverage/span/effectiveDate").asText()).isEqualTo("2024-01-01");
+        assertThat(r.at("/coverage/span/effectiveDate").asText()).as("two adjacent records are one continuous period").isEqualTo("2021-01-01");
         assertThat(r.at("/coverage/span").has("endDate")).as("open-ended end is an explicit null").isTrue();
         assertThat(r.at("/coverage/span/endDate").isNull()).isTrue();
         assertThat(r.get("dateOfServiceDefaulted").asBoolean()).isFalse();
@@ -466,6 +466,48 @@ class ResolveScenariosTest {
     }
 
     @Test
+    void aPeriodOfServiceMustBeCoveredOnEveryDay() throws Exception {
+        // two adjacent plan-year records (2025, 2026) are one continuous period
+        JsonNode across = call(200, Map.of("memberId", "U20252026", "dateOfService", "2025-12-20", "dateOfServiceEnd", "2026-01-05", "vendor", "EVICORE"));
+        assertThat(across.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(across.get("message").asText()).isEqualTo("Member found; coverage active from 2025-12-20 to 2026-01-05");
+        assertThat(across.get("dateOfService").asText()).isEqualTo("2025-12-20");
+        assertThat(across.get("dateOfServiceEnd").asText()).as("echoed when a period was asked about").isEqualTo("2026-01-05");
+        assertThat(across.at("/coverage/span/effectiveDate").asText()).isEqualTo("2025-01-01");
+        assertThat(across.at("/coverage/span/endDate").asText()).isEqualTo("2026-12-31");
+
+        JsonNode outlasts = call(200, Map.of("memberId", "U20252026", "dateOfService", "2026-12-20", "dateOfServiceEnd", "2027-01-05", "vendor", "EVICORE"));
+        assertThat(outlasts.get("outcome").asText()).as("covered on the first day only").isEqualTo("INACTIVE");
+        assertThat(outlasts.at("/coverage/active").asBoolean()).isFalse();
+        assertThat(outlasts.get("message").asText()).isEqualTo("Member found; coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05");
+        assertThat(outlasts.at("/coverage/span/endDate").asText()).as("the period that covers the first day is shown, so intake sees how far coverage goes").isEqualTo("2026-12-31");
+
+        JsonNode single = call(200, Map.of("memberId", "U20252026", "dateOfService", "2026-10-15", "vendor", "EVICORE"));
+        assertThat(single.has("dateOfServiceEnd")).as("absent for a single date").isFalse();
+        assertThat(single.get("message").asText()).isEqualTo("Member found; coverage active on 2026-10-15");
+        assertThat(single.at("/coverage/span/effectiveDate").asText()).isEqualTo("2025-01-01");
+
+        JsonNode map = callVendorMap(200, Map.of("memberId", "T20262026", "dateOfService", "2026-12-01", "dateOfServiceEnd", "2027-01-31"));
+        assertThat(map.get("outcome").asText()).as("the vendor map judges the period the same way").isEqualTo("INACTIVE");
+        assertThat(map.get("dateOfServiceEnd").asText()).isEqualTo("2027-01-31");
+        assertThat(map.get("vendorMemberIds")).hasSize(6);
+        JsonNode mapOk = callVendorMap(200, Map.of("memberId", "T20262026", "dateOfService", "2026-12-01", "dateOfServiceEnd", "2026-12-31"));
+        assertThat(mapOk.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(mapOk.get("message").asText()).isEqualTo("Member found; coverage active from 2026-12-01 to 2026-12-31");
+
+        // the end date is validated like the start, on both operations
+        assertThat(call(400, Map.of("memberId", "T20262026", "dateOfService", "2026-10-15", "dateOfServiceEnd", "2026-10-14", "vendor", "EVICORE"))
+                .at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_END_BEFORE_START");
+        assertThat(callVendorMap(400, Map.of("memberId", "T20262026", "dateOfService", "2026-10-15", "dateOfServiceEnd", "10/20/2026"))
+                .at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_END_INVALID");
+        assertThat(callVendorMap(400, Map.of("memberId", "T20262026", "dateOfServiceEnd", "2026-10-20"))
+                .at("/error/details/0/code").asText()).isEqualTo("DATE_OF_SERVICE_END_WITHOUT_START");
+        JsonNode sameDay = callVendorMap(200, Map.of("memberId", "T20262026", "dateOfService", "2026-10-15", "dateOfServiceEnd", "2026-10-15"));
+        assertThat(sameDay.get("message").asText()).as("a one-day period reads like a single date").isEqualTo("Member found; coverage active on 2026-10-15");
+        assertThat(sameDay.get("dateOfServiceEnd").asText()).isEqualTo("2026-10-15");
+    }
+
+    @Test
     void aSentDateOfServiceIsNeverReplacedByToday() throws Exception {
         // an unusable date must not become "active for today" on either operation
         for (String bad : List.of("10/15/2027", "2027-13-01", "next year")) {
@@ -565,7 +607,7 @@ class ResolveScenariosTest {
     void coverageBlockIsTheFlagAndThePeriodOnly() throws Exception {
         JsonNode active = call(200, req("123456789", "2026-10-15", "evicore"));
         assertThat(active.get("coverage").properties()).extracting(Map.Entry::getKey).containsExactly("active", "span");
-        assertThat(active.at("/coverage/span/effectiveDate").asText()).isEqualTo("2024-01-01");
+        assertThat(active.at("/coverage/span/effectiveDate").asText()).isEqualTo("2021-01-01");
 
         JsonNode inactive = call(200, req("234567890", null, "evicore"));
         assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");

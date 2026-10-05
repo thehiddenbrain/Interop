@@ -28,9 +28,9 @@
 <header>
   <div class="eyebrow">Design v0.2 · Point32Health interop · Onyx → MMI · matches the delivered code</div>
   <h1>Member ID Resolution Service</h1>
-  <p class="lede">A small, stateless Spring Boot service for Onyx. It takes the member ID exactly as the provider's EMR supplied it, verifies it with the Master Member Index (MMI), returns the ID as stored and in the format the UM vendor expects (one vendor when Onyx names it, every vendor at once when it does not), and says with one flag whether coverage is active on the date of service.</p>
+  <p class="lede">A small, stateless Spring Boot service for Onyx. It takes the member ID exactly as the provider's EMR supplied it, verifies it with the Master Member Index (MMI), returns the ID as stored and in the format the UM vendor expects (one vendor when Onyx names it, every vendor at once when it does not), and says with one flag whether coverage is active on the date of service, or throughout a period of service.</p>
   <div class="meta">
-    <span><b>Status</b> v0.2, code delivered (<code>member-id-resolution-service/</code>), reviewed, 119 tests green, Postman collection with tests on every request</span>
+    <span><b>Status</b> v0.2, code delivered (<code>member-id-resolution-service/</code>), reviewed, 127 tests green, Postman collection with tests on every request</span>
     <span><b>Date</b> 2026-10-04 (v0.2 of 2026-10-03, revised: the member id is sent to MMI exactly as the EMR typed it; a second operation, the vendor map, added and then made lenient; MMI's four answers (200, 404, 400, 500) mapped one to one, its 404 answered as 200 NOT_FOUND with what MMI said; the response trimmed to the flag, the ids, the line of business and the coverage period)</span>
     <span><b>Stack</b> Spring Boot 4.0.7 · Java 17+ · Gradle 9.5 · port 9090 (the EPA Workbench build shape)</span>
     <span><b>Only integration</b> MMI</span>
@@ -82,6 +82,11 @@
 <div class="callout">
   <div class="label">Revised 2026-10-05 (owner feedback 20)</div>
   <p>A 2027 date of service came back ACTIVE in PQA. The cause: on <code>/vendor-map</code> a date that could not be used, or fell outside the 366-day window, was dropped and today was evaluated instead. Now the date of service that was sent is always the date judged, on both operations: an unusable date is a 400 (<code>DATE_OF_SERVICE_INVALID</code>, or <code>DATE_OF_SERVICE_OUT_OF_RANGE</code> for more than 10 years back), only a missing date defaults to today, and there is no upper limit: a future date is judged against the coverage on record, so a record that ends 12/31/2026 gives INACTIVE for any 2027 date. <code>ignoredFields</code> is gone. Sections 5, 6.2, 6.6, 11 and 13 are updated; the decision log in section 18 has the entry.</p>
+</div>
+
+<div class="callout">
+  <div class="label">Revised 2026-10-05 (owner feedback 21)</div>
+  <p>A prior authorization may cover a period: an optional <code>dateOfServiceEnd</code> on both operations makes the request about every day from <code>dateOfService</code> to it, and is echoed back. Coverage records that overlap or touch (plan-year records: one ends 12/31, the next starts 01/01) are one continuous period; the answer is ACTIVE only when one period covers every day asked about, and <code>coverage.span</code> is that period. A period that outlasts the coverage is INACTIVE with the message <code>coverage active on &lt;start&gt; but ends &lt;end&gt;, before &lt;last day&gt;</code> and the period shown. Onyx uses <code>/vendor-map</code>: a prior authorization with several codes may go to several vendors, and one call gives every vendor's format; <code>/resolve</code> stays for a caller that knows its one vendor. Sections 6.2, 6.3, 6.6, 7 and 11 are updated; the decision log in section 18 has the entry.</p>
 </div>
 
 <div class="callout">
@@ -141,7 +146,7 @@
 <li>Two operations over one core: <code>POST /api/v1/member-ids/resolve</code> (the id for the vendor Onyx names) and <code>POST /api/v1/member-ids/vendor-map</code> (the id in every vendor's format, for when Onyx does not yet know the vendor).</li>
 <li>The member id is sent to MMI exactly as the EMR typed it, whatever its length, separators or case; this service checks only that one was sent.</li>
 <li>One MMI call per request; TMP/SCO resolve from any form; dependents handled through the DOB or AMBIGUOUS with candidates; converted THP↔HPHC members handled through MMI's legacy link.</li>
-<li>Coverage flag for the date of service (today when omitted), with the coverage period when active; why an inactive member is not covered is said in the one-sentence <code>message</code>.</li>
+<li>Coverage flag for the date of service, or for a period of service from <code>dateOfService</code> to <code>dateOfServiceEnd</code> (today when omitted), with the continuous coverage period; why an inactive member is not covered is said in the one-sentence <code>message</code>.</li>
 <li>Vendor formats in <code>application.yaml</code>; a change is a config edit and a deploy.</li>
 <li>Clear error envelope, masked logging, correlation id, in-process MMI stub for developer runs and tests (profile-guarded and refusing to run inside a pod), profiles with the four MMI URLs.</li>
 </ul>
@@ -154,7 +159,7 @@
 <li>No retry, circuit breaker or degraded mode around MMI (owner: MMI is a core service and is restored quickly when it fails).</li>
 <li>No authentication, tokens or certificates in this code; the Azure API Management layer in front of it owns security.</li>
 <li>No pass-through of names, SSN, MBI, PCP, group names, legacy IDs or migration dates. Identifiers and coverage facts only.</li>
-<li>No coverage over a date range; one date per call.</li>
+<li>No coverage over several unrelated dates in one call: one date, or one continuous period of service, per call.</li>
 </ul>
 </div>
 </div>
@@ -169,7 +174,7 @@
 <li><b>Call MMI once</b> with the member id exactly as received, surrounding whitespace removed (section 8), in both <code>memberId</code> and <code>legacyMemberId</code>, <code>voidCoverageRecord = N</code>, our <code>clientId</code>, a fresh <code>requestId</code> (section 9).</li>
 <li><b>Interpret the answer</b> (section 9.3). MMI's HTTP 404 means "no member for this id": 200 NOT_FOUND, and what MMI said goes into <code>sourceMessage</code>. A 200 with no members is NOT_FOUND too, unless it carries an error-typed message (for example <code>ES_TIMEOUT</code>), which is a 502 forwarding MMI's code and text. MMI's 400 has already become a 400 <code>MEMBER_LOOKUP_REJECTED</code> and its 500 a 503 <code>MEMBER_LOOKUP_UNAVAILABLE</code> in the client, both carrying MMI's code and text. Otherwise map each record, keeping only readable, non-void coverage spans. A member with unreadable spans and no readable one is a 502, never a confident INACTIVE.</li>
 <li><b>Select the member</b> (section 10): merge duplicates, join converted pairs, apply the DOB, one person or AMBIGUOUS.</li>
-<li><b>Evaluate coverage</b> on the date of service (section 11).</li>
+<li><b>Evaluate coverage</b> on the date of service, or on every day of the period of service (section 11).</li>
 <li><b>Format the stored ID</b> (section 12), never the input: for the named vendor on <code>/resolve</code>; for every configured vendor on <code>/vendor-map</code>, one <code>vendorMemberIds</code> entry per vendor, sorted by code.</li>
 <li><b>Respond</b> with the outcome and its one-sentence <code>message</code> (on NOT_FOUND also <code>sourceMessage</code>), and write one INFO line with masked IDs, outcome, vendor (<code>ALL(5)</code> on the vendor map), timings and the MMI request id.</li>
 </ol>

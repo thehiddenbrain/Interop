@@ -72,7 +72,7 @@ public class ResolutionService {
         FormattedMemberId formatted = r.record() == null ? null : formatter.format(r.record().storedMemberId(), vendor.format());
         ResolveResponse response = new ResolveResponse(r.outcome(), message(r, v),
                 new ResolveResponse.MemberId(v.memberId(), r.storedMemberId(), formatted == null ? null : formatted.value(), parts(formatted)),
-                r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
+                r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
                 r.coverageBlock(), r.candidates(), r.mmiRequestId(), r.mmiNote());
         logOutcome("resolve", vendor.code(), r, v, start);
         return response;
@@ -91,7 +91,7 @@ public class ResolutionService {
             }).toList();
         }
         VendorMapResponse response = new VendorMapResponse(r.outcome(), message(r, v), new VendorMapResponse.MemberId(v.memberId(), r.storedMemberId()),
-                r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceDefaulted(),
+                r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
                 r.coverageBlock(), r.candidates(), vendorMemberIds, r.mmiRequestId(), r.mmiNote());
         logOutcome("vendor-map", "ALL(" + vendors.all().size() + ")", r, v, start);
         return response;
@@ -153,7 +153,7 @@ public class ResolutionService {
 
         SelectionResult selection;
         try {
-            selection = selector.select(records, v.dateOfBirth(), v.dateOfService());
+            selection = selector.select(records, v.dateOfBirth(), v.dateOfService(), v.lastDateOfService());
         } catch (ResolutionException e) {
             throw e.withMmiRequestId(mmiResult.requestId());
         }
@@ -188,13 +188,16 @@ public class ResolutionService {
      * why an INACTIVE member is not covered, and what to do about an AMBIGUOUS answer.
      */
     private static String message(Resolved r, RequestValidator.Validated v) {
+        String when = v.isPeriod() ? "from " + v.dateOfService() + " to " + v.lastDateOfService() : "on " + v.dateOfService();
         return switch (r.outcome()) {
-            case ACTIVE -> "Member found; coverage active on " + v.dateOfService();
+            case ACTIVE -> "Member found; coverage active " + when;
             case INACTIVE -> "Member found; " + switch (r.coverage().reason()) {
                 case NO_COVERAGE_RECORDS -> "no coverage on record";
                 case NOT_YET_EFFECTIVE -> "coverage not yet effective on " + v.dateOfService();
                 case COVERAGE_ENDED -> "coverage ended before " + v.dateOfService();
                 case COVERAGE_GAP -> "no coverage on " + v.dateOfService() + " (gap between coverage periods)";
+                case COVERAGE_ENDS_WITHIN_PERIOD -> "coverage active on " + v.dateOfService() + " but ends " + r.coverage().span().end()
+                        + ", before " + v.lastDateOfService();
                 case COVERED -> throw new IllegalStateException("INACTIVE with reason COVERED");
             };
             case NOT_FOUND -> "No member found for this id";
@@ -213,10 +216,10 @@ public class ResolutionService {
     }
 
     private static void logOutcome(String operation, String vendor, Resolved r, RequestValidator.Validated v, long start) {
-        log.info("{} outcome={} reason={} vendor={} memberId={} stored={} company={} lob={} dos={} dosDefaulted={} records={} mmiRequestId={} ms={}",
+        log.info("{} outcome={} reason={} vendor={} memberId={} stored={} company={} lob={} dos={} dosEnd={} dosDefaulted={} records={} mmiRequestId={} ms={}",
                 operation, r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(), vendor,
                 Masking.memberId(v.memberId()), Masking.memberId(r.storedMemberId()), r.company(), r.lineOfBusiness(),
-                v.dateOfService(), v.dateOfServiceDefaulted(), r.records(), r.mmiRequestId(),
+                v.dateOfService(), v.dateOfServiceEnd() == null ? "-" : v.dateOfServiceEnd(), v.dateOfServiceDefaulted(), r.records(), r.mmiRequestId(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
     }
 }
