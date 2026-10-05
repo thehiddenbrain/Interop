@@ -312,3 +312,18 @@ See the conversation; answers will be appended here.
 - A test guard now asserts that no response body of any scenario contains "MMI" or "mmi".
 - 119 tests and the 65-request Postman collection (437 assertions) are green; every response body replayed from the
   collection and the OpenAPI document were scanned and contain no "MMI".
+
+## Request 17 (2026-10-05): the high-level diagram in draw.io format, for Lucid
+
+- Asked for: the high-level diagram in a format Lucidchart imports (draw.io).
+- Delivered: `member-id-resolution-service-high-level.drawio`, one page of uncompressed draw.io XML with a PNG preview
+  beside it. Plain shapes only (rounded rectangles, text, straight arrows) on one layer with absolute coordinates and
+  no groups, which is the form Lucidchart's draw.io import handles best. It shows the request path EMR, Onyx, Azure
+  API Management, the service, MMI and back, numbered 1 to 6; the five steps inside the service with the MMI client
+  and the vendor table; the profiles; the UM vendors with their formats and Onyx's fallback; the request and the lean
+  response; the ID shapes, masked; what is deliberately left out; and what Onyx does with each answer.
+- The diagram names MMI: it is the internal architecture view, not a response (feedback 16 governs what callers
+  receive). Member ids appear only masked.
+- Source `design-src/high_level_drawio.py` (refuses to write on overlapping boxes or an id-shaped value); preview
+  rendered with `design-src/render_drawio_preview.js` (mxGraph 4.2.2 in headless Chromium), which also checked that
+  every label fits its box. The Lucidchart import itself could not be tried from the build container.
