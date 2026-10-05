@@ -464,3 +464,19 @@ See the conversation; answers will be appended here.
   handover, design and the Postman description follow.
 - For the owner's STS workspace: pull, then right-click the project → Gradle → Refresh Gradle Project; the run
   configuration's Profile field becomes `DEV` (was `dev`).
+
+## Feedback 26 (2026-10-05): STS shows compilation errors in the test folder and cannot load the main class
+
+- After pulling the package rename the owner's STS reported compilation errors in `VendorFormatterTest` "and others in
+  the test folder", errors "around the stub", and `Could not find or load main class
+  org.p32h.interop.InteropResolutionApplication` on Run. The last one is a consequence: with compile errors Eclipse
+  writes no class files, so there is nothing to launch.
+- The branch itself compiles: Gradle (127 tests) and the Eclipse compiler ECJ 3.46 at Java 17 compliance (71 main and
+  11 test classes, zero errors).
+- Root cause found in the build: Buildship derives the Eclipse project's Java level from `java.sourceCompatibility`,
+  not from `options.release`. Unset, it defaults to the JDK that runs Gradle (21 in the build container, 25 on the
+  owner's workstation), so STS was asked for a Java 25 project; an STS whose Eclipse does not know Java 25 cannot
+  compile it and marks every file. Fix: `java { sourceCompatibility = 17; targetCompatibility = 17 }` in
+  `build.gradle`; javac still gets `--release 17` (class files stay version 61). Verified: Buildship now derives 17.
+- For the owner: pull, Gradle → Refresh Gradle Project, Project → Clean. If `org.point32health…` packages are still
+  listed in STS they are untracked leftovers of the rename and can be deleted. README section 1 has the steps.

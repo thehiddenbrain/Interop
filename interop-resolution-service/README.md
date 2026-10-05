@@ -60,6 +60,16 @@ origin/main → New Branch**.
 
 ### Starting clean when the workspace is in a bad state
 
+**Every file shows errors right after the import or a Gradle refresh** (Problems view: "The project was not built
+since its build path is incomplete", "JRE System Library [JavaSE-25]", or types like `VendorFormatter` "cannot be
+resolved" in the test folder, and "Could not find or load main class" when you run): the Eclipse project got a Java
+level your STS does not support. Buildship takes that level from `java.sourceCompatibility`, which used to default to
+the JDK running Gradle (25 on a workstation), not from `--release 17`. The build now pins it to 17: pull, right-click
+the project → **Gradle → Refresh Gradle Project**, then **Project → Clean…**. Check: Project → Properties → Java
+Compiler must say compliance 17, and Java Build Path → Libraries must show a JRE System Library without a red mark.
+If `org.point32health…` packages are still listed under `src/main/java` or `src/test/java`, delete them: they are
+leftovers of the rename to `org.p32h` that git no longer tracks.
+
 Everything lives on GitHub, so the safe reset is to throw the local copy away and clone again (first commit or
 stash anything of your own that is not pushed).
 
@@ -80,7 +90,8 @@ stash anything of your own that is not pushed).
 ### Build and run
 
 The build is the same shape as the EPA Workbench (`patient-access-workbench`): Gradle 9.5.0 wrapper,
-Spring Boot 4.0.7, no toolchain block, `options.release = 17` plus `-parameters`, `springBoot { buildInfo() }`,
+Spring Boot 4.0.7, no toolchain block, `options.release = 17` plus `-parameters` (and `java.sourceCompatibility` /
+`targetCompatibility` 17, which is what STS reads for the Eclipse project's Java level), `springBoot { buildInfo() }`,
 and an `internalRepoUrl` Gradle property that swaps Maven Central for an internal mirror. Only a JDK 17 or
 newer is needed (17, 21 and 25 all work); the wrapper downloads Gradle and the dependencies on first use.
 

@@ -10,6 +10,14 @@ description = 'Interop Resolution Service: Onyx\'s interop lookups. Member ID re
 
 // No toolchain block on purpose: release 17 pins source, target, and the linked API in one
 // flag on whatever JVM builds (JDK 17, 21 or 25 all work).
+// sourceCompatibility/targetCompatibility are what STS (Buildship) reads for the Eclipse project's Java level;
+// without them it takes the JDK that runs Gradle (25 on a workstation), which an older STS cannot compile with
+// and the whole project shows errors. javac itself still gets --release 17 below.
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.release = 17
     options.encoding = 'UTF-8'
