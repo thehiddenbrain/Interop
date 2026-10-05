@@ -58,6 +58,25 @@ write* covers it). Command line equivalent:
 then import the folder as in step 5. Once the branch is merged, switch with **Team → Switch To → Other… →
 origin/main → New Branch**.
 
+### Starting clean when the workspace is in a bad state
+
+Everything lives on GitHub, so the safe reset is to throw the local copy away and clone again (first commit or
+stash anything of your own that is not pushed).
+
+1. In STS, select every project that came from the old import (`member-id-resolution-service`, `Interop`, …) →
+   right-click → **Delete** → tick *Delete project contents on disk* → OK.
+2. **Window → Perspective → Open Perspective → Other… → Git**. In *Git Repositories*, right-click the `Interop`
+   repository → **Delete Repository…** → tick *Also delete working directory* → OK. If the view does not list it
+   but `C:\git\Interop` still exists, close STS and delete that folder by hand.
+3. Cleanest of all: **File → Switch Workspace → Other…** and name a new, empty workspace. STS restarts into it.
+4. Clone and import again with the steps above (the token is still in the Secure Store of the same STS
+   installation; a new workspace keeps it, a new installation does not).
+5. Before the first run check the JDK once: **Window → Preferences → Java → Installed JREs** must list a JDK 17
+   or newer, ticked; under **Gradle** leave *Java home* on the workspace JRE unless that JRE is older than 17, in
+   which case point it at the JDK 17+ folder. Buildship then runs the wrapper (Gradle 9.5.0) and downloads the
+   dependencies; wait for the *Synchronize Gradle projects* job in the bottom-right corner to finish before
+   running anything.
+
 ### Build and run
 
 The build is the same shape as the EPA Workbench (`patient-access-workbench`): Gradle 9.5.0 wrapper,
