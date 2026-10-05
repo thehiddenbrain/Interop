@@ -9,10 +9,12 @@
 - `part3.html`: only the id-grid figure is used (captions are rewritten by the script).
 - `artifact_v2.html`: the assembled fragment that is published as the claude.ai artifact
   (`https://claude.ai/artifact/A6PfmrLch1RronSwsDQKRp`); republish it to that URL after a change.
-- `high_level_drawio.py`: writes `../member-id-resolution-service-high-level.drawio`, the one-page high-level diagram
-  (uncompressed draw.io XML: imports into Lucidchart through File > Import > draw.io, opens in draw.io). Plain shapes
-  on one layer with absolute coordinates, so the import stays clean. Run `python3 high_level_drawio.py`; it refuses to
-  write when two boxes overlap or an id-shaped value slipped in. Once someone edits the diagram in Lucid or draw.io,
+- `high_level_drawio.py`: writes `../member-id-resolution-service-high-level.drawio`, the one-page diagram to present
+  to UM vendors (feedback 18): business flow only, no technical detail, no internal system names, no other vendor's
+  name. Uncompressed draw.io XML: imports into Lucidchart through File > Import > draw.io, opens in draw.io. Plain
+  shapes on one layer with absolute coordinates, so the import stays clean. Run `python3 high_level_drawio.py`; it
+  refuses to write when two boxes overlap, an id-shaped value slipped in, or a label carries a word not meant for a
+  vendor (an internal system name, a technical term, another vendor's name). Once someone edits the diagram in Lucid or draw.io,
   that copy is the source; the script covers changes made here.
 - `render_drawio_preview.js`: renders a .drawio file to PNG with mxGraph (the engine draw.io is built on) in headless
   Chromium and reports every label that does not fit its box. `../member-id-resolution-service-high-level.png` is its

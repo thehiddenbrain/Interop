@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Writes ../member-id-resolution-service-high-level.drawio, the one-page high-level diagram of the service.
+"""Writes ../member-id-resolution-service-high-level.drawio: the one-page diagram to present to UM vendors.
+
+Audience: a UM vendor. It shows the business flow only: the provider, Onyx, the Member ID Resolution Service,
+Point32Health's member records, the vendor, and how the member ID changes along the way. No technical detail
+(ports, versions, endpoints, codes, infrastructure), no internal system names, and no other vendor's name, so the
+same file serves every vendor. Member IDs appear only masked (X = letter, # = digit).
 
 The output is plain, uncompressed draw.io XML, which Lucidchart imports (File > Import > draw.io) as well as
-draw.io / diagrams.net itself. To keep that import clean, every cell sits on the default layer with absolute
-coordinates (no groups, no nested containers), and only basic shapes are used: rounded rectangles, text and
-straight orthogonal arrows. Member ids appear only as masked patterns (X = letter, # = digit).
+draw.io / diagrams.net. To keep that import clean, every cell sits on the default layer with absolute coordinates
+(no groups, no nested containers) and only basic shapes are used.
 
 Run:  python3 high_level_drawio.py
-The script refuses to write the file if two boxes overlap by mistake or if an id-shaped value slipped in.
+It refuses to write the file if two boxes overlap by mistake, if an id-shaped value slipped in, or if a label
+carries a word that must not reach a vendor (an internal system name, a technical detail, another vendor's name).
 """
 import os
 import re
@@ -18,15 +23,18 @@ OUT = os.path.normpath(os.path.join(HERE, '..', 'member-id-resolution-service-hi
 
 INK, MUTED, NAVY = '#1A2430', '#5A6673', '#123F55'
 FONT = 'fontFamily=Helvetica;'
+NOT_FOR_VENDORS = re.compile(r'\b(MMI|Master Member|Azure|API Management|APIM|Spring|Java|port|9090|yaml|REST|HTTP|'
+                             r'POST|JSON|traceId|stub|timeouts?|eviCore|Evolent|Carelon|MHK|MedHOK|Optum|fqa|pqa|prod)\b',
+                             re.IGNORECASE)
 
 cells = []      # in drawing order: earlier cells sit behind later ones
 geo = {}        # vertex id -> (x, y, w, h)
-CONTAINERS = {'boundary', 'svc', 'vendors', 'outcomes'}   # boxes that are meant to hold other boxes
+CONTAINERS = {'p32'}
 
 
 def box(fill, stroke, extra=''):
-    return ('rounded=1;whiteSpace=wrap;html=1;arcSize=8;' + FONT + 'fontSize=12;'
-            f'fontColor={INK};fillColor={fill};strokeColor={stroke};' + extra)
+    return ('rounded=1;whiteSpace=wrap;html=1;arcSize=10;' + FONT + 'fontSize=15;'
+            f'fontColor={INK};fillColor={fill};strokeColor={stroke};strokeWidth=1.5;' + extra)
 
 
 def text(extra=''):
@@ -45,148 +53,74 @@ def rel(cid, px, py):
     return round((px - x) / w, 4), round((py - y) / h, 4)
 
 
-def edge(cid, src, tgt, exit_pt, entry_pt, value='', color=INK, dashed=False, label_v='middle', pos=None):
+def edge(cid, src, tgt, exit_pt, entry_pt, value='', color=INK, dashed=False, label_v='middle', both=False, width=2):
     ex, ey = rel(src, *exit_pt)
     nx, ny = rel(tgt, *entry_pt)
     style = ('edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;'
-             f'endFill=1;strokeColor={color};strokeWidth=1.5;' + FONT + f'fontSize=11;fontColor={INK};'
+             f'endFill=1;strokeColor={color};strokeWidth={width};' + FONT + f'fontSize=13;fontColor={INK};'
              f'labelBackgroundColor=#FFFFFF;verticalAlign={label_v};'
              f'exitX={ex};exitY={ey};exitDx=0;exitDy=0;entryX={nx};entryY={ny};entryDx=0;entryDy=0;')
+    if both:
+        style += 'startArrow=block;startFill=1;'
     if dashed:
         style += 'dashed=1;dashPattern=8 5;'
-    cells.append(dict(kind='e', id=cid, value=value, style=style, src=src, tgt=tgt, pos=pos))
+    cells.append(dict(kind='e', id=cid, value=value, style=style, src=src, tgt=tgt))
 
 
-# ---------------------------------------------------------------- title and legend
-vertex('title', 'Member ID Resolution Service · high-level architecture', 40, 20, 1300, 34,
-       text('fontSize=22;fontStyle=1;'))
-vertex('subtitle', 'Point32Health interop · Onyx → Member ID Resolution Service → MMI · '
-       'design v0.2, owner feedback 1 to 16 · 2026-10-05', 40, 56, 1300, 22,
-       text(f'fontSize=13;fontColor={MUTED};'))
-vertex('legend', 'Numbers 1 to 6 follow one request.<br>Dashed arrow: Onyx\'s fallback when this service is down.',
-       1450, 24, 440, 50, text(f'fontSize=12;fontColor={MUTED};align=right;'))
+# ---------------------------------------------------------------- title
+vertex('title', 'Member ID resolution for prior-authorization requests', 60, 36, 1300, 40,
+       text('fontSize=30;fontStyle=1;'))
+vertex('subtitle', 'How the member ID reaches your system', 60, 84, 1300, 28, text(f'fontSize=17;fontColor={MUTED};'))
 
-# ---------------------------------------------------------------- boundaries (drawn first, behind)
-vertex('boundary', 'Point32Health internal network · MMI is internal: no response ever names it',
-       975, 100, 925, 650,
-       'rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=none;strokeColor=#5A6673;dashed=1;dashPattern=8 6;'
-       + FONT + f'fontSize=12;fontStyle=2;fontColor={MUTED};align=left;verticalAlign=top;spacingLeft=14;spacingTop=6;')
-vertex('svc', '<b>Member ID Resolution Service</b><br>Spring Boot 4.0.7 · Java 17+ · port 9090 · stateless, no database',
-       1000, 140, 520, 590,
-       'rounded=1;whiteSpace=wrap;html=1;arcSize=3;fillColor=#EAF2F6;strokeColor=#123F55;strokeWidth=2;'
-       + FONT + f'fontSize=13;fontColor={NAVY};align=center;verticalAlign=top;spacingTop=8;')
-vertex('vendors', '<b>UM vendors</b> · receive only the vendor-formatted ID', 40, 430, 440, 250,
-       'rounded=1;whiteSpace=wrap;html=1;arcSize=4;fillColor=#FAFAFA;strokeColor=#666666;'
-       + FONT + f'fontSize=12;fontColor={INK};align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;')
+# ---------------------------------------------------------------- Point32Health (drawn first, behind)
+vertex('p32', 'Point32Health', 440, 400, 720, 210,
+       'rounded=1;whiteSpace=wrap;html=1;arcSize=4;fillColor=#EEF4F7;strokeColor=#123F55;strokeWidth=1.5;'
+       + FONT + f'fontSize=14;fontStyle=1;fontColor={NAVY};align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;')
 
-# ---------------------------------------------------------------- the request path
-vertex('emr', '<b>Provider EMR</b><br>member ID as typed,<br>any length or shape', 40, 205, 150, 90,
+# ---------------------------------------------------------------- who takes part
+vertex('provider', '<b>Provider</b><br>enters the member ID<br>from the member\'s card', 60, 170, 280, 120,
        box('#F5F5F5', '#666666'))
-vertex('onyx', '<b>Onyx</b><br>prior-authorization intake<br>routes the auth to the UM vendor<br><i>the only caller</i>',
-       290, 185, 190, 130, box('#DAE8FC', '#6C8EBF'))
-vertex('apim', '<b>Azure API Management</b><br>tokens and certificates<br><i>security lives here,<br>not in the service</i>',
-       760, 200, 160, 100, box('#E1D5E7', '#9673A6', 'fontSize=11;'))
+vertex('onyx', '<b>Onyx</b><br>prior-authorization intake<br>for Point32Health', 660, 170, 280, 120,
+       box('#DAE8FC', '#6C8EBF'))
+vertex('vendor', '<b>UM vendor</b> · your system<br>receives a verified member ID,<br>in the format you store',
+       1200, 170, 340, 120, box('#FFF2CC', '#D6B656', 'strokeWidth=2;'))
+vertex('service', '<b>Member ID Resolution Service</b><br>verifies the member ID<br>confirms coverage on the date of service<br>'
+       'formats the ID for each UM vendor', 480, 440, 380, 140, box('#FFFFFF', NAVY, 'strokeWidth=2;'))
+vertex('records', '<b>Member records</b><br>members and<br>coverage', 960, 460, 170, 100, box('#D5E8D4', '#82B366', 'fontSize=14;'))
 
-# inside the service
-vertex('rest', '<b>REST API</b> · POST, JSON<br>/api/v1/member-ids/resolve · one vendor, strict<br>'
-       '/api/v1/member-ids/vendor-map · every vendor, lenient', 1020, 205, 480, 90, box('#FFFFFF', NAVY))
-steps = [
-    ('validate', '<b>Validate the request</b><br>member ID: presence only, never reshaped'),
-    ('ask', '<b>Ask MMI once</b><br>the ID exactly as received'),
-    ('select', '<b>Select the member</b><br>DOB picks one; several people → AMBIGUOUS'),
-    ('cover', '<b>Coverage on the date of service</b><br>active flag + covering period'),
-    ('fmt', '<b>Format the stored ID</b><br>for one vendor, or for every vendor'),
-]
-for i, (cid, label) in enumerate(steps):
-    vertex(cid, label, 1020, 320 + 72 * i, 280, 52, box('#FFFFFF', NAVY, 'fontSize=11;'))
-vertex('client', '<b>MMI client</b><br>timeouts 2 s / 5 s, no retry<br>dev profile: in-process stub',
-       1318, 380, 182, 76, box('#FFFFFF', NAVY, 'fontSize=11;'))
-vertex('table', '<b>Vendor format table</b><br>application.yaml<br>one block per vendor',
-       1318, 596, 182, 76, box('#FFFFFF', NAVY, 'fontSize=11;'))
-vertex('svc_footer', 'Masked logs (last 4 characters) · correlation id in header and logs · '
-       'health and info endpoints only', 1020, 672, 480, 46, text(f'fontSize=11;fontColor={MUTED};align=center;'))
+# ---------------------------------------------------------------- the two callouts beside Point32Health
+callout = box('#FFFFFF', '#A0AAB4', 'fontSize=15;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;')
+vertex('why', '<b>Why</b><br>Providers enter the member ID in many forms: 9, 11 or 14 characters, with or without '
+       'spaces or a hyphen. Your system stores one form. The service finds the member from what was entered and sends '
+       'you the ID in the form you store.',
+       60, 425, 330, 160, callout)
+vertex('changes', '<b>What changes for you</b><br>• The member ID is verified against Point32Health\'s member records '
+       'before the request is sent<br>• It arrives in the format your system stores<br>• Requests still reach you through Onyx',
+       1200, 425, 340, 160, callout.replace('#A0AAB4', '#D6B656'))
 
-# MMI
-vertex('mmi', '<b>MMI · Master Member Index</b><br>POST /master/member/v1<br>returns members and coverage spans<br>'
-       '404 = no member for this ID', 1640, 352, 240, 130, box('#D5E8D4', '#82B366', 'fontSize=11;'))
-vertex('profiles', '<b>Which MMI</b> (Spring profile)<br>dev: in-process stub<br>fqa · pqa (default) · pqa-lite · prod',
-       1640, 500, 240, 100, box('#F7FBF6', '#82B366', 'fontSize=11;'))
-
-# UM vendors
-vendor_boxes = [
-    ('v_evicore', '<b>eviCore</b><br>11 characters', 55, 475),
-    ('v_evolent', '<b>Evolent</b><br>11 characters', 195, 475),
-    ('v_carelon', '<b>Carelon</b><br>11 characters', 335, 475),
-    ('v_mhk', '<b>MHK</b><br>14 characters', 55, 540),
-    ('v_optum', '<b>Optum</b><br>core + suffix, two fields', 195, 540),
-]
-for cid, label, x, y in vendor_boxes:
-    vertex(cid, label, x, y, 130, 52, box('#F5F5F5', '#666666', 'fontSize=11;'))
-vertex('v_next', '<i>next vendor</i><br>one YAML block', 335, 540, 130, 52,
-       box('#FFFFFF', '#999999', f'fontSize=11;fontColor={MUTED};dashed=1;'))
-vertex('vendors_footer', 'Public Plans and HPHC IDs reach every vendor as stored.<br>'
-       'Dashed arrow: if this service is down, Onyx sends the EMR\'s ID as received.',
-       55, 602, 410, 68, text('fontSize=11;'))
-
-# what goes in, what comes back
-vertex('req_note', '<b>2. Request</b> · POST, JSON<br>memberId: required, as typed<br>dateOfService: optional, today if none<br>'
-       'vendor: /resolve only<br>patient.dateOfBirth: optional', 495, 330, 250, 92,
-       box('#FFFFFF', '#6C8EBF', 'fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;'))
-vertex('resp_note', '<b>5. Response</b> · HTTP 200<br>outcome + one-sentence message<br>memberId: received, stored, forVendor<br>'
-       '(vendor-map: vendorMemberIds[])<br>lineOfBusiness · dateOfService<br>coverage: active + covering period<br>'
-       'candidates[] when AMBIGUOUS<br>traceId; never names MMI', 495, 438, 250, 130,
-       box('#FFFFFF', '#6C8EBF', 'fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;'))
-
-# ---------------------------------------------------------------- bottom band
-panel = box('#FFFFFF', '#A0AAB4', 'align=left;verticalAlign=top;spacingLeft=14;spacingTop=10;')
-panel13 = panel + 'fontSize=13;'
-vertex('ids', '<b>One TMP / SCO member ID, masked</b> (X = letter, # = digit)<br>'
-       'Card: X######## · 9 characters<br>'
-       'Stored in MMI: X######## + three spaces + 01 · 14 characters<br>'
-       'COMPACT_11: X########01 · eviCore, Evolent, Carelon, Onyx<br>'
-       'SPACED_14: X######## + three spaces + 01 · MHK<br>'
-       'SPLIT: X######## and 01 as two fields · Optum<br>'
-       'Public Plans (11 continuous) and HPHC (HP + 9 digits): as stored, every vendor',
-       40, 790, 610, 185, panel13)
-vertex('plain', '<b>Deliberately plain</b><br>'
-       'One MMI call per request; MMI is the only integration<br>'
-       'No database, cache or queue; stateless<br>'
-       'No retry or circuit breaker: timeouts, then a clear 503<br>'
-       'No security code: Azure API Management owns it<br>'
-       'A vendor change: one YAML block and a deploy',
-       670, 790, 410, 185, panel13)
-vertex('outcomes', '<b>What Onyx does with each answer</b>', 1100, 790, 790, 185, panel)
-pills = [
-    ('ACTIVE', '#D5E8D4', '#82B366', '#2D7A4F', 'Send forVendor (or the vendorMemberIds entry) to the vendor'),
-    ('INACTIVE', '#FFF2CC', '#D6B656', '#8A6100', 'Hold for intake; the message says why (ended, not yet effective, gap)'),
-    ('NOT_FOUND', '#F5F5F5', '#666666', '#444444', 'Member-not-found worklist; one resend with a fuller ID if Onyx has one'),
-    ('AMBIGUOUS', '#DAE8FC', '#6C8EBF', '#2F5D8F', 'Resend with the date of birth or the full ID; else intake picks a candidate'),
-    ('400 · 422', '#F8CECC', '#B85450', '#8F2F33', 'Never retry; route by error code (422: the date of birth matches no record)'),
-    ('502 · 503', '#FFE6CC', '#D79B00', '#8A5A00', 'Retry later (Retry-After 10). No answer at all: pass the EMR\'s ID through'),
-]
-for i, (label, fill, stroke, ink, action) in enumerate(pills):
-    y = 820 + 26 * i
-    vertex(f'pill_{i}', label, 1115, y, 110, 22,
-           f'rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};'
-           + FONT + f'fontSize=10;fontStyle=1;fontColor={ink};')
-    vertex(f'pill_text_{i}', action, 1235, y - 1, 640, 24, text('fontSize=11;'))
+# ---------------------------------------------------------------- the member ID along the way
+vertex('journey', '<b>The member ID along the way</b> · THP Medicare (TMP) and SCO members · X is a letter, # a digit',
+       60, 666, 1480, 26, text(f'fontSize=14;fontColor={NAVY};'))
+vertex('j_card', '<b>On the member\'s card</b><br>X########<br>9 characters; providers may add<br>spaces, a hyphen or the suffix',
+       60, 705, 280, 140, box('#FFFFFF', '#A0AAB4', 'fontSize=14;'))
+vertex('j_stored', '<b>Stored by Point32Health</b><br>X######## + 3 spaces + 01<br>14 characters',
+       610, 705, 380, 140, box('#FFFFFF', NAVY, 'fontSize=14;'))
+vertex('j_sent', '<b>Sent to you, in your agreed format</b><br>X########01 · 11 characters<br>'
+       'X######## + 3 spaces + 01 · 14 characters<br>X######## and 01 · two separate fields',
+       1200, 705, 340, 140, box('#FFFFFF', '#D6B656', 'fontSize=14;strokeWidth=2;'))
+vertex('footnote', 'THP Public Plans and Harvard Pilgrim (HPHC) member IDs are sent exactly as stored.',
+       60, 858, 1480, 26, text(f'fontSize=14;fontColor={MUTED};'))
 
 # ---------------------------------------------------------------- arrows (drawn last, on top)
-edge('e1', 'emr', 'onyx', (190, 250), (290, 250), '1. prior-auth<br>request')
-edge('e2', 'onyx', 'apim', (480, 237), (760, 237), '2. request', label_v='bottom')
-edge('e3', 'apim', 'rest', (920, 237), (1020, 237))
-edge('e4', 'rest', 'apim', (1020, 263), (920, 263))
-edge('e5', 'apim', 'onyx', (760, 263), (480, 263), '5. response', label_v='top')
-edge('e6', 'rest', 'validate', (1160, 295), (1160, 320), color=NAVY)
-for a, b in zip(['validate', 'ask', 'select', 'cover'], ['ask', 'select', 'cover', 'fmt']):
-    ya = geo[a][1] + geo[a][3]
-    edge(f'e_{a}_{b}', a, b, (1160, ya), (1160, geo[b][1]), color=NAVY)
-edge('e_ask_client', 'ask', 'client', (1300, 418), (1318, 418), color=NAVY)
-edge('e3_mmi', 'client', 'mmi', (1500, 405), (1640, 405), '3. search', label_v='bottom')
-edge('e4_mmi', 'mmi', 'client', (1640, 432), (1500, 432), '4. records', label_v='top')
-edge('e_table_fmt', 'table', 'fmt', (1318, 634), (1300, 634), color=NAVY, dashed=True)
-edge('e6_vendor', 'onyx', 'vendors', (445, 315), (445, 430), '6. formatted ID', pos=0.5)
-edge('e_fallback', 'onyx', 'vendors', (395, 315), (395, 430), 'fallback', color='#9A6A00', dashed=True, pos=-0.5)
+edge('e1', 'provider', 'onyx', (340, 230), (660, 230), '1. Prior-authorization request<br>with the member ID as entered')
+edge('e2', 'onyx', 'service', (690, 290), (690, 440), '2. Member ID and<br>date of service')
+edge('e3', 'service', 'records', (860, 510), (960, 510), '3. Look up', label_v='bottom', both=True)
+edge('e4', 'service', 'onyx', (830, 440), (830, 290), '4. Verified member ID<br>in your format,<br>coverage status')
+edge('e5', 'onyx', 'vendor', (940, 215), (1200, 215), '5. Request with the member ID<br>in your format', label_v='bottom')
+edge('e_fallback', 'onyx', 'vendor', (940, 265), (1200, 265), 'If verification is unavailable:<br>the member ID as entered, as today',
+     color='#7A8691', dashed=True, label_v='top', width=1.5)
+edge('j1', 'j_card', 'j_stored', (340, 775), (610, 775), 'verified', color=MUTED, width=1.5)
+edge('j2', 'j_stored', 'j_sent', (990, 775), (1200, 775), 'formatted for you', color=MUTED, width=1.5)
 
 
 # ---------------------------------------------------------------- checks, then write
@@ -208,12 +142,17 @@ for i, a in enumerate(ids):
         if overlap(a, b) and not ((a in CONTAINERS and inside(b, a)) or (b in CONTAINERS and inside(a, b))):
             raise SystemExit(f'boxes overlap: {a} and {b}')
 
+for c in cells:
+    hit = NOT_FOR_VENDORS.search(c['value'])
+    if hit:
+        raise SystemExit(f'"{hit.group(0)}" in {c["id"]}: this diagram is for vendors')
+
 mxfile = ET.Element('mxfile', host='app.diagrams.net', modified='2026-10-05T00:00:00.000Z',
                     agent='high_level_drawio.py', version='24.7.17', type='device')
-diagram = ET.SubElement(mxfile, 'diagram', id='mirs-high-level', name='High-level architecture')
-model = ET.SubElement(diagram, 'mxGraphModel', dx='1920', dy='1000', grid='1', gridSize='10', guides='1',
+diagram = ET.SubElement(mxfile, 'diagram', id='mirs-vendor-overview', name='Member ID resolution')
+model = ET.SubElement(diagram, 'mxGraphModel', dx='1600', dy='900', grid='1', gridSize='10', guides='1',
                       tooltips='1', connect='1', arrows='1', fold='1', page='1', pageScale='1',
-                      pageWidth='1920', pageHeight='1000', math='0', shadow='0')
+                      pageWidth='1600', pageHeight='900', math='0', shadow='0')
 root = ET.SubElement(model, 'root')
 ET.SubElement(root, 'mxCell', id='0')
 ET.SubElement(root, 'mxCell', id='1', parent='0')
@@ -225,9 +164,7 @@ for c in cells:
     else:
         cell = ET.SubElement(root, 'mxCell', id=c['id'], value=c['value'], style=c['style'], edge='1', parent='1',
                              source=c['src'], target=c['tgt'])
-        g = ET.SubElement(cell, 'mxGeometry', relative='1', **{'as': 'geometry'})
-        if c['pos'] is not None:
-            g.set('x', str(c['pos']))
+        ET.SubElement(cell, 'mxGeometry', relative='1', **{'as': 'geometry'})
 ET.indent(mxfile, space='  ')
 xml = ET.tostring(mxfile, encoding='unicode') + '\n'
 

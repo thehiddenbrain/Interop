@@ -1,188 +1,77 @@
 <mxfile host="app.diagrams.net" modified="2026-10-05T00:00:00.000Z" agent="high_level_drawio.py" version="24.7.17" type="device">
-  <diagram id="mirs-high-level" name="High-level architecture">
-    <mxGraphModel dx="1920" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1000" math="0" shadow="0">
+  <diagram id="mirs-vendor-overview" name="Member ID resolution">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title" value="Member ID Resolution Service · high-level architecture" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=22;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="20" width="1300" height="34" as="geometry" />
+        <mxCell id="title" value="Member ID resolution for prior-authorization requests" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=30;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="36" width="1300" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="subtitle" value="Point32Health interop · Onyx → Member ID Resolution Service → MMI · design v0.2, owner feedback 1 to 16 · 2026-10-05" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=13;fontColor=#5A6673;" vertex="1" parent="1">
-          <mxGeometry x="40" y="56" width="1300" height="22" as="geometry" />
+        <mxCell id="subtitle" value="How the member ID reaches your system" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=17;fontColor=#5A6673;" vertex="1" parent="1">
+          <mxGeometry x="60" y="84" width="1300" height="28" as="geometry" />
         </mxCell>
-        <mxCell id="legend" value="Numbers 1 to 6 follow one request.&lt;br&gt;Dashed arrow: Onyx's fallback when this service is down." style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=12;fontColor=#5A6673;align=right;" vertex="1" parent="1">
-          <mxGeometry x="1450" y="24" width="440" height="50" as="geometry" />
+        <mxCell id="p32" value="Point32Health" style="rounded=1;whiteSpace=wrap;html=1;arcSize=4;fillColor=#EEF4F7;strokeColor=#123F55;strokeWidth=1.5;fontFamily=Helvetica;fontSize=14;fontStyle=1;fontColor=#123F55;align=left;verticalAlign=top;spacingLeft=14;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="440" y="400" width="720" height="210" as="geometry" />
         </mxCell>
-        <mxCell id="boundary" value="Point32Health internal network · MMI is internal: no response ever names it" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=none;strokeColor=#5A6673;dashed=1;dashPattern=8 6;fontFamily=Helvetica;fontSize=12;fontStyle=2;fontColor=#5A6673;align=left;verticalAlign=top;spacingLeft=14;spacingTop=6;" vertex="1" parent="1">
-          <mxGeometry x="975" y="100" width="925" height="650" as="geometry" />
+        <mxCell id="provider" value="&lt;b&gt;Provider&lt;/b&gt;&lt;br&gt;enters the member ID&lt;br&gt;from the member's card" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#F5F5F5;strokeColor=#666666;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="170" width="280" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="svc" value="&lt;b&gt;Member ID Resolution Service&lt;/b&gt;&lt;br&gt;Spring Boot 4.0.7 · Java 17+ · port 9090 · stateless, no database" style="rounded=1;whiteSpace=wrap;html=1;arcSize=3;fillColor=#EAF2F6;strokeColor=#123F55;strokeWidth=2;fontFamily=Helvetica;fontSize=13;fontColor=#123F55;align=center;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
-          <mxGeometry x="1000" y="140" width="520" height="590" as="geometry" />
+        <mxCell id="onyx" value="&lt;b&gt;Onyx&lt;/b&gt;&lt;br&gt;prior-authorization intake&lt;br&gt;for Point32Health" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#DAE8FC;strokeColor=#6C8EBF;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="660" y="170" width="280" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="vendors" value="&lt;b&gt;UM vendors&lt;/b&gt; · receive only the vendor-formatted ID" style="rounded=1;whiteSpace=wrap;html=1;arcSize=4;fillColor=#FAFAFA;strokeColor=#666666;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
-          <mxGeometry x="40" y="430" width="440" height="250" as="geometry" />
+        <mxCell id="vendor" value="&lt;b&gt;UM vendor&lt;/b&gt; · your system&lt;br&gt;receives a verified member ID,&lt;br&gt;in the format you store" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#FFF2CC;strokeColor=#D6B656;strokeWidth=1.5;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="170" width="340" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="emr" value="&lt;b&gt;Provider EMR&lt;/b&gt;&lt;br&gt;member ID as typed,&lt;br&gt;any length or shape" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#F5F5F5;strokeColor=#666666;" vertex="1" parent="1">
-          <mxGeometry x="40" y="205" width="150" height="90" as="geometry" />
+        <mxCell id="service" value="&lt;b&gt;Member ID Resolution Service&lt;/b&gt;&lt;br&gt;verifies the member ID&lt;br&gt;confirms coverage on the date of service&lt;br&gt;formats the ID for each UM vendor" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;strokeWidth=1.5;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="480" y="440" width="380" height="140" as="geometry" />
         </mxCell>
-        <mxCell id="onyx" value="&lt;b&gt;Onyx&lt;/b&gt;&lt;br&gt;prior-authorization intake&lt;br&gt;routes the auth to the UM vendor&lt;br&gt;&lt;i&gt;the only caller&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1">
-          <mxGeometry x="290" y="185" width="190" height="130" as="geometry" />
+        <mxCell id="records" value="&lt;b&gt;Member records&lt;/b&gt;&lt;br&gt;members and&lt;br&gt;coverage" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#D5E8D4;strokeColor=#82B366;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="960" y="460" width="170" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="apim" value="&lt;b&gt;Azure API Management&lt;/b&gt;&lt;br&gt;tokens and certificates&lt;br&gt;&lt;i&gt;security lives here,&lt;br&gt;not in the service&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="760" y="200" width="160" height="100" as="geometry" />
+        <mxCell id="why" value="&lt;b&gt;Why&lt;/b&gt;&lt;br&gt;Providers enter the member ID in many forms: 9, 11 or 14 characters, with or without spaces or a hyphen. Your system stores one form. The service finds the member from what was entered and sends you the ID in the form you store." style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#A0AAB4;strokeWidth=1.5;fontSize=15;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="425" width="330" height="160" as="geometry" />
         </mxCell>
-        <mxCell id="rest" value="&lt;b&gt;REST API&lt;/b&gt; · POST, JSON&lt;br&gt;/api/v1/member-ids/resolve · one vendor, strict&lt;br&gt;/api/v1/member-ids/vendor-map · every vendor, lenient" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="205" width="480" height="90" as="geometry" />
+        <mxCell id="changes" value="&lt;b&gt;What changes for you&lt;/b&gt;&lt;br&gt;• The member ID is verified against Point32Health's member records before the request is sent&lt;br&gt;• It arrives in the format your system stores&lt;br&gt;• Requests still reach you through Onyx" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#D6B656;strokeWidth=1.5;fontSize=15;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="425" width="340" height="160" as="geometry" />
         </mxCell>
-        <mxCell id="validate" value="&lt;b&gt;Validate the request&lt;/b&gt;&lt;br&gt;member ID: presence only, never reshaped" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="320" width="280" height="52" as="geometry" />
+        <mxCell id="journey" value="&lt;b&gt;The member ID along the way&lt;/b&gt; · THP Medicare (TMP) and SCO members · X is a letter, # a digit" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=14;fontColor=#123F55;" vertex="1" parent="1">
+          <mxGeometry x="60" y="666" width="1480" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ask" value="&lt;b&gt;Ask MMI once&lt;/b&gt;&lt;br&gt;the ID exactly as received" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="392" width="280" height="52" as="geometry" />
+        <mxCell id="j_card" value="&lt;b&gt;On the member's card&lt;/b&gt;&lt;br&gt;X########&lt;br&gt;9 characters; providers may add&lt;br&gt;spaces, a hyphen or the suffix" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#A0AAB4;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="705" width="280" height="140" as="geometry" />
         </mxCell>
-        <mxCell id="select" value="&lt;b&gt;Select the member&lt;/b&gt;&lt;br&gt;DOB picks one; several people → AMBIGUOUS" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="464" width="280" height="52" as="geometry" />
+        <mxCell id="j_stored" value="&lt;b&gt;Stored by Point32Health&lt;/b&gt;&lt;br&gt;X######## + 3 spaces + 01&lt;br&gt;14 characters" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="610" y="705" width="380" height="140" as="geometry" />
         </mxCell>
-        <mxCell id="cover" value="&lt;b&gt;Coverage on the date of service&lt;/b&gt;&lt;br&gt;active flag + covering period" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="536" width="280" height="52" as="geometry" />
+        <mxCell id="j_sent" value="&lt;b&gt;Sent to you, in your agreed format&lt;/b&gt;&lt;br&gt;X########01 · 11 characters&lt;br&gt;X######## + 3 spaces + 01 · 14 characters&lt;br&gt;X######## and 01 · two separate fields" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fontFamily=Helvetica;fontSize=15;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#D6B656;strokeWidth=1.5;fontSize=14;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="705" width="340" height="140" as="geometry" />
         </mxCell>
-        <mxCell id="fmt" value="&lt;b&gt;Format the stored ID&lt;/b&gt;&lt;br&gt;for one vendor, or for every vendor" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="608" width="280" height="52" as="geometry" />
+        <mxCell id="footnote" value="THP Public Plans and Harvard Pilgrim (HPHC) member IDs are sent exactly as stored." style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=14;fontColor=#5A6673;" vertex="1" parent="1">
+          <mxGeometry x="60" y="858" width="1480" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="client" value="&lt;b&gt;MMI client&lt;/b&gt;&lt;br&gt;timeouts 2 s / 5 s, no retry&lt;br&gt;dev profile: in-process stub" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1318" y="380" width="182" height="76" as="geometry" />
-        </mxCell>
-        <mxCell id="table" value="&lt;b&gt;Vendor format table&lt;/b&gt;&lt;br&gt;application.yaml&lt;br&gt;one block per vendor" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#123F55;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1318" y="596" width="182" height="76" as="geometry" />
-        </mxCell>
-        <mxCell id="svc_footer" value="Masked logs (last 4 characters) · correlation id in header and logs · health and info endpoints only" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=11;fontColor=#5A6673;align=center;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="672" width="480" height="46" as="geometry" />
-        </mxCell>
-        <mxCell id="mmi" value="&lt;b&gt;MMI · Master Member Index&lt;/b&gt;&lt;br&gt;POST /master/member/v1&lt;br&gt;returns members and coverage spans&lt;br&gt;404 = no member for this ID" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1640" y="352" width="240" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="profiles" value="&lt;b&gt;Which MMI&lt;/b&gt; (Spring profile)&lt;br&gt;dev: in-process stub&lt;br&gt;fqa · pqa (default) · pqa-lite · prod" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#F7FBF6;strokeColor=#82B366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1640" y="500" width="240" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="v_evicore" value="&lt;b&gt;eviCore&lt;/b&gt;&lt;br&gt;11 characters" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#F5F5F5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="55" y="475" width="130" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="v_evolent" value="&lt;b&gt;Evolent&lt;/b&gt;&lt;br&gt;11 characters" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#F5F5F5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="195" y="475" width="130" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="v_carelon" value="&lt;b&gt;Carelon&lt;/b&gt;&lt;br&gt;11 characters" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#F5F5F5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="335" y="475" width="130" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="v_mhk" value="&lt;b&gt;MHK&lt;/b&gt;&lt;br&gt;14 characters" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#F5F5F5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="55" y="540" width="130" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="v_optum" value="&lt;b&gt;Optum&lt;/b&gt;&lt;br&gt;core + suffix, two fields" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#F5F5F5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="195" y="540" width="130" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="v_next" value="&lt;i&gt;next vendor&lt;/i&gt;&lt;br&gt;one YAML block" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#999999;fontSize=11;fontColor=#5A6673;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="335" y="540" width="130" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="vendors_footer" value="Public Plans and HPHC IDs reach every vendor as stored.&lt;br&gt;Dashed arrow: if this service is down, Onyx sends the EMR's ID as received." style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="55" y="602" width="410" height="68" as="geometry" />
-        </mxCell>
-        <mxCell id="req_note" value="&lt;b&gt;2. Request&lt;/b&gt; · POST, JSON&lt;br&gt;memberId: required, as typed&lt;br&gt;dateOfService: optional, today if none&lt;br&gt;vendor: /resolve only&lt;br&gt;patient.dateOfBirth: optional" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
-          <mxGeometry x="495" y="330" width="250" height="92" as="geometry" />
-        </mxCell>
-        <mxCell id="resp_note" value="&lt;b&gt;5. Response&lt;/b&gt; · HTTP 200&lt;br&gt;outcome + one-sentence message&lt;br&gt;memberId: received, stored, forVendor&lt;br&gt;(vendor-map: vendorMemberIds[])&lt;br&gt;lineOfBusiness · dateOfService&lt;br&gt;coverage: active + covering period&lt;br&gt;candidates[] when AMBIGUOUS&lt;br&gt;traceId; never names MMI" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
-          <mxGeometry x="495" y="438" width="250" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="ids" value="&lt;b&gt;One TMP / SCO member ID, masked&lt;/b&gt; (X = letter, # = digit)&lt;br&gt;Card: X######## · 9 characters&lt;br&gt;Stored in MMI: X######## + three spaces + 01 · 14 characters&lt;br&gt;COMPACT_11: X########01 · eviCore, Evolent, Carelon, Onyx&lt;br&gt;SPACED_14: X######## + three spaces + 01 · MHK&lt;br&gt;SPLIT: X######## and 01 as two fields · Optum&lt;br&gt;Public Plans (11 continuous) and HPHC (HP + 9 digits): as stored, every vendor" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#A0AAB4;align=left;verticalAlign=top;spacingLeft=14;spacingTop=10;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="40" y="790" width="610" height="185" as="geometry" />
-        </mxCell>
-        <mxCell id="plain" value="&lt;b&gt;Deliberately plain&lt;/b&gt;&lt;br&gt;One MMI call per request; MMI is the only integration&lt;br&gt;No database, cache or queue; stateless&lt;br&gt;No retry or circuit breaker: timeouts, then a clear 503&lt;br&gt;No security code: Azure API Management owns it&lt;br&gt;A vendor change: one YAML block and a deploy" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#A0AAB4;align=left;verticalAlign=top;spacingLeft=14;spacingTop=10;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="670" y="790" width="410" height="185" as="geometry" />
-        </mxCell>
-        <mxCell id="outcomes" value="&lt;b&gt;What Onyx does with each answer&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fontFamily=Helvetica;fontSize=12;fontColor=#1A2430;fillColor=#FFFFFF;strokeColor=#A0AAB4;align=left;verticalAlign=top;spacingLeft=14;spacingTop=10;" vertex="1" parent="1">
-          <mxGeometry x="1100" y="790" width="790" height="185" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_0" value="ACTIVE" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontFamily=Helvetica;fontSize=10;fontStyle=1;fontColor=#2D7A4F;" vertex="1" parent="1">
-          <mxGeometry x="1115" y="820" width="110" height="22" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_text_0" value="Send forVendor (or the vendorMemberIds entry) to the vendor" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1235" y="819" width="640" height="24" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_1" value="INACTIVE" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontFamily=Helvetica;fontSize=10;fontStyle=1;fontColor=#8A6100;" vertex="1" parent="1">
-          <mxGeometry x="1115" y="846" width="110" height="22" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_text_1" value="Hold for intake; the message says why (ended, not yet effective, gap)" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1235" y="845" width="640" height="24" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_2" value="NOT_FOUND" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontFamily=Helvetica;fontSize=10;fontStyle=1;fontColor=#444444;" vertex="1" parent="1">
-          <mxGeometry x="1115" y="872" width="110" height="22" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_text_2" value="Member-not-found worklist; one resend with a fuller ID if Onyx has one" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1235" y="871" width="640" height="24" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_3" value="AMBIGUOUS" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontFamily=Helvetica;fontSize=10;fontStyle=1;fontColor=#2F5D8F;" vertex="1" parent="1">
-          <mxGeometry x="1115" y="898" width="110" height="22" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_text_3" value="Resend with the date of birth or the full ID; else intake picks a candidate" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1235" y="897" width="640" height="24" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_4" value="400 · 422" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontFamily=Helvetica;fontSize=10;fontStyle=1;fontColor=#8F2F33;" vertex="1" parent="1">
-          <mxGeometry x="1115" y="924" width="110" height="22" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_text_4" value="Never retry; route by error code (422: the date of birth matches no record)" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1235" y="923" width="640" height="24" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_5" value="502 · 503" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontFamily=Helvetica;fontSize=10;fontStyle=1;fontColor=#8A5A00;" vertex="1" parent="1">
-          <mxGeometry x="1115" y="950" width="110" height="22" as="geometry" />
-        </mxCell>
-        <mxCell id="pill_text_5" value="Retry later (Retry-After 10). No answer at all: pass the EMR's ID through" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontColor=#1A2430;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1235" y="949" width="640" height="24" as="geometry" />
-        </mxCell>
-        <mxCell id="e1" value="1. prior-auth&lt;br&gt;request" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="emr" target="onyx">
+        <mxCell id="e1" value="1. Prior-authorization request&lt;br&gt;with the member ID as entered" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=2;fontFamily=Helvetica;fontSize=13;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="provider" target="onyx">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e2" value="2. request" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=bottom;exitX=1.0;exitY=0.4;exitDx=0;exitDy=0;entryX=0.0;entryY=0.37;entryDx=0;entryDy=0;" edge="1" parent="1" source="onyx" target="apim">
+        <mxCell id="e2" value="2. Member ID and&lt;br&gt;date of service" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=2;fontFamily=Helvetica;fontSize=13;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.1071;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5526;entryY=0.0;entryDx=0;entryDy=0;" edge="1" parent="1" source="onyx" target="service">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=1.0;exitY=0.37;exitDx=0;exitDy=0;entryX=0.0;entryY=0.3556;entryDx=0;entryDy=0;" edge="1" parent="1" source="apim" target="rest">
+        <mxCell id="e3" value="3. Look up" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=2;fontFamily=Helvetica;fontSize=13;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=bottom;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;startArrow=block;startFill=1;" edge="1" parent="1" source="service" target="records">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.0;exitY=0.6444;exitDx=0;exitDy=0;entryX=1.0;entryY=0.63;entryDx=0;entryDy=0;" edge="1" parent="1" source="rest" target="apim">
+        <mxCell id="e4" value="4. Verified member ID&lt;br&gt;in your format,&lt;br&gt;coverage status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=2;fontFamily=Helvetica;fontSize=13;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.9211;exitY=0.0;exitDx=0;exitDy=0;entryX=0.6071;entryY=1.0;entryDx=0;entryDy=0;" edge="1" parent="1" source="service" target="onyx">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e5" value="5. response" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=top;exitX=0.0;exitY=0.63;exitDx=0;exitDy=0;entryX=1.0;entryY=0.6;entryDx=0;entryDy=0;" edge="1" parent="1" source="apim" target="onyx">
+        <mxCell id="e5" value="5. Request with the member ID&lt;br&gt;in your format" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=2;fontFamily=Helvetica;fontSize=13;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=bottom;exitX=1.0;exitY=0.375;exitDx=0;exitDy=0;entryX=0.0;entryY=0.375;entryDx=0;entryDy=0;" edge="1" parent="1" source="onyx" target="vendor">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#123F55;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.2917;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" edge="1" parent="1" source="rest" target="validate">
+        <mxCell id="e_fallback" value="If verification is unavailable:&lt;br&gt;the member ID as entered, as today" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#7A8691;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=top;exitX=1.0;exitY=0.7917;exitDx=0;exitDy=0;entryX=0.0;entryY=0.7917;entryDx=0;entryDy=0;dashed=1;dashPattern=8 5;" edge="1" parent="1" source="onyx" target="vendor">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_validate_ask" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#123F55;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" edge="1" parent="1" source="validate" target="ask">
+        <mxCell id="j1" value="verified" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#5A6673;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="j_card" target="j_stored">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_ask_select" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#123F55;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ask" target="select">
+        <mxCell id="j2" value="formatted for you" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#5A6673;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="j_stored" target="j_sent">
           <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_select_cover" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#123F55;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" edge="1" parent="1" source="select" target="cover">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_cover_fmt" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#123F55;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cover" target="fmt">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_ask_client" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#123F55;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ask" target="client">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e3_mmi" value="3. search" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=bottom;exitX=1.0;exitY=0.3289;exitDx=0;exitDy=0;entryX=0.0;entryY=0.4077;entryDx=0;entryDy=0;" edge="1" parent="1" source="client" target="mmi">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e4_mmi" value="4. records" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=top;exitX=0.0;exitY=0.6154;exitDx=0;exitDy=0;entryX=1.0;entryY=0.6842;entryDx=0;entryDy=0;" edge="1" parent="1" source="mmi" target="client">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_table_fmt" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#123F55;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.0;exitY=0.5;exitDx=0;exitDy=0;entryX=1.0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;dashPattern=8 5;" edge="1" parent="1" source="table" target="fmt">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e6_vendor" value="6. formatted ID" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1A2430;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.8158;exitY=1.0;exitDx=0;exitDy=0;entryX=0.9205;entryY=0.0;entryDx=0;entryDy=0;" edge="1" parent="1" source="onyx" target="vendors">
-          <mxGeometry relative="1" as="geometry" x="0.5" />
-        </mxCell>
-        <mxCell id="e_fallback" value="fallback" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#9A6A00;strokeWidth=1.5;fontFamily=Helvetica;fontSize=11;fontColor=#1A2430;labelBackgroundColor=#FFFFFF;verticalAlign=middle;exitX=0.5526;exitY=1.0;exitDx=0;exitDy=0;entryX=0.8068;entryY=0.0;entryDx=0;entryDy=0;dashed=1;dashPattern=8 5;" edge="1" parent="1" source="onyx" target="vendors">
-          <mxGeometry relative="1" as="geometry" x="-0.5" />
         </mxCell>
       </root>
     </mxGraphModel>

@@ -327,3 +327,21 @@ See the conversation; answers will be appended here.
 - Source `design-src/high_level_drawio.py` (refuses to write on overlapping boxes or an id-shaped value); preview
   rendered with `design-src/render_drawio_preview.js` (mxGraph 4.2.2 in headless Chromium), which also checked that
   every label fits its box. The Lucidchart import itself could not be tried from the build container.
+
+## Feedback 18 (2026-10-05): the diagram is for vendors
+
+- The owner, on the first diagram: no details like the port number or the Java version; it has to be a diagram the
+  owner can present to a vendor.
+- Applied: the diagram is rebuilt as a one-page vendor overview, same file name. It shows the business flow only:
+  the provider enters the member ID, Onyx sends it with the date of service to the Member ID Resolution Service, the
+  service looks the member up in Point32Health's member records, verifies coverage and returns the ID in the
+  vendor's format, and Onyx sends the request on with that ID; a dashed line shows that the ID goes on as entered,
+  as today, when verification is unavailable. A strip at the bottom follows one THP Medicare (TMP) / SCO member ID
+  from the card to what Point32Health stores to what the vendor receives, masked; two callouts say why and what
+  changes for the vendor.
+- Removed: the port, Spring Boot and Java versions, endpoints, timeouts, profiles, Azure API Management, error codes,
+  response field names, the outcome table, the internal network, and the name MMI (now "member records", per
+  feedback 16). No other vendor is named and the formats are described generically, so the same file serves every
+  vendor.
+- The generator now refuses to write a label carrying an internal system name, a technical term or a vendor's name.
+  The technical view is in the design document; the first diagram stays in the git history (commit 1e74848).
