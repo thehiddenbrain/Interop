@@ -204,7 +204,7 @@ back as 400 `MEMBER_LOOKUP_REJECTED` with MMI's text.
 
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
-| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Put `memberId.forVendor` in the vendor payload. For Optum use `forVendorParts` when it is present (TMP/SCO ids); for Public Plans and HPHC ids there are no parts, send `forVendor`. |
+| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Put `memberId.forVendor` in the vendor payload: it is already in the vendor's format (for Optum, the 9-character core only). Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
 | `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, a gap, or no coverage on record) | Hold for intake (owner decision). |
 | `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
 | `AMBIGUOUS` | MMI matched the ID to several persons (a 9-character ID of a population with dependents) and no DOB settled it | Resend with the member's full ID including the suffix, or with `patient.dateOfBirth`, else intake picks from `candidates[]`. |
@@ -215,21 +215,25 @@ back as 400 `MEMBER_LOOKUP_REJECTED` with MMI's text.
   "memberId": { "received": "123456789", "stored": "123456789   01", "forVendor": "12345678901" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null } },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
   "traceId": "INTEROP-1760000000000-48213" }
 ```
 
 `memberId.received` is the ID as Onyx sent it (surrounding whitespace removed): exactly what was sent to MMI.
 `memberId.stored` is the ID exactly as MMI holds it. `forVendor` is that ID in the vendor's format.
-For Optum (`SPLIT`) **and a TMP/SCO id** the response also carries `forVendorParts: { "memberId": "123456789",
-"suffix": "01" }`; for Public Plans and HPHC ids only `forVendor` is returned.
+For Optum `forVendor` is the 9-character core only, the number printed on the card: Optum stores the core, not the
+11 characters (owner feedback 23, 2026-10-05). There are no separate "parts" fields any more.
 Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 characters, spaces, 2 digits); any other
 stored ID (Public Plans, HPHC) is passed as stored for every vendor.
 `coverage` is the flag and the coverage period: `coverage.span { effectiveDate, endDate }` is the continuous period
 that covers the (first) date of service (`endDate` is an explicit `null` for open-ended coverage). Records that touch,
 as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true only when
 that period covers every day asked about; when it covers the first day but ends before the last, `active` is false and
-the period is still shown so intake sees how far coverage goes. Otherwise there is no period and `message` says why. Nothing else is returned about coverage: no reason code, no neighbouring span dates.
+the period is still shown so intake sees how far coverage goes. Otherwise there is no period and `message` says why.
+`coverage.coverageId` names that period (owner feedback 24): the stored member id without its spaces, the period's
+effective date and its end date as `yyyyMMdd`, joined with hyphens (`<id>-<yyyyMMdd>-<yyyyMMdd>`; `99991231` stands for
+an open-ended period). It is present whenever `span` is, and the same member with the same coverage always gets the same
+value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring span dates.
 `lineOfBusiness` is MMI's value (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it. The company (THP or
 HPHC) is not returned: the stored id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
 to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body.
@@ -240,10 +244,10 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
 | `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) · `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` · `Member found; coverage ended before <dateOfService>` · `Member found; coverage not yet effective on <dateOfService>` · `Member found; no coverage on <dateOfService> (gap between coverage periods)` · `Member found; no coverage on record` · `No member found for this id` · `Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates`) |
-| `memberId` | always | `received`; `stored`, `forVendor`, `forVendorParts` when a member was identified |
+| `memberId` | always | `received`; `stored`, `forVendor` when a member was identified |
 | `dateOfService`, `dateOfServiceDefaulted` | always | The (first) date evaluated and whether it was defaulted to today |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
-| `lineOfBusiness`, `coverage` | `ACTIVE`, `INACTIVE` | From the stored record and the coverage decision: `coverage { active, span? }` |
+| `lineOfBusiness`, `coverage` | `ACTIVE`, `INACTIVE` | From the stored record and the coverage decision: `coverage { active, span?, coverageId? }`; `coverageId` whenever `span` is present |
 | `candidates[]` | `AMBIGUOUS` | `{ storedMemberId, lineOfBusiness, coverageActive }` per person, sorted by id |
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
@@ -303,9 +307,9 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 
 **Response (HTTP 200)**: the same `outcome` values and `message` sentences, the same `coverage`,
 `candidates[]` and `sourceMessage` blocks and the same Onyx actions as the tables above, with two differences.
-There is no `vendor`, no `forVendor` and no `forVendorParts`; instead `vendorMemberIds[]` carries one entry per
+There is no `vendor` and no `forVendor`; instead `vendorMemberIds[]` carries one entry per
 configured vendor, sorted by vendor code, and for `ACTIVE` Onyx picks the entry for its vendor and puts that
-`memberId` (for Optum, `memberIdParts` when present) in the vendor payload.
+`memberId` in the vendor payload (the Optum entry is the 9-character core only).
 
 | Field | Present | Content |
 |---|---|---|
@@ -313,7 +317,7 @@ configured vendor, sorted by vendor code, and for `ACTIVE` Onyx picks the entry 
 | `memberId` | always | `received`; `stored` when a member was identified |
 | `lineOfBusiness`, `dateOfService`, `dateOfServiceEnd`, `dateOfServiceDefaulted` | as on `/resolve` | |
 | `coverage`, `candidates[]` | as on `/resolve` | |
-| `vendorMemberIds[]` | `ACTIVE`, `INACTIVE` | `{ vendor, memberId, memberIdParts? }` per configured vendor, sorted by vendor code |
+| `vendorMemberIds[]` | `ACTIVE`, `INACTIVE` | `{ vendor, memberId }` per configured vendor, sorted by vendor code |
 | `traceId` | always | |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | The first entry of MMI's `messages[]`, as on `/resolve` |
 
@@ -325,14 +329,14 @@ For the TMP id `123456789` (stored `123456789   01`):
   "memberId": { "received": "123456789", "stored": "123456789   01" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null } },
+  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "12345678901-20210101-99991231" },
   "vendorMemberIds": [
     { "vendor": "CARELON", "memberId": "12345678901" },
     { "vendor": "EVICORE", "memberId": "12345678901" },
     { "vendor": "EVOLENT", "memberId": "12345678901" },
     { "vendor": "MHK",     "memberId": "123456789   01" },
     { "vendor": "ONYX",    "memberId": "12345678901" },
-    { "vendor": "OPTUM",   "memberId": "12345678901", "memberIdParts": { "memberId": "123456789", "suffix": "01" } }
+    { "vendor": "OPTUM",   "memberId": "123456789" }
   ],
   "traceId": "INTEROP-1760000000000-48214" }
 ```
@@ -341,9 +345,10 @@ For the TMP id `123456789` (stored `123456789   01`):
 `NOT_FOUND` and `AMBIGUOUS` answers carry no `vendorMemberIds` and no `memberId.stored`; a `NOT_FOUND` answer
 carries `message` "No member found for this id" and `sourceMessage` when MMI sent a message, exactly as on
 `/resolve`; an `AMBIGUOUS` answer carries `candidates[]` and the same `message` exactly as on `/resolve`, and a resend
-with `patient.dateOfBirth` settles it. `memberIdParts` appears only on vendors whose format is `SPLIT` (Optum) and only for a TMP/SCO id.
+with `patient.dateOfBirth` settles it. The Optum entry is the 9-character core only (`CORE_9`): Optum stores the number
+printed on the card, not the 11 characters.
 For an HPHC id (stored `HP456789012`) or a Public Plans id (`34567890102`) every entry carries the stored id
-unchanged and no entry has `memberIdParts`: the same rule as `forVendor` on `/resolve`. Absent blocks are
+unchanged, Optum included: the same rule as `forVendor` on `/resolve`. Absent blocks are
 omitted, not sent as `null`.
 
 **Which one to call.** Onyx calls `/vendor-map` (owner, 2026-10-05): a prior authorization with several codes may go
@@ -454,13 +459,13 @@ member-id:
       format: COMPACT_11
     OPTUM:
       display-name: Optum
-      format: SPLIT                     # "123456789" + "01" as two fields (TMP/SCO ids)
+      format: CORE_9                    # the 9-character core only: Optum stores the number on the card
     ONYX:
       display-name: Onyx
       format: COMPACT_11
 ```
 
-Formats: `COMPACT_11`, `SPACED_14`, `SPLIT`, `AS_STORED`. The TMP core is **9 characters, a letter and 8 digits** (`S12345678`), stored with three spaces and the suffix `01`: `S12345678   01`. A format applies when the stored id is a run of letters and digits, a separator (any blanks or punctuation) and a short numeric suffix; the core and the suffix are copied character for character, so the `S` is always kept (`S1234567801`, `S12345678   01`, `S12345678` + `01`). A stored id of any other shape is passed on unchanged and, when it is not plain letters and digits, the log says so (`marker=STORED_ID_NOT_RESHAPED` with the shape, never the characters). A new output shape = one constant in
+Formats: `COMPACT_11`, `SPACED_14`, `CORE_9`, `AS_STORED`. The TMP core is **9 characters, a letter and 8 digits** (`S12345678`), stored with three spaces and the suffix `01`: `S12345678   01`. A format applies when the stored id is a run of letters and digits, a separator (any blanks or punctuation) and a short numeric suffix; the core and the suffix are copied character for character, so the `S` is always kept (`S1234567801`, `S12345678   01`; Optum receives the core alone, `S12345678`). A stored id of any other shape is passed on unchanged and, when it is not plain letters and digits, the log says so (`marker=STORED_ID_NOT_RESHAPED` with the shape, never the characters). A new output shape = one constant in
 `VendorIdFormat` + one case in `VendorFormatter` + one test row.
 
 ## 5. Stub fixtures (dev profile: `--spring.profiles.active=dev`) and Postman
@@ -497,7 +502,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (119 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (127 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -507,7 +512,7 @@ configuration validation, and the end-to-end scenario matrix over HTTP against t
 2026-10-03. The scenarios assert `message` on `ACTIVE`, `message` and `sourceMessage` on `NOT_FOUND` on both
 operations, that `400400400` is 400 `MEMBER_LOOKUP_REJECTED` / `HTTP_400` with MMI's text and no `Retry-After`, and that
 the 502 `ERROR_MESSAGE` body carries MMI's `code=ES_TIMEOUT` and `text=`. Four of the scenarios cover
-`/vendor-map`: the TMP id rendered for every vendor from one MMI call (Optum with `memberIdParts`, no `vendor`
+`/vendor-map`: the TMP id rendered for every vendor from one MMI call (Optum as the 9-character core, no `vendor`
 or `forVendor` in the response); HPHC and Public Plans ids passed as stored to every vendor, with the defaulted
 date and an INACTIVE gap; NOT_FOUND and AMBIGUOUS answers without `vendorMemberIds`, and a DOB that settles the
 ambiguity; and `vendorMapIsLenientAboutEverythingExceptTheMemberId`, which proves that a blank member id is a

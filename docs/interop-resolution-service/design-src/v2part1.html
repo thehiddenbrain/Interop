@@ -39,7 +39,7 @@
 </header>
 
 <h2 id="summary"><span class="num">1</span>Summary</h2>
-<p>Every UM vendor stores our member ID in its own shape. A THP Medicare (TMP) or SCO card prints 9 characters; our systems store those 9 characters, three spaces and the suffix <code>01</code> (14 characters); eviCore, Evolent and Carelon keep 11 characters without the spaces, MHK keeps all 14, Optum receives the 9 characters and the suffix as two separate fields. EMRs type whatever is on the card. Today the mismatch surfaces at the vendor. This service moves the check to the front of the flow: one call from Onyx, one call to MMI, and back come the ID as received, the ID as stored, the ID in the vendor's format and the coverage flag. Two operations share that one lookup: <code>/resolve</code> when Onyx knows the vendor, <code>/vendor-map</code> when it does not yet and wants the id in every vendor's format at once.</p>
+<p>Every UM vendor stores our member ID in its own shape. A THP Medicare (TMP) or SCO card prints 9 characters; our systems store those 9 characters, three spaces and the suffix <code>01</code> (14 characters); eviCore, Evolent and Carelon keep 11 characters without the spaces, MHK keeps all 14, Optum keeps only the 9 characters printed on the card. EMRs type whatever is on the card. Today the mismatch surfaces at the vendor. This service moves the check to the front of the flow: one call from Onyx, one call to MMI, and back come the ID as received, the ID as stored, the ID in the vendor's format, the coverage flag and an id for the coverage period. Two operations share that one lookup: <code>/resolve</code> when Onyx knows the vendor, <code>/vendor-map</code> when it does not yet and wants the id in every vendor's format at once.</p>
 
 <!--FIGURE1-->
 
@@ -52,12 +52,12 @@
 
 <div class="callout">
   <div class="label">What changed since v0.1, in one paragraph</div>
-  <p>TMP and SCO members have no dependents, so a 9-character card number resolves directly; the "not confirmed" rule is gone. AMBIGUOUS applies only to populations with dependents (HPHC commercial, Together) when a 9-character ID returns several people and no date of birth settles it. The response is lean: <code>stored</code> replaces "canonical", a boolean <code>coverage.active</code> is the flag, and the legacy, migration, restricted and trace fields are gone. A missing date of service defaults to today and says so. Vendor formats live in <code>application.yaml</code> only (Evolent added, Optum as two fields). Retry and circuit-breaker logic, the API key, the ConfigMap override and the host guard were removed: MMI is reliable, security is external, and a format change is a config edit plus a deploy.</p>
+  <p>TMP and SCO members have no dependents, so a 9-character card number resolves directly; the "not confirmed" rule is gone. AMBIGUOUS applies only to populations with dependents (HPHC commercial, Together) when a 9-character ID returns several people and no date of birth settles it. The response is lean: <code>stored</code> replaces "canonical", a boolean <code>coverage.active</code> is the flag, and the legacy, migration, restricted and trace fields are gone. A missing date of service defaults to today and says so. Vendor formats live in <code>application.yaml</code> only (Evolent added, Optum as the 9-character core). Retry and circuit-breaker logic, the API key, the ConfigMap override and the host guard were removed: MMI is reliable, security is external, and a format change is a config edit plus a deploy.</p>
 </div>
 
 <div class="callout">
   <div class="label">Revised 2026-10-04 (owner feedback 7)</div>
-  <p>The incoming member id is no longer parsed, classified or capped. It is checked for presence and sent to MMI exactly as the EMR typed it, and the response block is <code>{ received, stored, forVendor, forVendorParts }</code>. Section 8 has the rule; the decision log in section 18 lists what was removed.</p>
+  <p>The incoming member id is no longer parsed, classified or capped. It is checked for presence and sent to MMI exactly as the EMR typed it, and the response block is <code>{ received, stored, forVendor }</code>. Section 8 has the rule; the decision log in section 18 lists what was removed.</p>
 </div>
 
 <div class="callout">
@@ -96,6 +96,11 @@
 </div>
 
 <div class="callout">
+  <div class="label">Revised 2026-10-05 (owner feedback 23 and 24, built on the owner's go)</div>
+  <p>Optum confirmed that it stores only the 9 characters of the member ID, the number printed on the card, not the 11 characters with the suffix. Optum's format is now <code>CORE_9</code>: <code>memberId.forVendor</code> and the Optum entry of <code>vendorMemberIds[]</code> carry the core alone for a TMP/SCO id (Public Plans and HPHC ids stay as stored, as for every vendor); the "two fields" form, <code>forVendorParts</code> and <code>memberIdParts</code>, is gone. And <code>coverage</code> gains <code>coverageId</code>, an id for the coverage period behind the answer: the stored member id without its spaces, the period's effective date and its end date as <code>yyyyMMdd</code>, hyphen-joined (<code>99991231</code> for an open-ended period), present whenever <code>coverage.span</code> is. Sections 2.1, 6, 7, 12, 16 and 17 are updated; the decision log in section 18 has both entries.</p>
+</div>
+
+<div class="callout">
   <div class="label">Revised 2026-10-04 (owner feedback 16)</div>
   <p>Nothing a caller receives names MMI: it is internal. The trace id of the lookup is <code>traceId</code> (was <code>mmiRequestId</code>), what the lookup said on a miss is <code>sourceMessage</code> (was <code>mmiMessage</code>), the error codes are <code>MEMBER_LOOKUP_UNAVAILABLE</code>, <code>MEMBER_LOOKUP_REJECTED</code>, <code>MEMBER_LOOKUP_ERROR</code> and <code>MEMBER_LOOKUP_INVALID_RESPONSE</code>, every message says "the member lookup", the gateway message no longer carries the MMI URL, and the Swagger text speaks of the plan's member records. The logs, which stay inside the service, still say MMI. This document keeps naming MMI because it is the design, not the API.</p>
 </div>
@@ -117,7 +122,7 @@
 </div>
 
 <h3>2.1 What each vendor expects</h3>
-<p>Values from the owner (Carelon confirmed as 11). The TMP core is 9 characters, a letter and 8 digits (<code>S12345678</code>), stored as <code>S12345678&nbsp;&nbsp;&nbsp;01</code>; the formats copy the core and the suffix character for character, so the letter is always kept (<code>S1234567801</code> for the 11-character vendors). The formats apply to ids <em>stored</em> in the TMP/SCO form only; Public Plans and HPHC IDs go to every vendor exactly as stored. This table is about what MMI stores and what each vendor receives, not about what Onyx may send: the incoming id goes to MMI as typed (section 8).</p>
+<p>Values from the owner (Carelon confirmed as 11 on 2026-10-04; Optum confirmed on 2026-10-05 that it stores the 9-character core only). The TMP core is 9 characters, a letter and 8 digits (<code>S12345678</code>), stored as <code>S12345678&nbsp;&nbsp;&nbsp;01</code>; the formats copy the core and the suffix character for character, so the letter is always kept (<code>S1234567801</code> for the 11-character vendors, <code>S12345678</code> alone for Optum). The formats apply to ids <em>stored</em> in the TMP/SCO form only; Public Plans and HPHC IDs go to every vendor exactly as stored. This table is about what MMI stores and what each vendor receives, not about what Onyx may send: the incoming id goes to MMI as typed (section 8).</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Vendor</th><th>Format</th><th>TMP stored <code>123456789   01</code> becomes</th><th>Public Plans <code>34567890101</code></th><th>HPHC <code>HP456789012</code></th></tr></thead>
 <tbody>
@@ -126,7 +131,7 @@
 <tr><td>Carelon</td><td><code>COMPACT_11</code></td><td><code>12345678901</code></td><td>as stored</td><td>as stored</td></tr>
 <tr><td>MHK (MedHOK)</td><td><code>SPACED_14</code></td><td><code>123456789   01</code></td><td>as stored</td><td>as stored</td></tr>
 <tr><td>Onyx</td><td><code>COMPACT_11</code></td><td><code>12345678901</code></td><td>as stored</td><td>as stored</td></tr>
-<tr><td>Optum</td><td><code>SPLIT</code></td><td>two fields <code>123456789</code> and <code>01</code>, plus the join <code>12345678901</code></td><td>as stored</td><td>as stored</td></tr>
+<tr><td>Optum</td><td><code>CORE_9</code></td><td><code>123456789</code>, the 9 characters on the card</td><td>as stored</td><td>as stored</td></tr>
 </tbody></table></div>
 <p>Why a service and not a rule in Onyx: the EMR's 9 characters do not say which suffix, which company or whether the member is covered; only MMI knows, and MMI is internal. Putting the lookup and the per-vendor rendering in one place means nobody else guesses.</p>
 

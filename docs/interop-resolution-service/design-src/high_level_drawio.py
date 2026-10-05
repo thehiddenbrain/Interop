@@ -76,7 +76,7 @@ vertex('service', '<b>Interop Resolution Service</b><br>Point32Health<br>finds t
        'the member ID in your format', 580, 530, 440, 170, box('#FFFFFF', NAVY, 'strokeWidth=3;'))
 
 vertex('example', '<b>Example.</b> The provider types the 9-character number printed on the card. You receive the '
-       'member\'s full ID, with the suffix, exactly as your system stores it.', 80, 760, 1440, 64,
+       'member ID exactly in the form your system stores.', 80, 760, 1440, 64,
        text('fontSize=19;'))
 
 edge('typed', 'provider', 'onyx', (380, 320), (650, 320), 'Request with the<br>member ID <b>as typed</b>', label_v='bottom')

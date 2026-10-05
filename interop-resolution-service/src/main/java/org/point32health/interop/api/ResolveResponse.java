@@ -29,8 +29,7 @@ public record ResolveResponse(
      * @param received  as Onyx sent it (surrounding whitespace removed); this exact value was sent to MMI
      * @param stored    exactly as MMI stores it (ACTIVE / INACTIVE only)
      * @param forVendor the stored id in the vendor's format; the only value that may go into a vendor payload
-     * @param forVendorParts the two fields for vendors that take the core and the suffix separately
      */
-    public record MemberId(String received, String stored, String forVendor, MemberIdParts forVendorParts) {
+    public record MemberId(String received, String stored, String forVendor) {
     }
 }

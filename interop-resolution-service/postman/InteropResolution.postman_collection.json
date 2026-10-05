@@ -36,6 +36,7 @@
                   "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\"no .company (lean response: lineOfBusiness is what Onyx routes on)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"company\"); });",
+                  "pm.test(\".coverage.coverageId = stored id without spaces + -20210101-99991231\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/\\s+/g, \"\") + \"-20210101-99991231\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -350,7 +351,7 @@
           "response": []
         },
         {
-          "name": "TMP, Optum: two fields (9 digits + suffix)",
+          "name": "TMP, Optum: the 9-character core only",
           "event": [
             {
               "listen": "test",
@@ -360,9 +361,7 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".memberId.forVendorParts.memberId = 123456789\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendorParts.memberId)).to.eql(JSON.stringify(\"123456789\")); });",
-                  "pm.test(\".memberId.forVendorParts.suffix = 01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendorParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
-                  "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\".memberId.forVendor = 123456789 (the core only)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"123456789\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -400,7 +399,8 @@
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "Optum stores only the 9 characters of the member ID, the number on the card (owner feedback 23): the suffix is not sent."
           },
           "response": []
         },
@@ -523,6 +523,7 @@
                   "pm.test(\".message = Member found; coverage ended before 2026-10-15\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage ended before 2026-10-15\"); });",
                   "pm.test(\".coverage.active = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(false)); });",
                   "pm.test(\"no .coverage.reason (the reason is in .message)\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"reason\"); });",
+                  "pm.test(\"no .coverage.coverageId without a covering period\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"coverageId\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -578,6 +579,7 @@
                   "pm.test(\".dateOfService = 2026-10-15 (the date asked about)\", function () { const j = pm.response.json(); pm.expect(j.dateOfService).to.eql(\"2026-10-15\"); });",
                   "pm.test(\".coverage.span.endDate = 2026-12-31\", function () { const j = pm.response.json(); pm.expect(j.coverage.span.endDate).to.eql(\"2026-12-31\"); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
+                  "pm.test(\".coverage.coverageId = stored id without spaces + -20260101-20261231\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/\\s+/g, \"\") + \"-20260101-20261231\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1454,7 +1456,6 @@
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.stored = 567890123   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"567890123   01\")); });",
-                  "pm.test(\".memberId.forVendorParts.suffix = 01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendorParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2957,9 +2958,7 @@
                   "pm.test(\"CARELON memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"CARELON\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"ONYX memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"ONYX\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"MHK memberId = 123456789   01\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"123456789   01\")); });",
-                  "pm.test(\"OPTUM memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
-                  "pm.test(\"OPTUM memberIdParts = {123456789, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberIdParts.memberId)).to.eql(JSON.stringify(\"123456789\")); pm.expect(JSON.stringify(v.memberIdParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
-                  "pm.test(\"EVICORE has no memberIdParts\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(v).to.not.have.property(\"memberIdParts\"); });",
+                  "pm.test(\"OPTUM memberId = 123456789 (the core only)\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"123456789\")); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -3015,9 +3014,9 @@
                   "pm.test(\".outcome = ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".memberId.stored = S98765432   01\", function () { pm.expect(pm.response.json().memberId.stored).to.eql(\"S98765432   01\"); });",
                   "pm.test(\"6 vendorMemberIds\", function () { pm.expect(pm.response.json().vendorMemberIds.length).to.eql(6); });",
-                  "pm.test(\"11-character vendors get S9876543201\", function () { const j = pm.response.json(); [\"CARELON\",\"EVICORE\",\"EVOLENT\",\"ONYX\",\"OPTUM\"].forEach(function (code) { const v = j.vendorMemberIds.find(function (x) { return x.vendor === code; }); pm.expect(v.memberId, code).to.eql(\"S9876543201\"); }); });",
+                  "pm.test(\"11-character vendors get S9876543201\", function () { const j = pm.response.json(); [\"CARELON\",\"EVICORE\",\"EVOLENT\",\"ONYX\"].forEach(function (code) { const v = j.vendorMemberIds.find(function (x) { return x.vendor === code; }); pm.expect(v.memberId, code).to.eql(\"S9876543201\"); }); });",
+                  "pm.test(\"OPTUM gets S98765432 (the core only)\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(v.memberId).to.eql(\"S98765432\"); });",
                   "pm.test(\"MHK gets S98765432   01\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }); pm.expect(v.memberId).to.eql(\"S98765432   01\"); });",
-                  "pm.test(\"OPTUM memberIdParts = {S98765432, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(v.memberIdParts.memberId).to.eql(\"S98765432\"); pm.expect(v.memberIdParts.suffix).to.eql(\"01\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });",
                   "pm.test(\"no .correlationId in the body (X-Correlation-Id header carries it)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"correlationId\"); });"
                 ]
@@ -3080,9 +3079,7 @@
                   "pm.test(\"EVOLENT memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVOLENT\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"CARELON memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"CARELON\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"MHK memberId = 123456789   01\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"123456789   01\")); });",
-                  "pm.test(\"OPTUM memberId = 12345678901\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
-                  "pm.test(\"OPTUM memberIdParts = {123456789, 01}\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberIdParts.memberId)).to.eql(JSON.stringify(\"123456789\")); pm.expect(JSON.stringify(v.memberIdParts.suffix)).to.eql(JSON.stringify(\"01\")); });",
-                  "pm.test(\"EVICORE has no memberIdParts\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }); pm.expect(v).to.not.have.property(\"memberIdParts\"); });",
+                  "pm.test(\"OPTUM memberId = 123456789 (the core only)\", function () { const j = pm.response.json(); const v = j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }); pm.expect(JSON.stringify(v.memberId)).to.eql(JSON.stringify(\"123456789\")); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -3143,7 +3140,6 @@
                   "pm.test(\"no .vendor\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = HP456789012\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"HP456789012\")); }); });",
-                  "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -3203,7 +3199,6 @@
                   "pm.test(\".memberId.stored = 34567890102\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890102\")); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = 34567890102\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890102\")); }); });",
-                  "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -3378,7 +3373,6 @@
                   "pm.test(\".lineOfBusiness = PP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"PP\")); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = 34567890101\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890101\")); }); });",
-                  "pm.test(\"no memberIdParts for any vendor\", function () { const j = pm.response.json(); j.vendorMemberIds.forEach(function (v) { pm.expect(v, v.vendor).to.not.have.property(\"memberIdParts\"); }); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -3771,6 +3765,7 @@
                   "pm.test(\".coverage.span.endDate = 2026-12-31 (how far coverage goes)\", function () { const j = pm.response.json(); pm.expect(j.coverage.span.endDate).to.eql(\"2026-12-31\"); });",
                   "pm.test(\"6 vendorMemberIds, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.length).to.eql(6); pm.expect(j.vendorMemberIds.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
+                  "pm.test(\".coverage.coverageId present on the partly covered period\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/\\s+/g, \"\") + \"-20250101-20261231\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }

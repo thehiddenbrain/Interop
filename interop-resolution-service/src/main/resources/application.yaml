@@ -69,7 +69,7 @@ member-id:
   # The INCOMING member id is never checked or reshaped: it goes to MMI exactly as the EMR typed it.
   #   COMPACT_11  9 digits + suffix, no spaces        12345678901
   #   SPACED_14   9 digits + 3 spaces + suffix        123456789   01   (as stored)
-  #   SPLIT       two fields: 9 digits and the suffix, plus the 11-character join
+  #   CORE_9      the 9-character core only, the number on the card
   #   AS_STORED   exactly as MMI stores it
   # ------------------------------------------------------------------------------------------------------
   vendors:
@@ -91,7 +91,7 @@ member-id:
       format: COMPACT_11
     OPTUM:
       display-name: Optum
-      format: SPLIT                     # Optum receives the 9 digits and the suffix as two fields
+      format: CORE_9                    # Optum stores the 9-character core only (owner feedback 23)
     ONYX:
       display-name: Onyx
       format: COMPACT_11

@@ -33,13 +33,13 @@ public final class VendorFormatter {
                 log.warn("marker=STORED_ID_NOT_RESHAPED format={} shape={}: not a core + separator + numeric suffix; passed on as stored",
                         format, describe(storedMemberId));
             }
-            return new FormattedMemberId(stored, null);
+            return new FormattedMemberId(stored);
         }
         return switch (format) {
-            case AS_STORED -> new FormattedMemberId(stored, null);
-            case COMPACT_11 -> new FormattedMemberId(split.core() + split.suffix(), null);
-            case SPACED_14 -> new FormattedMemberId(split.core() + "   " + split.suffix(), null);
-            case SPLIT -> new FormattedMemberId(split.core() + split.suffix(), new FormattedMemberId.Parts(split.core(), split.suffix()));
+            case AS_STORED -> new FormattedMemberId(stored);
+            case COMPACT_11 -> new FormattedMemberId(split.core() + split.suffix());
+            case SPACED_14 -> new FormattedMemberId(split.core() + "   " + split.suffix());
+            case CORE_9 -> new FormattedMemberId(split.core());
         };
     }
 

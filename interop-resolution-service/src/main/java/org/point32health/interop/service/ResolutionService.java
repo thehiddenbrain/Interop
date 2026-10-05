@@ -2,7 +2,6 @@ package org.point32health.interop.service;
 
 import org.point32health.interop.api.Candidate;
 import org.point32health.interop.api.Coverage;
-import org.point32health.interop.api.MemberIdParts;
 import org.point32health.interop.api.SourceMessage;
 import org.point32health.interop.api.Outcome;
 import org.point32health.interop.api.RequestValidator;
@@ -11,6 +10,7 @@ import org.point32health.interop.api.ResolveResponse;
 import org.point32health.interop.api.VendorMapRequest;
 import org.point32health.interop.api.VendorMapResponse;
 import org.point32health.interop.domain.CoverageDecision;
+import org.point32health.interop.domain.CoverageSpan;
 import org.point32health.interop.domain.MemberRecord;
 import org.point32health.interop.domain.MemberSelector;
 import org.point32health.interop.domain.ResolutionException;
@@ -28,6 +28,7 @@ import org.point32health.interop.vendor.FormattedMemberId;
 import org.point32health.interop.vendor.Vendor;
 import org.point32health.interop.vendor.VendorFormatter;
 import org.point32health.interop.vendor.VendorRegistry;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
@@ -71,7 +72,7 @@ public class ResolutionService {
         Resolved r = resolveMember(v, correlationId);
         FormattedMemberId formatted = r.record() == null ? null : formatter.format(r.record().storedMemberId(), vendor.format());
         ResolveResponse response = new ResolveResponse(r.outcome(), message(r, v),
-                new ResolveResponse.MemberId(v.memberId(), r.storedMemberId(), formatted == null ? null : formatted.value(), parts(formatted)),
+                new ResolveResponse.MemberId(v.memberId(), r.storedMemberId(), formatted == null ? null : formatted.value()),
                 r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
                 r.coverageBlock(), r.candidates(), r.mmiRequestId(), r.mmiNote());
         logOutcome("resolve", vendor.code(), r, v, start);
@@ -87,7 +88,7 @@ public class ResolutionService {
         if (r.record() != null) {
             vendorMemberIds = vendors.all().stream().map(vendor -> {
                 FormattedMemberId formatted = formatter.format(r.record().storedMemberId(), vendor.format());
-                return new VendorMapResponse.VendorMemberId(vendor.code(), formatted.value(), parts(formatted));
+                return new VendorMapResponse.VendorMemberId(vendor.code(), formatted.value());
             }).toList();
         }
         VendorMapResponse response = new VendorMapResponse(r.outcome(), message(r, v), new VendorMapResponse.MemberId(v.memberId(), r.storedMemberId()),
@@ -117,8 +118,18 @@ public class ResolutionService {
             if (coverage == null) {
                 return null;
             }
-            Coverage.Span span = coverage.span() == null ? null : new Coverage.Span(coverage.span().effective(), coverage.span().end());
-            return new Coverage(coverage.active(), span);
+            if (coverage.span() == null) {
+                return new Coverage(coverage.active(), null, null);
+            }
+            Coverage.Span span = new Coverage.Span(coverage.span().effective(), coverage.span().end());
+            return new Coverage(coverage.active(), span, coverageId(record.storedMemberId(), coverage.span()));
+        }
+
+        /** Feedback 24: the stored id without its spaces, the period's effective and end dates as yyyyMMdd, hyphen-joined. */
+        private static String coverageId(String storedMemberId, CoverageSpan period) {
+            DateTimeFormatter compact = DateTimeFormatter.BASIC_ISO_DATE;
+            return storedMemberId.replaceAll("\\s+", "") + "-" + period.effective().format(compact) + "-"
+                    + (period.end() == null ? "99991231" : period.end().format(compact));
         }
     }
 
@@ -176,11 +187,6 @@ public class ResolutionService {
         }
         return new Resolved(coverage.active() ? Outcome.ACTIVE : Outcome.INACTIVE, s.record(), coverage, null, null,
                 mmiResult.requestId(), members.size(), null);
-    }
-
-    private static MemberIdParts parts(FormattedMemberId formatted) {
-        return formatted == null || formatted.parts() == null ? null
-                : new MemberIdParts(formatted.parts().memberId(), formatted.parts().suffix());
     }
 
     /**

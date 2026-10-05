@@ -1,17 +1,17 @@
 package org.point32health.interop.vendor;
 
 /**
- * How a vendor wants a THP member id that is stored as 9 digits + spaces + 2-digit suffix (TMP / SCO).
- * Ids stored in any other shape (Public Plans 11 continuous characters, HPHC {@code HP...}) are always
- * passed exactly as stored, whatever the vendor's format.
+ * How a vendor wants a THP member id that is stored as a 9-character core (for TMP a letter and 8 digits) + spaces +
+ * 2-digit suffix (TMP / SCO). Ids stored in any other shape (Public Plans 11 continuous characters, HPHC {@code HP...})
+ * are always passed exactly as stored, whatever the vendor's format.
  */
 public enum VendorIdFormat {
-    /** Exactly as stored: {@code 123456789   01}. */
+    /** Exactly as stored: core, three spaces, suffix (14 characters). */
     AS_STORED,
-    /** 9 digits + suffix, no spaces: {@code 12345678901}. */
+    /** Core + suffix, no spaces (11 characters). */
     COMPACT_11,
-    /** 9 digits + 3 spaces + suffix: {@code 123456789   01}. */
+    /** Core + 3 spaces + suffix (14 characters). */
     SPACED_14,
-    /** Two fields, the 9 digits and the suffix, plus their 11-character join for convenience. */
-    SPLIT
+    /** The 9-character core only, the number printed on the card; Optum stores this (owner feedback 23). */
+    CORE_9
 }

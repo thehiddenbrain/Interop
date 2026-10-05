@@ -424,27 +424,29 @@ See the conversation; answers will be appended here.
 - For the owner's STS workspace: the project folder changed, so delete the old project from the workspace (not from
   disk), pull, and import `interop-resolution-service` (README section 1).
 
-## Feedback 23 (2026-10-05), PENDING, not applied: Optum stores the 9-character core only
+## Feedback 23 (2026-10-05): Optum stores the 9-character core only
 
 - Optum confirmed that they store only the 9 characters of the member ID (the card number, a letter and 8 digits
   for TMP/SCO), not the 11 characters with the suffix. This replaces the feedback 1 note that Optum receives the core
   and the suffix as two fields and concatenates them.
-- The owner's instruction: do not change anything yet; keep the feedback; generate the new code only on "go".
-- What the change will be, when it comes: Optum's format becomes the 9-character core (a new `CORE_9` constant in
-  `VendorIdFormat`, one case in `VendorFormatter`, one YAML line for `OPTUM`); `SPLIT` and `memberIdParts` go away
-  unless another vendor needs two fields; the tests, the Postman requests, README section 4, the design (sections 2.1,
-  6 and 12) and the vendor diagram's example sentence ("the member's full ID, with the suffix") follow. Public Plans
-  and HPHC ids stay as stored for Optum, as for every vendor.
+- The owner's instruction was to hold the change until "go"; the go came the same day ("Go ahead for new code").
+- Applied (2026-10-05): Optum's format is the 9-character core (`CORE_9` in `VendorIdFormat`, one case in
+  `VendorFormatter`, `format: CORE_9` for `OPTUM` in `application.yaml`). `SPLIT`, `MemberIdParts`, `forVendorParts`
+  and `memberIdParts` are gone: no vendor needs two fields. `forVendor` on `/resolve` and the Optum entry of
+  `vendorMemberIds[]` carry the core alone for a TMP/SCO id; Public Plans and HPHC ids stay as stored for Optum, as
+  for every vendor. Tests, Postman, README, the design (sections 1, 2.1, 6, 7, 12, 16, 17, 18) and the vendor
+  diagram's example sentence follow.
 
-## Feedback 24 (2026-10-05), PENDING, not applied: a coverageId in the response
+## Feedback 24 (2026-10-05): a coverageId in the response
 
 - Add `coverageId` to the response for Onyx: coverageId = member ID + effective date + end date.
-- Proposal to build on "go" (the owner may adjust any part): `coverageId` inside the `coverage` block, next to
-  `active` and `span`, present whenever `span` is present (ACTIVE, and INACTIVE because the period ends within the
-  period of service), on both operations. Value = the stored member ID without its spaces (the 11-character form for
-  TMP/SCO, as stored for Public Plans and HPHC) + `-` + the period's effective date as `yyyyMMdd` + `-` + its end date
-  as `yyyyMMdd`, with `99991231` when the period has no end date. The period is the continuous coverage period of
-  `coverage.span` (feedback 21), so the id is stable across calls for the same member and the same coverage.
-- Open to confirm with the owner: which form of the member ID (stored with spaces, 11 characters without spaces, or the
-  9-character core), the separator and date format, the token for an open-ended period, and whether `coverageId`
-  sits inside `coverage` or at the top level.
+- Built on the owner's go (2026-10-05): `coverage.coverageId`, next to `active` and `span`, present whenever `span` is
+  present (ACTIVE, and INACTIVE because the period ends within the period of service), on both operations. Value =
+  the stored member ID without its spaces (the 11-character form for TMP/SCO, as stored for Public Plans and HPHC) +
+  `-` + the period's effective date as `yyyyMMdd` + `-` + its end date as `yyyyMMdd`, with `99991231` when the period
+  has no end date. The period is the continuous coverage period of `coverage.span` (feedback 21), so the id is stable
+  across calls for the same member and the same coverage. Built in `ResolutionService` (one private method), the
+  `Coverage` record, six scenario assertions and four Postman tests.
+- The owner may still adjust any part of the form: which form of the member ID (stored with spaces, 11 characters
+  without spaces, or the 9-character core), the separator and date format, the token for an open-ended period, and
+  whether `coverageId` sits inside `coverage` or at the top level. Each is a one-line change in `ResolutionService`.

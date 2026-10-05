@@ -16,7 +16,7 @@ class VendorFormatterTest {
             "S12345678   01 | COMPACT_11 | S1234567801",
             "S12345678   01 | SPACED_14  | S12345678   01",
             "S12345678   01 | AS_STORED  | S12345678   01",
-            "S12345678   01 | SPLIT      | S1234567801",
+            "S12345678   01 | CORE_9     | S12345678",
             "'S12345678\u00A0\u00A0\u00A001' | COMPACT_11 | S1234567801",
             "'S12345678\u200B\u200B\u200B01' | SPACED_14  | S12345678   01",
             "'s12345678 01   '  | COMPACT_11 | s1234567801",
@@ -27,7 +27,7 @@ class VendorFormatterTest {
             "' 123456789   01 ' | COMPACT_11 | 12345678901",
             "'123456789\t01'    | COMPACT_11 | 12345678901",
             "'123456789-01'     | COMPACT_11 | 12345678901",
-            "'123456789 . 01'   | SPLIT      | 12345678901",
+            "'123456789 . 01'   | CORE_9     | 123456789",
             "'123456789   001'  | COMPACT_11 | 123456789001",
             // one run of letters and digits: Public Plans and HPHC, passed as stored even with padding
             "34567890101    | SPACED_14  | 34567890101",
@@ -54,10 +54,8 @@ class VendorFormatterTest {
     @Test
     void separatedIdSplitsIntoCoreAndSuffixWhateverTheSeparator() {
         for (String stored : java.util.List.of("S12345678   01", "S12345678\u00A0\u00A0\u00A001", "S12345678\u200B01", "S12345678-01")) {
-            FormattedMemberId f = formatter.format(stored, VendorIdFormat.SPLIT);
-            assertThat(f.parts()).as(stored).isNotNull();
-            assertThat(f.parts().memberId()).as("the S is part of the core and is kept").isEqualTo("S12345678");
-            assertThat(f.parts().suffix()).isEqualTo("01");
+            FormattedMemberId f = formatter.format(stored, VendorIdFormat.CORE_9);
+            assertThat(f.value()).as("the S is part of the core and is kept; Optum gets the core only").isEqualTo("S12345678");
         }
     }
 
@@ -68,11 +66,10 @@ class VendorFormatterTest {
     }
 
     @Test
-    void splitCarriesBothParts() {
-        FormattedMemberId f = formatter.format("123456789   01", VendorIdFormat.SPLIT);
-        assertThat(f.parts().memberId()).isEqualTo("123456789");
-        assertThat(formatter.format("S12345678   01", VendorIdFormat.SPLIT).parts().memberId()).isEqualTo("S12345678");
-        assertThat(f.parts().suffix()).isEqualTo("01");
-        assertThat(formatter.format("34567890101", VendorIdFormat.SPLIT).parts()).isNull();
+    void coreNineIsTheNumberOnTheCard() {
+        // Optum stores the 9-character core only (owner feedback 23): the suffix is dropped, nothing else changes
+        assertThat(formatter.format("123456789   01", VendorIdFormat.CORE_9).value()).isEqualTo("123456789");
+        assertThat(formatter.format("S12345678   01", VendorIdFormat.CORE_9).value()).as("the letter is part of the core").isEqualTo("S12345678");
+        assertThat(formatter.format("34567890101", VendorIdFormat.CORE_9).value()).as("a Public Plans id has no suffix to drop: as stored").isEqualTo("34567890101");
     }
 }

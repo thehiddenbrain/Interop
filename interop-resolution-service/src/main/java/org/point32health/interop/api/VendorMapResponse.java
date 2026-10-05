@@ -35,9 +35,8 @@ public record VendorMapResponse(
 
     /**
      * @param vendor        the vendor code as configured in {@code member-id.vendors}
-     * @param memberId      the stored id in that vendor's format: what goes into that vendor's payload
-     * @param memberIdParts the two fields for vendors that take the core and the suffix separately, else absent
+     * @param memberId the stored id in that vendor's format: what goes into that vendor's payload
      */
-    public record VendorMemberId(String vendor, String memberId, MemberIdParts memberIdParts) {
+    public record VendorMemberId(String vendor, String memberId) {
     }
 }

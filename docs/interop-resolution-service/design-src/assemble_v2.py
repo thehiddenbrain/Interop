@@ -27,9 +27,9 @@ p3=open(os.path.join(HERE, 'part3.html')).read()
 grid = p3[p3.index('<div class="idgrid"'):]
 grid = grid[:grid.index('</div>\n<p class="small">')+len('</div>\n')]
 grid = grid.replace('MMI canonical form; what Optum / MHK want (sample)','as stored in MMI; what MHK receives')
-grid = grid.replace('what eviCore / Carelon want (sample)','what eviCore, Evolent, Carelon receive (Optum: the two parts)')
+grid = grid.replace('what eviCore / Carelon want (sample)','what eviCore, Evolent, Carelon and Onyx receive')
 grid = grid.replace('prefix + digits; digit count to be confirmed (default 9)','prefix + 9 digits; the card prints a hyphen after HP')
-grid = grid.replace('policy / subscriber number: identifies a family, not a person', 'what the TMP / SCO card prints; one person per number (in Public Plans the same 9 digits name a family)')
+grid = grid.replace('policy / subscriber number: identifies a family, not a person', 'what the TMP / SCO card prints and what Optum receives; one person per number (in Public Plans the same 9 digits name a family)')
 grid = grid.replace('Three rows of character cells showing the same THP member id: as stored, 14 characters, 9 digits then 3 spaces then the 2-digit suffix; compact, 11 characters, 9 digits then suffix; card, 9 digits only.', 'Four rows of character cells. Three show the same THP member id: as stored, 14 characters, 9 digits then 3 spaces then the 2-digit suffix; compact, 11 characters, 9 digits then suffix; card, 9 digits only. The fourth shows an HPHC id: HP then 9 digits.')
 grid += '<p class="small">Digits 1–9 are the <em>core</em> (policy number). Suffix <code>01</code> is the subscriber; dependents, where they exist, have <code>02</code>, <code>03</code>… The three spaces are literal characters in the stored value.</p>\n'
 v1=open(os.path.join(HERE, 'v2part1.html')).read().replace('<!--FIGURE1-->', fig1)
