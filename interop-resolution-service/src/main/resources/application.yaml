@@ -11,12 +11,13 @@ spring:
   mvc:
     problemdetails:
       enabled: false                    # the error envelope in ApiErrorResponse is the only error shape
+  web:
+    error:                              # Boot 4 name (was server.error.*): for the rare error Tomcat answers before this service sees it
+      include-message: never
+      include-stacktrace: never
 
 server:
   port: 9090
-  error:
-    include-message: never
-    include-stacktrace: never
 
 management:
   endpoints:

@@ -47,6 +47,10 @@ dependencies {
 
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 
+    // Generates META-INF/spring-configuration-metadata.json for mmi.* and member-id.*, so the STS YAML editor
+    // knows those properties (completion, no "unknown property" marks). Compile time only.
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

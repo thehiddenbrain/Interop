@@ -480,3 +480,14 @@ See the conversation; answers will be appended here.
   `build.gradle`; javac still gets `--release 17` (class files stay version 61). Verified: Buildship now derives 17.
 - For the owner: pull, Gradle → Refresh Gradle Project, Project → Clean. If `org.point32health…` packages are still
   listed in STS they are untracked leftovers of the rename and can be deleted. README section 1 has the steps.
+
+## Feedback 27 (2026-10-05): STS marks `server.error.include-message` as a deprecated property
+
+- STS validates `application.yaml` against Spring Boot's configuration metadata. In Boot 4.0.7 every `server.error.*`
+  property is deprecated at level `error` (no longer bound) with `spring.web.error.*` as the replacement. The two
+  values the service set (`include-message: never`, `include-stacktrace: never`) equal Boot's defaults, so nothing
+  changed at runtime; the block now lives under `spring.web.error` and the marker is gone. All other keys in the
+  profile files were checked against the same metadata: none deprecated.
+- Also added `spring-boot-configuration-processor` as an annotation processor: it generates the metadata for the
+  service's own `mmi.*` and `member-id.*` properties, so the STS YAML editor completes them instead of marking them
+  unknown.
