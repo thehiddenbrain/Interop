@@ -345,3 +345,14 @@ See the conversation; answers will be appended here.
   vendor.
 - The generator now refuses to write a label carrying an internal system name, a technical term or a vendor's name.
   The technical view is in the design document; the first diagram stays in the git history (commit 1e74848).
+
+## Feedback 19 (2026-10-05): be clear
+
+- The owner, on the vendor overview: what does this diagram mean; why is it not clear.
+- Applied: the diagram now says one thing, written as its subtitle: before a prior-authorization request reaches the
+  vendor, Point32Health checks the member ID and sends it in the format the vendor's system stores. Four boxes
+  (provider, Onyx, the vendor, the Member ID Resolution Service), three arrows (request with the member ID as typed,
+  Onyx checks the member ID, request with the member ID in your format) and one example sentence.
+- Removed: the step numbers, the two callouts, the coverage status, the member records box, the strip of masked ID
+  patterns, the dashed fallback line and the footnote.
+- Rule: vendor material says one thing in plain words, with no codes or ID patterns.
