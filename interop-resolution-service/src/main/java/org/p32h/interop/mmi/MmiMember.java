@@ -1,7 +1,6 @@
 package org.p32h.interop.mmi;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import org.p32h.interop.support.Masking;
 import java.util.List;
 
 /**
@@ -15,7 +14,7 @@ public record MmiMember(String memberId, String subscriberMemberId, String membe
 
     @Override
     public String toString() {
-        return "MmiMember[memberId=" + Masking.memberId(memberId) + ", company=" + company + ", lob=" + lineOfBusiness
+        return "MmiMember[memberId=" + memberId + ", company=" + company + ", lob=" + lineOfBusiness
                 + ", spans=" + (coverage == null ? 0 : coverage.size()) + "]";
     }
 }

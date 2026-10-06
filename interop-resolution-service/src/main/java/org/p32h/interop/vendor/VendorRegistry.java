@@ -12,7 +12,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * The vendor table from application.yaml, sorted by code: one {@code vendorMemberIds} entry per vendor. Built once at
+ * The vendor table from application.yaml, sorted by code: one {@code memberId.forVendors} entry per vendor. Built once at
  * startup; a malformed key, a missing format or two keys that differ only in case stop the application with a message
  * naming them.
  */

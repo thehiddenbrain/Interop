@@ -1,90 +1,52 @@
 # Interop Resolution Service
 
-The service that answers Onyx's interop lookups for Point32Health. Its first capability, and this document's
-subject, is member ID resolution; payer ID and payer organization name lookups are planned to join it (owner,
-2026-10-05), which is why the service is no longer named after member IDs alone.
+The service that answers Onyx's interop lookups for Point32Health. Its first capability, and the subject of this
+document, is member ID resolution; payer ID and payer organization name lookups are planned to join it.
 
-Spring Boot service for Onyx. Onyx sends the member ID exactly as the provider's EMR supplied it and the date of
-service, a single day or a period (`dateOfService` to `dateOfServiceEnd`); the service verifies the ID with MMI (Master
-Member Index), returns it **as stored** and **in every UM vendor's format**, and says whether coverage is **active**. One
-call serves a prior authorization whose codes go to several vendors (owner, 2026-10-05). One operation,
-`POST /v1/interop/resolve` (owner feedback 29 and 30), one downstream (MMI), no database, no state.
+Spring Boot service for Onyx. Onyx identifies itself and the call (`clientId`, `clientType`, `requestId`) and sends the
+member ID exactly as the provider's EMR supplied it, with the date of service, a single day or a period
+(`dateOfService` to `dateOfServiceEnd`). The service verifies the ID with MMI (Master Member Index), returns the ID it
+**resolved** to and that ID **in every UM vendor's format**, and says whether coverage is **active**. One call serves a
+prior authorization whose codes go to several vendors. One operation, `POST /v1/interop/resolve`, one downstream
+(MMI), no database, no state.
 
 | | |
 |---|---|
 | Endpoint | `POST /v1/interop/resolve`, port **9090** |
 | Stack | Spring Boot 4.0.7 (Spring Framework 7, Jackson 3) / Java 17+ / Gradle 9.5 wrapper, springdoc 3: the same build shape as the EPA Workbench and the member profile service |
 | Swagger UI | `http://localhost:9090/swagger-ui.html` (off in `PRD`); the raw document is `/api-docs` |
-| OpenAPI to share | `docs/interop-resolution-service/openapi/interop-resolution-service-openapi.yaml` and `.json`: `/api-docs` saved without the generated `localhost` server entry. Regenerate after any contract change: start the service on `DEV`, save `/api-docs`, drop `servers`. |
+| OpenAPI to share | `docs/openapi/interop-resolution-service-openapi.yaml` and `.json`: `/api-docs` saved without the generated `localhost` server entry. Regenerate after any contract change: start the service on `DEV`, save `/api-docs`, drop `servers`. |
 | Health | `http://localhost:9090/actuator/health` |
+| Design | `docs/design.html` (open it in a browser); the vendor-facing overview is `docs/interop-resolution-service-high-level.drawio` (draw.io) and its `.png` |
 
 ## 1. Run it in STS (or any IDE)
 
-### Get the code straight from GitHub (no zip)
+### Import into STS
 
-Repository `https://github.com/thehiddenbrain/Interop`, branch `claude/member-id-normalization-design-ihju8o`,
-folder `interop-resolution-service` (until 2026-10-05: `member-id-resolution-service`; if that project is still in your
-STS workspace, delete it from the workspace without deleting its contents, pull, and import the new folder). The
-repository holds other services too; import only this folder as the
-Gradle project.
+The project is a standalone Gradle build in this folder, `interop-resolution-service`.
 
-One-time, a GitHub token (GitHub does not accept the account password for Git any more): GitHub → your avatar →
-**Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**. Resource
-owner: the owner of `Interop`; Repository access: *Only select repositories* → `Interop`; Permissions →
-Repository permissions → **Contents: Read and write**. Copy the token once; it is the "password" below.
-
-In STS (EGit and Buildship are bundled):
-
-1. **File → Import… → Git → Projects from Git (with smart import) → Next → Clone URI → Next.**
-2. URI `https://github.com/thehiddenbrain/Interop.git`; Authentication: User = your GitHub user name,
-   Password = the token, tick *Store in Secure Store* → Next.
-3. Branch selection: untick everything, tick `claude/member-id-normalization-design-ihju8o` → Next.
-4. Local destination: Directory for example `C:\git\Interop`, Initial branch = that branch, Remote name
-   `origin` → Next. The clone runs.
-5. On the *Import Projects* page tick only `interop-resolution-service` if it is listed as a Gradle project.
-   If only the repository root is offered, **Cancel** here (the clone stays on disk) and use
-   **File → Import… → Gradle → Existing Gradle Project**, Project root directory
-   `C:\git\Interop\interop-resolution-service` → Finish. Buildship uses the wrapper (Gradle 9.5.0) and
-   downloads the dependencies on the first import.
-6. Right-click `InteropResolutionApplication` → **Run As → Spring Boot App**. The default profile is `PQA`
-   (the real PQA MMI, network needed). For the in-process stub open *Run Configurations… → Spring Boot App*
+1. **File > Import... > Gradle > Existing Gradle Project**, Project root directory = this folder (keep the folder
+   name; Buildship wants it equal to the project name) > Finish. Buildship uses the wrapper (Gradle 9.5.0) and
+   downloads the dependencies on the first import; wait for the *Synchronize Gradle projects* job in the
+   bottom-right corner to finish before running anything.
+2. Right-click `InteropResolutionApplication` > **Run As > Spring Boot App**. The default profile is `PQA`
+   (the real PQA MMI, network needed). For the in-process stub open *Run Configurations... > Spring Boot App*
    and put `DEV` in the **Profile** field.
 
-Later updates: right-click the project → **Team → Pull**. If `build.gradle` changed, right-click → **Gradle →
-Refresh Gradle Project**. Your own changes: **Team → Commit… → Commit and Push** (the token's *Contents: Read and
-write* covers it). Command line equivalent:
-`git clone --branch claude/member-id-normalization-design-ihju8o https://github.com/thehiddenbrain/Interop.git`,
-then import the folder as in step 5. Once the branch is merged, switch with **Team → Switch To → Other… →
-origin/main → New Branch**.
+When `build.gradle` changes, right-click the project > **Gradle > Refresh Gradle Project**.
 
-### Starting clean when the workspace is in a bad state
+Before the first run check the JDK once: **Window > Preferences > Java > Installed JREs** must list a JDK 17 or
+newer, ticked; under **Gradle** leave *Java home* on the workspace JRE unless that JRE is older than 17, in which case
+point it at the JDK 17+ folder.
 
 **Every file shows errors right after the import or a Gradle refresh** (Problems view: "The project was not built
-since its build path is incomplete", "JRE System Library [JavaSE-25]", or types like `VendorFormatter` "cannot be
-resolved" in the test folder, and "Could not find or load main class" when you run): the Eclipse project got a Java
-level your STS does not support. Buildship takes that level from `java.sourceCompatibility`, which used to default to
-the JDK running Gradle (25 on a workstation), not from `--release 17`. The build now pins it to 17: pull, right-click
-the project → **Gradle → Refresh Gradle Project**, then **Project → Clean…**. Check: Project → Properties → Java
-Compiler must say compliance 17, and Java Build Path → Libraries must show a JRE System Library without a red mark.
-If `org.point32health…` packages are still listed under `src/main/java` or `src/test/java`, delete them: they are
-leftovers of the rename to `org.p32h` that git no longer tracks.
-
-Everything lives on GitHub, so the safe reset is to throw the local copy away and clone again (first commit or
-stash anything of your own that is not pushed).
-
-1. In STS, select every project that came from the old import (`member-id-resolution-service`, `Interop`, …) →
-   right-click → **Delete** → tick *Delete project contents on disk* → OK.
-2. **Window → Perspective → Open Perspective → Other… → Git**. In *Git Repositories*, right-click the `Interop`
-   repository → **Delete Repository…** → tick *Also delete working directory* → OK. If the view does not list it
-   but `C:\git\Interop` still exists, close STS and delete that folder by hand.
-3. Cleanest of all: **File → Switch Workspace → Other…** and name a new, empty workspace. STS restarts into it.
-4. Clone and import again with the steps above (the token is still in the Secure Store of the same STS
-   installation; a new workspace keeps it, a new installation does not).
-5. Before the first run check the JDK once: **Window → Preferences → Java → Installed JREs** must list a JDK 17
-   or newer, ticked; under **Gradle** leave *Java home* on the workspace JRE unless that JRE is older than 17, in
-   which case point it at the JDK 17+ folder. Buildship then runs the wrapper (Gradle 9.5.0) and downloads the
-   dependencies; wait for the *Synchronize Gradle projects* job in the bottom-right corner to finish before
-   running anything.
+since its build path is incomplete", "JRE System Library [JavaSE-25]", types "cannot be resolved" in the test folder,
+or "Could not find or load main class" when you run): the Eclipse project got a Java level your STS does not support.
+Buildship takes that level from `java.sourceCompatibility`, which the build pins to 17. Right-click the project >
+**Gradle > Refresh Gradle Project**, then **Project > Clean...**. Check: Project > Properties > Java Compiler must say
+compliance 17, and Java Build Path > Libraries must show a JRE System Library without a red mark. If that does not
+help, remove the project from the workspace (without deleting its contents), switch to a new, empty workspace
+(**File > Switch Workspace > Other...**) and import it again.
 
 ### Build and run
 
@@ -94,18 +56,15 @@ Spring Boot 4.0.7, no toolchain block, `options.release = 17` plus `-parameters`
 and an `internalRepoUrl` Gradle property that swaps Maven Central for an internal mirror. Only a JDK 17 or
 newer is needed (17, 21 and 25 all work); the wrapper downloads Gradle and the dependencies on first use.
 
-1. From a zip instead of GitHub: **File → Import → Gradle → Existing Gradle Project**, pick this folder
-   (`interop-resolution-service`; keep the folder name, Buildship wants it equal to the project name), accept
-   the defaults (Gradle wrapper).
-2. Run `InteropResolutionApplication` as a **Spring Boot App**. With no profile set it runs the **`PQA`**
+1. Run `InteropResolutionApplication` as a **Spring Boot App**. With no profile set it runs the **`PQA`**
    profile and calls the PQA MMI. With Profile = `DEV` an **in-process MMI stub** answers from
    `src/main/resources/mmi-stub/members.json`, so nothing needs network access.
-3. Open `http://localhost:9090/swagger-ui.html` or import the Postman collection in `postman/` (the collection
+2. Open `http://localhost:9090/swagger-ui.html` or import the Postman collection in `postman/` (the collection
    expects the `DEV` profile).
 
 Command line: `./run.sh` (Mac/Linux) or `run.cmd` / `run.bat` (Windows) build the jar on first use and start it;
-`./gradlew bootRun` (PQA, the default) · `./gradlew bootRun --args='--spring.profiles.active=DEV'` (stub) ·
-`./gradlew test` (all tests) · `./gradlew bootJar` then `java -jar build/libs/interop-resolution-service-1.0.0.jar`
+`./gradlew bootRun` (PQA, the default), `./gradlew bootRun --args='--spring.profiles.active=DEV'` (stub),
+`./gradlew test` (all tests), `./gradlew bootJar` then `java -jar build/libs/interop-resolution-service-1.0.0.jar`
 (PQA) or `... --spring.profiles.active=DEV` (stub).
 
 ### Point it at a real MMI
@@ -128,7 +87,7 @@ environment shares (port, JSON rules, MMI path and timeouts, the vendor table); 
 The profile is the only switch. Any profile other than `DEV` turns the stub off and uses the MMI URL from
 that environment's `application-<ENV>.yaml`; nothing else changes.
 
-1. **STS**: Run → Run Configurations → Spring Boot App → `InteropResolutionApplication` → **Profile** field:
+1. **STS**: Run > Run Configurations > Spring Boot App > `InteropResolutionApplication` > **Profile** field:
    `PQA` (or on the Arguments tab, Program arguments: `--spring.profiles.active=PQA`). Apply, Run.
 2. **Command line**: `set SPRING_PROFILES_ACTIVE=PQA` then `run.cmd` (Windows), or
    `SPRING_PROFILES_ACTIVE=PQA ./run.sh`, or `java -jar build/libs/interop-resolution-service-1.0.0.jar --spring.profiles.active=PQA`.
@@ -144,14 +103,14 @@ that environment's `application-<ENV>.yaml`; nothing else changes.
 #### Reading the MMI request and response when something fails
 
 `mmi.log-payloads: true` makes the MMI client write the exact request body and the raw response body to the
-console, unmasked, as two lines per call. It is on in `DEV`, `FQA`, `PQA` and `PQA-LITE` and off in `PRD`
+console as two lines per call. It is on in `DEV`, `FQA`, `PQA` and `PQA-LITE` and off in `PRD`
 (the bodies contain PHI). The startup banner shows `mmi payload log : ON` when it is active. A real call
 looks like this:
 
 ```
-INFO  [<correlationId>] org.p32h.interop.mmi.RestMmiClient - mmi request requestId=INTEROP-1791083521042-40296 POST http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp/master/member/v1
+INFO  [<correlationId>] [<requestId>] org.p32h.interop.mmi.RestMmiClient - mmi request requestId=INTEROP-1791083521042-40296 POST http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp/master/member/v1
 {"memberId":"123456789","legacyMemberId":"123456789","voidCoverageRecord":"N","clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296"}
-INFO  [<correlationId>] o.p.memberid.mmi.RestMmiClient - mmi response requestId=INTEROP-1791083521042-40296 status=200 contentType=application/json ms=18
+INFO  [<correlationId>] [<requestId>] org.p32h.interop.mmi.RestMmiClient - mmi response requestId=INTEROP-1791083521042-40296 status=200 contentType=application/json ms=18
 {"clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296","messages":null,"members":[ ... ]}
 ```
 
@@ -170,13 +129,13 @@ What the lines tell you:
 | `mmi response ... status=200`, `members` is empty and `messages[]` has an `ERROR` message (for example `ES_TIMEOUT`), this service answers `502 MEMBER_LOOKUP_ERROR` with `ERROR_MESSAGE` | MMI reported a failure of its own; the 502 message forwards MMI's `code=` and `text=` | Send the request line's JSON and MMI's message to the MMI team |
 
 Turn it off with `mmi.log-payloads: false` in the profile file, or `MMI_LOG_PAYLOADS=false` once the
-problem is found. Everything else in the log stays masked whether or not payload logging is on.
+problem is found. The rest of the log is the same whether or not payload logging is on.
 
 Overrides without a rebuild (environment variables or `-D` system properties): `MMI_BASE_URL` (any MMI, no
 profile file needed), `MMI_CLIENT_ID` (placeholder `INTEROP`; register the real application name with the
 MMI team), `MMI_CONNECT_TIMEOUT=2s`, `MMI_READ_TIMEOUT=5s`, `MMI_LOG_PAYLOADS=true|false`.
 
-**Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `PQA` so that "Run As →
+**Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `PQA` so that "Run As >
 Spring Boot App" in STS talks to the PQA MMI with no setup. A pod that forgets the variable would therefore call
 the PQA MMI, wrong in PRD and in FQA: set `PRD`, `FQA`, `PQA` or `PQA-LITE` explicitly in every deployment. Two
 guards back the stub: it refuses to start with any explicitly active profile other than `DEV` or `test`, and it
@@ -185,11 +144,11 @@ refuses to start inside a Kubernetes/OpenShift pod at all (it checks `KUBERNETES
 ## 2. The API
 
 One operation, `POST` with a JSON body (the member id is PHI and must not appear in a URL), a pure read that may be
-repeated. Nothing a caller receives names MMI (owner's rule): the bodies speak of "the member lookup", the trace id of
-that lookup is `traceId`, and what the lookup said on a miss is `sourceMessage`. The answer carries the member id in
-every configured vendor's format, so one call serves a prior authorization whose codes go to several vendors (owner,
-2026-10-05). The earlier paths `/api/v1/member-ids/resolve`, `/api/v1/member-ids/vendor-map` and, for one
-day, `/api/v1/members/resolution` are gone (owner feedback 29 and 30) and answer 404 `ROUTE_NOT_FOUND`.
+repeated. Every call identifies the caller and itself: `clientId`, `clientType` (`EXT` or `INT`) and `requestId` are
+required, and the `requestId` comes back in every answer, 200 or error. Nothing a caller receives names MMI: the
+bodies speak of "the member lookup", the trace id of that lookup is `traceId`, and what the lookup said on a miss is
+`sourceMessage`. The answer carries the member id in every configured vendor's format, so one call serves a prior
+authorization whose codes go to several vendors.
 
 ### Member resolution: `POST /v1/interop/resolve`
 
@@ -198,17 +157,20 @@ POST /v1/interop/resolve
 Content-Type: application/json
 X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed in the response header, generated when absent)
 
-{ "memberId": "123456789", "dateOfService": "2026-10-15",
-  "patient": { "dateOfBirth": "1950-03-15" } }
+{ "clientId": "ONYX", "clientType": "EXT", "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+  "memberId": "123456789", "dateOfService": "2026-10-15", "dateOfBirth": "1950-03-15" }
 ```
 
 | Field | Required | Notes |
 |---|---|---|
+| `clientId` | yes | The calling system as registered with the plan; Onyx sends `ONYX`. Letters, digits, `.`, `_` or `-`, at most 50 characters (`CLIENT_ID_MISSING`, `CLIENT_ID_INVALID`). Logged with every request. |
+| `clientType` | yes | `EXT` for a caller outside the plan (Onyx), `INT` for an internal one; exactly these values (`CLIENT_TYPE_MISSING`, `CLIENT_TYPE_INVALID`). |
+| `requestId` | yes | The caller's id for this call, new for every request (a UUID suits). Letters, digits, `.`, `_`, `:` or `-`, at most 64 characters (`REQUEST_ID_MISSING`, `REQUEST_ID_INVALID`). Echoed in the 200 body and in every error body once it was read and found usable; on every log line of the call. |
 | `memberId` | yes | As the EMR typed it. Only checked for presence; sent to MMI exactly as received, with surrounding whitespace removed. Not validated or reshaped here. |
 | `dateOfService` | no | `yyyy-MM-dd`; the first day when the service covers a period. **Defaults to today** when omitted (`dateOfServiceDefaulted: true` in the response). A date that is sent is the date judged, never replaced by today: any future date is judged against the coverage on record; a value that is not a real date, or more than 10 years back, is a 400. |
 | `dateOfServiceEnd` | no | `yyyy-MM-dd`, the last day when the service covers a period: coverage must then hold on every day from `dateOfService` to it. Not before `dateOfService` (`DATE_OF_SERVICE_END_BEFORE_START`), never alone (`DATE_OF_SERVICE_END_WITHOUT_START`), a real date (`DATE_OF_SERVICE_END_INVALID`). |
-| `patient.dateOfBirth` | recommended | `yyyy-MM-dd`. Used only to verify or pick among the records MMI returned; a date that matches no record is 422 `DOB_MISMATCH`, and a value that is not a real date, is in the future or is more than 125 years ago is a 400. Never sent to MMI, never logged, never echoed. |
-| anything else | no | **Ignored**, at the top level and inside `patient`, a `vendor` included: the answer is always for every vendor. A field sent as the wrong JSON type (an object or array where a string is expected, a string where `patient` is expected) is a body the service cannot read: 400 `WRONG_JSON_TYPE`. |
+| `dateOfBirth` | recommended | The patient's date of birth, `yyyy-MM-dd`. Used only to verify the member or pick among the members on the plan that MMI returned; a date that matches no record is 422 `DOB_MISMATCH`, and a value that is not a real date, is in the future or is more than 125 years ago is a 400. Never sent to MMI, never logged, never echoed. |
+| anything else | no | **Ignored**, a `vendor` included: the answer is always for every vendor. A field sent as the wrong JSON type (an object or array where a string is expected) is a body the service cannot read: 400 `WRONG_JSON_TYPE`. |
 
 The service does not validate or reshape the incoming member id. Whatever the EMR typed (9, 11 or 14
 characters, hyphens, spaces, letters, any length) goes to MMI as is, with only surrounding whitespace removed,
@@ -216,94 +178,98 @@ and MMI decides whether it knows the id. A missing or blank `memberId` is the on
 (400 `INVALID_REQUEST`, detail code `MEMBER_ID_MISSING`); when MMI cannot process the id it is sent, MMI's 400 comes
 back as 400 `MEMBER_LOOKUP_REJECTED` with MMI's text.
 
-Only the member id is required. The operation is not lenient about a date that was sent: a date of service or date
-of birth that cannot be used is a 400, because a request that asks about 2027 must never be answered for today
-(owner feedback 20). So the 400s this service raises itself are a missing or blank `memberId` (`MEMBER_ID_MISSING`),
-an unusable date (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE`, the three `DATE_OF_SERVICE_END_` codes,
+Besides the caller fields, only the member id is required. The operation is not lenient about a date that was sent:
+a date of service or date of birth that cannot be used is a 400, because a request that asks about 2027 must never be
+answered for today. So the 400s this service raises itself are a missing or unusable caller field
+(`CLIENT_ID_MISSING`, `CLIENT_ID_INVALID`, `CLIENT_TYPE_MISSING`, `CLIENT_TYPE_INVALID`, `REQUEST_ID_MISSING`,
+`REQUEST_ID_INVALID`), a missing or blank `memberId` (`MEMBER_ID_MISSING`), an unusable date
+(`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE`, the three `DATE_OF_SERVICE_END_` codes,
 `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`) and a body it cannot read as this request (`MALFORMED_JSON`,
-`WRONG_JSON_TYPE`). None of them reaches MMI. So
+`WRONG_JSON_TYPE`). Every problem is listed together, and none of them reaches MMI. So
 
 ```json
 { "memberId": "T20262026", "dateOfService": "2027-10-15", "vendor": "EVICORE", "anything": "goes" }
 ```
 
-answers 200 `INACTIVE` for 2027-10-15 (this stub member's only record ends 12/31/2026; the vendor and the unknown
+with the caller fields added answers 200 `INACTIVE` for 2027-10-15 (this stub member's only record ends 12/31/2026; the vendor and the unknown
 property are ignored), and the same payload with `"dateOfService": "10/15/2027"` is 400 `DATE_OF_SERVICE_INVALID`.
 
 ### Response (HTTP 200), branch on `outcome`
 
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
-| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `vendorMemberIds` entry: it is already in that vendor's format (for Optum, the 9-character core only). Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
-| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, a gap, or no coverage on record) | Hold for intake (owner decision). The `vendorMemberIds` are still there if the business rule says to submit anyway. |
+| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
+| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, a gap, or no coverage on record) | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
-| `AMBIGUOUS` | MMI matched the ID to several persons (a 9-character ID of a population with dependents) and no DOB settled it | Resend with the member's full ID including the suffix, or with `patient.dateOfBirth`, else intake picks from `candidates[]`. |
+| `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it; they are listed in `membersOnPlan[]` | Resend with the member's full ID including the suffix, or with `dateOfBirth`, else intake picks from `membersOnPlan[]`. |
 
 For the TMP id `123456789` (resolved to `123456789   01`):
 
 ```json
 { "outcome": "ACTIVE",
   "message": "Member found; coverage active on 2026-10-15",
-  "memberId": { "received": "123456789", "resolved": "123456789   01" },
+  "memberId": { "received": "123456789", "resolved": "123456789   01",
+    "forVendors": [
+      { "vendor": "CARELON", "memberId": "12345678901" },
+      { "vendor": "EVICORE", "memberId": "12345678901" },
+      { "vendor": "EVOLENT", "memberId": "12345678901" },
+      { "vendor": "MHK",     "memberId": "123456789   01" },
+      { "vendor": "ONYX",    "memberId": "12345678901" },
+      { "vendor": "OPTUM",   "memberId": "123456789" }
+    ] },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "coverageId": "123456789012021010199991231", "active": true, "effectiveDate": "2021-01-01", "endDate": "9999-12-31" },
-  "vendorMemberIds": [
-    { "vendor": "CARELON", "memberId": "12345678901" },
-    { "vendor": "EVICORE", "memberId": "12345678901" },
-    { "vendor": "EVOLENT", "memberId": "12345678901" },
-    { "vendor": "MHK",     "memberId": "123456789   01" },
-    { "vendor": "ONYX",    "memberId": "12345678901" },
-    { "vendor": "OPTUM",   "memberId": "123456789" }
-  ],
-  "traceId": "INTEROP-1791251466351-51536" }
+  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+  "traceId": "INTEROP-1791253983086-71493" }
 ```
 
 `memberId.received` is the ID as Onyx sent it (surrounding whitespace removed): exactly what was sent to MMI.
 `memberId.resolved` is the ID it resolved to, exactly as MMI holds it for the member the lookup settled on; for a
-converted member it is a different number from the one received (it was called `stored` until feedback 31). `vendorMemberIds` carries one entry per configured vendor, sorted
-by vendor code: that ID in the vendor's format, the value that goes into that vendor's payload. For Optum it is the
-9-character core only, the number printed on the card: Optum stores the core, not the 11 characters (owner feedback 23).
+converted member it is a different number from the one received. `memberId.forVendors` carries one entry per configured
+vendor, sorted by vendor code: that ID in the vendor's format, the value that goes into that vendor's payload. For Optum it is the
+9-character core only, the number printed on the card: Optum stores the core, not the 11 characters.
 Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 characters, spaces, 2 digits); any other
 stored ID (Public Plans, HPHC) is passed as stored for every vendor.
-`coverage` is flat, in this order (owner feedback 31): `coverageId`, `active`, `effectiveDate`, `endDate`. The dates
+`coverage` is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`. The dates
 are those of the continuous period that covers the (first) date of service; an open-ended period ends `9999-12-31`, so
 every date sent is a real date and absent dates mean there is no period. Records that touch,
 as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true only when
 that period covers every day asked about; when it covers the first day but ends before the last, `active` is false and
 the period is still shown so intake sees how far coverage goes. Otherwise there is no period and `message` says why.
-`coverage.coverageId` names that period (owner feedback 24, form from the Onyx requirement, feedback 28): the stored member
+`coverage.coverageId` names that period, in the form the Onyx requirement sets: the resolved member
 id with its spaces and any punctuation removed, then the period's effective date, then its end date, both `yyyyMMdd`, run
 together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `99991231` stands for an open-ended
 period). It is present whenever the dates are, and the same member with the same coverage always gets the same
 value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring dates.
 `lineOfBusiness` is MMI's value (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it. The company (THP or
-HPHC) is not returned: the stored id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
-to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body.
+HPHC) is not returned: the resolved id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
+to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body, and the caller's `requestId`
+comes back as `requestId`.
 
 Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 
 | Field | Present | Content |
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
-| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) · `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` · `Member found; coverage ended before <dateOfService>` · `Member found; coverage not yet effective on <dateOfService>` · `Member found; no coverage on <dateOfService> (gap between coverage periods)` · `Member found; no coverage on record` · `No member found for this id` · `Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates`) |
-| `memberId` | always | `received`; `resolved` when a member was identified |
+| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend the member's full id including the suffix, or pick from membersOnPlan`) |
+| `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId }` per configured vendor, sorted by vendor code) when a member was identified |
 | `dateOfService`, `dateOfServiceDefaulted` | always | The (first) date evaluated and whether it was defaulted to today |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `lineOfBusiness`, `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates come together, whenever a period covers the (first) date of service |
-| `candidates[]` | `AMBIGUOUS` | `{ memberId, lineOfBusiness, coverageActive }` per person, sorted by id |
-| `vendorMemberIds[]` | `ACTIVE`, `INACTIVE` | `{ vendor, memberId }` per configured vendor, sorted by vendor code |
+| `membersOnPlan[]` | `AMBIGUOUS` | `{ memberId, lineOfBusiness, coverageActive }` per member on the plan who shares the id, sorted by id |
+| `requestId` | always | The caller's `requestId`, echoed |
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
 
-`vendorMemberIds` is present **only when a member was identified**, that is for `ACTIVE` and `INACTIVE`.
-`NOT_FOUND` and `AMBIGUOUS` answers carry no `vendorMemberIds` and no `memberId.resolved`; an `AMBIGUOUS` answer carries
-`candidates[]`, and a resend with `patient.dateOfBirth` settles it.
+`memberId.forVendors` is present **only when a member was identified**, that is for `ACTIVE` and `INACTIVE`.
+`NOT_FOUND` and `AMBIGUOUS` answers carry no `memberId.resolved` and no `memberId.forVendors`; an `AMBIGUOUS` answer
+carries `membersOnPlan[]`, and a resend with `dateOfBirth` settles it.
 For an HPHC id (resolved to `HP456789012`) or a Public Plans id (`34567890102`) every entry carries the resolved id
 unchanged, Optum included. Absent blocks are omitted, not sent as `null`.
 
-A `NOT_FOUND` answer from the DEV stub (the real MMI's values will differ; the stub answers HTTP 404, as the owner
-describes for MMI, with an `ERROR`-typed `MEMBER_NOT_FOUND` message of its own; whether the real 404 carries such a
+A `NOT_FOUND` answer from the DEV stub (the real MMI's values will differ; the stub answers HTTP 404, as MMI's
+contract describes, with an `ERROR`-typed `MEMBER_NOT_FOUND` message of its own; whether the real 404 carries such a
 message is confirmed in PQA (section 7)):
 
 ```json
@@ -311,14 +277,15 @@ message is confirmed in PQA (section 7)):
   "message": "No member found for this id",
   "memberId": { "received": "HP111222333" },
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "traceId": "INTEROP-1791247573383-85735",
+  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+  "traceId": "INTEROP-1791253983094-30664",
   "sourceMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND", "text": "No member found for the given id (stub)" } }
 ```
 
-### Errors (non-200): `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "traceId" }`
+### Errors (non-200): `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "requestId", "traceId" }`
 
-Every answer the application produces has this shape (`traceId`
-is present once MMI was called, including on a 422). The one exception is a request Tomcat rejects before it
+Every answer the application produces has this shape. `requestId` echoes the caller's id when it was read and
+usable, on a 400 about another field too; `traceId` is present once MMI was called, including on a 422. The one exception is a request Tomcat rejects before it
 reaches the application (malformed percent-encoding in the URL, a header block over 8 KB): that returns Spring
 Boot's default error JSON.
 
@@ -328,17 +295,17 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 
 | MMI | This service |
 |---|---|
-| 200 | `outcome` from the records: `ACTIVE`, `INACTIVE` or `AMBIGUOUS`. No members → 200 `NOT_FOUND`, unless `messages[]` carries an `ERROR`-typed message (`mmi.error-message-types`): then 502 `MEMBER_LOOKUP_ERROR` / `ERROR_MESSAGE`, forwarding MMI's code and text (`The member lookup reported an error: ES_TIMEOUT ...`) |
+| 200 | `outcome` from the records: `ACTIVE`, `INACTIVE` or `AMBIGUOUS`. No members -> 200 `NOT_FOUND`, unless `messages[]` carries an `ERROR`-typed message (`mmi.error-message-types`): then 502 `MEMBER_LOOKUP_ERROR` / `ERROR_MESSAGE`, forwarding MMI's code and text (`The member lookup reported an error: ES_TIMEOUT ...`) |
 | 404 (member not found) | 200 `NOT_FOUND`, whatever the body; `sourceMessage` carries MMI's first message when there is one. MMI's envelope is a JSON object with any of `members` / `messages` / `clientId` / `requestId`; an empty body counts as one. A 404 with any other body (a container's default error JSON, an HTML page) is still `NOT_FOUND`, and the log gets a WARN with `marker=MMI_404_WITHOUT_ENVELOPE` naming the URL, because a wrong `mmi.base-url` / `mmi.path` looks exactly like that |
 | 400 (bad request) | 400 `MEMBER_LOOKUP_REJECTED`, `details[0].code` `HTTP_400`, message `The member lookup rejected the request` + `: <MMI code> <MMI text>` when MMI sent a message. No `Retry-After`; `traceId` present |
 | 500 (internal error) | 503 `MEMBER_LOOKUP_UNAVAILABLE`, `details[0].code` `HTTP_500`, message `The member lookup reported an internal error` + `: <code> <text>` when present; `Retry-After: 10` |
-| any other status | A gateway, proxy or container answered, not MMI. 5xx, 429, 408 → 503 `MEMBER_LOOKUP_UNAVAILABLE` `HTTP_<code>`; other 4xx → 502 `MEMBER_LOOKUP_ERROR` `HTTP_<code>`. The message reads `HTTP <code> from the member lookup, outside its contract (200, 400, 404, 500): a gateway or proxy answered` (the URL goes to the log only) |
+| any other status | A gateway, proxy or container answered, not MMI. 5xx, 429, 408 -> 503 `MEMBER_LOOKUP_UNAVAILABLE` `HTTP_<code>`; other 4xx -> 502 `MEMBER_LOOKUP_ERROR` `HTTP_<code>`. The message reads `HTTP <code> from the member lookup, outside its contract (200, 400, 404, 500): a gateway or proxy answered` (the URL goes to the log only) |
 | cannot reach / timeout | 503 `MEMBER_LOOKUP_UNAVAILABLE`, `CONNECT_FAILED` or `READ_TIMEOUT`; `Retry-After: 10` |
 | unreadable body | 502 `MEMBER_LOOKUP_INVALID_RESPONSE`: a 2xx with an empty or non-JSON body (`EMPTY_BODY`, `UNPARSEABLE_BODY`), records without a member id (`NO_MEMBER_ID`), or a member whose only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`) |
 
 | HTTP | `error.code` | When | Onyx action |
 |---|---|---|---|
-| 400 | `INVALID_REQUEST` | A missing or blank member ID (`MEMBER_ID_MISSING`), bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE` for a date more than 10 years back; there is no upper limit, a future date is judged on the coverage on record; `DATE_OF_SERVICE_END_INVALID`, `DATE_OF_SERVICE_END_BEFORE_START`, `DATE_OF_SERVICE_END_WITHOUT_START` for the end of a period of service; `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); every problem is listed in `details[]`. Unknown properties, a vendor included, are ignored, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operation is POST /v1/interop/resolve".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
+| 400 | `INVALID_REQUEST` | Missing or unusable caller fields (`CLIENT_ID_MISSING`, `CLIENT_ID_INVALID`, `CLIENT_TYPE_MISSING`, `CLIENT_TYPE_INVALID`, `REQUEST_ID_MISSING`, `REQUEST_ID_INVALID`), a missing or blank member ID (`MEMBER_ID_MISSING`), bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE` for a date more than 10 years back; there is no upper limit, a future date is judged on the coverage on record; `DATE_OF_SERVICE_END_INVALID`, `DATE_OF_SERVICE_END_BEFORE_START`, `DATE_OF_SERVICE_END_WITHOUT_START` for the end of a period of service; `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); every problem is listed in `details[]`. Unknown properties, a vendor included, are ignored, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operation is POST /v1/interop/resolve".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems, the caller codes are Onyx configuration, anything else is an Onyx mapping defect. |
 | 400 | `MEMBER_LOOKUP_REJECTED` | MMI answered 400: it could not process the request as sent (`details[0].code` `HTTP_400`; the message forwards MMI's code and text when MMI sent a message). `traceId` present, no `Retry-After`. | Never retry as is. Alert the service owners with the `traceId`; MMI's text says what it did not accept. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
 | 502 | `MEMBER_LOOKUP_ERROR`, `MEMBER_LOOKUP_INVALID_RESPONSE` | MMI reported an error of its own in `messages[]` with no members (`ERROR_MESSAGE`; the message forwards MMI's code and text: `The member lookup reported an error: ES_TIMEOUT ...`); a 4xx other than 400 and 404 from the MMI endpoint, which is a gateway or proxy answering, not MMI (`HTTP_<code>`; the message says so and repeats the URL); an unreadable 2xx body (`EMPTY_BODY`, `UNPARSEABLE_BODY`); records without a member id (`NO_MEMBER_ID`); or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read). | Park, alert the service owners. |
@@ -353,8 +320,9 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
 1. Take the ID as received: surrounding whitespace removed, nothing else. No separator stripping, no
    upper-casing, no shape or length check; the member id is sent to MMI exactly as the EMR typed it.
 2. One MMI call: `POST {mmi.base-url}/master/member/v1` with that ID in `memberId` **and**
-   `legacyMemberId` (the MMI spec's hit-rate advice), `voidCoverageRecord: N`, `clientId`, `clientType: INT`,
-   a fresh `requestId` (`INTEROP-<millis>-<5 digits>`). No date filter: coverage is evaluated locally so
+   `legacyMemberId` (the MMI spec's hit-rate advice), `voidCoverageRecord: N`, this service's own `clientId` and
+   `clientType: INT`, a fresh MMI `requestId` (`INTEROP-<millis>-<5 digits>`, returned as `traceId`; not the caller's
+   `requestId`). No date filter: coverage is evaluated locally so
    INACTIVE can say why. No demographics are ever sent.
    MMI's HTTP status is kept with the answer and mapped as in the table in section 2 (Errors): 200 is parsed;
    404 is MMI's "no member for this id", a normal answer (`NOT_FOUND`) whatever the body, and a body that is not
@@ -364,9 +332,9 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    too, unless `messages[]` carries an `ERROR`-typed message (`mmi.error-message-types`, for example `ES_TIMEOUT`):
    then 502 `MEMBER_LOOKUP_ERROR` / `ERROR_MESSAGE`, forwarding MMI's code and text. A `NOT_FOUND` answer carries MMI's first
    message in `sourceMessage` when there is one. Members beside a 404 are ignored (the status wins) and `marker=MMI_NOT_FOUND_WITH_MEMBERS` is logged.
-3. Reduce the records: identical records merged; records linked through `legacyMemberId` (THP↔HPHC
+3. Reduce the records: identical records merged; records linked through `legacyMemberId` (THP<->HPHC
    conversion) are one person and the record covering the date of service wins; a supplied DOB picks one
-   person or proves a mismatch; several persons without a DOB → `AMBIGUOUS`.
+   person or proves a mismatch; several persons without a DOB -> `AMBIGUOUS`.
 4. Coverage: the readable, non-void spans that overlap or touch are joined into continuous periods; `active` when one
    period covers every day from the first to the last date of service (inclusive; an end of null or `12/31/9999` is
    open). The dates are always the ones that were sent (today only when none was sent), whatever year they are in:
@@ -377,10 +345,10 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    remaining spans decide. If a member has unreadable spans and no readable one, the answer is 502
    `UNREADABLE_COVERAGE`, never a confident INACTIVE. For a converted member the two records' spans are
    evaluated together, so a gap between the old and the new record is reported as a gap.
-5. Format the stored ID for every configured vendor, in vendor-code order (never from the input).
+5. Format the resolved ID for every configured vendor, in vendor-code order (never from the input).
 
-Before step 1 the request type ignores what the operation does not need (a `vendor`, unknown properties); a date
-that was sent is validated, because the date of service is the date the answer is about.
+Before step 1 the caller fields are checked, the request type ignores what the operation does not need (a `vendor`,
+unknown properties), and a date that was sent is validated, because the date of service is the date the answer is about.
 
 TMP / SCO members have no dependents: a 9-character card number returns exactly one record and resolves
 directly. Only populations with dependents (HPHC commercial, Together) can produce `AMBIGUOUS`.
@@ -389,7 +357,7 @@ directly. Only populations with dependents (HPHC commercial, Together) can produ
 
 `src/main/resources/application.yaml`, block `member-id.vendors` (edit it there; the block below is a copy of
 the shipped values). Change a value, redeploy; the startup log prints the effective table rendered against
-a sample ID. Adding a vendor to this block also adds its entry to `vendorMemberIds` automatically: the answer
+a sample ID. Adding a vendor to this block also adds its entry to `memberId.forVendors` automatically: the answer
 is rendered from this table and nothing else needs editing.
 
 ```yaml
@@ -415,7 +383,7 @@ member-id:
       format: COMPACT_11
 ```
 
-Formats: `COMPACT_11`, `SPACED_14`, `CORE_9`, `AS_STORED`. The TMP core is **9 characters, a letter and 8 digits** (`S12345678`), stored with three spaces and the suffix `01`: `S12345678   01`. A format applies when the stored id is a run of letters and digits, a separator (any blanks or punctuation) and a short numeric suffix; the core and the suffix are copied character for character, so the `S` is always kept (`S1234567801`, `S12345678   01`; Optum receives the core alone, `S12345678`). A stored id of any other shape is passed on unchanged and, when it is not plain letters and digits, the log says so (`marker=STORED_ID_NOT_RESHAPED` with the shape, never the characters). A new output shape = one constant in
+Formats: `COMPACT_11`, `SPACED_14`, `CORE_9`, `AS_STORED`. The TMP core is **9 characters, a letter and 8 digits** (`S12345678`), stored with three spaces and the suffix `01`: `S12345678   01`. A format applies when the stored id is a run of letters and digits, a separator (any blanks or punctuation) and a short numeric suffix; the core and the suffix are copied character for character, so the `S` is always kept (`S1234567801`, `S12345678   01`; Optum receives the core alone, `S12345678`). A stored id of any other shape is passed on unchanged and, when it is not plain letters and digits, the log says so (`marker=STORED_ID_NOT_RESHAPED` with the value, every character that is not a letter or digit written as its code point). A new output shape = one constant in
 `VendorIdFormat` + one case in `VendorFormatter` + one test row.
 
 ## 5. Stub fixtures (DEV profile: `--spring.profiles.active=DEV`) and Postman
@@ -429,31 +397,33 @@ separators removed.
 | Member ID (as typed; the stub ignores separators and case) | Case |
 |---|---|
 | `123456789` / `12345678901` / `123456789   01` | TMP, active, open-ended |
-| `234567890` | SCO, coverage ended 2025-12-31 → INACTIVE |
-| `345678901` | Together family: 01 subscriber (DOB 1985-06-01), 02 dependent (DOB 2012-09-09, gap 06/2024–12/2024), 03 twin (ended 2024-12-31) → AMBIGUOUS without DOB |
+| `234567890` | SCO, coverage ended 2025-12-31 -> INACTIVE |
+| `345678901` | Together family: 01 subscriber (DOB 1985-06-01), 02 dependent (DOB 2012-09-09, gap 06/2024 to 12/2024), 03 twin (ended 2024-12-31) -> AMBIGUOUS without DOB |
 | `HP456789012` / `HP-456789012` | HPHC, active (end `12/31/9999`) |
-| `567890123 01` ↔ `HP567890123` | converted member: THP to 2024-12-31, HPHC from 2025-01-01 |
-| `678901234` | void span + ended span → INACTIVE |
-| `789012345` | coverage starts 2027-01-01 → NOT_YET_EFFECTIVE |
-| `890123456` | one unreadable span + one valid → ACTIVE with a warning |
-| `880000000` | only an unreadable span → 502 `UNREADABLE_COVERAGE` |
+| `567890123 01` <-> `HP567890123` | converted member: THP to 2024-12-31, HPHC from 2025-01-01 |
+| `678901234` | void span + ended span -> INACTIVE |
+| `789012345` | coverage starts 2027-01-01 -> NOT_YET_EFFECTIVE |
+| `890123456` | one unreadable span + one valid -> ACTIVE with a warning |
+| `880000000` | only an unreadable span -> 502 `UNREADABLE_COVERAGE` |
 | `901234567` | company missing on the record (inferred), restrictedData Y |
-| `500500500` · `503503503` · `400400400` · `888888888` · `202202202` | faults: MMI 500 → 503 `MEMBER_LOOKUP_UNAVAILABLE` `HTTP_500` (message `The member lookup reported an internal error: INTERNAL_ERROR search failed (stub)`), timeout → 503 `READ_TIMEOUT`, MMI 400 → 400 `MEMBER_LOOKUP_REJECTED` `HTTP_400` (message `The member lookup rejected the request: INVALID_REQUEST memberId could not be processed (stub)`), an `ERROR` message `ES_TIMEOUT` with no members → 502 `ERROR_MESSAGE` (the message carries `code=ES_TIMEOUT text=search backend timed out (stub)`), bad body → 502 `UNPARSEABLE_BODY` |
-| `887777777` · `886666666` | an error message beside a member record → 200 with a warning; a record without a member id → 502 `NO_MEMBER_ID` |
+| `500500500`, `503503503`, `400400400`, `888888888`, `202202202` | faults: MMI 500 -> 503 `MEMBER_LOOKUP_UNAVAILABLE` `HTTP_500` (message `The member lookup reported an internal error: INTERNAL_ERROR search failed (stub)`), timeout -> 503 `READ_TIMEOUT`, MMI 400 -> 400 `MEMBER_LOOKUP_REJECTED` `HTTP_400` (message `The member lookup rejected the request: INVALID_REQUEST memberId could not be processed (stub)`), an `ERROR` message `ES_TIMEOUT` with no members -> 502 `ERROR_MESSAGE` (the message carries `code=ES_TIMEOUT text=search backend timed out (stub)`), bad body -> 502 `UNPARSEABLE_BODY` |
+| `887777777`, `886666666` | an error message beside a member record -> 200 with a warning; a record without a member id -> 502 `NO_MEMBER_ID` |
 | anything else (for example `HP111222333`) | NOT_FOUND: the stub answers like the real MMI, HTTP 404 with `messages: [ { messageType ERROR, statusCode "404", messageCode MEMBER_NOT_FOUND, message "No member found for the given id (stub)" } ]` and no members; the service answers 200 `NOT_FOUND` with that message in `sourceMessage`. The payload log line for the stub prints `status=404` |
 
 Postman: import `postman/InteropResolution.postman_collection.json` and
-`postman/Local.postman_environment.json` (`baseUrl = http://localhost:9090`). Every request carries tests;
-run the whole collection with the Collection Runner for a green scenario pass. Every folder but 6 exercises
-`POST /v1/interop/resolve` (folder 6 is health and the OpenAPI document): folders 1 to 3 the populations and
-vendor formats, folder 4 not found and request validation, folder 5 the member lookup failures, folder **7** every
-vendor's id from one lookup, the leniency (a `vendor` and unknown properties ignored, only a missing member id answered
-400 `INVALID_REQUEST`, an unusable date a 400) and periods of service. The DEV
+`postman/Local.postman_environment.json` (`baseUrl = http://localhost:9090`). The collection sends `clientId` and
+`clientType` from its variables (`ONYX`, `EXT`) and a fresh `requestId` for every call from its pre-request script; a
+collection-level test checks that every 200 echoes it. Every request carries tests; run the whole collection with the
+Collection Runner for a green scenario pass (77 requests). Every folder but 6 exercises `POST /v1/interop/resolve`
+(folder 6 is health and the OpenAPI document): folders 1 to 3 the populations and vendor formats, folder 4 not found
+and request validation, the caller fields included, folder 5 the member lookup failures, folder **7** every vendor's
+id from one lookup, the leniency (a `vendor` and unknown properties ignored, a missing member id answered 400
+`INVALID_REQUEST`, an unusable date a 400) and periods of service. The DEV
 stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` is true rather than a specific date.
 
 ## 6. Tests
 
-`./gradlew test` (125 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (124 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -463,24 +433,27 @@ configuration validation, and the end-to-end scenario matrix over HTTP against t
 2026-10-03. The scenarios assert `message` on `ACTIVE`, `message` and `sourceMessage` on `NOT_FOUND`,
 that `400400400` is 400 `MEMBER_LOOKUP_REJECTED` / `HTTP_400` with MMI's text and no `Retry-After`, and that
 the 502 `ERROR_MESSAGE` body carries MMI's `code=ES_TIMEOUT` and `text=`. Four of the scenarios cover
-the vendor ids: the TMP id rendered for every vendor from one MMI call (Optum as the 9-character core, no `vendor`
-or `forVendor` in the response); HPHC and Public Plans ids passed as stored to every vendor, with the defaulted
-date and an INACTIVE gap; NOT_FOUND and AMBIGUOUS answers without `vendorMemberIds`, and a DOB that settles the
+the vendor ids: the TMP id rendered for every vendor from one MMI call (Optum as the 9-character core, `memberId` in the order `received`,
+`resolved`, `forVendors`, no `vendor` in the response); HPHC and Public Plans ids passed as stored to every vendor, with the defaulted
+date and an INACTIVE gap; NOT_FOUND and AMBIGUOUS answers without `memberId.forVendors`, and a DOB that settles the
 ambiguity; and `resolutionIsLenientAboutEverythingExceptTheMemberId`, which proves that a blank member id is a
 request-validation 400 (`INVALID_REQUEST`, `MEMBER_ID_MISSING`) that never reaches MMI, that a `vendor` in the request is ignored (200),
 that unknown properties are ignored, and that an unusable date of service or date of birth is a 400; a real but wrong
 DOB is still 422 `DOB_MISMATCH` after the one MMI call (`traceId` present). `aFutureDateOfServiceIsJudgedOnTheCoverageOnRecord` and
-`aSentDateOfServiceIsNeverReplacedByToday` are the owner's PQA case (feedback 20): a member whose only record runs 01/01/2026 to 12/31/2026 is
+`aSentDateOfServiceIsNeverReplacedByToday` cover a calendar-year record: a member whose only record runs 01/01/2026 to 12/31/2026 is
 ACTIVE for 2026-10-15 and INACTIVE for 2027-10-15, the response carries the date asked about, an unusable date is a 400
-and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. `aPeriodOfServiceMustBeCoveredOnEveryDay` (feedback 21): a member with
+and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. `aPeriodOfServiceMustBeCoveredOnEveryDay`: a member with
 adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the merged period in the coverage dates, INACTIVE
 from 2026-12-20 to 2027-01-05 ("coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05"), `dateOfServiceEnd`
 is echoed only when sent, and an end before the start, without a start or not a date is a 400. A capturing log appender
-asserts no log line (message or exception text; payload logging is off in the `test` profile) contains an
-unmasked 9- or 11-digit run or an MM/dd/yyyy date, and no response body contains names or SSN; a stub call counter proves invalid requests
+asserts no log line (message or exception text; payload logging is off in the `test` profile) contains a date
+of birth from the stub data or a member name, and no response body contains names or SSN; a stub call counter proves invalid requests
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI
 and echoed back unchanged in `memberId.received`, and the stub's `lastSearched()` proves the id arrives at MMI
-untouched.
+untouched. `callerMustIdentifyItselfAndTheCall` covers the caller fields: without them the answer is 400 with the
+three `_MISSING` codes and MMI is not called; a `clientType` other than `EXT` or `INT` (lower case included), an
+over-long or malformed `clientId` or `requestId` is a 400; a usable `requestId` is echoed even on a 400, an unusable
+one never; an internal caller (`INT`) gets its answer and is named in the log line.
 
 ## 7. Assumptions to confirm in PQA
 
@@ -488,7 +461,7 @@ untouched.
   hyphens or spaces (`123456789-01`, `HP-123456789`); the service sends it unchanged in `memberId` and
   `legacyMemberId`. The stub assumes the same.
 - A single record returned for any population is the member (TMP/SCO always return one).
-- MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500 (owner);
+- MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500;
   confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `sourceMessage`
   can be filled: if the log shows `MMI_404_WITHOUT_ENVELOPE` for an id that exists nowhere, it does not.
 - `coverage.active` is the flag; the dates are supporting detail. Legacy IDs, migration dates, PCP and

@@ -9,38 +9,49 @@ import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 /**
  * Validates the whole request in one pass and reports every problem together. No MMI call for an invalid request.
  *
+ * <p>The caller must identify itself and the call: {@code clientId}, {@code clientType} ({@code EXT} or {@code INT}) and
+ * {@code requestId} are required. A usable {@code requestId} is kept for the log and echoed even when another field
+ * fails.
+ *
  * <p>The member id itself is only checked for presence. Whatever the EMR typed (9, 10, 11 or 40 characters, hyphens,
  * spaces, letters) is sent to MMI exactly as received, with only surrounding whitespace removed; MMI decides whether it
  * knows the id. This service never judges the shape of a member id.
  *
- * <p>The date of service is the date the answer is about (owner feedback 20). A date that was sent is always the
+ * <p>The date of service is the date the answer is about. A date that was sent is always the
  * date evaluated, never replaced by today: a value that is not a real {@code yyyy-MM-dd} date, or is older than the
  * coverage history MMI keeps, is a 400. Only a missing or blank date defaults to today. There is no
  * upper limit: a future date is judged against the coverage on record, which is the only way a 2027 date can be told
- * apart from a 2026 one. A prior authorization may cover a period (feedback 21): {@code dateOfServiceEnd}, optional,
+ * apart from a 2026 one. A prior authorization may cover a period: {@code dateOfServiceEnd}, optional,
  * makes the request about every day from {@code dateOfService} to it; it must be a real date, not before the start,
  * and never comes alone. The same holds for a sent date of birth: unusable means 400, never silently dropped.
  *
  * <p>Only what the operation needs is looked at: the member id, the dates and the date of birth. Anything else Onyx
- * sends, a vendor included, is ignored by the request type (owner feedback 9).
+ * sends, a vendor included, is ignored by the request type.
  */
 @Component
 public class RequestValidator {
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT);
+    private static final Pattern CLIENT_ID = Pattern.compile("^[A-Za-z0-9._-]{1,50}$");
+    private static final Set<String> CLIENT_TYPES = Set.of("EXT", "INT");
 
     /**
+     * @param clientId         the calling system
+     * @param clientType       EXT or INT
+     * @param requestId        the caller's id for this call, echoed in the response
      * @param memberId         the id as Onyx sent it, surrounding whitespace removed: what is sent to MMI and echoed back
      * @param dateOfService    the first (or only) date of service
      * @param dateOfServiceEnd the last date of service when a period was sent, else null
      */
-    public record Validated(String memberId, LocalDate dateOfService, LocalDate dateOfServiceEnd, boolean dateOfServiceDefaulted,
-            LocalDate dateOfBirth) {
+    public record Validated(String clientId, String clientType, String requestId, String memberId, LocalDate dateOfService,
+            LocalDate dateOfServiceEnd, boolean dateOfServiceDefaulted, LocalDate dateOfBirth) {
 
         /** The last date the answer is about: the end of the period, or the single date itself. */
         public LocalDate lastDateOfService() {
@@ -61,9 +72,9 @@ public class RequestValidator {
         this.clock = clock;
     }
 
-    /** Member id present, dates usable; every problem is reported together. */
+    /** Caller identified, member id present, dates usable; every problem is reported together. */
     public Validated validate(MemberResolutionRequest request) {
-        String rawDob = request.patient() == null ? null : request.patient().dateOfBirth();
+        String rawDob = request.dateOfBirth();
         String rawDateOfService = request.dateOfService();
         String rawDateOfServiceEnd = request.dateOfServiceEnd();
         List<ErrorDetail> details = new ArrayList<>();
@@ -110,17 +121,44 @@ public class RequestValidator {
         if (rawDob != null && !rawDob.isBlank()) {
             dob = parseDate(rawDob);
             if (dob == null) {
-                details.add(new ErrorDetail("patient.dateOfBirth", "DATE_OF_BIRTH_INVALID", "expected a real date in yyyy-MM-dd"));
+                details.add(new ErrorDetail("dateOfBirth", "DATE_OF_BIRTH_INVALID", "expected a real date in yyyy-MM-dd"));
             } else if (dob.isAfter(today) || dob.isBefore(today.minusYears(properties.dateOfBirthMaxAgeYears()))) {
-                details.add(new ErrorDetail("patient.dateOfBirth", "DATE_OF_BIRTH_OUT_OF_RANGE",
+                details.add(new ErrorDetail("dateOfBirth", "DATE_OF_BIRTH_OUT_OF_RANGE",
                         "must not be in the future or more than " + properties.dateOfBirthMaxAgeYears() + " years ago"));
             }
+        }
+
+        String clientId = strip(request.clientId());
+        if (clientId.isEmpty()) {
+            details.add(new ErrorDetail("clientId", "CLIENT_ID_MISSING", "clientId is required"));
+        } else if (!CLIENT_ID.matcher(clientId).matches()) {
+            details.add(new ErrorDetail("clientId", "CLIENT_ID_INVALID", "letters, digits, '.', '_' or '-', at most 50 characters"));
+        }
+
+        String clientType = strip(request.clientType());
+        if (clientType.isEmpty()) {
+            details.add(new ErrorDetail("clientType", "CLIENT_TYPE_MISSING", "clientType is required: EXT or INT"));
+        } else if (!CLIENT_TYPES.contains(clientType)) {
+            details.add(new ErrorDetail("clientType", "CLIENT_TYPE_INVALID", "must be EXT (external caller) or INT (internal caller)"));
+        }
+
+        String requestId = strip(request.requestId());
+        if (requestId.isEmpty()) {
+            details.add(new ErrorDetail("requestId", "REQUEST_ID_MISSING", "requestId is required: the caller's id for this call"));
+        } else if (!CorrelationFilter.VALID.matcher(requestId).matches()) {
+            details.add(new ErrorDetail("requestId", "REQUEST_ID_INVALID", "letters, digits, '.', '_', ':' or '-', at most 64 characters"));
+        } else {
+            CorrelationFilter.rememberRequestId(requestId);
         }
 
         if (!details.isEmpty()) {
             throw new InvalidRequestException(details);
         }
-        return new Validated(memberId, dos, dosEnd, defaulted, dob);
+        return new Validated(clientId, clientType, requestId, memberId, dos, dosEnd, defaulted, dob);
+    }
+
+    private static String strip(String value) {
+        return value == null ? "" : value.strip();
     }
 
     private static LocalDate parseDate(String value) {

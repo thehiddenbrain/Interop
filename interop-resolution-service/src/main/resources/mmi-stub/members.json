@@ -106,7 +106,7 @@
     ]
   },
   {
-    "_comment": "TMP member with a calendar-year record only: coverage 01/01/2026 to 12/31/2026. A 2026 date of service is ACTIVE; a 2027 one is INACTIVE (coverage ended), the owner's PQA case (feedback 20).",
+    "_comment": "TMP member with a calendar-year record only: coverage 01/01/2026 to 12/31/2026. A 2026 date of service is ACTIVE; a 2027 one is INACTIVE (coverage ended).",
     "memberId": "T20262026   01",
     "subscriberMemberId": "T20262026   01",
     "policyId": "T20262026",
@@ -130,7 +130,7 @@
     ]
   },
   {
-    "_comment": "TMP member re-enrolled year after year: two adjacent plan-year records, 01/01/2025 to 12/31/2025 and 01/01/2026 to 12/31/2026. They are one continuous coverage period, so a period of service across the year boundary is ACTIVE; one running into 2027 is INACTIVE (feedback 21).",
+    "_comment": "TMP member re-enrolled year after year: two adjacent plan-year records, 01/01/2025 to 12/31/2025 and 01/01/2026 to 12/31/2026. They are one continuous coverage period, so a period of service across the year boundary is ACTIVE; one running into 2027 is INACTIVE.",
     "memberId": "U20252026   01",
     "subscriberMemberId": "U20252026   01",
     "policyId": "U20252026",

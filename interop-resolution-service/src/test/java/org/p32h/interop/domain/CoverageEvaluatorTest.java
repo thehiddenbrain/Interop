@@ -85,7 +85,7 @@ class CoverageEvaluatorTest {
         assertThat(evaluator.evaluate(spans, LocalDate.parse("2026-01-02")).span().effective()).isEqualTo(LocalDate.parse("2026-01-02"));
     }
 
-    // ---------------------------------------------------------------- a period of service (feedback 21)
+    // ---------------------------------------------------------------- a period of service
 
     @Test
     void aPeriodInsideOnePeriodIsCovered() {

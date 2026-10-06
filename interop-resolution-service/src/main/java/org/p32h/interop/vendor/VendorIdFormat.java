@@ -12,6 +12,6 @@ public enum VendorIdFormat {
     COMPACT_11,
     /** Core + 3 spaces + suffix (14 characters). */
     SPACED_14,
-    /** The 9-character core only, the number printed on the card; Optum stores this (owner feedback 23). */
+    /** The 9-character core only, the number printed on the card; Optum stores this. */
     CORE_9
 }

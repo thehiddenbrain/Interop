@@ -7,7 +7,6 @@ import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
-import org.p32h.interop.support.Masking;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
@@ -134,20 +133,20 @@ public class RestMmiClient implements MmiClient {
                         }
                         throw MmiException.rejected(requestId, "HTTP_" + code, outside);
                     });
-            log.info("mmi call ok requestId={} memberId={} status={} records={} ms={}", requestId, Masking.memberId(memberId),
+            log.info("mmi call ok requestId={} memberId={} status={} records={} ms={}", requestId, memberId,
                     result.httpStatus(), result.response().membersOrEmpty().size(), elapsedMs(start));
             return result;
         } catch (MmiException e) {
-            log.warn("mmi call failed requestId={} memberId={} code={} detail={} url={} ms={} cause={}", requestId, Masking.memberId(memberId),
+            log.warn("mmi call failed requestId={} memberId={} code={} detail={} url={} ms={} cause={}", requestId, memberId,
                     e.code(), e.detail(), url, elapsedMs(start), e.getCause() == null ? "-" : rootMessage(e.getCause()));
             throw e;
         } catch (ResourceAccessException e) {
             String detail = classify(e);
             log.warn("mmi call failed requestId={} memberId={} code={} detail={} url={} ms={} cause={}", requestId,
-                    Masking.memberId(memberId), MmiException.UNAVAILABLE, detail, url, elapsedMs(start), rootMessage(e));
+                    memberId, MmiException.UNAVAILABLE, detail, url, elapsedMs(start), rootMessage(e));
             throw MmiException.unavailable(requestId, detail, "The member lookup could not be reached: " + detail, e);
         } catch (RestClientException e) {
-            log.warn("mmi call failed requestId={} memberId={} code={} ms={} cause={}", requestId, Masking.memberId(memberId),
+            log.warn("mmi call failed requestId={} memberId={} code={} ms={} cause={}", requestId, memberId,
                     MmiException.INVALID_RESPONSE, elapsedMs(start), rootMessage(e));
             throw MmiException.invalidResponse(requestId, "CLIENT_ERROR", "The member lookup call failed: " + e.getClass().getSimpleName(), e);
         }

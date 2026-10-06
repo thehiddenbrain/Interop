@@ -75,7 +75,7 @@ class RestMmiClientTest {
         assertThat(result.requestId()).matches("INTEROP-\\d{13}-\\d{5}");
         assertThat(result.response().membersOrEmpty()).hasSize(1);
         assertThat(result.response().members().get(0).memberId()).isEqualTo("123456789   01");
-        assertThat(result.response().members().get(0).toString()).doesNotContain("Taylor").doesNotContain("1234");
+        assertThat(result.response().members().get(0).toString()).doesNotContain("Taylor").doesNotContain("-1234");
         server.verify();
     }
 

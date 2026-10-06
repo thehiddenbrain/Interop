@@ -15,7 +15,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,8 +48,21 @@ class ResolveScenariosTest {
     }
 
     private static final String PATH = "/v1/interop/resolve";
-    /** An unmasked 9- or 11-digit run (member ids), or an MM/dd/yyyy value (MMI dates of birth). */
-    private static final Pattern PHI = Pattern.compile("(?<!\\d)(?:\\d{9}|\\d{11})(?!\\d)|(?<![A-Za-z0-9])[A-Za-z]\\d{8}(?!\\d)|\\d{2}/\\d{2}/\\d{4}");
+    /** Every date of birth in the stub data, as MMI writes it (MM/dd/yyyy) and as yyyy-MM-dd: none may reach a log line. */
+    private static final String[] STUB_DOBS = stubDobs();
+
+    private static String[] stubDobs() {
+        try (var in = ResolveScenariosTest.class.getResourceAsStream("/mmi-stub/members.json")) {
+            return tools.jackson.databind.json.JsonMapper.builder().build().readTree(in).findValues("memberDob").stream()
+                    .map(JsonNode::asText)
+                    .filter(dob -> dob.matches("\\d{2}/\\d{2}/\\d{4}"))
+                    .flatMap(dob -> java.util.stream.Stream.of(dob, dob.substring(6) + "-" + dob.substring(0, 2) + "-" + dob.substring(3, 5)))
+                    .distinct()
+                    .toArray(String[]::new);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
 
     @Value("${local.server.port}") int port;
     @Autowired ObjectMapper json;
@@ -83,9 +95,20 @@ class ResolveScenariosTest {
                 new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8)));
     }
 
+    /** A map body gets what every caller sends besides the member data, unless the test sets it: who calls, and the call's id. */
     private String toJson(Object body) {
+        if (body instanceof Map<?, ?> fields) {
+            Map<Object, Object> withCaller = new java.util.LinkedHashMap<>(
+                    Map.of("clientId", "ONYX", "clientType", "EXT", "requestId", "TEST-" + requestIds.incrementAndGet()));
+            withCaller.putAll(fields);
+            lastRequestId = String.valueOf(withCaller.get("requestId"));
+            return json.writeValueAsString(withCaller);
+        }
         return body instanceof String s ? s : json.writeValueAsString(body);
     }
+
+    private final java.util.concurrent.atomic.AtomicInteger requestIds = new java.util.concurrent.atomic.AtomicInteger();
+    private String lastRequestId;
     @Autowired org.p32h.interop.mmi.MmiClient mmiClient;
 
     private org.p32h.interop.mmi.StubMmiClient stub;
@@ -129,33 +152,32 @@ class ResolveScenariosTest {
     }
 
     private static Map<String, Object> reqDob(String memberId, String dos, String dob) {
-        return Map.of("memberId", memberId, "dateOfService", dos, "patient", Map.of("dateOfBirth", dob));
+        return Map.of("memberId", memberId, "dateOfService", dos, "dateOfBirth", dob);
     }
 
-    /** The id one vendor receives: that vendor's entry in vendorMemberIds. */
+    /** The id one vendor receives: that vendor's entry in memberId.forVendors. */
     private static String forVendor(JsonNode r, String vendor) {
-        for (JsonNode e : r.path("vendorMemberIds")) {
+        for (JsonNode e : r.at("/memberId/forVendors")) {
             if (vendor.equals(e.path("vendor").asText())) {
                 return e.path("memberId").asText();
             }
         }
-        throw new AssertionError("no vendorMemberIds entry for " + vendor);
+        throw new AssertionError("no memberId.forVendors entry for " + vendor);
     }
 
     private void assertNoPhi(String body) {
         if (body != null) {
             assertThat(body).doesNotContain("memberFirstName", "memberLastName", "socialSecurityNumber", "memberDob", "Morgan", "Rivera", "***-**");
-            assertThat(body).as("nothing a caller receives names MMI (owner): no field, code, message or URL").doesNotContain("MMI", "mmi");
+            assertThat(body).as("nothing a caller receives names MMI: no field, code, message or URL").doesNotContain("MMI", "mmi");
         }
         for (ILoggingEvent e : logs.list) {
             StringBuilder text = new StringBuilder(e.getFormattedMessage());
             if (e.getThrowableProxy() != null) {
                 text.append(' ').append(e.getThrowableProxy().getMessage());
             }
-            // a generated correlation id (UUID) is not PHI but its hex can contain a 9-digit run: blank UUIDs before matching
-            String line = text.toString().replaceAll("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "<uuid>");
-            assertThat(PHI.matcher(line).find()).as("unmasked member id or MM/dd/yyyy date in log line: %s", line).isFalse();
-            assertThat(line).doesNotContain("1950-03-15", "2012-09-09", "Morgan", "Rivera");
+            String line = text.toString();
+            assertThat(line).as("no date of birth or name in a log line").doesNotContain(STUB_DOBS)
+                    .doesNotContain("1950-03-15", "2012-09-09", "Morgan", "Rivera");
         }
     }
 
@@ -174,11 +196,12 @@ class ResolveScenariosTest {
         assertThat(r.at("/memberId/received").asText()).isEqualTo("123456789");
         assertThat(r.at("/memberId/resolved").asText()).isEqualTo("123456789   01");
         assertThat(forVendor(r, "EVICORE")).isEqualTo("12345678901");
-        assertThat(r.has("vendor")).as("every vendor is listed in vendorMemberIds; there is no single vendor field").isFalse();
+        assertThat(r.has("vendor")).as("every vendor is listed in memberId.forVendors; there is no single vendor field").isFalse();
         assertThat(r.has("company")).as("lean response: the line of business is what Onyx routes on").isFalse();
         assertThat(r.has("correlationId")).as("the correlation id travels in the X-Correlation-Id header").isFalse();
         assertThat(r.get("lineOfBusiness").asText()).isEqualTo("MCR");
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
+        assertThat(r.get("memberId").properties()).extracting(Map.Entry::getKey).as("in this order").containsExactly("received", "resolved", "forVendors");
         assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("id, flag and period only, in this order").containsExactly("coverageId", "active", "effectiveDate", "endDate");
         assertThat(r.at("/coverage/coverageId").asText()).as("stored id (letters and digits only), effective and end as yyyyMMdd run together, open end 99991231")
                 .isEqualTo(r.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2021010199991231");
@@ -186,6 +209,7 @@ class ResolveScenariosTest {
         assertThat(r.at("/coverage/endDate").asText()).as("an open-ended period ends 9999-12-31, never null").isEqualTo("9999-12-31");
         assertThat(r.get("dateOfServiceDefaulted").asBoolean()).isFalse();
         assertThat(r.get("traceId").asText()).matches("INTEROP-\\d{13}-\\d{5}");
+        assertThat(r.get("requestId").asText()).as("the caller's id for the call comes back").isEqualTo(lastRequestId);
     }
 
     @Test
@@ -271,19 +295,19 @@ class ResolveScenariosTest {
     // ---------------------------------------------------------------- populations with dependents
 
     @Test
-    void publicPlansNineDigitWithoutDobIsAmbiguousWithCandidates() throws Exception {
+    void publicPlansNineDigitWithoutDobIsAmbiguousWithMembersOnPlan() throws Exception {
         JsonNode r = call(200, req("345678901", "2026-10-15"));
         assertThat(r.get("outcome").asText()).isEqualTo("AMBIGUOUS");
         assertThat(r.has("ambiguity")).isFalse();
         assertThat(r.get("message").asText()).isEqualTo(
-                "Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates");
-        assertThat(r.get("candidates")).hasSize(3);
-        assertThat(r.at("/candidates/0").properties()).extracting(Map.Entry::getKey).containsExactly("memberId", "lineOfBusiness", "coverageActive");
-        assertThat(r.at("/candidates/0/memberId").asText()).isEqualTo("34567890101");
-        assertThat(r.at("/candidates/0/coverageActive").asBoolean()).isTrue();
-        assertThat(r.at("/candidates/2/memberId").asText()).isEqualTo("34567890103");
-        assertThat(r.at("/candidates/2/coverageActive").asBoolean()).isFalse();
-        assertThat(r.at("/candidates/0").has("dateOfBirth")).isFalse();
+                "Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan");
+        assertThat(r.get("membersOnPlan")).hasSize(3);
+        assertThat(r.at("/membersOnPlan/0").properties()).extracting(Map.Entry::getKey).containsExactly("memberId", "lineOfBusiness", "coverageActive");
+        assertThat(r.at("/membersOnPlan/0/memberId").asText()).isEqualTo("34567890101");
+        assertThat(r.at("/membersOnPlan/0/coverageActive").asBoolean()).isTrue();
+        assertThat(r.at("/membersOnPlan/2/memberId").asText()).isEqualTo("34567890103");
+        assertThat(r.at("/membersOnPlan/2/coverageActive").asBoolean()).isFalse();
+        assertThat(r.at("/membersOnPlan/0").has("dateOfBirth")).isFalse();
         assertThat(r.has("memberId")).isTrue();
         assertThat(r.at("/memberId/resolved").isMissingNode()).isTrue();
     }
@@ -293,8 +317,8 @@ class ResolveScenariosTest {
         JsonNode r = call(200, reqDob("345678901", "2026-10-15", "2012-09-09"));
         assertThat(r.get("outcome").asText()).isEqualTo("AMBIGUOUS");
         assertThat(r.get("message").asText()).as("twins share the DOB").isEqualTo(
-                "Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates");
-        assertThat(r.get("candidates")).hasSize(2);
+                "Several members match this id and date of birth; resend the member's full id including the suffix, or pick from membersOnPlan");
+        assertThat(r.get("membersOnPlan")).hasSize(2);
 
         JsonNode sub = call(200, reqDob("345678901", "2026-10-15", "1985-06-01"));
         assertThat(sub.get("outcome").asText()).isEqualTo("ACTIVE");
@@ -317,19 +341,17 @@ class ResolveScenariosTest {
     void dobThatMatchesNoRecordIsAMismatch() throws Exception {
         JsonNode r = call(422, reqDob("345678901", "2026-10-15", "1999-09-09"));
         assertThat(r.at("/error/code").asText()).isEqualTo("DOB_MISMATCH");
-        assertThat(r.at("/error/details/0/field").asText()).isEqualTo("patient.dateOfBirth");
+        assertThat(r.at("/error/details/0/field").asText()).isEqualTo("dateOfBirth");
         JsonNode single = call(422, reqDob("123456789", "2026-10-15", "1999-09-09"));
         assertThat(single.at("/error/code").asText()).as("a single TMP record is still verified when a DOB is sent").isEqualTo("DOB_MISMATCH");
         assertThat(call(200, reqDob("123456789", "2026-10-15", "1950-03-15")).get("outcome").asText()).isEqualTo("ACTIVE");
     }
 
     @Test
-    void blankOrNullPatientMeansNoDob() throws Exception {
+    void blankOrNullDobMeansNoDob() throws Exception {
         assertThat(call(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15",
-                "patient", Map.of("dateOfBirth", ""))).get("outcome").asText()).isEqualTo("ACTIVE");
-        assertThat(call(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15",
-                "patient", Map.of())).get("outcome").asText()).isEqualTo("ACTIVE");
-        assertThat(call(200, "{\"memberId\":\"123456789\",\"dateOfService\":\"2026-10-15\",\"patient\":null}")
+                "dateOfBirth", "")).get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(call(200, "{\"clientId\":\"ONYX\",\"clientType\":\"EXT\",\"requestId\":\"T-1\",\"memberId\":\"123456789\",\"dateOfService\":\"2026-10-15\",\"dateOfBirth\":null}")
                 .get("outcome").asText()).isEqualTo("ACTIVE");
     }
 
@@ -350,7 +372,7 @@ class ResolveScenariosTest {
 
         JsonNode map = call(200, Map.of("memberId", "S98765432", "dateOfService", "2026-10-15"));
         Map<String, String> byVendor = new java.util.LinkedHashMap<>();
-        map.get("vendorMemberIds").forEach(e -> byVendor.put(e.get("vendor").asText(), e.get("memberId").asText()));
+        map.at("/memberId/forVendors").forEach(e -> byVendor.put(e.get("vendor").asText(), e.get("memberId").asText()));
         assertThat(byVendor).containsEntry("CARELON", "S9876543201").containsEntry("EVICORE", "S9876543201")
                 .containsEntry("EVOLENT", "S9876543201").containsEntry("MHK", "S98765432   01")
                 .containsEntry("ONYX", "S9876543201").containsEntry("OPTUM", "S98765432");
@@ -413,7 +435,7 @@ class ResolveScenariosTest {
 
     @Test
     void everyValidationProblemIsReportedTogetherAndMmiIsNotCalled() throws Exception {
-        JsonNode r = call(400, Map.of("memberId", "   ", "dateOfService", "10/15/2026", "patient", Map.of("dateOfBirth", "2099-01-01")));
+        JsonNode r = call(400, Map.of("memberId", "   ", "dateOfService", "10/15/2026", "dateOfBirth", "2099-01-01"));
         assertThat(r.at("/error/code").asText()).isEqualTo("INVALID_REQUEST");
         assertThat(r.get("traceId")).isNull();
         List<String> codes = new java.util.ArrayList<>();
@@ -431,11 +453,11 @@ class ResolveScenariosTest {
         assertThat(farFuture.get("outcome").asText()).as("this member's coverage on record is open-ended").isEqualTo("ACTIVE");
     }
 
-    // ---------------------------------------------------------------- the date of service is the date judged (owner feedback 20)
+    // ---------------------------------------------------------------- the date of service is the date judged
 
     @Test
     void aFutureDateOfServiceIsJudgedOnTheCoverageOnRecord() throws Exception {
-        // a member whose only record runs 01/01/2026 to 12/31/2026: the owner's PQA case
+        // a member whose only record runs 01/01/2026 to 12/31/2026
         JsonNode inYear = call(200, req("T20262026", "2026-10-15"));
         assertThat(inYear.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(inYear.get("message").asText()).isEqualTo("Member found; coverage active on 2026-10-15");
@@ -450,7 +472,7 @@ class ResolveScenariosTest {
         assertThat(nextYear.get("dateOfServiceDefaulted").asBoolean()).isFalse();
         assertThat(nextYear.at("/coverage/coverageId").isMissingNode()).as("no period, no id").isTrue();
         assertThat(forVendor(nextYear, "EVICORE")).as("the id is still returned when inactive").isEqualTo("T2026202601");
-        assertThat(nextYear.get("vendorMemberIds")).as("every vendor's id, inactive or not").hasSize(6);
+        assertThat(nextYear.at("/memberId/forVendors")).as("every vendor's id, inactive or not").hasSize(6);
 
         JsonNode firstDay = call(200, req("T20262026", "2027-01-01"));
         assertThat(firstDay.get("outcome").asText()).as("the day after the record ends is already inactive").isEqualTo("INACTIVE");
@@ -485,7 +507,7 @@ class ResolveScenariosTest {
         JsonNode map = call(200, Map.of("memberId", "T20262026", "dateOfService", "2026-12-01", "dateOfServiceEnd", "2027-01-31"));
         assertThat(map.get("outcome").asText()).as("a period that runs past the end of the record").isEqualTo("INACTIVE");
         assertThat(map.get("dateOfServiceEnd").asText()).isEqualTo("2027-01-31");
-        assertThat(map.get("vendorMemberIds")).hasSize(6);
+        assertThat(map.at("/memberId/forVendors")).hasSize(6);
         JsonNode mapOk = call(200, Map.of("memberId", "T20262026", "dateOfService", "2026-12-01", "dateOfServiceEnd", "2026-12-31"));
         assertThat(mapOk.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(mapOk.get("message").asText()).isEqualTo("Member found; coverage active from 2026-12-01 to 2026-12-31");
@@ -565,6 +587,7 @@ class ResolveScenariosTest {
         assertThat(r.header("X-Correlation-Id")).isEqualTo("ONYX-PA-1");
         assertThat(json.readTree(r.body()).has("correlationId")).as("header only on a 200").isFalse();
         assertThat(r.header("Cache-Control")).isEqualTo("no-store");
+        assertThat(r.header("X-Content-Type-Options")).isEqualTo("nosniff");
         assertNoPhi(r);
         Resp generated = post(req("123456789", "2026-10-15"), "X-Correlation-Id", "{bad id}");
         assertThat(generated.header("X-Correlation-Id")).matches("[0-9a-f-]{36}");
@@ -572,10 +595,10 @@ class ResolveScenariosTest {
     }
 
     @Test
-    void wrongTypeInsidePatientReportsTheFullPath() throws Exception {
-        JsonNode r = call(400, "{\"memberId\":\"123456789\",\"patient\":{\"dateOfBirth\":[1,2]}}");
+    void wrongTypeForTheDateOfBirthIsReportedOnTheField() throws Exception {
+        JsonNode r = call(400, "{\"memberId\":\"123456789\",\"dateOfBirth\":[1,2]}");
         assertThat(r.at("/error/details/0/code").asText()).isEqualTo("WRONG_JSON_TYPE");
-        assertThat(r.at("/error/details/0/field").asText()).isEqualTo("patient.dateOfBirth");
+        assertThat(r.at("/error/details/0/field").asText()).isEqualTo("dateOfBirth");
     }
 
     @Test
@@ -663,7 +686,6 @@ class ResolveScenariosTest {
         assertThat(r.at("/memberId/received").asText()).isEqualTo("123456789");
         assertThat(r.at("/memberId/resolved").asText()).isEqualTo("123456789   01");
         assertThat(r.has("vendor")).as("no single vendor in this operation").isFalse();
-        assertThat(r.at("/memberId/forVendor").isMissingNode()).isTrue();
         assertThat(r.has("company")).isFalse();
         assertThat(r.has("correlationId")).isFalse();
         assertThat(r.get("lineOfBusiness").asText()).isEqualTo("MCR");
@@ -674,7 +696,7 @@ class ResolveScenariosTest {
         assertThat(r.get("traceId").asText()).isNotBlank();
 
         Map<String, JsonNode> byVendor = new java.util.LinkedHashMap<>();
-        r.get("vendorMemberIds").forEach(e -> byVendor.put(e.get("vendor").asText(), e));
+        r.at("/memberId/forVendors").forEach(e -> byVendor.put(e.get("vendor").asText(), e));
         assertThat(byVendor.keySet()).as("every configured vendor, sorted by code").containsExactly("CARELON", "EVICORE", "EVOLENT", "MHK", "ONYX", "OPTUM");
         assertThat(byVendor.get("EVICORE").get("memberId").asText()).isEqualTo("12345678901");
         assertThat(byVendor.get("EVOLENT").get("memberId").asText()).isEqualTo("12345678901");
@@ -692,16 +714,16 @@ class ResolveScenariosTest {
         assertThat(hphc.get("dateOfService").asText()).isEqualTo("2026-10-03");
         assertThat(hphc.at("/memberId/received").asText()).isEqualTo("HP-456789012");
         assertThat(hphc.at("/memberId/resolved").asText()).isEqualTo("HP456789012");
-        assertThat(hphc.get("vendorMemberIds")).hasSize(6);
-        hphc.get("vendorMemberIds").forEach(e -> {
+        assertThat(hphc.at("/memberId/forVendors")).hasSize(6);
+        hphc.at("/memberId/forVendors").forEach(e -> {
             assertThat(e.get("memberId").asText()).as(e.get("vendor").asText()).isEqualTo("HP456789012");
         });
 
         JsonNode publicPlans = call(200, Map.of("memberId", "34567890102", "dateOfService", "2024-08-15"));
         assertThat(publicPlans.get("outcome").asText()).as("a gap in coverage still identifies the member").isEqualTo("INACTIVE");
         assertThat(publicPlans.at("/coverage/active").asBoolean()).isFalse();
-        assertThat(publicPlans.get("vendorMemberIds")).hasSize(6);
-        publicPlans.get("vendorMemberIds").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890102"));
+        assertThat(publicPlans.at("/memberId/forVendors")).hasSize(6);
+        publicPlans.at("/memberId/forVendors").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890102"));
     }
 
     @Test
@@ -710,7 +732,7 @@ class ResolveScenariosTest {
         assertThat(notFound.get("outcome").asText()).isEqualTo("NOT_FOUND");
         assertThat(notFound.get("message").asText()).isEqualTo("No member found for this id");
         assertThat(notFound.at("/sourceMessage/code").asText()).isEqualTo("MEMBER_NOT_FOUND");
-        assertThat(notFound.has("vendorMemberIds")).isFalse();
+        assertThat(notFound.at("/memberId/forVendors").isMissingNode()).isTrue();
         assertThat(notFound.has("coverage")).isFalse();
         assertThat(notFound.at("/memberId/received").asText()).isEqualTo("HP111222333");
         assertThat(notFound.get("traceId").asText()).isNotBlank();
@@ -718,16 +740,16 @@ class ResolveScenariosTest {
         JsonNode ambiguous = call(200, Map.of("memberId", "345678901", "dateOfService", "2026-10-15"));
         assertThat(ambiguous.get("outcome").asText()).isEqualTo("AMBIGUOUS");
         assertThat(ambiguous.has("ambiguity")).isFalse();
-        assertThat(ambiguous.get("message").asText()).startsWith("Several members match this id; add patient.dateOfBirth");
-        assertThat(ambiguous.get("candidates")).hasSize(3);
-        assertThat(ambiguous.has("vendorMemberIds")).isFalse();
+        assertThat(ambiguous.get("message").asText()).startsWith("Several members match this id; add dateOfBirth");
+        assertThat(ambiguous.get("membersOnPlan")).hasSize(3);
+        assertThat(ambiguous.at("/memberId/forVendors").isMissingNode()).isTrue();
 
         JsonNode withDob = call(200, Map.of("memberId", "345678901", "dateOfService", "2026-10-15",
-                "patient", Map.of("dateOfBirth", "1985-06-01")));
+                "dateOfBirth", "1985-06-01"));
         assertThat(withDob.get("outcome").asText()).as("DOB picks the subscriber, then every vendor gets the id").isEqualTo("ACTIVE");
         assertThat(withDob.at("/memberId/resolved").asText()).isEqualTo("34567890101");
-        assertThat(withDob.get("vendorMemberIds")).hasSize(6);
-        withDob.get("vendorMemberIds").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890101"));
+        assertThat(withDob.at("/memberId/forVendors")).hasSize(6);
+        withDob.at("/memberId/forVendors").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890101"));
     }
 
     @Test
@@ -741,34 +763,68 @@ class ResolveScenariosTest {
         // a vendor in the request, as Onyx's earlier payload carried, is simply ignored
         JsonNode withVendor = call(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "vendor", "EVICORE"));
         assertThat(withVendor.get("outcome").asText()).isEqualTo("ACTIVE");
-        assertThat(withVendor.get("vendorMemberIds")).hasSize(6);
+        assertThat(withVendor.at("/memberId/forVendors")).hasSize(6);
         // whatever shape the vendor takes (unknown code, object, array, number), it is ignored, never looked up or rejected
         for (Object vendor : List.of("NO_SUCH_VENDOR", Map.of("code", "EVICORE"), List.of("EVICORE"), 5)) {
             JsonNode r = call(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "vendor", vendor));
             assertThat(r.get("outcome").asText()).as("vendor=" + vendor).isEqualTo("ACTIVE");
-            assertThat(r.get("vendorMemberIds")).hasSize(6);
+            assertThat(r.at("/memberId/forVendors")).hasSize(6);
         }
 
-        // unknown properties, at the top level and inside patient, are ignored
+        // unknown properties are ignored
         JsonNode odd = call(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "anything", "goes",
-                "patient", Map.of("dateOfBirth", "1950-03-15", "name", "ignored too")));
+                "dateOfBirth", "1950-03-15", "name", "ignored too"));
         assertThat(odd.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(odd.get("dateOfService").asText()).isEqualTo("2026-10-15");
         assertThat(odd.has("ignoredFields")).as("nothing is silently ignored and reported any more").isFalse();
-        assertThat(odd.get("vendorMemberIds")).hasSize(6);
+        assertThat(odd.at("/memberId/forVendors")).hasSize(6);
 
-        // a sent value that cannot be used is a 400, never dropped (feedback 20)
+        // a sent value that cannot be used is a 400, never dropped
         JsonNode badDob = call(400, Map.of("memberId", "123456789", "dateOfService", "2026-10-15",
-                "patient", Map.of("dateOfBirth", "not-a-date")));
+                "dateOfBirth", "not-a-date"));
         assertThat(badDob.at("/error/details/0/code").asText()).isEqualTo("DATE_OF_BIRTH_INVALID");
         assertThat(call(400, Map.of("memberId", "123456789", "dateOfService", "10/15/2026")).at("/error/details/0/code").asText())
                 .isEqualTo("DATE_OF_SERVICE_INVALID");
 
         // a real date of birth is still used, and still protects against the wrong person
         JsonNode dobMismatch = call(422, Map.of("memberId", "123456789", "dateOfService", "2026-10-15",
-                "patient", Map.of("dateOfBirth", "1999-12-31")));
+                "dateOfBirth", "1999-12-31"));
         assertThat(dobMismatch.at("/error/code").asText()).isEqualTo("DOB_MISMATCH");
         assertThat(dobMismatch.get("traceId").asText()).isNotBlank();
+    }
+
+    // ---------------------------------------------------------------- caller identification
+
+    @Test
+    void callerMustIdentifyItselfAndTheCall() throws Exception {
+        long before = stub.calls();
+        JsonNode none = call(400, "{\"memberId\":\"123456789\",\"dateOfService\":\"2026-10-15\"}");
+        List<String> codes = new java.util.ArrayList<>();
+        none.at("/error/details").forEach(d -> codes.add(d.get("code").asText()));
+        assertThat(codes).containsExactlyInAnyOrder("CLIENT_ID_MISSING", "CLIENT_TYPE_MISSING", "REQUEST_ID_MISSING");
+        assertThat(none.has("requestId")).isFalse();
+        assertThat(stub.calls()).as("an unidentified call never reaches MMI").isEqualTo(before);
+
+        for (String type : List.of("ext", "EXTERNAL", "PARTNER")) {
+            JsonNode bad = call(400, Map.of("memberId", "123456789", "clientType", type));
+            assertThat(bad.at("/error/details/0/field").asText()).isEqualTo("clientType");
+            assertThat(bad.at("/error/details/0/code").asText()).as(type).isEqualTo("CLIENT_TYPE_INVALID");
+            assertThat(bad.get("requestId").asText()).as("a usable requestId is echoed on a 400 too").isEqualTo(lastRequestId);
+        }
+        assertThat(call(400, Map.of("memberId", "123456789", "clientId", "x".repeat(51))).at("/error/details/0/code").asText())
+                .isEqualTo("CLIENT_ID_INVALID");
+        assertThat(call(400, Map.of("memberId", "123456789", "clientId", "ONYX PA")).at("/error/details/0/code").asText())
+                .isEqualTo("CLIENT_ID_INVALID");
+        JsonNode badId = call(400, Map.of("memberId", "123456789", "requestId", "has a space"));
+        assertThat(badId.at("/error/details/0/code").asText()).isEqualTo("REQUEST_ID_INVALID");
+        assertThat(badId.has("requestId")).as("an unusable requestId is never echoed").isFalse();
+        assertThat(call(400, Map.of("memberId", "123456789", "requestId", "r".repeat(65))).at("/error/details/0/code").asText())
+                .isEqualTo("REQUEST_ID_INVALID");
+
+        JsonNode internal = call(200, Map.of("memberId", "123456789", "dateOfService", "2026-10-15", "clientId", "UM-PORTAL", "clientType", "INT"));
+        assertThat(internal.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(internal.get("requestId").asText()).isEqualTo(lastRequestId);
+        assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage()).startsWith("resolution clientId=UM-PORTAL clientType=INT outcome=ACTIVE"));
     }
 
     // ---------------------------------------------------------------- MMI failures

@@ -15,8 +15,8 @@ import org.slf4j.LoggerFactory;
  * {@code 34567890101}, an HPHC id {@code HP456789012}) or any other shape is passed on exactly as stored, whatever
  * the vendor's format.
  *
- * <p>When a value that is not plain letters and digits still cannot be reshaped, a warning names its shape (digits
- * as #, letters as a, every other character by code point, never the characters themselves).
+ * <p>When a value that is not plain letters and digits still cannot be reshaped, a warning logs it with every
+ * character that is not a letter or digit written as its code point, so an invisible character shows.
  */
 public final class VendorFormatter {
 
@@ -30,7 +30,7 @@ public final class VendorFormatter {
         Split split = split(stored);
         if (split == null) {
             if (format != VendorIdFormat.AS_STORED && !stored.chars().allMatch(Character::isLetterOrDigit)) {
-                log.warn("marker=STORED_ID_NOT_RESHAPED format={} shape={}: not a core + separator + numeric suffix; passed on as stored",
+                log.warn("marker=STORED_ID_NOT_RESHAPED format={} value={}: not a core + separator + numeric suffix; passed on as stored",
                         format, describe(storedMemberId));
             }
             return new FormattedMemberId(stored);
@@ -95,17 +95,15 @@ public final class VendorFormatter {
         return Character.isWhitespace(cp) || Character.isSpaceChar(cp);
     }
 
-    /** The shape of a stored id for the log: digits #, letters a, anything else as [U+XXXX]. Never the characters. */
+    /** A stored id for the log: letters and digits as they are, any other character as [U+XXXX]. */
     static String describe(String s) {
         if (s == null) {
             return "null";
         }
         StringBuilder sb = new StringBuilder();
         s.codePoints().limit(40).forEach(cp -> {
-            if (Character.isDigit(cp)) {
-                sb.append('#');
-            } else if (Character.isLetter(cp)) {
-                sb.append('a');
+            if (Character.isLetterOrDigit(cp)) {
+                sb.appendCodePoint(cp);
             } else {
                 sb.append(String.format("[U+%04X]", cp));
             }

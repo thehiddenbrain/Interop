@@ -1,7 +1,7 @@
 package org.p32h.interop.service;
 
-import org.p32h.interop.api.Candidate;
 import org.p32h.interop.api.Coverage;
+import org.p32h.interop.api.MemberOnPlan;
 import org.p32h.interop.api.MemberResolutionRequest;
 import org.p32h.interop.api.MemberResolutionResponse;
 import org.p32h.interop.api.SourceMessage;
@@ -20,7 +20,6 @@ import org.p32h.interop.mmi.MmiMessage;
 import org.p32h.interop.mmi.MmiProperties;
 import org.p32h.interop.mmi.MmiRecordMapper;
 import org.p32h.interop.mmi.MmiResult;
-import org.p32h.interop.support.Masking;
 import org.p32h.interop.vendor.VendorFormatter;
 import org.p32h.interop.vendor.VendorRegistry;
 import java.time.format.DateTimeFormatter;
@@ -64,24 +63,24 @@ public class ResolutionService {
         long start = System.nanoTime();
         RequestValidator.Validated v = validator.validate(request);
         Resolved r = resolveMember(v, correlationId);
-        List<MemberResolutionResponse.VendorMemberId> vendorMemberIds = null;
+        List<MemberResolutionResponse.VendorMemberId> forVendors = null;
         if (r.record() != null) {
-            vendorMemberIds = vendors.all().stream()
+            forVendors = vendors.all().stream()
                     .map(vendor -> new MemberResolutionResponse.VendorMemberId(vendor.code(),
                             formatter.format(r.record().storedMemberId(), vendor.format()).value()))
                     .toList();
         }
         MemberResolutionResponse response = new MemberResolutionResponse(r.outcome(), message(r, v),
-                new MemberResolutionResponse.MemberId(v.memberId(), r.storedMemberId()),
+                new MemberResolutionResponse.MemberId(v.memberId(), r.storedMemberId(), forVendors),
                 r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
-                r.coverageBlock(), r.candidates(), vendorMemberIds, r.mmiRequestId(), r.mmiNote());
+                r.coverageBlock(), r.membersOnPlan(), v.requestId(), r.mmiRequestId(), r.mmiNote());
         logOutcome(r, v, start);
         return response;
     }
 
     /** MMI's answer reduced to one outcome, before it is rendered. */
     private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String ambiguityReason,
-            List<Candidate> candidates, String mmiRequestId, int records, SourceMessage mmiNote) {
+            List<MemberOnPlan> membersOnPlan, String mmiRequestId, int records, SourceMessage mmiNote) {
 
         String storedMemberId() {
             return record == null ? null : record.storedMemberId();
@@ -108,8 +107,7 @@ public class ResolutionService {
         }
 
         /**
-         * Feedback 24, form fixed by feedback 28 (Onyx requirement): MEMBER_ID + EFF_DATE + END_DATE run together, no
-         * separator, dates as yyyyMMdd, letters and digits only (the stored id loses its spaces and any punctuation);
+         * MEMBER_ID + EFF_DATE + END_DATE run together (the form Onyx asked for), no separator, dates as yyyyMMdd, letters and digits only (the stored id loses its spaces and any punctuation);
          * 99991231 stands for an open-ended period.
          */
         private static String coverageId(String storedMemberId, CoverageSpan period) {
@@ -155,10 +153,10 @@ public class ResolutionService {
             throw e.withMmiRequestId(mmiResult.requestId());
         }
         if (selection instanceof SelectionResult.Ambiguous a) {
-            List<Candidate> candidates = a.candidates().stream()
-                    .map(c -> new Candidate(c.storedMemberId(), c.lineOfBusiness(), c.coverageActive()))
+            List<MemberOnPlan> membersOnPlan = a.candidates().stream()
+                    .map(c -> new MemberOnPlan(c.storedMemberId(), c.lineOfBusiness(), c.coverageActive()))
                     .toList();
-            return new Resolved(Outcome.AMBIGUOUS, null, null, a.reason(), candidates, mmiResult.requestId(), members.size(), null);
+            return new Resolved(Outcome.AMBIGUOUS, null, null, a.reason(), membersOnPlan, mmiResult.requestId(), members.size(), null);
         }
         SelectionResult.Selected s = (SelectionResult.Selected) selection;
         if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
@@ -194,8 +192,8 @@ public class ResolutionService {
             };
             case NOT_FOUND -> "No member found for this id";
             case AMBIGUOUS -> MemberSelector.DOB_NOT_DISCRIMINATING.equals(r.ambiguityReason())
-                    ? "Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates"
-                    : "Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates";
+                    ? "Several members match this id and date of birth; resend the member's full id including the suffix, or pick from membersOnPlan"
+                    : "Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan";
         };
     }
 
@@ -208,9 +206,9 @@ public class ResolutionService {
     }
 
     private static void logOutcome(Resolved r, RequestValidator.Validated v, long start) {
-        log.info("resolution outcome={} reason={} memberId={} stored={} company={} lob={} dos={} dosEnd={} dosDefaulted={} records={} mmiRequestId={} ms={}",
-                r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(),
-                Masking.memberId(v.memberId()), Masking.memberId(r.storedMemberId()), r.company(), r.lineOfBusiness(),
+        log.info("resolution clientId={} clientType={} outcome={} reason={} memberId={} resolved={} company={} lob={} dos={} dosEnd={} dosDefaulted={} records={} mmiRequestId={} ms={}",
+                v.clientId(), v.clientType(), r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(),
+                v.memberId(), r.storedMemberId(), r.company(), r.lineOfBusiness(),
                 v.dateOfService(), v.dateOfServiceEnd() == null ? "-" : v.dateOfServiceEnd(), v.dateOfServiceDefaulted(), r.records(), r.mmiRequestId(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
     }

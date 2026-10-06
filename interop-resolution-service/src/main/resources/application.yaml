@@ -7,7 +7,7 @@ spring:
   jackson:
     default-property-inclusion: non_null
     deserialization:
-      fail-on-unknown-properties: true  # strict by default; the member resolution request opts out and ignores unknown properties (feedback 9)
+      fail-on-unknown-properties: true  # strict by default; the member resolution request opts out and ignores unknown properties
   mvc:
     problemdetails:
       enabled: false                    # the error envelope in ApiErrorResponse is the only error shape
@@ -40,7 +40,7 @@ springdoc:
 
 logging:
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{correlationId:-}] %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{correlationId:-}] [%X{requestId:-}] %logger{36} - %msg%n"
 
 mmi:
   base-url: ${MMI_BASE_URL:}            # set per environment (application-<ENV>.yaml) or by environment variable
@@ -65,7 +65,7 @@ member-id:
     zone: America/New_York              # "today" for a defaulted date of service
   date-of-birth-max-age-years: 125
   # ------------------------------------------------------------------------------------------------------
-  # Vendor -> format table. This is the ONLY place to add or change a vendor. Key = the vendor code in vendorMemberIds.
+  # Vendor -> format table. This is the ONLY place to add or change a vendor. Key = the vendor code in memberId.forVendors.
   # Formats apply to THP ids stored as 9 digits + spaces + 2-digit suffix (TMP / SCO). Public Plans ids
   # (11 continuous characters) and HPHC ids (HP + digits) are sent exactly as stored for every vendor.
   # The INCOMING member id is never checked or reshaped: it goes to MMI exactly as the EMR typed it.
@@ -89,7 +89,7 @@ member-id:
       format: COMPACT_11
     OPTUM:
       display-name: Optum
-      format: CORE_9                    # Optum stores the 9-character core only (owner feedback 23)
+      format: CORE_9                    # Optum stores the 9-character core only
     ONYX:
       display-name: Onyx
       format: COMPACT_11

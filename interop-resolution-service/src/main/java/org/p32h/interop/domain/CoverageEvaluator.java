@@ -6,8 +6,8 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Decides ACTIVE / INACTIVE for a date of service, or for a period of service (owner feedback 21: a prior
- * authorization may carry a start and an end date), from the readable, non-void spans of one person.
+ * Decides ACTIVE / INACTIVE for a date of service, or for a period of service (a prior authorization may carry
+ * a start and an end date), from the readable, non-void spans of one person.
  *
  * <p>Spans that overlap or touch (one starts the day after the other ends, as plan-year records do) are one
  * continuous coverage period. The answer is ACTIVE only when one such period covers every day from the first

@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/** The one operation, {@code POST /v1/interop/resolve} (owner feedback 29 and 30). */
+/** The one operation, {@code POST /v1/interop/resolve}. */
 @RestController
 @Tag(name = "Member resolution", description = "Resolve an EMR-supplied member id against the plan's member records for a date of service")
 public class MemberResolutionController {
@@ -26,11 +26,12 @@ public class MemberResolutionController {
 
     @Operation(summary = "Resolve a member id for a date of service",
             description = "Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (or on every day "
-                    + "of a period of service), and returns the id as stored with one entry per configured UM vendor carrying the id in that "
-                    + "vendor's format. Only memberId is required; unknown properties are ignored. A sent date is the date evaluated; an "
+                    + "of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors). "
+                    + "When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and membersOnPlan lists "
+                    + "them. Only memberId is required; unknown properties are ignored. A sent date is the date evaluated; an "
                     + "unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the operation is a pure read "
                     + "and may be repeated.")
-    @ApiResponse(responseCode = "200", description = "outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; vendorMemberIds present for ACTIVE and INACTIVE",
+    @ApiResponse(responseCode = "200", description = "outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; memberId.forVendors present for ACTIVE and INACTIVE, membersOnPlan for AMBIGUOUS",
             content = @Content(schema = @Schema(implementation = MemberResolutionResponse.class)))
     @ApiResponse(responseCode = "400", description = "INVALID_REQUEST for a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (details[0].code HTTP_400, the lookup's text in the message)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "422", description = "DOB_MISMATCH: the date of birth matches no record for this id", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))

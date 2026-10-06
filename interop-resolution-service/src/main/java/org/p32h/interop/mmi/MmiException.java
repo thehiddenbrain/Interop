@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
  * answered 200 NOT_FOUND), 400 (bad request: forwarded as 400 {@code MEMBER_LOOKUP_REJECTED} with MMI's text) and 500
  * (internal error: 503 {@code MEMBER_LOOKUP_UNAVAILABLE}, Onyx may retry later). 503 is also the answer when MMI cannot be
  * reached; 502 when the endpoint answered something outside MMI's contract or a body the service cannot read.
- * Nothing in the codes or messages a caller receives names MMI (owner): the wording is "the member lookup".
+ * Nothing in the codes or messages a caller receives names MMI: the wording is "the member lookup".
  */
 public class MmiException extends RuntimeException {
 

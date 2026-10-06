@@ -23,8 +23,8 @@ import org.springframework.core.io.ResourceLoader;
  * A few reserved ids simulate faults (see the README).
  *
  * <p>The service sends the member id exactly as the EMR typed it. The stub ignores separators (spaces, hyphens,
- * anything that is not a letter or digit) and case when matching, which is the leniency the owner describes for
- * the real MMI; confirm it in PQA with a hyphenated id.
+ * anything that is not a letter or digit) and case when matching, the leniency expected of the real MMI; confirm
+ * it in PQA with a hyphenated id.
  *
  * <p>Refuses to start outside the {@code DEV} and {@code test} profiles, and inside any Kubernetes/OpenShift pod,
  * so canned answers can never reach PQA or PRD through a copied environment variable.

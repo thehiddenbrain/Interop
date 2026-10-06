@@ -42,7 +42,7 @@ public class ApiExceptionHandler {
             builder.header("Retry-After", "10");
         }
         return builder.body(new ApiErrorResponse(new ApiErrorResponse.Error(e.code(), e.getMessage(),
-                List.of(new ErrorDetail(null, e.detail(), e.getMessage()))), CorrelationFilter.current(), e.requestId()));
+                List.of(new ErrorDetail(null, e.detail(), e.getMessage()))), CorrelationFilter.current(), CorrelationFilter.requestId(), e.requestId()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -75,7 +75,7 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .header(HttpHeaders.ALLOW, HttpMethod.POST.name())
                 .body(new ApiErrorResponse(new ApiErrorResponse.Error(InvalidRequestException.CODE, "method not allowed",
-                        List.of(new ErrorDetail(null, "METHOD_NOT_ALLOWED", "use POST"))), CorrelationFilter.current(), null));
+                        List.of(new ErrorDetail(null, "METHOD_NOT_ALLOWED", "use POST"))), CorrelationFilter.current(), null, null));
     }
 
     @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
@@ -100,7 +100,8 @@ public class ApiExceptionHandler {
     private static ResponseEntity<ApiErrorResponse> respond(HttpStatus status, String code, String message, List<ErrorDetail> details,
             String mmiRequestId) {
         return ResponseEntity.status(status)
-                .body(new ApiErrorResponse(new ApiErrorResponse.Error(code, message, details), CorrelationFilter.current(), mmiRequestId));
+                .body(new ApiErrorResponse(new ApiErrorResponse.Error(code, message, details), CorrelationFilter.current(),
+                        CorrelationFilter.requestId(), mmiRequestId));
     }
 
     private static String path(MismatchedInputException e) {

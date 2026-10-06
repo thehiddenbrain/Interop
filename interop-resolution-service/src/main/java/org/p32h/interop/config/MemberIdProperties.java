@@ -23,13 +23,13 @@ public record MemberIdProperties(
         @DefaultValue("125") @Positive int dateOfBirthMaxAgeYears,
         @Valid @NotEmpty Map<String, VendorConfig> vendors) {
 
-    /** No upper limit on the date of service: a future date is judged against the coverage on record (feedback 20). */
+    /** No upper limit on the date of service: a future date is judged against the coverage on record. */
     public record DateOfService(
             @DefaultValue("10") @Positive int maxPastYears,
             @DefaultValue("America/New_York") @NotBlank String zone) {
     }
 
-    /** One vendor entry. The key of the map is the vendor code, as it appears in {@code vendorMemberIds}. */
+    /** One vendor entry. The key of the map is the vendor code, as it appears in {@code memberId.forVendors}. */
     public record VendorConfig(
             String displayName,
             @NotNull VendorIdFormat format) {

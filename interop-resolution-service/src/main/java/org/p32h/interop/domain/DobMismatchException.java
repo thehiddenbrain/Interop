@@ -11,7 +11,7 @@ public class DobMismatchException extends ResolutionException {
 
     public DobMismatchException() {
         super(HttpStatus.UNPROCESSABLE_ENTITY, CODE,
-                "patient.dateOfBirth does not match the plan record(s) for this member id",
-                List.of(new ErrorDetail("patient.dateOfBirth", CODE, "no returned record has this date of birth")));
+                "dateOfBirth does not match the plan record(s) for this member id",
+                List.of(new ErrorDetail("dateOfBirth", CODE, "no returned record has this date of birth")));
     }
 }

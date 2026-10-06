@@ -60,14 +60,14 @@ class VendorFormatterTest {
     }
 
     @Test
-    void describeNamesTheShapeWithoutTheDigits() {
-        assertThat(VendorFormatter.describe("123456789\u00A0\u00A001")).isEqualTo("#########[U+00A0][U+00A0]## (length 13)");
-        assertThat(VendorFormatter.describe("HP-456789012")).isEqualTo("aa[U+002D]######### (length 12)");
+    void describeWritesEveryCharacterThatIsNotALetterOrDigitByCodePoint() {
+        assertThat(VendorFormatter.describe("123456789\u00A0\u00A001")).isEqualTo("123456789[U+00A0][U+00A0]01 (length 13)");
+        assertThat(VendorFormatter.describe("HP-456789012")).isEqualTo("HP[U+002D]456789012 (length 12)");
     }
 
     @Test
     void coreNineIsTheNumberOnTheCard() {
-        // Optum stores the 9-character core only (owner feedback 23): the suffix is dropped, nothing else changes
+        // Optum stores the 9-character core only: the suffix is dropped, nothing else changes
         assertThat(formatter.format("123456789   01", VendorIdFormat.CORE_9).value()).isEqualTo("123456789");
         assertThat(formatter.format("S12345678   01", VendorIdFormat.CORE_9).value()).as("the letter is part of the core").isEqualTo("S12345678");
         assertThat(formatter.format("34567890101", VendorIdFormat.CORE_9).value()).as("a Public Plans id has no suffix to drop: as stored").isEqualTo("34567890101");

@@ -2,7 +2,6 @@ package org.p32h.interop.mmi;
 
 import org.p32h.interop.domain.CoverageSpan;
 import org.p32h.interop.domain.MemberRecord;
-import org.p32h.interop.support.Masking;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,11 +20,11 @@ public final class MmiRecordMapper {
         String company = m.company() == null ? "" : m.company().strip().toUpperCase(Locale.ROOT);
         if (company.isEmpty() && matchKey != null) {
             company = matchKey.startsWith("HP") ? "HPHC" : "THP";
-            log.warn("marker=COMPANY_INFERRED company missing on MMI record {}; inferred {}", Masking.memberId(stored), company);
+            log.warn("marker=COMPANY_INFERRED company missing on MMI record {}; inferred {}", stored, company);
         }
         LocalDate dob = MmiDates.parseOrNull(m.memberDob());
         if (dob == null && m.memberDob() != null && !m.memberDob().isBlank()) {
-            log.warn("marker=DOB_UNREADABLE memberDob on record {} is not MM/dd/yyyy", Masking.memberId(stored));
+            log.warn("marker=DOB_UNREADABLE memberDob on record {} is not MM/dd/yyyy", stored);
         }
         List<CoverageSpan> spans = new ArrayList<>();
         int unreadable = 0;
@@ -41,8 +40,7 @@ public final class MmiRecordMapper {
             boolean endUnreadable = !MmiDates.isOpenEnd(c.endDate()) && end == null;
             if (eff == null || endUnreadable || (end != null && end.isBefore(eff))) {
                 unreadable++;
-                log.warn("marker=UNREADABLE_SPAN record {} span effDate shape '{}' endDate shape '{}' skipped", Masking.memberId(stored),
-                        Masking.shape(c.effDate()), Masking.shape(c.endDate()));
+                log.warn("marker=UNREADABLE_SPAN record {} span effDate '{}' endDate '{}' skipped", stored, c.effDate(), c.endDate());
                 continue;
             }
             spans.add(new CoverageSpan(eff, end));
