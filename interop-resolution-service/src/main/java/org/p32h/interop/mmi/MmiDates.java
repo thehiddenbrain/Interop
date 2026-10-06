@@ -26,6 +26,11 @@ public final class MmiDates {
         }
     }
 
+    /** @return the date as MM/dd/yyyy, the form MMI reads and writes */
+    public static String format(LocalDate date) {
+        return FORMAT.format(date);
+    }
+
     public static boolean isOpenEnd(String endDate) {
         return endDate == null || endDate.isBlank() || OPEN_END_SENTINEL.equals(endDate.strip());
     }

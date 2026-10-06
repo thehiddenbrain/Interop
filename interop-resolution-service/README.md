@@ -110,7 +110,7 @@ looks like this:
 
 ```
 INFO  [<correlationId>] [<requestId>] org.p32h.interop.mmi.RestMmiClient - mmi request requestId=INTEROP-1791083521042-40296 POST http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp/master/member/v1
-{"memberId":"123456789","legacyMemberId":"123456789","voidCoverageRecord":"N","clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296"}
+{"memberId":"123456789","legacyMemberId":"123456789","dosStartDate":"10/15/2026","voidCoverageRecord":"N","clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296"}
 INFO  [<correlationId>] [<requestId>] org.p32h.interop.mmi.RestMmiClient - mmi response requestId=INTEROP-1791083521042-40296 status=200 contentType=application/json ms=18
 {"clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296","messages":null,"members":[ ... ]}
 ```
@@ -328,8 +328,8 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
 2. One MMI call: `POST {mmi.base-url}/master/member/v1` with that ID in `memberId` **and**
    `legacyMemberId` (the MMI spec's hit-rate advice), `voidCoverageRecord: N`, this service's own `clientId` and
    `clientType: INT`, a fresh MMI `requestId` (`INTEROP-<millis>-<5 digits>`, returned as `traceId`; not the caller's
-   `requestId`). No date filter: coverage is evaluated locally so
-   INACTIVE can say why. No demographics are ever sent.
+   `requestId`), and the date of service (the first day of a period) in `dosStartDate` as `MM/dd/yyyy`;
+   no `dosEndDate`. The coverage MMI returns is evaluated locally. No demographics are ever sent.
    MMI's HTTP status is kept with the answer and mapped as in the table in section 2 (Errors): 200 is parsed;
    404 is MMI's "no member for this id", a normal answer (`NOT_FOUND`) whatever the body, and a body that is not
    MMI's envelope only adds `marker=MMI_404_WITHOUT_ENVELOPE` to the log; 400 is 400 `MEMBER_LOOKUP_REJECTED` with MMI's
@@ -408,7 +408,8 @@ the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor and the company.
 `src/main/resources/mmi-stub/members.json` behaves like MMI: exact match, 9-character (policy) match returning
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
 and case (anything that is not a letter or digit is ignored), the leniency expected of the real MMI; the service
-itself hands the id over untouched. The fault ids below are recognised by the first 9 characters of the id with
+itself hands the id over untouched. The stub ignores `dosStartDate` and returns each record's whole coverage
+history. The fault ids below are recognised by the first 9 characters of the id with
 separators removed.
 
 | Member ID (as typed; the stub ignores separators and case) | Case |
@@ -440,7 +441,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (131 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (132 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -481,6 +482,10 @@ one never; an internal caller (`INT`) gets its answer and is named in the log li
 - MMI finds the member from the id as typed, including the 9-, 11- and 14-character forms and ids with
   hyphens or spaces (`123456789-01`, `HP-123456789`); the service sends it unchanged in `memberId` and
   `legacyMemberId`. The stub assumes the same.
+- With `dosStartDate`, which coverage MMI returns: only the segment covering that date or the whole history; and for
+  a member with no coverage on that date, the member without coverage or a 404 (`NOT_FOUND` here instead of
+  `INACTIVE` with its reason). The service evaluates whatever comes back: contiguous segments are still read as one
+  period (`coverage` dates and `coverageId`), and a period of service is judged on what comes back for its first day.
 - A single record returned for any population is the member (TMP/SCO always return one).
 - MMI reports the company as `THP` or `HPHC`, the values eviCore's payer entries key on. Any other value gets eviCore
   the default payer and logs `VENDOR_PAYER_DEFAULTED`: watch for that marker in PQA.

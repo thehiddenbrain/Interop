@@ -125,7 +125,7 @@ public class ResolutionService {
     }
 
     private Resolved resolveMember(RequestValidator.Validated v, String correlationId) {
-        MmiResult mmiResult = mmi.search(v.memberId(), correlationId);
+        MmiResult mmiResult = mmi.search(v.memberId(), v.dateOfService(), correlationId);
         List<MmiMember> members = mmiResult.response().membersOrEmpty();
         List<MmiMessage> messages = mmiResult.response().messagesOrEmpty();
 

@@ -3,6 +3,7 @@ package org.p32h.interop.mmi;
 import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -45,6 +46,7 @@ public class StubMmiClient implements MmiClient {
 
     private final java.util.concurrent.atomic.AtomicLong calls = new java.util.concurrent.atomic.AtomicLong();
     private volatile String lastSearched;
+    private volatile LocalDate lastDateOfService;
 
     private final List<MmiMember> members;
     private final MmiProperties properties;
@@ -86,14 +88,20 @@ public class StubMmiClient implements MmiClient {
         return lastSearched;
     }
 
+    /** The date of service of the most recent search, sent as dosStartDate; lets tests prove which date reaches MMI. */
+    public LocalDate lastDateOfService() {
+        return lastDateOfService;
+    }
+
     @Override
-    public MmiResult search(String memberId, String correlationId) {
+    public MmiResult search(String memberId, LocalDate dateOfService, String correlationId) {
         calls.incrementAndGet();
         lastSearched = memberId;
+        lastDateOfService = dateOfService;
         String requestId = MmiRequestIds.next(properties.clientId());
         if (properties.logPayloads()) {
-            MmiRequest request = new MmiRequest(memberId, memberId, properties.voidCoverageRecord(), properties.clientId(),
-                    properties.clientType(), requestId);
+            MmiRequest request = new MmiRequest(memberId, memberId, MmiDates.format(dateOfService), properties.voidCoverageRecord(),
+                    properties.clientId(), properties.clientType(), requestId);
             log.info("mmi request (stub) requestId={} POST {}{}\n{}", requestId, properties.baseUrl(), properties.path(),
                     objectMapper.writeValueAsString(request));
         }

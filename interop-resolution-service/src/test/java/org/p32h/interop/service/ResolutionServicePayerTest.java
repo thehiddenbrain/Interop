@@ -28,6 +28,7 @@ import org.p32h.interop.vendor.VendorRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,7 +55,7 @@ class ResolutionServicePayerTest {
         MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, table);
         MmiClient mmi = new MmiClient() {
             @Override
-            public MmiResult search(String memberId, String correlationId) {
+            public MmiResult search(String memberId, LocalDate dateOfService, String correlationId) {
                 MmiMember member = new MmiMember("TESTMEMBER", null, null, null, company, "COM", null, null,
                         List.of(new MmiCoverage("01/01/2020", null, "g", "N")));
                 return new MmiResult("INTEROP-TEST", 200, new MmiResponse("INTEROP", "INT", "INTEROP-TEST", null, List.of(member)));

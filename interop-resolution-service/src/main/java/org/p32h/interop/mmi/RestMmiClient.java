@@ -6,6 +6,7 @@ import java.net.UnknownHostException;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,10 +58,10 @@ public class RestMmiClient implements MmiClient {
     }
 
     @Override
-    public MmiResult search(String memberId, String correlationId) {
+    public MmiResult search(String memberId, LocalDate dateOfService, String correlationId) {
         String requestId = MmiRequestIds.next(properties.clientId());
-        MmiRequest body = new MmiRequest(memberId, memberId, properties.voidCoverageRecord(), properties.clientId(),
-                properties.clientType(), requestId);
+        MmiRequest body = new MmiRequest(memberId, memberId, MmiDates.format(dateOfService), properties.voidCoverageRecord(),
+                properties.clientId(), properties.clientType(), requestId);
         String requestJson = objectMapper.writeValueAsString(body);
         String url = properties.baseUrl() + properties.path();
         if (properties.logPayloads()) {

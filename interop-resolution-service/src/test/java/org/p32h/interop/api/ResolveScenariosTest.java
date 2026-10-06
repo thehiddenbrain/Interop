@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.RestClient;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -298,6 +299,18 @@ class ResolveScenariosTest {
         JsonNode r = call(200, req("901234567", "2026-10-15"));
         assertThat(r.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(forVendor(r, "EVICORE")).isEqualTo("90123456701");
+    }
+
+    // ---------------------------------------------------------------- the date of service MMI is asked about
+
+    @Test
+    void theDateOfServiceGoesToMmiAsDosStartDate() throws Exception {
+        call(200, req("123456789", "2026-10-15"));
+        assertThat(stub.lastDateOfService()).as("the date sent").isEqualTo(LocalDate.parse("2026-10-15"));
+        call(200, req("123456789", null));
+        assertThat(stub.lastDateOfService()).as("no date sent: today, the date judged").isEqualTo(LocalDate.parse("2026-10-03"));
+        call(200, Map.of("memberId", "U20252026", "dateOfService", "2025-12-20", "dateOfServiceEnd", "2026-01-05"));
+        assertThat(stub.lastDateOfService()).as("a period: its first day").isEqualTo(LocalDate.parse("2025-12-20"));
     }
 
     // ---------------------------------------------------------------- no date of service
