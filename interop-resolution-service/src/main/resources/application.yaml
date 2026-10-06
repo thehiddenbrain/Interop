@@ -59,9 +59,9 @@ mmi:
   stub:
     enabled: false                      # true only in the DEV and test profiles
 
-# The payer identity Onyx puts on every request it sends a UM vendor; returned as payerId and payerName whenever a
-# member was identified. One value covers THP and HPHC. If a vendor needs a payer code here, or THP / HPHC instead
-# of the parent, change it here (or per environment via PAYER_ID / PAYER_NAME) and redeploy.
+# The default payer identity Onyx puts on its requests to a UM vendor; returned in every memberId.forVendors entry as
+# payerId and payerName. One value covers THP and HPHC. A vendor that keys the payer on the heritage company sets its
+# own per company in its member-id.vendors entry (see EVICORE below). PAYER_ID / PAYER_NAME override per environment.
 payer:
   id: ${PAYER_ID:Point32Health}
   name: ${PAYER_NAME:Point32Health}
@@ -76,6 +76,8 @@ member-id:
   # Formats apply to THP ids stored as 9 digits + spaces + 2-digit suffix (TMP / SCO). Public Plans ids
   # (11 continuous characters) and HPHC ids (HP + digits) are sent exactly as stored for every vendor.
   # The INCOMING member id is never checked or reshaped: it goes to MMI exactly as the EMR typed it.
+  # Optional per vendor: payer.<COMPANY>.id / .name, the payer that vendor keys on for members of that company
+  # (THP, HPHC, as the member lookup reports it). Members of other companies, and vendors without it, get the default payer.
   #   COMPACT_11  9 digits + suffix, no spaces        12345678901
   #   SPACED_14   9 digits + 3 spaces + suffix        123456789   01   (as stored)
   #   CORE_9      the 9-character core only, the number on the card
@@ -85,6 +87,10 @@ member-id:
     EVICORE:
       display-name: eviCore
       format: COMPACT_11
+      # eviCore keys the payer on the heritage company: TUFTS for THP, HPHC for HPHC. Uncomment once the names are confirmed.
+      # payer:
+      #   THP:  { id: TUFTS, name: <eviCore's payer name for THP> }
+      #   HPHC: { id: HPHC,  name: <eviCore's payer name for HPHC> }
     MHK:
       display-name: MHK (MedHOK)
       format: SPACED_14

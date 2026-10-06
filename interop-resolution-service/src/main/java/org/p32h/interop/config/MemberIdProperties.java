@@ -29,9 +29,18 @@ public record MemberIdProperties(
             @DefaultValue("America/New_York") @NotBlank String zone) {
     }
 
-    /** One vendor entry. The key of the map is the vendor code, as it appears in {@code memberId.forVendors}. */
+    /**
+     * One vendor entry. The key of the map is the vendor code, as it appears in {@code memberId.forVendors}. {@code payer},
+     * optional, is the vendor's own payer per company (THP, HPHC); a member of any other company, and every vendor without
+     * it, gets the default payer ({@code payer.*}).
+     */
     public record VendorConfig(
             String displayName,
-            @NotNull VendorIdFormat format) {
+            @NotNull VendorIdFormat format,
+            @Valid Map<String, PayerConfig> payer) {
+    }
+
+    /** The payer a vendor keys on for one company. */
+    public record PayerConfig(@NotBlank String id, @NotBlank String name) {
     }
 }

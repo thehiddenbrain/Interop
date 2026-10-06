@@ -6,10 +6,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * The payer identity Onyx puts on every request it sends a UM vendor, returned as {@code payerId} and
- * {@code payerName} whenever a member was identified. One value covers THP and HPHC. If a vendor ever needs a
- * payer code here, or the heritage company instead of the parent, the values change in configuration; the
- * resolved record already carries the company.
+ * The default payer identity Onyx puts on its requests to a UM vendor, returned in every {@code memberId.forVendors}
+ * entry as {@code payerId} and {@code payerName}. One value covers THP and HPHC. A vendor that keys the payer on the
+ * heritage company sets its own per company in its {@code member-id.vendors} entry.
  */
 @ConfigurationProperties("payer")
 @Validated

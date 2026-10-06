@@ -157,9 +157,14 @@ class ResolveScenariosTest {
 
     /** The id one vendor receives: that vendor's entry in memberId.forVendors. */
     private static String forVendor(JsonNode r, String vendor) {
+        return entry(r, vendor).path("memberId").asText();
+    }
+
+    /** Everything one vendor receives: its entry in memberId.forVendors. */
+    private static JsonNode entry(JsonNode r, String vendor) {
         for (JsonNode e : r.at("/memberId/forVendors")) {
             if (vendor.equals(e.path("vendor").asText())) {
-                return e.path("memberId").asText();
+                return e;
             }
         }
         throw new AssertionError("no memberId.forVendors entry for " + vendor);
@@ -200,11 +205,16 @@ class ResolveScenariosTest {
         assertThat(r.has("company")).as("lean response: the line of business is what Onyx routes on").isFalse();
         assertThat(r.has("correlationId")).as("the correlation id travels in the X-Correlation-Id header").isFalse();
         assertThat(r.get("lineOfBusiness").asText()).isEqualTo("MCR");
-        assertThat(r.get("payerId").asText()).isEqualTo("Point32Health");
-        assertThat(r.get("payerName").asText()).as("one payer covers THP and HPHC").isEqualTo("Point32Health");
         assertThat(r.properties()).extracting(Map.Entry::getKey).as("the whole answer, in this order").containsExactly(
-                "outcome", "message", "memberId", "lineOfBusiness", "payerId", "payerName",
-                "dateOfService", "dateOfServiceDefaulted", "coverage", "requestId", "traceId");
+                "outcome", "message", "memberId", "lineOfBusiness", "dateOfService", "dateOfServiceDefaulted", "coverage",
+                "requestId", "traceId");
+        assertThat(entry(r, "MHK").properties()).extracting(Map.Entry::getKey).as("everything Onyx puts on a vendor's request")
+                .containsExactly("vendor", "memberId", "payerId", "payerName");
+        assertThat(entry(r, "MHK").get("payerId").asText()).as("a vendor without its own payer gets the default").isEqualTo("Point32Health");
+        assertThat(entry(r, "MHK").get("payerName").asText()).isEqualTo("Point32Health");
+        assertThat(entry(r, "EVICORE").get("payerId").asText()).as("the vendor's own payer for a THP member (test configuration)")
+                .isEqualTo("TUFTS");
+        assertThat(entry(r, "EVICORE").get("payerName").asText()).isEqualTo("Tufts Health Plan");
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
         assertThat(r.get("memberId").properties()).extracting(Map.Entry::getKey).as("in this order").containsExactly("received", "resolved", "forVendors");
         assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("id, flag and period only, in this order").containsExactly("coverageId", "active", "effectiveDate", "endDate");
@@ -714,6 +724,9 @@ class ResolveScenariosTest {
         assertThat(hphc.at("/memberId/received").asText()).isEqualTo("HP-456789012");
         assertThat(hphc.at("/memberId/resolved").asText()).isEqualTo("HP456789012");
         assertThat(hphc.at("/memberId/forVendors")).hasSize(6);
+        assertThat(entry(hphc, "EVICORE").get("payerId").asText()).as("the vendor's own payer for an HPHC member (test configuration)")
+                .isEqualTo("HPHC");
+        assertThat(entry(hphc, "CARELON").get("payerId").asText()).isEqualTo("Point32Health");
         hphc.at("/memberId/forVendors").forEach(e -> {
             assertThat(e.get("memberId").asText()).as(e.get("vendor").asText()).isEqualTo("HP456789012");
         });
@@ -721,7 +734,7 @@ class ResolveScenariosTest {
         JsonNode publicPlans = call(200, Map.of("memberId", "34567890102", "dateOfService", "2024-08-15"));
         assertThat(publicPlans.get("outcome").asText()).as("a gap in coverage still identifies the member").isEqualTo("INACTIVE");
         assertThat(publicPlans.at("/coverage/active").asBoolean()).isFalse();
-        assertThat(publicPlans.get("payerId").asText()).as("the payer fields come with INACTIVE too").isEqualTo("Point32Health");
+        assertThat(entry(publicPlans, "OPTUM").get("payerId").asText()).as("the payer comes with INACTIVE too").isEqualTo("Point32Health");
         assertThat(publicPlans.at("/memberId/forVendors")).hasSize(6);
         publicPlans.at("/memberId/forVendors").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890102"));
     }
@@ -733,8 +746,6 @@ class ResolveScenariosTest {
         assertThat(notFound.get("message").asText()).isEqualTo("No member found for this id");
         assertThat(notFound.at("/sourceMessage/code").asText()).isEqualTo("MEMBER_NOT_FOUND");
         assertThat(notFound.at("/memberId/forVendors").isMissingNode()).isTrue();
-        assertThat(notFound.has("payerId")).as("no payer without an identified member").isFalse();
-        assertThat(notFound.has("payerName")).isFalse();
         assertThat(notFound.has("coverage")).isFalse();
         assertThat(notFound.at("/memberId/received").asText()).isEqualTo("HP111222333");
         assertThat(notFound.get("traceId").asText()).isNotBlank();

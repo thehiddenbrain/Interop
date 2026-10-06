@@ -2,6 +2,7 @@ package org.p32h.interop.config;
 
 import org.p32h.interop.mmi.MmiClient;
 import org.p32h.interop.mmi.MmiProperties;
+import org.p32h.interop.vendor.Vendor;
 import org.p32h.interop.vendor.VendorFormatter;
 import org.p32h.interop.vendor.VendorRegistry;
 import java.util.Arrays;
@@ -53,13 +54,22 @@ public class StartupReport implements ApplicationRunner {
         sb.append("mmi clientId      : ").append(mmi.clientId()).append('\n');
         sb.append("mmi timeouts      : connect=").append(mmi.connectTimeout()).append(" read=").append(mmi.readTimeout()).append('\n');
         sb.append("mmi payload log   : ").append(mmi.logPayloads() ? "ON (request and response bodies, contains PHI)" : "off").append('\n');
-        sb.append("payer             : ").append(payer.id()).append(" / ").append(payer.name()).append('\n');
+        sb.append("payer (default)   : ").append(payer.id()).append(" / ").append(payer.name()).append('\n');
         sb.append("dos limit         : not older than ").append(memberId.dateOfService().maxPastYears())
           .append("y; any future date is judged on the coverage on record (").append(memberId.dateOfService().zone()).append(")\n");
         sb.append("vendor formats (sample stored id 'S12345678   01' -> what the vendor receives):\n");
-        vendors.all().forEach(v -> sb.append(String.format("  %-10s %-14s %s%n", v.code(), v.format(),
-                formatter.format("S12345678   01", v.format()).describe())));
+        vendors.all().forEach(v -> sb.append(String.format("  %-10s %-14s %-18s payer %s%n", v.code(), v.format(),
+                formatter.format("S12345678   01", v.format()).describe(), payerSummary(v))));
         sb.append("========================================");
         log.info(sb.toString());
+    }
+
+    private static String payerSummary(Vendor v) {
+        if (v.payerByCompany().isEmpty()) {
+            return "default";
+        }
+        StringBuilder sb = new StringBuilder();
+        v.payerByCompany().forEach((company, p) -> sb.append(company).append('=').append(p.id()).append(" / ").append(p.name()).append("; "));
+        return sb.append("else default").toString();
     }
 }

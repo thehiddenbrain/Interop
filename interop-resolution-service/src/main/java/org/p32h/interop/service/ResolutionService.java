@@ -6,7 +6,6 @@ import org.p32h.interop.api.MemberResolutionResponse;
 import org.p32h.interop.api.SourceMessage;
 import org.p32h.interop.api.Outcome;
 import org.p32h.interop.api.RequestValidator;
-import org.p32h.interop.config.PayerProperties;
 import org.p32h.interop.domain.CoverageDecision;
 import org.p32h.interop.domain.CoverageSpan;
 import org.p32h.interop.domain.MemberRecord;
@@ -20,6 +19,7 @@ import org.p32h.interop.mmi.MmiMessage;
 import org.p32h.interop.mmi.MmiProperties;
 import org.p32h.interop.mmi.MmiRecordMapper;
 import org.p32h.interop.mmi.MmiResult;
+import org.p32h.interop.vendor.Payer;
 import org.p32h.interop.vendor.VendorFormatter;
 import org.p32h.interop.vendor.VendorRegistry;
 import java.time.format.DateTimeFormatter;
@@ -41,18 +41,16 @@ public class ResolutionService {
 
     private final RequestValidator validator;
     private final VendorRegistry vendors;
-    private final PayerProperties payer;
     private final MmiClient mmi;
     private final MmiProperties mmiProperties;
     private final MmiRecordMapper mapper;
     private final MemberSelector selector;
     private final VendorFormatter formatter;
 
-    public ResolutionService(RequestValidator validator, VendorRegistry vendors, PayerProperties payer, MmiClient mmi,
-            MmiProperties mmiProperties, MmiRecordMapper mapper, MemberSelector selector, VendorFormatter formatter) {
+    public ResolutionService(RequestValidator validator, VendorRegistry vendors, MmiClient mmi, MmiProperties mmiProperties,
+            MmiRecordMapper mapper, MemberSelector selector, VendorFormatter formatter) {
         this.validator = validator;
         this.vendors = vendors;
-        this.payer = payer;
         this.mmi = mmi;
         this.mmiProperties = mmiProperties;
         this.mapper = mapper;
@@ -60,7 +58,7 @@ public class ResolutionService {
         this.formatter = formatter;
     }
 
-    /** Resolves the member behind the id and renders the stored id for every configured vendor. */
+    /** Resolves the member behind the id and renders the stored id, with the vendor's payer, for every configured vendor. */
     public MemberResolutionResponse resolve(MemberResolutionRequest request, String correlationId) {
         long start = System.nanoTime();
         RequestValidator.Validated v = validator.validate(request);
@@ -68,14 +66,16 @@ public class ResolutionService {
         List<MemberResolutionResponse.VendorMemberId> forVendors = null;
         if (r.record() != null) {
             forVendors = vendors.all().stream()
-                    .map(vendor -> new MemberResolutionResponse.VendorMemberId(vendor.code(),
-                            formatter.format(r.record().storedMemberId(), vendor.format()).value()))
+                    .map(vendor -> {
+                        Payer payer = vendor.payerFor(r.company());
+                        return new MemberResolutionResponse.VendorMemberId(vendor.code(),
+                                formatter.format(r.record().storedMemberId(), vendor.format()).value(), payer.id(), payer.name());
+                    })
                     .toList();
         }
         MemberResolutionResponse response = new MemberResolutionResponse(r.outcome(), message(r, v),
                 new MemberResolutionResponse.MemberId(v.memberId(), r.storedMemberId(), forVendors),
-                r.lineOfBusiness(), r.record() == null ? null : payer.id(), r.record() == null ? null : payer.name(),
-                v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
+                r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
                 r.coverageBlock(), v.requestId(), r.mmiRequestId(), r.mmiNote());
         logOutcome(r, v, start);
         return response;

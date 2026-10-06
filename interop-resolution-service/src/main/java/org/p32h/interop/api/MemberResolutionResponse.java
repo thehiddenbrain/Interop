@@ -5,8 +5,8 @@ import java.util.List;
 
 /**
  * The 200 response of {@code POST /v1/interop/resolve}. Lean by design: the outcome, one sentence, the member id as
- * received, as resolved and in every configured vendor's format, the line of business (Onyx routes on it), the payer
- * identity Onyx puts on the vendor request ({@code payerId}, {@code payerName}; ACTIVE / INACTIVE only), the date
+ * received, as resolved and in every configured vendor's format with the payer for that vendor's request, the line of
+ * business (Onyx routes on it), the date
  * evaluated ({@code dateOfServiceEnd} too when a period was asked about), the coverage flag with its period and id, the
  * caller's request id, and a trace id for support (the id of the lookup behind the answer). An AMBIGUOUS answer lists
  * nobody: it says in {@code message} what to resend. Optional blocks are
@@ -19,8 +19,6 @@ public record MemberResolutionResponse(
         String message,
         MemberId memberId,
         String lineOfBusiness,
-        String payerId,
-        String payerName,
         LocalDate dateOfService,
         LocalDate dateOfServiceEnd,
         boolean dateOfServiceDefaulted,
@@ -40,9 +38,13 @@ public record MemberResolutionResponse(
     }
 
     /**
-     * @param vendor   the vendor code as configured in {@code member-id.vendors}
-     * @param memberId the stored id in that vendor's format: what goes into that vendor's payload
+     * Everything Onyx puts on one vendor's request.
+     *
+     * @param vendor    the vendor code as configured in {@code member-id.vendors}
+     * @param memberId  the stored id in that vendor's format: what goes into that vendor's payload
+     * @param payerId   the payer id that vendor keys on: its own for the member's company when configured, else the default
+     * @param payerName the payer name that goes with it
      */
-    public record VendorMemberId(String vendor, String memberId) {
+    public record VendorMemberId(String vendor, String memberId, String payerId, String payerName) {
     }
 }

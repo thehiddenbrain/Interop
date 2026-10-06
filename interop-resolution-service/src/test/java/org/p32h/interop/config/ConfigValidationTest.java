@@ -58,6 +58,15 @@ class ConfigValidationTest {
     }
 
     @Test
+    void vendorPayerWithoutANameFails() {
+        runner.withPropertyValues("member-id.vendors.EVICORE.payer.THP.id=TUFTS")
+                .run(ctx -> {
+                    assertThat(ctx).hasFailed();
+                    assertThat(rootMessage(ctx.getStartupFailure())).contains("payer");
+                });
+    }
+
+    @Test
     void stubInTestProfileStarts() {
         runner.withPropertyValues("spring.profiles.active=test", "mmi.stub.enabled=true")
                 .run(ctx -> assertThat(ctx).hasNotFailed());
