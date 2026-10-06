@@ -6,7 +6,8 @@ document, is member ID resolution; payer ID and payer organization name lookups 
 Spring Boot service for Onyx. Onyx identifies itself and the call (`clientId`, `clientType`, `requestId`) and sends the
 member ID exactly as the provider's EMR supplied it, with the date of service, a single day or a period
 (`dateOfService` to `dateOfServiceEnd`). The service verifies the ID with MMI (Master Member Index), returns the ID it
-**resolved** to and that ID **in every UM vendor's format**, and says whether coverage is **active**. One call serves a
+**resolved** to, that ID **in every UM vendor's format** and the payer identity for the vendor request, and says
+whether coverage is **active**. One call serves a
 prior authorization whose codes go to several vendors. One operation, `POST /v1/interop/resolve`, one downstream
 (MMI), no database, no state.
 
@@ -131,7 +132,8 @@ What the lines tell you:
 Turn it off with `mmi.log-payloads: false` in the profile file, or `MMI_LOG_PAYLOADS=false` once the
 problem is found. The rest of the log is the same whether or not payload logging is on.
 
-Overrides without a rebuild (environment variables or `-D` system properties): `MMI_BASE_URL` (any MMI, no
+Overrides without a rebuild (environment variables or `-D` system properties): `PAYER_ID` / `PAYER_NAME`
+(the payer identity returned for the vendor requests), `MMI_BASE_URL` (any MMI, no
 profile file needed), `MMI_CLIENT_ID` (placeholder `INTEROP`; register the real application name with the
 MMI team), `MMI_CONNECT_TIMEOUT=2s`, `MMI_READ_TIMEOUT=5s`, `MMI_LOG_PAYLOADS=true|false`.
 
@@ -198,7 +200,7 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
-| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
+| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). Put `payerId` and `payerName` on the request. Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
 | `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, a gap, or no coverage on record) | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
 | `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth, or the records carry none), intake takes the full ID from the member's card. |
@@ -218,6 +220,8 @@ For the TMP id `123456789` (resolved to `123456789   01`):
       { "vendor": "OPTUM",   "memberId": "123456789" }
     ] },
   "lineOfBusiness": "MCR",
+  "payerId": "Point32Health",
+  "payerName": "Point32Health",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "coverageId": "123456789012021010199991231", "active": true, "effectiveDate": "2021-01-01", "endDate": "9999-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
@@ -245,7 +249,9 @@ value, so Onyx can refer to the coverage behind a decision. Nothing else is retu
 `lineOfBusiness` is MMI's value (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it. The company (THP or
 HPHC) is not returned: the resolved id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
 to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body, and the caller's `requestId`
-comes back as `requestId`.
+comes back as `requestId`. `payerId` and `payerName` are the payer identity Onyx puts on every request it sends a
+UM vendor: configured values (`payer` block in `application.yaml`; `PAYER_ID` / `PAYER_NAME` override), today
+`Point32Health` in both, one payer covering THP and HPHC.
 
 Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 
@@ -255,6 +261,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId }` per configured vendor, sorted by vendor code) when a member was identified |
 | `lineOfBusiness` | `ACTIVE`, `INACTIVE` | MMI's line of business (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it |
+| `payerId`, `payerName` | `ACTIVE`, `INACTIVE` | The payer for the vendor request; configured, today `Point32Health` in both |
 | `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `dateOfServiceDefaulted` | always | Whether the date of service was defaulted to today |
@@ -424,7 +431,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (125 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (126 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,

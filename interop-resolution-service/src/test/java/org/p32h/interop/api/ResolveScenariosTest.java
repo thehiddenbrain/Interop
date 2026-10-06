@@ -200,6 +200,11 @@ class ResolveScenariosTest {
         assertThat(r.has("company")).as("lean response: the line of business is what Onyx routes on").isFalse();
         assertThat(r.has("correlationId")).as("the correlation id travels in the X-Correlation-Id header").isFalse();
         assertThat(r.get("lineOfBusiness").asText()).isEqualTo("MCR");
+        assertThat(r.get("payerId").asText()).isEqualTo("Point32Health");
+        assertThat(r.get("payerName").asText()).as("one payer covers THP and HPHC").isEqualTo("Point32Health");
+        assertThat(r.properties()).extracting(Map.Entry::getKey).as("the whole answer, in this order").containsExactly(
+                "outcome", "message", "memberId", "lineOfBusiness", "payerId", "payerName",
+                "dateOfService", "dateOfServiceDefaulted", "coverage", "requestId", "traceId");
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
         assertThat(r.get("memberId").properties()).extracting(Map.Entry::getKey).as("in this order").containsExactly("received", "resolved", "forVendors");
         assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("id, flag and period only, in this order").containsExactly("coverageId", "active", "effectiveDate", "endDate");
@@ -716,6 +721,7 @@ class ResolveScenariosTest {
         JsonNode publicPlans = call(200, Map.of("memberId", "34567890102", "dateOfService", "2024-08-15"));
         assertThat(publicPlans.get("outcome").asText()).as("a gap in coverage still identifies the member").isEqualTo("INACTIVE");
         assertThat(publicPlans.at("/coverage/active").asBoolean()).isFalse();
+        assertThat(publicPlans.get("payerId").asText()).as("the payer fields come with INACTIVE too").isEqualTo("Point32Health");
         assertThat(publicPlans.at("/memberId/forVendors")).hasSize(6);
         publicPlans.at("/memberId/forVendors").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890102"));
     }
@@ -727,6 +733,8 @@ class ResolveScenariosTest {
         assertThat(notFound.get("message").asText()).isEqualTo("No member found for this id");
         assertThat(notFound.at("/sourceMessage/code").asText()).isEqualTo("MEMBER_NOT_FOUND");
         assertThat(notFound.at("/memberId/forVendors").isMissingNode()).isTrue();
+        assertThat(notFound.has("payerId")).as("no payer without an identified member").isFalse();
+        assertThat(notFound.has("payerName")).isFalse();
         assertThat(notFound.has("coverage")).isFalse();
         assertThat(notFound.at("/memberId/received").asText()).isEqualTo("HP111222333");
         assertThat(notFound.get("traceId").asText()).isNotBlank();

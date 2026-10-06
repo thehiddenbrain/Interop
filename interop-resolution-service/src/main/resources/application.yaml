@@ -59,6 +59,13 @@ mmi:
   stub:
     enabled: false                      # true only in the DEV and test profiles
 
+# The payer identity Onyx puts on every request it sends a UM vendor; returned as payerId and payerName whenever a
+# member was identified. One value covers THP and HPHC. If a vendor needs a payer code here, or THP / HPHC instead
+# of the parent, change it here (or per environment via PAYER_ID / PAYER_NAME) and redeploy.
+payer:
+  id: ${PAYER_ID:Point32Health}
+  name: ${PAYER_NAME:Point32Health}
+
 member-id:
   date-of-service:
     max-past-years: 10                  # MMI keeps 10 years of coverage history; no upper limit: a future date is judged on the coverage on record

@@ -28,15 +28,17 @@ public class StartupReport implements ApplicationRunner {
     private final VendorRegistry vendors;
     private final VendorFormatter formatter;
     private final MemberIdProperties memberId;
+    private final PayerProperties payer;
 
     public StartupReport(Environment environment, MmiProperties mmi, MmiClient mmiClient, VendorRegistry vendors,
-            VendorFormatter formatter, MemberIdProperties memberId) {
+            VendorFormatter formatter, MemberIdProperties memberId, PayerProperties payer) {
         this.environment = environment;
         this.mmi = mmi;
         this.mmiClient = mmiClient;
         this.vendors = vendors;
         this.formatter = formatter;
         this.memberId = memberId;
+        this.payer = payer;
     }
 
     @Override
@@ -51,6 +53,7 @@ public class StartupReport implements ApplicationRunner {
         sb.append("mmi clientId      : ").append(mmi.clientId()).append('\n');
         sb.append("mmi timeouts      : connect=").append(mmi.connectTimeout()).append(" read=").append(mmi.readTimeout()).append('\n');
         sb.append("mmi payload log   : ").append(mmi.logPayloads() ? "ON (request and response bodies, contains PHI)" : "off").append('\n');
+        sb.append("payer             : ").append(payer.id()).append(" / ").append(payer.name()).append('\n');
         sb.append("dos limit         : not older than ").append(memberId.dateOfService().maxPastYears())
           .append("y; any future date is judged on the coverage on record (").append(memberId.dateOfService().zone()).append(")\n");
         sb.append("vendor formats (sample stored id 'S12345678   01' -> what the vendor receives):\n");

@@ -177,7 +177,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
   <p class="lede" style="margin-top:0">The home for Onyx's interop lookups. Its first capability, and the subject of this document, is member ID resolution for prior authorization; payer ID and payer organization name lookups are planned to join it.</p>
   <p class="lede">A small, stateless Spring Boot service for Onyx. It takes the member ID exactly as the provider's EMR supplied it, verifies it with the Master Member Index (MMI), returns the ID it resolved to in the format each UM vendor expects, all vendors in one answer, and says with one flag whether coverage is active on the date of service, or throughout a period of service.</p>
   <div class="meta">
-    <span><b>Status</b> v1.0, implemented in <code>interop-resolution-service/</code>: 125 tests, a Postman collection with tests on every request, the OpenAPI document for Onyx</span>
+    <span><b>Status</b> v1.0, implemented in <code>interop-resolution-service/</code>: 126 tests, a Postman collection with tests on every request, the OpenAPI document for Onyx</span>
     <span><b>Date</b> 2026-10-06</span>
     <span><b>Stack</b> Spring Boot 4.0.7 · Java 17+ · Gradle 9.5 · port 9090 (the EPA Workbench build shape)</span>
     <span><b>Only integration</b> MMI</span>
@@ -185,7 +185,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 </header>
 
 <h2 id="summary"><span class="num">1</span>Summary</h2>
-<p>Every UM vendor stores our member ID in its own shape. A THP Medicare (TMP) or SCO card prints 9 characters; our systems store those 9 characters, three spaces and the suffix <code>01</code> (14 characters); eviCore, Evolent and Carelon keep 11 characters without the spaces, MHK keeps all 14, Optum keeps only the 9 characters printed on the card. EMRs type whatever is on the card. Today the mismatch surfaces at the vendor. This service moves the check to the front of the flow: one call from Onyx, one call to MMI, and back come the ID as received, the ID it resolved to, that ID in every vendor's format, the coverage flag and an id for the coverage period. One operation, <code>POST /v1/interop/resolve</code>, gives every vendor's format at once, so one call serves a prior authorization whose codes go to several vendors.</p>
+<p>Every UM vendor stores our member ID in its own shape. A THP Medicare (TMP) or SCO card prints 9 characters; our systems store those 9 characters, three spaces and the suffix <code>01</code> (14 characters); eviCore, Evolent and Carelon keep 11 characters without the spaces, MHK keeps all 14, Optum keeps only the 9 characters printed on the card. EMRs type whatever is on the card. Today the mismatch surfaces at the vendor. This service moves the check to the front of the flow: one call from Onyx, one call to MMI, and back come the ID as received, the ID it resolved to, that ID in every vendor's format, the payer identity for the vendor request, the coverage flag and an id for the coverage period. One operation, <code>POST /v1/interop/resolve</code>, gives every vendor's format at once, so one call serves a prior authorization whose codes go to several vendors.</p>
 
 <figure>
 <svg viewBox="0 0 980 300" role="img" aria-label="Request path: the EMR sends a member ID to Onyx; Onyx posts the member ID and the date of service to the Interop Resolution Service; the service posts a member search to MMI inside the internal network; MMI returns member records with coverage spans; the service returns an outcome with the resolved and vendor-formatted IDs; Onyx sends only the vendor-formatted ID to the UM vendor." style="color: var(--fg)">
@@ -289,6 +289,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <tr><td>D6</td><td><b>Date-of-service limits</b> and the no-DOS default.</td><td>A sent date is always the date judged. Only the past is limited (the coverage history MMI keeps); a future date is judged on the coverage on record, which is the only way a 2027 date can come back INACTIVE on a record that ends in 2026. A missing date is evaluated as today.</td><td>Not more than 10 years back; no upper limit; default today.</td></tr>
 <tr><td>D7</td><td><b>MMI <code>clientId</code></b> to register with the MMI team.</td><td>Appears in MMI's logs and request ids.</td><td><code>INTEROP</code> placeholder</td></tr>
 <tr><td>D8</td><td><b>Which callers may use the service.</b></td><td>Every call names its <code>clientId</code> and <code>clientType</code>. API Management decides who gets through; the service checks the form of the values and logs them, and does not keep a list of client ids.</td><td>Any well-formed <code>clientId</code>; <code>clientType</code> <code>EXT</code> or <code>INT</code>. Onyx sends <code>ONYX</code> / <code>EXT</code>.</td></tr>
+<tr><td>D9</td><td><b>Payer identity on vendor requests</b>: <code>payerId</code> and <code>payerName</code>, both <code>Point32Health</code>.</td><td>Onyx puts them on every request it sends a UM vendor. If a vendor expects a payer code (the id its intake keys on) rather than the name, or the heritage company (THP / HPHC) rather than the parent, the values change in configuration; the resolved record already carries the company.</td><td><code>payer.id</code> = <code>payer.name</code> = <code>Point32Health</code> (<code>application.yaml</code>)</td></tr>
 </tbody></table></div>
 
 <h2 id="scope"><span class="num">4</span>Scope and non-goals</h2>
@@ -359,7 +360,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <p>The 400s this service raises itself are a missing or unusable caller field (the <code>CLIENT_</code> and <code>REQUEST_ID_</code> codes), a missing or blank <code>memberId</code> (<code>MEMBER_ID_MISSING</code>), an unusable date of service or date of birth (the date codes of 6.4) and a body that is not JSON for the operation (<code>MALFORMED_JSON</code>; <code>WRONG_JSON_TYPE</code> when the body or a field has the wrong JSON type, for example <code>"dateOfBirth": [1, 2]</code>). Every problem is reported together, and none of them reaches MMI. The one other 400 comes from MMI itself: its 400 is forwarded as <code>MEMBER_LOOKUP_REJECTED</code> (6.4).</p>
 
 <h3>6.3 Response (HTTP 200)</h3>
-<p>Fields in this order: <code>outcome</code>, <code>message</code>, <code>memberId { received, resolved, forVendors[] }</code>, <code>lineOfBusiness</code>, <code>dateOfService</code>, <code>dateOfServiceEnd</code>, <code>dateOfServiceDefaulted</code>, <code>coverage { coverageId, active, effectiveDate, endDate }</code>, <code>requestId</code>, <code>traceId</code>, <code>sourceMessage</code>.</p>
+<p>Fields in this order: <code>outcome</code>, <code>message</code>, <code>memberId { received, resolved, forVendors[] }</code>, <code>lineOfBusiness</code>, <code>payerId</code>, <code>payerName</code>, <code>dateOfService</code>, <code>dateOfServiceEnd</code>, <code>dateOfServiceDefaulted</code>, <code>coverage { coverageId, active, effectiveDate, endDate }</code>, <code>requestId</code>, <code>traceId</code>, <code>sourceMessage</code>.</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Field</th><th>ACTIVE</th><th>INACTIVE</th><th>NOT_FOUND</th><th>AMBIGUOUS</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -371,6 +372,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <tr><td><code>memberId.forVendors[].vendor</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The vendor code as configured (<code>CARELON</code>, <code>EVICORE</code>, <code>EVOLENT</code>, <code>MHK</code>, <code>ONYX</code>, <code>OPTUM</code>).</td></tr>
 <tr><td><code>memberId.forVendors[].memberId</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The resolved ID in that vendor's format: what goes into that vendor's payload. For Optum the 9-character core only. Public Plans and HPHC ids are the resolved value on every entry (section 12).</td></tr>
 <tr><td><code>lineOfBusiness</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>MMI's line of business (<code>MCR</code>, <code>PP</code>, <code>COM</code>…); Onyx routes the transaction on it. The company (THP or HPHC) is not returned: the resolved id already tells it apart (<code>HP</code> prefix) and Onyx does not act on it.</td></tr>
+<tr><td><code>payerId</code>, <code>payerName</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The payer, for Onyx to put on every request it sends a UM vendor. Configured (<code>payer</code> block in <code>application.yaml</code>; <code>PAYER_ID</code> / <code>PAYER_NAME</code> override), today <code>Point32Health</code> in both: one payer covers THP and HPHC. Whether a vendor needs a payer code here, or the heritage company, is open (D9).</td></tr>
 <tr><td><code>dateOfService</code>, <code>dateOfServiceDefaulted</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>The (first) date evaluated and whether it was defaulted to today.</td></tr>
 <tr><td><code>dateOfServiceEnd</code></td><td>opt</td><td>opt</td><td>opt</td><td>opt</td><td>The last date evaluated, echoed when the request asked about a period.</td></tr>
 <tr><td><code>coverage.coverageId</code></td><td>✓</td><td>opt</td><td>–</td><td>–</td><td>First in the block. An id for the coverage period, present whenever its dates are: <code>MEMBER_ID</code> + <code>EFF_DATE</code> + <code>END_DATE</code> run together with no separator, the resolved member id reduced to letters and digits, the dates as <code>yyyyMMdd</code> (<code>99991231</code> stands for an open-ended period); letters and digits only, as the Onyx requirement states. The same member with the same coverage always gets the same value.</td></tr>
@@ -423,6 +425,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "vendor": "OPTUM",   "memberId": "123456789" }
     ] },
   "lineOfBusiness": "MCR",
+  "payerId": "Point32Health",
+  "payerName": "Point32Health",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "coverageId": "123456789012021010199991231", "active": true, "effectiveDate": "2021-01-01", "endDate": "9999-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
@@ -445,6 +449,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "vendor": "OPTUM",   "memberId": "HP456789012" }
     ] },
   "lineOfBusiness": "COM",
+  "payerId": "Point32Health",
+  "payerName": "Point32Health",
   "dateOfService": "2026-10-05", "dateOfServiceDefaulted": true,
   "coverage": { "coverageId": "HP4567890122013030199991231", "active": true, "effectiveDate": "2013-03-01", "endDate": "9999-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
@@ -466,6 +472,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "vendor": "OPTUM",   "memberId": "234567890" }
     ] },
   "lineOfBusiness": "MCR",
+  "payerId": "Point32Health",
+  "payerName": "Point32Health",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": false },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
@@ -489,6 +497,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "vendor": "OPTUM",   "memberId": "34567890102" }
     ] },
   "lineOfBusiness": "PP",
+  "payerId": "Point32Health",
+  "payerName": "Point32Health",
   "dateOfService": "2024-08-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": false },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
@@ -547,6 +557,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "vendor": "OPTUM",   "memberId": "HP567890123" }
     ] },
   "lineOfBusiness": "COM",
+  "payerId": "Point32Health",
+  "payerName": "Point32Health",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "coverageId": "HP5678901232020010199991231", "active": true, "effectiveDate": "2020-01-01", "endDate": "9999-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
@@ -624,6 +636,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "vendor": "OPTUM",   "memberId": "T20262026" }
     ] },
   "lineOfBusiness": "MCR",
+  "payerId": "Point32Health",
+  "payerName": "Point32Health",
   "dateOfService": "2027-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": false },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
@@ -644,6 +658,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "vendor": "OPTUM",   "memberId": "U20252026" }
     ] },
   "lineOfBusiness": "MCR",
+  "payerId": "Point32Health",
+  "payerName": "Point32Health",
   "dateOfService": "2025-12-20", "dateOfServiceEnd": "2026-01-05", "dateOfServiceDefaulted": false,
   "coverage": { "coverageId": "U20252026012025010120261231", "active": true, "effectiveDate": "2025-01-01", "endDate": "2026-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
@@ -664,6 +680,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "vendor": "OPTUM",   "memberId": "U20252026" }
     ] },
   "lineOfBusiness": "MCR",
+  "payerId": "Point32Health",
+  "payerName": "Point32Health",
   "dateOfService": "2026-12-20", "dateOfServiceEnd": "2027-01-05", "dateOfServiceDefaulted": false,
   "coverage": { "coverageId": "U20252026012025010120261231", "active": false, "effectiveDate": "2025-01-01", "endDate": "2026-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
@@ -684,7 +702,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <div class="tablewrap"><table>
 <thead><tr><th>Signal</th><th>Meaning</th><th>Onyx action</th></tr></thead>
 <tbody>
-<tr><td><span class="pill ok">200</span> <code>ACTIVE</code></td><td>Member verified; <code>coverage.active = true</code>.</td><td>Send each vendor its <code>memberId.forVendors</code> entry: the <code>memberId</code> of the entry whose <code>vendor</code> is that vendor, already in the vendor's format (for Optum, the 9-character core). Nothing else from the response goes to the vendor; <code>coverage.coverageId</code> stays with the transaction as the reference to the coverage period behind the decision.</td></tr>
+<tr><td><span class="pill ok">200</span> <code>ACTIVE</code></td><td>Member verified; <code>coverage.active = true</code>.</td><td>Send each vendor its <code>memberId.forVendors</code> entry: the <code>memberId</code> of the entry whose <code>vendor</code> is that vendor, already in the vendor's format (for Optum, the 9-character core), with <code>payerId</code> and <code>payerName</code> on the request. Nothing else from the response goes to the vendor; <code>coverage.coverageId</code> stays with the transaction as the reference to the coverage period behind the decision.</td></tr>
 <tr><td><span class="pill warn">200</span> <code>INACTIVE</code></td><td>Member verified; not covered on that date, or not on every day of the period; <code>message</code> says why (ended, not yet effective, gap, no coverage on record, ends within the period of service).</td><td>Hold for intake (D3). <code>memberId.forVendors</code> is still there if the business rule says to submit anyway.</td></tr>
 <tr><td><span class="pill neutral">200</span> <code>NOT_FOUND</code></td><td>MMI has no member for this id: its 404 (or a 200 with no members). <code>sourceMessage</code> carries what MMI said when MMI sent a message (6.3).</td><td>"Member not found" worklist. If Onyx holds a fuller form of the id (for instance with the suffix), one resend with it.</td></tr>
 <tr><td><span class="pill info">200</span> <code>AMBIGUOUS</code></td><td>Several members on the plan share the 9-character ID; no DOB settled it. Nobody is listed.</td><td>One resend with <code>dateOfBirth</code> or the member's full id including the suffix. If it is still AMBIGUOUS (twins share a date of birth, or the records carry none), intake takes the full id from the member's card and resends.</td></tr>
@@ -921,7 +939,7 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 <tr><td><code>PQA-LITE</code> = <code>application-PQA-LITE.yaml</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp</code></td><td></td></tr>
 <tr><td><code>PRD</code> = <code>application-PRD.yaml</code></td><td><code>http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp</code></td><td>Swagger and OpenAPI off; package logging pinned to INFO</td></tr>
 </tbody></table></div>
-<p>Endpoint on every environment: <code>/master/member/v1</code>. Environment variables override without a rebuild: <code>MMI_BASE_URL</code>, <code>MMI_CLIENT_ID</code>, <code>MMI_READ_TIMEOUT</code>, <code>MMI_CONNECT_TIMEOUT</code>, <code>MMI_LOG_PAYLOADS</code>, <code>SPRING_PROFILES_ACTIVE</code>.</p>
+<p>Endpoint on every environment: <code>/master/member/v1</code>. Environment variables override without a rebuild: <code>PAYER_ID</code>, <code>PAYER_NAME</code>, <code>MMI_BASE_URL</code>, <code>MMI_CLIENT_ID</code>, <code>MMI_READ_TIMEOUT</code>, <code>MMI_CONNECT_TIMEOUT</code>, <code>MMI_LOG_PAYLOADS</code>, <code>SPRING_PROFILES_ACTIVE</code>.</p>
 <pre><code>spring:
   application.name: interop-resolution-service
   profiles.default: PQA                 # one file per environment: application-DEV.yaml, -FQA, -PQA, -PQA-LITE, -PRD
@@ -948,6 +966,10 @@ mmi:
   log-payloads: ${MMI_LOG_PAYLOADS:false}  # full MMI bodies in the log (PHI); DEV/FQA/PQA/PQA-LITE set true
   stub.enabled: false                   # true only in DEV and test
 
+payer:
+  id: ${PAYER_ID:Point32Health}         # what Onyx sends the UM vendor as the payer; one value covers THP and HPHC
+  name: ${PAYER_NAME:Point32Health}
+
 member-id:
   date-of-service: { max-past-years: 10, zone: America/New_York }
   date-of-birth-max-age-years: 125
@@ -969,11 +991,11 @@ member-id:
 <tr><td><code>domain.ResolutionException</code> + <code>InvalidRequestException</code>, <code>DobMismatchException</code></td><td>Business errors with status and code.</td></tr>
 <tr><td><code>vendor.VendorIdFormat</code>, <code>VendorFormatter</code>, <code>VendorRegistry</code>, <code>Vendor</code>, <code>FormattedMemberId</code></td><td>Section 12.</td></tr>
 <tr><td><code>mmi.MmiClient</code>, <code>RestMmiClient</code>, <code>StubMmiClient</code>, <code>MmiRequest</code>, <code>MmiResponse</code>, <code>MmiMember</code>, <code>MmiCoverage</code>, <code>MmiMessage</code>, <code>MmiResult</code>, <code>MmiRecordMapper</code>, <code>MmiDates</code>, <code>MmiRequestIds</code>, <code>MmiException</code>, <code>MmiProperties</code></td><td>Section 9. <code>RestMmiClient</code> holds the fixed mapping of MMI's four answers; <code>MmiResult</code> carries the HTTP status MMI answered with, so a 404 is a normal result; <code>MmiException</code> carries the status and code of a failed call (<code>MEMBER_LOOKUP_UNAVAILABLE</code>, <code>MEMBER_LOOKUP_REJECTED</code>, <code>MEMBER_LOOKUP_ERROR</code>, <code>MEMBER_LOOKUP_INVALID_RESPONSE</code>); <code>MmiProperties</code> holds the URL, the timeouts and <code>error-message-types</code>, nothing about the mapping.</td></tr>
-<tr><td><code>config.MemberIdProperties</code>, <code>DomainConfig</code>, <code>MmiClientConfig</code>, <code>ClockConfig</code>, <code>WebConfig</code>, <code>OpenApiConfig</code>, <code>StartupReport</code></td><td>Validated properties, wiring, the injectable clock, JSON-always, OpenAPI metadata, the startup report.</td></tr>
+<tr><td><code>config.MemberIdProperties</code>, <code>PayerProperties</code>, <code>DomainConfig</code>, <code>MmiClientConfig</code>, <code>ClockConfig</code>, <code>WebConfig</code>, <code>OpenApiConfig</code>, <code>StartupReport</code></td><td>Validated properties, wiring, the injectable clock, JSON-always, OpenAPI metadata, the startup report.</td></tr>
 </tbody></table></div>
 
 <h2 id="testing"><span class="num">17</span>Testing</h2>
-<p><code>./gradlew test</code>: 125 tests, all green. "Today" is fixed at 2026-10-03 in the scenario suite so the fixtures never age.</p>
+<p><code>./gradlew test</code>: 126 tests, all green. "Today" is fixed at 2026-10-03 in the scenario suite so the fixtures never age.</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Test class</th><th>Covers</th></tr></thead>
 <tbody>
@@ -982,8 +1004,8 @@ member-id:
 <tr><td><code>VendorFormatterTest</code>, <code>VendorRegistryTest</code></td><td>Every format on TMP, Public Plans and HPHC ids; the 9-character core for Optum; codes upper-cased and sorted; a code listed twice, a missing format and a bad key rejected.</td></tr>
 <tr><td><code>MmiRecordMapperTest</code></td><td>Strict dates, void and unreadable spans, open-ended sentinels, company inference, unreadable DOB, legacy id normalisation.</td></tr>
 <tr><td><code>RestMmiClientTest</code></td><td>Exact outbound body (both id fields, void flag, client id, request id pattern, no DOS fields); MMI's 500 → 503 <code>HTTP_500</code> with MMI's code and text (<code>internalErrorIsUnavailable503WithMmiText</code>); 429 → 503; 408 → 503; MMI's 400 → 400 <code>MEMBER_LOOKUP_REJECTED</code> / <code>HTTP_400</code> with MMI's code and text (<code>badRequestIsForwardedAs400WithMmiText</code>) and without a body (<code>badRequestWithoutABodyIsStillForwardedAs400</code>); 403 with an HTML page → 502 <code>HTTP_403</code> saying it is outside MMI's contract and naming the URL (<code>statusOutsideMmiContractSaysSo</code>); 404 with an MMI envelope → a normal result carrying status 404 and the message (<code>notFoundWithAnMmiEnvelopeIsANormalAnswer</code>); 404 with an empty body → a normal result (<code>notFoundWithAnEmptyBodyIsANormalAnswer</code>); 404 with the servlet container's default error JSON or an HTML page → still a normal result with the <code>MMI_404_WITHOUT_ENVELOPE</code> warning naming <code>mmi.base-url</code> (<code>notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns</code>); 200 with an HTML body → 502 <code>MEMBER_LOOKUP_INVALID_RESPONSE</code>; connection refused → 503; read timeout → 503 within 1.4 s; missing base URL refused.</td></tr>
-<tr><td><code>ConfigValidationTest</code></td><td>Valid config starts; unknown format, stub outside dev/test, missing base URL all fail naming the property.</td></tr>
-<tr><td><code>ResolveScenariosTest</code> (HTTP, stub, fixed clock)</td><td>Caller identification (<code>callerMustIdentifyItselfAndTheCall</code>): no caller fields → <code>CLIENT_ID_MISSING</code>, <code>CLIENT_TYPE_MISSING</code> and <code>REQUEST_ID_MISSING</code> and no MMI call; a <code>clientType</code> other than <code>EXT</code> or <code>INT</code>, lower case included → <code>CLIENT_TYPE_INVALID</code> with the <code>requestId</code> still echoed; a <code>clientId</code> over 50 characters or with a space, a <code>requestId</code> with a space or over 64 characters → 400, an unusable <code>requestId</code> never echoed; an internal caller (<code>INT</code>) → 200 with its <code>requestId</code>, and the log line names it. Pass-through of the member id: 10 digits, 40 digits, letters and punctuation all reach MMI as typed and come back NOT_FOUND (never a 400), a known member typed with a hyphen or in pieces resolves, and the stub's <code>lastSearched()</code> shows the id untouched. TMP 9/11/14 forms, every vendor's format, Optum's 9-character core, SCO ended, earlier span, future effective, void, unreadable span, company inferred, no DOS, a blank or null date of birth, Together family with and without DOB, twins, gap and inclusive end on an 11-character ID, DOB mismatch on family and single record, HPHC forms, converted member in both directions and from the 9-character old id, not found (the <code>message</code> sentence and <code>sourceMessage</code> with status <code>404</code>, code <code>MEMBER_NOT_FOUND</code> and type <code>ERROR</code>: still NOT_FOUND, not 502), <code>message</code> on ACTIVE with no <code>sourceMessage</code>, aggregated validation errors, the 10-year past limit with no upper limit on the date of service, malformed JSON, a misspelled <code>memberId</code> read as a missing one, wrong type, 405/404/415 envelopes, JSON regardless of Accept, correlation echo and replacement, <code>X-Content-Type-Options: nosniff</code>, the <code>requestId</code> echoed on a 200, every MMI fault (MMI's 500 → 503 <code>HTTP_500</code> with <code>Retry-After: 10</code>, timeout → 503 <code>READ_TIMEOUT</code>, MMI's 400 → 400 <code>MEMBER_LOOKUP_REJECTED</code> / <code>HTTP_400</code> carrying MMI's text and no <code>Retry-After</code>, the 502 <code>ERROR_MESSAGE</code> body carrying <code>code=ES_TIMEOUT</code> and MMI's text, the unreadable body → 502), an error message beside a member, a record without an id, a member whose only span is unreadable, the coverage block as flag, period and <code>coverageId</code> only (no reason, no neighbouring dates, no company, no vendor echo, no correlation id in a 200 body), <code>coverageId</code> on an open-ended period, a calendar-year period and a merged two-record period, and absent when there is no period, the INACTIVE and AMBIGUOUS message sentences, an AMBIGUOUS answer that lists nobody on the plan, a 422 carrying the MMI request id, a wrong JSON type for the date of birth, 406 for an unsupported representation, and a stub call counter proving invalid requests never reach MMI. Every response is checked for names, SSN and MMI's date-of-birth field, and every log line (message and exception text) for any date of birth in the stub data and for names; member ids are expected in the log.</td></tr>
+<tr><td><code>ConfigValidationTest</code></td><td>Valid config starts; unknown format, stub outside dev/test, missing base URL, blank payer id all fail naming the property.</td></tr>
+<tr><td><code>ResolveScenariosTest</code> (HTTP, stub, fixed clock)</td><td>Caller identification (<code>callerMustIdentifyItselfAndTheCall</code>): no caller fields → <code>CLIENT_ID_MISSING</code>, <code>CLIENT_TYPE_MISSING</code> and <code>REQUEST_ID_MISSING</code> and no MMI call; a <code>clientType</code> other than <code>EXT</code> or <code>INT</code>, lower case included → <code>CLIENT_TYPE_INVALID</code> with the <code>requestId</code> still echoed; a <code>clientId</code> over 50 characters or with a space, a <code>requestId</code> with a space or over 64 characters → 400, an unusable <code>requestId</code> never echoed; an internal caller (<code>INT</code>) → 200 with its <code>requestId</code>, and the log line names it. Pass-through of the member id: 10 digits, 40 digits, letters and punctuation all reach MMI as typed and come back NOT_FOUND (never a 400), a known member typed with a hyphen or in pieces resolves, and the stub's <code>lastSearched()</code> shows the id untouched. TMP 9/11/14 forms, every vendor's format, Optum's 9-character core, SCO ended, earlier span, future effective, void, unreadable span, company inferred, no DOS, a blank or null date of birth, Together family with and without DOB, twins, gap and inclusive end on an 11-character ID, DOB mismatch on family and single record, HPHC forms, converted member in both directions and from the 9-character old id, not found (the <code>message</code> sentence and <code>sourceMessage</code> with status <code>404</code>, code <code>MEMBER_NOT_FOUND</code> and type <code>ERROR</code>: still NOT_FOUND, not 502), <code>message</code> on ACTIVE with no <code>sourceMessage</code>, aggregated validation errors, the 10-year past limit with no upper limit on the date of service, malformed JSON, a misspelled <code>memberId</code> read as a missing one, wrong type, 405/404/415 envelopes, JSON regardless of Accept, correlation echo and replacement, <code>X-Content-Type-Options: nosniff</code>, the <code>requestId</code> echoed on a 200, every MMI fault (MMI's 500 → 503 <code>HTTP_500</code> with <code>Retry-After: 10</code>, timeout → 503 <code>READ_TIMEOUT</code>, MMI's 400 → 400 <code>MEMBER_LOOKUP_REJECTED</code> / <code>HTTP_400</code> carrying MMI's text and no <code>Retry-After</code>, the 502 <code>ERROR_MESSAGE</code> body carrying <code>code=ES_TIMEOUT</code> and MMI's text, the unreadable body → 502), an error message beside a member, a record without an id, a member whose only span is unreadable, the coverage block as flag, period and <code>coverageId</code> only (no reason, no neighbouring dates, no company, no vendor echo, no correlation id in a 200 body), <code>coverageId</code> on an open-ended period, a calendar-year period and a merged two-record period, and absent when there is no period, the INACTIVE and AMBIGUOUS message sentences, an AMBIGUOUS answer that lists nobody on the plan, the payer fields on ACTIVE and INACTIVE and on no other outcome, a 422 carrying the MMI request id, a wrong JSON type for the date of birth, 406 for an unsupported representation, and a stub call counter proving invalid requests never reach MMI. Every response is checked for names, SSN and MMI's date-of-birth field, and every log line (message and exception text) for any date of birth in the stub data and for names; member ids are expected in the log.</td></tr>
 <tr><td><code>ResolveScenariosTest</code>, every vendor's id (four scenarios)</td><td><code>resolutionReturnsTheTmpIdInEveryVendorsFormat</code>: one MMI call for all vendors, the six entries sorted by code, eviCore, Evolent and Carelon 11 characters, MHK 14, Optum the 9-character core, <code>memberId</code> in the order <code>received</code>, <code>resolved</code>, <code>forVendors</code>, and no <code>vendor</code> in the body. <code>resolutionPassesNonTmpIdsAsStoredForEveryVendorAndDefaultsTheDate</code>: the HPHC card form and a Public Plans dependent in a gap come back as stored on every entry, the date defaulted to today and said so. <code>resolutionWithoutAnIdentifiedMemberCarriesNoVendorIds</code>: NOT_FOUND (with its <code>message</code> and <code>sourceMessage</code>) and AMBIGUOUS carry no <code>memberId.forVendors</code>; a DOB that picks the subscriber then does. <code>resolutionIsLenientAboutEverythingExceptTheMemberId</code>: a blank member id is the one 400 (<code>MEMBER_ID_MISSING</code>) and never reaches MMI; a <code>vendor</code> in the request is ignored and the answer has the six entries; unknown properties are ignored; a date of service in <code>MM/dd/yyyy</code> or a date of birth that is not a date is a 400; a real date of birth matching no record is still 422 <code>DOB_MISMATCH</code> with the trace id. <code>aFutureDateOfServiceIsJudgedOnTheCoverageOnRecord</code> and <code>aSentDateOfServiceIsNeverReplacedByToday</code>: a member whose only record runs 01/01/2026 to 12/31/2026 is ACTIVE for 2026-10-15 and 2026-12-31, INACTIVE for 2027-01-01 and 2027-10-15 with the date asked about in the response; <code>10/15/2027</code> and other unusable dates are 400 and never "active for today"; only a missing date defaults to today; a 2036 date on an open-ended record is judged (ACTIVE), not refused. <code>aPeriodOfServiceMustBeCoveredOnEveryDay</code>: a member with adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the merged period in the coverage dates and <code>dateOfServiceEnd</code> echoed, INACTIVE from 2026-12-20 to 2027-01-05 ("coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05") with the period shown, a period past the end of a calendar-year record INACTIVE, an end before the start, without a start or not a date is a 400, and a one-day period reads like a single date.</td></tr>
 </tbody></table></div>
 <p>Before PQA: confirm the assumptions in section 19 against real MMI answers, starting with ids typed with hyphens or spaces and the error message shapes.</p>
@@ -1044,6 +1066,7 @@ member-id:
   <dt>UM vendor</dt><dd>Utilization-management partner: eviCore, Evolent, Carelon, MHK, Optum (which stores the 9-character core only); Onyx itself is also configured as a vendor (11 characters).</dd>
   <dt>Resolved ID</dt><dd>The member ID the lookup resolved to, exactly as MMI holds it for the member it settled on (<code>memberId.resolved</code>).</dd>
   <dt>Vendor id</dt><dd>The resolved ID rendered in one vendor's format, <code>memberId.forVendors[].memberId</code>; the only value Onyx forwards to that vendor.</dd>
+  <dt>Payer</dt><dd><code>payerId</code> and <code>payerName</code>: the payer identity Onyx puts on every request it sends a UM vendor. Configured; <code>Point32Health</code> covers THP and HPHC.</dd>
   <dt>Coverage id</dt><dd><code>coverage.coverageId</code>: <code>MEMBER_ID</code> + <code>EFF_DATE</code> + <code>END_DATE</code> run together, letters and digits only, dates <code>yyyyMMdd</code>; names the period behind an answer.</dd>
   <dt>Member resolution</dt><dd>The operation, <code>POST /v1/interop/resolve</code>: the member behind the id, the coverage on the date of service and the id in every vendor's format at once.</dd>
   <dt>Client id, client type</dt><dd>Who is calling: <code>clientId</code> (Onyx sends <code>ONYX</code>) and <code>clientType</code>, <code>EXT</code> for a caller outside the plan, <code>INT</code> for an internal one.</dd>
