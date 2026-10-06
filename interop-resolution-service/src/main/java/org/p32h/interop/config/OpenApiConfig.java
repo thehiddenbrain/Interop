@@ -15,6 +15,6 @@ public class OpenApiConfig {
                 .version("v1")
                 .description("Onyx's interop lookups. Member resolution, POST /v1/interop/resolve: resolves an EMR-supplied member ID "
                         + "against the plan's member records, reports whether coverage is active on the date of service, and returns the ID as "
-                        + "resolved and in every UM vendor's format, with the payer identity for the vendor request."));
+                        + "resolved and in every UM vendor's format, each with the payer for that vendor's request."));
     }
 }
