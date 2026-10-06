@@ -504,3 +504,24 @@ See the conversation; answers will be appended here.
   scenario assertions, the three Postman tests, README, handover and design examples follow. The field keeps the name
   `coverageId` the owner gave in feedback 24; if Onyx's contract names it `coverageIdentifier`, that is a one-word change
   in the `Coverage` record.
+
+## Feedback 29 (2026-10-06): one operation, `POST /api/v1/members/resolution`; `/resolve` removed
+
+- The owner found "vendor map" a poor name for the resource Onyx calls, and Onyx will not use `/resolve`. Among the
+  names offered (verification, resolution, coverage-check, eligibility, lookup, crosswalk, snapshot, coverage, match,
+  passport, clearance), the owner chose `/api/v1/members/resolution`: "resolve this member", the identity resolution
+  of the typed id, then its coverage and every vendor's id. It pairs with the service's name and with a future
+  `/api/v1/payers/resolution`. The owner then asked to remove `/resolve`.
+- Applied: one operation, `POST /api/v1/members/resolution`, with the request and the 200 body of the former vendor
+  map unchanged (`MemberResolutionController`, `MemberResolutionRequest`, `MemberResolutionResponse`). Removed: the
+  paths `/api/v1/member-ids/resolve` and `/api/v1/member-ids/vendor-map`, which now answer 404 `ROUTE_NOT_FOUND`;
+  `ResolveRequest`, `ResolveResponse`, `UnknownVendorException`; the validator's strict mode and its vendor checks
+  (`VENDOR_MISSING`, `VENDOR_INVALID`, `UNKNOWN_VENDOR`); the vendor aliases in `application.yaml` and
+  `VendorRegistry.find`, which existed only to look up the vendor Onyx named on `/resolve`. The INFO line per request
+  starts `resolution outcome=...` and no longer carries a vendor.
+- Tests: the scenarios that ran on `/resolve` run on the new path and read the vendor's `vendorMemberIds` entry; the
+  unknown-vendor test and the alias configuration test are gone; a misspelled `memberID` is now `MEMBER_ID_MISSING`
+  because unknown properties are ignored, and the full-path check uses a wrong type inside `patient`. 125 tests green.
+  Postman: 73 requests, 474 assertions, every request on the new path.
+- In healthcare operations "resolution" can also mean closing a case (grievance, appeal); the Swagger summary,
+  "Resolve a member id for a date of service", keeps the API catalog from reading it that way.

@@ -20,9 +20,10 @@ fig1 = fig1.replace('the service returns an outcome with canonical and vendor-fo
 fig1 = fig1.replace('parse · select · coverage · format','pass through · select · coverage · format')
 fig1 = fig1.replace('normalized ID, void = N','ID as typed, void = N')
 fig1 = fig1.replace('vendorFormatted only, when ACTIVE','forVendor only, when ACTIVE')
-fig1 = fig1.replace('Onyx posts member ID, date of service and vendor to the Interop Resolution Service','Onyx posts the member ID, the date of service and the vendor (which only /resolve uses) to the Interop Resolution Service')
-fig1 = fig1.replace('memberId, DOS, vendor','memberId, DOS, vendor (used by /resolve only)')
-fig1 = fig1.replace('forVendor only, when ACTIVE','forVendor or the vendorMemberIds entry, when ACTIVE')
+fig1 = fig1.replace('Onyx posts member ID, date of service and vendor to the Interop Resolution Service','Onyx posts the member ID and the date of service to the Interop Resolution Service')
+fig1 = fig1.replace('memberId, DOS, vendor','memberId, date of service')
+fig1 = fig1.replace('forVendor only, when ACTIVE','each vendor its vendorMemberIds entry, when ACTIVE')
+fig1 = fig1.replace('>Member ID Resolution<','>Interop Resolution<')
 p3=open(os.path.join(HERE, 'part3.html')).read()
 grid = p3[p3.index('<div class="idgrid"'):]
 grid = grid[:grid.index('</div>\n<p class="small">')+len('</div>\n')]

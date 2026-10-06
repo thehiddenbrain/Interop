@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "fc06bd8a-2b7b-4a0b-a1a5-d2d605d0da94",
     "name": "Interop Resolution Service",
-    "description": "Every scenario of POST /api/v1/member-ids/resolve and POST /api/v1/member-ids/vendor-map against the DEV profile (in-process member lookup stub on port 9090; start the service with --spring.profiles.active=DEV, the default profile is PQA). Run the whole collection with the Collection Runner; each request carries its own tests. /resolve returns the id in one vendor's format when Onyx already knows the vendor; /vendor-map returns the id in every vendor's format when it does not, and Onyx picks the entry for the vendor later. One the member lookup call either way. The member id is sent to the member lookup exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. /vendor-map is lenient about what it does not need: only the member id is required; a vendor or any unknown property is accepted and ignored. A sent date is the date judged: an unusable one is a 400, never replaced by today (feedback 20). Every 200 carries a one-sentence \"message\" right after \"outcome\". the member lookup's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MEMBER_LOOKUP_REJECTED with the member lookup's text; 503 MEMBER_LOOKUP_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. On NOT_FOUND, \"sourceMessage\" (type, status, code, text) carries the member lookup's own message when the member lookup sent one.",
+    "description": "Every scenario of POST /api/v1/members/resolution against the DEV profile (in-process member lookup stub on port 9090; start the service with --spring.profiles.active=DEV, the default profile is PQA). Run the whole collection with the Collection Runner; each request carries its own tests. The answer carries the member id in every configured vendor's format (vendorMemberIds); Onyx sends each vendor its entry. One member lookup call per request. The member id is sent to the member lookup exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. Only the member id is required; unknown properties, a vendor included, are ignored. A sent date is the date judged: an unusable one is a 400, never replaced by today (feedback 20). Every 200 carries a one-sentence \"message\" right after \"outcome\". the member lookup's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MEMBER_LOOKUP_REJECTED with the member lookup's text; 503 MEMBER_LOOKUP_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. On NOT_FOUND, \"sourceMessage\" (type, status, code, text) carries the member lookup's own message when the member lookup sent one.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -33,7 +33,7 @@
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
-                  "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"vendorMemberIds EVICORE = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }).memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
                   "pm.test(\"no .company (lean response: lineOfBusiness is what Onyx routes on)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"company\"); });",
                   "pm.test(\".coverage.coverageId = stored id (letters and digits only) + 20210101 + 99991231\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.stored.replace(/[^A-Za-z0-9]/g, \"\") + \"2021010199991231\"); });",
@@ -55,20 +55,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -89,8 +89,8 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\".outcome = ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".memberId.stored = S98765432   01\", function () { pm.expect(pm.response.json().memberId.stored).to.eql(\"S98765432   01\"); });",
-                  "pm.test(\".memberId.forVendor = S9876543201 (the S is part of the id)\", function () { pm.expect(pm.response.json().memberId.forVendor).to.eql(\"S9876543201\"); });",
-                  "pm.test(\".memberId.forVendor has 11 characters\", function () { pm.expect(pm.response.json().memberId.forVendor.length).to.eql(11); });",
+                  "pm.test(\"vendorMemberIds EVICORE = S9876543201 (the S is part of the id)\", function () { pm.expect(pm.response.json().vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }).memberId).to.eql(\"S9876543201\"); });",
+                  "pm.test(\"vendorMemberIds EVICORE has 11 characters\", function () { pm.expect(pm.response.json().vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }).memberId.length).to.eql(11); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });",
                   "pm.test(\"no .correlationId in the body (X-Correlation-Id header carries it)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"correlationId\"); });"
                 ]
@@ -110,20 +110,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"S98765432\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"S98765432\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -144,7 +144,7 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".memberId.forVendor = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"123456789   01\")); });",
+                  "pm.test(\"vendorMemberIds MHK = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }).memberId)).to.eql(JSON.stringify(\"123456789   01\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -163,20 +163,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789   01\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"MHK\"\n}",
+              "raw": "{\n  \"memberId\": \"123456789   01\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -197,7 +197,7 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"vendorMemberIds EVOLENT = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"EVOLENT\"; }).memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -216,20 +216,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"12345678901\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVOLENT\"\n}",
+              "raw": "{\n  \"memberId\": \"12345678901\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -240,7 +240,7 @@
           "response": []
         },
         {
-          "name": "TMP with dashes, Carelon (alias AIM)",
+          "name": "TMP with dashes, Carelon",
           "event": [
             {
               "listen": "test",
@@ -252,8 +252,8 @@
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.received = 123-456-789 01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123-456-789 01\")); });",
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
-                  "pm.test(\"no .vendor (Onyx named it; not echoed)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
-                  "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"no .vendor field (every vendor is in vendorMemberIds)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"vendor\"); });",
+                  "pm.test(\"vendorMemberIds CARELON = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"CARELON\"; }).memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -272,20 +272,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123-456-789 01\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"aim\"\n}",
+              "raw": "{\n  \"memberId\": \"123-456-789 01\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -308,7 +308,7 @@
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.received = 123456789-01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"123456789-01\")); });",
                   "pm.test(\".memberId.stored = 123456789   01\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"123456789   01\")); });",
-                  "pm.test(\".memberId.forVendor = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"12345678901\")); });",
+                  "pm.test(\"vendorMemberIds EVICORE = 12345678901\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }).memberId)).to.eql(JSON.stringify(\"12345678901\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -327,20 +327,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789-01\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"123456789-01\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -361,7 +361,7 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".memberId.forVendor = 123456789 (the core only)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"123456789\")); });",
+                  "pm.test(\"vendorMemberIds OPTUM = 123456789 (the core only)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"OPTUM\"; }).memberId)).to.eql(JSON.stringify(\"123456789\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -380,20 +380,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"OPTUM\"\n}",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -433,20 +433,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\",\n  \"patient\": {\n    \"dateOfBirth\": \"1950-03-15\"\n  }\n}",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\",\n  \"patient\": {\n    \"dateOfBirth\": \"1950-03-15\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -486,20 +486,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"123456789\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -542,20 +542,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"234567890\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"234567890\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -598,20 +598,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -636,7 +636,7 @@
                   "pm.test(\".message = Member found; coverage ended before 2027-10-15\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage ended before 2027-10-15\"); });",
                   "pm.test(\".dateOfService = 2027-10-15 (the date asked about, never today)\", function () { const j = pm.response.json(); pm.expect(j.dateOfService).to.eql(\"2027-10-15\"); });",
                   "pm.test(\".dateOfServiceDefaulted = false\", function () { const j = pm.response.json(); pm.expect(j.dateOfServiceDefaulted).to.eql(false); });",
-                  "pm.test(\".memberId.forVendor still returned\", function () { const j = pm.response.json(); pm.expect(j.memberId.forVendor).to.eql(\"T2026202601\"); });",
+                  "pm.test(\"vendorMemberIds EVICORE still returned\", function () { const j = pm.response.json(); pm.expect(j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }).memberId).to.eql(\"T2026202601\"); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -656,20 +656,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"2027-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"T20262026\",\n  \"dateOfService\": \"2027-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -709,20 +709,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"234567890   01\",\n  \"dateOfService\": \"2025-06-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"234567890   01\",\n  \"dateOfService\": \"2025-06-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -763,20 +763,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"789012345\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"789012345\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -817,20 +817,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"678901234\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"678901234\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -869,20 +869,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"890123456\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"890123456\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -922,20 +922,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"901234567\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"901234567\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -983,20 +983,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1019,7 +1019,7 @@
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
                   "pm.test(\".memberId.stored = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"34567890101\")); });",
-                  "pm.test(\".memberId.forVendor = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"34567890101\")); });",
+                  "pm.test(\"vendorMemberIds MHK = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }).memberId)).to.eql(JSON.stringify(\"34567890101\")); });",
                   "pm.test(\".lineOfBusiness = PP\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"PP\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1039,20 +1039,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"MHK\",\n  \"patient\": {\n    \"dateOfBirth\": \"1985-06-01\"\n  }\n}",
+              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\",\n  \"patient\": {\n    \"dateOfBirth\": \"1985-06-01\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1092,20 +1092,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\",\n  \"patient\": {\n    \"dateOfBirth\": \"2012-09-09\"\n  }\n}",
+              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\",\n  \"patient\": {\n    \"dateOfBirth\": \"2012-09-09\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1128,7 +1128,7 @@
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".message = Member found; no coverage on 2024-08-15 (gap between coverage periods)\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; no coverage on 2024-08-15 (gap between coverage periods)\"); });",
                   "pm.test(\"no .coverage.reason (the reason is in .message)\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"reason\"); });",
-                  "pm.test(\".memberId.forVendor = 34567890102\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"34567890102\")); });",
+                  "pm.test(\"vendorMemberIds MHK = 34567890102\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }).memberId)).to.eql(JSON.stringify(\"34567890102\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1147,20 +1147,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"34567890102\",\n  \"dateOfService\": \"2024-08-15\",\n  \"vendor\": \"MHK\"\n}",
+              "raw": "{\n  \"memberId\": \"34567890102\",\n  \"dateOfService\": \"2024-08-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1199,20 +1199,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"34567890102\",\n  \"dateOfService\": \"2024-05-31\",\n  \"vendor\": \"MHK\"\n}",
+              "raw": "{\n  \"memberId\": \"34567890102\",\n  \"dateOfService\": \"2024-05-31\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1250,20 +1250,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\",\n  \"patient\": {\n    \"dateOfBirth\": \"1999-09-09\"\n  }\n}",
+              "raw": "{\n  \"memberId\": \"345678901\",\n  \"dateOfService\": \"2026-10-15\",\n  \"patient\": {\n    \"dateOfBirth\": \"1999-09-09\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1293,7 +1293,7 @@
                   "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
                   "pm.test(\".memberId.received = HP-456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"HP-456789012\")); });",
                   "pm.test(\".memberId.stored = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.stored)).to.eql(JSON.stringify(\"HP456789012\")); });",
-                  "pm.test(\".memberId.forVendor = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"HP456789012\")); });",
+                  "pm.test(\"vendorMemberIds EVICORE = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"EVICORE\"; }).memberId)).to.eql(JSON.stringify(\"HP456789012\")); });",
                   "pm.test(\"no .company (lean response: lineOfBusiness is what Onyx routes on)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"company\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1313,20 +1313,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"HP-456789012\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"HP-456789012\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1348,7 +1348,7 @@
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.received = hp 4567 89012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.received)).to.eql(JSON.stringify(\"hp 4567 89012\")); });",
-                  "pm.test(\".memberId.forVendor = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendor)).to.eql(JSON.stringify(\"HP456789012\")); });",
+                  "pm.test(\"vendorMemberIds MHK = HP456789012\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.vendorMemberIds.find(function (x) { return x.vendor === \"MHK\"; }).memberId)).to.eql(JSON.stringify(\"HP456789012\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1367,20 +1367,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"hp 4567 89012\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"MHK\"\n}",
+              "raw": "{\n  \"memberId\": \"hp 4567 89012\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1421,20 +1421,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"567890123 01\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"OPTUM\"\n}",
+              "raw": "{\n  \"memberId\": \"567890123 01\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1474,20 +1474,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"56789012301\",\n  \"dateOfService\": \"2024-06-01\",\n  \"vendor\": \"OPTUM\"\n}",
+              "raw": "{\n  \"memberId\": \"56789012301\",\n  \"dateOfService\": \"2024-06-01\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1527,20 +1527,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"HP567890123\",\n  \"dateOfService\": \"2024-06-01\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"HP567890123\",\n  \"dateOfService\": \"2024-06-01\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1554,7 +1554,7 @@
     },
     {
       "name": "4 Not found and request validation",
-      "description": "An id the member lookup does not know is the member lookup's 404 and this service's 200 NOT_FOUND, with the member lookup's own message in sourceMessage when the member lookup sent one. The only 404 from this service is an unknown route (last request in this folder); the other requests are the strict validation of /resolve.",
+      "description": "An id the member lookup does not know is the member lookup's 404 and this service's 200 NOT_FOUND, with the member lookup's own message in sourceMessage when the member lookup sent one. The only 404 from this service is an unknown route (last request in this folder); the other requests are the request validation: only the member id is required, and a sent date must be usable.",
       "item": [
         {
           "name": "Unknown member: NOT_FOUND",
@@ -1589,20 +1589,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"111222333\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"111222333\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1645,20 +1645,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"HP111222333\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"HP111222333\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1702,20 +1702,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"1234567890\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"1234567890\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1759,20 +1759,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"1111111111111111111111111111111111111111\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"1111111111111111111111111111111111111111\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1816,20 +1816,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"ABC-123/XYZ_9\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"ABC-123/XYZ_9\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1868,20 +1868,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"   \",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"   \",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1900,7 +1900,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
-                  "pm.test(\"3 details\", function () { pm.expect(pm.response.json().error.details.length).to.eql(3); });",
+                  "pm.test(\"2 details: the date of service and the date of birth\", function () { pm.expect(pm.response.json().error.details.length).to.eql(2); });",
                   "pm.test(\"no detail about memberId\", function () { const d = pm.response.json().error.details; pm.expect(d.some(function (x) { return x.field === \"memberId\"; })).to.eql(false); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
@@ -1920,20 +1920,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789*01\",\n  \"dateOfService\": \"10/15/2026\",\n  \"vendor\": \"\",\n  \"patient\": {\n    \"dateOfBirth\": \"2099-01-01\"\n  }\n}",
+              "raw": "{\n  \"memberId\": \"123456789*01\",\n  \"dateOfService\": \"10/15/2026\",\n  \"patient\": {\n    \"dateOfBirth\": \"2099-01-01\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1971,20 +1971,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2010-01-01\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2010-01-01\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2026,20 +2026,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2036-01-01\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2036-01-01\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2051,7 +2051,7 @@
           "response": []
         },
         {
-          "name": "Unknown vendor: lists the known codes",
+          "name": "Misspelled memberId: ignored like any unknown property, so 400 MEMBER_ID_MISSING",
           "event": [
             {
               "listen": "test",
@@ -2059,8 +2059,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
-                  "pm.test(\".error.code = UNKNOWN_VENDOR\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.code)).to.eql(JSON.stringify(\"UNKNOWN_VENDOR\")); });",
-                  "pm.test(\".error.details[0].code = KNOWN_VENDORS\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"KNOWN_VENDORS\")); });",
+                  "pm.test(\".error.details[0].code = MEMBER_ID_MISSING\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"MEMBER_ID_MISSING\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2079,71 +2078,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"AIMX\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Misspelled property: 400 UNKNOWN_PROPERTY",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
-                  "pm.test(\".error.details[0].code = UNKNOWN_PROPERTY\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"UNKNOWN_PROPERTY\")); });",
-                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Correlation-Id",
-                "value": "{{correlationId}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "member-ids",
-                "resolve"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"memberID\": \"123456789\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberID\": \"123456789\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2181,20 +2129,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{ \"memberId\": [1, 2], \"vendor\": \"EVICORE\" }",
+              "raw": "{ \"memberId\": [1, 2] }",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2232,15 +2180,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -2283,15 +2231,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             }
           },
@@ -2307,7 +2255,7 @@
                 "exec": [
                   "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
                   "pm.test(\".error.details[0].code = ROUTE_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"ROUTE_NOT_FOUND\")); });",
-                  "pm.test(\".error.details[0].message contains POST /api/v1/member-ids/vendor-map\", function () { const j = pm.response.json(); pm.expect(j.error.details[0].message).to.include(\"POST /api/v1/member-ids/vendor-map\"); });",
+                  "pm.test(\".error.details[0].message contains POST /api/v1/members/resolution\", function () { const j = pm.response.json(); pm.expect(j.error.details[0].message).to.include(\"POST /api/v1/members/resolution\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2339,7 +2287,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"123456789\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"123456789\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2389,20 +2337,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"500500500\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"500500500\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2444,20 +2392,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"503503503\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"503503503\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2500,20 +2448,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"400400400\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"400400400\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2555,20 +2503,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"888888888\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"888888888\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2613,20 +2561,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"000000001\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"000000001\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2666,20 +2614,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"202202202\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"202202202\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2718,20 +2666,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"880000000\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"880000000\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2772,20 +2720,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"887777777\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"887777777\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2823,20 +2771,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "resolve"
+                "members",
+                "resolution"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberId\": \"886666666\",\n  \"dateOfService\": \"2026-10-15\",\n  \"vendor\": \"EVICORE\"\n}",
+              "raw": "{\n  \"memberId\": \"886666666\",\n  \"dateOfService\": \"2026-10-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2933,7 +2881,7 @@
       ]
     },
     {
-      "name": "7 Vendor map (POST /api/v1/member-ids/vendor-map)",
+      "name": "7 Every vendor's id, leniency and periods of service",
       "description": "",
       "item": [
         {
@@ -2979,15 +2927,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3036,15 +2984,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3100,15 +3048,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3159,15 +3107,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3218,15 +3166,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3278,15 +3226,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3335,15 +3283,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3392,15 +3340,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3445,15 +3393,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3469,7 +3417,7 @@
           "response": []
         },
         {
-          "name": "The /resolve payload, vendor included, is accepted: 200",
+          "name": "A vendor in the request is ignored: 200",
           "event": [
             {
               "listen": "test",
@@ -3501,15 +3449,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3557,15 +3505,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3611,15 +3559,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3669,15 +3617,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3726,15 +3674,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3784,15 +3732,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3836,15 +3784,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3887,15 +3835,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3938,15 +3886,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -3990,15 +3938,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {
@@ -4046,15 +3994,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/member-ids/vendor-map",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "member-ids",
-                "vendor-map"
+                "members",
+                "resolution"
               ]
             },
             "body": {

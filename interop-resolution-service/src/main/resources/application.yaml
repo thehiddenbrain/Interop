@@ -7,7 +7,7 @@ spring:
   jackson:
     default-property-inclusion: non_null
     deserialization:
-      fail-on-unknown-properties: true  # a misspelled Onyx property is an error, not silently ignored
+      fail-on-unknown-properties: true  # strict by default; the member resolution request opts out and ignores unknown properties (feedback 9)
   mvc:
     problemdetails:
       enabled: false                    # the error envelope in ApiErrorResponse is the only error shape
@@ -65,7 +65,7 @@ member-id:
     zone: America/New_York              # "today" for a defaulted date of service
   date-of-birth-max-age-years: 125
   # ------------------------------------------------------------------------------------------------------
-  # Vendor -> format table. This is the ONLY place to add or change a vendor. Key = the code Onyx sends.
+  # Vendor -> format table. This is the ONLY place to add or change a vendor. Key = the vendor code in vendorMemberIds.
   # Formats apply to THP ids stored as 9 digits + spaces + 2-digit suffix (TMP / SCO). Public Plans ids
   # (11 continuous characters) and HPHC ids (HP + digits) are sent exactly as stored for every vendor.
   # The INCOMING member id is never checked or reshaped: it goes to MMI exactly as the EMR typed it.
@@ -77,19 +77,15 @@ member-id:
   vendors:
     EVICORE:
       display-name: eviCore
-      aliases: [EVI, EVICORE_HEALTHCARE]
       format: COMPACT_11
     MHK:
       display-name: MHK (MedHOK)
-      aliases: [MEDHOK]
       format: SPACED_14
     EVOLENT:
       display-name: Evolent
-      aliases: [EVOLENT_HEALTH]
       format: COMPACT_11
     CARELON:
       display-name: Carelon
-      aliases: [AIM]
       format: COMPACT_11
     OPTUM:
       display-name: Optum

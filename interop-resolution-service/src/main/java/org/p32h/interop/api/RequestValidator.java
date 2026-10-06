@@ -9,7 +9,6 @@ import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,29 +20,27 @@ import org.springframework.stereotype.Component;
  *
  * <p>The date of service is the date the answer is about (owner feedback 20). A date that was sent is always the
  * date evaluated, never replaced by today: a value that is not a real {@code yyyy-MM-dd} date, or is older than the
- * coverage history MMI keeps, is a 400 on both operations. Only a missing or blank date defaults to today. There is no
+ * coverage history MMI keeps, is a 400. Only a missing or blank date defaults to today. There is no
  * upper limit: a future date is judged against the coverage on record, which is the only way a 2027 date can be told
  * apart from a 2026 one. A prior authorization may cover a period (feedback 21): {@code dateOfServiceEnd}, optional,
  * makes the request about every day from {@code dateOfService} to it; it must be a real date, not before the start,
  * and never comes alone. The same holds for a sent date of birth: unusable means 400, never silently dropped.
  *
- * <p>Two modes. {@code /resolve} is strict and needs a vendor. {@code /vendor-map} is lenient about what it does not
- * need: the vendor and unknown properties are accepted and ignored, and only the member id is required.
+ * <p>Only what the operation needs is looked at: the member id, the dates and the date of birth. Anything else Onyx
+ * sends, a vendor included, is ignored by the request type (owner feedback 9).
  */
 @Component
 public class RequestValidator {
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT);
-    private static final Pattern VENDOR = Pattern.compile("^[A-Za-z0-9 _.()-]{1,40}$");
 
     /**
      * @param memberId         the id as Onyx sent it, surrounding whitespace removed: what is sent to MMI and echoed back
      * @param dateOfService    the first (or only) date of service
      * @param dateOfServiceEnd the last date of service when a period was sent, else null
-     * @param vendor           the vendor code or alias as sent; null for the vendor-map operation
      */
     public record Validated(String memberId, LocalDate dateOfService, LocalDate dateOfServiceEnd, boolean dateOfServiceDefaulted,
-            LocalDate dateOfBirth, String vendor) {
+            LocalDate dateOfBirth) {
 
         /** The last date the answer is about: the end of the period, or the single date itself. */
         public LocalDate lastDateOfService() {
@@ -56,8 +53,6 @@ public class RequestValidator {
         }
     }
 
-    private enum Mode { STRICT, LENIENT }
-
     private final MemberIdProperties properties;
     private final Clock clock;
 
@@ -66,24 +61,15 @@ public class RequestValidator {
         this.clock = clock;
     }
 
-    /** Operation 1 ({@code /resolve}), strict: member id, dates and a vendor; every problem is reported. */
-    public Validated validate(ResolveRequest request) {
-        String dob = request.patient() == null ? null : request.patient().dateOfBirth();
-        return validate(request.memberId(), request.dateOfService(), request.dateOfServiceEnd(), dob, request.vendor(), Mode.STRICT);
-    }
-
-    /** Operation 2 ({@code /vendor-map}), lenient: only the member id is required; a vendor is ignored. */
-    public Validated validate(VendorMapRequest request) {
-        String dob = request.patient() == null ? null : request.patient().dateOfBirth();
-        return validate(request.memberId(), request.dateOfService(), request.dateOfServiceEnd(), dob, null, Mode.LENIENT);
-    }
-
-    private Validated validate(String rawMemberId, String rawDateOfService, String rawDateOfServiceEnd, String rawDob, String rawVendor,
-            Mode mode) {
+    /** Member id present, dates usable; every problem is reported together. */
+    public Validated validate(MemberResolutionRequest request) {
+        String rawDob = request.patient() == null ? null : request.patient().dateOfBirth();
+        String rawDateOfService = request.dateOfService();
+        String rawDateOfServiceEnd = request.dateOfServiceEnd();
         List<ErrorDetail> details = new ArrayList<>();
         LocalDate today = LocalDate.now(clock);
 
-        String memberId = rawMemberId == null ? "" : rawMemberId.strip();
+        String memberId = request.memberId() == null ? "" : request.memberId().strip();
         if (memberId.isEmpty()) {
             details.add(new ErrorDetail("memberId", "MEMBER_ID_MISSING", "memberId is required"));
         }
@@ -131,20 +117,10 @@ public class RequestValidator {
             }
         }
 
-        String vendor = null;
-        if (mode == Mode.STRICT) {
-            vendor = rawVendor == null ? "" : rawVendor.strip();
-            if (vendor.isEmpty()) {
-                details.add(new ErrorDetail("vendor", "VENDOR_MISSING", "vendor is required"));
-            } else if (!VENDOR.matcher(vendor).matches()) {
-                details.add(new ErrorDetail("vendor", "VENDOR_INVALID", "vendor must be 1-40 letters, digits, spaces or _ . ( ) -"));
-            }
-        }
-
         if (!details.isEmpty()) {
             throw new InvalidRequestException(details);
         }
-        return new Validated(memberId, dos, dosEnd, defaulted, dob, vendor);
+        return new Validated(memberId, dos, dosEnd, defaulted, dob);
     }
 
     private static LocalDate parseDate(String value) {

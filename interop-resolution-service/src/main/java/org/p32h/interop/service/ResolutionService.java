@@ -2,20 +2,17 @@ package org.p32h.interop.service;
 
 import org.p32h.interop.api.Candidate;
 import org.p32h.interop.api.Coverage;
+import org.p32h.interop.api.MemberResolutionRequest;
+import org.p32h.interop.api.MemberResolutionResponse;
 import org.p32h.interop.api.SourceMessage;
 import org.p32h.interop.api.Outcome;
 import org.p32h.interop.api.RequestValidator;
-import org.p32h.interop.api.ResolveRequest;
-import org.p32h.interop.api.ResolveResponse;
-import org.p32h.interop.api.VendorMapRequest;
-import org.p32h.interop.api.VendorMapResponse;
 import org.p32h.interop.domain.CoverageDecision;
 import org.p32h.interop.domain.CoverageSpan;
 import org.p32h.interop.domain.MemberRecord;
 import org.p32h.interop.domain.MemberSelector;
 import org.p32h.interop.domain.ResolutionException;
 import org.p32h.interop.domain.SelectionResult;
-import org.p32h.interop.domain.UnknownVendorException;
 import org.p32h.interop.mmi.MmiClient;
 import org.p32h.interop.mmi.MmiException;
 import org.p32h.interop.mmi.MmiMember;
@@ -24,8 +21,6 @@ import org.p32h.interop.mmi.MmiProperties;
 import org.p32h.interop.mmi.MmiRecordMapper;
 import org.p32h.interop.mmi.MmiResult;
 import org.p32h.interop.support.Masking;
-import org.p32h.interop.vendor.FormattedMemberId;
-import org.p32h.interop.vendor.Vendor;
 import org.p32h.interop.vendor.VendorFormatter;
 import org.p32h.interop.vendor.VendorRegistry;
 import java.time.format.DateTimeFormatter;
@@ -36,9 +31,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Two operations over one core. The core: ask MMI once with the member id exactly as received, reduce the
- * records to one person, decide coverage on the date of service. {@link #resolve} then renders the stored id
- * for the one vendor Onyx named; {@link #vendorMap} renders it for every configured vendor.
+ * The member resolution, {@code POST /api/v1/members/resolution}: ask MMI once with the member id exactly as received,
+ * reduce the records to one person, decide coverage on the date (or period) of service, and render the stored id for
+ * every configured vendor.
  */
 @Service
 public class ResolutionService {
@@ -64,41 +59,27 @@ public class ResolutionService {
         this.formatter = formatter;
     }
 
-    /** Operation 1, {@code POST /api/v1/member-ids/resolve}: the id for the one vendor Onyx named. */
-    public ResolveResponse resolve(ResolveRequest request, String correlationId) {
-        long start = System.nanoTime();
-        RequestValidator.Validated v = validator.validate(request);
-        Vendor vendor = vendors.find(v.vendor()).orElseThrow(() -> new UnknownVendorException(vendors.knownCodes()));
-        Resolved r = resolveMember(v, correlationId);
-        FormattedMemberId formatted = r.record() == null ? null : formatter.format(r.record().storedMemberId(), vendor.format());
-        ResolveResponse response = new ResolveResponse(r.outcome(), message(r, v),
-                new ResolveResponse.MemberId(v.memberId(), r.storedMemberId(), formatted == null ? null : formatted.value()),
-                r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
-                r.coverageBlock(), r.candidates(), r.mmiRequestId(), r.mmiNote());
-        logOutcome("resolve", vendor.code(), r, v, start);
-        return response;
-    }
-
-    /** Operation 2, {@code POST /api/v1/member-ids/vendor-map}: the id for every configured vendor, no vendor named. */
-    public VendorMapResponse vendorMap(VendorMapRequest request, String correlationId) {
+    /** Resolves the member behind the id and renders the stored id for every configured vendor. */
+    public MemberResolutionResponse resolve(MemberResolutionRequest request, String correlationId) {
         long start = System.nanoTime();
         RequestValidator.Validated v = validator.validate(request);
         Resolved r = resolveMember(v, correlationId);
-        List<VendorMapResponse.VendorMemberId> vendorMemberIds = null;
+        List<MemberResolutionResponse.VendorMemberId> vendorMemberIds = null;
         if (r.record() != null) {
-            vendorMemberIds = vendors.all().stream().map(vendor -> {
-                FormattedMemberId formatted = formatter.format(r.record().storedMemberId(), vendor.format());
-                return new VendorMapResponse.VendorMemberId(vendor.code(), formatted.value());
-            }).toList();
+            vendorMemberIds = vendors.all().stream()
+                    .map(vendor -> new MemberResolutionResponse.VendorMemberId(vendor.code(),
+                            formatter.format(r.record().storedMemberId(), vendor.format()).value()))
+                    .toList();
         }
-        VendorMapResponse response = new VendorMapResponse(r.outcome(), message(r, v), new VendorMapResponse.MemberId(v.memberId(), r.storedMemberId()),
+        MemberResolutionResponse response = new MemberResolutionResponse(r.outcome(), message(r, v),
+                new MemberResolutionResponse.MemberId(v.memberId(), r.storedMemberId()),
                 r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
                 r.coverageBlock(), r.candidates(), vendorMemberIds, r.mmiRequestId(), r.mmiNote());
-        logOutcome("vendor-map", "ALL(" + vendors.all().size() + ")", r, v, start);
+        logOutcome(r, v, start);
         return response;
     }
 
-    /** What both operations share once the request is valid: MMI's answer reduced to one outcome. */
+    /** MMI's answer reduced to one outcome, before it is rendered. */
     private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String ambiguityReason,
             List<Candidate> candidates, String mmiRequestId, int records, SourceMessage mmiNote) {
 
@@ -225,9 +206,9 @@ public class ResolutionService {
         return m.messageType() != null && mmiProperties.errorMessageTypes().stream().anyMatch(t -> t.equalsIgnoreCase(m.messageType().strip()));
     }
 
-    private static void logOutcome(String operation, String vendor, Resolved r, RequestValidator.Validated v, long start) {
-        log.info("{} outcome={} reason={} vendor={} memberId={} stored={} company={} lob={} dos={} dosEnd={} dosDefaulted={} records={} mmiRequestId={} ms={}",
-                operation, r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(), vendor,
+    private static void logOutcome(Resolved r, RequestValidator.Validated v, long start) {
+        log.info("resolution outcome={} reason={} memberId={} stored={} company={} lob={} dos={} dosEnd={} dosDefaulted={} records={} mmiRequestId={} ms={}",
+                r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(),
                 Masking.memberId(v.memberId()), Masking.memberId(r.storedMemberId()), r.company(), r.lineOfBusiness(),
                 v.dateOfService(), v.dateOfServiceEnd() == null ? "-" : v.dateOfServiceEnd(), v.dateOfServiceDefaulted(), r.records(), r.mmiRequestId(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));

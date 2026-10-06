@@ -13,8 +13,8 @@ public class OpenApiConfig {
         return new OpenAPI().info(new Info()
                 .title("Interop Resolution Service")
                 .version("v1")
-                .description("Onyx's interop lookups. Member ID resolution: resolves an EMR-supplied member ID against the plan's member records, returns it as stored and in the "
-                        + "UM vendor's format (/resolve) or in every vendor's format (/vendor-map), and reports whether "
-                        + "coverage is active on the date of service."));
+                .description("Onyx's interop lookups. Member resolution, POST /api/v1/members/resolution: resolves an EMR-supplied member ID "
+                        + "against the plan's member records, reports whether coverage is active on the date of service, and returns the ID as "
+                        + "stored and in every UM vendor's format."));
     }
 }

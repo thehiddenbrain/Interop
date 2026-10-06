@@ -31,15 +31,6 @@ class ConfigValidationTest {
     }
 
     @Test
-    void duplicateAliasFails() {
-        runner.withPropertyValues("member-id.vendors.MHK.format=SPACED_14", "member-id.vendors.MHK.aliases[0]=EVICORE")
-                .run(ctx -> {
-                    assertThat(ctx).hasFailed();
-                    assertThat(rootMessage(ctx.getStartupFailure())).contains("EVICORE");
-                });
-    }
-
-    @Test
     void stubOutsideDevOrTestProfileFails() {
         runner.withPropertyValues("spring.profiles.active=PQA", "mmi.stub.enabled=true")
                 .run(ctx -> {

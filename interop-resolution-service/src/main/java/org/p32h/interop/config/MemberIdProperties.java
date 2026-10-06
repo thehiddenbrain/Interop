@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import java.util.List;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -30,10 +29,9 @@ public record MemberIdProperties(
             @DefaultValue("America/New_York") @NotBlank String zone) {
     }
 
-    /** One vendor entry. The key of the map is the code Onyx sends (compared case-insensitively). */
+    /** One vendor entry. The key of the map is the vendor code, as it appears in {@code vendorMemberIds}. */
     public record VendorConfig(
             String displayName,
-            @DefaultValue List<String> aliases,
             @NotNull VendorIdFormat format) {
     }
 }
