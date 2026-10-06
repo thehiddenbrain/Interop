@@ -736,7 +736,7 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
   "voidCoverageRecord": "N", "clientId": "INTEROP", "clientType": "INT", "requestId": "INTEROP-1791086059251-93795" }</code></pre>
 <ul>
 <li><code>memberId</code> and <code>legacyMemberId</code> both carry the id exactly as received: the MMI spec's advice to improve the hit rate, and exactly the converted-member case (an EMR still holding the pre-conversion ID).</li>
-<li><code>dosStartDate</code> carries the date of service (the first day when a period is asked about) as <code>MM/dd/yyyy</code>, like every MMI date. No <code>dosEndDate</code>. The coverage MMI returns is evaluated locally (section 10). No <code>searchMode</code>. No demographics ever.</li>
+<li><code>dosStartDate</code> carries the date of service (the first day when a period is asked about) as <code>MM/dd/yyyy</code>, like every MMI date. No <code>dosEndDate</code>. The coverage MMI returns is evaluated locally (section 11). No <code>searchMode</code>. No demographics ever.</li>
 <li>The MMI <code>requestId</code> follows MMI's convention, new per call, logged with the correlation id and returned to Onyx as <code>traceId</code>; it is not the caller's <code>requestId</code>, which stays in this service.</li>
 <li>Timeouts: connect 2 s, read 5 s (<code>mmi.connect-timeout</code> / <code>mmi.read-timeout</code>). No retry: MMI is a core service that answers quickly in normal operation; a 5-second answer is a problem worth surfacing, and Onyx retries later on a 503.</li>
 </ul>
