@@ -13,8 +13,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Schema(description = "Member resolution request: the member id is required; unknown properties are ignored; a sent date must be usable")
 public record MemberResolutionRequest(
-        @Schema(description = "The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed); no shape, length or character check",
-                example = "123456789", requiredMode = Schema.RequiredMode.REQUIRED) String memberId,
+        @Schema(description = "The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed); no shape, length or character check. The example is a masked pattern: a THP Medicare card number is a letter and 8 digits",
+                example = "S########", requiredMode = Schema.RequiredMode.REQUIRED) String memberId,
         @Schema(description = "Date of service, yyyy-MM-dd; the first date when the service covers a period. Defaults to today when omitted (dateOfServiceDefaulted is true). A sent value is the date evaluated: any future date is judged on the coverage on record; not a real date, or more than 10 years back, is a 400.",
                 example = "2026-10-15") String dateOfService,
         @Schema(description = "Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on every day from dateOfService to it. Not before dateOfService; needs dateOfService.", example = "2026-10-20") String dateOfServiceEnd,

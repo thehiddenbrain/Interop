@@ -550,3 +550,12 @@ See the conversation; answers will be appended here.
 - `vendorMemberIds` keeps its name; the owner did not take up the proposed `memberId.forVendors`.
 - 125 tests green; Postman 73 requests, 474 assertions; the OpenAPI document lists `Coverage { coverageId, active,
   effectiveDate, endDate }`, `MemberId { received, resolved }`, `Candidate { memberId, lineOfBusiness, coverageActive }`.
+
+## Feedback 32 (2026-10-06): the Swagger document to share with Onyx
+
+- The owner needs the Swagger to share with Onyx. The live Swagger UI is only reachable where the service runs
+  (`/swagger-ui.html`, off in PRD), so the OpenAPI document is now also a file in the repository:
+  `docs/interop-resolution-service/openapi/interop-resolution-service-openapi.yaml` and `.json`, exported from
+  `/api-docs` without the generated `localhost` server entry; valid OpenAPI 3.1 (swagger-cli validate).
+- The request's `memberId` example was a stub sample with a member id's shape, which the owner's DLP rule would catch
+  in anything shared; it is now the masked pattern `S########`, with the description saying so. No other code change.

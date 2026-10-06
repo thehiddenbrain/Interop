@@ -14,7 +14,8 @@ call serves a prior authorization whose codes go to several vendors (owner, 2026
 |---|---|
 | Endpoint | `POST /v1/interop/resolve`, port **9090** |
 | Stack | Spring Boot 4.0.7 (Spring Framework 7, Jackson 3) / Java 17+ / Gradle 9.5 wrapper, springdoc 3: the same build shape as the EPA Workbench and the member profile service |
-| Swagger UI | `http://localhost:9090/swagger-ui.html` (off in `PRD`) |
+| Swagger UI | `http://localhost:9090/swagger-ui.html` (off in `PRD`); the raw document is `/api-docs` |
+| OpenAPI to share | `docs/interop-resolution-service/openapi/interop-resolution-service-openapi.yaml` and `.json`: `/api-docs` saved without the generated `localhost` server entry. Regenerate after any contract change: start the service on `DEV`, save `/api-docs`, drop `servers`. |
 | Health | `http://localhost:9090/actuator/health` |
 
 ## 1. Run it in STS (or any IDE)
