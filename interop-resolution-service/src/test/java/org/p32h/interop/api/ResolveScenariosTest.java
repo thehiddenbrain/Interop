@@ -48,7 +48,7 @@ class ResolveScenariosTest {
         }
     }
 
-    private static final String PATH = "/api/v1/members/resolution";
+    private static final String PATH = "/v1/interop/resolve";
     /** An unmasked 9- or 11-digit run (member ids), or an MM/dd/yyyy value (MMI dates of birth). */
     private static final Pattern PHI = Pattern.compile("(?<!\\d)(?:\\d{9}|\\d{11})(?!\\d)|(?<![A-Za-z0-9])[A-Za-z]\\d{8}(?!\\d)|\\d{2}/\\d{2}/\\d{4}");
 

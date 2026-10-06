@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 /**
  * Interop Resolution Service.
  *
- * <p>One operation today, one downstream (MMI), no state. {@code POST /api/v1/members/resolution}: Onyx sends the
+ * <p>One operation today, one downstream (MMI), no state. {@code POST /v1/interop/resolve}: Onyx sends the
  * member ID as the provider's EMR supplied it and the date of service; the service returns the ID as stored in MMI,
  * the ID in every configured UM vendor's format, and whether coverage is active on the date of service.
  */

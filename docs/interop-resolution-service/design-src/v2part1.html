@@ -32,14 +32,14 @@
   <p class="lede">A small, stateless Spring Boot service for Onyx. It takes the member ID exactly as the provider's EMR supplied it, verifies it with the Master Member Index (MMI), returns the ID as stored and in the format each UM vendor expects, all vendors in one answer, and says with one flag whether coverage is active on the date of service, or throughout a period of service.</p>
   <div class="meta">
     <span><b>Status</b> v0.2, code delivered (<code>interop-resolution-service/</code>), reviewed, 125 tests green, Postman collection with tests on every request</span>
-    <span><b>Date</b> 2026-10-04 (v0.2 of 2026-10-03, revised: the member id is sent to MMI exactly as the EMR typed it; a second operation, the vendor map, added and then made lenient; MMI's four answers (200, 404, 400, 500) mapped one to one, its 404 answered as 200 NOT_FOUND with what MMI said; the response trimmed to the flag, the ids, the line of business and the coverage period; on 2026-10-06 one operation, POST /api/v1/members/resolution, with /resolve removed)</span>
+    <span><b>Date</b> 2026-10-04 (v0.2 of 2026-10-03, revised: the member id is sent to MMI exactly as the EMR typed it; a second operation, the vendor map, added and then made lenient; MMI's four answers (200, 404, 400, 500) mapped one to one, its 404 answered as 200 NOT_FOUND with what MMI said; the response trimmed to the flag, the ids, the line of business and the coverage period; on 2026-10-06 one operation, POST /v1/interop/resolve, with the other paths removed)</span>
     <span><b>Stack</b> Spring Boot 4.0.7 · Java 17+ · Gradle 9.5 · port 9090 (the EPA Workbench build shape)</span>
     <span><b>Only integration</b> MMI</span>
   </div>
 </header>
 
 <h2 id="summary"><span class="num">1</span>Summary</h2>
-<p>Every UM vendor stores our member ID in its own shape. A THP Medicare (TMP) or SCO card prints 9 characters; our systems store those 9 characters, three spaces and the suffix <code>01</code> (14 characters); eviCore, Evolent and Carelon keep 11 characters without the spaces, MHK keeps all 14, Optum keeps only the 9 characters printed on the card. EMRs type whatever is on the card. Today the mismatch surfaces at the vendor. This service moves the check to the front of the flow: one call from Onyx, one call to MMI, and back come the ID as received, the ID as stored, the ID in every vendor's format, the coverage flag and an id for the coverage period. One operation, <code>POST /api/v1/members/resolution</code>, gives every vendor's format at once, so one call serves a prior authorization whose codes go to several vendors.</p>
+<p>Every UM vendor stores our member ID in its own shape. A THP Medicare (TMP) or SCO card prints 9 characters; our systems store those 9 characters, three spaces and the suffix <code>01</code> (14 characters); eviCore, Evolent and Carelon keep 11 characters without the spaces, MHK keeps all 14, Optum keeps only the 9 characters printed on the card. EMRs type whatever is on the card. Today the mismatch surfaces at the vendor. This service moves the check to the front of the flow: one call from Onyx, one call to MMI, and back come the ID as received, the ID as stored, the ID in every vendor's format, the coverage flag and an id for the coverage period. One operation, <code>POST /v1/interop/resolve</code>, gives every vendor's format at once, so one call serves a prior authorization whose codes go to several vendors.</p>
 
 <!--FIGURE1-->
 
@@ -111,6 +111,11 @@
 </div>
 
 <div class="callout">
+  <div class="label">Revised 2026-10-06 (owner feedback 30)</div>
+  <p>The path is <code>POST /v1/interop/resolve</code>: the verb, under the service's own name, without the <code>/api</code> prefix. <code>/api/v1/members/resolution</code>, the path of feedback 29, answers 404 <code>ROUTE_NOT_FOUND</code> like the older paths. Nothing else changed: the request, the response, the errors and the class names (<code>MemberResolutionController</code>, <code>MemberResolutionRequest</code>, <code>MemberResolutionResponse</code>) stay.</p>
+</div>
+
+<div class="callout">
   <div class="label">Revised 2026-10-04 (owner feedback 16)</div>
   <p>Nothing a caller receives names MMI: it is internal. The trace id of the lookup is <code>traceId</code> (was <code>mmiRequestId</code>), what the lookup said on a miss is <code>sourceMessage</code> (was <code>mmiMessage</code>), the error codes are <code>MEMBER_LOOKUP_UNAVAILABLE</code>, <code>MEMBER_LOOKUP_REJECTED</code>, <code>MEMBER_LOOKUP_ERROR</code> and <code>MEMBER_LOOKUP_INVALID_RESPONSE</code>, every message says "the member lookup", the gateway message no longer carries the MMI URL, and the Swagger text speaks of the plan's member records. The logs, which stay inside the service, still say MMI. This document keeps naming MMI because it is the design, not the API.</p>
 </div>
@@ -164,7 +169,7 @@
 <div>
 <h3>In scope</h3>
 <ul>
-<li>One operation, <code>POST /api/v1/members/resolution</code>: the member behind the id, the coverage flag for the date or period of service, and the id in every configured vendor's format, from one MMI call.</li>
+<li>One operation, <code>POST /v1/interop/resolve</code>: the member behind the id, the coverage flag for the date or period of service, and the id in every configured vendor's format, from one MMI call.</li>
 <li>The member id is sent to MMI exactly as the EMR typed it, whatever its length, separators or case; this service checks only that one was sent.</li>
 <li>One MMI call per request; TMP/SCO resolve from any form; dependents handled through the DOB or AMBIGUOUS with candidates; converted THP↔HPHC members handled through MMI's legacy link.</li>
 <li>Coverage flag for the date of service, or for a period of service from <code>dateOfService</code> to <code>dateOfServiceEnd</code> (today when omitted), with the continuous coverage period; why an inactive member is not covered is said in the one-sentence <code>message</code>.</li>

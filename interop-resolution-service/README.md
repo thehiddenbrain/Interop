@@ -8,11 +8,11 @@ Spring Boot service for Onyx. Onyx sends the member ID exactly as the provider's
 service, a single day or a period (`dateOfService` to `dateOfServiceEnd`); the service verifies the ID with MMI (Master
 Member Index), returns it **as stored** and **in every UM vendor's format**, and says whether coverage is **active**. One
 call serves a prior authorization whose codes go to several vendors (owner, 2026-10-05). One operation,
-`POST /api/v1/members/resolution` (owner feedback 29), one downstream (MMI), no database, no state.
+`POST /v1/interop/resolve` (owner feedback 29 and 30), one downstream (MMI), no database, no state.
 
 | | |
 |---|---|
-| Endpoint | `POST /api/v1/members/resolution`, port **9090** |
+| Endpoint | `POST /v1/interop/resolve`, port **9090** |
 | Stack | Spring Boot 4.0.7 (Spring Framework 7, Jackson 3) / Java 17+ / Gradle 9.5 wrapper, springdoc 3: the same build shape as the EPA Workbench and the member profile service |
 | Swagger UI | `http://localhost:9090/swagger-ui.html` (off in `PRD`) |
 | Health | `http://localhost:9090/actuator/health` |
@@ -137,7 +137,7 @@ that environment's `application-<ENV>.yaml`; nothing else changes.
    on port 80 (plain HTTP, no token, as the MMI contract states). If it cannot, every call answers
    `503 MEMBER_LOOKUP_UNAVAILABLE` with `CONNECT_FAILED` and the log line `mmi call failed ... cause=...` names the reason.
 5. **Try it**: a Postman request with a real PQA member id, typed as the EMR has it, or
-   `curl -X POST http://localhost:9090/api/v1/members/resolution -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\"}"`.
+   `curl -X POST http://localhost:9090/v1/interop/resolve -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\"}"`.
    The response carries `traceId` (`INTEROP-<millis>-<5 digits>`), which the MMI team can find in their logs.
 
 #### Reading the MMI request and response when something fails
@@ -187,13 +187,13 @@ One operation, `POST` with a JSON body (the member id is PHI and must not appear
 repeated. Nothing a caller receives names MMI (owner's rule): the bodies speak of "the member lookup", the trace id of
 that lookup is `traceId`, and what the lookup said on a miss is `sourceMessage`. The answer carries the member id in
 every configured vendor's format, so one call serves a prior authorization whose codes go to several vendors (owner,
-2026-10-05). The earlier `/api/v1/member-ids/resolve` and `/api/v1/member-ids/vendor-map` are gone (owner feedback
-29) and answer 404 `ROUTE_NOT_FOUND`.
+2026-10-05). The earlier paths `/api/v1/member-ids/resolve`, `/api/v1/member-ids/vendor-map` and, for one
+day, `/api/v1/members/resolution` are gone (owner feedback 29 and 30) and answer 404 `ROUTE_NOT_FOUND`.
 
-### Member resolution: `POST /api/v1/members/resolution`
+### Member resolution: `POST /v1/interop/resolve`
 
 ```http
-POST /api/v1/members/resolution
+POST /v1/interop/resolve
 Content-Type: application/json
 X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed in the response header, generated when absent)
 
@@ -335,7 +335,7 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 
 | HTTP | `error.code` | When | Onyx action |
 |---|---|---|---|
-| 400 | `INVALID_REQUEST` | A missing or blank member ID (`MEMBER_ID_MISSING`), bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE` for a date more than 10 years back; there is no upper limit, a future date is judged on the coverage on record; `DATE_OF_SERVICE_END_INVALID`, `DATE_OF_SERVICE_END_BEFORE_START`, `DATE_OF_SERVICE_END_WITHOUT_START` for the end of a period of service; `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); every problem is listed in `details[]`. Unknown properties, a vendor included, are ignored, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operation is POST /api/v1/members/resolution".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
+| 400 | `INVALID_REQUEST` | A missing or blank member ID (`MEMBER_ID_MISSING`), bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE` for a date more than 10 years back; there is no upper limit, a future date is judged on the coverage on record; `DATE_OF_SERVICE_END_INVALID`, `DATE_OF_SERVICE_END_BEFORE_START`, `DATE_OF_SERVICE_END_WITHOUT_START` for the end of a period of service; `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); every problem is listed in `details[]`. Unknown properties, a vendor included, are ignored, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operation is POST /v1/interop/resolve".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems; anything else is an Onyx mapping defect. |
 | 400 | `MEMBER_LOOKUP_REJECTED` | MMI answered 400: it could not process the request as sent (`details[0].code` `HTTP_400`; the message forwards MMI's code and text when MMI sent a message). `traceId` present, no `Retry-After`. | Never retry as is. Alert the service owners with the `traceId`; MMI's text says what it did not accept. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
 | 502 | `MEMBER_LOOKUP_ERROR`, `MEMBER_LOOKUP_INVALID_RESPONSE` | MMI reported an error of its own in `messages[]` with no members (`ERROR_MESSAGE`; the message forwards MMI's code and text: `The member lookup reported an error: ES_TIMEOUT ...`); a 4xx other than 400 and 404 from the MMI endpoint, which is a gateway or proxy answering, not MMI (`HTTP_<code>`; the message says so and repeats the URL); an unreadable 2xx body (`EMPTY_BODY`, `UNPARSEABLE_BODY`); records without a member id (`NO_MEMBER_ID`); or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read). | Park, alert the service owners. |
@@ -442,7 +442,7 @@ separators removed.
 Postman: import `postman/InteropResolution.postman_collection.json` and
 `postman/Local.postman_environment.json` (`baseUrl = http://localhost:9090`). Every request carries tests;
 run the whole collection with the Collection Runner for a green scenario pass. Every folder but 6 exercises
-`POST /api/v1/members/resolution` (folder 6 is health and the OpenAPI document): folders 1 to 3 the populations and
+`POST /v1/interop/resolve` (folder 6 is health and the OpenAPI document): folders 1 to 3 the populations and
 vendor formats, folder 4 not found and request validation, folder 5 the member lookup failures, folder **7** every
 vendor's id from one lookup, the leniency (a `vendor` and unknown properties ignored, only a missing member id answered
 400 `INVALID_REQUEST`, an unusable date a 400) and periods of service. The DEV

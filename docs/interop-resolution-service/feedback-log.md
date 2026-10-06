@@ -525,3 +525,15 @@ See the conversation; answers will be appended here.
   Postman: 73 requests, 474 assertions, every request on the new path.
 - In healthcare operations "resolution" can also mean closing a case (grievance, appeal); the Swagger summary,
   "Resolve a member id for a date of service", keeps the API catalog from reading it that way.
+
+## Feedback 30 (2026-10-06): the path is `/v1/interop/resolve`
+
+- The owner asked for the verb instead of the noun ("just resolve instead of resolution"), then settled the whole
+  path: `v1/interop/resolve`.
+- Applied as written: `POST /v1/interop/resolve`, without the `/api` prefix the earlier paths had; nothing in the
+  service depended on that prefix. Path only: the request, the 200 body, the errors and the class names stay
+  (`MemberResolutionController` and its request and response records; the operation is still the member
+  resolution). `/api/v1/members/resolution` answers 404 `ROUTE_NOT_FOUND` like the older paths, and the Postman
+  wrong-route request now targets it.
+- If the `/api` prefix is wanted after all, it is one constant, `MemberResolutionController.PATH`, plus the docs.
+- 125 tests green; Postman 73 requests, 474 assertions on the new path.

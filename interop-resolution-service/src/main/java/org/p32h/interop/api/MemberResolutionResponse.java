@@ -4,7 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * The 200 response of {@code POST /api/v1/members/resolution}. Lean by design: the outcome, one sentence, the member
+ * The 200 response of {@code POST /v1/interop/resolve}. Lean by design: the outcome, one sentence, the member
  * id as received and as stored, the line of business (Onyx routes on it), the date evaluated ({@code dateOfServiceEnd}
  * too when a period was asked about), the coverage flag with its period and id, the candidates when AMBIGUOUS, the id
  * in every configured vendor's format, and a trace id for support (the id of the lookup behind the answer).

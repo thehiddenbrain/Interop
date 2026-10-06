@@ -1,7 +1,7 @@
 
 <h2 id="api"><span class="num">6</span>API contract for Onyx</h2>
 <h3>6.1 Operation and headers</h3>
-<p>One operation, <code>POST /api/v1/members/resolution</code> with <code>Content-Type: application/json</code> (owner feedback 29). It finds the member behind the id the EMR typed, says whether coverage is active on the date of service or on every day of a period of service, and returns the id as stored and in every configured vendor's format, so one call serves a prior authorization whose codes go to several vendors. The earlier <code>/api/v1/member-ids/resolve</code> and <code>/api/v1/member-ids/vendor-map</code> are gone and answer 404 <code>ROUTE_NOT_FOUND</code>. POST because the member ID is PHI and must not appear in URLs or access logs; the operation is a pure read and may be repeated. The service always answers JSON whatever <code>Accept</code> header is sent, and always sets <code>Cache-Control: no-store</code>.</p>
+<p>One operation, <code>POST /v1/interop/resolve</code> with <code>Content-Type: application/json</code> (owner feedback 29 and 30). It finds the member behind the id the EMR typed, says whether coverage is active on the date of service or on every day of a period of service, and returns the id as stored and in every configured vendor's format, so one call serves a prior authorization whose codes go to several vendors. The earlier <code>/api/v1/member-ids/resolve</code>, <code>/api/v1/member-ids/vendor-map</code> and <code>/api/v1/members/resolution</code> are gone and answer 404 <code>ROUTE_NOT_FOUND</code>. POST because the member ID is PHI and must not appear in URLs or access logs; the operation is a pure read and may be repeated. The service always answers JSON whatever <code>Accept</code> header is sent, and always sets <code>Cache-Control: no-store</code>.</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Header</th><th>Direction</th><th>Rule</th></tr></thead>
 <tbody>
@@ -61,7 +61,7 @@
 
 <h3>6.5 Examples (real output of the delivered service against the stub)</h3>
 <h4>Request</h4>
-<pre><code>POST /api/v1/members/resolution
+<pre><code>POST /v1/interop/resolve
 Content-Type: application/json
 X-Correlation-Id: ONYX-PA-2026-000123
 
@@ -296,7 +296,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
   &quot;correlationId&quot;: &quot;ONYX-PA-2026-000123&quot; }</code></pre>
 <p class="small">Before feedback 20 this request answered 200 ACTIVE for today, with <code>dateOfServiceDefaulted: true</code>, which read as "active for 2027".</p>
 <h2 id="onyx"><span class="num">7</span>What Onyx does with each answer</h2>
-<p>Onyx calls <code>POST /api/v1/members/resolution</code> once per prior authorization: a prior authorization with several codes may go to several vendors, and the one answer gives every vendor's format; Onyx keeps <code>vendorMemberIds[]</code> with the transaction and takes the entry for each vendor. Anything in the request the operation does not need, a vendor included, is ignored; a date that cannot be used is a 400, because the answer is always about the date that was sent.</p>
+<p>Onyx calls <code>POST /v1/interop/resolve</code> once per prior authorization: a prior authorization with several codes may go to several vendors, and the one answer gives every vendor's format; Onyx keeps <code>vendorMemberIds[]</code> with the transaction and takes the entry for each vendor. Anything in the request the operation does not need, a vendor included, is ignored; a date that cannot be used is a 400, because the answer is always about the date that was sent.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Signal</th><th>Meaning</th><th>Onyx action</th></tr></thead>
 <tbody>

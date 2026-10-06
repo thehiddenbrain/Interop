@@ -11,12 +11,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/** The one operation, {@code POST /api/v1/members/resolution} (owner feedback 29). */
+/** The one operation, {@code POST /v1/interop/resolve} (owner feedback 29 and 30). */
 @RestController
 @Tag(name = "Member resolution", description = "Resolve an EMR-supplied member id against the plan's member records for a date of service")
 public class MemberResolutionController {
 
-    public static final String PATH = "/api/v1/members/resolution";
+    public static final String PATH = "/v1/interop/resolve";
 
     private final ResolutionService service;
 

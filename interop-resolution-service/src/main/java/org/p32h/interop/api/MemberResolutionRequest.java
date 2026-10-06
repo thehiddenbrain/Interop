@@ -5,7 +5,7 @@ import org.p32h.interop.support.Masking;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * What Onyx sends to {@code POST /api/v1/members/resolution}. Only the member id is required; unknown properties, a
+ * What Onyx sends to {@code POST /v1/interop/resolve}. Only the member id is required; unknown properties, a
  * {@code vendor} included, are ignored (owner feedback 9). Dates travel as strings so every problem can be reported
  * together. A date that is sent is always the date evaluated: an unusable one is a 400, never replaced by today
  * (owner feedback 20).

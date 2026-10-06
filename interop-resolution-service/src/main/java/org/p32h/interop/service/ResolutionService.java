@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * The member resolution, {@code POST /api/v1/members/resolution}: ask MMI once with the member id exactly as received,
+ * The member resolution, {@code POST /v1/interop/resolve}: ask MMI once with the member id exactly as received,
  * reduce the records to one person, decide coverage on the date (or period) of service, and render the stored id for
  * every configured vendor.
  */

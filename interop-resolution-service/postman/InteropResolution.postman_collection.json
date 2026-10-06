@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "fc06bd8a-2b7b-4a0b-a1a5-d2d605d0da94",
     "name": "Interop Resolution Service",
-    "description": "Every scenario of POST /api/v1/members/resolution against the DEV profile (in-process member lookup stub on port 9090; start the service with --spring.profiles.active=DEV, the default profile is PQA). Run the whole collection with the Collection Runner; each request carries its own tests. The answer carries the member id in every configured vendor's format (vendorMemberIds); Onyx sends each vendor its entry. One member lookup call per request. The member id is sent to the member lookup exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. Only the member id is required; unknown properties, a vendor included, are ignored. A sent date is the date judged: an unusable one is a 400, never replaced by today (feedback 20). Every 200 carries a one-sentence \"message\" right after \"outcome\". the member lookup's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MEMBER_LOOKUP_REJECTED with the member lookup's text; 503 MEMBER_LOOKUP_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. On NOT_FOUND, \"sourceMessage\" (type, status, code, text) carries the member lookup's own message when the member lookup sent one.",
+    "description": "Every scenario of POST /v1/interop/resolve against the DEV profile (in-process member lookup stub on port 9090; start the service with --spring.profiles.active=DEV, the default profile is PQA). Run the whole collection with the Collection Runner; each request carries its own tests. The answer carries the member id in every configured vendor's format (vendorMemberIds); Onyx sends each vendor its entry. One member lookup call per request. The member id is sent to the member lookup exactly as the EMR typed it (surrounding whitespace removed); the only check on it is presence. Only the member id is required; unknown properties, a vendor included, are ignored. A sent date is the date judged: an unusable one is a 400, never replaced by today (feedback 20). Every 200 carries a one-sentence \"message\" right after \"outcome\". the member lookup's contract has four answers: 200 success, 404 member not found, 400 bad request, 500 internal error. This service maps them one to one: outcome from the records; 200 NOT_FOUND; 400 MEMBER_LOOKUP_REJECTED with the member lookup's text; 503 MEMBER_LOOKUP_UNAVAILABLE. Only an unknown route of this service is a 404 from this service. On NOT_FOUND, \"sourceMessage\" (type, status, code, text) carries the member lookup's own message when the member lookup sent one.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -55,15 +55,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -110,15 +109,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -163,15 +161,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -216,15 +213,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -272,15 +268,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -327,15 +322,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -380,15 +374,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -433,15 +426,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -486,15 +478,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -542,15 +533,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -598,15 +588,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -656,15 +645,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -709,15 +697,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -763,15 +750,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -817,15 +803,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -869,15 +854,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -922,15 +906,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -983,15 +966,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1039,15 +1021,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1092,15 +1073,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1147,15 +1127,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1199,15 +1178,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1250,15 +1228,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1313,15 +1290,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1367,15 +1343,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1421,15 +1396,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1474,15 +1448,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1527,15 +1500,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1589,15 +1561,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1645,15 +1616,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1702,15 +1672,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1759,15 +1728,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1816,15 +1784,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1868,15 +1835,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1920,15 +1886,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -1971,15 +1936,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2026,15 +1990,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2078,15 +2041,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2129,15 +2091,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2180,15 +2141,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2231,15 +2191,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             }
           },
@@ -2255,7 +2214,7 @@
                 "exec": [
                   "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
                   "pm.test(\".error.details[0].code = ROUTE_NOT_FOUND\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.error.details[0].code)).to.eql(JSON.stringify(\"ROUTE_NOT_FOUND\")); });",
-                  "pm.test(\".error.details[0].message contains POST /api/v1/members/resolution\", function () { const j = pm.response.json(); pm.expect(j.error.details[0].message).to.include(\"POST /api/v1/members/resolution\"); });",
+                  "pm.test(\".error.details[0].message contains POST /v1/interop/resolve\", function () { const j = pm.response.json(); pm.expect(j.error.details[0].message).to.include(\"POST /v1/interop/resolve\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -2274,7 +2233,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolve",
+              "raw": "{{baseUrl}}/api/v1/members/resolution",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2282,7 +2241,7 @@
                 "api",
                 "v1",
                 "members",
-                "resolve"
+                "resolution"
               ]
             },
             "body": {
@@ -2337,15 +2296,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2392,15 +2350,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2448,15 +2405,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2503,15 +2459,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2561,15 +2516,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2614,15 +2568,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2666,15 +2619,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2720,15 +2672,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2771,15 +2722,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2927,15 +2877,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -2984,15 +2933,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3048,15 +2996,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3107,15 +3054,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3166,15 +3112,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3226,15 +3171,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3283,15 +3227,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3340,15 +3283,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3393,15 +3335,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3449,15 +3390,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3505,15 +3445,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3559,15 +3498,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3617,15 +3555,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3674,15 +3611,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3732,15 +3668,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3784,15 +3719,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3835,15 +3769,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3886,15 +3819,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3938,15 +3870,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
@@ -3994,15 +3925,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/members/resolution",
+              "raw": "{{baseUrl}}/v1/interop/resolve",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "api",
                 "v1",
-                "members",
-                "resolution"
+                "interop",
+                "resolve"
               ]
             },
             "body": {
