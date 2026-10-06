@@ -537,3 +537,16 @@ See the conversation; answers will be appended here.
   wrong-route request now targets it.
 - If the `/api` prefix is wanted after all, it is one constant, `MemberResolutionController.PATH`, plus the docs.
 - 125 tests green; Postman 73 requests, 474 assertions on the new path.
+
+## Feedback 31 (2026-10-06): a flat coverage block, id first; `stored` becomes `resolved`
+
+- The owner asked why `coverage` nests a `span`, and whether `memberId.stored` should be called something like
+  "source". Decided: the coverage block is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`;
+  and `stored` becomes `resolved`.
+- Applied with the two follow-ons proposed in the same discussion: an open-ended period ends `9999-12-31`, the way MMI
+  writes it and the coverage id already encodes it, instead of an explicit null, so every date sent is a real date and
+  absent dates mean there is no period; and each AMBIGUOUS candidate's `storedMemberId` is now `memberId`. "Source" was
+  not taken: in interop it reads as the sending system, whose value is `received`.
+- `vendorMemberIds` keeps its name; the owner did not take up the proposed `memberId.forVendors`.
+- 125 tests green; Postman 73 requests, 474 assertions; the OpenAPI document lists `Coverage { coverageId, active,
+  effectiveDate, endDate }`, `MemberId { received, resolved }`, `Candidate { memberId, lineOfBusiness, coverageActive }`.

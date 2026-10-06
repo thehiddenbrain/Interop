@@ -116,6 +116,11 @@
 </div>
 
 <div class="callout">
+  <div class="label">Revised 2026-10-06 (owner feedback 31)</div>
+  <p>The response reads more plainly. <code>coverage</code> is flat, in this order: <code>coverageId</code>, <code>active</code>, <code>effectiveDate</code>, <code>endDate</code>. The nested <code>span</code> is gone, and an open-ended period ends <code>9999-12-31</code> instead of an explicit null, so every date sent is a real date and absent dates mean there is no period. <code>memberId.stored</code> is now <code>memberId.resolved</code>, the id the lookup resolved to, and each AMBIGUOUS candidate's <code>storedMemberId</code> is <code>memberId</code>. Sections 6, 16 and 20 are updated; the decision log in section 18 has the entry.</p>
+</div>
+
+<div class="callout">
   <div class="label">Revised 2026-10-04 (owner feedback 16)</div>
   <p>Nothing a caller receives names MMI: it is internal. The trace id of the lookup is <code>traceId</code> (was <code>mmiRequestId</code>), what the lookup said on a miss is <code>sourceMessage</code> (was <code>mmiMessage</code>), the error codes are <code>MEMBER_LOOKUP_UNAVAILABLE</code>, <code>MEMBER_LOOKUP_REJECTED</code>, <code>MEMBER_LOOKUP_ERROR</code> and <code>MEMBER_LOOKUP_INVALID_RESPONSE</code>, every message says "the member lookup", the gateway message no longer carries the MMI URL, and the Swagger text speaks of the plan's member records. The logs, which stay inside the service, still say MMI. This document keeps naming MMI because it is the design, not the API.</p>
 </div>

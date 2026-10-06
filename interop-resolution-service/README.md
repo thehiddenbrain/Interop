@@ -238,15 +238,15 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 | `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
 | `AMBIGUOUS` | MMI matched the ID to several persons (a 9-character ID of a population with dependents) and no DOB settled it | Resend with the member's full ID including the suffix, or with `patient.dateOfBirth`, else intake picks from `candidates[]`. |
 
-For the TMP id `123456789` (stored `123456789   01`):
+For the TMP id `123456789` (resolved to `123456789   01`):
 
 ```json
 { "outcome": "ACTIVE",
   "message": "Member found; coverage active on 2026-10-15",
-  "memberId": { "received": "123456789", "stored": "123456789   01" },
+  "memberId": { "received": "123456789", "resolved": "123456789   01" },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": true, "span": { "effectiveDate": "2021-01-01", "endDate": null }, "coverageId": "123456789012021010199991231" },
+  "coverage": { "coverageId": "123456789012021010199991231", "active": true, "effectiveDate": "2021-01-01", "endDate": "9999-12-31" },
   "vendorMemberIds": [
     { "vendor": "CARELON", "memberId": "12345678901" },
     { "vendor": "EVICORE", "memberId": "12345678901" },
@@ -255,25 +255,27 @@ For the TMP id `123456789` (stored `123456789   01`):
     { "vendor": "ONYX",    "memberId": "12345678901" },
     { "vendor": "OPTUM",   "memberId": "123456789" }
   ],
-  "traceId": "INTEROP-1791247573343-72104" }
+  "traceId": "INTEROP-1791251466351-51536" }
 ```
 
 `memberId.received` is the ID as Onyx sent it (surrounding whitespace removed): exactly what was sent to MMI.
-`memberId.stored` is the ID exactly as MMI holds it. `vendorMemberIds` carries one entry per configured vendor, sorted
+`memberId.resolved` is the ID it resolved to, exactly as MMI holds it for the member the lookup settled on; for a
+converted member it is a different number from the one received (it was called `stored` until feedback 31). `vendorMemberIds` carries one entry per configured vendor, sorted
 by vendor code: that ID in the vendor's format, the value that goes into that vendor's payload. For Optum it is the
 9-character core only, the number printed on the card: Optum stores the core, not the 11 characters (owner feedback 23).
 Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 characters, spaces, 2 digits); any other
 stored ID (Public Plans, HPHC) is passed as stored for every vendor.
-`coverage` is the flag and the coverage period: `coverage.span { effectiveDate, endDate }` is the continuous period
-that covers the (first) date of service (`endDate` is an explicit `null` for open-ended coverage). Records that touch,
+`coverage` is flat, in this order (owner feedback 31): `coverageId`, `active`, `effectiveDate`, `endDate`. The dates
+are those of the continuous period that covers the (first) date of service; an open-ended period ends `9999-12-31`, so
+every date sent is a real date and absent dates mean there is no period. Records that touch,
 as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true only when
 that period covers every day asked about; when it covers the first day but ends before the last, `active` is false and
 the period is still shown so intake sees how far coverage goes. Otherwise there is no period and `message` says why.
 `coverage.coverageId` names that period (owner feedback 24, form from the Onyx requirement, feedback 28): the stored member
 id with its spaces and any punctuation removed, then the period's effective date, then its end date, both `yyyyMMdd`, run
 together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `99991231` stands for an open-ended
-period). It is present whenever `span` is, and the same member with the same coverage always gets the same
-value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring span dates.
+period). It is present whenever the dates are, and the same member with the same coverage always gets the same
+value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring dates.
 `lineOfBusiness` is MMI's value (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it. The company (THP or
 HPHC) is not returned: the stored id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
 to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body.
@@ -284,19 +286,19 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
 | `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) · `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` · `Member found; coverage ended before <dateOfService>` · `Member found; coverage not yet effective on <dateOfService>` · `Member found; no coverage on <dateOfService> (gap between coverage periods)` · `Member found; no coverage on record` · `No member found for this id` · `Several members match this id; add patient.dateOfBirth or resend the member's full id including the suffix, or pick from candidates` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend the member's full id including the suffix, or pick from candidates`) |
-| `memberId` | always | `received`; `stored` when a member was identified |
+| `memberId` | always | `received`; `resolved` when a member was identified |
 | `dateOfService`, `dateOfServiceDefaulted` | always | The (first) date evaluated and whether it was defaulted to today |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
-| `lineOfBusiness`, `coverage` | `ACTIVE`, `INACTIVE` | From the stored record and the coverage decision: `coverage { active, span?, coverageId? }`; `coverageId` whenever `span` is present |
-| `candidates[]` | `AMBIGUOUS` | `{ storedMemberId, lineOfBusiness, coverageActive }` per person, sorted by id |
+| `lineOfBusiness`, `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates come together, whenever a period covers the (first) date of service |
+| `candidates[]` | `AMBIGUOUS` | `{ memberId, lineOfBusiness, coverageActive }` per person, sorted by id |
 | `vendorMemberIds[]` | `ACTIVE`, `INACTIVE` | `{ vendor, memberId }` per configured vendor, sorted by vendor code |
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
 
 `vendorMemberIds` is present **only when a member was identified**, that is for `ACTIVE` and `INACTIVE`.
-`NOT_FOUND` and `AMBIGUOUS` answers carry no `vendorMemberIds` and no `memberId.stored`; an `AMBIGUOUS` answer carries
+`NOT_FOUND` and `AMBIGUOUS` answers carry no `vendorMemberIds` and no `memberId.resolved`; an `AMBIGUOUS` answer carries
 `candidates[]`, and a resend with `patient.dateOfBirth` settles it.
-For an HPHC id (stored `HP456789012`) or a Public Plans id (`34567890102`) every entry carries the stored id
+For an HPHC id (resolved to `HP456789012`) or a Public Plans id (`34567890102`) every entry carries the resolved id
 unchanged, Optum included. Absent blocks are omitted, not sent as `null`.
 
 A `NOT_FOUND` answer from the DEV stub (the real MMI's values will differ; the stub answers HTTP 404, as the owner
@@ -470,7 +472,7 @@ DOB is still 422 `DOB_MISMATCH` after the one MMI call (`traceId` present). `aFu
 `aSentDateOfServiceIsNeverReplacedByToday` are the owner's PQA case (feedback 20): a member whose only record runs 01/01/2026 to 12/31/2026 is
 ACTIVE for 2026-10-15 and INACTIVE for 2027-10-15, the response carries the date asked about, an unusable date is a 400
 and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. `aPeriodOfServiceMustBeCoveredOnEveryDay` (feedback 21): a member with
-adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the merged period in `coverage.span`, INACTIVE
+adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the merged period in the coverage dates, INACTIVE
 from 2026-12-20 to 2027-01-05 ("coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05"), `dateOfServiceEnd`
 is echoed only when sent, and an end before the start, without a start or not a date is a 400. A capturing log appender
 asserts no log line (message or exception text; payload logging is off in the `test` profile) contains an
@@ -488,5 +490,5 @@ untouched.
 - MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500 (owner);
   confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `sourceMessage`
   can be filled: if the log shows `MMI_404_WITHOUT_ENVELOPE` for an id that exists nowhere, it does not.
-- `coverage.active` is the flag; the span is supporting detail. Legacy IDs, migration dates, PCP and
+- `coverage.active` is the flag; the dates are supporting detail. Legacy IDs, migration dates, PCP and
   group names are intentionally not returned.

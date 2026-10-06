@@ -100,10 +100,11 @@ public class ResolutionService {
                 return null;
             }
             if (coverage.span() == null) {
-                return new Coverage(coverage.active(), null, null);
+                return new Coverage(null, coverage.active(), null, null);
             }
-            Coverage.Span span = new Coverage.Span(coverage.span().effective(), coverage.span().end());
-            return new Coverage(coverage.active(), span, coverageId(record.storedMemberId(), coverage.span()));
+            CoverageSpan period = coverage.span();
+            return new Coverage(coverageId(record.storedMemberId(), period), coverage.active(), period.effective(),
+                    period.end() == null ? Coverage.OPEN_END : period.end());
         }
 
         /**
