@@ -160,6 +160,18 @@ class ResolveScenariosTest {
         return entry(r, vendor).path("memberId").asText();
     }
 
+    /** Every vendor entry's payer: eviCore's own for the member's company, the default for every other vendor. */
+    private static void assertPayers(JsonNode r, String evicorePayer) {
+        assertThat(r.at("/memberId/forVendors")).hasSize(6);
+        for (JsonNode e : r.at("/memberId/forVendors")) {
+            String vendor = e.get("vendor").asText();
+            String want = "EVICORE".equals(vendor) ? evicorePayer : "Point32Health";
+            assertThat(e.properties()).extracting(Map.Entry::getKey).as(vendor).containsExactly("vendor", "memberId", "payerId", "payerName");
+            assertThat(e.get("payerId").asText()).as(vendor).isEqualTo(want);
+            assertThat(e.get("payerName").asText()).as(vendor).isEqualTo(want);
+        }
+    }
+
     /** Everything one vendor receives: its entry in memberId.forVendors. */
     private static JsonNode entry(JsonNode r, String vendor) {
         for (JsonNode e : r.at("/memberId/forVendors")) {
@@ -181,6 +193,7 @@ class ResolveScenariosTest {
                 text.append(' ').append(e.getThrowableProxy().getMessage());
             }
             String line = text.toString();
+            assertThat(line).as("every stub member's company has a payer entry wherever a vendor keys on it").doesNotContain("VENDOR_PAYER_DEFAULTED");
             assertThat(line).as("no date of birth or name in a log line").doesNotContain(STUB_DOBS)
                     .doesNotContain("1950-03-15", "2012-09-09", "Morgan", "Rivera");
         }
@@ -208,13 +221,7 @@ class ResolveScenariosTest {
         assertThat(r.properties()).extracting(Map.Entry::getKey).as("the whole answer, in this order").containsExactly(
                 "outcome", "message", "memberId", "lineOfBusiness", "dateOfService", "dateOfServiceDefaulted", "coverage",
                 "requestId", "traceId");
-        assertThat(entry(r, "MHK").properties()).extracting(Map.Entry::getKey).as("everything Onyx puts on a vendor's request")
-                .containsExactly("vendor", "memberId", "payerId", "payerName");
-        assertThat(entry(r, "MHK").get("payerId").asText()).as("a vendor without its own payer gets the default").isEqualTo("Point32Health");
-        assertThat(entry(r, "MHK").get("payerName").asText()).isEqualTo("Point32Health");
-        assertThat(entry(r, "EVICORE").get("payerId").asText()).as("eviCore's own payer for a THP member").isEqualTo("TUFTS");
-        assertThat(entry(r, "EVICORE").get("payerName").asText()).isEqualTo("TUFTS");
-        assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("VENDOR_PAYER_DEFAULTED"));
+        assertPayers(r, "TUFTS");
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
         assertThat(r.get("memberId").properties()).extracting(Map.Entry::getKey).as("in this order").containsExactly("received", "resolved", "forVendors");
         assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("id, flag and period only, in this order").containsExactly("coverageId", "active", "effectiveDate", "endDate");
@@ -409,14 +416,17 @@ class ResolveScenariosTest {
         assertThat(after.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(after.at("/memberId/resolved").asText()).isEqualTo("HP567890123");
         assertThat(forVendor(after, "OPTUM")).isEqualTo("HP567890123");
+        assertPayers(after, "HPHC");
 
         JsonNode before = call(200, req("56789012301", "2024-06-01"));
         assertThat(before.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(before.at("/memberId/resolved").asText()).isEqualTo("567890123   01");
         assertThat(forVendor(before, "OPTUM")).as("Optum gets the 9-character core").isEqualTo("567890123");
+        assertPayers(before, "TUFTS");
 
         JsonNode newIdPreMigration = call(200, req("HP567890123", "2024-06-01"));
         assertThat(newIdPreMigration.at("/memberId/resolved").asText()).as("reverse legacy link").isEqualTo("567890123   01");
+        assertPayers(newIdPreMigration, "TUFTS");
 
         JsonNode nineDigits = call(200, req("567890123", "2026-10-15"));
         assertThat(nineDigits.get("outcome").asText()).as("9-digit old id, both records, one person").isEqualTo("ACTIVE");
@@ -724,9 +734,7 @@ class ResolveScenariosTest {
         assertThat(hphc.at("/memberId/received").asText()).isEqualTo("HP-456789012");
         assertThat(hphc.at("/memberId/resolved").asText()).isEqualTo("HP456789012");
         assertThat(hphc.at("/memberId/forVendors")).hasSize(6);
-        assertThat(entry(hphc, "EVICORE").get("payerId").asText()).as("eviCore's own payer for an HPHC member").isEqualTo("HPHC");
-        assertThat(entry(hphc, "EVICORE").get("payerName").asText()).isEqualTo("HPHC");
-        assertThat(entry(hphc, "CARELON").get("payerId").asText()).isEqualTo("Point32Health");
+        assertPayers(hphc, "HPHC");
         hphc.at("/memberId/forVendors").forEach(e -> {
             assertThat(e.get("memberId").asText()).as(e.get("vendor").asText()).isEqualTo("HP456789012");
         });
@@ -734,7 +742,7 @@ class ResolveScenariosTest {
         JsonNode publicPlans = call(200, Map.of("memberId", "34567890102", "dateOfService", "2024-08-15"));
         assertThat(publicPlans.get("outcome").asText()).as("a gap in coverage still identifies the member").isEqualTo("INACTIVE");
         assertThat(publicPlans.at("/coverage/active").asBoolean()).isFalse();
-        assertThat(entry(publicPlans, "OPTUM").get("payerId").asText()).as("the payer comes with INACTIVE too").isEqualTo("Point32Health");
+        assertPayers(publicPlans, "TUFTS");
         assertThat(publicPlans.at("/memberId/forVendors")).hasSize(6);
         publicPlans.at("/memberId/forVendors").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890102"));
     }

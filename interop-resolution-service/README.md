@@ -440,7 +440,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (129 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (131 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -467,7 +467,11 @@ asserts no log line (message or exception text; payload logging is off in the `t
 of birth from the stub data or a member name, and no response body contains names or SSN; a stub call counter proves invalid requests
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI
 and echoed back unchanged in `memberId.received`, and the stub's `lastSearched()` proves the id arrives at MMI
-untouched. `callerMustIdentifyItselfAndTheCall` covers the caller fields: without them the answer is 400 with the
+untouched. The payer is checked on every vendor entry of every identified answer in the scenarios (eviCore's `TUFTS` for THP,
+`HPHC` for HPHC, the default elsewhere, following the company that owns the date of service for a converted member),
+and `ResolutionServicePayerTest` proves, with an id and a name that differ, that both land in their own fields and that
+a company a vendor has no entry for gets the default and one `VENDOR_PAYER_DEFAULTED` warning.
+`callerMustIdentifyItselfAndTheCall` covers the caller fields: without them the answer is 400 with the
 three `_MISSING` codes and MMI is not called; a `clientType` other than `EXT` or `INT` (lower case included), an
 over-long or malformed `clientId` or `requestId` is a 400; a usable `requestId` is echoed even on a 400, an unusable
 one never; an internal caller (`INT`) gets its answer and is named in the log line.
