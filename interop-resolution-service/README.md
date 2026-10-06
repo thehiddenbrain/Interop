@@ -213,7 +213,7 @@ For the TMP id `123456789` (resolved to `123456789   01`):
   "memberId": { "received": "123456789", "resolved": "123456789   01",
     "forVendors": [
       { "vendor": "CARELON", "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health" },
+      { "vendor": "EVICORE", "memberId": "12345678901", "payerId": "TUFTS", "payerName": "TUFTS" },
       { "vendor": "EVOLENT", "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health" },
       { "vendor": "MHK",     "memberId": "123456789   01", "payerId": "Point32Health", "payerName": "Point32Health" },
       { "vendor": "ONYX",    "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health" },
@@ -249,8 +249,8 @@ HPHC) is not returned: the resolved id tells it apart (`HP` prefix) and Onyx doe
 to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body, and the caller's `requestId`
 comes back as `requestId`. Each `memberId.forVendors` entry also carries `payerId` and `payerName`, the payer Onyx
 puts on that vendor's request: the vendor's own for the member's company when configured (section 4), else the
-default (`payer` block in `application.yaml`; `PAYER_ID` / `PAYER_NAME` override), today `Point32Health` for every
-vendor.
+default (`payer` block in `application.yaml`; `PAYER_ID` / `PAYER_NAME` override). Today eviCore gets its own (`TUFTS`
+for THP, `HPHC` for HPHC) and every other vendor gets `Point32Health`.
 
 Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 
@@ -372,10 +372,9 @@ member-id:
     EVICORE:
       display-name: eviCore
       format: COMPACT_11                # 12345678901
-      # eviCore keys the payer on the heritage company: TUFTS for THP, HPHC for HPHC. Uncomment once the names are confirmed.
-      # payer:
-      #   THP:  { id: TUFTS, name: <eviCore's payer name for THP> }
-      #   HPHC: { id: HPHC,  name: <eviCore's payer name for HPHC> }
+      payer:                            # eviCore keys the payer on the heritage company
+        THP:  { id: TUFTS, name: TUFTS }
+        HPHC: { id: HPHC,  name: HPHC }
     MHK:
       display-name: MHK (MedHOK)
       format: SPACED_14                 # 123456789   01
@@ -399,8 +398,10 @@ Formats: `COMPACT_11`, `SPACED_14`, `CORE_9`, `AS_STORED`. The TMP core is **9 c
 The payer per vendor lives in the same table. A vendor that keys the payer on the heritage company gets a `payer`
 block with an entry per company (`THP`, `HPHC`, as the member lookup reports it), each with an `id` and a `name`; a
 member of any other company, and every vendor without the block, gets the default payer (`payer.id` / `payer.name`,
-today `Point32Health`). The startup log prints each vendor's payer next to its format; an entry without an id or a
-name stops the application with a message naming it.
+today `Point32Health`). eviCore has one: `TUFTS` for THP and `HPHC` for HPHC, as both id and name. The startup log
+prints each vendor's payer next to its format; an entry without an id or a name stops the application with a message
+naming it. If the member lookup reports a company that such a vendor has no entry for, the default payer goes out and
+the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor and the company.
 
 ## 5. Stub fixtures (DEV profile: `--spring.profiles.active=DEV`) and Postman
 
@@ -477,6 +478,8 @@ one never; an internal caller (`INT`) gets its answer and is named in the log li
   hyphens or spaces (`123456789-01`, `HP-123456789`); the service sends it unchanged in `memberId` and
   `legacyMemberId`. The stub assumes the same.
 - A single record returned for any population is the member (TMP/SCO always return one).
+- MMI reports the company as `THP` or `HPHC`, the values eviCore's payer entries key on. Any other value gets eviCore
+  the default payer and logs `VENDOR_PAYER_DEFAULTED`: watch for that marker in PQA.
 - MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500;
   confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `sourceMessage`
   can be filled: if the log shows `MMI_404_WITHOUT_ENVELOPE` for an id that exists nowhere, it does not.

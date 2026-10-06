@@ -212,9 +212,9 @@ class ResolveScenariosTest {
                 .containsExactly("vendor", "memberId", "payerId", "payerName");
         assertThat(entry(r, "MHK").get("payerId").asText()).as("a vendor without its own payer gets the default").isEqualTo("Point32Health");
         assertThat(entry(r, "MHK").get("payerName").asText()).isEqualTo("Point32Health");
-        assertThat(entry(r, "EVICORE").get("payerId").asText()).as("the vendor's own payer for a THP member (test configuration)")
-                .isEqualTo("TUFTS");
-        assertThat(entry(r, "EVICORE").get("payerName").asText()).isEqualTo("Tufts Health Plan");
+        assertThat(entry(r, "EVICORE").get("payerId").asText()).as("eviCore's own payer for a THP member").isEqualTo("TUFTS");
+        assertThat(entry(r, "EVICORE").get("payerName").asText()).isEqualTo("TUFTS");
+        assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("VENDOR_PAYER_DEFAULTED"));
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
         assertThat(r.get("memberId").properties()).extracting(Map.Entry::getKey).as("in this order").containsExactly("received", "resolved", "forVendors");
         assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("id, flag and period only, in this order").containsExactly("coverageId", "active", "effectiveDate", "endDate");
@@ -724,8 +724,8 @@ class ResolveScenariosTest {
         assertThat(hphc.at("/memberId/received").asText()).isEqualTo("HP-456789012");
         assertThat(hphc.at("/memberId/resolved").asText()).isEqualTo("HP456789012");
         assertThat(hphc.at("/memberId/forVendors")).hasSize(6);
-        assertThat(entry(hphc, "EVICORE").get("payerId").asText()).as("the vendor's own payer for an HPHC member (test configuration)")
-                .isEqualTo("HPHC");
+        assertThat(entry(hphc, "EVICORE").get("payerId").asText()).as("eviCore's own payer for an HPHC member").isEqualTo("HPHC");
+        assertThat(entry(hphc, "EVICORE").get("payerName").asText()).isEqualTo("HPHC");
         assertThat(entry(hphc, "CARELON").get("payerId").asText()).isEqualTo("Point32Health");
         hphc.at("/memberId/forVendors").forEach(e -> {
             assertThat(e.get("memberId").asText()).as(e.get("vendor").asText()).isEqualTo("HP456789012");

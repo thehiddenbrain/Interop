@@ -33,6 +33,9 @@ class VendorRegistryTest {
         assertThat(evicore.payerFor(" hphc ")).as("the company as the lookup reports it, case and blanks aside").isEqualTo(new Payer("HPHC", "Harvard Pilgrim"));
         assertThat(evicore.payerFor("OTHER")).as("a company without an entry gets the default").isEqualTo(DEFAULT);
         assertThat(evicore.payerFor(null)).isEqualTo(DEFAULT);
+        assertThat(evicore.hasOwnPayerFor("hphc")).isTrue();
+        assertThat(evicore.hasOwnPayerFor("OTHER")).isFalse();
+        assertThat(evicore.hasOwnPayerFor(null)).isFalse();
         assertThat(r.all().get(1).payerFor("THP")).as("a vendor without entries gets the default").isEqualTo(DEFAULT);
     }
 

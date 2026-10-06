@@ -12,6 +12,15 @@ public record Vendor(String code, String displayName, VendorIdFormat format, Pay
 
     /** The payer for a member of {@code company} as the member lookup reports it: the vendor's own entry, else the default. */
     public Payer payerFor(String company) {
-        return company == null ? defaultPayer : payerByCompany.getOrDefault(company.strip().toUpperCase(Locale.ROOT), defaultPayer);
+        return hasOwnPayerFor(company) ? payerByCompany.get(key(company)) : defaultPayer;
+    }
+
+    /** True when this vendor has its own payer for {@code company}. */
+    public boolean hasOwnPayerFor(String company) {
+        return company != null && payerByCompany.containsKey(key(company));
+    }
+
+    private static String key(String company) {
+        return company.strip().toUpperCase(Locale.ROOT);
     }
 }

@@ -6,10 +6,3 @@ mmi:
 logging:
   level:
     org.p32h.interop: DEBUG
-member-id:
-  vendors:
-    EVICORE:
-      # test data that exercises the per-company payer; production sets none yet (eviCore's entry in application.yaml is commented out)
-      payer:
-        THP: { id: TUFTS, name: Tufts Health Plan }
-        HPHC: { id: HPHC, name: Harvard Pilgrim Health Care }

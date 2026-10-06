@@ -61,7 +61,7 @@ mmi:
 
 # The default payer identity Onyx puts on its requests to a UM vendor; returned in every memberId.forVendors entry as
 # payerId and payerName. One value covers THP and HPHC. A vendor that keys the payer on the heritage company sets its
-# own per company in its member-id.vendors entry (see EVICORE below). PAYER_ID / PAYER_NAME override per environment.
+# own per company in its member-id.vendors entry (EVICORE below). PAYER_ID / PAYER_NAME override the default per environment.
 payer:
   id: ${PAYER_ID:Point32Health}
   name: ${PAYER_NAME:Point32Health}
@@ -87,10 +87,9 @@ member-id:
     EVICORE:
       display-name: eviCore
       format: COMPACT_11
-      # eviCore keys the payer on the heritage company: TUFTS for THP, HPHC for HPHC. Uncomment once the names are confirmed.
-      # payer:
-      #   THP:  { id: TUFTS, name: <eviCore's payer name for THP> }
-      #   HPHC: { id: HPHC,  name: <eviCore's payer name for HPHC> }
+      payer:                            # eviCore keys the payer on the heritage company
+        THP:  { id: TUFTS, name: TUFTS }
+        HPHC: { id: HPHC,  name: HPHC }
     MHK:
       display-name: MHK (MedHOK)
       format: SPACED_14
