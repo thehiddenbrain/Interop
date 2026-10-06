@@ -70,6 +70,16 @@ class MemberSelectorTest {
     }
 
     @Test
+    void familyWhoseRecordsCarryNoDobStaysAmbiguousWithADob() {
+        SelectionResult r = selector.select(List.of(
+                rec("34567890101", "THP", null, null, span("2025-01-01", null)),
+                rec("34567890102", "THP", null, null, span("2025-01-01", null))), LocalDate.parse("2012-09-09"), DOS);
+        SelectionResult.Ambiguous a = (SelectionResult.Ambiguous) r;
+        assertThat(a.reason()).as("a date of birth was sent but could not be checked").isEqualTo(MemberSelector.DOB_NOT_ON_RECORDS);
+        assertThat(a.persons()).isEqualTo(2);
+    }
+
+    @Test
     void convertedPairIsOnePersonAndTheRecordCoveringTheDateWins() {
         MemberRecord thp = rec("567890123   01", "THP", null, "1990-11-11", span("2020-01-01", "2024-12-31"));
         MemberRecord hphc = rec("HP567890123", "HPHC", "567890123   01", "1990-11-11", span("2025-01-01", null));

@@ -28,12 +28,12 @@ public class MemberResolutionController {
             description = "Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (or on every day "
                     + "of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors). "
                     + "When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says "
-                    + "what to resend; the other members are never listed. Only memberId is required; unknown properties are ignored. A sent date is the date evaluated; an "
+                    + "what to resend; the other members are never listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A sent date is the date evaluated; an "
                     + "unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the operation is a pure read "
                     + "and may be repeated.")
     @ApiResponse(responseCode = "200", description = "outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; memberId.forVendors present for ACTIVE and INACTIVE",
             content = @Content(schema = @Schema(implementation = MemberResolutionResponse.class)))
-    @ApiResponse(responseCode = "400", description = "INVALID_REQUEST for a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (details[0].code HTTP_400, the lookup's text in the message)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "400", description = "INVALID_REQUEST for a missing or unusable clientId, clientType or requestId, a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (details[0].code HTTP_400, the lookup's text in the message)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "422", description = "DOB_MISMATCH: the date of birth matches no record for this id", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "502", description = "MEMBER_LOOKUP_ERROR or MEMBER_LOOKUP_INVALID_RESPONSE", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "503", description = "MEMBER_LOOKUP_UNAVAILABLE", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))

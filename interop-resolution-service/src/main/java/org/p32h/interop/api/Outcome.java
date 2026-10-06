@@ -8,6 +8,6 @@ public enum Outcome {
     INACTIVE,
     /** MMI has no record for this id. */
     NOT_FOUND,
-    /** Several members on the plan match (a family behind a 9-digit id) and no date of birth settled it; resend with one. */
+    /** Several members on the plan match (a family behind a 9-digit id) and nothing sent tells them apart; {@code message} says what to resend. */
     AMBIGUOUS
 }

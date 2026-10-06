@@ -29,6 +29,7 @@ public final class MemberSelector {
 
     public static final String MULTIPLE_PERSONS = "MULTIPLE_PERSONS";
     public static final String DOB_NOT_DISCRIMINATING = "DOB_NOT_DISCRIMINATING";
+    public static final String DOB_NOT_ON_RECORDS = "DOB_NOT_ON_RECORDS";
 
     private final CoverageEvaluator evaluator;
 
@@ -50,6 +51,7 @@ public final class MemberSelector {
         List<List<MemberRecord>> persons = groupPersons(merged);
 
         boolean dobApplied = false;
+        boolean dobUnchecked = false;
         if (dateOfBirth != null) {
             boolean anyDob = merged.stream().anyMatch(r -> r.dateOfBirth() != null);
             if (anyDob) {
@@ -62,6 +64,7 @@ public final class MemberSelector {
                 }
             } else {
                 log.warn("marker=DOB_UNAVAILABLE_ON_RECORDS dateOfBirth supplied but no returned record carries one; continuing unverified");
+                dobUnchecked = true;
             }
         }
 
@@ -72,7 +75,8 @@ public final class MemberSelector {
             return new SelectionResult.Selected(chosen, evaluator.evaluate(union, start, end), union.size(),
                     person.stream().mapToInt(MemberRecord::unreadableSpans).sum());
         }
-        return new SelectionResult.Ambiguous(dobApplied ? DOB_NOT_DISCRIMINATING : MULTIPLE_PERSONS, persons.size());
+        return new SelectionResult.Ambiguous(dobApplied ? DOB_NOT_DISCRIMINATING : dobUnchecked ? DOB_NOT_ON_RECORDS : MULTIPLE_PERSONS,
+                persons.size());
     }
 
     /** Every readable span of the person, across all of its records; a converted pair's history is one history. */

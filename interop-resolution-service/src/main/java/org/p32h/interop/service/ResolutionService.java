@@ -187,9 +187,11 @@ public class ResolutionService {
                 case COVERED -> throw new IllegalStateException("INACTIVE with reason COVERED");
             };
             case NOT_FOUND -> "No member found for this id";
-            case AMBIGUOUS -> MemberSelector.DOB_NOT_DISCRIMINATING.equals(r.ambiguityReason())
-                    ? "Several members match this id and date of birth; resend with the member's full id including the suffix"
-                    : "Several members match this id; resend with dateOfBirth or the member's full id including the suffix";
+            case AMBIGUOUS -> switch (r.ambiguityReason()) {
+                case MemberSelector.DOB_NOT_DISCRIMINATING -> "Several members match this id and date of birth; resend with the member's full id including the suffix";
+                case MemberSelector.DOB_NOT_ON_RECORDS -> "Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix";
+                default -> "Several members match this id; resend with dateOfBirth or the member's full id including the suffix";
+            };
         };
     }
 

@@ -13,7 +13,8 @@ public sealed interface SelectionResult {
     }
 
     /**
-     * @param reason  {@link MemberSelector#MULTIPLE_PERSONS} or {@link MemberSelector#DOB_NOT_DISCRIMINATING}
+     * @param reason  {@link MemberSelector#MULTIPLE_PERSONS} (no date of birth sent), {@link MemberSelector#DOB_NOT_DISCRIMINATING}
+     *                (several share the one sent) or {@link MemberSelector#DOB_NOT_ON_RECORDS} (no record carries one to check)
      * @param persons how many persons matched, for the log; the persons themselves are never returned
      */
     record Ambiguous(String reason, int persons) implements SelectionResult {

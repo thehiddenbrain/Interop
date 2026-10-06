@@ -201,7 +201,7 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 | `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
 | `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, a gap, or no coverage on record) | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
-| `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth), intake takes the full ID from the member's card. |
+| `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth, or the records carry none), intake takes the full ID from the member's card. |
 
 For the TMP id `123456789` (resolved to `123456789   01`):
 
@@ -252,18 +252,20 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | Field | Present | Content |
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
-| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`) |
+| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId }` per configured vendor, sorted by vendor code) when a member was identified |
-| `dateOfService`, `dateOfServiceDefaulted` | always | The (first) date evaluated and whether it was defaulted to today |
+| `lineOfBusiness` | `ACTIVE`, `INACTIVE` | MMI's line of business (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it |
+| `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
-| `lineOfBusiness`, `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates come together, whenever a period covers the (first) date of service |
+| `dateOfServiceDefaulted` | always | Whether the date of service was defaulted to today |
+| `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates come together, whenever a period covers the (first) date of service |
 | `requestId` | always | The caller's `requestId`, echoed |
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
 
 `memberId.forVendors` is present **only when a member was identified**, that is for `ACTIVE` and `INACTIVE`.
 `NOT_FOUND` and `AMBIGUOUS` answers carry no `memberId.resolved` and no `memberId.forVendors`; an `AMBIGUOUS` answer
-lists nobody, and a resend with `dateOfBirth` or the full ID settles it.
+lists nobody; a resend with `dateOfBirth` usually settles it, and the full ID always does.
 For an HPHC id (resolved to `HP456789012`) or a Public Plans id (`34567890102`) every entry carries the resolved id
 unchanged, Optum included. Absent blocks are omitted, not sent as `null`.
 
@@ -422,7 +424,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (124 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (125 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
