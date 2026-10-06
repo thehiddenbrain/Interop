@@ -1,8 +1,6 @@
 package org.p32h.interop.domain;
 
-import java.util.List;
-
-/** Outcome of {@link MemberSelector}: one record, or a list of candidates a human (or a resend with DOB) must pick from. */
+/** Outcome of {@link MemberSelector}: one record, or AMBIGUOUS when several persons match and nothing in the request tells them apart. */
 public sealed interface SelectionResult {
 
     /**
@@ -14,9 +12,10 @@ public sealed interface SelectionResult {
     record Selected(MemberRecord record, CoverageDecision coverage, int readableSpans, int unreadableSpans) implements SelectionResult {
     }
 
-    record Ambiguous(String reason, List<Candidate> candidates) implements SelectionResult {
-    }
-
-    record Candidate(String storedMemberId, String lineOfBusiness, boolean coverageActive) {
+    /**
+     * @param reason  {@link MemberSelector#MULTIPLE_PERSONS} or {@link MemberSelector#DOB_NOT_DISCRIMINATING}
+     * @param persons how many persons matched, for the log; the persons themselves are never returned
+     */
+    record Ambiguous(String reason, int persons) implements SelectionResult {
     }
 }

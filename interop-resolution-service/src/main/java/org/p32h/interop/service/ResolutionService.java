@@ -1,7 +1,6 @@
 package org.p32h.interop.service;
 
 import org.p32h.interop.api.Coverage;
-import org.p32h.interop.api.MemberOnPlan;
 import org.p32h.interop.api.MemberResolutionRequest;
 import org.p32h.interop.api.MemberResolutionResponse;
 import org.p32h.interop.api.SourceMessage;
@@ -73,14 +72,14 @@ public class ResolutionService {
         MemberResolutionResponse response = new MemberResolutionResponse(r.outcome(), message(r, v),
                 new MemberResolutionResponse.MemberId(v.memberId(), r.storedMemberId(), forVendors),
                 r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
-                r.coverageBlock(), r.membersOnPlan(), v.requestId(), r.mmiRequestId(), r.mmiNote());
+                r.coverageBlock(), v.requestId(), r.mmiRequestId(), r.mmiNote());
         logOutcome(r, v, start);
         return response;
     }
 
     /** MMI's answer reduced to one outcome, before it is rendered. */
     private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String ambiguityReason,
-            List<MemberOnPlan> membersOnPlan, String mmiRequestId, int records, SourceMessage mmiNote) {
+            int persons, String mmiRequestId, int records, SourceMessage mmiNote) {
 
         String storedMemberId() {
             return record == null ? null : record.storedMemberId();
@@ -135,7 +134,7 @@ public class ResolutionService {
             }
             MmiMessage first = messages.isEmpty() ? null : messages.get(0);
             SourceMessage note = first == null ? null : new SourceMessage(first.messageType(), first.statusCode(), first.messageCode(), first.message());
-            return new Resolved(Outcome.NOT_FOUND, null, null, null, null, mmiResult.requestId(), 0, note);
+            return new Resolved(Outcome.NOT_FOUND, null, null, null, 0, mmiResult.requestId(), 0, note);
         }
         if (hasErrorMessage(messages)) {
             log.warn("marker=MMI_ERROR_MESSAGE_WITH_MEMBERS mmiRequestId={} messages={}", mmiResult.requestId(), messages);
@@ -153,10 +152,7 @@ public class ResolutionService {
             throw e.withMmiRequestId(mmiResult.requestId());
         }
         if (selection instanceof SelectionResult.Ambiguous a) {
-            List<MemberOnPlan> membersOnPlan = a.candidates().stream()
-                    .map(c -> new MemberOnPlan(c.storedMemberId(), c.lineOfBusiness(), c.coverageActive()))
-                    .toList();
-            return new Resolved(Outcome.AMBIGUOUS, null, null, a.reason(), membersOnPlan, mmiResult.requestId(), members.size(), null);
+            return new Resolved(Outcome.AMBIGUOUS, null, null, a.reason(), a.persons(), mmiResult.requestId(), members.size(), null);
         }
         SelectionResult.Selected s = (SelectionResult.Selected) selection;
         if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
@@ -169,7 +165,7 @@ public class ResolutionService {
             log.warn("marker=UNREADABLE_SPANS_ON_SELECTED mmiRequestId={} count={} active={}", mmiResult.requestId(),
                     s.unreadableSpans(), coverage.active());
         }
-        return new Resolved(coverage.active() ? Outcome.ACTIVE : Outcome.INACTIVE, s.record(), coverage, null, null,
+        return new Resolved(coverage.active() ? Outcome.ACTIVE : Outcome.INACTIVE, s.record(), coverage, null, 1,
                 mmiResult.requestId(), members.size(), null);
     }
 
@@ -192,8 +188,8 @@ public class ResolutionService {
             };
             case NOT_FOUND -> "No member found for this id";
             case AMBIGUOUS -> MemberSelector.DOB_NOT_DISCRIMINATING.equals(r.ambiguityReason())
-                    ? "Several members match this id and date of birth; resend the member's full id including the suffix, or pick from membersOnPlan"
-                    : "Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan";
+                    ? "Several members match this id and date of birth; resend with the member's full id including the suffix"
+                    : "Several members match this id; resend with dateOfBirth or the member's full id including the suffix";
         };
     }
 
@@ -206,10 +202,10 @@ public class ResolutionService {
     }
 
     private static void logOutcome(Resolved r, RequestValidator.Validated v, long start) {
-        log.info("resolution clientId={} clientType={} outcome={} reason={} memberId={} resolved={} company={} lob={} dos={} dosEnd={} dosDefaulted={} records={} mmiRequestId={} ms={}",
+        log.info("resolution clientId={} clientType={} outcome={} reason={} memberId={} resolved={} company={} lob={} dos={} dosEnd={} dosDefaulted={} records={} persons={} mmiRequestId={} ms={}",
                 v.clientId(), v.clientType(), r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(),
                 v.memberId(), r.storedMemberId(), r.company(), r.lineOfBusiness(),
-                v.dateOfService(), v.dateOfServiceEnd() == null ? "-" : v.dateOfServiceEnd(), v.dateOfServiceDefaulted(), r.records(), r.mmiRequestId(),
+                v.dateOfService(), v.dateOfServiceEnd() == null ? "-" : v.dateOfServiceEnd(), v.dateOfServiceDefaulted(), r.records(), r.persons(), r.mmiRequestId(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
     }
 }

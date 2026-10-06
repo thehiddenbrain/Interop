@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  * <li>If a date of birth was supplied and at least one record carries one, only persons with a matching
  *     DOB survive; none left is a {@link DobMismatchException}.</li>
  * <li>One person left: its record covering the date of service wins, else the record whose coverage ends
- *     last. Several persons left: AMBIGUOUS with one candidate per person.</li>
+ *     last. Several persons left: AMBIGUOUS.</li>
  * </ol>
  * MMI's record order is never a criterion, and nobody is ever picked "by default".
  */
@@ -72,15 +72,7 @@ public final class MemberSelector {
             return new SelectionResult.Selected(chosen, evaluator.evaluate(union, start, end), union.size(),
                     person.stream().mapToInt(MemberRecord::unreadableSpans).sum());
         }
-        List<SelectionResult.Candidate> candidates = persons.stream()
-                .sorted(Comparator.comparing((List<MemberRecord> p) -> chooseWithinPerson(p, start).matchKey()))
-                .map(p -> {
-                    MemberRecord r = chooseWithinPerson(p, start);
-                    return new SelectionResult.Candidate(r.storedMemberId(), r.lineOfBusiness(),
-                            evaluator.evaluate(personSpans(p), start, end).active());
-                })
-                .toList();
-        return new SelectionResult.Ambiguous(dobApplied ? DOB_NOT_DISCRIMINATING : MULTIPLE_PERSONS, candidates);
+        return new SelectionResult.Ambiguous(dobApplied ? DOB_NOT_DISCRIMINATING : MULTIPLE_PERSONS, persons.size());
     }
 
     /** Every readable span of the person, across all of its records; a converted pair's history is one history. */

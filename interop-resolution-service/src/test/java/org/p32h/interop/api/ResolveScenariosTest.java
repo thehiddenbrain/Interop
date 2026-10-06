@@ -295,19 +295,14 @@ class ResolveScenariosTest {
     // ---------------------------------------------------------------- populations with dependents
 
     @Test
-    void publicPlansNineDigitWithoutDobIsAmbiguousWithMembersOnPlan() throws Exception {
+    void publicPlansNineDigitWithoutDobIsAmbiguous() throws Exception {
         JsonNode r = call(200, req("345678901", "2026-10-15"));
         assertThat(r.get("outcome").asText()).isEqualTo("AMBIGUOUS");
         assertThat(r.has("ambiguity")).isFalse();
         assertThat(r.get("message").asText()).isEqualTo(
-                "Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan");
-        assertThat(r.get("membersOnPlan")).hasSize(3);
-        assertThat(r.at("/membersOnPlan/0").properties()).extracting(Map.Entry::getKey).containsExactly("memberId", "lineOfBusiness", "coverageActive");
-        assertThat(r.at("/membersOnPlan/0/memberId").asText()).isEqualTo("34567890101");
-        assertThat(r.at("/membersOnPlan/0/coverageActive").asBoolean()).isTrue();
-        assertThat(r.at("/membersOnPlan/2/memberId").asText()).isEqualTo("34567890103");
-        assertThat(r.at("/membersOnPlan/2/coverageActive").asBoolean()).isFalse();
-        assertThat(r.at("/membersOnPlan/0").has("dateOfBirth")).isFalse();
+                "Several members match this id; resend with dateOfBirth or the member's full id including the suffix");
+        assertThat(r.properties()).extracting(Map.Entry::getKey).as("nobody on the plan is listed")
+                .containsExactly("outcome", "message", "memberId", "dateOfService", "dateOfServiceDefaulted", "requestId", "traceId");
         assertThat(r.has("memberId")).isTrue();
         assertThat(r.at("/memberId/resolved").isMissingNode()).isTrue();
     }
@@ -317,8 +312,7 @@ class ResolveScenariosTest {
         JsonNode r = call(200, reqDob("345678901", "2026-10-15", "2012-09-09"));
         assertThat(r.get("outcome").asText()).isEqualTo("AMBIGUOUS");
         assertThat(r.get("message").asText()).as("twins share the DOB").isEqualTo(
-                "Several members match this id and date of birth; resend the member's full id including the suffix, or pick from membersOnPlan");
-        assertThat(r.get("membersOnPlan")).hasSize(2);
+                "Several members match this id and date of birth; resend with the member's full id including the suffix");
 
         JsonNode sub = call(200, reqDob("345678901", "2026-10-15", "1985-06-01"));
         assertThat(sub.get("outcome").asText()).isEqualTo("ACTIVE");
@@ -740,8 +734,7 @@ class ResolveScenariosTest {
         JsonNode ambiguous = call(200, Map.of("memberId", "345678901", "dateOfService", "2026-10-15"));
         assertThat(ambiguous.get("outcome").asText()).isEqualTo("AMBIGUOUS");
         assertThat(ambiguous.has("ambiguity")).isFalse();
-        assertThat(ambiguous.get("message").asText()).startsWith("Several members match this id; add dateOfBirth");
-        assertThat(ambiguous.get("membersOnPlan")).hasSize(3);
+        assertThat(ambiguous.get("message").asText()).startsWith("Several members match this id; resend with dateOfBirth");
         assertThat(ambiguous.at("/memberId/forVendors").isMissingNode()).isTrue();
 
         JsonNode withDob = call(200, Map.of("memberId", "345678901", "dateOfService", "2026-10-15",

@@ -966,7 +966,7 @@
       "description": "",
       "item": [
         {
-          "name": "9-digit, no DOB: AMBIGUOUS with membersOnPlan",
+          "name": "9-digit, no DOB: AMBIGUOUS",
           "event": [
             {
               "listen": "test",
@@ -976,9 +976,9 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".message = Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan\"); });",
+                  "pm.test(\".message = Several members match this id; resend with dateOfBirth or the member's full id including the suffix\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Several members match this id; resend with dateOfBirth or the member's full id including the suffix\"); });",
                   "pm.test(\"no .ambiguity block (the guidance is in .message)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ambiguity\"); });",
-                  "pm.test(\"3 membersOnPlan\", function () { pm.expect(pm.response.json().membersOnPlan.length).to.eql(3); });",
+                  "pm.test(\"nobody on the plan is listed\", function () { pm.expect(Object.keys(pm.response.json())).to.eql([\"outcome\", \"message\", \"memberId\", \"dateOfService\", \"dateOfServiceDefaulted\", \"requestId\", \"traceId\"]); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -1084,6 +1084,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
+                  "pm.test(\".message says to resend with the full id\", function () { pm.expect(pm.response.json().message).to.eql(\"Several members match this id and date of birth; resend with the member's full id including the suffix\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\"no .ambiguity block (the guidance is in .message)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ambiguity\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
@@ -3446,9 +3447,9 @@
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
                   "pm.test(\"outcome AMBIGUOUS\", function () { pm.expect(pm.response.json().outcome).to.eql(\"AMBIGUOUS\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
-                  "pm.test(\".message = Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan\"); });",
+                  "pm.test(\".message = Several members match this id; resend with dateOfBirth or the member's full id including the suffix\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Several members match this id; resend with dateOfBirth or the member's full id including the suffix\"); });",
                   "pm.test(\"no .ambiguity block (the guidance is in .message)\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"ambiguity\"); });",
-                  "pm.test(\"3 membersOnPlan\", function () { pm.expect(pm.response.json().membersOnPlan.length).to.eql(3); });",
+                  "pm.test(\"nobody on the plan is listed\", function () { pm.expect(Object.keys(pm.response.json())).to.eql([\"outcome\", \"message\", \"memberId\", \"dateOfService\", \"dateOfServiceDefaulted\", \"requestId\", \"traceId\"]); });",
                   "pm.test(\"no memberId.forVendors\", function () { const j = pm.response.json(); pm.expect(j.memberId).to.not.have.property(\"forVendors\"); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"

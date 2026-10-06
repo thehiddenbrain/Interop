@@ -25,7 +25,7 @@ public record MemberResolutionRequest(
         @Schema(description = "Date of service, yyyy-MM-dd; the first date when the service covers a period. Defaults to today when omitted (dateOfServiceDefaulted is true). A sent value is the date evaluated: any future date is judged on the coverage on record; not a real date, or more than 10 years back, is a 400.",
                 example = "2026-10-15") String dateOfService,
         @Schema(description = "Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on every day from dateOfService to it. Not before dateOfService; needs dateOfService.", example = "2026-10-20") String dateOfServiceEnd,
-        @Schema(description = "Optional patient date of birth, yyyy-MM-dd, used only to verify the member or to pick among the members on the plan. Never logged, never echoed.",
+        @Schema(description = "Optional patient date of birth, yyyy-MM-dd, used only to verify the member or to tell apart the members on a plan who share the id. Never logged, never echoed.",
                 example = "1950-03-15") String dateOfBirth) {
 
     @Override

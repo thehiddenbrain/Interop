@@ -169,7 +169,7 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed in the response h
 | `memberId` | yes | As the EMR typed it. Only checked for presence; sent to MMI exactly as received, with surrounding whitespace removed. Not validated or reshaped here. |
 | `dateOfService` | no | `yyyy-MM-dd`; the first day when the service covers a period. **Defaults to today** when omitted (`dateOfServiceDefaulted: true` in the response). A date that is sent is the date judged, never replaced by today: any future date is judged against the coverage on record; a value that is not a real date, or more than 10 years back, is a 400. |
 | `dateOfServiceEnd` | no | `yyyy-MM-dd`, the last day when the service covers a period: coverage must then hold on every day from `dateOfService` to it. Not before `dateOfService` (`DATE_OF_SERVICE_END_BEFORE_START`), never alone (`DATE_OF_SERVICE_END_WITHOUT_START`), a real date (`DATE_OF_SERVICE_END_INVALID`). |
-| `dateOfBirth` | recommended | The patient's date of birth, `yyyy-MM-dd`. Used only to verify the member or pick among the members on the plan that MMI returned; a date that matches no record is 422 `DOB_MISMATCH`, and a value that is not a real date, is in the future or is more than 125 years ago is a 400. Never sent to MMI, never logged, never echoed. |
+| `dateOfBirth` | recommended | The patient's date of birth, `yyyy-MM-dd`. Used only to verify the member or tell apart the members on a plan who share the id; a date that matches no record is 422 `DOB_MISMATCH`, and a value that is not a real date, is in the future or is more than 125 years ago is a 400. Never sent to MMI, never logged, never echoed. |
 | anything else | no | **Ignored**, a `vendor` included: the answer is always for every vendor. A field sent as the wrong JSON type (an object or array where a string is expected) is a body the service cannot read: 400 `WRONG_JSON_TYPE`. |
 
 The service does not validate or reshape the incoming member id. Whatever the EMR typed (9, 11 or 14
@@ -201,7 +201,7 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 | `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
 | `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, a gap, or no coverage on record) | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
-| `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it; they are listed in `membersOnPlan[]` | Resend with the member's full ID including the suffix, or with `dateOfBirth`, else intake picks from `membersOnPlan[]`. |
+| `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth), intake takes the full ID from the member's card. |
 
 For the TMP id `123456789` (resolved to `123456789   01`):
 
@@ -252,19 +252,18 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | Field | Present | Content |
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
-| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; add dateOfBirth or resend the member's full id including the suffix, or pick from membersOnPlan` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend the member's full id including the suffix, or pick from membersOnPlan`) |
+| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId }` per configured vendor, sorted by vendor code) when a member was identified |
 | `dateOfService`, `dateOfServiceDefaulted` | always | The (first) date evaluated and whether it was defaulted to today |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `lineOfBusiness`, `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates come together, whenever a period covers the (first) date of service |
-| `membersOnPlan[]` | `AMBIGUOUS` | `{ memberId, lineOfBusiness, coverageActive }` per member on the plan who shares the id, sorted by id |
 | `requestId` | always | The caller's `requestId`, echoed |
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
 
 `memberId.forVendors` is present **only when a member was identified**, that is for `ACTIVE` and `INACTIVE`.
 `NOT_FOUND` and `AMBIGUOUS` answers carry no `memberId.resolved` and no `memberId.forVendors`; an `AMBIGUOUS` answer
-carries `membersOnPlan[]`, and a resend with `dateOfBirth` settles it.
+lists nobody, and a resend with `dateOfBirth` or the full ID settles it.
 For an HPHC id (resolved to `HP456789012`) or a Public Plans id (`34567890102`) every entry carries the resolved id
 unchanged, Optum included. Absent blocks are omitted, not sent as `null`.
 

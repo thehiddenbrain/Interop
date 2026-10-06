@@ -29,7 +29,7 @@ class MemberSelectorTest {
     }
 
     @Test
-    void familyWithoutDobIsAmbiguousWithOneCandidatePerPerson() {
+    void familyWithoutDobIsAmbiguous() {
         SelectionResult r = selector.select(List.of(
                 rec("34567890101", "THP", null, "1985-06-01", span("2025-01-01", null)),
                 rec("34567890102", "THP", null, "2012-09-09", span("2025-01-01", null)),
@@ -37,9 +37,7 @@ class MemberSelectorTest {
         assertThat(r).isInstanceOf(SelectionResult.Ambiguous.class);
         SelectionResult.Ambiguous a = (SelectionResult.Ambiguous) r;
         assertThat(a.reason()).isEqualTo(MemberSelector.MULTIPLE_PERSONS);
-        assertThat(a.candidates()).extracting(SelectionResult.Candidate::storedMemberId)
-                .containsExactly("34567890101", "34567890102", "34567890103");
-        assertThat(a.candidates()).extracting(SelectionResult.Candidate::coverageActive).containsExactly(true, true, false);
+        assertThat(a.persons()).isEqualTo(3);
     }
 
     @Test
