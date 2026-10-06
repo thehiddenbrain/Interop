@@ -188,7 +188,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
 <p>Every UM vendor stores our member ID in its own shape. A THP Medicare (TMP) or SCO card prints 9 characters; our systems store those 9 characters, three spaces and the suffix <code>01</code> (14 characters); eviCore, Evolent and Carelon keep 11 characters without the spaces, MHK keeps all 14, Optum keeps only the 9 characters printed on the card. EMRs type whatever is on the card. Today the mismatch surfaces at the vendor. This service moves the check to the front of the flow: one call from Onyx, one call to MMI, and back come the ID as received, the ID it resolved to, that ID in every vendor's format, the payer identity for the vendor request, the coverage flag and an id for the coverage period. One operation, <code>POST /v1/interop/resolve</code>, gives every vendor's format at once, so one call serves a prior authorization whose codes go to several vendors.</p>
 
 <figure>
-<svg viewBox="0 0 980 300" role="img" aria-label="Request path: the EMR sends a member ID to Onyx; Onyx posts the member ID and the date of service to the Interop Resolution Service; the service posts a member search to MMI inside the internal network; MMI returns member records with coverage spans; the service returns an outcome with the resolved and vendor-formatted IDs; Onyx sends only the vendor-formatted ID to the UM vendor." style="color: var(--fg)">
+<svg viewBox="0 0 980 300" role="img" aria-label="Request path: the EMR sends a member ID to Onyx; Onyx posts the member ID and the date of service to the Interop Resolution Service; the service posts a member search to MMI inside the internal network; MMI returns member records with coverage spans; the service returns an outcome with the resolved and vendor-formatted IDs; Onyx sends the vendor-formatted ID, with the payer identity, to the UM vendor." style="color: var(--fg)">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
   </defs>
@@ -232,7 +232,7 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
     <text x="724" y="174" text-anchor="middle" font-size="11">members[] + coverage[]</text>
 
     <line x1="245" y1="170" x2="245" y2="220" stroke="currentColor" marker-end="url(#arr)"/>
-    <text x="252" y="200" font-size="11">each vendor its memberId.forVendors entry, when ACTIVE</text>
+    <text x="252" y="200" font-size="11">each vendor its memberId.forVendors entry + the payer, when ACTIVE</text>
   </g>
 </svg>
 <figcaption>One synchronous hop in, one out. The service holds no state and calls nothing but MMI; Onyx is the only caller and the system of record for the decision.</figcaption>
