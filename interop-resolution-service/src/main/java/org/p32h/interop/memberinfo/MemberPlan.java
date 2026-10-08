@@ -2,8 +2,6 @@ package org.p32h.interop.memberinfo;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 
 /**
@@ -62,26 +60,15 @@ public record MemberPlan(
     }
 
     /**
-     * The date as written: {@code 2024-02-01T05:00:00.000+00:00}, {@code 2024-02-01T00:00:00} and {@code 2024-02-01} are all
-     * 2024-02-01. Null when blank or unreadable.
+     * The date as written, the leading {@code yyyy-MM-dd}: {@code 2024-02-01T05:00:00.000+00:00}, {@code ...+0000},
+     * {@code 2024-02-01T00:00:00} and {@code 2024-02-01} are all 2024-02-01. Null when blank or not a date.
      */
     static LocalDate dateOf(String value) {
-        if (value == null || value.isBlank()) {
+        if (value == null || value.strip().length() < 10) {
             return null;
         }
-        String v = value.strip();
         try {
-            return OffsetDateTime.parse(v).toLocalDate();
-        } catch (DateTimeParseException e) {
-            // not a date-time with an offset
-        }
-        try {
-            return LocalDateTime.parse(v).toLocalDate();
-        } catch (DateTimeParseException e) {
-            // not a local date-time
-        }
-        try {
-            return LocalDate.parse(v);
+            return LocalDate.parse(value.strip().substring(0, 10));
         } catch (DateTimeParseException e) {
             return null;
         }

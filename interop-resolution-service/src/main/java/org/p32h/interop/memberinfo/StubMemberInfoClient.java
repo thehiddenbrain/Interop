@@ -53,7 +53,8 @@ public class StubMemberInfoClient implements MemberInfoClient {
         } catch (IOException e) {
             throw new IllegalStateException("cannot read member information stub fixtures from " + properties.stub().fixtures(), e);
         }
-        log.info("member information stub loaded {} plans from {}", members.size(), properties.stub().fixtures());
+        log.info("member information stub loaded {} members ({} coverage records) from {}", members.size(),
+                members.stream().mapToInt(m -> m.coverageRecords() == null ? 0 : m.coverageRecords().size()).sum(), properties.stub().fixtures());
     }
 
     @Override

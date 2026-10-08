@@ -56,8 +56,11 @@ class MemberInfoResponseTest {
         assertThat(MemberPlan.dateOf("2024-02-01T05:00:00.000+00:00")).isEqualTo("2024-02-01");
         assertThat(MemberPlan.dateOf("2024-02-01T00:00:00.000+00:00")).as("midnight UTC is still the date written").isEqualTo("2024-02-01");
         assertThat(MemberPlan.dateOf("2024-02-01T00:00:00")).isEqualTo("2024-02-01");
+        assertThat(MemberPlan.dateOf("2024-02-01T05:00:00.000+0000")).as("an offset without a colon").isEqualTo("2024-02-01");
+        assertThat(MemberPlan.dateOf("2024-02-01T05:00:00Z")).isEqualTo("2024-02-01");
         assertThat(MemberPlan.dateOf(" 2024-02-01 ")).isEqualTo("2024-02-01");
         assertThat(MemberPlan.dateOf("02/01/2024")).isNull();
         assertThat(MemberPlan.dateOf("")).isNull();
+        assertThat(MemberPlan.dateOf("2024-13-01T00:00:00")).isNull();
     }
 }

@@ -1033,7 +1033,7 @@
                   "pm.test(\".message = Member found; coverage active on 2026-10-15\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.message)).to.eql(JSON.stringify(\"Member found; coverage active on 2026-10-15\")); });",
                   "pm.test(\".memberId.resolved = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.resolved)).to.eql(JSON.stringify(\"34567890101\")); });",
                   "pm.test(\"memberId.forVendors MHK = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.forVendors.find(function (x) { return x.vendor === \"MHK\"; }).memberId)).to.eql(JSON.stringify(\"34567890101\")); });",
-                  "pm.test(\".lineOfBusiness = MA-TOGETHER (derived from the member's plan)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"MA-TOGETHER\")); });",
+                  "pm.test(\".lineOfBusiness = MA-TOGETHER (from the coverage record on the date of service)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"MA-TOGETHER\")); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3507,7 +3507,7 @@
                   "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
                   "pm.test(\".memberId.resolved = 34567890101\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.memberId.resolved)).to.eql(JSON.stringify(\"34567890101\")); });",
-                  "pm.test(\".lineOfBusiness = MA-TOGETHER (derived from the member's plan)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"MA-TOGETHER\")); });",
+                  "pm.test(\".lineOfBusiness = MA-TOGETHER (from the coverage record on the date of service)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"MA-TOGETHER\")); });",
                   "pm.test(\"6 memberId.forVendors entries, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.memberId.forVendors.length).to.eql(6); pm.expect(j.memberId.forVendors.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"every vendor memberId = 34567890101\", function () { const j = pm.response.json(); j.memberId.forVendors.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34567890101\")); }); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
