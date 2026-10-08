@@ -80,19 +80,21 @@ public class StubMemberInfoClient implements MemberInfoClient {
 
     @Override
     public Mono<MemberInfoResponse> lookup(String memberId, LocalDate dateOfService, String correlationId) {
-        calls.incrementAndGet();
-        lastMemberId = memberId;
-        lastDateOfService = dateOfService;
-        if (properties.logPayloads()) {
-            log.info("member-info request (stub) POST {}{}\n{}", properties.baseUrl(), properties.path(),
-                    objectMapper.writeValueAsString(MemberInfoRequest.of(memberId, dateOfService)));
-        }
-        MemberInfoResponse response = new MemberInfoResponse(null,
-                members.stream().filter(m -> sameMember(m.memberId(), memberId)).toList());
-        if (properties.logPayloads()) {
-            log.info("member-info response (stub) status=200\n{}", objectMapper.writeValueAsString(response));
-        }
-        return Mono.just(response);
+        return Mono.fromCallable(() -> {
+            calls.incrementAndGet();
+            lastMemberId = memberId;
+            lastDateOfService = dateOfService;
+            if (properties.logPayloads()) {
+                log.info("member-info request (stub) POST {}{}\n{}", properties.baseUrl(), properties.path(),
+                        objectMapper.writeValueAsString(MemberInfoRequest.of(memberId, dateOfService)));
+            }
+            MemberInfoResponse response = new MemberInfoResponse(null,
+                    members.stream().filter(m -> sameMember(m.memberId(), memberId)).toList());
+            if (properties.logPayloads()) {
+                log.info("member-info response (stub) status=200\n{}", objectMapper.writeValueAsString(response));
+            }
+            return response;
+        });
     }
 
     private static boolean sameMember(String a, String b) {

@@ -1,5 +1,6 @@
 package org.p32h.interop.memberinfo;
 
+import java.io.IOException;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.time.LocalDate;
@@ -9,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientException;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import reactor.core.publisher.Mono;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -51,9 +52,9 @@ public class WebClientMemberInfoClient implements MemberInfoClient {
 
     @Override
     public Mono<MemberInfoResponse> lookup(String memberId, LocalDate dateOfService, String correlationId) {
-        String requestJson = objectMapper.writeValueAsString(MemberInfoRequest.of(memberId, dateOfService));
         String url = properties.baseUrl() + properties.path();
         return Mono.defer(() -> {
+            String requestJson = objectMapper.writeValueAsString(MemberInfoRequest.of(memberId, dateOfService));
             if (properties.logPayloads()) {
                 log.info("member-info request POST {}\n{}", url, requestJson);
             }
@@ -69,7 +70,7 @@ public class WebClientMemberInfoClient implements MemberInfoClient {
                     .doOnNext(response -> log.info("member-info call ok memberId={} dos={} members={} ms={}", memberId, dateOfService,
                             response.membersOrEmpty().size(), elapsedMs(start)))
                     .onErrorMap(e -> !(e instanceof MemberInfoException), e -> {
-                        if (e instanceof WebClientException || isTimeout(e)) {
+                        if (e instanceof WebClientRequestException || isIo(e) || isTimeout(e)) {
                             String detail = classify(e);
                             return MemberInfoException.unavailable(detail, "The member plan lookup could not be reached: " + detail, e);
                         }
@@ -122,6 +123,16 @@ public class WebClientMemberInfoClient implements MemberInfoClient {
             }
         }
         return isTimeout(e) ? "READ_TIMEOUT" : "CONNECT_FAILED";
+    }
+
+    /** A connection that failed or broke while the answer was being read. */
+    private static boolean isIo(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof IOException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isTimeout(Throwable e) {

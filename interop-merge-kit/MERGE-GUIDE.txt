@@ -50,7 +50,7 @@ STEP 2  Copy add/ into the project
       MemberInfoProperties.java        member-info.* properties
       MemberInfoRequest.java, MemberInfoResponse.java, MemberInfoMember.java, MemberPlan.java
   src/main/java/org/p32h/interop/service/LineOfBusinessDeriver.java
-      derive(memberId, mmiLineOfBusiness, coverageRecords, dateOfService)
+      derive(memberId, fromRecord, coverageRecords, dateOfService); fromRecord is MMI's lineOfBusiness
   src/main/java/org/p32h/interop/config/MemberInfoClientConfig.java
       beans: MemberInfoClient (stub or WebClient with the timeouts) and LineOfBusinessDeriver
   src/main/resources/member-info-stub/members.json
@@ -67,6 +67,12 @@ STEP 2  Copy add/ into the project
     imports to com.fasterxml.jackson.*. The annotations stay com.fasterxml.jackson.annotation either way.
   - @ConfigurationPropertiesScan already picks up MemberInfoProperties. If you removed it, add
     @EnableConfigurationProperties(MemberInfoProperties.class).
+
+  Notes on the client:
+  - The answer is read as text, so the WebFlux codec limit applies (256 KB by default; about five years of
+    one member's records is far below it). Raise spring.codec.max-in-memory-size if PQA shows otherwise.
+  - Its log lines run on Netty threads; the correlation id appears in them only if your MDC context lifter
+    propagates it (it should, as for the MMI client).
 
 STEP 3  dosStartDate on the MMI search
   reference: mmi/MmiRequest.java, mmi/MmiDates.java, mmi/MmiClient.java, mmi/RestMmiClient.java, mmi/StubMmiClient.java
@@ -93,16 +99,17 @@ STEP 5  The resolution (ResolutionService)
   a) Inject MemberInfoClient memberInfo and LineOfBusinessDeriver lineOfBusiness.
   b) Add:
        /** The identified member's line of business: from the coverage record on the date of service, else MMI's. */
-       private Mono<String> lineOfBusiness(Resolved r, LocalDate dateOfService, String correlationId) {
+       private Mono<Optional<String>> lineOfBusiness(Resolved r, LocalDate dateOfService, String correlationId) {
            return memberInfo.lookup(r.storedMemberId(), dateOfService, correlationId)
                    .onErrorMap(MemberInfoException.class, e -> e.withTraceId(r.mmiRequestId()))
-                   .map(info -> lineOfBusiness.derive(r.storedMemberId(), r.record().lineOfBusiness(),
-                           info.coverageRecordsFor(r.storedMemberId()), dateOfService));
+                   .map(info -> Optional.ofNullable(lineOfBusiness.derive(r.storedMemberId(), r.record().lineOfBusiness(),
+                           info.coverageRecordsFor(r.storedMemberId()), dateOfService)));
        }
+     Optional, not a bare String: MMI's lineOfBusiness can be null, and a null inside map() is an error in Reactor.
   c) In resolve, once the member is resolved (adapt the names to your reactive chain):
        Mono<Optional<String>> lob = r.record() == null
                ? Mono.just(Optional.empty())                          // NOT_FOUND / AMBIGUOUS: no call, no lineOfBusiness
-               : lineOfBusiness(r, v.dateOfService(), correlationId).map(Optional::of);
+               : lineOfBusiness(r, v.dateOfService(), correlationId);
        return lob.map(l -> /* build the response with l.orElse(null) as lineOfBusiness */);
      The response's lineOfBusiness and the "resolution ... lob=" log line take this value, not
      r.record().lineOfBusiness().
@@ -143,7 +150,7 @@ STEP 7  Configuration (your renamed yml files)
     PQA       http://memberinfoserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp
     PQA-LITE  http://memberinfoserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp   (assumed, confirm)
     PRD       http://memberinfoserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp      (assumed, confirm)
-    test      base-url: http://member-info-stub.local, stub.enabled: true
+    test      base-url: http://member-info-stub.test, stub.enabled: true, log-payloads: false
   For Spring Cloud / deployment config: MEMBER_INFO_BASE_URL overrides the URL per environment.
   Optional: the startup report can print the member-info client kind, URL, timeouts and payload-log setting
   (reference: config/StartupReport.java).
@@ -162,18 +169,31 @@ STEP 8  Tests in your suite
   - Service test (ResolutionServiceMemberPlanTest): a failing lookup gives 503 MEMBER_PLAN_UNAVAILABLE,
     Retry-After 10 and MMI's request id as traceId. Use StepVerifier or block() on the Mono.
   - Config test: a missing member-info.base-url outside DEV/test, or the stub outside DEV/test, stops startup.
-  - Any 9999 open-end expectation becomes 3999 (Step 4).
+  - CHANGE existing expectations: the Together subscriber's lineOfBusiness PP on a 2026 date becomes
+    MA-TOGETHER (scenario test and two Postman checks); any 9999 open-end expectation becomes 3999 (Step 4).
+  - ResolutionServicePayerTest (and any other test that builds ResolutionService by hand): pass a
+    MemberInfoClient answering no records, (id, dos, c) -> Mono.just(new MemberInfoResponse(null, List.of())),
+    and a new LineOfBusinessDeriver().
+  - Service test (ResolutionServiceMemberPlanTest), four cases, the fake client returning a Mono:
+      asked with the resolved id, the first day of a period and the correlation id; the covering record's
+      value replaces MMI's (RI-TOGETHER over MCR)
+      a covering record no rule matches keeps MMI's value
+      no records, or none covering the date, keeps MMI's value
+      a failing lookup (Mono.error(MemberInfoException.unavailable(...))) gives 503 MEMBER_PLAN_UNAVAILABLE,
+      Retry-After 10 and MMI's request id as traceId
 
 STEP 9  Postman
   reference: postman/InteropResolution.postman_collection.json (compare, do not import over yours)
-  Add, using your envelope's path:
+  Change, using your envelope's path: the Together subscriber's lineOfBusiness checks (2026 date) from PP
+  to MA-TOGETHER, and the open-ended endDate check from 9999-12-31 to 3999-12-31.
+  Add:
     Together subscriber, 2026 date   lineOfBusiness = MA-TOGETHER
     SCO member, 2025-06-15           lineOfBusiness = SCO
     open-ended member                coverage.endDate = 3999-12-31; coverageId ends with 39991231
 
 STEP 10  Docs
   reference/README.md (line of business section, member-info configuration, error codes) and
-  reference/docs/design.html (sections 5, 6.3, 6.4, 9.5, 13, 15, 17). Fold the text into your README.
+  reference/docs/design.html (sections 1, 5, 6.3, 6.4, 6.5, 9.1, 9.5, 11, 13, 15, 16, 17, 18, 19). Fold the text into your README.
 
 CHECK WHEN DONE
   ./gradlew clean build                       all tests green
@@ -186,4 +206,6 @@ OPEN ITEMS TO CONFIRM (do not block the merge)
   - A member information failure fails the answer: keep, or fall back to MMI's value?
   - SCO, D-SNP, MA-TOGETHER, RI-TOGETHER, MA-QHP are the values Onyx routes on.
   - The FQA, PQA-LITE and PRD member information URLs.
+  - With dosStartDate, MMI may return only the segment covering that date, or a 404 for a member with no
+    coverage on it (NOT_FOUND instead of INACTIVE). Watch for it in PQA.
   - Success responses wrapped in ApiResponse<MemberResolutionResponse>: agree it with Onyx.
