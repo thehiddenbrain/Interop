@@ -1,4 +1,7 @@
-# PQA environment: the PQA MMI (the default profile, so "Run As > Spring Boot App" in STS lands here).
+# PQA environment: the PQA MMI and member information service (the default profile, so "Run As > Spring Boot App" in STS lands here).
 mmi:
   base-url: http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp
   log-payloads: ${MMI_LOG_PAYLOADS:true}                    # show the exact MMI request and response in the console (PHI; turn off when done)
+member-info:
+  base-url: http://memberinfoserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp
+  log-payloads: ${MEMBER_INFO_LOG_PAYLOADS:true}            # show the exact member information request and response in the console

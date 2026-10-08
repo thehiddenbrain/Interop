@@ -313,6 +313,48 @@ class ResolveScenariosTest {
         assertThat(stub.lastDateOfService()).as("a period: its first day").isEqualTo(LocalDate.parse("2025-12-20"));
     }
 
+    // ---------------------------------------------------------------- the member plan behind the line of business
+
+    @Autowired org.p32h.interop.memberinfo.MemberInfoClient memberInfoClient;
+
+    /** The stored id of the stub record whose comment starts with {@code comment}. */
+    private static String fixtureId(String comment) {
+        try (var in = ResolveScenariosTest.class.getResourceAsStream("/mmi-stub/members.json")) {
+            for (JsonNode m : tools.jackson.databind.json.JsonMapper.builder().build().readTree(in)) {
+                if (m.path("_comment").asText().startsWith(comment)) {
+                    return m.get("memberId").asText();
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        throw new IllegalArgumentException("no stub record for " + comment);
+    }
+
+    @Test
+    void theMemberPlanIsAskedForOnlyOnceTheMemberIsIdentified() throws Exception {
+        org.p32h.interop.memberinfo.StubMemberInfoClient plans = (org.p32h.interop.memberinfo.StubMemberInfoClient) memberInfoClient;
+        long before = plans.calls();
+        JsonNode active = call(200, req(fixtureId("TMP (Tufts Medicare Preferred)"), "2026-10-15"));
+        assertThat(active.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(plans.calls()).as("asked once for an identified member").isEqualTo(before + 1);
+        assertThat(plans.lastMemberId()).as("with the resolved id, as stored").isEqualTo(active.at("/memberId/resolved").asText());
+        assertThat(plans.lastDateOfService()).isEqualTo(LocalDate.parse("2026-10-15"));
+        assertThat(active.get("lineOfBusiness").asText()).as("until the rules arrive, the member record's line of business").isEqualTo("MCR");
+        assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage())
+                .contains("marker=LOB_RULES_PENDING").contains("hierarchyLineOfBusiness=MASB").contains("lob=MCR"));
+
+        JsonNode inactive = call(200, req(fixtureId("SCO member (Medicare)"), "2026-10-15"));
+        assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");
+        assertThat(inactive.get("lineOfBusiness").asText()).as("no plan for this member in the stub: the record's").isEqualTo("MCR");
+        assertThat(plans.calls()).as("asked for an INACTIVE member too").isEqualTo(before + 2);
+
+        assertThat(call(200, req("NOSUCHMEMBER", "2026-10-15")).get("outcome").asText()).isEqualTo("NOT_FOUND");
+        String family = fixtureId("Public Plans (Together) subscriber").substring(0, 9);
+        assertThat(call(200, req(family, "2026-10-15")).get("outcome").asText()).isEqualTo("AMBIGUOUS");
+        assertThat(plans.calls()).as("never for NOT_FOUND or AMBIGUOUS").isEqualTo(before + 2);
+    }
+
     // ---------------------------------------------------------------- no date of service
 
     @Test

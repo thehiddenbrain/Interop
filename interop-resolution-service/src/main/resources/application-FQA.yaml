@@ -1,4 +1,7 @@
-# FQA environment: the FQA MMI.
+# FQA environment: the FQA MMI and member information service.
 mmi:
   base-url: http://mastermemberindexserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp
   log-payloads: ${MMI_LOG_PAYLOADS:true}                    # show the exact MMI request and response in the console (PHI; turn off when done)
+member-info:
+  base-url: http://memberinfoserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp   # assumed from the PQA URL and the MMI naming: confirm
+  log-payloads: ${MEMBER_INFO_LOG_PAYLOADS:true}            # show the exact member information request and response in the console

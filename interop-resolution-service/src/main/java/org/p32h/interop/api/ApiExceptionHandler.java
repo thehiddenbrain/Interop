@@ -5,6 +5,7 @@ import tools.jackson.databind.exc.MismatchedInputException;
 import tools.jackson.databind.exc.UnrecognizedPropertyException;
 import org.p32h.interop.domain.InvalidRequestException;
 import org.p32h.interop.domain.ResolutionException;
+import org.p32h.interop.memberinfo.MemberInfoException;
 import org.p32h.interop.mmi.MmiException;
 import java.util.List;
 import org.slf4j.Logger;
@@ -43,6 +44,16 @@ public class ApiExceptionHandler {
         }
         return builder.body(new ApiErrorResponse(new ApiErrorResponse.Error(e.code(), e.getMessage(),
                 List.of(new ErrorDetail(null, e.detail(), e.getMessage()))), CorrelationFilter.current(), CorrelationFilter.requestId(), e.requestId()));
+    }
+
+    @ExceptionHandler(MemberInfoException.class)
+    public ResponseEntity<ApiErrorResponse> memberInfo(MemberInfoException e) {
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(e.status());
+        if (e.status() == HttpStatus.SERVICE_UNAVAILABLE) {
+            builder.header("Retry-After", "10");
+        }
+        return builder.body(new ApiErrorResponse(new ApiErrorResponse.Error(e.code(), e.getMessage(),
+                List.of(new ErrorDetail(null, e.detail(), e.getMessage()))), CorrelationFilter.current(), CorrelationFilter.requestId(), e.traceId()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

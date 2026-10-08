@@ -14,6 +14,7 @@ class ConfigValidationTest {
             .withPropertyValues(
                     "mmi.client-id=INTEROP",
                     "mmi.base-url=http://mmi.test",
+                    "member-info.base-url=http://member-info.test",
                     "member-id.vendors.EVICORE.format=COMPACT_11");
 
     @Test
@@ -49,6 +50,24 @@ class ConfigValidationTest {
     }
 
     @Test
+    void missingMemberInfoBaseUrlWithoutStubFails() {
+        runner.withPropertyValues("member-info.base-url=")
+                .run(ctx -> {
+                    assertThat(ctx).hasFailed();
+                    assertThat(rootMessage(ctx.getStartupFailure())).contains("member-info.base-url");
+                });
+    }
+
+    @Test
+    void memberInfoStubOutsideDevOrTestProfileFails() {
+        runner.withPropertyValues("spring.profiles.active=PQA", "member-info.stub.enabled=true")
+                .run(ctx -> {
+                    assertThat(ctx).hasFailed();
+                    assertThat(rootMessage(ctx.getStartupFailure())).contains("member-info.stub.enabled=true is only allowed with the DEV or test profile");
+                });
+    }
+
+    @Test
     void blankPayerIdFails() {
         runner.withPropertyValues("payer.id=")
                 .run(ctx -> {
@@ -68,7 +87,7 @@ class ConfigValidationTest {
 
     @Test
     void stubInTestProfileStarts() {
-        runner.withPropertyValues("spring.profiles.active=test", "mmi.stub.enabled=true")
+        runner.withPropertyValues("spring.profiles.active=test", "mmi.stub.enabled=true", "member-info.stub.enabled=true")
                 .run(ctx -> assertThat(ctx).hasNotFailed());
     }
 

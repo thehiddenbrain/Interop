@@ -12,6 +12,10 @@ import org.p32h.interop.domain.MemberRecord;
 import org.p32h.interop.domain.MemberSelector;
 import org.p32h.interop.domain.ResolutionException;
 import org.p32h.interop.domain.SelectionResult;
+import org.p32h.interop.memberinfo.MemberInfoClient;
+import org.p32h.interop.memberinfo.MemberInfoException;
+import org.p32h.interop.memberinfo.MemberInfoResponse;
+import org.p32h.interop.memberinfo.MemberPlan;
 import org.p32h.interop.mmi.MmiClient;
 import org.p32h.interop.mmi.MmiException;
 import org.p32h.interop.mmi.MmiMember;
@@ -22,6 +26,7 @@ import org.p32h.interop.mmi.MmiResult;
 import org.p32h.interop.vendor.Payer;
 import org.p32h.interop.vendor.VendorFormatter;
 import org.p32h.interop.vendor.VendorRegistry;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -31,8 +36,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * The member resolution, {@code POST /v1/interop/resolve}: ask MMI once with the member id exactly as received,
- * reduce the records to one person, decide coverage on the date (or period) of service, and render the stored id for
- * every configured vendor.
+ * reduce the records to one person, decide coverage on the date (or period) of service, ask the member information
+ * service for that member's plan to derive the line of business, and render the stored id for every configured vendor.
  */
 @Service
 public class ResolutionService {
@@ -46,9 +51,12 @@ public class ResolutionService {
     private final MmiRecordMapper mapper;
     private final MemberSelector selector;
     private final VendorFormatter formatter;
+    private final MemberInfoClient memberInfo;
+    private final LineOfBusinessDeriver lineOfBusiness;
 
     public ResolutionService(RequestValidator validator, VendorRegistry vendors, MmiClient mmi, MmiProperties mmiProperties,
-            MmiRecordMapper mapper, MemberSelector selector, VendorFormatter formatter) {
+            MmiRecordMapper mapper, MemberSelector selector, VendorFormatter formatter, MemberInfoClient memberInfo,
+            LineOfBusinessDeriver lineOfBusiness) {
         this.validator = validator;
         this.vendors = vendors;
         this.mmi = mmi;
@@ -56,6 +64,8 @@ public class ResolutionService {
         this.mapper = mapper;
         this.selector = selector;
         this.formatter = formatter;
+        this.memberInfo = memberInfo;
+        this.lineOfBusiness = lineOfBusiness;
     }
 
     /** Resolves the member behind the id and renders the stored id, with the vendor's payer, for every configured vendor. */
@@ -63,6 +73,7 @@ public class ResolutionService {
         long start = System.nanoTime();
         RequestValidator.Validated v = validator.validate(request);
         Resolved r = resolveMember(v, correlationId);
+        String lob = r.record() == null ? null : lineOfBusiness(r, v.dateOfService(), correlationId);
         List<MemberResolutionResponse.VendorMemberId> forVendors = null;
         if (r.record() != null) {
             forVendors = vendors.all().stream()
@@ -79,10 +90,28 @@ public class ResolutionService {
         }
         MemberResolutionResponse response = new MemberResolutionResponse(r.outcome(), message(r, v),
                 new MemberResolutionResponse.MemberId(v.memberId(), r.storedMemberId(), forVendors),
-                r.lineOfBusiness(), v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
+                lob, v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
                 r.coverageBlock(), v.requestId(), r.mmiRequestId(), r.mmiNote());
-        logOutcome(r, v, start);
+        logOutcome(r, v, lob, start);
         return response;
+    }
+
+    /**
+     * The identified member's plan on the date of service, from the member information service, and the line of business
+     * derived from it. A failure of that service fails the answer (503 or 502, carrying MMI's request id as traceId).
+     */
+    private String lineOfBusiness(Resolved r, LocalDate dateOfService, String correlationId) {
+        MemberInfoResponse info;
+        try {
+            info = memberInfo.lookup(r.storedMemberId(), dateOfService, correlationId);
+        } catch (MemberInfoException e) {
+            throw e.withTraceId(r.mmiRequestId());
+        }
+        List<MemberPlan> plans = info.plansFor(r.storedMemberId());
+        if (plans.size() > 1) {
+            log.warn("marker=MEMBER_PLAN_SEVERAL memberId={} plans={}: the first is used", r.storedMemberId(), plans.size());
+        }
+        return lineOfBusiness.derive(r.record(), plans.isEmpty() ? null : plans.get(0));
     }
 
     /** MMI's answer reduced to one outcome, before it is rendered. */
@@ -95,10 +124,6 @@ public class ResolutionService {
 
         String company() {
             return record == null ? null : record.company();
-        }
-
-        String lineOfBusiness() {
-            return record == null ? null : record.lineOfBusiness();
         }
 
         Coverage coverageBlock() {
@@ -211,10 +236,10 @@ public class ResolutionService {
         return m.messageType() != null && mmiProperties.errorMessageTypes().stream().anyMatch(t -> t.equalsIgnoreCase(m.messageType().strip()));
     }
 
-    private static void logOutcome(Resolved r, RequestValidator.Validated v, long start) {
+    private static void logOutcome(Resolved r, RequestValidator.Validated v, String lob, long start) {
         log.info("resolution clientId={} clientType={} outcome={} reason={} memberId={} resolved={} company={} lob={} dos={} dosEnd={} dosDefaulted={} records={} persons={} mmiRequestId={} ms={}",
                 v.clientId(), v.clientType(), r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(),
-                v.memberId(), r.storedMemberId(), r.company(), r.lineOfBusiness(),
+                v.memberId(), r.storedMemberId(), r.company(), lob,
                 v.dateOfService(), v.dateOfServiceEnd() == null ? "-" : v.dateOfServiceEnd(), v.dateOfServiceDefaulted(), r.records(), r.persons(), r.mmiRequestId(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
     }

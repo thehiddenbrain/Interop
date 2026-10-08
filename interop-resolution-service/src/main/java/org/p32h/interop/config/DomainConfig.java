@@ -3,6 +3,7 @@ package org.p32h.interop.config;
 import org.p32h.interop.domain.CoverageEvaluator;
 import org.p32h.interop.domain.MemberSelector;
 import org.p32h.interop.mmi.MmiRecordMapper;
+import org.p32h.interop.service.LineOfBusinessDeriver;
 import org.p32h.interop.vendor.Payer;
 import org.p32h.interop.vendor.VendorFormatter;
 import org.p32h.interop.vendor.VendorRegistry;
@@ -36,5 +37,10 @@ public class DomainConfig {
     @Bean
     public MmiRecordMapper mmiRecordMapper() {
         return new MmiRecordMapper();
+    }
+
+    @Bean
+    public LineOfBusinessDeriver lineOfBusinessDeriver() {
+        return new LineOfBusinessDeriver();
     }
 }

@@ -8,8 +8,8 @@ member ID exactly as the provider's EMR supplied it, with the date of service, a
 (`dateOfService` to `dateOfServiceEnd`). The service verifies the ID with MMI (Master Member Index), returns the ID it
 **resolved** to and that ID **in every UM vendor's format** with the payer for that vendor's request, and says
 whether coverage is **active**. One call serves a
-prior authorization whose codes go to several vendors. One operation, `POST /v1/interop/resolve`, one downstream
-(MMI), no database, no state.
+prior authorization whose codes go to several vendors. One operation, `POST /v1/interop/resolve`, two downstreams
+(MMI, and the member information service for the plan behind the line of business), no database, no state.
 
 | | |
 |---|---|
@@ -92,8 +92,8 @@ that environment's `application-<ENV>.yaml`; nothing else changes.
    `PQA` (or on the Arguments tab, Program arguments: `--spring.profiles.active=PQA`). Apply, Run.
 2. **Command line**: `set SPRING_PROFILES_ACTIVE=PQA` then `run.cmd` (Windows), or
    `SPRING_PROFILES_ACTIVE=PQA ./run.sh`, or `java -jar build/libs/interop-resolution-service-1.0.0.jar --spring.profiles.active=PQA`.
-3. **Check the startup banner** in the console. It must say `profiles : [PQA]`, `mmi client : REST` and the PQA
-   URL. If it says `STUB`, the profile did not apply. `http://localhost:9090/actuator/info` shows the build.
+3. **Check the startup banner** in the console. It must say `profiles : [PQA]`, `mmi client : REST`,
+   `member-info client: REST` and the PQA URLs. If it says `STUB`, the profile did not apply. `http://localhost:9090/actuator/info` shows the build.
 4. **Network**: your machine (or the pod) must reach `mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp`
    on port 80 (plain HTTP, no token, as the MMI contract states). If it cannot, every call answers
    `503 MEMBER_LOOKUP_UNAVAILABLE` with `CONNECT_FAILED` and the log line `mmi call failed ... cause=...` names the reason.
@@ -140,8 +140,35 @@ MMI team), `MMI_CONNECT_TIMEOUT=2s`, `MMI_READ_TIMEOUT=5s`, `MMI_LOG_PAYLOADS=tr
 **Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `PQA` so that "Run As >
 Spring Boot App" in STS talks to the PQA MMI with no setup. A pod that forgets the variable would therefore call
 the PQA MMI, wrong in PRD and in FQA: set `PRD`, `FQA`, `PQA` or `PQA-LITE` explicitly in every deployment. Two
-guards back the stub: it refuses to start with any explicitly active profile other than `DEV` or `test`, and it
-refuses to start inside a Kubernetes/OpenShift pod at all (it checks `KUBERNETES_SERVICE_HOST`).
+guards back each stub (MMI and member information): it refuses to start with any explicitly active profile other than
+`DEV` or `test`, and it refuses to start inside a Kubernetes/OpenShift pod at all (it checks `KUBERNETES_SERVICE_HOST`).
+
+#### The member information service (line of business)
+
+Once MMI has identified the member (`ACTIVE` or `INACTIVE`), the service asks the member information service for that
+member's plan on the date of service: `POST {member-info.base-url}/members` with
+`{ "memberIds": ["<the resolved id, as stored>"], "dos": "MM/dd/yyyy" }`. The plan (`hierarchyLineOfBusiness`,
+`lineOfBusinessDesc`, `hierarchyCompany`, `subsidiary`, `carrierCode`, `productCode`, ...) is what the line of business
+will be derived from, in `LineOfBusinessDeriver`. The derivation rules are still to come: until then `lineOfBusiness`
+stays MMI's value and each identified answer logs the plan fields with `marker=LOB_RULES_PENDING`. TMP members will also
+need a database lookup, to be added with the rules.
+
+| Profile | Member information service |
+|---|---|
+| `DEV` | in-process stub, `member-info-stub/members.json` (the contract example's plan on the TMP sample member; any other member has no plan) |
+| `FQA` | `http://memberinfoserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp` (assumed from the PQA URL: confirm) |
+| `PQA` | `http://memberinfoserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` |
+| `PQA-LITE` | `http://memberinfoserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` (assumed: confirm) |
+| `PRD` | `http://memberinfoserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp` (assumed: confirm) |
+
+A 404 is taken as "no plan on the date" (`marker=MEMBER_PLAN_404`). Any other failure fails the answer: 503
+`MEMBER_PLAN_UNAVAILABLE` (cannot reach, timeout, 5xx, 429, 408; `Retry-After: 10`) or 502 `MEMBER_PLAN_ERROR` (any
+other status) / `MEMBER_PLAN_INVALID_RESPONSE` (an empty or unreadable body), with MMI's request id as `traceId`.
+Several plans for the member: the first is used (`marker=MEMBER_PLAN_SEVERAL`). With `member-info.log-payloads: true`
+(on in DEV, FQA, PQA and PQA-LITE) the exact request and response bodies are logged (`member-info request` /
+`member-info response`); the startup banner shows `member-info client`, `member-info url` and `member-info log`.
+Overrides: `MEMBER_INFO_BASE_URL`, `MEMBER_INFO_CONNECT_TIMEOUT=2s`, `MEMBER_INFO_READ_TIMEOUT=5s`,
+`MEMBER_INFO_LOG_PAYLOADS=true|false`.
 
 ## 2. The API
 
@@ -244,7 +271,8 @@ id with its spaces and any punctuation removed, then the period's effective date
 together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `99991231` stands for an open-ended
 period). It is present whenever the dates are, and the same member with the same coverage always gets the same
 value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring dates.
-`lineOfBusiness` is MMI's value (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it. The company (THP or
+`lineOfBusiness` is MMI's value (`MCR`, `PP`, `COM`, ...) for now; Onyx routes the transaction on it, and it will be
+derived from the member's plan in the member information service once the rules are supplied (section 1). The company (THP or
 HPHC) is not returned: the resolved id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
 to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body, and the caller's `requestId`
 comes back as `requestId`. Each `memberId.forVendors` entry also carries `payerId` and `payerName`, the payer Onyx
@@ -259,7 +287,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
 | `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId, payerId, payerName }` per configured vendor, sorted by vendor code) when a member was identified |
-| `lineOfBusiness` | `ACTIVE`, `INACTIVE` | MMI's line of business (`MCR`, `PP`, `COM`, ...); Onyx routes the transaction on it |
+| `lineOfBusiness` | `ACTIVE`, `INACTIVE` | MMI's line of business (`MCR`, `PP`, `COM`, ...) until it is derived from the member's plan; Onyx routes the transaction on it |
 | `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `dateOfServiceDefaulted` | always | Whether the date of service was defaulted to today |
@@ -316,6 +344,8 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
 | 502 | `MEMBER_LOOKUP_ERROR`, `MEMBER_LOOKUP_INVALID_RESPONSE` | MMI reported an error of its own in `messages[]` with no members (`ERROR_MESSAGE`; the message forwards MMI's code and text: `The member lookup reported an error: ES_TIMEOUT ...`); a 4xx other than 400 and 404 from the MMI endpoint, which is a gateway or proxy answering, not MMI (`HTTP_<code>`; the message says so and repeats the URL); an unreadable 2xx body (`EMPTY_BODY`, `UNPARSEABLE_BODY`); records without a member id (`NO_MEMBER_ID`); or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read). | Park, alert the service owners. |
 | 503 | `MEMBER_LOOKUP_UNAVAILABLE` (`Retry-After: 10`) | MMI unreachable (`CONNECT_FAILED`) or timed out (`READ_TIMEOUT`); MMI 500 (`HTTP_500`; the message forwards MMI's code and text when present); a 5xx, 429 or 408 from a gateway in front of MMI (`HTTP_<code>`). | Retry later. |
+| 502 | `MEMBER_PLAN_ERROR`, `MEMBER_PLAN_INVALID_RESPONSE` | The member information service answered a status other than 200, 404, 408, 429 and 5xx (`HTTP_<code>`), or an empty or unreadable body (`EMPTY_BODY`, `UNPARSEABLE_BODY`). `traceId` present. | Park, alert the service owners. |
+| 503 | `MEMBER_PLAN_UNAVAILABLE` (`Retry-After: 10`) | The member information service unreachable (`CONNECT_FAILED`), timed out (`READ_TIMEOUT`) or answered 5xx, 429 or 408 (`HTTP_<code>`). `traceId` present. | Retry later. |
 | 500 | `INTERNAL_ERROR` | a bug here | Retry once later, alert the service owners. |
 
 **If this service itself is unreachable**, Onyx's agreed fallback is to pass the member ID exactly as it
@@ -351,7 +381,10 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    remaining spans decide. If a member has unreadable spans and no readable one, the answer is 502
    `UNREADABLE_COVERAGE`, never a confident INACTIVE. For a converted member the two records' spans are
    evaluated together, so a gap between the old and the new record is reported as a gap.
-5. Format the resolved ID for every configured vendor, in vendor-code order (never from the input).
+5. For an identified member (`ACTIVE` or `INACTIVE`), one member information call with the resolved ID and the date
+   of service; the line of business is derived from the plan it returns (section 1; MMI's value until the rules are in).
+   Its failure fails the answer (503 / 502).
+6. Format the resolved ID for every configured vendor, in vendor-code order (never from the input).
 
 Before step 1 the caller fields are checked, the request type ignores what the operation does not need (a `vendor`,
 unknown properties), and a date that was sent is validated, because the date of service is the date the answer is about.
@@ -409,7 +442,8 @@ the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor and the company.
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
 and case (anything that is not a letter or digit is ignored), the leniency expected of the real MMI; the service
 itself hands the id over untouched. The stub ignores `dosStartDate` and returns each record's whole coverage
-history. The fault ids below are recognised by the first 9 characters of the id with
+history. `src/main/resources/member-info-stub/members.json` is the member information stub: the plan from the service's
+contract example on the TMP sample member, no plan for anyone else. The fault ids below are recognised by the first 9 characters of the id with
 separators removed.
 
 | Member ID (as typed; the stub ignores separators and case) | Case |
@@ -441,7 +475,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (132 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (149 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -476,12 +510,23 @@ a company a vendor has no entry for gets the default and one `VENDOR_PAYER_DEFAU
 three `_MISSING` codes and MMI is not called; a `clientType` other than `EXT` or `INT` (lower case included), an
 over-long or malformed `clientId` or `requestId` is a 400; a usable `requestId` is echoed even on a 400, an unusable
 one never; an internal caller (`INT`) gets its answer and is named in the log line.
+The member information call: `RestMemberInfoClientTest` (the exact body, `dos` as `MM/dd/yyyy`, the contract example
+parsed, 404 as no plan, 5xx/429/408 and timeouts as 503, other statuses and unreadable bodies as 502),
+`MemberInfoResponseTest` (the plan matched to the member ignoring spacing and case, void plans skipped),
+`ResolutionServiceMemberPlanTest` (asked with the resolved id, the first day of a period and the correlation id; the
+record's line of business kept until the rules arrive; a failure is a 503 with `Retry-After` and MMI's request id as
+`traceId`) and `theMemberPlanIsAskedForOnlyOnceTheMemberIsIdentified` (asked for `ACTIVE` and `INACTIVE`, never for
+`NOT_FOUND` or `AMBIGUOUS`).
 
 ## 7. Assumptions to confirm in PQA
 
 - MMI finds the member from the id as typed, including the 9-, 11- and 14-character forms and ids with
   hyphens or spaces (`123456789-01`, `HP-123456789`); the service sends it unchanged in `memberId` and
   `legacyMemberId`. The stub assumes the same.
+- The member information service takes every population's id as MMI stores it (its contract shows the THP form, the
+  id, spaces and the two-digit suffix; HPHC and Public Plans ids are sent as stored too), needs no authentication,
+  returns one plan per member and date, and answers 404 when it has no plan (its 400 and 500 are assumed). Its FQA,
+  PQA-LITE and PRD URLs follow the PQA naming. The line-of-business rules and the TMP database lookup are to come.
 - With `dosStartDate`, which coverage MMI returns: only the segment covering that date or the whole history; and for
   a member with no coverage on that date, the member without coverage or a 404 (`NOT_FOUND` here instead of
   `INACTIVE` with its reason). The service evaluates whatever comes back: contiguous segments are still read as one

@@ -1,5 +1,7 @@
 package org.p32h.interop.config;
 
+import org.p32h.interop.memberinfo.MemberInfoClient;
+import org.p32h.interop.memberinfo.MemberInfoProperties;
 import org.p32h.interop.mmi.MmiClient;
 import org.p32h.interop.mmi.MmiProperties;
 import org.p32h.interop.vendor.Vendor;
@@ -14,8 +16,8 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * Prints the effective configuration in the first lines of every start: profile, MMI target, MMI client
- * type (REST or STUB) and the vendor format table rendered against a sample id, so a wrong environment or a
+ * Prints the effective configuration in the first lines of every start: profile, MMI and member information targets and
+ * client types (REST or STUB) and the vendor format table rendered against a sample id, so a wrong environment or a
  * wrong vendor format is visible before the first request.
  */
 @Component
@@ -30,9 +32,12 @@ public class StartupReport implements ApplicationRunner {
     private final VendorFormatter formatter;
     private final MemberIdProperties memberId;
     private final PayerProperties payer;
+    private final MemberInfoProperties memberInfo;
+    private final MemberInfoClient memberInfoClient;
 
     public StartupReport(Environment environment, MmiProperties mmi, MmiClient mmiClient, VendorRegistry vendors,
-            VendorFormatter formatter, MemberIdProperties memberId, PayerProperties payer) {
+            VendorFormatter formatter, MemberIdProperties memberId, PayerProperties payer, MemberInfoProperties memberInfo,
+            MemberInfoClient memberInfoClient) {
         this.environment = environment;
         this.mmi = mmi;
         this.mmiClient = mmiClient;
@@ -40,6 +45,8 @@ public class StartupReport implements ApplicationRunner {
         this.formatter = formatter;
         this.memberId = memberId;
         this.payer = payer;
+        this.memberInfo = memberInfo;
+        this.memberInfoClient = memberInfoClient;
     }
 
     @Override
@@ -54,6 +61,10 @@ public class StartupReport implements ApplicationRunner {
         sb.append("mmi clientId      : ").append(mmi.clientId()).append('\n');
         sb.append("mmi timeouts      : connect=").append(mmi.connectTimeout()).append(" read=").append(mmi.readTimeout()).append('\n');
         sb.append("mmi payload log   : ").append(mmi.logPayloads() ? "ON (request and response bodies, contains PHI)" : "off").append('\n');
+        sb.append("member-info client: ").append(memberInfoClient.kind()).append('\n');
+        sb.append("member-info url   : ").append(memberInfo.baseUrl()).append(memberInfo.path()).append('\n');
+        sb.append("member-info time  : connect=").append(memberInfo.connectTimeout()).append(" read=").append(memberInfo.readTimeout()).append('\n');
+        sb.append("member-info log   : ").append(memberInfo.logPayloads() ? "ON (request and response bodies)" : "off").append('\n');
         sb.append("payer (default)   : ").append(payer.id()).append(" / ").append(payer.name()).append('\n');
         sb.append("dos limit         : not older than ").append(memberId.dateOfService().maxPastYears())
           .append("y; any future date is judged on the coverage on record (").append(memberId.dateOfService().zone()).append(")\n");

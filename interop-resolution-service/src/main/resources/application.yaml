@@ -59,6 +59,19 @@ mmi:
   stub:
     enabled: false                      # true only in the DEV and test profiles
 
+# The member information service: the member's plan on the date of service, from which the line of business is derived.
+# Called once per answer, after MMI has identified the member (ACTIVE or INACTIVE), with the resolved id and the date of
+# service. Its failure fails the answer: 503 MEMBER_PLAN_UNAVAILABLE (unreachable, timeout, 5xx/429/408) or 502
+# MEMBER_PLAN_ERROR / MEMBER_PLAN_INVALID_RESPONSE. A 404 is taken as "no plan on the date".
+member-info:
+  base-url: ${MEMBER_INFO_BASE_URL:}    # set per environment (application-<ENV>.yaml) or by environment variable
+  path: /members
+  connect-timeout: ${MEMBER_INFO_CONNECT_TIMEOUT:2s}
+  read-timeout: ${MEMBER_INFO_READ_TIMEOUT:5s}
+  log-payloads: ${MEMBER_INFO_LOG_PAYLOADS:false}  # print the full request and response bodies; DEV/FQA/PQA/PQA-LITE turn it on
+  stub:
+    enabled: false                      # true only in the DEV and test profiles
+
 # The default payer identity Onyx puts on its requests to a UM vendor; returned in every memberId.forVendors entry as
 # payerId and payerName. One value covers THP and HPHC. A vendor that keys the payer on the heritage company sets its
 # own per company in its member-id.vendors entry (EVICORE below). PAYER_ID / PAYER_NAME override the default per environment.

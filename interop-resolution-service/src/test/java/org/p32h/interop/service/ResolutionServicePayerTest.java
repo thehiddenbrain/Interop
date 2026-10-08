@@ -14,6 +14,8 @@ import org.p32h.interop.config.MemberIdProperties.PayerConfig;
 import org.p32h.interop.config.MemberIdProperties.VendorConfig;
 import org.p32h.interop.domain.CoverageEvaluator;
 import org.p32h.interop.domain.MemberSelector;
+import org.p32h.interop.memberinfo.MemberInfoClient;
+import org.p32h.interop.memberinfo.MemberInfoResponse;
 import org.p32h.interop.mmi.MmiClient;
 import org.p32h.interop.mmi.MmiCoverage;
 import org.p32h.interop.mmi.MmiMember;
@@ -68,8 +70,19 @@ class ResolutionServicePayerTest {
         };
         MmiProperties mmiProperties = new MmiProperties("http://mmi.test", "/master/member/v1", "INTEROP", "INT", Duration.ofSeconds(2),
                 Duration.ofSeconds(5), "N", List.of("ERROR"), false, new MmiProperties.Stub(false, ""));
+        MemberInfoClient noPlan = new MemberInfoClient() {
+            @Override
+            public MemberInfoResponse lookup(String memberId, LocalDate dateOfService, String correlationId) {
+                return new MemberInfoResponse(null, List.of());
+            }
+
+            @Override
+            public String kind() {
+                return "TEST";
+            }
+        };
         return new ResolutionService(new RequestValidator(properties, CLOCK), new VendorRegistry(table, DEFAULT), mmi, mmiProperties,
-                new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter());
+                new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan, new LineOfBusinessDeriver());
     }
 
     private static MemberResolutionResponse resolve(String company) {

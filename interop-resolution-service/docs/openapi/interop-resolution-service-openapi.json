@@ -62,7 +62,7 @@
             }
           },
           "502": {
-            "description": "MEMBER_LOOKUP_ERROR or MEMBER_LOOKUP_INVALID_RESPONSE",
+            "description": "MEMBER_LOOKUP_ERROR or MEMBER_LOOKUP_INVALID_RESPONSE (the member lookup); MEMBER_PLAN_ERROR or MEMBER_PLAN_INVALID_RESPONSE (the member plan lookup)",
             "content": {
               "application/json": {
                 "schema": {
@@ -72,7 +72,7 @@
             }
           },
           "503": {
-            "description": "MEMBER_LOOKUP_UNAVAILABLE",
+            "description": "MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds",
             "content": {
               "application/json": {
                 "schema": {
