@@ -313,7 +313,7 @@ class ResolveScenariosTest {
         assertThat(stub.lastDateOfService()).as("a period: its first day").isEqualTo(LocalDate.parse("2025-12-20"));
     }
 
-    // ---------------------------------------------------------------- the member plan behind the line of business
+    // ---------------------------------------------------------------- the coverage records behind the line of business
 
     @Autowired org.p32h.interop.memberinfo.MemberInfoClient memberInfoClient;
 
@@ -332,7 +332,7 @@ class ResolveScenariosTest {
     }
 
     @Test
-    void theMemberPlanIsAskedForOnlyOnceTheMemberIsIdentified() throws Exception {
+    void theCoverageRecordsAreAskedForOnlyOnceTheMemberIsIdentified() throws Exception {
         org.p32h.interop.memberinfo.StubMemberInfoClient plans = (org.p32h.interop.memberinfo.StubMemberInfoClient) memberInfoClient;
         long before = plans.calls();
         JsonNode active = call(200, req(fixtureId("TMP (Tufts Medicare Preferred)"), "2026-10-15"));
@@ -340,13 +340,22 @@ class ResolveScenariosTest {
         assertThat(plans.calls()).as("asked once for an identified member").isEqualTo(before + 1);
         assertThat(plans.lastMemberId()).as("with the resolved id, as stored").isEqualTo(active.at("/memberId/resolved").asText());
         assertThat(plans.lastDateOfService()).isEqualTo(LocalDate.parse("2026-10-15"));
-        assertThat(active.get("lineOfBusiness").asText()).as("no plan in the stub for this member: the member record's").isEqualTo("MCR");
+        assertThat(active.get("lineOfBusiness").asText()).as("no records in the stub for this member: the member record's").isEqualTo("MCR");
         assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage())
-                .contains("marker=LOB_NOT_DERIVED").contains("plan=none").contains("lob=MCR"));
+                .contains("marker=LOB_NOT_DERIVED").contains("coverageRecords=0").contains("lob=MCR"));
+
+        String subscriber = fixtureId("Public Plans (Together) subscriber");
+        assertThat(call(200, req(subscriber, "2026-10-15")).get("lineOfBusiness").asText())
+                .as("the 2025-onward record: THPPMA, 2026, GT").isEqualTo("MA-TOGETHER");
+        assertThat(call(200, req(subscriber, "2024-08-15")).get("lineOfBusiness").asText())
+                .as("the 2022-2024 record: THPPMA, 2026, SB").isEqualTo("MA-QHP-DIRECT");
+        assertThat(call(200, req(subscriber, "2021-06-01")).get("lineOfBusiness").asText())
+                .as("no record covers 2021: the member record's").isEqualTo("PP");
+        before += 3; // the subscriber's three answers
 
         JsonNode inactive = call(200, req(fixtureId("SCO member (Medicare)"), "2026-10-15"));
         assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");
-        assertThat(inactive.get("lineOfBusiness").asText()).as("no plan for this member in the stub: the record's").isEqualTo("MCR");
+        assertThat(inactive.get("lineOfBusiness").asText()).as("no records for this member in the stub: the member record's").isEqualTo("MCR");
         assertThat(plans.calls()).as("asked for an INACTIVE member too").isEqualTo(before + 2);
 
         assertThat(call(200, req("NOSUCHMEMBER", "2026-10-15")).get("outcome").asText()).isEqualTo("NOT_FOUND");

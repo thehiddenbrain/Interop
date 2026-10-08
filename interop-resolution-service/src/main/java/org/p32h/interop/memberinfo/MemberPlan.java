@@ -1,10 +1,16 @@
 package org.p32h.interop.memberinfo;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 
 /**
- * The member's plan as the member information service returns it, every field as sent. The line of business is derived
- * from these fields. Plan dates come as date-times (for example {@code 2024-02-01T05:00:00.000+00:00}) and are kept as text.
+ * One coverage record as the member information service returns it in {@code coverageRecords}: the plan fields, every
+ * field as sent (the same fields as its {@code memberPlan}). The line of business is derived from the record that covers
+ * the date of service. Plan dates come as date-times (for example {@code 2024-02-01T05:00:00.000+00:00}) and are kept as
+ * text; {@link #covers} reads their date as written.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record MemberPlan(
@@ -34,8 +40,50 @@ public record MemberPlan(
         String hierarchyCompanyDesc,
         String lineOfBusinessDesc) {
 
-    /** A plan flagged void ({@code voidFlag} Y) is not the member's plan. */
+    /** A record flagged void ({@code voidFlag} Y) is not the member's coverage. */
     public boolean voided() {
         return voidFlag != null && voidFlag.strip().equalsIgnoreCase("Y");
+    }
+
+    /**
+     * Whether {@code date} falls within the plan start and end dates, both inclusive. No end date is open-ended; a missing
+     * or unreadable start date, or an unreadable end date, covers nothing.
+     */
+    public boolean covers(LocalDate date) {
+        LocalDate start = dateOf(planStartDate);
+        if (start == null || date.isBefore(start)) {
+            return false;
+        }
+        if (planEndDate == null || planEndDate.isBlank()) {
+            return true;
+        }
+        LocalDate end = dateOf(planEndDate);
+        return end != null && !date.isAfter(end);
+    }
+
+    /**
+     * The date as written: {@code 2024-02-01T05:00:00.000+00:00}, {@code 2024-02-01T00:00:00} and {@code 2024-02-01} are all
+     * 2024-02-01. Null when blank or unreadable.
+     */
+    static LocalDate dateOf(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String v = value.strip();
+        try {
+            return OffsetDateTime.parse(v).toLocalDate();
+        } catch (DateTimeParseException e) {
+            // not a date-time with an offset
+        }
+        try {
+            return LocalDateTime.parse(v).toLocalDate();
+        } catch (DateTimeParseException e) {
+            // not a local date-time
+        }
+        try {
+            return LocalDate.parse(v);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 }

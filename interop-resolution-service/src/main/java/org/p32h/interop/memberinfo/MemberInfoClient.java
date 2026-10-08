@@ -2,7 +2,7 @@ package org.p32h.interop.memberinfo;
 
 import java.time.LocalDate;
 
-/** The member information service: the member's plan on a date of service. One implementation talks HTTP; one serves fixtures. */
+/** The member information service: the member's coverage records. One implementation talks HTTP; one serves fixtures. */
 public interface MemberInfoClient {
 
     /**

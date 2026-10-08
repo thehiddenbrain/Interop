@@ -1,5 +1,6 @@
 package org.p32h.interop.service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -9,10 +10,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The line of business Onyx routes on, derived from the member's plan as the member information service returns it.
+ * The line of business Onyx routes on, derived from the member's coverage records as the member information service
+ * returns them (about the last five years). Only the records whose plan start and end dates include the date of service
+ * are read; the rules run on those.
  *
- * <p>The rules are the member portal's "ES Members" criteria, read against the plan: {@code sourceSysId} is the plan's
- * {@code sourceSystemId}, {@code coverage.subsidiary} its {@code subsidiary} and {@code coverage.product} its
+ * <p>The rules are the member portal's "ES Members" criteria, read against a coverage record: {@code sourceSysId} is the
+ * record's {@code sourceSystemId}, {@code coverage.subsidiary} its {@code subsidiary} and {@code coverage.product} its
  * {@code productCode}. Codes are compared ignoring case and surrounding spaces.
  * <pre>
  *   D-SNP           sourceSystemId 2064 and productCode DMA
@@ -20,9 +23,11 @@ import org.slf4j.LoggerFactory;
  *   RI-TOGETHER     subsidiary THPPRI and sourceSystemId 2048
  *   MA-QHP-DIRECT   subsidiary THPPMA, sourceSystemId 2026 and productCode NS or SB
  * </pre>
- * A member with no plan, or a plan no rule matches (TMP, SCO, HPHC and the other populations whose rules are still to
- * come), keeps the line of business on the member record (from MMI), logged with {@code marker=LOB_NOT_DERIVED} and the
- * plan fields. TMP members will also need a database lookup; it belongs here, beside the rules.
+ * When several records cover the date, the first one a rule matches gives the value; if they give different values a
+ * warning is logged ({@code marker=LOB_SEVERAL_ON_DATE}). A member with no record covering the date, or whose records match
+ * no rule (TMP, SCO, HPHC and the other populations whose rules are still to come), keeps the line of business on the member
+ * record (from MMI), logged with {@code marker=LOB_NOT_DERIVED}. TMP members will also need a database lookup; it belongs
+ * here, beside the rules.
  */
 public class LineOfBusinessDeriver {
 
@@ -33,13 +38,13 @@ public class LineOfBusinessDeriver {
     public static final String RI_TOGETHER = "RI-TOGETHER";
     public static final String MA_QHP_DIRECT = "MA-QHP-DIRECT";
 
-    /** One rule: the line of business when the plan's source system, subsidiary and product match; a null condition matches anything. */
+    /** One rule: the line of business when the record's source system, subsidiary and product match; a null condition matches anything. */
     private record Rule(String lineOfBusiness, String sourceSystemId, String subsidiary, Set<String> products) {
 
-        boolean matches(MemberPlan plan) {
-            String product = code(plan.productCode());
-            return sourceSystemId.equals(code(plan.sourceSystemId()))
-                    && (subsidiary == null || subsidiary.equals(code(plan.subsidiary())))
+        boolean matches(MemberPlan record) {
+            String product = code(record.productCode());
+            return sourceSystemId.equals(code(record.sourceSystemId()))
+                    && (subsidiary == null || subsidiary.equals(code(record.subsidiary())))
                     && (products == null || (product != null && products.contains(product)));
         }
     }
@@ -51,27 +56,55 @@ public class LineOfBusinessDeriver {
             new Rule(MA_QHP_DIRECT, "2026", "THPPMA", Set.of("NS", "SB")));
 
     /**
-     * @param record the member record MMI returned for the member
-     * @param plan   the member's plan on the date of service, or null when the member information service has none
+     * @param record          the member record MMI returned for the member
+     * @param coverageRecords the member's coverage records from the member information service, void ones already left out
+     * @param dateOfService   the date of service (the first day of a period)
      */
-    public String derive(MemberRecord record, MemberPlan plan) {
+    public String derive(MemberRecord record, List<MemberPlan> coverageRecords, LocalDate dateOfService) {
         String fromRecord = record.lineOfBusiness();
-        if (plan == null) {
-            log.info("marker=LOB_NOT_DERIVED memberId={} plan=none; lob={} from the member record", record.storedMemberId(), fromRecord);
+        List<MemberPlan> covering = coverageRecords.stream().filter(c -> c.covers(dateOfService)).toList();
+        if (covering.isEmpty()) {
+            log.info("marker=LOB_NOT_DERIVED memberId={} dos={} coverageRecords={} covering=0; lob={} from the member record",
+                    record.storedMemberId(), dateOfService, coverageRecords.size(), fromRecord);
             return fromRecord;
         }
+        MemberPlan matched = null;
+        String lob = null;
+        for (MemberPlan c : covering) {
+            String value = lineOfBusinessOf(c);
+            if (value == null) {
+                continue;
+            }
+            if (lob == null) {
+                matched = c;
+                lob = value;
+            } else if (!lob.equals(value)) {
+                log.warn("marker=LOB_SEVERAL_ON_DATE memberId={} dos={} first={} also={}: the first is used", record.storedMemberId(),
+                        dateOfService, lob, value);
+            }
+        }
+        if (lob == null) {
+            MemberPlan c = covering.get(0);
+            log.info("marker=LOB_NOT_DERIVED memberId={} dos={} covering={} sourceSystemId={} subsidiary={} productCode={} planCode={} "
+                            + "businessTypeIndicator={} hierarchyLineOfBusiness={} lineOfBusinessDesc={}; no rule matches, lob={} from the member record",
+                    record.storedMemberId(), dateOfService, covering.size(), c.sourceSystemId(), c.subsidiary(), c.productCode(),
+                    c.planCode(), c.businessTypeIndicator(), c.hierarchyLineOfBusiness(), c.lineOfBusinessDesc(), fromRecord);
+            return fromRecord;
+        }
+        log.info("lob derived memberId={} dos={} lob={} sourceSystemId={} subsidiary={} productCode={} planStartDate={} planEndDate={}",
+                record.storedMemberId(), dateOfService, lob, matched.sourceSystemId(), matched.subsidiary(), matched.productCode(),
+                matched.planStartDate(), matched.planEndDate());
+        return lob;
+    }
+
+    /** The line of business the first matching rule gives this record, or null when none matches. */
+    private static String lineOfBusinessOf(MemberPlan record) {
         for (Rule rule : RULES) {
-            if (rule.matches(plan)) {
-                log.info("lob derived memberId={} lob={} sourceSystemId={} subsidiary={} productCode={}", record.storedMemberId(),
-                        rule.lineOfBusiness(), plan.sourceSystemId(), plan.subsidiary(), plan.productCode());
+            if (rule.matches(record)) {
                 return rule.lineOfBusiness();
             }
         }
-        log.info("marker=LOB_NOT_DERIVED memberId={} sourceSystemId={} subsidiary={} productCode={} planCode={} businessTypeIndicator={} "
-                        + "hierarchyLineOfBusiness={} lineOfBusinessDesc={}; no rule matches, lob={} from the member record",
-                record.storedMemberId(), plan.sourceSystemId(), plan.subsidiary(), plan.productCode(), plan.planCode(),
-                plan.businessTypeIndicator(), plan.hierarchyLineOfBusiness(), plan.lineOfBusinessDesc(), fromRecord);
-        return fromRecord;
+        return null;
     }
 
     private static String code(String value) {

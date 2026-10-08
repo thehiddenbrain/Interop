@@ -37,7 +37,7 @@ import org.springframework.stereotype.Service;
 /**
  * The member resolution, {@code POST /v1/interop/resolve}: ask MMI once with the member id exactly as received,
  * reduce the records to one person, decide coverage on the date (or period) of service, ask the member information
- * service for that member's plan to derive the line of business, and render the stored id for every configured vendor.
+ * service for that member's coverage records to derive the line of business, and render the stored id for every configured vendor.
  */
 @Service
 public class ResolutionService {
@@ -97,8 +97,9 @@ public class ResolutionService {
     }
 
     /**
-     * The identified member's plan on the date of service, from the member information service, and the line of business
-     * derived from it. A failure of that service fails the answer (503 or 502, carrying MMI's request id as traceId).
+     * The identified member's coverage records from the member information service, and the line of business derived from
+     * the record that covers the date of service. A failure of that service fails the answer (503 or 502, carrying MMI's
+     * request id as traceId).
      */
     private String lineOfBusiness(Resolved r, LocalDate dateOfService, String correlationId) {
         MemberInfoResponse info;
@@ -107,11 +108,8 @@ public class ResolutionService {
         } catch (MemberInfoException e) {
             throw e.withTraceId(r.mmiRequestId());
         }
-        List<MemberPlan> plans = info.plansFor(r.storedMemberId());
-        if (plans.size() > 1) {
-            log.warn("marker=MEMBER_PLAN_SEVERAL memberId={} plans={}: the first is used", r.storedMemberId(), plans.size());
-        }
-        return lineOfBusiness.derive(r.record(), plans.isEmpty() ? null : plans.get(0));
+        List<MemberPlan> coverageRecords = info.coverageRecordsFor(r.storedMemberId());
+        return lineOfBusiness.derive(r.record(), coverageRecords, dateOfService);
     }
 
     /** MMI's answer reduced to one outcome, before it is rendered. */

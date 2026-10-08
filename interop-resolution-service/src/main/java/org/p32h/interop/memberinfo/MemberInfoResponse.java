@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-/** The member information answer: one entry per member id requested, each with that member's plan. */
+/** The member information answer: one entry per member id requested, each with that member's coverage records. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record MemberInfoResponse(String requestId, List<MemberInfoMember> members) {
 
@@ -14,18 +14,18 @@ public record MemberInfoResponse(String requestId, List<MemberInfoMember> member
     }
 
     /**
-     * The plans returned for {@code memberId}: entries whose member id matches it ignoring spacing and case, with a plan
-     * that is not void. Usually one; empty when the service has no plan for the member on the date.
+     * The coverage records returned for {@code memberId}, in the order sent: those of the entries whose member id matches it
+     * ignoring spacing and case, void records left out. Empty when the service has none for the member.
      */
-    public List<MemberPlan> plansFor(String memberId) {
+    public List<MemberPlan> coverageRecordsFor(String memberId) {
         String key = compact(memberId);
         if (key == null) {
             return List.of();
         }
         return membersOrEmpty().stream()
-                .filter(m -> key.equals(compact(m.memberId())))
-                .map(MemberInfoMember::memberPlan)
-                .filter(p -> p != null && !p.voided())
+                .filter(m -> key.equals(compact(m.memberId())) && m.coverageRecords() != null)
+                .flatMap(m -> m.coverageRecords().stream())
+                .filter(c -> c != null && !c.voided())
                 .toList();
     }
 

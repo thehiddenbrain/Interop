@@ -36,18 +36,25 @@ class RestMemberInfoClientTest {
     private static final LocalDate DOS = LocalDate.of(2026, 1, 5);
     private static final String URL = "http://member-info.test/members";
 
-    /** The answer in the service's contract example, for the test member. */
+    /**
+     * The service's contract example for the test member, with the coverage list asked for: the memberPlan (not read) and
+     * two coverage records with the same fields, the contract example's plan and a later one.
+     */
     private static final String ANSWER = """
             { "requestId": null,
               "members": [ { "requestId": null, "memberId": "TESTMEMBER   01",
-                "memberPlan": { "benefitId": "Q330", "businessLineKey": "0214", "businessTypeIndicator": "PP",
-                  "carrier": "FULLY INSURED", "carrierCode": "THPP", "gridId": null, "groupId": "TESTGROUP01", "ratingState": "MA",
-                  "homeGroupId": null, "network": "Select", "networkId": null, "planCode": "TESTPLAN01",
-                  "planEndDate": "2024-04-30T05:00:00.000+00:00", "planName": "Tufts Health Direct ConnectorCare III",
-                  "planStartDate": "2024-02-01T05:00:00.000+00:00", "planType": "TESTPLAN01 - ", "productCode": "SB",
-                  "sourceSystemId": "2026", "subsidiary": "THPPMA", "voidFlag": "N", "ipa": "FM", "hierarchyLineOfBusiness": "MASB",
-                  "hierarchyCompany": "MACOMM", "hierarchyCompanyDesc": "MA COMMERCIAL", "lineOfBusinessDesc": "DIRECT SUBSIDIZED",
-                  "aFieldAddedLater": "ignored" } } ] }
+                "memberPlan": { "productCode": "DMA", "sourceSystemId": "2064", "subsidiary": "THPPMA", "voidFlag": "N" },
+                "coverageRecords": [
+                  { "benefitId": "Q330", "businessLineKey": "0214", "businessTypeIndicator": "PP",
+                    "carrier": "FULLY INSURED", "carrierCode": "THPP", "gridId": null, "groupId": "TESTGROUP01", "ratingState": "MA",
+                    "homeGroupId": null, "network": "Select", "networkId": null, "planCode": "TESTPLAN01",
+                    "planEndDate": "2024-04-30T05:00:00.000+00:00", "planName": "Tufts Health Direct ConnectorCare III",
+                    "planStartDate": "2024-02-01T05:00:00.000+00:00", "planType": "TESTPLAN01 - ", "productCode": "SB",
+                    "sourceSystemId": "2026", "subsidiary": "THPPMA", "voidFlag": "N", "ipa": "FM", "hierarchyLineOfBusiness": "MASB",
+                    "hierarchyCompany": "MACOMM", "hierarchyCompanyDesc": "MA COMMERCIAL", "lineOfBusinessDesc": "DIRECT SUBSIDIZED",
+                    "aFieldAddedLater": "ignored" },
+                  { "planStartDate": "2024-05-01T04:00:00.000+00:00", "planEndDate": null, "productCode": "GT",
+                    "sourceSystemId": "2026", "subsidiary": "THPPMA", "voidFlag": "N" } ] } ] }
             """;
 
     private static final tools.jackson.databind.ObjectMapper JSON = tools.jackson.databind.json.JsonMapper.builder().build();
@@ -88,6 +95,7 @@ class RestMemberInfoClientTest {
                 .andExpect(jsonPath("$.memberIds.length()").value(1))
                 .andExpect(jsonPath("$.memberIds[0]").value(MEMBER))
                 .andExpect(jsonPath("$.dos").value("01/05/2026"))
+                .andExpect(jsonPath("$.returnCoverageList").value(true))
                 .andRespond(withSuccess(ANSWER, MediaType.APPLICATION_JSON));
         RestMemberInfoClient client = new RestMemberInfoClient(builder, props("http://member-info.test"), JSON);
 
@@ -97,11 +105,12 @@ class RestMemberInfoClientTest {
             response = client.lookup(MEMBER, DOS, "ONYX-1");
         } finally {
             assertThat(release(logs))
-                    .anySatisfy(m -> assertThat(m).startsWith("member-info request POST " + URL).contains("\"dos\":\"01/05/2026\""))
+                    .anySatisfy(m -> assertThat(m).startsWith("member-info request POST " + URL).contains("\"dos\":\"01/05/2026\"")
+                            .contains("\"returnCoverageList\":true"))
                     .anySatisfy(m -> assertThat(m).startsWith("member-info response status=200").contains("hierarchyLineOfBusiness"));
         }
         server.verify();
-        assertThat(response.plansFor(MEMBER)).singleElement().satisfies(p -> {
+        assertThat(response.coverageRecordsFor(MEMBER)).as("the coverage records, not the memberPlan").hasSize(2).first().satisfies(p -> {
             assertThat(p.hierarchyLineOfBusiness()).isEqualTo("MASB");
             assertThat(p.lineOfBusinessDesc()).isEqualTo("DIRECT SUBSIDIZED");
             assertThat(p.hierarchyCompany()).isEqualTo("MACOMM");
@@ -113,6 +122,7 @@ class RestMemberInfoClientTest {
             assertThat(p.planStartDate()).isEqualTo("2024-02-01T05:00:00.000+00:00");
             assertThat(p.gridId()).isNull();
         });
+        assertThat(response.coverageRecordsFor(MEMBER).get(1).productCode()).isEqualTo("GT");
     }
 
     @Test
@@ -124,7 +134,7 @@ class RestMemberInfoClientTest {
         } finally {
             assertThat(release(logs)).anySatisfy(m -> assertThat(m).contains("marker=MEMBER_PLAN_404").contains("member-info.base-url"));
         }
-        assertThat(response.plansFor(MEMBER)).isEmpty();
+        assertThat(response.coverageRecordsFor(MEMBER)).isEmpty();
     }
 
     @Test

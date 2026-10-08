@@ -20,11 +20,12 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * The HTTP client for the member information service: one POST per call, {@code { memberIds: [id], dos: MM/dd/yyyy }},
+ * The HTTP client for the member information service: one POST per call,
+ * {@code { memberIds: [id], dos: MM/dd/yyyy, returnCoverageList: true }},
  * plain HTTP and no authentication, like the member index. Connect and read timeouts ({@code member-info.connect-timeout} /
  * {@code member-info.read-timeout}) are applied by {@code MemberInfoClientConfig}. No retry: a clear 503 lets Onyx retry later.
  *
- * <p>200 is parsed. 404 is taken as "no plan for this member on the date" and answered with no members (with a warning,
+ * <p>200 is parsed. 404 is taken as "no records for this member" and answered with no members (with a warning,
  * because a wrong URL looks the same). 5xx, 429 and 408 are 503 {@code MEMBER_PLAN_UNAVAILABLE}; any other status is 502
  * {@code MEMBER_PLAN_ERROR}. The service's error contract is not documented yet; confirm it in PQA.
  *
@@ -99,7 +100,7 @@ public class RestMemberInfoClient implements MemberInfoClient {
                             return parsed;
                         }
                         if (code == 404) {
-                            log.warn("marker=MEMBER_PLAN_404 memberId={} url={}: taken as no plan on the date; if every member gets it, "
+                            log.warn("marker=MEMBER_PLAN_404 memberId={} url={}: taken as no records; if every member gets it, "
                                     + "check member-info.base-url and member-info.path", memberId, url);
                             return new MemberInfoResponse(null, null);
                         }

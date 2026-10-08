@@ -48,9 +48,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 /**
- * The member plan behind the line of business, straight through the service: asked for with the resolved id, the date of
- * service and the correlation id; the line of business derived from the plan, the member record's when there is no plan
- * or no rule matches; a failure of the member information service fails the answer with MMI's request id as traceId.
+ * The coverage records behind the line of business, straight through the service: asked for with the resolved id, the
+ * date of service and the correlation id; the line of business derived from the record covering the date of service (the
+ * first day of a period), the member record's when none covers it or no rule matches; a failure of the member information
+ * service fails the answer with MMI's request id as traceId.
  */
 class ResolutionServiceMemberPlanTest {
 
@@ -79,10 +80,14 @@ class ResolutionServiceMemberPlanTest {
         return logs.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
     }
 
-    /** A plan with only the fields the rules read set: source system, subsidiary and product. */
-    private static MemberPlan plan(String sourceSystemId, String subsidiary, String productCode) {
-        return new MemberPlan(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                productCode, sourceSystemId, subsidiary, "N", null, null, null, null, null);
+    /** A coverage record with the fields the rules read, running from {@code start} to {@code end} (null: open-ended). */
+    private static MemberPlan record(String sourceSystemId, String subsidiary, String productCode, String start, String end) {
+        return LineOfBusinessDeriverTest.record(sourceSystemId, subsidiary, productCode, start, end);
+    }
+
+    /** An answer with one entry for {@code memberId} carrying {@code records}. */
+    private static MemberInfoResponse answer(String memberId, MemberPlan... records) {
+        return new MemberInfoResponse(null, List.of(new MemberInfoMember(null, memberId, List.of(records))));
     }
 
     /** A service whose MMI always returns one THP member with line of business MCR, and whose member plan lookup answers {@code plans}. */
@@ -126,37 +131,31 @@ class ResolutionServiceMemberPlanTest {
     }
 
     @Test
-    void thePlanIsAskedForWithTheResolvedIdTheFirstDayAndTheCorrelationIdAndGivesTheLineOfBusiness() {
-        MemberResolutionResponse r = resolve(service(id -> new MemberInfoResponse(null,
-                List.of(new MemberInfoMember(null, "testmember", plan("2048", "THPPRI", "XX"))))));
+    void theRecordsAreAskedForWithTheResolvedIdTheFirstDayAndTheCorrelationIdAndGiveTheLineOfBusiness() {
+        MemberResolutionResponse r = resolve(service(id -> answer("testmember",
+                record("2064", null, "DMA", "2021-01-01T05:00:00.000+00:00", "2026-10-14T04:00:00.000+00:00"),
+                record("2048", "THPPRI", "XX", "2026-10-15T04:00:00.000+00:00", null),
+                record("2026", "THPPMA", "SB", "2026-10-16T04:00:00.000+00:00", null))));
         assertThat(asked).containsExactly(new Asked(STORED, LocalDate.parse("2026-10-15"), "corr-1"));
-        assertThat(r.lineOfBusiness()).as("derived from the plan, not MMI's MCR").isEqualTo("RI-TOGETHER");
+        assertThat(r.lineOfBusiness()).as("the record covering the first day of the period, not MMI's MCR").isEqualTo("RI-TOGETHER");
         assertThat(messages()).anySatisfy(m -> assertThat(m).contains("lob derived").contains("memberId=" + STORED)
-                .contains("lob=RI-TOGETHER"));
+                .contains("dos=2026-10-15").contains("lob=RI-TOGETHER"));
     }
 
     @Test
-    void aPlanNoRuleMatchesKeepsTheRecordsLineOfBusiness() {
-        MemberResolutionResponse r = resolve(service(id -> new MemberInfoResponse(null,
-                List.of(new MemberInfoMember(null, STORED, plan("2026", "THPPMA", "DMA"))))));
+    void aRecordNoRuleMatchesKeepsTheRecordsLineOfBusiness() {
+        MemberResolutionResponse r = resolve(service(id -> answer(STORED, record("2026", "THPPMA", "DMA", "2025-01-01", null))));
         assertThat(r.lineOfBusiness()).isEqualTo("MCR");
         assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_NOT_DERIVED").contains("productCode=DMA")
                 .contains("no rule matches").contains("lob=MCR"));
     }
 
     @Test
-    void noPlanKeepsTheRecordsLineOfBusiness() {
-        MemberResolutionResponse r = resolve(service(id -> new MemberInfoResponse(null, null)));
-        assertThat(r.lineOfBusiness()).isEqualTo("MCR");
-        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_NOT_DERIVED").contains("plan=none"));
-    }
-
-    @Test
-    void severalPlansUseTheFirstAndWarn() {
-        MemberResolutionResponse r = resolve(service(id -> new MemberInfoResponse(null, List.of(
-                new MemberInfoMember(null, STORED, plan("2064", null, "DMA")), new MemberInfoMember(null, STORED, plan("2048", "THPPRI", null))))));
-        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=MEMBER_PLAN_SEVERAL").contains("plans=2"));
-        assertThat(r.lineOfBusiness()).isEqualTo("D-SNP");
+    void noRecordsOrNoneCoveringTheDateKeepTheRecordsLineOfBusiness() {
+        assertThat(resolve(service(id -> new MemberInfoResponse(null, null))).lineOfBusiness()).isEqualTo("MCR");
+        assertThat(resolve(service(id -> answer(STORED, record("2048", "THPPRI", null, "2020-01-01", "2025-12-31")))).lineOfBusiness())
+                .as("a record that ended before the date of service").isEqualTo("MCR");
+        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_NOT_DERIVED").contains("covering=0"));
     }
 
     @Test

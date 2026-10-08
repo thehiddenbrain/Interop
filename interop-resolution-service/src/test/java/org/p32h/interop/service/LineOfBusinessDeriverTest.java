@@ -2,25 +2,50 @@ package org.p32h.interop.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import java.time.LocalDate;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.p32h.interop.domain.MemberRecord;
 import org.p32h.interop.memberinfo.MemberPlan;
+import org.slf4j.LoggerFactory;
 
-/** The member portal's ES Members criteria, one rule per line of business, read against the member's plan. */
+/**
+ * The member portal's ES Members criteria, one rule per line of business, run on the coverage records that cover the date
+ * of service.
+ */
 class LineOfBusinessDeriverTest {
 
     private static final MemberRecord RECORD = new MemberRecord("TESTMEMBER", "TESTMEMBER", "THP", "MCR", null, null, List.of(), 0);
+    private static final LocalDate DOS = LocalDate.parse("2026-10-15");
     private final LineOfBusinessDeriver deriver = new LineOfBusinessDeriver();
+    private ListAppender<ILoggingEvent> logs;
 
-    /** A plan with only the fields the rules read set: source system, subsidiary and product. */
-    private static MemberPlan plan(String sourceSystemId, String subsidiary, String productCode) {
-        return new MemberPlan(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                productCode, sourceSystemId, subsidiary, "N", null, null, null, null, null);
+    @BeforeEach
+    void captureLogs() {
+        logs = new ListAppender<>();
+        logs.start();
+        ((Logger) LoggerFactory.getLogger(LineOfBusinessDeriver.class)).addAppender(logs);
     }
 
+    @AfterEach
+    void releaseLogs() {
+        ((Logger) LoggerFactory.getLogger(LineOfBusinessDeriver.class)).detachAppender(logs);
+    }
+
+    /** A coverage record with only the fields the rules and the date check read. */
+    static MemberPlan record(String sourceSystemId, String subsidiary, String productCode, String planStartDate, String planEndDate) {
+        return new MemberPlan(null, null, null, null, null, null, null, null, null, null, null, null, planEndDate, null, planStartDate,
+                null, productCode, sourceSystemId, subsidiary, "N", null, null, null, null, null);
+    }
+
+    /** The line of business for one record covering the date of service, from 2025 with no end. */
     private String lob(String sourceSystemId, String subsidiary, String productCode) {
-        return deriver.derive(RECORD, plan(sourceSystemId, subsidiary, productCode));
+        return deriver.derive(RECORD, List.of(record(sourceSystemId, subsidiary, productCode, "2025-01-01T05:00:00.000+00:00", null)), DOS);
     }
 
     @Test
@@ -61,10 +86,46 @@ class LineOfBusinessDeriverTest {
     }
 
     @Test
-    void noPlanOrAPlanWithoutTheFieldsKeepsTheRecordsLineOfBusiness() {
-        assertThat(deriver.derive(RECORD, null)).isEqualTo("MCR");
+    void aRecordWithoutTheFieldsMatchesNothing() {
         assertThat(lob(null, null, null)).isEqualTo("MCR");
         assertThat(lob("2064", null, null)).as("D-SNP's source system without a product").isEqualTo("MCR");
         assertThat(lob("2026", "THPPMA", null)).as("THPPMA on 2026 without a product").isEqualTo("MCR");
+    }
+
+    @Test
+    void onlyTheRecordCoveringTheDateOfServiceIsRead() {
+        List<MemberPlan> fiveYears = List.of(
+                record("2048", "THPPRI", null, "2021-01-01T05:00:00.000+00:00", "2023-12-31T05:00:00.000+00:00"),
+                record("2026", "THPPMA", "SB", "2024-01-01T05:00:00.000+00:00", "2026-10-14T04:00:00.000+00:00"),
+                record("2026", "THPPMA", "GT", "2026-10-15T04:00:00.000+00:00", "9999-12-31T05:00:00.000+00:00"));
+        assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2022-06-01"))).isEqualTo("RI-TOGETHER");
+        assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2026-10-14"))).as("the last day, inclusive").isEqualTo("MA-QHP-DIRECT");
+        assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2026-10-15"))).as("the first day, inclusive").isEqualTo("MA-TOGETHER");
+        assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2020-06-01"))).as("before every record").isEqualTo("MCR");
+        assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage()).contains("marker=LOB_NOT_DERIVED")
+                .contains("coverageRecords=3").contains("covering=0").contains("lob=MCR"));
+    }
+
+    @Test
+    void aRecordWithoutAStartOrWithAnUnreadableDateCoversNothing() {
+        assertThat(deriver.derive(RECORD, List.of(record("2048", "THPPRI", null, null, null)), DOS)).isEqualTo("MCR");
+        assertThat(deriver.derive(RECORD, List.of(record("2048", "THPPRI", null, "01/01/2025", null)), DOS)).isEqualTo("MCR");
+        assertThat(deriver.derive(RECORD, List.of(record("2048", "THPPRI", null, "2025-01-01", "not a date")), DOS)).isEqualTo("MCR");
+    }
+
+    @Test
+    void severalRecordsOnTheDateGiveTheFirstMatchAndWarnWhenTheyDisagree() {
+        List<MemberPlan> overlapping = List.of(
+                record("2026", "THPPMA", "XX", "2026-01-01", null),
+                record("2048", "THPPRI", null, "2026-01-01", null),
+                record("2064", null, "DMA", "2026-01-01", null));
+        assertThat(deriver.derive(RECORD, overlapping, DOS)).as("the first record a rule matches").isEqualTo("RI-TOGETHER");
+        assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage()).contains("marker=LOB_SEVERAL_ON_DATE")
+                .contains("first=RI-TOGETHER").contains("also=D-SNP"));
+    }
+
+    @Test
+    void noRecordsKeepTheRecordsLineOfBusiness() {
+        assertThat(deriver.derive(RECORD, List.of(), DOS)).isEqualTo("MCR");
     }
 }
