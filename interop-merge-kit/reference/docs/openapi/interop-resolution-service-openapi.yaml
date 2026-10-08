@@ -1,0 +1,229 @@
+openapi: 3.1.0
+info:
+  title: Interop Resolution Service
+  description: 'Onyx''s interop lookups. Member resolution, POST /v1/interop/resolve: resolves an EMR-supplied member ID against
+    the plan''s member records, reports whether coverage is active on the date of service, and returns the ID as resolved
+    and in every UM vendor''s format, each with the payer for that vendor''s request.'
+  version: v1
+tags:
+- name: Member resolution
+  description: Resolve an EMR-supplied member id against the plan's member records for a date of service
+paths:
+  /v1/interop/resolve:
+    post:
+      tags:
+      - Member resolution
+      summary: Resolve a member id for a date of service
+      description: Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (or
+        on every day of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors),
+        each entry with the payer for that vendor's request (payerId, payerName). When several members on the plan match and
+        no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says what to resend; the other members are never
+        listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A
+        sent date is the date evaluated; an unusable date is a 400. POST because the member id is PHI and must not appear
+        in URLs; the operation is a pure read and may be repeated.
+      operationId: resolve
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberResolutionRequest'
+        required: true
+      responses:
+        '200':
+          description: outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; memberId.forVendors, each vendor with its payer,
+            present for ACTIVE and INACTIVE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberResolutionResponse'
+        '400':
+          description: INVALID_REQUEST for a missing or unusable clientId, clientType or requestId, a missing memberId, an
+            unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (details[0].code
+            HTTP_400, the lookup's text in the message)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '422':
+          description: 'DOB_MISMATCH: the date of birth matches no record for this id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '502':
+          description: MEMBER_LOOKUP_ERROR or MEMBER_LOOKUP_INVALID_RESPONSE (the member lookup); MEMBER_PLAN_ERROR or MEMBER_PLAN_INVALID_RESPONSE
+            (the member plan lookup)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '503':
+          description: MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+components:
+  schemas:
+    MemberResolutionRequest:
+      type: object
+      description: 'Member resolution request: clientId, clientType, requestId and memberId are required; unknown properties
+        are ignored; a sent date must be usable'
+      properties:
+        clientId:
+          type: string
+          description: 'The calling system, as registered with the plan: letters, digits, ''.'', ''_'' or ''-'', at most 50
+            characters'
+          example: ONYX
+          maxLength: 50
+          pattern: ^[A-Za-z0-9._-]{1,50}$
+        clientType:
+          type: string
+          description: EXT for a caller outside the plan, INT for an internal one
+          enum:
+          - EXT
+          - INT
+          example: EXT
+        requestId:
+          type: string
+          description: The caller's id for this call, unique per request; echoed in the response and in every error response.
+            Letters, digits, '.', '_', ':' or '-', at most 64 characters
+          example: 3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13
+          maxLength: 64
+          pattern: ^[A-Za-z0-9._:-]{1,64}$
+        memberId:
+          type: string
+          description: 'The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed);
+            no shape, length or character check. The example is a masked pattern: a THP Medicare card number is a letter and
+            8 digits'
+          example: S########
+        dateOfService:
+          type: string
+          description: 'Date of service, yyyy-MM-dd; the first date when the service covers a period. Defaults to today when
+            omitted (dateOfServiceDefaulted is true). A sent value is the date evaluated: any future date is judged on the
+            coverage on record; not a real date, or more than 10 years back, is a 400.'
+          example: '2026-10-15'
+        dateOfServiceEnd:
+          type: string
+          description: 'Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on
+            every day from dateOfService to it. Not before dateOfService; needs dateOfService.'
+          example: '2026-10-20'
+        dateOfBirth:
+          type: string
+          description: Optional patient date of birth, yyyy-MM-dd, used only to verify the member or to tell apart the members
+            on a plan who share the id. Never logged, never echoed.
+          example: '1950-03-15'
+      required:
+      - clientId
+      - clientType
+      - memberId
+      - requestId
+    Coverage:
+      type: object
+      properties:
+        coverageId:
+          type: string
+        active:
+          type: boolean
+        effectiveDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+    MemberId:
+      type: object
+      properties:
+        received:
+          type: string
+        resolved:
+          type: string
+        forVendors:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorMemberId'
+    MemberResolutionResponse:
+      type: object
+      properties:
+        outcome:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - NOT_FOUND
+          - AMBIGUOUS
+        message:
+          type: string
+        memberId:
+          $ref: '#/components/schemas/MemberId'
+        lineOfBusiness:
+          type: string
+        dateOfService:
+          type: string
+          format: date
+        dateOfServiceEnd:
+          type: string
+          format: date
+        dateOfServiceDefaulted:
+          type: boolean
+        coverage:
+          $ref: '#/components/schemas/Coverage'
+        requestId:
+          type: string
+        traceId:
+          type: string
+        sourceMessage:
+          $ref: '#/components/schemas/SourceMessage'
+    SourceMessage:
+      type: object
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+        code:
+          type: string
+        text:
+          type: string
+    VendorMemberId:
+      type: object
+      properties:
+        vendor:
+          type: string
+        memberId:
+          type: string
+        payerId:
+          type: string
+        payerName:
+          type: string
+    ApiErrorResponse:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/Error'
+        correlationId:
+          type: string
+        requestId:
+          type: string
+        traceId:
+          type: string
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+    ErrorDetail:
+      type: object
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string

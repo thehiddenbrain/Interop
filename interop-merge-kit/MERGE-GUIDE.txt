@@ -1,0 +1,189 @@
+INTEROP RESOLUTION SERVICE - MERGE KIT
+Line of business from the member information service, dosStartDate, SCO / MA-QHP, open end 12/31/3999
+
+Your Bitbucket version (JDK 21, WebFlux, Kotlin DSL, boot-common-lib, ApiResponse envelope) stays the
+master copy. This kit adds the features listed below on top of it. Nothing in it replaces a file you
+changed: the files in add/ are new, and every change to an existing file is a hand edit described here.
+
+  add/        New files. Copy them into the project folder, keeping their paths.
+              Built and tested on JDK 21, Spring Boot 4.0.7, WebFlux, Kotlin DSL (23 tests pass).
+  reference/  The previous (Spring MVC) version of every file these features touched, and
+              changes-since-handoff.patch (everything since the last full hand-off). Read and
+              compare only; do NOT copy these over your files.
+
+WHAT THE SERVICE DOES AFTER THE MERGE
+- The MMI search body carries dosStartDate (MM/dd/yyyy): the date of service, or today when the caller
+  sent none, or the first day of a period. No dosEndDate.
+- Once MMI has identified the member (ACTIVE or INACTIVE only), one call to the member information
+  service: POST {member-info.base-url}/members with
+    { "memberIds": [<resolved id as stored>], "dos": "MM/dd/yyyy", "returnCoverageList": true }
+- lineOfBusiness comes from the coverage record (coverageRecords, not memberPlan) whose planStartDate and
+  planEndDate include the date of service (both ends inclusive, no end = open, void records skipped):
+    SCO            businessTypeIndicator SH and a planCode containing SCO (checked first)
+    D-SNP          sourceSystemId 2064 and productCode DMA
+    MA-TOGETHER    subsidiary THPPMA, sourceSystemId 2026, productCode PL or GT
+    RI-TOGETHER    subsidiary THPPRI and sourceSystemId 2048
+    MA-QHP         subsidiary THPPMA, sourceSystemId 2026, productCode NS or SB
+  No covering record or no rule match: MMI's lineOfBusiness is kept (logged as LOB_NOT_DERIVED).
+- A failure of that call fails the whole answer:
+    unreachable, timeout, 5xx/429/408   503 MEMBER_PLAN_UNAVAILABLE, Retry-After: 10
+    any other status (404 excepted)     502 MEMBER_PLAN_ERROR
+    empty, unreadable or null body      502 MEMBER_PLAN_INVALID_RESPONSE
+    404                                 not an error: no records
+  Each carries MMI's request id as traceId. No response text names the member information service
+  ("the member plan lookup").
+- Open-ended coverage ends 12/31/3999: read as open from MMI, returned as coverage.endDate 3999-12-31,
+  and as 39991231 at the end of coverageId.
+
+
+STEP 1  Dependencies (build.gradle.kts)
+  The member information client uses WebClient, like your MMI client. Spring Boot 4 needs
+      implementation("org.springframework.boot:spring-boot-starter-webclient")
+  You most likely have it already for MMI. Nothing else is needed.
+
+STEP 2  Copy add/ into the project
+  src/main/java/org/p32h/interop/memberinfo/
+      MemberInfoClient.java            interface, Mono<MemberInfoResponse> lookup(id, dos, correlationId)
+      WebClientMemberInfoClient.java   the HTTP client (error mapping above, payload logging)
+      StubMemberInfoClient.java        DEV/test stub (refuses other profiles and pods)
+      MemberInfoException.java         status, code, detail, traceId
+      MemberInfoProperties.java        member-info.* properties
+      MemberInfoRequest.java, MemberInfoResponse.java, MemberInfoMember.java, MemberPlan.java
+  src/main/java/org/p32h/interop/service/LineOfBusinessDeriver.java
+      derive(memberId, mmiLineOfBusiness, coverageRecords, dateOfService)
+  src/main/java/org/p32h/interop/config/MemberInfoClientConfig.java
+      beans: MemberInfoClient (stub or WebClient with the timeouts) and LineOfBusinessDeriver
+  src/main/resources/member-info-stub/members.json
+      DEV stub records: the Together subscriber (MA-QHP 2022-2024, MA-TOGETHER from 2025) and the SCO
+      member (SCO 2023-2025). Their memberId values are the ids of those members in mmi-stub/members.json;
+      if you changed those fixtures, keep the two files in step.
+  src/test/java/org/p32h/interop/memberinfo/MemberInfoResponseTest.java
+  src/test/java/org/p32h/interop/memberinfo/WebClientMemberInfoClientTest.java
+  src/test/java/org/p32h/interop/service/LineOfBusinessDeriverTest.java
+
+  Adjust if needed:
+  - Packages: if you moved config or service classes, move these files with them.
+  - Jackson: the files use Jackson 3 (tools.jackson.*), as in the hand-off. On Jackson 2, switch the
+    imports to com.fasterxml.jackson.*. The annotations stay com.fasterxml.jackson.annotation either way.
+  - @ConfigurationPropertiesScan already picks up MemberInfoProperties. If you removed it, add
+    @EnableConfigurationProperties(MemberInfoProperties.class).
+
+STEP 3  dosStartDate on the MMI search
+  reference: mmi/MmiRequest.java, mmi/MmiDates.java, mmi/MmiClient.java, mmi/RestMmiClient.java, mmi/StubMmiClient.java
+  a) MmiRequest: add the field dosStartDate (exact JSON name) after legacyMemberId:
+       record MmiRequest(String memberId, String legacyMemberId, String dosStartDate, String voidCoverageRecord,
+                         String clientId, String clientType, String requestId)
+  b) MmiDates: add
+       public static String format(LocalDate date) { return FORMAT.format(date); }     // MM/dd/yyyy
+  c) MmiClient.search gets the date: search(String memberId, LocalDate dateOfService, String correlationId).
+     Your WebClient MMI client builds the body with MmiDates.format(dateOfService); the stub takes the
+     same parameter (and may keep it in lastDateOfService() for tests).
+  d) The resolution passes v.dateOfService() (already the first day of a period, or today when none was sent).
+
+STEP 4  Open end 12/31/3999
+  a) MmiDates:            OPEN_END_SENTINEL = "12/31/3999"
+  b) api/Coverage:        OPEN_END = LocalDate.of(3999, 12, 31)
+  c) ResolutionService:   coverageId's open end "99991231" becomes "39991231"
+  d) Fixtures, tests and Postman: replace 12/31/9999 -> 12/31/3999, 9999-12-31 -> 3999-12-31 and
+     99991231 -> 39991231 (mmi-stub/members.json, the scenario tests, MmiRecordMapperTest, the Postman
+     endDate check). Replace whole dates only: one test member id contains 9999.
+
+STEP 5  The resolution (ResolutionService)
+  reference: service/ResolutionService.java (method lineOfBusiness, and the use of lob in resolve and logOutcome)
+  a) Inject MemberInfoClient memberInfo and LineOfBusinessDeriver lineOfBusiness.
+  b) Add:
+       /** The identified member's line of business: from the coverage record on the date of service, else MMI's. */
+       private Mono<String> lineOfBusiness(Resolved r, LocalDate dateOfService, String correlationId) {
+           return memberInfo.lookup(r.storedMemberId(), dateOfService, correlationId)
+                   .onErrorMap(MemberInfoException.class, e -> e.withTraceId(r.mmiRequestId()))
+                   .map(info -> lineOfBusiness.derive(r.storedMemberId(), r.record().lineOfBusiness(),
+                           info.coverageRecordsFor(r.storedMemberId()), dateOfService));
+       }
+  c) In resolve, once the member is resolved (adapt the names to your reactive chain):
+       Mono<Optional<String>> lob = r.record() == null
+               ? Mono.just(Optional.empty())                          // NOT_FOUND / AMBIGUOUS: no call, no lineOfBusiness
+               : lineOfBusiness(r, v.dateOfService(), correlationId).map(Optional::of);
+       return lob.map(l -> /* build the response with l.orElse(null) as lineOfBusiness */);
+     The response's lineOfBusiness and the "resolution ... lob=" log line take this value, not
+     r.record().lineOfBusiness().
+  d) Keep the call out of the MMI-failure paths: a 400/422/502/503 from MMI never reaches it.
+
+STEP 6  Errors (WebFluxExceptionHandler, messages.properties)
+  reference: api/ApiExceptionHandler.java (handler memberInfo)
+  a) Handle MemberInfoException like your MMI exception:
+       HTTP status  e.status()        (503 or 502)
+       error code   e.code()          MEMBER_PLAN_UNAVAILABLE / MEMBER_PLAN_ERROR / MEMBER_PLAN_INVALID_RESPONSE
+       detail code  e.detail()        HTTP_<status>, CONNECT_FAILED, READ_TIMEOUT, EMPTY_BODY, UNPARSEABLE_BODY, CLIENT_ERROR
+       message      e.getMessage()    (or the messages.properties text below)
+       traceId      e.traceId()       MMI's request id
+       header       Retry-After: 10   only when the status is 503
+     Put it in your ApiResponse<ApiErrorData> envelope with the same fields your MMI errors use.
+  b) If your handler takes the text from messages.properties, add:
+       MEMBER_PLAN_UNAVAILABLE=The member plan lookup is unavailable; retry later
+       MEMBER_PLAN_ERROR=The member plan lookup rejected the request
+       MEMBER_PLAN_INVALID_RESPONSE=The member plan lookup returned an unreadable answer
+  c) OpenAPI annotations on the controller: the 502 description adds "MEMBER_PLAN_ERROR or
+     MEMBER_PLAN_INVALID_RESPONSE (the member plan lookup)"; the 503 description adds
+     "MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds". Regenerate docs/openapi afterwards.
+
+STEP 7  Configuration (your renamed yml files)
+  reference: src/main/resources/application*.yaml, src/test/resources/application-test.yaml
+  Shared file:
+    member-info:
+      base-url: ${MEMBER_INFO_BASE_URL:}    # set per environment
+      path: /members
+      connect-timeout: ${MEMBER_INFO_CONNECT_TIMEOUT:2s}
+      read-timeout: ${MEMBER_INFO_READ_TIMEOUT:5s}
+      log-payloads: ${MEMBER_INFO_LOG_PAYLOADS:false}
+      stub:
+        enabled: false                      # true only in DEV and test
+  Per environment (base-url; log-payloads true everywhere except PRD):
+    DEV       base-url: http://member-info-stub.local, stub.enabled: true
+    FQA       http://memberinfoserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp        (assumed, confirm)
+    PQA       http://memberinfoserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp
+    PQA-LITE  http://memberinfoserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp   (assumed, confirm)
+    PRD       http://memberinfoserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp      (assumed, confirm)
+    test      base-url: http://member-info-stub.local, stub.enabled: true
+  For Spring Cloud / deployment config: MEMBER_INFO_BASE_URL overrides the URL per environment.
+  Optional: the startup report can print the member-info client kind, URL, timeouts and payload-log setting
+  (reference: config/StartupReport.java).
+
+STEP 8  Tests in your suite
+  reference: test/.../ResolveScenariosTest.java, ResolutionServiceMemberPlanTest.java, RestMmiClientTest.java,
+             ConfigValidationTest.java, ResolutionServicePayerTest.java
+  - MMI client test: the body carries dosStartDate as MM/dd/yyyy (01/05/2026 for 2026-01-05) and no dosEndDate.
+  - Scenario test, with the DEV/test stub:
+      the Together subscriber   2026-10-15 -> MA-TOGETHER, 2024-08-15 -> MA-QHP, 2021-06-01 -> PP (MMI's)
+      the SCO member            2025-06-15 -> SCO (ACTIVE), 2026-10-15 -> MCR (INACTIVE, no covering record)
+      the TMP member            MCR (no records in the stub)
+      the member information service is asked once per ACTIVE/INACTIVE answer, never for NOT_FOUND or
+      AMBIGUOUS, with the resolved id and the date of service; MMI receives the date as dosStartDate.
+      With your envelope these fields sit under the success payload (for example data.lineOfBusiness).
+  - Service test (ResolutionServiceMemberPlanTest): a failing lookup gives 503 MEMBER_PLAN_UNAVAILABLE,
+    Retry-After 10 and MMI's request id as traceId. Use StepVerifier or block() on the Mono.
+  - Config test: a missing member-info.base-url outside DEV/test, or the stub outside DEV/test, stops startup.
+  - Any 9999 open-end expectation becomes 3999 (Step 4).
+
+STEP 9  Postman
+  reference: postman/InteropResolution.postman_collection.json (compare, do not import over yours)
+  Add, using your envelope's path:
+    Together subscriber, 2026 date   lineOfBusiness = MA-TOGETHER
+    SCO member, 2025-06-15           lineOfBusiness = SCO
+    open-ended member                coverage.endDate = 3999-12-31; coverageId ends with 39991231
+
+STEP 10  Docs
+  reference/README.md (line of business section, member-info configuration, error codes) and
+  reference/docs/design.html (sections 5, 6.3, 6.4, 9.5, 13, 15, 17). Fold the text into your README.
+
+CHECK WHEN DONE
+  ./gradlew clean build                       all tests green
+  run with the DEV profile, then Postman      the checks of Step 9 pass
+  the log shows "member-info call ok" and "lob derived ... lob=MA-TOGETHER" for the Together subscriber
+
+OPEN ITEMS TO CONFIRM (do not block the merge)
+  - coverageRecords sits in each member entry next to memberPlan.
+  - Members no rule covers (TMP, HPHC, commercial) keep MMI's value: keep, or send no lineOfBusiness?
+  - A member information failure fails the answer: keep, or fall back to MMI's value?
+  - SCO, D-SNP, MA-TOGETHER, RI-TOGETHER, MA-QHP are the values Onyx routes on.
+  - The FQA, PQA-LITE and PRD member information URLs.
+  - Success responses wrapped in ApiResponse<MemberResolutionResponse>: agree it with Onyx.

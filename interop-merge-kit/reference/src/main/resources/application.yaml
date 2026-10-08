@@ -1,0 +1,121 @@
+spring:
+  application:
+    name: interop-resolution-service
+  profiles:
+    default: PQA                        # "Run As > Spring Boot App" in STS with no profile talks to the PQA MMI; Profile = DEV for the in-process stub.
+                                        # One file per environment: application-DEV.yaml, -FQA, -PQA, -PQA-LITE, -PRD (the profile name is the suffix)
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: true  # strict by default; the member resolution request opts out and ignores unknown properties
+  mvc:
+    problemdetails:
+      enabled: false                    # the error envelope in ApiErrorResponse is the only error shape
+  web:
+    error:                              # Boot 4 name (was server.error.*): for the rare error Tomcat answers before this service sees it
+      include-message: never
+      include-stacktrace: never
+
+server:
+  port: 9090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    build:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{correlationId:-}] [%X{requestId:-}] %logger{36} - %msg%n"
+
+mmi:
+  base-url: ${MMI_BASE_URL:}            # set per environment (application-<ENV>.yaml) or by environment variable
+  path: /master/member/v1
+  client-id: ${MMI_CLIENT_ID:INTEROP}  # PLACEHOLDER: register this application's name with the MMI team
+  client-type: INT
+  connect-timeout: ${MMI_CONNECT_TIMEOUT:2s}
+  read-timeout: ${MMI_READ_TIMEOUT:5s}
+  void-coverage-record: N               # MMI drops void and negative spans; the service also skips voidFlag=Y
+  error-message-types: [ERROR]          # messageType values MMI uses for errors in a 200 envelope
+  # MMI's HTTP contract and how this service answers (fixed in RestMmiClient, not configurable):
+  #   200 -> outcome from the records      404 (no member) -> 200 NOT_FOUND
+  #   400 (bad request) -> 400 MEMBER_LOOKUP_REJECTED with MMI's text      500 (internal error) -> 503 MEMBER_LOOKUP_UNAVAILABLE
+  #   anything else is a gateway or proxy, not MMI: 503 (5xx/429/408) or 502
+  log-payloads: ${MMI_LOG_PAYLOADS:false}  # print the full MMI request and response bodies (PHI); DEV/FQA/PQA/PQA-LITE turn it on
+  stub:
+    enabled: false                      # true only in the DEV and test profiles
+
+# The member information service: the member's coverage records (returnCoverageList is always sent true); the record
+# covering the date of service gives the line of business. Called once per answer, after MMI has identified the member
+# (ACTIVE or INACTIVE), with the resolved id and the date of service. Its failure fails the answer: 503
+# MEMBER_PLAN_UNAVAILABLE (unreachable, timeout, 5xx/429/408) or 502 MEMBER_PLAN_ERROR / MEMBER_PLAN_INVALID_RESPONSE.
+# A 404 is taken as "no records".
+member-info:
+  base-url: ${MEMBER_INFO_BASE_URL:}    # set per environment (application-<ENV>.yaml) or by environment variable
+  path: /members
+  connect-timeout: ${MEMBER_INFO_CONNECT_TIMEOUT:2s}
+  read-timeout: ${MEMBER_INFO_READ_TIMEOUT:5s}
+  log-payloads: ${MEMBER_INFO_LOG_PAYLOADS:false}  # print the full request and response bodies; DEV/FQA/PQA/PQA-LITE turn it on
+  stub:
+    enabled: false                      # true only in the DEV and test profiles
+
+# The default payer identity Onyx puts on its requests to a UM vendor; returned in every memberId.forVendors entry as
+# payerId and payerName. One value covers THP and HPHC. A vendor that keys the payer on the heritage company sets its
+# own per company in its member-id.vendors entry (EVICORE below). PAYER_ID / PAYER_NAME override the default per environment.
+payer:
+  id: ${PAYER_ID:Point32Health}
+  name: ${PAYER_NAME:Point32Health}
+
+member-id:
+  date-of-service:
+    max-past-years: 10                  # MMI keeps 10 years of coverage history; no upper limit: a future date is judged on the coverage on record
+    zone: America/New_York              # "today" for a defaulted date of service
+  date-of-birth-max-age-years: 125
+  # ------------------------------------------------------------------------------------------------------
+  # Vendor -> format table. This is the ONLY place to add or change a vendor. Key = the vendor code in memberId.forVendors.
+  # Formats apply to THP ids stored as 9 digits + spaces + 2-digit suffix (TMP / SCO). Public Plans ids
+  # (11 continuous characters) and HPHC ids (HP + digits) are sent exactly as stored for every vendor.
+  # The INCOMING member id is never checked or reshaped: it goes to MMI exactly as the EMR typed it.
+  # Optional per vendor: payer.<COMPANY>.id / .name, the payer that vendor keys on for members of that company
+  # (THP, HPHC, as the member lookup reports it). Members of other companies, and vendors without it, get the default payer.
+  #   COMPACT_11  9 digits + suffix, no spaces        12345678901
+  #   SPACED_14   9 digits + 3 spaces + suffix        123456789   01   (as stored)
+  #   CORE_9      the 9-character core only, the number on the card
+  #   AS_STORED   exactly as MMI stores it
+  # ------------------------------------------------------------------------------------------------------
+  vendors:
+    EVICORE:
+      display-name: eviCore
+      format: COMPACT_11
+      payer:                            # eviCore keys the payer on the heritage company
+        THP:  { id: TUFTS, name: TUFTS }
+        HPHC: { id: HPHC,  name: HPHC }
+    MHK:
+      display-name: MHK (MedHOK)
+      format: SPACED_14
+    EVOLENT:
+      display-name: Evolent
+      format: COMPACT_11
+    CARELON:
+      display-name: Carelon
+      format: COMPACT_11
+    OPTUM:
+      display-name: Optum
+      format: CORE_9                    # Optum stores the 9-character core only
+    ONYX:
+      display-name: Onyx
+      format: COMPACT_11

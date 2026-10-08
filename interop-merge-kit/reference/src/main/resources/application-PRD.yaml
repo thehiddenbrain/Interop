@@ -1,0 +1,13 @@
+# PRD environment: the production MMI and member information service; payload logging off (PHI), Swagger and OpenAPI off, service logging at INFO.
+mmi:
+  base-url: http://mastermemberindexserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp
+member-info:
+  base-url: http://memberinfoserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp   # assumed from the PQA URL and the MMI naming: confirm
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+logging:
+  level:
+    org.p32h.interop: INFO

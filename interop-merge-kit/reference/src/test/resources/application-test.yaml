@@ -1,0 +1,13 @@
+mmi:
+  base-url: http://mmi-stub.test
+  stub:
+    enabled: true
+  log-payloads: false
+member-info:
+  base-url: http://member-info-stub.test
+  stub:
+    enabled: true
+  log-payloads: false
+logging:
+  level:
+    org.p32h.interop: DEBUG
