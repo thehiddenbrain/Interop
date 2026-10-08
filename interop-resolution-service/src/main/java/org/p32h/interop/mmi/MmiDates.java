@@ -8,7 +8,7 @@ import java.time.format.ResolverStyle;
 /** MMI dates are {@code MM/dd/yyyy}. Parsed strictly ({@code uuuu} so STRICT works without an era). */
 public final class MmiDates {
 
-    public static final String OPEN_END_SENTINEL = "12/31/9999";
+    public static final String OPEN_END_SENTINEL = "12/31/3999";
     private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern("MM/dd/uuuu").withResolverStyle(ResolverStyle.STRICT);
 
     private MmiDates() {

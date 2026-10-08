@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
  *   D-SNP           sourceSystemId 2064 and productCode DMA
  *   MA-TOGETHER     subsidiary THPPMA, sourceSystemId 2026 and productCode PL or GT
  *   RI-TOGETHER     subsidiary THPPRI and sourceSystemId 2048
- *   MA-QHP-DIRECT   subsidiary THPPMA, sourceSystemId 2026 and productCode NS or SB
+ *   MA-QHP   subsidiary THPPMA, sourceSystemId 2026 and productCode NS or SB
  * </pre>
  * When several records cover the date, the first one a rule matches gives the value; if they give different values a
  * warning is logged ({@code marker=LOB_SEVERAL_ON_DATE}). A member with no record covering the date, or whose records match
@@ -39,7 +39,7 @@ public class LineOfBusinessDeriver {
     public static final String DSNP = "D-SNP";
     public static final String MA_TOGETHER = "MA-TOGETHER";
     public static final String RI_TOGETHER = "RI-TOGETHER";
-    public static final String MA_QHP_DIRECT = "MA-QHP-DIRECT";
+    public static final String MA_QHP_DIRECT = "MA-QHP";
 
     /** One rule: the line of business when the record's source system, subsidiary and product match; a null condition matches anything. */
     private record Rule(String lineOfBusiness, String sourceSystemId, String subsidiary, Set<String> products) {

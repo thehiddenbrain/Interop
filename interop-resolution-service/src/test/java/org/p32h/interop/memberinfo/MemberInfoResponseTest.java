@@ -46,7 +46,7 @@ class MemberInfoResponseTest {
         assertThat(feb.covers(LocalDate.parse("2024-05-01"))).isFalse();
         MemberPlan open = record("X", "N", "2025-01-01T05:00:00.000+00:00", null);
         assertThat(open.covers(LocalDate.parse("2030-06-01"))).as("no end date is open-ended").isTrue();
-        assertThat(record("X", "N", "2025-01-01T05:00:00.000+00:00", "9999-12-31T05:00:00.000+00:00").covers(LocalDate.parse("2030-06-01"))).isTrue();
+        assertThat(record("X", "N", "2025-01-01T05:00:00.000+00:00", "3999-12-31T05:00:00.000+00:00").covers(LocalDate.parse("2030-06-01"))).isTrue();
         assertThat(record("X", "N", null, null).covers(LocalDate.parse("2025-06-01"))).as("no start date").isFalse();
         assertThat(record("X", "N", "2025-01-01", "junk").covers(LocalDate.parse("2025-06-01"))).as("an unreadable end").isFalse();
     }

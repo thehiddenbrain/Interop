@@ -1,6 +1,6 @@
 [
   {
-    "_comment": "The Together subscriber's coverage records: Direct (THPPMA, 2026, product SB, MA-QHP-DIRECT) from 2022 to 2024, then Together (THPPMA, 2026, product GT, MA-TOGETHER) from 2025 with no end. The line of business is read from the record covering the date of service; memberPlan is not read. Only the fields the rules and the date check read are filled; the values are illustrative. Members without an entry have no records and keep the member record's line of business.",
+    "_comment": "The Together subscriber's coverage records: Direct (THPPMA, 2026, product SB, MA-QHP) from 2022 to 2024, then Together (THPPMA, 2026, product GT, MA-TOGETHER) from 2025 with no end. The line of business is read from the record covering the date of service; memberPlan is not read. Only the fields the rules and the date check read are filled; the values are illustrative. Members without an entry have no records and keep the member record's line of business.",
     "requestId": null,
     "memberId": "34567890101",
     "coverageRecords": [
@@ -44,7 +44,7 @@
         "network": null,
         "networkId": null,
         "planCode": "10GT100004",
-        "planEndDate": "9999-12-31T05:00:00.000+00:00",
+        "planEndDate": "3999-12-31T05:00:00.000+00:00",
         "planName": null,
         "planStartDate": "2025-01-01T05:00:00.000+00:00",
         "planType": "10GT100004 - ",

@@ -240,7 +240,7 @@
     ]
   },
   {
-    "_comment": "HPHC commercial member. Card shows HP-456789012; stored HP456789012. Open-ended as 12/31/9999.",
+    "_comment": "HPHC commercial member. Card shows HP-456789012; stored HP456789012. Open-ended as 12/31/3999.",
     "memberId": "HP456789012",
     "subscriberMemberId": "HP456789012",
     "policyId": "HP45678901",
@@ -256,7 +256,7 @@
     "coverage": [
       {
         "effDate": "03/01/2013",
-        "endDate": "12/31/9999",
+        "endDate": "12/31/3999",
         "groupId": "0012345678",
         "groupName": "Acme Corp",
         "pcpId": "P7654321",

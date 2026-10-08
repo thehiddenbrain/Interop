@@ -226,10 +226,10 @@ class ResolveScenariosTest {
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
         assertThat(r.get("memberId").properties()).extracting(Map.Entry::getKey).as("in this order").containsExactly("received", "resolved", "forVendors");
         assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("id, flag and period only, in this order").containsExactly("coverageId", "active", "effectiveDate", "endDate");
-        assertThat(r.at("/coverage/coverageId").asText()).as("stored id (letters and digits only), effective and end as yyyyMMdd run together, open end 99991231")
-                .isEqualTo(r.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2021010199991231");
+        assertThat(r.at("/coverage/coverageId").asText()).as("stored id (letters and digits only), effective and end as yyyyMMdd run together, open end 39991231")
+                .isEqualTo(r.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2021010139991231");
         assertThat(r.at("/coverage/effectiveDate").asText()).as("two adjacent records are one continuous period").isEqualTo("2021-01-01");
-        assertThat(r.at("/coverage/endDate").asText()).as("an open-ended period ends 9999-12-31, never null").isEqualTo("9999-12-31");
+        assertThat(r.at("/coverage/endDate").asText()).as("an open-ended period ends 3999-12-31, never null").isEqualTo("3999-12-31");
         assertThat(r.get("dateOfServiceDefaulted").asBoolean()).isFalse();
         assertThat(r.get("traceId").asText()).matches("INTEROP-\\d{13}-\\d{5}");
         assertThat(r.get("requestId").asText()).as("the caller's id for the call comes back").isEqualTo(lastRequestId);
@@ -348,7 +348,7 @@ class ResolveScenariosTest {
         assertThat(call(200, req(subscriber, "2026-10-15")).get("lineOfBusiness").asText())
                 .as("the 2025-onward record: THPPMA, 2026, GT").isEqualTo("MA-TOGETHER");
         assertThat(call(200, req(subscriber, "2024-08-15")).get("lineOfBusiness").asText())
-                .as("the 2022-2024 record: THPPMA, 2026, SB").isEqualTo("MA-QHP-DIRECT");
+                .as("the 2022-2024 record: THPPMA, 2026, SB").isEqualTo("MA-QHP");
         assertThat(call(200, req(subscriber, "2021-06-01")).get("lineOfBusiness").asText())
                 .as("no record covers 2021: the member record's").isEqualTo("PP");
         before += 3; // the subscriber's three answers
@@ -473,7 +473,7 @@ class ResolveScenariosTest {
             assertThat(r.at("/memberId/resolved").asText()).isEqualTo("HP456789012");
             assertThat(forVendor(r, "EVICORE")).isEqualTo("HP456789012");
             assertThat(r.get("lineOfBusiness").asText()).isEqualTo("COM");
-            assertThat(r.at("/coverage/endDate").asText()).as("12/31/9999 is open-ended").isEqualTo("9999-12-31");
+            assertThat(r.at("/coverage/endDate").asText()).as("12/31/3999 is open-ended").isEqualTo("3999-12-31");
         }
     }
 
@@ -699,8 +699,8 @@ class ResolveScenariosTest {
     void coverageBlockIsTheFlagAndThePeriodOnly() throws Exception {
         JsonNode active = call(200, req("123456789", "2026-10-15"));
         assertThat(active.get("coverage").properties()).extracting(Map.Entry::getKey).containsExactly("coverageId", "active", "effectiveDate", "endDate");
-        assertThat(active.at("/coverage/coverageId").asText()).as("stored id (letters and digits only), effective and end as yyyyMMdd run together, open end 99991231")
-                .isEqualTo(active.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2021010199991231");
+        assertThat(active.at("/coverage/coverageId").asText()).as("stored id (letters and digits only), effective and end as yyyyMMdd run together, open end 39991231")
+                .isEqualTo(active.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2021010139991231");
         assertThat(active.at("/coverage/effectiveDate").asText()).isEqualTo("2021-01-01");
 
         JsonNode inactive = call(200, req("234567890", null));

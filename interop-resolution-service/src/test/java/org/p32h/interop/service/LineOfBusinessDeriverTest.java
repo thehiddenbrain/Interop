@@ -93,15 +93,15 @@ class LineOfBusinessDeriverTest {
 
     @Test
     void maQhpDirectIsThppmaOnSourceSystem2026WithProductNsOrSb() {
-        assertThat(lob("2026", "THPPMA", "NS")).isEqualTo("MA-QHP-DIRECT");
-        assertThat(lob("2026", "THPPMA", "SB")).as("the service's contract example").isEqualTo("MA-QHP-DIRECT");
+        assertThat(lob("2026", "THPPMA", "NS")).isEqualTo("MA-QHP");
+        assertThat(lob("2026", "THPPMA", "SB")).as("the service's contract example").isEqualTo("MA-QHP");
         assertThat(lob("2026", "THPPMA", "XX")).as("a product no rule names").isEqualTo("MCR");
         assertThat(lob("2026", "THPPRI", "SB")).as("another subsidiary").isEqualTo("MCR");
     }
 
     @Test
     void codesAreComparedIgnoringCaseAndSurroundingSpaces() {
-        assertThat(lob(" 2026 ", "thppma", " sb")).isEqualTo("MA-QHP-DIRECT");
+        assertThat(lob(" 2026 ", "thppma", " sb")).isEqualTo("MA-QHP");
     }
 
     @Test
@@ -116,9 +116,9 @@ class LineOfBusinessDeriverTest {
         List<MemberPlan> fiveYears = List.of(
                 record("2048", "THPPRI", null, "2021-01-01T05:00:00.000+00:00", "2023-12-31T05:00:00.000+00:00"),
                 record("2026", "THPPMA", "SB", "2024-01-01T05:00:00.000+00:00", "2026-10-14T04:00:00.000+00:00"),
-                record("2026", "THPPMA", "GT", "2026-10-15T04:00:00.000+00:00", "9999-12-31T05:00:00.000+00:00"));
+                record("2026", "THPPMA", "GT", "2026-10-15T04:00:00.000+00:00", "3999-12-31T05:00:00.000+00:00"));
         assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2022-06-01"))).isEqualTo("RI-TOGETHER");
-        assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2026-10-14"))).as("the last day, inclusive").isEqualTo("MA-QHP-DIRECT");
+        assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2026-10-14"))).as("the last day, inclusive").isEqualTo("MA-QHP");
         assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2026-10-15"))).as("the first day, inclusive").isEqualTo("MA-TOGETHER");
         assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2020-06-01"))).as("before every record").isEqualTo("MCR");
         assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage()).contains("marker=LOB_NOT_DERIVED")

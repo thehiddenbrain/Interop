@@ -15,7 +15,7 @@ class MmiRecordMapperTest {
     void mapsDatesStrictlyAndSkipsVoidAndUnreadableSpans() {
         MmiMember m = new MmiMember("123456789   01", "123456789   01", "03/15/1950", null, "thp", " MCR ", "N", null, List.of(
                 new MmiCoverage("01/01/2024", null, "g", "N"),
-                new MmiCoverage("01/01/2020", "12/31/9999", "g", "N"),
+                new MmiCoverage("01/01/2020", "12/31/3999", "g", "N"),
                 new MmiCoverage("01/01/2026", null, "g", "Y"),
                 new MmiCoverage("02/30/2024", "12/31/2024", "g", "N"),
                 new MmiCoverage("01/01/2025", "01/01/2024", "g", "N"),
@@ -55,7 +55,7 @@ class MmiRecordMapperTest {
         assertThat(MmiDates.parseOrNull("2024-01-01")).isNull();
         assertThat(MmiDates.isOpenEnd(null)).isTrue();
         assertThat(MmiDates.isOpenEnd(" ")).isTrue();
-        assertThat(MmiDates.isOpenEnd("12/31/9999")).isTrue();
+        assertThat(MmiDates.isOpenEnd("12/31/3999")).isTrue();
         assertThat(MmiDates.isOpenEnd("12/31/2024")).isFalse();
     }
 }

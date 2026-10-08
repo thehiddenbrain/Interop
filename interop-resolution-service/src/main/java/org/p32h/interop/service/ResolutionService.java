@@ -138,12 +138,12 @@ public class ResolutionService {
 
         /**
          * MEMBER_ID + EFF_DATE + END_DATE run together (the form Onyx asked for), no separator, dates as yyyyMMdd, letters and digits only (the stored id loses its spaces and any punctuation);
-         * 99991231 stands for an open-ended period.
+         * 39991231 stands for an open-ended period.
          */
         private static String coverageId(String storedMemberId, CoverageSpan period) {
             DateTimeFormatter compact = DateTimeFormatter.BASIC_ISO_DATE;
             return storedMemberId.replaceAll("[^A-Za-z0-9]", "") + period.effective().format(compact)
-                    + (period.end() == null ? "99991231" : period.end().format(compact));
+                    + (period.end() == null ? "39991231" : period.end().format(compact));
         }
     }
 

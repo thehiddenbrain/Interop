@@ -166,7 +166,7 @@ criteria, read against the record (`sourceSysId` is the record's `sourceSystemId
 | `D-SNP` | `sourceSystemId` 2064 and `productCode` DMA |
 | `MA-TOGETHER` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` PL or GT |
 | `RI-TOGETHER` | `subsidiary` THPPRI and `sourceSystemId` 2048 |
-| `MA-QHP-DIRECT` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` NS or SB |
+| `MA-QHP` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` NS or SB |
 | MMI's value (`MCR`, `PP`, `COM`, ...) | no record covers the date, or none a rule matches (TMP, HPHC and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED` |
 
 A derived value is logged as `lob derived` with the record's fields and dates. When several records cover the date,
@@ -175,7 +175,7 @@ will also need a database lookup, to be added beside the rules.
 
 | Profile | Member information service |
 |---|---|
-| `DEV` | in-process stub, `member-info-stub/members.json` (the Together subscriber's records: `MA-QHP-DIRECT` 2022 to 2024, `MA-TOGETHER` from 2025; the SCO member's: `SCO` 2023 to 2025; any other member has none) |
+| `DEV` | in-process stub, `member-info-stub/members.json` (the Together subscriber's records: `MA-QHP` 2022 to 2024, `MA-TOGETHER` from 2025; the SCO member's: `SCO` 2023 to 2025; any other member has none) |
 | `FQA` | `http://memberinfoserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp` (assumed from the PQA URL: confirm) |
 | `PQA` | `http://memberinfoserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` |
 | `PQA-LITE` | `http://memberinfoserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` (assumed: confirm) |
@@ -267,7 +267,7 @@ For the TMP id `123456789` (resolved to `123456789   01`):
     ] },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "coverageId": "123456789012021010199991231", "active": true, "effectiveDate": "2021-01-01", "endDate": "9999-12-31" },
+  "coverage": { "coverageId": "123456789012021010139991231", "active": true, "effectiveDate": "2021-01-01", "endDate": "3999-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
   "traceId": "INTEROP-1791253983086-71493" }
 ```
@@ -280,18 +280,18 @@ vendor, sorted by vendor code: that ID in the vendor's format, the value that go
 Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 characters, spaces, 2 digits); any other
 stored ID (Public Plans, HPHC) is passed as stored for every vendor.
 `coverage` is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`. The dates
-are those of the continuous period that covers the (first) date of service; an open-ended period ends `9999-12-31`, so
+are those of the continuous period that covers the (first) date of service; an open-ended period ends `3999-12-31`, so
 every date sent is a real date and absent dates mean there is no period. Records that touch,
 as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true only when
 that period covers every day asked about; when it covers the first day but ends before the last, `active` is false and
 the period is still shown so intake sees how far coverage goes. Otherwise there is no period and `message` says why.
 `coverage.coverageId` names that period, in the form the Onyx requirement sets: the resolved member
 id with its spaces and any punctuation removed, then the period's effective date, then its end date, both `yyyyMMdd`, run
-together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `99991231` stands for an open-ended
+together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `39991231` stands for an open-ended
 period). It is present whenever the dates are, and the same member with the same coverage always gets the same
 value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring dates.
 `lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `SCO`, `D-SNP`,
-`MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP-DIRECT`; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
+`MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP`; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
 Onyx routes the transaction on it. The company (THP or
 HPHC) is not returned: the resolved id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
 to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body, and the caller's `requestId`
@@ -307,7 +307,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
 | `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId, payerId, payerName }` per configured vendor, sorted by vendor code) when a member was identified |
-| `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `SCO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP-DIRECT`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
+| `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `SCO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
 | `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `dateOfServiceDefaulted` | always | Whether the date of service was defaulted to today |
@@ -392,7 +392,7 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    conversion) are one person and the record covering the date of service wins; a supplied DOB picks one
    person or proves a mismatch; several persons without a DOB -> `AMBIGUOUS`.
 4. Coverage: the readable, non-void spans that overlap or touch are joined into continuous periods; `active` when one
-   period covers every day from the first to the last date of service (inclusive; an end of null or `12/31/9999` is
+   period covers every day from the first to the last date of service (inclusive; an end of null or `12/31/3999` is
    open). The dates are always the ones that were sent (today only when none was sent), whatever year they are in:
    a 2027 date against a record that ends 12/31/2026 is `INACTIVE` ("coverage ended before"), a period from
    2025-12-20 to 2026-01-05 against records for 2025 and 2026 is `ACTIVE` (one continuous period), a period that
@@ -465,7 +465,7 @@ and case (anything that is not a letter or digit is ignored), the leniency expec
 itself hands the id over untouched. The stub ignores `dosStartDate` and returns each record's whole coverage
 history. `src/main/resources/member-info-stub/members.json` is the member information stub: the Together subscriber's coverage
 records (THPPMA, source system 2026; product SB from 2022 to 2024, product GT from 2025 with no end), so its answers carry
-`MA-TOGETHER` for a 2026 date and `MA-QHP-DIRECT` for a 2024 one; and the SCO member's record (business type SH, a plan
+`MA-TOGETHER` for a 2026 date and `MA-QHP` for a 2024 one; and the SCO member's record (business type SH, a plan
 code with SCO in it, 2023 to 2025), so a 2025 date carries `SCO`. Any other member has no records and keeps MMI's line of
 business. The fault ids below are recognised by the first 9 characters of the id with
 separators removed.
@@ -475,7 +475,7 @@ separators removed.
 | `123456789` / `12345678901` / `123456789   01` | TMP, active, open-ended |
 | `234567890` | SCO, coverage ended 2025-12-31 -> INACTIVE |
 | `345678901` | Together family: 01 subscriber (DOB 1985-06-01), 02 dependent (DOB 2012-09-09, gap 06/2024 to 12/2024), 03 twin (ended 2024-12-31) -> AMBIGUOUS without DOB |
-| `HP456789012` / `HP-456789012` | HPHC, active (end `12/31/9999`) |
+| `HP456789012` / `HP-456789012` | HPHC, active (end `12/31/3999`) |
 | `567890123 01` <-> `HP567890123` | converted member: THP to 2024-12-31, HPHC from 2025-01-01 |
 | `678901234` | void span + ended span -> INACTIVE |
 | `789012345` | coverage starts 2027-01-01 -> NOT_YET_EFFECTIVE |
@@ -542,7 +542,7 @@ start is missing or a date unreadable), `LineOfBusinessDeriverTest` (each rule a
 date of service is read; several records on the date give the first match; no record or no match keeps MMI's value),
 `ResolutionServiceMemberPlanTest` (asked with the resolved id, the first day of a period and the correlation id; the
 covering record's line of business replaces MMI's; a failure is a 503 with `Retry-After` and MMI's request id as `traceId`) and `theCoverageRecordsAreAskedForOnlyOnceTheMemberIsIdentified` (the Together subscriber gets `MA-TOGETHER` for 2026,
-`MA-QHP-DIRECT` for 2024 and `PP` for 2021; the SCO member `SCO` for 2025 and `MCR` for 2026; asked for `ACTIVE` and `INACTIVE`, never for
+`MA-QHP` for 2024 and `PP` for 2021; the SCO member `SCO` for 2025 and `MCR` for 2026; asked for `ACTIVE` and `INACTIVE`, never for
 `NOT_FOUND` or `AMBIGUOUS`).
 
 ## 7. Assumptions to confirm in PQA
@@ -556,7 +556,7 @@ covering record's line of business replaces MMI's; a failure is a 503 with `Retr
   `planEndDate` as date-times whose date part is the date meant, and answers 404 when it has no member (its 400 and 500
   are assumed). Its FQA,
   PQA-LITE and PRD URLs follow the PQA naming.
-- The line-of-business values (`SCO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP-DIRECT`) are the names Onyx routes on, and
+- The line-of-business values (`SCO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`) are the names Onyx routes on, and
   the ES Members criteria read the coverage record as `sourceSysId` = `sourceSystemId`, `coverage.subsidiary` = `subsidiary`,
   `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`. Rules for TMP, HPHC and commercial members, and the TMP database lookup, are
   to come; until then those members keep MMI's value.

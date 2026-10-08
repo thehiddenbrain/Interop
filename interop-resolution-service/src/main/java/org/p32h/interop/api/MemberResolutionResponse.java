@@ -10,7 +10,7 @@ import java.util.List;
  * evaluated ({@code dateOfServiceEnd} too when a period was asked about), the coverage flag with its period and id, the
  * caller's request id, and a trace id for support (the id of the lookup behind the answer). An AMBIGUOUS answer lists
  * nobody: it says in {@code message} what to resend. Optional blocks are
- * absent when they do not apply (global non-null inclusion); an open-ended coverage period ends {@code 9999-12-31}.
+ * absent when they do not apply (global non-null inclusion); an open-ended coverage period ends {@code 3999-12-31}.
  * {@code sourceMessage} is what the member lookup said when it had no member for the id (NOT_FOUND only). Nothing in
  * the body names MMI. The correlation id travels in the {@code X-Correlation-Id} response header.
  */

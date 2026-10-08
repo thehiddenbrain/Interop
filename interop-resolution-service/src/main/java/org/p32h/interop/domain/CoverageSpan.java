@@ -4,7 +4,7 @@ import java.time.LocalDate;
 
 /**
  * One readable, non-void coverage period. {@code end == null} means open-ended (MMI's null, blank or
- * 12/31/9999). Both ends are inclusive: a span ending on the date of service still covers it.
+ * 12/31/3999). Both ends are inclusive: a span ending on the date of service still covers it.
  */
 public record CoverageSpan(LocalDate effective, LocalDate end) {
 
