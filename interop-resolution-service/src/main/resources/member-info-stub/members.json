@@ -59,5 +59,39 @@
         "lineOfBusinessDesc": null
       }
     ]
+  },
+  {
+    "_comment": "The SCO member's coverage record: business type SH and a plan code with SCO in it (SCO), 2023 to 2025, the span of the member record's coverage. A 2026 date of service is outside it and keeps the member record's line of business. The values are illustrative.",
+    "requestId": null,
+    "memberId": "234567890   01",
+    "coverageRecords": [
+      {
+        "benefitId": null,
+        "businessLineKey": null,
+        "businessTypeIndicator": "SH",
+        "carrier": null,
+        "carrierCode": null,
+        "gridId": null,
+        "groupId": null,
+        "ratingState": null,
+        "homeGroupId": null,
+        "network": null,
+        "networkId": null,
+        "planCode": "SCO0000001",
+        "planEndDate": "2025-12-31T05:00:00.000+00:00",
+        "planName": null,
+        "planStartDate": "2023-01-01T05:00:00.000+00:00",
+        "planType": "SCO0000001 - ",
+        "productCode": null,
+        "sourceSystemId": "2026",
+        "subsidiary": "THPPMA",
+        "voidFlag": "N",
+        "ipa": null,
+        "hierarchyLineOfBusiness": null,
+        "hierarchyCompany": null,
+        "hierarchyCompanyDesc": null,
+        "lineOfBusinessDesc": null
+      }
+    ]
   }
 ]

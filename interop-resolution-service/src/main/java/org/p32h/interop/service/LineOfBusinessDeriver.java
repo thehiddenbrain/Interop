@@ -16,8 +16,10 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The rules are the member portal's "ES Members" criteria, read against a coverage record: {@code sourceSysId} is the
  * record's {@code sourceSystemId}, {@code coverage.subsidiary} its {@code subsidiary} and {@code coverage.product} its
- * {@code productCode}. Codes are compared ignoring case and surrounding spaces.
+ * {@code productCode}. SCO is read from {@code businessTypeIndicator} and {@code planCode}, and is checked first. Codes
+ * are compared ignoring case and surrounding spaces.
  * <pre>
+ *   SCO             businessTypeIndicator SH and a planCode with SCO in it
  *   D-SNP           sourceSystemId 2064 and productCode DMA
  *   MA-TOGETHER     subsidiary THPPMA, sourceSystemId 2026 and productCode PL or GT
  *   RI-TOGETHER     subsidiary THPPRI and sourceSystemId 2048
@@ -25,7 +27,7 @@ import org.slf4j.LoggerFactory;
  * </pre>
  * When several records cover the date, the first one a rule matches gives the value; if they give different values a
  * warning is logged ({@code marker=LOB_SEVERAL_ON_DATE}). A member with no record covering the date, or whose records match
- * no rule (TMP, SCO, HPHC and the other populations whose rules are still to come), keeps the line of business on the member
+ * no rule (TMP, HPHC and the other populations whose rules are still to come), keeps the line of business on the member
  * record (from MMI), logged with {@code marker=LOB_NOT_DERIVED}. TMP members will also need a database lookup; it belongs
  * here, beside the rules.
  */
@@ -33,6 +35,7 @@ public class LineOfBusinessDeriver {
 
     private static final Logger log = LoggerFactory.getLogger(LineOfBusinessDeriver.class);
 
+    public static final String SCO = "SCO";
     public static final String DSNP = "D-SNP";
     public static final String MA_TOGETHER = "MA-TOGETHER";
     public static final String RI_TOGETHER = "RI-TOGETHER";
@@ -99,12 +102,21 @@ public class LineOfBusinessDeriver {
 
     /** The line of business the first matching rule gives this record, or null when none matches. */
     private static String lineOfBusinessOf(MemberPlan record) {
+        if (isSco(record)) {
+            return SCO;
+        }
         for (Rule rule : RULES) {
             if (rule.matches(record)) {
                 return rule.lineOfBusiness();
             }
         }
         return null;
+    }
+
+    /** SCO: businessTypeIndicator SH and a plan code with SCO in it. */
+    private static boolean isSco(MemberPlan record) {
+        String planCode = code(record.planCode());
+        return "SH".equals(code(record.businessTypeIndicator())) && planCode != null && planCode.contains("SCO");
     }
 
     private static String code(String value) {

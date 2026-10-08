@@ -157,15 +157,17 @@ it is not the plan on the date of service. Only the records whose `planStartDate
 service (the first day of a period; both ends inclusive, dates read as written, no end date means open-ended; void
 records left out) go through the rules. The rules, in `LineOfBusinessDeriver`, are the member portal's "ES Members"
 criteria, read against the record (`sourceSysId` is the record's `sourceSystemId`, `coverage.subsidiary` its
-`subsidiary`, `coverage.product` its `productCode`; case and spaces ignored):
+`subsidiary`, `coverage.product` its `productCode`; case and spaces ignored). SCO is read from `businessTypeIndicator` and
+`planCode`, and is checked first:
 
 | `lineOfBusiness` | Coverage record covering the date of service |
 |---|---|
+| `SCO` | `businessTypeIndicator` SH and a `planCode` with SCO in it |
 | `D-SNP` | `sourceSystemId` 2064 and `productCode` DMA |
 | `MA-TOGETHER` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` PL or GT |
 | `RI-TOGETHER` | `subsidiary` THPPRI and `sourceSystemId` 2048 |
 | `MA-QHP-DIRECT` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` NS or SB |
-| MMI's value (`MCR`, `PP`, `COM`, ...) | no record covers the date, or none a rule matches (TMP, SCO, HPHC and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED` |
+| MMI's value (`MCR`, `PP`, `COM`, ...) | no record covers the date, or none a rule matches (TMP, HPHC and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED` |
 
 A derived value is logged as `lob derived` with the record's fields and dates. When several records cover the date,
 the first one a rule matches gives the value, and `marker=LOB_SEVERAL_ON_DATE` is logged if they disagree. TMP members
@@ -173,7 +175,7 @@ will also need a database lookup, to be added beside the rules.
 
 | Profile | Member information service |
 |---|---|
-| `DEV` | in-process stub, `member-info-stub/members.json` (the Together subscriber's records: `MA-QHP-DIRECT` 2022 to 2024, `MA-TOGETHER` from 2025; any other member has none) |
+| `DEV` | in-process stub, `member-info-stub/members.json` (the Together subscriber's records: `MA-QHP-DIRECT` 2022 to 2024, `MA-TOGETHER` from 2025; the SCO member's: `SCO` 2023 to 2025; any other member has none) |
 | `FQA` | `http://memberinfoserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp` (assumed from the PQA URL: confirm) |
 | `PQA` | `http://memberinfoserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` |
 | `PQA-LITE` | `http://memberinfoserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` (assumed: confirm) |
@@ -288,7 +290,7 @@ id with its spaces and any punctuation removed, then the period's effective date
 together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `99991231` stands for an open-ended
 period). It is present whenever the dates are, and the same member with the same coverage always gets the same
 value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring dates.
-`lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `D-SNP`,
+`lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `SCO`, `D-SNP`,
 `MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP-DIRECT`; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
 Onyx routes the transaction on it. The company (THP or
 HPHC) is not returned: the resolved id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
@@ -305,7 +307,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
 | `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId, payerId, payerName }` per configured vendor, sorted by vendor code) when a member was identified |
-| `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP-DIRECT`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
+| `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `SCO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP-DIRECT`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
 | `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `dateOfServiceDefaulted` | always | Whether the date of service was defaulted to today |
@@ -463,7 +465,8 @@ and case (anything that is not a letter or digit is ignored), the leniency expec
 itself hands the id over untouched. The stub ignores `dosStartDate` and returns each record's whole coverage
 history. `src/main/resources/member-info-stub/members.json` is the member information stub: the Together subscriber's coverage
 records (THPPMA, source system 2026; product SB from 2022 to 2024, product GT from 2025 with no end), so its answers carry
-`MA-TOGETHER` for a 2026 date and `MA-QHP-DIRECT` for a 2024 one; any other member has no records and keeps MMI's line of
+`MA-TOGETHER` for a 2026 date and `MA-QHP-DIRECT` for a 2024 one; and the SCO member's record (business type SH, a plan
+code with SCO in it, 2023 to 2025), so a 2025 date carries `SCO`. Any other member has no records and keeps MMI's line of
 business. The fault ids below are recognised by the first 9 characters of the id with
 separators removed.
 
@@ -496,7 +499,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (161 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (162 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -539,7 +542,7 @@ start is missing or a date unreadable), `LineOfBusinessDeriverTest` (each rule a
 date of service is read; several records on the date give the first match; no record or no match keeps MMI's value),
 `ResolutionServiceMemberPlanTest` (asked with the resolved id, the first day of a period and the correlation id; the
 covering record's line of business replaces MMI's; a failure is a 503 with `Retry-After` and MMI's request id as `traceId`) and `theCoverageRecordsAreAskedForOnlyOnceTheMemberIsIdentified` (the Together subscriber gets `MA-TOGETHER` for 2026,
-`MA-QHP-DIRECT` for 2024 and `PP` for 2021; asked for `ACTIVE` and `INACTIVE`, never for
+`MA-QHP-DIRECT` for 2024 and `PP` for 2021; the SCO member `SCO` for 2025 and `MCR` for 2026; asked for `ACTIVE` and `INACTIVE`, never for
 `NOT_FOUND` or `AMBIGUOUS`).
 
 ## 7. Assumptions to confirm in PQA
@@ -553,9 +556,9 @@ covering record's line of business replaces MMI's; a failure is a 503 with `Retr
   `planEndDate` as date-times whose date part is the date meant, and answers 404 when it has no member (its 400 and 500
   are assumed). Its FQA,
   PQA-LITE and PRD URLs follow the PQA naming.
-- The line-of-business values (`D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP-DIRECT`) are the names Onyx routes on, and
+- The line-of-business values (`SCO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP-DIRECT`) are the names Onyx routes on, and
   the ES Members criteria read the coverage record as `sourceSysId` = `sourceSystemId`, `coverage.subsidiary` = `subsidiary`,
-  `coverage.product` = `productCode`. Rules for TMP, SCO, HPHC and commercial members, and the TMP database lookup, are
+  `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`. Rules for TMP, HPHC and commercial members, and the TMP database lookup, are
   to come; until then those members keep MMI's value.
 - With `dosStartDate`, which coverage MMI returns: only the segment covering that date or the whole history; and for
   a member with no coverage on that date, the member without coverage or a 404 (`NOT_FOUND` here instead of

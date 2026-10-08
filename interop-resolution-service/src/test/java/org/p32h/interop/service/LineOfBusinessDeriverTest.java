@@ -48,6 +48,25 @@ class LineOfBusinessDeriverTest {
         return deriver.derive(RECORD, List.of(record(sourceSystemId, subsidiary, productCode, "2025-01-01T05:00:00.000+00:00", null)), DOS);
     }
 
+    /** A coverage record covering the date of service with only the fields the SCO check reads, plus a source system. */
+    private String scoLob(String businessTypeIndicator, String planCode, String sourceSystemId, String subsidiary, String productCode) {
+        MemberPlan c = new MemberPlan(null, null, businessTypeIndicator, null, null, null, null, null, null, null, null, planCode, null,
+                null, "2025-01-01", null, productCode, sourceSystemId, subsidiary, "N", null, null, null, null, null);
+        return deriver.derive(RECORD, List.of(c), DOS);
+    }
+
+    @Test
+    void scoIsBusinessTypeShWithScoInThePlanCode() {
+        assertThat(scoLob("SH", "SCO10001", null, null, null)).isEqualTo("SCO");
+        assertThat(scoLob("SH", "10SCO001", null, null, null)).as("SCO anywhere in the plan code").isEqualTo("SCO");
+        assertThat(scoLob(" sh ", "10sco001", null, null, null)).as("ignoring case and spaces").isEqualTo("SCO");
+        assertThat(scoLob("PP", "SCO10001", null, null, null)).as("another business type").isEqualTo("MCR");
+        assertThat(scoLob("SH", "10GT1000", null, null, null)).as("no SCO in the plan code").isEqualTo("MCR");
+        assertThat(scoLob("SH", null, null, null, null)).as("no plan code").isEqualTo("MCR");
+        assertThat(scoLob(null, "SCO10001", null, null, null)).as("no business type").isEqualTo("MCR");
+        assertThat(scoLob("SH", "SCO10001", "2026", "THPPMA", "GT")).as("checked before the ES Members rules").isEqualTo("SCO");
+    }
+
     @Test
     void dsnpIsSourceSystem2064WithProductDmaWhateverTheSubsidiary() {
         assertThat(lob("2064", null, "DMA")).isEqualTo("D-SNP");

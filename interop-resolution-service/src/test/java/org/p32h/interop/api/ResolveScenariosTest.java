@@ -355,8 +355,11 @@ class ResolveScenariosTest {
 
         JsonNode inactive = call(200, req(fixtureId("SCO member (Medicare)"), "2026-10-15"));
         assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");
-        assertThat(inactive.get("lineOfBusiness").asText()).as("no records for this member in the stub: the member record's").isEqualTo("MCR");
+        assertThat(inactive.get("lineOfBusiness").asText()).as("no record covers 2026: the member record's").isEqualTo("MCR");
         assertThat(plans.calls()).as("asked for an INACTIVE member too").isEqualTo(before + 2);
+        assertThat(call(200, req(fixtureId("SCO member (Medicare)"), "2025-06-15")).get("lineOfBusiness").asText())
+                .as("the 2023-2025 record: business type SH, plan code with SCO").isEqualTo("SCO");
+        before += 1;
 
         assertThat(call(200, req("NOSUCHMEMBER", "2026-10-15")).get("outcome").asText()).isEqualTo("NOT_FOUND");
         String family = fixtureId("Public Plans (Together) subscriber").substring(0, 9);
