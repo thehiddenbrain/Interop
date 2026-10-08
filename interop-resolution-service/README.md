@@ -81,7 +81,7 @@ Command line: `./run.sh` (Mac/Linux) or `run.cmd` / `run.bat` (Windows) build th
 One configuration file per environment in `src/main/resources`, named by the environment in upper case; the profile
 name is the file suffix (`SPRING_PROFILES_ACTIVE=DEV|FQA|PQA|PQA-LITE|PRD`). `application.yaml` holds what every
 environment shares (port, JSON rules, MMI path and timeouts, the vendor table); an environment file sets only what differs
-(the MMI URL, payload logging, the stub, Swagger, log levels).
+(the MMI and member information URLs, payload logging, the stubs, Swagger, log levels).
 
 #### Pointing at the real MMI, step by step
 
@@ -97,6 +97,9 @@ that environment's `application-<ENV>.yaml`; nothing else changes.
 4. **Network**: your machine (or the pod) must reach `mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp`
    on port 80 (plain HTTP, no token, as the MMI contract states). If it cannot, every call answers
    `503 MEMBER_LOOKUP_UNAVAILABLE` with `CONNECT_FAILED` and the log line `mmi call failed ... cause=...` names the reason.
+   It must also reach `memberinfoserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` on port 80; if it cannot, every
+   identified member answers `503 MEMBER_PLAN_UNAVAILABLE` with `CONNECT_FAILED` and the log line
+   `member-info call failed ... cause=...` names the reason.
 5. **Try it**: a Postman request with a real PQA member id, typed as the EMR has it, or
    `curl -X POST http://localhost:9090/v1/interop/resolve -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\"}"`.
    The response carries `traceId` (`INTEROP-<millis>-<5 digits>`), which the MMI team can find in their logs.
@@ -147,9 +150,8 @@ guards back each stub (MMI and member information): it refuses to start with any
 
 Once MMI has identified the member (`ACTIVE` or `INACTIVE`), the service asks the member information service for that
 member's plan on the date of service: `POST {member-info.base-url}/members` with
-`{ "memberIds": ["<the resolved id, as stored>"], "dos": "MM/dd/yyyy" }`. The plan (`hierarchyLineOfBusiness`,
-`lineOfBusinessDesc`, `hierarchyCompany`, `subsidiary`, `carrierCode`, `productCode`, ...) is what the line of business
-is derived from, in `LineOfBusinessDeriver`, by the member portal's "ES Members" criteria (`sourceSysId` is the plan's
+`{ "memberIds": ["<the resolved id, as stored>"], "dos": "MM/dd/yyyy" }`. The plan's `sourceSystemId`, `subsidiary` and
+`productCode` are what the line of business is derived from, in `LineOfBusinessDeriver`, by the member portal's "ES Members" criteria (`sourceSysId` is the plan's
 `sourceSystemId`, `coverage.subsidiary` its `subsidiary`, `coverage.product` its `productCode`; case and spaces ignored):
 
 | `lineOfBusiness` | Plan |
@@ -453,8 +455,9 @@ the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor and the company.
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
 and case (anything that is not a letter or digit is ignored), the leniency expected of the real MMI; the service
 itself hands the id over untouched. The stub ignores `dosStartDate` and returns each record's whole coverage
-history. `src/main/resources/member-info-stub/members.json` is the member information stub: the plan from the service's
-an MA-TOGETHER plan for the Together subscriber (so its answers carry `MA-TOGETHER`), no plan for anyone else. The fault ids below are recognised by the first 9 characters of the id with
+history. `src/main/resources/member-info-stub/members.json` is the member information stub: an MA-TOGETHER plan (subsidiary
+THPPMA, source system 2026, product GT) for the Together subscriber, so its answers carry `MA-TOGETHER`; any other member
+has no plan and keeps MMI's line of business. The fault ids below are recognised by the first 9 characters of the id with
 separators removed.
 
 | Member ID (as typed; the stub ignores separators and case) | Case |

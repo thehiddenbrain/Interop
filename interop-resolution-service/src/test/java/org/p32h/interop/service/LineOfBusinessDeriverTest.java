@@ -52,6 +52,7 @@ class LineOfBusinessDeriverTest {
         assertThat(lob("2026", "THPPMA", "NS")).isEqualTo("MA-QHP-DIRECT");
         assertThat(lob("2026", "THPPMA", "SB")).as("the service's contract example").isEqualTo("MA-QHP-DIRECT");
         assertThat(lob("2026", "THPPMA", "XX")).as("a product no rule names").isEqualTo("MCR");
+        assertThat(lob("2026", "THPPRI", "SB")).as("another subsidiary").isEqualTo("MCR");
     }
 
     @Test
@@ -63,5 +64,7 @@ class LineOfBusinessDeriverTest {
     void noPlanOrAPlanWithoutTheFieldsKeepsTheRecordsLineOfBusiness() {
         assertThat(deriver.derive(RECORD, null)).isEqualTo("MCR");
         assertThat(lob(null, null, null)).isEqualTo("MCR");
+        assertThat(lob("2064", null, null)).as("D-SNP's source system without a product").isEqualTo("MCR");
+        assertThat(lob("2026", "THPPMA", null)).as("THPPMA on 2026 without a product").isEqualTo("MCR");
     }
 }

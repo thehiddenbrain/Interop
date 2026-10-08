@@ -37,9 +37,10 @@ public class LineOfBusinessDeriver {
     private record Rule(String lineOfBusiness, String sourceSystemId, String subsidiary, Set<String> products) {
 
         boolean matches(MemberPlan plan) {
+            String product = code(plan.productCode());
             return sourceSystemId.equals(code(plan.sourceSystemId()))
                     && (subsidiary == null || subsidiary.equals(code(plan.subsidiary())))
-                    && (products == null || products.contains(code(plan.productCode())));
+                    && (products == null || (product != null && products.contains(product)));
         }
     }
 

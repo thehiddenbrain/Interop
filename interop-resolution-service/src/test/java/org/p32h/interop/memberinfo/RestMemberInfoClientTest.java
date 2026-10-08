@@ -109,6 +109,7 @@ class RestMemberInfoClientTest {
             assertThat(p.subsidiary()).isEqualTo("THPPMA");
             assertThat(p.carrierCode()).isEqualTo("THPP");
             assertThat(p.productCode()).isEqualTo("SB");
+            assertThat(p.sourceSystemId()).isEqualTo("2026");
             assertThat(p.planStartDate()).isEqualTo("2024-02-01T05:00:00.000+00:00");
             assertThat(p.gridId()).isNull();
         });
@@ -156,7 +157,7 @@ class RestMemberInfoClientTest {
 
     @Test
     void anUnreadableOrEmptyBodyIsInvalidResponse502() {
-        for (String body : new String[] {"<html>maintenance</html>", null}) {
+        for (String body : new String[] {"<html>maintenance</html>", "null", null}) {
             RestMemberInfoClient client = answering(HttpStatus.OK, MediaType.TEXT_HTML_VALUE, body);
             assertThatThrownBy(() -> client.lookup(MEMBER, DOS, "c")).isInstanceOfSatisfying(MemberInfoException.class, e -> {
                 assertThat(e.status()).isEqualTo(HttpStatus.BAD_GATEWAY);

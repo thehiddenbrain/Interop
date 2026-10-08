@@ -178,9 +178,9 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
   <p class="lede">A small, stateless Spring Boot service for Onyx. It takes the member ID exactly as the provider's EMR supplied it, verifies it with the Master Member Index (MMI), returns the ID it resolved to in the format each UM vendor expects, all vendors in one answer, and says with one flag whether coverage is active on the date of service, or throughout a period of service.</p>
   <div class="meta">
     <span><b>Status</b> v1.0, implemented in <code>interop-resolution-service/</code>: 156 tests, a Postman collection with tests on every request, the OpenAPI document for Onyx</span>
-    <span><b>Date</b> 2026-10-06</span>
+    <span><b>Date</b> 2026-10-08</span>
     <span><b>Stack</b> Spring Boot 4.0.7 · Java 17+ · Gradle 9.5 · port 9090 (the EPA Workbench build shape)</span>
-    <span><b>Only integration</b> MMI</span>
+    <span><b>Integrations</b> MMI, member information service</span>
   </div>
 </header>
 
@@ -962,7 +962,7 @@ Content-Type: application/json · Accept: application/json · X-Correlation-Id: 
 </ul>
 
 <h2 id="config"><span class="num">15</span>Configuration and profiles</h2>
-<p>One configuration file per environment, named by the environment in upper case: <code>application-DEV.yaml</code>, <code>application-FQA.yaml</code>, <code>application-PQA.yaml</code>, <code>application-PQA-LITE.yaml</code>, <code>application-PRD.yaml</code> in <code>src/main/resources</code>. The profile name is the file suffix (<code>SPRING_PROFILES_ACTIVE=DEV|FQA|PQA|PQA-LITE|PRD</code>). <code>application.yaml</code> holds what every environment shares (port, JSON rules, MMI path and timeouts, the vendor table); an environment file sets only what differs: the MMI URL, payload logging, the stub, Swagger, log levels.</p>
+<p>One configuration file per environment, named by the environment in upper case: <code>application-DEV.yaml</code>, <code>application-FQA.yaml</code>, <code>application-PQA.yaml</code>, <code>application-PQA-LITE.yaml</code>, <code>application-PRD.yaml</code> in <code>src/main/resources</code>. The profile name is the file suffix (<code>SPRING_PROFILES_ACTIVE=DEV|FQA|PQA|PQA-LITE|PRD</code>). <code>application.yaml</code> holds what every environment shares (port, JSON rules, MMI path and timeouts, the vendor table); an environment file sets only what differs: the MMI and member information URLs, payload logging, the stubs, Swagger, log levels.</p>
 <div class="tablewrap"><table class="tight">
 <thead><tr><th>Profile = file</th><th>MMI</th><th>Notes</th></tr></thead>
 <tbody>
@@ -1110,7 +1110,7 @@ member-id:
 
 <h2 id="glossary"><span class="num">20</span>Glossary</h2>
 <dl class="kv">
-  <dt>MMI</dt><dd>Master Member Index: Point32Health's enterprise member service. Internal only; the only thing this service calls.</dd>
+  <dt>MMI</dt><dd>Master Member Index: Point32Health's enterprise member service. Internal only; one of the two services this service calls, with the member information service.</dd>
   <dt>Member information service</dt><dd>The internal service that returns a member's plan on a date of service (<code>POST /members</code>); the line of business is derived from the plan (section 9.5).</dd>
   <dt>THP / HPHC</dt><dd>The two heritage companies, Tufts Health Plan and Harvard Pilgrim Health Care. A converted member has one record in each, linked by <code>legacyMemberId</code>.</dd>
   <dt>TMP / SCO</dt><dd>Tufts Medicare Preferred and Senior Care Options: THP Medicare membership. Cards print 9 characters; MMI stores 9 characters + 3 spaces + <code>01</code>. No dependents.</dd>

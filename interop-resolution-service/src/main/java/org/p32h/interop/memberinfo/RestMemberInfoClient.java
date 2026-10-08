@@ -85,12 +85,18 @@ public class RestMemberInfoClient implements MemberInfoClient {
                             if (text.isBlank()) {
                                 throw MemberInfoException.invalidResponse("EMPTY_BODY", "The member plan lookup answered " + code + " with no body", null);
                             }
+                            MemberInfoResponse parsed;
                             try {
-                                return objectMapper.readValue(text, MemberInfoResponse.class);
+                                parsed = objectMapper.readValue(text, MemberInfoResponse.class);
                             } catch (JacksonException e) {
                                 throw MemberInfoException.invalidResponse("UNPARSEABLE_BODY",
                                         "The member plan lookup answered " + code + " with an unreadable body", e);
                             }
+                            if (parsed == null) {
+                                throw MemberInfoException.invalidResponse("UNPARSEABLE_BODY",
+                                        "The member plan lookup answered " + code + " with an unreadable body", null);
+                            }
+                            return parsed;
                         }
                         if (code == 404) {
                             log.warn("marker=MEMBER_PLAN_404 memberId={} url={}: taken as no plan on the date; if every member gets it, "
