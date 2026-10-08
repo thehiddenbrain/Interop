@@ -49,8 +49,8 @@ import org.springframework.http.ResponseEntity;
 
 /**
  * The member plan behind the line of business, straight through the service: asked for with the resolved id, the date of
- * service and the correlation id; until the rules arrive the member record's line of business is returned; a failure of
- * the member information service fails the answer with MMI's request id as traceId.
+ * service and the correlation id; the line of business derived from the plan, the member record's when there is no plan
+ * or no rule matches; a failure of the member information service fails the answer with MMI's request id as traceId.
  */
 class ResolutionServiceMemberPlanTest {
 
@@ -79,10 +79,10 @@ class ResolutionServiceMemberPlanTest {
         return logs.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
     }
 
-    /** A plan with only the void flag and the hierarchy line of business set. */
-    private static MemberPlan plan(String hierarchyLineOfBusiness) {
-        return new MemberPlan(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, "N", null, hierarchyLineOfBusiness, null, null, null);
+    /** A plan with only the fields the rules read set: source system, subsidiary and product. */
+    private static MemberPlan plan(String sourceSystemId, String subsidiary, String productCode) {
+        return new MemberPlan(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                productCode, sourceSystemId, subsidiary, "N", null, null, null, null, null);
     }
 
     /** A service whose MMI always returns one THP member with line of business MCR, and whose member plan lookup answers {@code plans}. */
@@ -126,28 +126,37 @@ class ResolutionServiceMemberPlanTest {
     }
 
     @Test
-    void thePlanIsAskedForWithTheResolvedIdTheFirstDayAndTheCorrelationId() {
+    void thePlanIsAskedForWithTheResolvedIdTheFirstDayAndTheCorrelationIdAndGivesTheLineOfBusiness() {
         MemberResolutionResponse r = resolve(service(id -> new MemberInfoResponse(null,
-                List.of(new MemberInfoMember(null, "testmember", plan("MASB"))))));
+                List.of(new MemberInfoMember(null, "testmember", plan("2048", "THPPRI", "XX"))))));
         assertThat(asked).containsExactly(new Asked(STORED, LocalDate.parse("2026-10-15"), "corr-1"));
-        assertThat(r.lineOfBusiness()).as("until the rules arrive, the member record's").isEqualTo("MCR");
-        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_RULES_PENDING").contains("memberId=" + STORED)
-                .contains("hierarchyLineOfBusiness=MASB").contains("lob=MCR"));
+        assertThat(r.lineOfBusiness()).as("derived from the plan, not MMI's MCR").isEqualTo("RI-TOGETHER");
+        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("lob derived").contains("memberId=" + STORED)
+                .contains("lob=RI-TOGETHER"));
+    }
+
+    @Test
+    void aPlanNoRuleMatchesKeepsTheRecordsLineOfBusiness() {
+        MemberResolutionResponse r = resolve(service(id -> new MemberInfoResponse(null,
+                List.of(new MemberInfoMember(null, STORED, plan("2026", "THPPMA", "DMA"))))));
+        assertThat(r.lineOfBusiness()).isEqualTo("MCR");
+        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_NOT_DERIVED").contains("productCode=DMA")
+                .contains("no rule matches").contains("lob=MCR"));
     }
 
     @Test
     void noPlanKeepsTheRecordsLineOfBusiness() {
         MemberResolutionResponse r = resolve(service(id -> new MemberInfoResponse(null, null)));
         assertThat(r.lineOfBusiness()).isEqualTo("MCR");
-        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_RULES_PENDING").contains("plan=none"));
+        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_NOT_DERIVED").contains("plan=none"));
     }
 
     @Test
     void severalPlansUseTheFirstAndWarn() {
-        resolve(service(id -> new MemberInfoResponse(null, List.of(
-                new MemberInfoMember(null, STORED, plan("FIRST")), new MemberInfoMember(null, STORED, plan("SECOND"))))));
+        MemberResolutionResponse r = resolve(service(id -> new MemberInfoResponse(null, List.of(
+                new MemberInfoMember(null, STORED, plan("2064", null, "DMA")), new MemberInfoMember(null, STORED, plan("2048", "THPPRI", null))))));
         assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=MEMBER_PLAN_SEVERAL").contains("plans=2"));
-        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("hierarchyLineOfBusiness=FIRST"));
+        assertThat(r.lineOfBusiness()).isEqualTo("D-SNP");
     }
 
     @Test

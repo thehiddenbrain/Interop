@@ -340,9 +340,9 @@ class ResolveScenariosTest {
         assertThat(plans.calls()).as("asked once for an identified member").isEqualTo(before + 1);
         assertThat(plans.lastMemberId()).as("with the resolved id, as stored").isEqualTo(active.at("/memberId/resolved").asText());
         assertThat(plans.lastDateOfService()).isEqualTo(LocalDate.parse("2026-10-15"));
-        assertThat(active.get("lineOfBusiness").asText()).as("until the rules arrive, the member record's line of business").isEqualTo("MCR");
+        assertThat(active.get("lineOfBusiness").asText()).as("no plan in the stub for this member: the member record's").isEqualTo("MCR");
         assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage())
-                .contains("marker=LOB_RULES_PENDING").contains("hierarchyLineOfBusiness=MASB").contains("lob=MCR"));
+                .contains("marker=LOB_NOT_DERIVED").contains("plan=none").contains("lob=MCR"));
 
         JsonNode inactive = call(200, req(fixtureId("SCO member (Medicare)"), "2026-10-15"));
         assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");
@@ -395,7 +395,7 @@ class ResolveScenariosTest {
         assertThat(sub.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(sub.at("/memberId/resolved").asText()).isEqualTo("34567890101");
         assertThat(forVendor(sub, "EVICORE")).as("Public Plans ids are never reshaped").isEqualTo("34567890101");
-        assertThat(sub.get("lineOfBusiness").asText()).isEqualTo("PP");
+        assertThat(sub.get("lineOfBusiness").asText()).as("derived from the plan: THPPMA, source system 2026, product GT").isEqualTo("MA-TOGETHER");
     }
 
     @Test
