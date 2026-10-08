@@ -483,7 +483,7 @@ class ResolveScenariosTest {
         assertThat(after.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(after.at("/memberId/resolved").asText()).isEqualTo("HP567890123");
         assertThat(forVendor(after, "OPTUM")).isEqualTo("HP567890123");
-        assertPayers(after, "HPHC");
+        assertPayers(after, "HARVARD PILGRIM HEALTH");
 
         JsonNode before = call(200, req("56789012301", "2024-06-01"));
         assertThat(before.get("outcome").asText()).isEqualTo("ACTIVE");
@@ -801,7 +801,7 @@ class ResolveScenariosTest {
         assertThat(hphc.at("/memberId/received").asText()).isEqualTo("HP-456789012");
         assertThat(hphc.at("/memberId/resolved").asText()).isEqualTo("HP456789012");
         assertThat(hphc.at("/memberId/forVendors")).hasSize(6);
-        assertPayers(hphc, "HPHC");
+        assertPayers(hphc, "HARVARD PILGRIM HEALTH");
         hphc.at("/memberId/forVendors").forEach(e -> {
             assertThat(e.get("memberId").asText()).as(e.get("vendor").asText()).isEqualTo("HP456789012");
         });

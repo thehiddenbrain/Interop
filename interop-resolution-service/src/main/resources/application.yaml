@@ -103,7 +103,7 @@ member-id:
       format: COMPACT_11
       payer:                            # eviCore keys the payer on the heritage company
         THP:  { id: TUFTS, name: TUFTS }
-        HPHC: { id: HPHC,  name: HPHC }
+        HPHC: { id: "HARVARD PILGRIM HEALTH", name: "HARVARD PILGRIM HEALTH" }
     MHK:
       display-name: MHK (MedHOK)
       format: SPACED_14
