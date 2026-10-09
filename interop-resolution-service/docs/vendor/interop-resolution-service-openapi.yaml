@@ -18,9 +18,9 @@ paths:
         on every day of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors),
         each entry with the payer for that vendor's request (payerId, payerName). When several members on the plan match and
         no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says what to resend; the other members are never
-        listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A
-        sent date is the date evaluated; an unusable date is a 400. POST because the member id is PHI and must not appear
-        in URLs; the operation is a pure read and may be repeated.
+        listed. clientId, clientType (EXT), requestId and memberId are required; unknown properties are ignored. A sent date
+        is the date evaluated; an unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the
+        operation is a pure read and may be repeated.
       operationId: resolve
       parameters:
       - name: X-Correlation-Id
@@ -120,10 +120,9 @@ components:
           pattern: ^[A-Za-z0-9._-]{1,50}$
         clientType:
           type: string
-          description: EXT for a caller outside the plan, INT for an internal one
+          description: 'Always EXT: Onyx is a caller outside the plan'
           enum:
           - EXT
-          - INT
           example: EXT
         requestId:
           type: string
