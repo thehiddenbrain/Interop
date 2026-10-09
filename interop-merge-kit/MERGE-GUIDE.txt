@@ -1,12 +1,13 @@
 INTEROP RESOLUTION SERVICE - MERGE KIT
-Line of business from the member information service, dosStartDate, SCO / MA-QHP, open end 12/31/3999
+Line of business from the member information service, dosStartDate, SCO / MA-HMO / MA-PPO / MA-QHP,
+open end 12/31/3999, eviCore payer HARVARD PILGRIM HEALTH for HPHC
 
 Your Bitbucket version (JDK 21, WebFlux, Kotlin DSL, boot-common-lib, ApiResponse envelope) stays the
 master copy. This kit adds the features listed below on top of it. Nothing in it replaces a file you
 changed: the files in add/ are new, and every change to an existing file is a hand edit described here.
 
   add/        New files. Copy them into the project folder, keeping their paths.
-              Built and tested on JDK 21, Spring Boot 4.0.7, WebFlux, Kotlin DSL (23 tests pass).
+              Built and tested on JDK 21, Spring Boot 4.0.7, WebFlux, Kotlin DSL (24 tests pass).
   reference/  The previous (Spring MVC) version of every file these features touched, and
               changes-since-handoff.patch (everything since the last full hand-off). Read and
               compare only; do NOT copy these over your files.
@@ -20,6 +21,10 @@ WHAT THE SERVICE DOES AFTER THE MERGE
 - lineOfBusiness comes from the coverage record (coverageRecords, not memberPlan) whose planStartDate and
   planEndDate include the date of service (both ends inclusive, no end = open, void records skipped):
     SCO            businessTypeIndicator SH and a planCode containing SCO (checked first)
+    MA-HMO         businessTypeIndicator SH, subsidiary TAHMO, businessLineKey 0039 or 0099
+    MA-PPO         businessTypeIndicator SH, subsidiary TAHMO, businessLineKey 0235
+                   (businessLineKey compared as the exact four digits; the IPA check against the CRC RTU
+                   tables is pending and marked in LineOfBusinessDeriver)
     D-SNP          sourceSystemId 2064 and productCode DMA
     MA-TOGETHER    subsidiary THPPMA, sourceSystemId 2026, productCode PL or GT
     RI-TOGETHER    subsidiary THPPRI and sourceSystemId 2048
@@ -152,6 +157,11 @@ STEP 7  Configuration (your renamed yml files)
     PRD       http://memberinfoserviceapp-spring-boot-prod.apps.prodocp.thp.tahphq.tahp      (assumed, confirm)
     test      base-url: http://member-info-stub.test, stub.enabled: true, log-payloads: false
   For Spring Cloud / deployment config: MEMBER_INFO_BASE_URL overrides the URL per environment.
+  eviCore payer (member-id.vendors.EVICORE.payer, shared file), keyed on the company MMI returns:
+        THP:  { id: TUFTS, name: TUFTS }
+        HPHC: { id: "HARVARD PILGRIM HEALTH", name: "HARVARD PILGRIM HEALTH" }
+    Every other vendor keeps the default payer (Point32Health). Check the startup log's EVICORE line after
+    the change: "payer THP=TUFTS / TUFTS; HPHC=HARVARD PILGRIM HEALTH / HARVARD PILGRIM HEALTH".
   Optional: the startup report can print the member-info client kind, URL, timeouts and payload-log setting
   (reference: config/StartupReport.java).
 
@@ -185,7 +195,9 @@ STEP 8  Tests in your suite
 STEP 9  Postman
   reference: postman/InteropResolution.postman_collection.json (compare, do not import over yours)
   Change, using your envelope's path: the Together subscriber's lineOfBusiness checks (2026 date) from PP
-  to MA-TOGETHER, and the open-ended endDate check from 9999-12-31 to 3999-12-31.
+  to MA-TOGETHER, the open-ended endDate check from 9999-12-31 to 3999-12-31, and eviCore's expected payer
+  for HPHC members from HPHC to HARVARD PILGRIM HEALTH (payerId and payerName; the scenario test's
+  assertPayers calls too).
   Add:
     Together subscriber, 2026 date   lineOfBusiness = MA-TOGETHER
     SCO member, 2025-06-15           lineOfBusiness = SCO
@@ -204,7 +216,8 @@ OPEN ITEMS TO CONFIRM (do not block the merge)
   - coverageRecords sits in each member entry next to memberPlan.
   - Members no rule covers (TMP, HPHC, commercial) keep MMI's value: keep, or send no lineOfBusiness?
   - A member information failure fails the answer: keep, or fall back to MMI's value?
-  - SCO, D-SNP, MA-TOGETHER, RI-TOGETHER, MA-QHP are the values Onyx routes on.
+  - SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER, MA-QHP are the values Onyx routes on.
+  - MA-HMO / MA-PPO IPA variants: the check against the CRC RTU tables, to build with CRC.
   - The FQA, PQA-LITE and PRD member information URLs.
   - With dosStartDate, MMI may return only the segment covering that date, or a 404 for a member with no
     coverage on it (NOT_FOUND instead of INACTIVE). Watch for it in PQA.

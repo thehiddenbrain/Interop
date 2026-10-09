@@ -68,6 +68,28 @@ class LineOfBusinessDeriverTest {
         assertThat(scoLob("SH", "SCO10001", "2026", "THPPMA", "GT")).as("checked before the ES Members rules").isEqualTo("SCO");
     }
 
+    /** A coverage record covering the date of service with only the fields the MA-HMO / MA-PPO check reads, plus a plan code. */
+    private String tahmoLob(String businessTypeIndicator, String subsidiary, String businessLineKey, String planCode) {
+        MemberPlan c = new MemberPlan(null, businessLineKey, businessTypeIndicator, null, null, null, null, null, null, null, null,
+                planCode, null, null, "2025-01-01", null, null, null, subsidiary, "N", null, null, null, null, null);
+        return deriver.derive(MEMBER, FROM_RECORD, List.of(c), DOS);
+    }
+
+    @Test
+    void maHmoAndMaPpoAreShOnTahmoByBusinessLineKey() {
+        assertThat(tahmoLob("SH", "TAHMO", "0039", null)).isEqualTo("MA-HMO");
+        assertThat(tahmoLob("SH", "TAHMO", "0099", null)).isEqualTo("MA-HMO");
+        assertThat(tahmoLob("SH", "TAHMO", "0235", null)).isEqualTo("MA-PPO");
+        assertThat(tahmoLob(" sh ", " tahmo ", " 0235 ", null)).as("case and surrounding spaces ignored").isEqualTo("MA-PPO");
+        assertThat(tahmoLob("SH", "TAHMO", "39", null)).as("the four digits exactly").isEqualTo("MCR");
+        assertThat(tahmoLob("SH", "TAHMO", "0214", null)).as("another business line key").isEqualTo("MCR");
+        assertThat(tahmoLob("SH", "TAHMO", null, null)).as("no business line key").isEqualTo("MCR");
+        assertThat(tahmoLob("PP", "TAHMO", "0039", null)).as("another business type").isEqualTo("MCR");
+        assertThat(tahmoLob("SH", "THPPMA", "0039", null)).as("another subsidiary").isEqualTo("MCR");
+        assertThat(tahmoLob("SH", null, "0235", null)).as("no subsidiary").isEqualTo("MCR");
+        assertThat(tahmoLob("SH", "TAHMO", "0039", "SCO0000001")).as("SCO is checked first").isEqualTo("SCO");
+    }
+
     @Test
     void dsnpIsSourceSystem2064WithProductDmaWhateverTheSubsidiary() {
         assertThat(lob("2064", null, "DMA")).isEqualTo("D-SNP");

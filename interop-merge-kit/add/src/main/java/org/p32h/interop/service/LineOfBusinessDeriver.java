@@ -15,14 +15,17 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The rules are the member portal's "ES Members" criteria, read against a coverage record: {@code sourceSysId} is the
  * record's {@code sourceSystemId}, {@code coverage.subsidiary} its {@code subsidiary} and {@code coverage.product} its
- * {@code productCode}. SCO is read from {@code businessTypeIndicator} and {@code planCode}, and is checked first. Codes
- * are compared ignoring case and surrounding spaces.
+ * {@code productCode}. SCO is read from {@code businessTypeIndicator} and {@code planCode}, and is checked first; MA-HMO
+ * and MA-PPO are read from {@code businessTypeIndicator}, {@code subsidiary} and {@code businessLineKey}, and come next.
+ * Codes are compared ignoring case and surrounding spaces; the business line keys exactly as the four digits.
  * <pre>
  *   SCO             businessTypeIndicator SH and a planCode with SCO in it
+ *   MA-HMO          businessTypeIndicator SH, subsidiary TAHMO and businessLineKey 0039 or 0099
+ *   MA-PPO          businessTypeIndicator SH, subsidiary TAHMO and businessLineKey 0235
  *   D-SNP           sourceSystemId 2064 and productCode DMA
  *   MA-TOGETHER     subsidiary THPPMA, sourceSystemId 2026 and productCode PL or GT
  *   RI-TOGETHER     subsidiary THPPRI and sourceSystemId 2048
- *   MA-QHP   subsidiary THPPMA, sourceSystemId 2026 and productCode NS or SB
+ *   MA-QHP          subsidiary THPPMA, sourceSystemId 2026 and productCode NS or SB
  * </pre>
  * When several records cover the date, the first one a rule matches gives the value; if they give different values a
  * warning is logged ({@code marker=LOB_SEVERAL_ON_DATE}). A member with no record covering the date, or whose records match
@@ -35,6 +38,8 @@ public class LineOfBusinessDeriver {
     private static final Logger log = LoggerFactory.getLogger(LineOfBusinessDeriver.class);
 
     public static final String SCO = "SCO";
+    public static final String MA_HMO = "MA-HMO";
+    public static final String MA_PPO = "MA-PPO";
     public static final String DSNP = "D-SNP";
     public static final String MA_TOGETHER = "MA-TOGETHER";
     public static final String RI_TOGETHER = "RI-TOGETHER";
@@ -104,6 +109,10 @@ public class LineOfBusinessDeriver {
         if (isSco(record)) {
             return SCO;
         }
+        String medicareAdvantage = tahmoMedicareAdvantage(record);
+        if (medicareAdvantage != null) {
+            return medicareAdvantage;
+        }
         for (Rule rule : RULES) {
             if (rule.matches(record)) {
                 return rule.lineOfBusiness();
@@ -116,6 +125,28 @@ public class LineOfBusinessDeriver {
     private static boolean isSco(MemberPlan record) {
         String planCode = code(record.planCode());
         return "SH".equals(code(record.businessTypeIndicator())) && planCode != null && planCode.contains("SCO");
+    }
+
+    /**
+     * MA-HMO or MA-PPO for a TAHMO Medicare Advantage record: businessTypeIndicator SH and subsidiary TAHMO, then
+     * businessLineKey 0039 or 0099 gives MA-HMO and 0235 gives MA-PPO. Null for any other record or business line key.
+     *
+     * <p>PENDING, to build with CRC: check the record's {@code ipa} against the CRC RTU tables. For an IPA member MA-HMO may
+     * become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value; the exact values and how to read the tables are to be
+     * confirmed with CRC. The lookup goes here, applied to the value this method returns.
+     */
+    private static String tahmoMedicareAdvantage(MemberPlan record) {
+        if (!"SH".equals(code(record.businessTypeIndicator())) || !"TAHMO".equals(code(record.subsidiary()))) {
+            return null;
+        }
+        String businessLineKey = code(record.businessLineKey());
+        if ("0039".equals(businessLineKey) || "0099".equals(businessLineKey)) {
+            return MA_HMO;
+        }
+        if ("0235".equals(businessLineKey)) {
+            return MA_PPO;
+        }
+        return null;
     }
 
     private static String code(String value) {

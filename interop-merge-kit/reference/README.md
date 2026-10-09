@@ -163,6 +163,8 @@ criteria, read against the record (`sourceSysId` is the record's `sourceSystemId
 | `lineOfBusiness` | Coverage record covering the date of service |
 |---|---|
 | `SCO` | `businessTypeIndicator` SH and a `planCode` with SCO in it |
+| `MA-HMO` | `businessTypeIndicator` SH, `subsidiary` TAHMO and `businessLineKey` 0039 or 0099 (the four digits exactly) |
+| `MA-PPO` | `businessTypeIndicator` SH, `subsidiary` TAHMO and `businessLineKey` 0235 (the four digits exactly) |
 | `D-SNP` | `sourceSystemId` 2064 and `productCode` DMA |
 | `MA-TOGETHER` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` PL or GT |
 | `RI-TOGETHER` | `subsidiary` THPPRI and `sourceSystemId` 2048 |
@@ -290,7 +292,7 @@ id with its spaces and any punctuation removed, then the period's effective date
 together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `39991231` stands for an open-ended
 period). It is present whenever the dates are, and the same member with the same coverage always gets the same
 value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring dates.
-`lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `SCO`, `D-SNP`,
+`lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`,
 `MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP`; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
 Onyx routes the transaction on it. The company (THP or
 HPHC) is not returned: the resolved id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
@@ -298,7 +300,7 @@ to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response h
 comes back as `requestId`. Each `memberId.forVendors` entry also carries `payerId` and `payerName`, the payer Onyx
 puts on that vendor's request: the vendor's own for the member's company when configured (section 4), else the
 default (`payer` block in `application.yaml`; `PAYER_ID` / `PAYER_NAME` override). Today eviCore gets its own (`TUFTS`
-for THP, `HPHC` for HPHC) and every other vendor gets `Point32Health`.
+for THP, `HARVARD PILGRIM HEALTH` for HPHC) and every other vendor gets `Point32Health`.
 
 Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 
@@ -307,7 +309,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
 | `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId, payerId, payerName }` per configured vendor, sorted by vendor code) when a member was identified |
-| `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `SCO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
+| `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
 | `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `dateOfServiceDefaulted` | always | Whether the date of service was defaulted to today |
@@ -428,7 +430,7 @@ member-id:
       format: COMPACT_11                # 12345678901
       payer:                            # eviCore keys the payer on the heritage company
         THP:  { id: TUFTS, name: TUFTS }
-        HPHC: { id: HPHC,  name: HPHC }
+        HPHC: { id: "HARVARD PILGRIM HEALTH", name: "HARVARD PILGRIM HEALTH" }
     MHK:
       display-name: MHK (MedHOK)
       format: SPACED_14                 # 123456789   01
@@ -452,7 +454,7 @@ Formats: `COMPACT_11`, `SPACED_14`, `CORE_9`, `AS_STORED`. The TMP core is **9 c
 The payer per vendor lives in the same table. A vendor that keys the payer on the heritage company gets a `payer`
 block with an entry per company (`THP`, `HPHC`, as the member lookup reports it), each with an `id` and a `name`; a
 member of any other company, and every vendor without the block, gets the default payer (`payer.id` / `payer.name`,
-today `Point32Health`). eviCore has one: `TUFTS` for THP and `HPHC` for HPHC, as both id and name. The startup log
+today `Point32Health`). eviCore has one: `TUFTS` for THP and `HARVARD PILGRIM HEALTH` for HPHC, as both id and name. The startup log
 prints each vendor's payer next to its format; an entry without an id or a name stops the application with a message
 naming it. If the member lookup reports a company that such a vendor has no entry for, the default payer goes out and
 the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor and the company.
@@ -499,7 +501,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (162 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (163 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -527,7 +529,7 @@ of birth from the stub data or a member name, and no response body contains name
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI
 and echoed back unchanged in `memberId.received`, and the stub's `lastSearched()` proves the id arrives at MMI
 untouched. The payer is checked on every vendor entry of every identified answer in the scenarios (eviCore's `TUFTS` for THP,
-`HPHC` for HPHC, the default elsewhere, following the company that owns the date of service for a converted member),
+`HARVARD PILGRIM HEALTH` for HPHC, the default elsewhere, following the company that owns the date of service for a converted member),
 and `ResolutionServicePayerTest` proves, with an id and a name that differ, that both land in their own fields and that
 a company a vendor has no entry for gets the default and one `VENDOR_PAYER_DEFAULTED` warning.
 `callerMustIdentifyItselfAndTheCall` covers the caller fields: without them the answer is 400 with the
@@ -556,9 +558,9 @@ covering record's line of business replaces MMI's; a failure is a 503 with `Retr
   `planEndDate` as date-times whose date part is the date meant, and answers 404 when it has no member (its 400 and 500
   are assumed). Its FQA,
   PQA-LITE and PRD URLs follow the PQA naming.
-- The line-of-business values (`SCO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`) are the names Onyx routes on, and
+- The line-of-business values (`SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`) are the names Onyx routes on, and
   the ES Members criteria read the coverage record as `sourceSysId` = `sourceSystemId`, `coverage.subsidiary` = `subsidiary`,
-  `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`. Rules for TMP, HPHC and commercial members, and the TMP database lookup, are
+  `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`; MA-HMO and MA-PPO records carry SH, `subsidiary` TAHMO and the `businessLineKey` (0039 or 0099, 0235). Pending, with CRC: check the record's `ipa` against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value (the place is marked in `LineOfBusinessDeriver`). Rules for TMP, HPHC and commercial members, and the TMP database lookup, are
   to come; until then those members keep MMI's value.
 - With `dosStartDate`, which coverage MMI returns: only the segment covering that date or the whole history; and for
   a member with no coverage on that date, the member without coverage or a 404 (`NOT_FOUND` here instead of
