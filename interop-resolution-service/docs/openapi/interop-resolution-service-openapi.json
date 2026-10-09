@@ -73,6 +73,26 @@
           },
           "503": {
             "description": "MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "style": "simple",
+                "schema": {
+                  "type": "integer",
+                  "example": 10
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: the service itself failed; retry once later, then alert the service owners with the correlationId and requestId",
             "content": {
               "application/json": {
                 "schema": {
@@ -144,45 +164,62 @@
       },
       "Coverage": {
         "type": "object",
+        "description": "The coverage flag and the continuous coverage period that covers the (first) date of service. The dates are present when active, and when inactive only because the period ends before the last date asked about; otherwise absent, and message says why",
         "properties": {
           "coverageId": {
-            "type": "string"
+            "type": "string",
+            "description": "An id for the coverage period: the resolved id reduced to letters and digits, then the effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open-ended period). Present whenever the dates are; the same member with the same coverage always gets the same value"
           },
           "active": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "The flag: true when coverage holds on the date of service, or on every day of the period of service"
           },
           "effectiveDate": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "First day of the coverage period"
           },
           "endDate": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "Last day of the coverage period; 3999-12-31 for an open-ended period"
           }
-        }
+        },
+        "required": [
+          "active"
+        ]
       },
       "MemberId": {
         "type": "object",
+        "description": "The member id as received, as resolved, and in every vendor's format",
         "properties": {
           "received": {
-            "type": "string"
+            "type": "string",
+            "description": "The member id as sent, surrounding whitespace removed"
           },
           "resolved": {
-            "type": "string"
+            "type": "string",
+            "description": "The id the lookup resolved to, as the plan stores it; for a converted member a different number from the one received. ACTIVE and INACTIVE only"
           },
           "forVendors": {
             "type": "array",
+            "description": "The resolved id in every configured vendor's format, each with the payer for that vendor's request; one entry per vendor, sorted by vendor code. ACTIVE and INACTIVE only",
             "items": {
               "$ref": "#/components/schemas/VendorMemberId"
             }
           }
-        }
+        },
+        "required": [
+          "received"
+        ]
       },
       "MemberResolutionResponse": {
         "type": "object",
+        "description": "The answer: the outcome Onyx branches on, one sentence for a person, the member id as received, as resolved and in every vendor's format with that vendor's payer, the line of business, the date evaluated, the coverage flag with its period, the caller's requestId and a traceId for support. A field that does not apply is absent, never null",
         "properties": {
           "outcome": {
             "type": "string",
+            "description": "ACTIVE: member found, coverage active on the date of service (or on every day of the period). INACTIVE: member found, not covered on that date or not on every day of the period; message says why. NOT_FOUND: no member for this id on that date. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend",
             "enum": [
               "ACTIVE",
               "INACTIVE",
@@ -191,120 +228,190 @@
             ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "One sentence for a person reading the answer. Branch on outcome, not on this text"
           },
           "memberId": {
             "$ref": "#/components/schemas/MemberId"
           },
           "lineOfBusiness": {
-            "type": "string"
+            "type": "string",
+            "description": "The line of business Onyx routes on, from the plan in effect on the date of service: SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP; a member no rule covers keeps the member record's category (MCR, PP, COM). ACTIVE and INACTIVE only",
+            "example": "MA-HMO"
           },
           "dateOfService": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "The date evaluated; the first date when a period was asked about"
           },
           "dateOfServiceEnd": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "The last date evaluated; present only when the request asked about a period"
           },
           "dateOfServiceDefaulted": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "true when no dateOfService was sent and today was used"
           },
           "coverage": {
-            "$ref": "#/components/schemas/Coverage"
+            "$ref": "#/components/schemas/Coverage",
+            "description": "The coverage flag and the coverage period behind it. ACTIVE and INACTIVE only"
           },
           "requestId": {
-            "type": "string"
+            "type": "string",
+            "description": "The caller's requestId, echoed"
           },
           "traceId": {
-            "type": "string"
+            "type": "string",
+            "description": "The id of the member lookup behind this answer; quote it to support"
           },
           "sourceMessage": {
-            "$ref": "#/components/schemas/SourceMessage"
+            "$ref": "#/components/schemas/SourceMessage",
+            "description": "What the member lookup said when it had no member for the id. NOT_FOUND only, and only when the lookup sent a message"
           }
-        }
+        },
+        "required": [
+          "dateOfService",
+          "dateOfServiceDefaulted",
+          "memberId",
+          "message",
+          "outcome",
+          "requestId",
+          "traceId"
+        ]
       },
       "SourceMessage": {
         "type": "object",
+        "description": "What the member lookup said when it had no member for the id, forwarded as it came",
         "properties": {
           "type": {
-            "type": "string"
+            "type": "string",
+            "description": "The message type as the lookup sent it",
+            "example": "ERROR"
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "description": "The status as the lookup sent it",
+            "example": "404"
           },
           "code": {
-            "type": "string"
+            "type": "string",
+            "description": "The message code as the lookup sent it",
+            "example": "MEMBER_NOT_FOUND"
           },
           "text": {
-            "type": "string"
+            "type": "string",
+            "description": "The message text as the lookup sent it"
           }
         }
       },
       "VendorMemberId": {
         "type": "object",
+        "description": "Everything Onyx puts on one vendor's request",
         "properties": {
           "vendor": {
-            "type": "string"
+            "type": "string",
+            "description": "The vendor code",
+            "enum": [
+              "CARELON",
+              "EVICORE",
+              "EVOLENT",
+              "MHK",
+              "ONYX",
+              "OPTUM"
+            ],
+            "example": "EVICORE"
           },
           "memberId": {
-            "type": "string"
+            "type": "string",
+            "description": "The resolved id in this vendor's format: the member id to put on this vendor's request"
           },
           "payerId": {
-            "type": "string"
+            "type": "string",
+            "description": "The payer id to put on this vendor's request",
+            "example": "TUFTS"
           },
           "payerName": {
-            "type": "string"
+            "type": "string",
+            "description": "The payer name that goes with payerId",
+            "example": "TUFTS"
           }
         }
       },
       "ApiErrorResponse": {
         "type": "object",
+        "description": "The shape of every non-200 answer",
         "properties": {
           "error": {
             "$ref": "#/components/schemas/Error"
           },
           "correlationId": {
-            "type": "string"
+            "type": "string",
+            "description": "The X-Correlation-Id of the call, echoed or generated"
           },
           "requestId": {
-            "type": "string"
+            "type": "string",
+            "description": "The caller's requestId, when the request carried a usable one"
           },
           "traceId": {
-            "type": "string"
+            "type": "string",
+            "description": "The id of the member lookup behind the answer, present once the lookup was made"
           }
-        }
+        },
+        "required": [
+          "correlationId",
+          "error"
+        ]
       },
       "Error": {
         "type": "object",
+        "description": "The error: a stable code to branch on, a message for a person, and one detail per problem",
         "properties": {
           "code": {
-            "type": "string"
+            "type": "string",
+            "description": "INVALID_REQUEST, MEMBER_LOOKUP_REJECTED, DOB_MISMATCH, MEMBER_LOOKUP_ERROR, MEMBER_LOOKUP_INVALID_RESPONSE, MEMBER_LOOKUP_UNAVAILABLE, MEMBER_PLAN_ERROR, MEMBER_PLAN_INVALID_RESPONSE, MEMBER_PLAN_UNAVAILABLE or INTERNAL_ERROR",
+            "example": "INVALID_REQUEST"
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "One sentence for a person"
           },
           "details": {
             "type": "array",
+            "description": "One entry per problem found; every problem with a request is reported together",
             "items": {
               "$ref": "#/components/schemas/ErrorDetail"
             }
           }
-        }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
       },
       "ErrorDetail": {
         "type": "object",
+        "description": "One problem inside an error response",
         "properties": {
           "field": {
-            "type": "string"
+            "type": "string",
+            "description": "The request field the problem is about, when there is one",
+            "example": "dateOfService"
           },
           "code": {
-            "type": "string"
+            "type": "string",
+            "description": "The detail code that refines error.code, for example MEMBER_ID_MISSING, DATE_OF_SERVICE_INVALID, HTTP_400, READ_TIMEOUT",
+            "example": "DATE_OF_SERVICE_INVALID"
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "One sentence for a person"
           }
-        }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
       }
     }
   }

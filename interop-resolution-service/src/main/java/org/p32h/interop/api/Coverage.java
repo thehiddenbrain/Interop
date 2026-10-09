@@ -1,5 +1,6 @@
 package org.p32h.interop.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 
 /**
@@ -12,7 +13,12 @@ import java.time.LocalDate;
  * run together with no separator, the resolved member id reduced to letters and digits, the dates as {@code yyyyMMdd};
  * present whenever the dates are. Why the member is inactive is said in {@code message}.
  */
-public record Coverage(String coverageId, boolean active, LocalDate effectiveDate, LocalDate endDate) {
+@Schema(description = "The coverage flag and the continuous coverage period that covers the (first) date of service. The dates are present when active, and when inactive only because the period ends before the last date asked about; otherwise absent, and message says why")
+public record Coverage(
+        @Schema(description = "An id for the coverage period: the resolved id reduced to letters and digits, then the effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open-ended period). Present whenever the dates are; the same member with the same coverage always gets the same value") String coverageId,
+        @Schema(description = "The flag: true when coverage holds on the date of service, or on every day of the period of service", requiredMode = Schema.RequiredMode.REQUIRED) boolean active,
+        @Schema(description = "First day of the coverage period") LocalDate effectiveDate,
+        @Schema(description = "Last day of the coverage period; 3999-12-31 for an open-ended period") LocalDate endDate) {
 
     /** The end date sent for an open-ended period, as MMI itself writes it (12/31/3999). */
     public static final LocalDate OPEN_END = LocalDate.of(3999, 12, 31);
