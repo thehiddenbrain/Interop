@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Interop Resolution Service",
-    "description": "Onyx's interop lookups. Member resolution, POST /v1/interop/resolve: resolves an EMR-supplied member ID against the plan's member records, reports whether coverage is active on the date of service, and returns the ID as resolved and in every UM vendor's format, each with the payer for that vendor's request.",
+    "description": "Member resolution for Onyx, POST /v1/resolve: resolves an EMR-supplied member id against the plan's member records, reports whether coverage is active on the date of service, and returns the id as resolved and in every UM vendor's format, each with the payer for that vendor's request. Every answer travels in an envelope: data and header.",
     "version": "v1"
   },
   "tags": [
@@ -12,7 +12,7 @@
     }
   ],
   "paths": {
-    "/v1/interop/resolve": {
+    "/v1/resolve": {
       "post": {
         "tags": [
           "Member resolution"
@@ -48,17 +48,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemberResolutionResponse"
+                  "$ref": "#/components/schemas/ResolveResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "INVALID_REQUEST for a missing or unusable clientId, clientType or requestId, a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (details[0].code HTTP_400, the lookup's text in the message)",
+            "description": "INVALID_REQUEST for a missing or unusable clientId, clientType or requestId, a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (data.details[0].code HTTP_400, the lookup's text in the message)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -68,7 +68,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -78,7 +78,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -88,7 +88,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -98,7 +98,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -108,7 +108,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -117,8 +117,7 @@
             "description": "MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds",
             "headers": {
               "Retry-After": {
-                "description": "Seconds to wait before retrying",
-                "style": "simple",
+                "description": "Seconds to wait before retrying, when present (10 otherwise)",
                 "schema": {
                   "type": "integer",
                   "example": 10
@@ -128,7 +127,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -138,7 +137,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -369,43 +368,97 @@
           }
         }
       },
-      "ApiErrorResponse": {
+      "ErrorDetail": {
         "type": "object",
-        "description": "The shape of every non-200 answer",
-        "properties": {
-          "error": {
-            "$ref": "#/components/schemas/Error"
-          },
-          "correlationId": {
-            "type": "string",
-            "description": "The X-Correlation-Id of the call, echoed or generated"
-          },
-          "requestId": {
-            "type": "string",
-            "description": "The caller's requestId, when the request carried a usable one"
-          },
-          "traceId": {
-            "type": "string",
-            "description": "The id of the member lookup behind the answer, present once the lookup was made"
-          }
-        },
-        "required": [
-          "correlationId",
-          "error"
-        ]
-      },
-      "Error": {
-        "type": "object",
-        "description": "The error: a stable code to branch on, a message for a person, and one detail per problem",
+        "description": "One problem inside an error response",
         "properties": {
           "code": {
             "type": "string",
-            "description": "INVALID_REQUEST, MEMBER_LOOKUP_REJECTED, DOB_MISMATCH, MEMBER_LOOKUP_ERROR, MEMBER_LOOKUP_INVALID_RESPONSE, MEMBER_LOOKUP_UNAVAILABLE, MEMBER_PLAN_ERROR, MEMBER_PLAN_INVALID_RESPONSE, MEMBER_PLAN_UNAVAILABLE or INTERNAL_ERROR",
-            "example": "INVALID_REQUEST"
+            "description": "The detail code that refines error.code, for example MEMBER_ID_MISSING, DATE_OF_SERVICE_INVALID, HTTP_400, READ_TIMEOUT",
+            "example": "DATE_OF_SERVICE_INVALID"
+          },
+          "field": {
+            "type": "string",
+            "description": "The request field the problem is about, when there is one",
+            "example": "dateOfService"
           },
           "message": {
             "type": "string",
             "description": "One sentence for a person"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "ResponseHeader": {
+        "type": "object",
+        "description": "The envelope header on every answer",
+        "properties": {
+          "httpStatus": {
+            "type": "integer",
+            "description": "The HTTP status of the answer, the same value as on the wire",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "description": "A short text about the answer; on an error it may repeat the code"
+          },
+          "status": {
+            "type": "string",
+            "description": "success or error",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "statusCode": {
+            "type": "string",
+            "description": "On an error only: the error code to branch on (the catalog in the reference page)",
+            "example": "INVALID_REQUEST"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the answer was produced, milliseconds since 1970-01-01 UTC",
+            "example": 1791577772968
+          }
+        },
+        "required": [
+          "httpStatus",
+          "message",
+          "status",
+          "timestamp"
+        ]
+      },
+      "ResolveResponse": {
+        "type": "object",
+        "description": "A successful answer: the member resolution in data, the envelope header beside it",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MemberResolutionResponse"
+          },
+          "header": {
+            "$ref": "#/components/schemas/ResponseHeader"
+          }
+        },
+        "required": [
+          "data",
+          "header"
+        ]
+      },
+      "ErrorData": {
+        "type": "object",
+        "description": "The data part of an error answer",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "description": "The caller's requestId when the request carried a usable one, else an empty string"
+          },
+          "traceId": {
+            "type": "string",
+            "description": "The id of the member lookup behind the answer, present once the lookup was made"
           },
           "details": {
             "type": "array",
@@ -416,32 +469,24 @@
           }
         },
         "required": [
-          "code",
-          "message"
+          "requestId",
+          "details"
         ]
       },
-      "ErrorDetail": {
+      "ErrorResponse": {
         "type": "object",
-        "description": "One problem inside an error response",
+        "description": "An error answer: the error code is header.statusCode, the details are in data.details",
         "properties": {
-          "field": {
-            "type": "string",
-            "description": "The request field the problem is about, when there is one",
-            "example": "dateOfService"
+          "data": {
+            "$ref": "#/components/schemas/ErrorData"
           },
-          "code": {
-            "type": "string",
-            "description": "The detail code that refines error.code, for example MEMBER_ID_MISSING, DATE_OF_SERVICE_INVALID, HTTP_400, READ_TIMEOUT",
-            "example": "DATE_OF_SERVICE_INVALID"
-          },
-          "message": {
-            "type": "string",
-            "description": "One sentence for a person"
+          "header": {
+            "$ref": "#/components/schemas/ResponseHeader"
           }
         },
         "required": [
-          "code",
-          "message"
+          "data",
+          "header"
         ]
       }
     }

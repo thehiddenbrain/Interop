@@ -21,12 +21,12 @@ public record MemberResolutionResponse(
                 requiredMode = Schema.RequiredMode.REQUIRED) Outcome outcome,
         @Schema(description = "One sentence for a person reading the answer. Branch on outcome, not on this text", requiredMode = Schema.RequiredMode.REQUIRED) String message,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) MemberId memberId,
-        @Schema(description = "The line of business Onyx routes on, from the plan in effect on the date of service: SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP. When no rule applies, the member record's own category is passed through (MCR, PP, COM today; other values may appear), and the field is absent when the record carries none. ACTIVE and INACTIVE only. Agree with Point32Health how to route a value outside the list, or an absent one",
+        @Schema(description = "The line of business Onyx routes on, from the plan in effect on the date of service, for example SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP; values can be added, so never treat the list as closed. When no rule applies, the member record's own category is passed through (for example MCR, PP, COM), and the field is absent when the record carries none. Present on ACTIVE and INACTIVE answers only. Agree with Point32Health how to route a value outside the list, or an absent one",
                 example = "MA-HMO") String lineOfBusiness,
         @Schema(description = "The date evaluated; the first date when a period was asked about", requiredMode = Schema.RequiredMode.REQUIRED) LocalDate dateOfService,
         @Schema(description = "The last date evaluated; present only when the request asked about a period") LocalDate dateOfServiceEnd,
         @Schema(description = "true when no dateOfService was sent and today was used", requiredMode = Schema.RequiredMode.REQUIRED) boolean dateOfServiceDefaulted,
-        @Schema(description = "The coverage flag and the coverage period behind it. ACTIVE and INACTIVE only") Coverage coverage,
+        @Schema(description = "The coverage flag and the coverage period behind it. Present on ACTIVE and INACTIVE answers only") Coverage coverage,
         @Schema(description = "The caller's requestId, echoed", requiredMode = Schema.RequiredMode.REQUIRED) String requestId,
         @Schema(description = "The id of the member lookup behind this answer; quote it to support", requiredMode = Schema.RequiredMode.REQUIRED) String traceId,
         @Schema(description = "What the member lookup said when it had no member for the id. NOT_FOUND only, and only when the lookup sent a message") SourceMessage sourceMessage) {
@@ -41,8 +41,8 @@ public record MemberResolutionResponse(
     @Schema(description = "The member id as received, as resolved, and in every vendor's format")
     public record MemberId(
             @Schema(description = "The member id as sent, surrounding whitespace removed", requiredMode = Schema.RequiredMode.REQUIRED) String received,
-            @Schema(description = "The id the lookup resolved to, as the plan stores it; for a converted member a different number from the one received. ACTIVE and INACTIVE only") String resolved,
-            @Schema(description = "The resolved id in every configured vendor's format, each with the payer for that vendor's request; one entry per vendor, sorted by vendor code. ACTIVE and INACTIVE only") List<VendorMemberId> forVendors) {
+            @Schema(description = "The id the lookup resolved to, as the plan stores it; for a converted member a different number from the one received. Present on ACTIVE and INACTIVE answers only") String resolved,
+            @Schema(description = "The resolved id in every configured vendor's format, each with the payer for that vendor's request; one entry per vendor, sorted by vendor code. Present on ACTIVE and INACTIVE answers only") List<VendorMemberId> forVendors) {
     }
 
     /**
@@ -55,7 +55,7 @@ public record MemberResolutionResponse(
      */
     @Schema(description = "Everything Onyx puts on one vendor's request")
     public record VendorMemberId(
-            @Schema(description = "The vendor code", example = "EVICORE", allowableValues = {"CARELON", "EVICORE", "EVOLENT", "MHK", "ONYX", "OPTUM"}) String vendor,
+            @Schema(description = "The vendor code, for example EVICORE; today CARELON, EVICORE, EVOLENT, MHK, ONYX and OPTUM. Vendors can be added, so never treat the list as closed", example = "EVICORE") String vendor,
             @Schema(description = "The resolved id in this vendor's format: the member id to put on this vendor's request") String memberId,
             @Schema(description = "The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company, so use the entry's value as given", example = "TUFTS") String payerId,
             @Schema(description = "The payer name that goes with payerId", example = "TUFTS") String payerName) {

@@ -41,48 +41,60 @@ td code { white-space: nowrap; }
 <body>
 <div class="page">
 <h1>Interop Resolution Service</h1>
-<p class="lede">API reference for Onyx: member resolution, <code>POST /v1/interop/resolve</code>.</p>
+<p class="lede">API reference for Onyx: member resolution, <code>POST /v1/resolve</code>.</p>
 <p class="meta">Version v1 · Point32Health · the OpenAPI document (YAML and JSON) that ships with this page carries the same contract.</p>
 
 <div class="toc">
-<a href="#overview">1 Overview</a><br><a href="#operation">2 The operation</a><br><a href="#request">3 Request</a><br><a href="#response">4 Response (200)</a><br>
+<a href="#overview">1 Overview</a><br><a href="#operation">2 The operation and the envelope</a><br><a href="#request">3 Request</a><br><a href="#response">4 Response (200)</a><br>
 <a href="#outcomes">5 What to do with each answer</a><br><a href="#errors">6 Errors</a><br><a href="#examples">7 Examples</a><br><a href="#practice">8 Timeouts, retries, security</a>
 </div>
 
 <h2 id="overview">1 Overview</h2>
-<p>Onyx's interop lookups. Member resolution, POST /v1/interop/resolve: resolves an EMR-supplied member ID against the plan's member records, reports whether coverage is active on the date of service, and returns the ID as resolved and in every UM vendor's format, each with the payer for that vendor's request.</p>
+<p>Member resolution for Onyx, POST /v1/resolve: resolves an EMR-supplied member id against the plan's member records, reports whether coverage is active on the date of service, and returns the id as resolved and in every UM vendor's format, each with the payer for that vendor's request. Every answer travels in an envelope: data and header.</p>
 <p>One call per prior authorization. Send the member id exactly as the provider's EMR supplied it, the date of service (or the period of service) and, when known, the patient's date of birth. The answer says whether the member was found, whether coverage is active on that date, the line of business to route on, and the member id in every UM vendor's format with the payer to put on that vendor's request.</p>
-<div class="callout"><b>Base URL and credentials</b> are issued by Point32Health for each environment and are not part of this document. The path below is relative to that base URL. The credential pack names the header the credential travels in; nothing in the body or the path carries a credential, and the service itself does not read it. A rejected credential is answered in front of the service (401 or 403) without the error envelope of section 6.</div>
+<div class="callout"><b>Base URL and access.</b> The base URL is issued by Point32Health for each environment and is not part of this document; the path below is relative to it. Authentication is OAuth 2.0: work with Point32Health to obtain the client credentials and the token endpoint for each environment, and send the access token on every call in the <code>Authorization</code> header. Nothing in the body or the path carries a credential. A rejected or expired token is answered in front of the service (401 or 403) without the envelope of section 2.</div>
 
-<h2 id="operation">2 The operation</h2>
-<p><code>POST /v1/interop/resolve</code> with <code>Content-Type: application/json</code>. The service always answers JSON, whatever <code>Accept</code> header is sent; every response carries <code>Cache-Control: no-store</code> and <code>X-Content-Type-Options: nosniff</code>.</p>
+<h2 id="operation">2 The operation and the envelope</h2>
+<p><code>POST /v1/resolve</code> with <code>Content-Type: application/json</code>. The service always answers JSON, whatever <code>Accept</code> header is sent.</p>
 <p>Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (or on every day of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors), each entry with the payer for that vendor's request (payerId, payerName). When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says what to resend; the other members are never listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A sent date is the date evaluated; an unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the operation is a pure read and may be repeated.</p>
+<h3>The envelope</h3>
+<p>Every answer, success or error, is one JSON object with two members: <code>data</code> and <code>header</code>. On a success, <code>data</code> is the member resolution answer of section 4. On an error, <code>data</code> holds the error details of section 6. <code>header</code> is the same on both:</p>
+<div class="tablewrap"><table>
+<colgroup><col style="width:30%"><col style="width:12%"><col style="width:8%"><col style="width:50%"></colgroup>
+<thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>header.httpStatus</code></td><td>integer</td><td>yes</td><td>The HTTP status of the answer, the same value as on the wire</td></tr>
+<tr><td><code>header.message</code></td><td>string</td><td>yes</td><td>A short text about the answer; on an error it may repeat the code</td></tr>
+<tr><td><code>header.status</code></td><td>success | error</td><td>yes</td><td>success or error</td></tr>
+<tr><td><code>header.statusCode</code></td><td>string</td><td></td><td>On an error only: the error code to branch on (the catalog in the reference page)</td></tr>
+<tr><td><code>header.timestamp</code></td><td>integer (epoch ms)</td><td>yes</td><td>When the answer was produced, milliseconds since 1970-01-01 UTC</td></tr>
+</tbody></table></div>
+<p>The HTTP status on the wire and <code>header.httpStatus</code> always agree; branch on either. On an error, <code>header.statusCode</code> is the error code to branch on and <code>header.status</code> is <code>error</code>.</p>
 <h3>Headers</h3>
-<div class="tablewrap"><table class="">
+<div class="tablewrap"><table>
 <colgroup><col style="width:22%"><col style="width:10%"><col style="width:68%"></colgroup>
 <thead><tr><th>Header</th><th>Direction</th><th>Rule</th></tr></thead><tbody>
 <tr><td><code>X-Correlation-Id</code></td><td>in</td><td>Optional transport-level id, 1 to 64 characters of letters, digits, <code>.</code>, <code>_</code>, <code>:</code> or <code>-</code>; opaque. Missing or invalid: the service generates one. The caller's own id for the call is <code>requestId</code> in the body.</td></tr>
-<tr><td><code>X-Correlation-Id</code></td><td>out</td><td>The echoed or generated value; also in the body of error responses as <code>correlationId</code>.</td></tr>
-<tr><td><code>Retry-After</code></td><td>out</td><td>On 503 only: seconds to wait before retrying (10).</td></tr>
+<tr><td><code>X-Correlation-Id</code></td><td>out</td><td>The echoed or generated value, for support.</td></tr>
+<tr><td><code>Retry-After</code></td><td>out</td><td>On 503, when present: seconds to wait before retrying; 10 when the header is absent.</td></tr>
 </tbody></table></div>
 <h3>Responses</h3>
-<div class="tablewrap"><table class="">
+<div class="tablewrap"><table>
 <colgroup><col style="width:12%"><col style="width:88%"></colgroup>
 <thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>200</code></td><td>outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; memberId.forVendors, each vendor with its payer, present for ACTIVE and INACTIVE</td></tr>
-<tr><td><code>400</code></td><td>INVALID_REQUEST for a missing or unusable clientId, clientType or requestId, a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (details[0].code HTTP_400, the lookup's text in the message)</td></tr>
+<tr><td><code>400</code></td><td>INVALID_REQUEST for a missing or unusable clientId, clientType or requestId, a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (data.details[0].code HTTP_400, the lookup's text in the message)</td></tr>
 <tr><td><code>422</code></td><td>DOB_MISMATCH: the date of birth matches no record for this id</td></tr>
 <tr><td><code>404</code></td><td>INVALID_REQUEST / ROUTE_NOT_FOUND: wrong path; a connector defect (a member that is not found is a 200 with outcome NOT_FOUND)</td></tr>
 <tr><td><code>405</code></td><td>INVALID_REQUEST / METHOD_NOT_ALLOWED: the operation is POST only</td></tr>
 <tr><td><code>415</code></td><td>INVALID_REQUEST / UNSUPPORTED_MEDIA_TYPE: the request body must be application/json</td></tr>
 <tr><td><code>502</code></td><td>MEMBER_LOOKUP_ERROR or MEMBER_LOOKUP_INVALID_RESPONSE (the member lookup); MEMBER_PLAN_ERROR or MEMBER_PLAN_INVALID_RESPONSE (the member plan lookup)</td></tr>
-<tr><td><code>503</code></td><td>MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds; header <code>Retry-After</code> (Seconds to wait before retrying)</td></tr>
+<tr><td><code>503</code></td><td>MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds; header <code>Retry-After</code> (Seconds to wait before retrying, when present (10 otherwise))</td></tr>
 <tr><td><code>500</code></td><td>INTERNAL_ERROR: the service itself failed; retry once later, then alert the service owners with the correlationId and requestId</td></tr>
 </tbody></table></div>
 
 <h2 id="request">3 Request</h2>
 <p>Member resolution request: clientId, clientType, requestId and memberId are required; unknown properties are ignored; a sent date must be usable. Unknown properties are ignored, so a <code>vendor</code> sent by habit does no harm: the answer is always for every vendor.</p>
-<div class="tablewrap"><table class="">
+<div class="tablewrap"><table>
 <colgroup><col style="width:30%"><col style="width:12%"><col style="width:8%"><col style="width:50%"></colgroup>
 <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>clientId</code></td><td>string</td><td>yes</td><td>The calling system, as registered with the plan: letters, digits, '.', '_' or '-', at most 50 characters</td></tr>
@@ -95,88 +107,98 @@ td code { white-space: nowrap; }
 </tbody></table></div>
 
 <h2 id="response">4 Response (200)</h2>
-<p>The answer: the outcome Onyx branches on, one sentence for a person, the member id as received, as resolved and in every vendor's format with that vendor's payer, the line of business, the date evaluated, the coverage flag with its period, the caller's requestId and a traceId for support. A field that does not apply is absent, never null. Fields are sent in the order listed.</p>
-<div class="tablewrap"><table class="">
+<p>The answer: the outcome Onyx branches on, one sentence for a person, the member id as received, as resolved and in every vendor's format with that vendor's payer, the line of business, the date evaluated, the coverage flag with its period, the caller's requestId and a traceId for support. A field that does not apply is absent, never null. The answer is the <code>data</code> member of the envelope; fields are sent in the order listed. Lists of values marked "for example" are not closed: new vendors and new lines of business can be added, so never reject a value that is not in this document.</p>
+<div class="tablewrap"><table>
 <colgroup><col style="width:30%"><col style="width:12%"><col style="width:8%"><col style="width:50%"></colgroup>
 <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Meaning</th></tr></thead><tbody>
-<tr><td><code>outcome</code></td><td>ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS</td><td>yes</td><td>ACTIVE: member found, coverage active on the date of service (or on every day of the period). INACTIVE: member found, not covered on that date or not on every day of the period; message says why. NOT_FOUND: no member for this id on that date. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend</td></tr>
-<tr><td><code>message</code></td><td>string</td><td>yes</td><td>One sentence for a person reading the answer. Branch on outcome, not on this text</td></tr>
-<tr><td><code>memberId</code></td><td>object</td><td>yes</td><td>The member id as received, as resolved, and in every vendor's format</td></tr>
-<tr><td><code>memberId.received</code></td><td>string</td><td>yes</td><td>The member id as sent, surrounding whitespace removed</td></tr>
-<tr><td><code>memberId.resolved</code></td><td>string</td><td></td><td>The id the lookup resolved to, as the plan stores it; for a converted member a different number from the one received. ACTIVE and INACTIVE only</td></tr>
-<tr><td><code>memberId.forVendors[]</code></td><td>array</td><td></td><td>The resolved id in every configured vendor's format, each with the payer for that vendor's request; one entry per vendor, sorted by vendor code. ACTIVE and INACTIVE only</td></tr>
-<tr><td><code>memberId.forVendors[].vendor</code></td><td>CARELON | EVICORE | EVOLENT | MHK | ONYX | OPTUM</td><td></td><td>The vendor code</td></tr>
-<tr><td><code>memberId.forVendors[].memberId</code></td><td>string</td><td></td><td>The resolved id in this vendor's format: the member id to put on this vendor's request</td></tr>
-<tr><td><code>memberId.forVendors[].payerId</code></td><td>string</td><td></td><td>The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company, so use the entry's value as given</td></tr>
-<tr><td><code>memberId.forVendors[].payerName</code></td><td>string</td><td></td><td>The payer name that goes with payerId</td></tr>
-<tr><td><code>lineOfBusiness</code></td><td>string</td><td></td><td>The line of business Onyx routes on, from the plan in effect on the date of service: SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP. When no rule applies, the member record's own category is passed through (MCR, PP, COM today; other values may appear), and the field is absent when the record carries none. ACTIVE and INACTIVE only. Agree with Point32Health how to route a value outside the list, or an absent one</td></tr>
-<tr><td><code>dateOfService</code></td><td>date (yyyy-MM-dd)</td><td>yes</td><td>The date evaluated; the first date when a period was asked about</td></tr>
-<tr><td><code>dateOfServiceEnd</code></td><td>date (yyyy-MM-dd)</td><td></td><td>The last date evaluated; present only when the request asked about a period</td></tr>
-<tr><td><code>dateOfServiceDefaulted</code></td><td>boolean</td><td>yes</td><td>true when no dateOfService was sent and today was used</td></tr>
-<tr><td><code>coverage</code></td><td>object</td><td></td><td>The coverage flag and the coverage period behind it. ACTIVE and INACTIVE only</td></tr>
-<tr><td><code>coverage.coverageId</code></td><td>string</td><td></td><td>An id for the coverage period: the resolved id reduced to letters and digits, then the effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open-ended period). Present whenever the dates are; the same member with the same coverage always gets the same value</td></tr>
-<tr><td><code>coverage.active</code></td><td>boolean</td><td>yes</td><td>The flag: true when coverage holds on the date of service, or on every day of the period of service</td></tr>
-<tr><td><code>coverage.effectiveDate</code></td><td>date (yyyy-MM-dd)</td><td></td><td>First day of the coverage period</td></tr>
-<tr><td><code>coverage.endDate</code></td><td>date (yyyy-MM-dd)</td><td></td><td>Last day of the coverage period; 3999-12-31 for an open-ended period</td></tr>
-<tr><td><code>requestId</code></td><td>string</td><td>yes</td><td>The caller's requestId, echoed</td></tr>
-<tr><td><code>traceId</code></td><td>string</td><td>yes</td><td>The id of the member lookup behind this answer; quote it to support</td></tr>
-<tr><td><code>sourceMessage</code></td><td>object</td><td></td><td>What the member lookup said when it had no member for the id. NOT_FOUND only, and only when the lookup sent a message</td></tr>
-<tr><td><code>sourceMessage.type</code></td><td>string</td><td></td><td>The message type as the lookup sent it</td></tr>
-<tr><td><code>sourceMessage.status</code></td><td>string</td><td></td><td>The status as the lookup sent it</td></tr>
-<tr><td><code>sourceMessage.code</code></td><td>string</td><td></td><td>The message code as the lookup sent it</td></tr>
-<tr><td><code>sourceMessage.text</code></td><td>string</td><td></td><td>The message text as the lookup sent it</td></tr>
+<tr><td><code>data</code></td><td>object</td><td>yes</td><td>The answer: the outcome Onyx branches on, one sentence for a person, the member id as received, as resolved and in every vendor's format with that vendor's payer, the line of business, the date evaluated, the coverage flag with its period, the caller's requestId and a traceId for support. A field that does not apply is absent, never null</td></tr>
+<tr><td><code>data.outcome</code></td><td>ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS</td><td>yes</td><td>ACTIVE: member found, coverage active on the date of service (or on every day of the period). INACTIVE: member found, not covered on that date or not on every day of the period; message says why. NOT_FOUND: no member for this id on that date. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend</td></tr>
+<tr><td><code>data.message</code></td><td>string</td><td>yes</td><td>One sentence for a person reading the answer. Branch on outcome, not on this text</td></tr>
+<tr><td><code>data.memberId</code></td><td>object</td><td>yes</td><td>The member id as received, as resolved, and in every vendor's format</td></tr>
+<tr><td><code>data.memberId.received</code></td><td>string</td><td>yes</td><td>The member id as sent, surrounding whitespace removed</td></tr>
+<tr><td><code>data.memberId.resolved</code></td><td>string</td><td></td><td>The id the lookup resolved to, as the plan stores it; for a converted member a different number from the one received. Present on ACTIVE and INACTIVE answers only</td></tr>
+<tr><td><code>data.memberId.forVendors[]</code></td><td>array</td><td></td><td>The resolved id in every configured vendor's format, each with the payer for that vendor's request; one entry per vendor, sorted by vendor code. Present on ACTIVE and INACTIVE answers only</td></tr>
+<tr><td><code>data.memberId.forVendors[].vendor</code></td><td>string</td><td></td><td>The vendor code, for example EVICORE; today CARELON, EVICORE, EVOLENT, MHK, ONYX and OPTUM. Vendors can be added, so never treat the list as closed</td></tr>
+<tr><td><code>data.memberId.forVendors[].memberId</code></td><td>string</td><td></td><td>The resolved id in this vendor's format: the member id to put on this vendor's request</td></tr>
+<tr><td><code>data.memberId.forVendors[].payerId</code></td><td>string</td><td></td><td>The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company, so use the entry's value as given</td></tr>
+<tr><td><code>data.memberId.forVendors[].payerName</code></td><td>string</td><td></td><td>The payer name that goes with payerId</td></tr>
+<tr><td><code>data.lineOfBusiness</code></td><td>string</td><td></td><td>The line of business Onyx routes on, from the plan in effect on the date of service, for example SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP; values can be added, so never treat the list as closed. When no rule applies, the member record's own category is passed through (for example MCR, PP, COM), and the field is absent when the record carries none. Present on ACTIVE and INACTIVE answers only. Agree with Point32Health how to route a value outside the list, or an absent one</td></tr>
+<tr><td><code>data.dateOfService</code></td><td>date (yyyy-MM-dd)</td><td>yes</td><td>The date evaluated; the first date when a period was asked about</td></tr>
+<tr><td><code>data.dateOfServiceEnd</code></td><td>date (yyyy-MM-dd)</td><td></td><td>The last date evaluated; present only when the request asked about a period</td></tr>
+<tr><td><code>data.dateOfServiceDefaulted</code></td><td>boolean</td><td>yes</td><td>true when no dateOfService was sent and today was used</td></tr>
+<tr><td><code>data.coverage</code></td><td>object</td><td></td><td>The coverage flag and the coverage period behind it. Present on ACTIVE and INACTIVE answers only</td></tr>
+<tr><td><code>data.coverage.coverageId</code></td><td>string</td><td></td><td>An id for the coverage period: the resolved id reduced to letters and digits, then the effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open-ended period). Present whenever the dates are; the same member with the same coverage always gets the same value</td></tr>
+<tr><td><code>data.coverage.active</code></td><td>boolean</td><td>yes</td><td>The flag: true when coverage holds on the date of service, or on every day of the period of service</td></tr>
+<tr><td><code>data.coverage.effectiveDate</code></td><td>date (yyyy-MM-dd)</td><td></td><td>First day of the coverage period</td></tr>
+<tr><td><code>data.coverage.endDate</code></td><td>date (yyyy-MM-dd)</td><td></td><td>Last day of the coverage period; 3999-12-31 for an open-ended period</td></tr>
+<tr><td><code>data.requestId</code></td><td>string</td><td>yes</td><td>The caller's requestId, echoed</td></tr>
+<tr><td><code>data.traceId</code></td><td>string</td><td>yes</td><td>The id of the member lookup behind this answer; quote it to support</td></tr>
+<tr><td><code>data.sourceMessage</code></td><td>object</td><td></td><td>What the member lookup said when it had no member for the id. NOT_FOUND only, and only when the lookup sent a message</td></tr>
+<tr><td><code>data.sourceMessage.type</code></td><td>string</td><td></td><td>The message type as the lookup sent it</td></tr>
+<tr><td><code>data.sourceMessage.status</code></td><td>string</td><td></td><td>The status as the lookup sent it</td></tr>
+<tr><td><code>data.sourceMessage.code</code></td><td>string</td><td></td><td>The message code as the lookup sent it</td></tr>
+<tr><td><code>data.sourceMessage.text</code></td><td>string</td><td></td><td>The message text as the lookup sent it</td></tr>
+<tr><td><code>header</code></td><td>object</td><td>yes</td><td>The envelope header on every answer</td></tr>
+<tr><td><code>header.httpStatus</code></td><td>integer</td><td>yes</td><td>The HTTP status of the answer, the same value as on the wire</td></tr>
+<tr><td><code>header.message</code></td><td>string</td><td>yes</td><td>A short text about the answer; on an error it may repeat the code</td></tr>
+<tr><td><code>header.status</code></td><td>success | error</td><td>yes</td><td>success or error</td></tr>
+<tr><td><code>header.statusCode</code></td><td>string</td><td></td><td>On an error only: the error code to branch on (the catalog in the reference page)</td></tr>
+<tr><td><code>header.timestamp</code></td><td>integer (epoch ms)</td><td>yes</td><td>When the answer was produced, milliseconds since 1970-01-01 UTC</td></tr>
 </tbody></table></div>
 <p class="note">An AMBIGUOUS answer never lists the members who share the id.</p>
 
 <h2 id="outcomes">5 What to do with each answer</h2>
-<p>Onyx branches on <code>outcome</code> for a 200, and on the HTTP status otherwise. Two rules for every row: Onyx never reformats a member id itself when the service is up, and Onyx keeps the full response with its transaction.</p>
-<div class="tablewrap"><table class="">
+<p>Onyx branches on <code>data.outcome</code> for a 200, and on the HTTP status (or <code>header.httpStatus</code>) otherwise. Two rules for every row: Onyx never reformats a member id itself when the service is up, and Onyx keeps the full response with its transaction.</p>
+<div class="tablewrap"><table>
 <colgroup><col style="width:18%"><col style="width:34%"><col style="width:48%"></colgroup>
 <thead><tr><th>Signal</th><th>Meaning</th><th>Onyx action</th></tr></thead><tbody>
-<tr><td><span class="pill ok">200</span> <code>ACTIVE</code></td><td>Member found; coverage active on the date of service, or on every day of the period of service (<code>coverage.active</code> is true).</td><td>Send each vendor its <code>memberId.forVendors</code> entry: the <code>memberId</code> of the entry whose <code>vendor</code> is that vendor, already in the vendor's format, with that entry's <code>payerId</code> and <code>payerName</code> on the request. Route on <code>lineOfBusiness</code>. Keep <code>coverage.coverageId</code> with the transaction as the reference to the coverage period behind the decision.</td></tr>
-<tr><td><span class="pill warn">200</span> <code>INACTIVE</code></td><td>Member found; not covered on that date, or not on every day of the period. <code>message</code> says why.</td><td>Hold for intake. <code>memberId.forVendors</code> and <code>lineOfBusiness</code> are still there if the business rule says to submit anyway.</td></tr>
-<tr><td><span class="pill neutral">200</span> <code>NOT_FOUND</code></td><td>No member for this id on that date. <code>sourceMessage</code> carries what the member lookup said, when it sent a message.</td><td>"Member not found" worklist. If Onyx holds a fuller form of the id (for instance with the suffix), one resend with it.</td></tr>
+<tr><td><span class="pill ok">200</span> <code>ACTIVE</code></td><td>Member found; coverage active on the date of service, or on every day of the period of service (<code>data.coverage.active</code> is true).</td><td>Send each vendor its <code>data.memberId.forVendors</code> entry: the <code>memberId</code> of the entry whose <code>vendor</code> is that vendor, already in the vendor's format, with that entry's <code>payerId</code> and <code>payerName</code> on the request. Route on <code>data.lineOfBusiness</code>. Keep <code>data.coverage.coverageId</code> with the transaction as the reference to the coverage period behind the decision.</td></tr>
+<tr><td><span class="pill warn">200</span> <code>INACTIVE</code></td><td>Member found; not covered on that date, or not on every day of the period. <code>data.message</code> says why.</td><td>Hold for intake. <code>data.memberId.forVendors</code> and <code>data.lineOfBusiness</code> are still there if the business rule says to submit anyway.</td></tr>
+<tr><td><span class="pill neutral">200</span> <code>NOT_FOUND</code></td><td>No member for this id on that date. <code>data.sourceMessage</code> carries what the member lookup said, when it sent a message.</td><td>"Member not found" worklist. If Onyx holds a fuller form of the id (for instance with the suffix), one resend with it.</td></tr>
 <tr><td><span class="pill info">200</span> <code>AMBIGUOUS</code></td><td>Several members on the plan share the id and nothing sent tells them apart. Nobody is listed.</td><td>One resend with <code>dateOfBirth</code> or the member's full id including the suffix. If it is still AMBIGUOUS (twins share a date of birth, or the records carry none), intake takes the full id from the member's card and resends.</td></tr>
-<tr><td><span class="pill bad">400</span> / <span class="pill warn">422</span></td><td>Request or identity problem (the error catalog below).</td><td>Never retry. Route by <code>error.code</code> and <code>details[].code</code>.</td></tr>
+<tr><td><span class="pill bad">400</span> / <span class="pill warn">422</span></td><td>Request or identity problem (the error catalog below).</td><td>Never retry. Route by <code>header.statusCode</code> and <code>data.details[].code</code>.</td></tr>
 <tr><td><span class="pill bad">502</span> / <span class="pill bad">503</span> / <span class="pill bad">500</span></td><td>A lookup behind the service, or the service itself, could not answer.</td><td>Retry as section 8 says, always with a new <code>requestId</code>; when the retries are used up, park the transaction and alert the service owners.</td></tr>
-<tr><td><span class="pill bad">401</span> / <span class="pill bad">403</span> / <span class="pill warn">429</span></td><td>Answered by the API gateway in front of the service, without the error envelope.</td><td>401 and 403: a credential problem; never retry. 429: treat like a 503 and retry after its <code>Retry-After</code>.</td></tr>
+<tr><td><span class="pill bad">401</span> / <span class="pill bad">403</span> / <span class="pill warn">429</span></td><td>Answered by the API gateway in front of the service, without the envelope of section 2.</td><td>401 and 403: a token problem; obtain a fresh token, never retry the same one. 429: treat like a 503 and retry after its <code>Retry-After</code>.</td></tr>
 <tr><td>No response at all (connection refused, timeout)</td><td>The service is down or unreachable.</td><td>Retry once with a new <code>requestId</code>, as section 8 says; still no response: pass the member id to the UM vendor exactly as the EMR supplied it, and record the <code>requestId</code> so the transaction can be reconciled later.</td></tr>
 </tbody></table></div>
 
 <h2 id="errors">6 Errors</h2>
-<p>Every non-200 answer produced by the service has one shape. Answers produced by the API gateway in front of it (401, 403, 429, or any response whose body is not JSON) do not carry this envelope: treat 401 and 403 as a credential problem and never retry them; treat 429 like a 503 and retry after its <code>Retry-After</code>. <code>error.code</code> is stable and is what to branch on; <code>details[].code</code> refines it; <code>requestId</code> echoes the caller's id whenever it was usable, so a 400 about another field still carries it; <code>traceId</code> is present once the member lookup was made.</p>
-<div class="tablewrap"><table class="">
+<p>Every non-200 answer produced by the service is the envelope of section 2 with <code>header.status</code> <code>error</code>, the error code in <code>header.statusCode</code> and the details in <code>data.details</code>. Answers produced by the API gateway in front of it (401, 403, 429, or any response whose body is not JSON) do not carry the envelope: treat 401 and 403 as a token problem and never retry the same token; treat 429 like a 503 and retry after its <code>Retry-After</code>. <code>header.statusCode</code> is stable and is what to branch on; <code>data.details[].code</code> refines it; <code>data.requestId</code> echoes the caller's id whenever it was usable, so a 400 about another field still carries it, and is an empty string otherwise; <code>data.traceId</code> is present once the member lookup was made.</p>
+<div class="tablewrap"><table>
 <colgroup><col style="width:30%"><col style="width:12%"><col style="width:8%"><col style="width:50%"></colgroup>
 <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Meaning</th></tr></thead><tbody>
-<tr><td><code>error</code></td><td>object</td><td>yes</td><td>The error: a stable code to branch on, a message for a person, and one detail per problem</td></tr>
-<tr><td><code>error.code</code></td><td>string</td><td>yes</td><td>INVALID_REQUEST, MEMBER_LOOKUP_REJECTED, DOB_MISMATCH, MEMBER_LOOKUP_ERROR, MEMBER_LOOKUP_INVALID_RESPONSE, MEMBER_LOOKUP_UNAVAILABLE, MEMBER_PLAN_ERROR, MEMBER_PLAN_INVALID_RESPONSE, MEMBER_PLAN_UNAVAILABLE or INTERNAL_ERROR</td></tr>
-<tr><td><code>error.message</code></td><td>string</td><td>yes</td><td>One sentence for a person</td></tr>
-<tr><td><code>error.details[]</code></td><td>array</td><td></td><td>One entry per problem found; every problem with a request is reported together</td></tr>
-<tr><td><code>error.details[].field</code></td><td>string</td><td></td><td>The request field the problem is about, when there is one</td></tr>
-<tr><td><code>error.details[].code</code></td><td>string</td><td>yes</td><td>The detail code that refines error.code, for example MEMBER_ID_MISSING, DATE_OF_SERVICE_INVALID, HTTP_400, READ_TIMEOUT</td></tr>
-<tr><td><code>error.details[].message</code></td><td>string</td><td>yes</td><td>One sentence for a person</td></tr>
-<tr><td><code>correlationId</code></td><td>string</td><td>yes</td><td>The X-Correlation-Id of the call, echoed or generated</td></tr>
-<tr><td><code>requestId</code></td><td>string</td><td></td><td>The caller's requestId, when the request carried a usable one</td></tr>
-<tr><td><code>traceId</code></td><td>string</td><td></td><td>The id of the member lookup behind the answer, present once the lookup was made</td></tr>
+<tr><td><code>data</code></td><td>object</td><td>yes</td><td>The data part of an error answer</td></tr>
+<tr><td><code>data.requestId</code></td><td>string</td><td>yes</td><td>The caller's requestId when the request carried a usable one, else an empty string</td></tr>
+<tr><td><code>data.traceId</code></td><td>string</td><td></td><td>The id of the member lookup behind the answer, present once the lookup was made</td></tr>
+<tr><td><code>data.details[]</code></td><td>array</td><td>yes</td><td>One entry per problem found; every problem with a request is reported together</td></tr>
+<tr><td><code>data.details[].code</code></td><td>string</td><td>yes</td><td>The detail code that refines error.code, for example MEMBER_ID_MISSING, DATE_OF_SERVICE_INVALID, HTTP_400, READ_TIMEOUT</td></tr>
+<tr><td><code>data.details[].field</code></td><td>string</td><td></td><td>The request field the problem is about, when there is one</td></tr>
+<tr><td><code>data.details[].message</code></td><td>string</td><td>yes</td><td>One sentence for a person</td></tr>
+<tr><td><code>header</code></td><td>object</td><td>yes</td><td>The envelope header on every answer</td></tr>
+<tr><td><code>header.httpStatus</code></td><td>integer</td><td>yes</td><td>The HTTP status of the answer, the same value as on the wire</td></tr>
+<tr><td><code>header.message</code></td><td>string</td><td>yes</td><td>A short text about the answer; on an error it may repeat the code</td></tr>
+<tr><td><code>header.status</code></td><td>success | error</td><td>yes</td><td>success or error</td></tr>
+<tr><td><code>header.statusCode</code></td><td>string</td><td></td><td>On an error only: the error code to branch on (the catalog in the reference page)</td></tr>
+<tr><td><code>header.timestamp</code></td><td>integer (epoch ms)</td><td>yes</td><td>When the answer was produced, milliseconds since 1970-01-01 UTC</td></tr>
 </tbody></table></div>
 <h3>Error catalog</h3>
-<div class="tablewrap"><table class="">
+<div class="tablewrap"><table>
 <colgroup><col style="width:7%"><col style="width:28%"><col style="width:30%"><col style="width:35%"></colgroup>
-<thead><tr><th>HTTP</th><th><code>error.code</code></th><th><code>details[].code</code></th><th>Meaning and Onyx action</th></tr></thead><tbody>
+<thead><tr><th>HTTP</th><th><code>header.statusCode</code></th><th><code>data.details[].code</code></th><th>Meaning and Onyx action</th></tr></thead><tbody>
 <tr><td><code>400</code></td><td><code>INVALID_REQUEST</code></td><td><code>CLIENT_ID_MISSING</code><br><code>CLIENT_ID_INVALID</code><br><code>CLIENT_TYPE_MISSING</code><br><code>CLIENT_TYPE_INVALID</code><br><code>REQUEST_ID_MISSING</code><br><code>REQUEST_ID_INVALID</code><br><code>MEMBER_ID_MISSING</code><br><code>DATE_OF_SERVICE_INVALID</code><br><code>DATE_OF_SERVICE_OUT_OF_RANGE</code><br><code>DATE_OF_SERVICE_END_INVALID</code><br><code>DATE_OF_SERVICE_END_BEFORE_START</code><br><code>DATE_OF_SERVICE_END_WITHOUT_START</code><br><code>DATE_OF_BIRTH_INVALID</code><br><code>DATE_OF_BIRTH_OUT_OF_RANGE</code><br><code>MALFORMED_JSON</code><br><code>WRONG_JSON_TYPE</code></td><td>Never retry. Every problem with the request is reported together, one detail per problem. MEMBER_ID_MISSING and DATE_OF_SERVICE_OUT_OF_RANGE are provider data; the caller codes are configuration; the rest are mapping defects.</td></tr>
-<tr><td><code>400</code></td><td><code>MEMBER_LOOKUP_REJECTED</code></td><td><code>HTTP_400</code></td><td>The member lookup could not process the request as sent; the message carries its text. Never retry; send the request and the message to the service owners.</td></tr>
+<tr><td><code>400</code></td><td><code>MEMBER_LOOKUP_REJECTED</code></td><td><code>HTTP_400</code></td><td>The member lookup could not process the request as sent; the detail message carries its text. Never retry; send the request and the message to the service owners.</td></tr>
 <tr><td><code>422</code></td><td><code>DOB_MISMATCH</code></td><td><code>DOB_MISMATCH</code></td><td>The date of birth matches no record for this id. Manual identity review; never file the authorization.</td></tr>
 <tr><td><code>404, 405, 415</code></td><td><code>INVALID_REQUEST</code></td><td><code>ROUTE_NOT_FOUND</code><br><code>METHOD_NOT_ALLOWED</code><br><code>UNSUPPORTED_MEDIA_TYPE</code></td><td>Wrong path, method or request content type: a connector defect. ROUTE_NOT_FOUND is the only 404 this service returns; a member that is not found is a 200 with outcome NOT_FOUND.</td></tr>
 <tr><td><code>502</code></td><td><code>MEMBER_LOOKUP_ERROR</code><br><code>MEMBER_LOOKUP_INVALID_RESPONSE</code></td><td><code>HTTP_&lt;code&gt;</code><br><code>ERROR_MESSAGE</code><br><code>UNPARSEABLE_BODY</code><br><code>EMPTY_BODY</code><br><code>NO_MEMBER_ID</code><br><code>UNREADABLE_COVERAGE</code><br><code>CLIENT_ERROR</code></td><td>The member lookup answered outside its contract, or with data the service could not read. Retry once with a new requestId; if it fails again, park the transaction and alert the service owners.</td></tr>
 <tr><td><code>502</code></td><td><code>MEMBER_PLAN_ERROR</code><br><code>MEMBER_PLAN_INVALID_RESPONSE</code></td><td><code>HTTP_&lt;code&gt;</code><br><code>UNPARSEABLE_BODY</code><br><code>EMPTY_BODY</code><br><code>CLIENT_ERROR</code></td><td>The member plan lookup answered outside its contract, or with data the service could not read. Retry once with a new requestId; if it fails again, park the transaction and alert the service owners.</td></tr>
-<tr><td><code>503</code></td><td><code>MEMBER_LOOKUP_UNAVAILABLE</code><br><code>MEMBER_PLAN_UNAVAILABLE</code></td><td><code>CONNECT_FAILED</code><br><code>READ_TIMEOUT</code><br><code>HTTP_500</code><br><code>HTTP_5xx</code><br><code>HTTP_429</code><br><code>HTTP_408</code></td><td>A lookup could not be reached, timed out or is temporarily unavailable. Retry after the Retry-After seconds (10) with a new requestId, as section 8 says; when the retries are used up, park the transaction and alert the service owners.</td></tr>
-<tr><td><code>500</code></td><td><code>INTERNAL_ERROR</code></td><td></td><td>The service itself failed. Retry once with a new requestId; if it fails again, park the transaction and alert the service owners with the correlationId and the requestId.</td></tr>
+<tr><td><code>503</code></td><td><code>MEMBER_LOOKUP_UNAVAILABLE</code><br><code>MEMBER_PLAN_UNAVAILABLE</code></td><td><code>CONNECT_FAILED</code><br><code>READ_TIMEOUT</code><br><code>HTTP_500</code><br><code>HTTP_5xx</code><br><code>HTTP_429</code><br><code>HTTP_408</code></td><td>A lookup could not be reached, timed out or is temporarily unavailable. Retry after the Retry-After seconds (10 when the header is absent) with a new requestId, as section 8 says; when the retries are used up, park the transaction and alert the service owners.</td></tr>
+<tr><td><code>500</code></td><td><code>INTERNAL_ERROR</code></td><td></td><td>The service itself failed. Retry once with a new requestId; if it fails again, park the transaction and alert the service owners with the requestId and the X-Correlation-Id.</td></tr>
 </tbody></table></div>
 
 <h2 id="examples">7 Examples</h2>
-<p>Real answers of the service against test data; the member ids and dates are fictitious. Where a <code>message</code> or <code>sourceMessage</code> forwards the lookup's own code and text, the example shows a placeholder, because the live values differ: branch on <code>error.code</code> and <code>details[].code</code> only.</p>
+<p>Answers of the service against test data, in the envelope of section 2; the member ids and dates are fictitious. Where a message or <code>sourceMessage</code> forwards the lookup's own code and text, the example shows a placeholder, because the live values differ: branch on <code>header.statusCode</code> and <code>data.details[].code</code> only.</p>
 <div class="example"><h4>Request</h4>
-<pre><code>POST /v1/interop/resolve
+<pre><code>POST /v1/resolve
 Content-Type: application/json
 X-Correlation-Id: ONYX-PA-2026-000123
 
@@ -189,321 +211,479 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "dateOfBirth": "1950-03-15"
 }</code></pre></div>
 <div class="example"><h4><span class="pill ok">200</span> ACTIVE, THP Medicare card number with the date of birth verified: the id in every vendor's format</h4>
-<pre><code>{ "outcome": "ACTIVE",
-  "message": "Member found; coverage active on 2026-10-15",
-  "memberId": { "received": "123456789", "resolved": "123456789   01",
-    "forVendors": [
-      { "vendor": "CARELON", "memberId": "12345678901", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "12345678901", "payerId": "TUFTS",
-          "payerName": "TUFTS" },
-      { "vendor": "EVOLENT", "memberId": "12345678901", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "MHK",     "memberId": "123456789   01", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "ONYX",    "memberId": "12345678901", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "OPTUM",   "memberId": "123456789", "payerId": "Point32Health",
-          "payerName": "Point32Health" }
-    ] },
-  "lineOfBusiness": "MCR",
-  "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "coverageId": "123456789012021010139991231", "active": true,
-      "effectiveDate": "2021-01-01", "endDate": "3999-12-31" },
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852491-77574" }</code></pre>
+<pre><code>{
+  "data": {
+    "outcome": "ACTIVE",
+    "message": "Member found; coverage active on 2026-10-15",
+    "memberId": {
+      "received": "123456789",
+      "resolved": "123456789   01",
+      "forVendors": [
+        {
+          "vendor": "CARELON",
+          "memberId": "12345678901",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "EVICORE",
+          "memberId": "12345678901",
+          "payerId": "TUFTS",
+          "payerName": "TUFTS"
+        },
+        {
+          "vendor": "EVOLENT",
+          "memberId": "12345678901",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "MHK",
+          "memberId": "123456789   01",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "ONYX",
+          "memberId": "12345678901",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "OPTUM",
+          "memberId": "123456789",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        }
+      ]
+    },
+    "lineOfBusiness": "MCR",
+    "dateOfService": "2026-10-15",
+    "dateOfServiceDefaulted": false,
+    "coverage": {
+      "coverageId": "123456789012021010139991231",
+      "active": true,
+      "effectiveDate": "2021-01-01",
+      "endDate": "3999-12-31"
+    },
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791253852491-77574"
+  },
+  "header": {
+    "httpStatus": 200,
+    "message": "Request processed successfully",
+    "status": "success",
+    "timestamp": 1791577774968
+  }
+}</code></pre>
 <p class="note">The requests below carry the same <code>clientId</code>, <code>clientType</code> and <code>requestId</code>; only the member fields are shown.</p></div>
-<div class="example"><h4><span class="pill ok">200</span> ACTIVE, HPHC card form, no date of service sent: the resolved id on every entry</h4>
-<pre><code>{ "memberId": "HP-456789012" }
-
-{ "outcome": "ACTIVE",
-  "message": "Member found; coverage active on 2026-10-05",
-  "memberId": { "received": "HP-456789012", "resolved": "HP456789012",
-    "forVendors": [
-      { "vendor": "CARELON", "memberId": "HP456789012", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "HP456789012",
-          "payerId": "HARVARD PILGRIM HEALTH", "payerName": "HARVARD PILGRIM HEALTH" },
-      { "vendor": "EVOLENT", "memberId": "HP456789012", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "MHK",     "memberId": "HP456789012", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "ONYX",    "memberId": "HP456789012", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "OPTUM",   "memberId": "HP456789012", "payerId": "Point32Health",
-          "payerName": "Point32Health" }
-    ] },
-  "lineOfBusiness": "COM",
-  "dateOfService": "2026-10-05", "dateOfServiceDefaulted": true,
-  "coverage": { "coverageId": "HP4567890122013030139991231", "active": true,
-      "effectiveDate": "2013-03-01", "endDate": "3999-12-31" },
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852498-65261" }</code></pre></div>
 <div class="example"><h4><span class="pill warn">200</span> INACTIVE, SCO member: the ids are still returned</h4>
-<pre><code>{ "memberId": "234567890", "dateOfService": "2026-10-15" }
+<pre><code>{"memberId": "234567890", "dateOfService": "2026-10-15"}
 
-{ "outcome": "INACTIVE",
-  "message": "Member found; coverage ended before 2026-10-15",
-  "memberId": { "received": "234567890", "resolved": "234567890   01",
-    "forVendors": [
-      { "vendor": "CARELON", "memberId": "23456789001", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "23456789001", "payerId": "TUFTS",
-          "payerName": "TUFTS" },
-      { "vendor": "EVOLENT", "memberId": "23456789001", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "MHK",     "memberId": "234567890   01", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "ONYX",    "memberId": "23456789001", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "OPTUM",   "memberId": "234567890", "payerId": "Point32Health",
-          "payerName": "Point32Health" }
-    ] },
-  "lineOfBusiness": "MCR",
-  "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": false },
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852504-23697" }</code></pre></div>
-<div class="example"><h4><span class="pill warn">200</span> INACTIVE, Public Plans dependent in a gap</h4>
-<pre><code>{ "memberId": "34567890102", "dateOfService": "2024-08-15" }
-
-{ "outcome": "INACTIVE",
-  "message": "Member found; no coverage on 2024-08-15 (gap between coverage periods)",
-  "memberId": { "received": "34567890102", "resolved": "34567890102",
-    "forVendors": [
-      { "vendor": "CARELON", "memberId": "34567890102", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "34567890102", "payerId": "TUFTS",
-          "payerName": "TUFTS" },
-      { "vendor": "EVOLENT", "memberId": "34567890102", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "MHK",     "memberId": "34567890102", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "ONYX",    "memberId": "34567890102", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "OPTUM",   "memberId": "34567890102", "payerId": "Point32Health",
-          "payerName": "Point32Health" }
-    ] },
-  "lineOfBusiness": "PP",
-  "dateOfService": "2024-08-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": false },
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852509-10102" }</code></pre></div>
+{
+  "data": {
+    "outcome": "INACTIVE",
+    "message": "Member found; coverage ended before 2026-10-15",
+    "memberId": {
+      "received": "234567890",
+      "resolved": "234567890   01",
+      "forVendors": [
+        {
+          "vendor": "CARELON",
+          "memberId": "23456789001",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "EVICORE",
+          "memberId": "23456789001",
+          "payerId": "TUFTS",
+          "payerName": "TUFTS"
+        },
+        {
+          "vendor": "EVOLENT",
+          "memberId": "23456789001",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "MHK",
+          "memberId": "234567890   01",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "ONYX",
+          "memberId": "23456789001",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "OPTUM",
+          "memberId": "234567890",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        }
+      ]
+    },
+    "lineOfBusiness": "MCR",
+    "dateOfService": "2026-10-15",
+    "dateOfServiceDefaulted": false,
+    "coverage": {"active": false},
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791253852504-23697"
+  },
+  "header": {
+    "httpStatus": 200,
+    "message": "Request processed successfully",
+    "status": "success",
+    "timestamp": 1791577776968
+  }
+}</code></pre></div>
 <div class="example"><h4><span class="pill info">200</span> AMBIGUOUS, 9-character Together family, no date of birth</h4>
-<pre><code>{ "memberId": "345678901", "dateOfService": "2026-10-15" }
+<pre><code>{"memberId": "345678901", "dateOfService": "2026-10-15"}
 
-{ "outcome": "AMBIGUOUS",
-  "message": "Several members match this id; resend with dateOfBirth or the member's full id including the suffix",
-  "memberId": { "received": "345678901" },
-  "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791255194024-32990" }</code></pre></div>
+{
+  "data": {
+    "outcome": "AMBIGUOUS",
+    "message": "Several members match this id; resend with dateOfBirth or the member's full id including the suffix",
+    "memberId": {"received": "345678901"},
+    "dateOfService": "2026-10-15",
+    "dateOfServiceDefaulted": false,
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791255194024-32990"
+  },
+  "header": {
+    "httpStatus": 200,
+    "message": "Request processed successfully",
+    "status": "success",
+    "timestamp": 1791577778968
+  }
+}</code></pre></div>
 <div class="example"><h4><span class="pill neutral">200</span> NOT_FOUND, no date of service sent: the member lookup answered 404, forwarded in <code>sourceMessage</code></h4>
-<pre><code>{ "memberId": "HP111222333" }
+<pre><code>{"memberId": "HP111222333"}
 
-{ "outcome": "NOT_FOUND",
-  "message": "No member found for this id",
-  "memberId": { "received": "HP111222333" },
-  "dateOfService": "2026-10-05", "dateOfServiceDefaulted": true,
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852517-51447",
-  "sourceMessage": { "type": "&lt;as the lookup sent it&gt;",
-      "status": "&lt;as the lookup sent it&gt;", "code": "&lt;as the lookup sent it&gt;",
-      "text": "&lt;as the lookup sent it&gt;" } }</code></pre></div>
-<div class="example"><h4><span class="pill neutral">200</span> NOT_FOUND, 10-digit id: sent to the member lookup as typed, the member lookup has no record</h4>
-<pre><code>{ "memberId": "1234567890", "dateOfService": "2026-10-15" }
-
-{ "outcome": "NOT_FOUND",
-  "message": "No member found for this id",
-  "memberId": { "received": "1234567890" },
-  "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852521-20476",
-  "sourceMessage": { "type": "&lt;as the lookup sent it&gt;",
-      "status": "&lt;as the lookup sent it&gt;", "code": "&lt;as the lookup sent it&gt;",
-      "text": "&lt;as the lookup sent it&gt;" } }</code></pre></div>
+{
+  "data": {
+    "outcome": "NOT_FOUND",
+    "message": "No member found for this id",
+    "memberId": {"received": "HP111222333"},
+    "dateOfService": "2026-10-05",
+    "dateOfServiceDefaulted": true,
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791253852517-51447",
+    "sourceMessage": {
+      "type": "&lt;as the lookup sent it&gt;",
+      "status": "&lt;as the lookup sent it&gt;",
+      "code": "&lt;as the lookup sent it&gt;",
+      "text": "&lt;as the lookup sent it&gt;"
+    }
+  },
+  "header": {
+    "httpStatus": 200,
+    "message": "Request processed successfully",
+    "status": "success",
+    "timestamp": 1791577779968
+  }
+}</code></pre></div>
 <div class="example"><h4><span class="pill ok">200</span> ACTIVE, converted member, old THP id, date after migration</h4>
-<pre><code>{ "memberId": "567890123 01", "dateOfService": "2026-10-15" }
+<pre><code>{"memberId": "567890123 01", "dateOfService": "2026-10-15"}
 
-{ "outcome": "ACTIVE",
-  "message": "Member found; coverage active on 2026-10-15",
-  "memberId": { "received": "567890123 01", "resolved": "HP567890123",
-    "forVendors": [
-      { "vendor": "CARELON", "memberId": "HP567890123", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "HP567890123",
-          "payerId": "HARVARD PILGRIM HEALTH", "payerName": "HARVARD PILGRIM HEALTH" },
-      { "vendor": "EVOLENT", "memberId": "HP567890123", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "MHK",     "memberId": "HP567890123", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "ONYX",    "memberId": "HP567890123", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "OPTUM",   "memberId": "HP567890123", "payerId": "Point32Health",
-          "payerName": "Point32Health" }
-    ] },
-  "lineOfBusiness": "COM",
-  "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "coverageId": "HP5678901232020010139991231", "active": true,
-      "effectiveDate": "2020-01-01", "endDate": "3999-12-31" },
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852525-35782" }</code></pre></div>
+{
+  "data": {
+    "outcome": "ACTIVE",
+    "message": "Member found; coverage active on 2026-10-15",
+    "memberId": {
+      "received": "567890123 01",
+      "resolved": "HP567890123",
+      "forVendors": [
+        {
+          "vendor": "CARELON",
+          "memberId": "HP567890123",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "EVICORE",
+          "memberId": "HP567890123",
+          "payerId": "HARVARD PILGRIM HEALTH",
+          "payerName": "HARVARD PILGRIM HEALTH"
+        },
+        {
+          "vendor": "EVOLENT",
+          "memberId": "HP567890123",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "MHK",
+          "memberId": "HP567890123",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "ONYX",
+          "memberId": "HP567890123",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "OPTUM",
+          "memberId": "HP567890123",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        }
+      ]
+    },
+    "lineOfBusiness": "COM",
+    "dateOfService": "2026-10-15",
+    "dateOfServiceDefaulted": false,
+    "coverage": {
+      "coverageId": "HP5678901232020010139991231",
+      "active": true,
+      "effectiveDate": "2020-01-01",
+      "endDate": "3999-12-31"
+    },
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791253852525-35782"
+  },
+  "header": {
+    "httpStatus": 200,
+    "message": "Request processed successfully",
+    "status": "success",
+    "timestamp": 1791577781968
+  }
+}</code></pre></div>
 <div class="example"><h4><span class="pill warn">422</span> DOB_MISMATCH</h4>
-<pre><code>{ "error": { "code": "DOB_MISMATCH",
-    "message": "dateOfBirth does not match the plan record(s) for this member id",
+<pre><code>{
+  "data": {
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791253852529-13534",
     "details": [
-      { "field": "dateOfBirth", "code": "DOB_MISMATCH",
-          "message": "no returned record has this date of birth" } ] },
-  "correlationId": "ONYX-PA-2026-000123",
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852529-13534" }</code></pre></div>
+      {
+        "code": "DOB_MISMATCH",
+        "field": "dateOfBirth",
+        "message": "no returned record has this date of birth"
+      }
+    ]
+  },
+  "header": {
+    "httpStatus": 422,
+    "message": "DOB_MISMATCH",
+    "status": "error",
+    "statusCode": "DOB_MISMATCH",
+    "timestamp": 1791577782968
+  }
+}</code></pre></div>
 <div class="example"><h4><span class="pill bad">503</span> MEMBER_LOOKUP_UNAVAILABLE: the member lookup answered 500, its code and text forwarded, <code>Retry-After: 10</code></h4>
-<pre><code>{ "error": { "code": "MEMBER_LOOKUP_UNAVAILABLE",
-    "message": "The member lookup reported an internal error: &lt;the lookup's code and text&gt;",
+<pre><code>{
+  "data": {
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791253852533-40365",
     "details": [
-      { "code": "HTTP_500",
-          "message": "The member lookup reported an internal error: &lt;the lookup's code and text&gt;" } ] },
-  "correlationId": "ONYX-PA-2026-000123",
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852533-40365" }</code></pre></div>
-<div class="example"><h4><span class="pill bad">400</span> MEMBER_LOOKUP_REJECTED: the member lookup itself answered 400; its code and text forwarded, no <code>Retry-After</code></h4>
-<pre><code>{ "error": { "code": "MEMBER_LOOKUP_REJECTED",
-    "message": "The member lookup rejected the request: &lt;the lookup's code and text&gt;",
-    "details": [
-      { "code": "HTTP_400",
-          "message": "The member lookup rejected the request: &lt;the lookup's code and text&gt;" } ] },
-  "correlationId": "ONYX-PA-2026-000123",
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852536-12395" }</code></pre></div>
+      {
+        "code": "HTTP_500",
+        "message": "The member lookup reported an internal error: &lt;the lookup's code and text&gt;"
+      }
+    ]
+  },
+  "header": {
+    "httpStatus": 503,
+    "message": "MEMBER_LOOKUP_UNAVAILABLE",
+    "status": "error",
+    "statusCode": "MEMBER_LOOKUP_UNAVAILABLE",
+    "timestamp": 1791577783968
+  }
+}</code></pre></div>
 <div class="example"><h4><span class="pill bad">502</span> MEMBER_LOOKUP_ERROR / ERROR_MESSAGE: the member lookup reported an error and no member; its code and text forwarded</h4>
-<pre><code>{ "error": { "code": "MEMBER_LOOKUP_ERROR",
-    "message": "The member lookup reported an error: &lt;the lookup's code and text&gt;",
+<pre><code>{
+  "data": {
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791253852539-58663",
     "details": [
-      { "code": "ERROR_MESSAGE",
-          "message": "The member lookup reported an error: &lt;the lookup's code and text&gt;" } ] },
-  "correlationId": "ONYX-PA-2026-000123",
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852539-58663" }</code></pre></div>
+      {
+        "code": "ERROR_MESSAGE",
+        "message": "The member lookup reported an error: &lt;the lookup's code and text&gt;"
+      }
+    ]
+  },
+  "header": {
+    "httpStatus": 502,
+    "message": "MEMBER_LOOKUP_ERROR",
+    "status": "error",
+    "statusCode": "MEMBER_LOOKUP_ERROR",
+    "timestamp": 1791577785968
+  }
+}</code></pre></div>
 <div class="example"><h4><span class="pill bad">400</span> INVALID_REQUEST, two problems at once</h4>
-<pre><code>{ "memberId": "", "dateOfService": "10/15/2026" }
+<pre><code>{"memberId": "", "dateOfService": "10/15/2026"}
 
-{ "error": { "code": "INVALID_REQUEST", "message": "request rejected",
+{
+  "data": {
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
     "details": [
-      { "field": "memberId", "code": "MEMBER_ID_MISSING",
-          "message": "memberId is required" },
-      { "field": "dateOfService", "code": "DATE_OF_SERVICE_INVALID",
-          "message": "expected a real date in yyyy-MM-dd" } ] },
-  "correlationId": "ONYX-PA-2026-000123",
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13" }</code></pre></div>
-<div class="example"><h4><span class="pill bad">400</span> INVALID_REQUEST, the caller not identified: no <code>clientId</code>, <code>clientType</code> or <code>requestId</code>, so nothing to echo</h4>
-<pre><code>{ "error": { "code": "INVALID_REQUEST", "message": "request rejected",
-    "details": [
-      { "field": "clientId", "code": "CLIENT_ID_MISSING",
-          "message": "clientId is required" },
-      { "field": "clientType", "code": "CLIENT_TYPE_MISSING",
-          "message": "clientType is required: EXT or INT" },
-      { "field": "requestId", "code": "REQUEST_ID_MISSING",
-          "message": "requestId is required: the caller's id for this call" } ] },
-  "correlationId": "ONYX-PA-2026-000123" }</code></pre></div>
-<div class="example"><h4><span class="pill warn">200</span> INACTIVE for a 2027 date of service on a record that ends 12/31/2026; a vendor and an unknown property in the request, both ignored</h4>
-<pre><code>{ "memberId": "T20262026", "dateOfService": "2027-10-15", "vendor": "EVICORE",
-    "anything": "goes" }
-
-{ "outcome": "INACTIVE",
-  "message": "Member found; coverage ended before 2027-10-15",
-  "memberId": { "received": "T20262026", "resolved": "T20262026   01",
-    "forVendors": [
-      { "vendor": "CARELON", "memberId": "T2026202601", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "T2026202601", "payerId": "TUFTS",
-          "payerName": "TUFTS" },
-      { "vendor": "EVOLENT", "memberId": "T2026202601", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "MHK",     "memberId": "T20262026   01", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "ONYX",    "memberId": "T2026202601", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "OPTUM",   "memberId": "T20262026", "payerId": "Point32Health",
-          "payerName": "Point32Health" }
-    ] },
-  "lineOfBusiness": "MCR",
-  "dateOfService": "2027-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "active": false },
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852548-01454" }</code></pre>
-<p class="note">The date judged is the date that was sent. This test member's only coverage period is 2026-01-01 to 2026-12-31, so 2026-10-15 is ACTIVE and 2027-10-15 is INACTIVE. An open-ended period (<code>endDate</code> 3999-12-31, see <code>coverage.endDate</code> in section 4) would make a 2027 date ACTIVE, because that is what the record says.</p></div>
+      {"code": "MEMBER_ID_MISSING", "field": "memberId", "message": "memberId is required"},
+      {
+        "code": "DATE_OF_SERVICE_INVALID",
+        "field": "dateOfService",
+        "message": "expected a real date in yyyy-MM-dd"
+      }
+    ]
+  },
+  "header": {
+    "httpStatus": 400,
+    "message": "INVALID_REQUEST",
+    "status": "error",
+    "statusCode": "INVALID_REQUEST",
+    "timestamp": 1791577786968
+  }
+}</code></pre></div>
 <div class="example"><h4><span class="pill ok">200</span> ACTIVE for a period of service across two plan-year records</h4>
-<pre><code>{ "memberId": "U20252026", "dateOfService": "2025-12-20", "dateOfServiceEnd": "2026-01-05" }
+<pre><code>{"memberId": "U20252026", "dateOfService": "2025-12-20", "dateOfServiceEnd": "2026-01-05"}
 
-{ "outcome": "ACTIVE",
-  "message": "Member found; coverage active from 2025-12-20 to 2026-01-05",
-  "memberId": { "received": "U20252026", "resolved": "U20252026   01",
-    "forVendors": [
-      { "vendor": "CARELON", "memberId": "U2025202601", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "U2025202601", "payerId": "TUFTS",
-          "payerName": "TUFTS" },
-      { "vendor": "EVOLENT", "memberId": "U2025202601", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "MHK",     "memberId": "U20252026   01", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "ONYX",    "memberId": "U2025202601", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "OPTUM",   "memberId": "U20252026", "payerId": "Point32Health",
-          "payerName": "Point32Health" }
-    ] },
-  "lineOfBusiness": "MCR",
-  "dateOfService": "2025-12-20", "dateOfServiceEnd": "2026-01-05",
-      "dateOfServiceDefaulted": false,
-  "coverage": { "coverageId": "U20252026012025010120261231", "active": true,
-      "effectiveDate": "2025-01-01", "endDate": "2026-12-31" },
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852552-13365" }</code></pre>
+{
+  "data": {
+    "outcome": "ACTIVE",
+    "message": "Member found; coverage active from 2025-12-20 to 2026-01-05",
+    "memberId": {
+      "received": "U20252026",
+      "resolved": "U20252026   01",
+      "forVendors": [
+        {
+          "vendor": "CARELON",
+          "memberId": "U2025202601",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "EVICORE",
+          "memberId": "U2025202601",
+          "payerId": "TUFTS",
+          "payerName": "TUFTS"
+        },
+        {
+          "vendor": "EVOLENT",
+          "memberId": "U2025202601",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "MHK",
+          "memberId": "U20252026   01",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "ONYX",
+          "memberId": "U2025202601",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "OPTUM",
+          "memberId": "U20252026",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        }
+      ]
+    },
+    "lineOfBusiness": "MCR",
+    "dateOfService": "2025-12-20",
+    "dateOfServiceEnd": "2026-01-05",
+    "dateOfServiceDefaulted": false,
+    "coverage": {
+      "coverageId": "U20252026012025010120261231",
+      "active": true,
+      "effectiveDate": "2025-01-01",
+      "endDate": "2026-12-31"
+    },
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791253852552-13365"
+  },
+  "header": {
+    "httpStatus": 200,
+    "message": "Request processed successfully",
+    "status": "success",
+    "timestamp": 1791577789968
+  }
+}</code></pre>
 <p class="note">This test member has one record for 2025 and one for 2026. They touch, so they are one continuous period, 2025-01-01 to 2026-12-31, and the period of service inside it is ACTIVE.</p></div>
 <div class="example"><h4><span class="pill warn">200</span> INACTIVE for a period of service that outlasts the coverage</h4>
-<pre><code>{ "memberId": "U20252026", "dateOfService": "2026-12-20", "dateOfServiceEnd": "2027-01-05" }
+<pre><code>{"memberId": "U20252026", "dateOfService": "2026-12-20", "dateOfServiceEnd": "2027-01-05"}
 
-{ "outcome": "INACTIVE",
-  "message": "Member found; coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05",
-  "memberId": { "received": "U20252026", "resolved": "U20252026   01",
-    "forVendors": [
-      { "vendor": "CARELON", "memberId": "U2025202601", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "U2025202601", "payerId": "TUFTS",
-          "payerName": "TUFTS" },
-      { "vendor": "EVOLENT", "memberId": "U2025202601", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "MHK",     "memberId": "U20252026   01", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "ONYX",    "memberId": "U2025202601", "payerId": "Point32Health",
-          "payerName": "Point32Health" },
-      { "vendor": "OPTUM",   "memberId": "U20252026", "payerId": "Point32Health",
-          "payerName": "Point32Health" }
-    ] },
-  "lineOfBusiness": "MCR",
-  "dateOfService": "2026-12-20", "dateOfServiceEnd": "2027-01-05",
-      "dateOfServiceDefaulted": false,
-  "coverage": { "coverageId": "U20252026012025010120261231", "active": false,
-      "effectiveDate": "2025-01-01", "endDate": "2026-12-31" },
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852556-60202" }</code></pre>
+{
+  "data": {
+    "outcome": "INACTIVE",
+    "message": "Member found; coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05",
+    "memberId": {
+      "received": "U20252026",
+      "resolved": "U20252026   01",
+      "forVendors": [
+        {
+          "vendor": "CARELON",
+          "memberId": "U2025202601",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "EVICORE",
+          "memberId": "U2025202601",
+          "payerId": "TUFTS",
+          "payerName": "TUFTS"
+        },
+        {
+          "vendor": "EVOLENT",
+          "memberId": "U2025202601",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "MHK",
+          "memberId": "U20252026   01",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "ONYX",
+          "memberId": "U2025202601",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        },
+        {
+          "vendor": "OPTUM",
+          "memberId": "U20252026",
+          "payerId": "Point32Health",
+          "payerName": "Point32Health"
+        }
+      ]
+    },
+    "lineOfBusiness": "MCR",
+    "dateOfService": "2026-12-20",
+    "dateOfServiceEnd": "2027-01-05",
+    "dateOfServiceDefaulted": false,
+    "coverage": {
+      "coverageId": "U20252026012025010120261231",
+      "active": false,
+      "effectiveDate": "2025-01-01",
+      "endDate": "2026-12-31"
+    },
+    "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
+    "traceId": "INTEROP-1791253852556-60202"
+  },
+  "header": {
+    "httpStatus": 200,
+    "message": "Request processed successfully",
+    "status": "success",
+    "timestamp": 1791577790968
+  }
+}</code></pre>
 <p class="note">Covered on the first day, not on the last: the flag is false, the message says where coverage ends, and the period is still shown so intake sees how far it goes.</p></div>
-<div class="example"><h4><span class="pill bad">400</span> An unusable date of service is refused, never answered for today</h4>
-<pre><code>{ "memberId": "T20262026", "dateOfService": "10/15/2027" }
-
-{ "error": { "code": "INVALID_REQUEST", "message": "request rejected",
-    "details": [
-      { "field": "dateOfService", "code": "DATE_OF_SERVICE_INVALID",
-          "message": "expected a real date in yyyy-MM-dd" } ] },
-  "correlationId": "ONYX-PA-2026-000123",
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13" }</code></pre>
-<p class="note">Answering for today instead would read as "active" for a date nobody asked about.</p></div>
 
 <h2 id="practice">8 Timeouts, retries, security</h2>
 <ul>
 <li><b>Timeouts.</b> A successful answer normally takes well under a second. When a lookup behind the service cannot answer, the failure is reported within about 15 seconds; set the client timeout above that.</li>
-<li><b>Retry policy.</b> 503: wait the <code>Retry-After</code> seconds and retry; the number of attempts is to be agreed with Point32Health (three until then). 502 and 500: retry once. No response at all (connection refused, timeout): retry once. Never retry a 400, 401, 403 or 422. Every retry carries a new <code>requestId</code>. When the retries are used up: for 502, 503 and 500, park the transaction and alert the service owners with the <code>correlationId</code> and <code>requestId</code>; for no response at all, pass the member id to the UM vendor exactly as the EMR supplied it and record the <code>requestId</code> so the transaction can be reconciled later.</li>
-<li><b>Security.</b> Authentication, certificates and rate limits are handled by the API gateway in front of the service; the credentials come with the base URL. The member id and date of birth are PHI: send them in the body only, never in a URL, and do not log the date of birth.</li>
+<li><b>Retry policy.</b> 503: wait the <code>Retry-After</code> seconds (10 when the header is absent) and retry; the number of attempts is to be agreed with Point32Health (three until then). 502 and 500: retry once. No response at all (connection refused, timeout): retry once. Never retry a 400 or 422, and never retry a 401 or 403 with the same token. Every retry carries a new <code>requestId</code>. When the retries are used up: for 502, 503 and 500, park the transaction and alert the service owners with the <code>requestId</code> and the <code>X-Correlation-Id</code>; for no response at all, pass the member id to the UM vendor exactly as the EMR supplied it and record the <code>requestId</code> so the transaction can be reconciled later.</li>
+<li><b>Security.</b> OAuth 2.0 access tokens, issued per environment by Point32Health, on every call; certificates and rate limits are handled by the API gateway in front of the service. The member id and date of birth are PHI: send them in the body only, never in a URL, and do not log the date of birth.</li>
 <li><b>Caller identification.</b> Onyx sends <code>clientId</code> <code>ONYX</code> and <code>clientType</code> <code>EXT</code> on every call, and a new <code>requestId</code> per call; support finds a call by that <code>requestId</code> or by the <code>traceId</code> in the answer.</li>
 </ul>
 </div>
