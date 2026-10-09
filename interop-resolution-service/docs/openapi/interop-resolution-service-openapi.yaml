@@ -250,7 +250,9 @@ components:
           description: true when no dateOfService was sent and today was used
         coverage:
           $ref: '#/components/schemas/Coverage'
-          description: The coverage flag and the coverage period behind it. Present on ACTIVE and INACTIVE answers only
+          description: The coverage flag and the coverage period behind it. coverageId, effectiveDate and endDate are present
+            when active, and when inactive only because the period ends before the last date asked about; otherwise only active
+            is sent and message says why. Present on ACTIVE and INACTIVE answers only
         requestId:
           type: string
           description: The caller's requestId, echoed

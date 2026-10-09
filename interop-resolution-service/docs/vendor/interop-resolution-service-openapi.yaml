@@ -26,7 +26,7 @@ paths:
       - name: X-Correlation-Id
         in: header
         description: Optional transport-level id for the call, 1 to 64 characters of letters, digits, '.', '_', ':' or '-';
-          echoed in the response header and in error bodies as correlationId, or generated when missing or invalid
+          echoed in the X-Correlation-Id response header, or generated when missing or invalid
         schema:
           type: string
           maxLength: 64
@@ -89,7 +89,7 @@ paths:
           description: MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds
           headers:
             Retry-After:
-              description: Seconds to wait before retrying, when present (10 otherwise)
+              description: Seconds to wait before retrying; 10 when absent
               schema:
                 type: integer
                 example: 10
@@ -99,7 +99,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: 'INTERNAL_ERROR: the service itself failed; retry once later, then alert the service owners with the
-            correlationId and requestId'
+            requestId and the X-Correlation-Id response header'
           content:
             application/json:
               schema:
@@ -249,7 +249,9 @@ components:
           description: true when no dateOfService was sent and today was used
         coverage:
           $ref: '#/components/schemas/Coverage'
-          description: The coverage flag and the coverage period behind it. Present on ACTIVE and INACTIVE answers only
+          description: The coverage flag and the coverage period behind it. coverageId, effectiveDate and endDate are present
+            when active, and when inactive only because the period ends before the last date asked about; otherwise only active
+            is sent and message says why. Present on ACTIVE and INACTIVE answers only
         requestId:
           type: string
           description: The caller's requestId, echoed
@@ -311,8 +313,8 @@ components:
       properties:
         code:
           type: string
-          description: The detail code that refines error.code, for example MEMBER_ID_MISSING, DATE_OF_SERVICE_INVALID, HTTP_400,
-            READ_TIMEOUT
+          description: The detail code that refines header.statusCode, for example MEMBER_ID_MISSING, DATE_OF_SERVICE_INVALID,
+            HTTP_400, READ_TIMEOUT
           example: DATE_OF_SERVICE_INVALID
         field:
           type: string
@@ -343,7 +345,7 @@ components:
           - error
         statusCode:
           type: string
-          description: 'On an error only: the error code to branch on (the catalog in the reference page)'
+          description: 'On an error only: the error code to branch on; the error catalog of the reference page lists them'
           example: INVALID_REQUEST
         timestamp:
           type: integer
@@ -378,7 +380,7 @@ components:
           description: The id of the member lookup behind the answer, present once the lookup was made
         details:
           type: array
-          description: One entry per problem found; every problem with a request is reported together
+          description: One entry per problem found; every problem with a request is reported together. Empty on a 500
           items:
             $ref: '#/components/schemas/ErrorDetail'
       required:
