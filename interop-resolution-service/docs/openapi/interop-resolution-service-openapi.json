@@ -93,16 +93,6 @@
               }
             }
           },
-          "406": {
-            "description": "INVALID_REQUEST / NOT_ACCEPTABLE: the service answers application/json only",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
           "415": {
             "description": "INVALID_REQUEST / UNSUPPORTED_MEDIA_TYPE: the request body must be application/json",
             "content": {
@@ -338,18 +328,15 @@
         "properties": {
           "type": {
             "type": "string",
-            "description": "The message type as the lookup sent it",
-            "example": "ERROR"
+            "description": "The message type as the lookup sent it"
           },
           "status": {
             "type": "string",
-            "description": "The status as the lookup sent it",
-            "example": "404"
+            "description": "The status as the lookup sent it"
           },
           "code": {
             "type": "string",
-            "description": "The message code as the lookup sent it",
-            "example": "MEMBER_NOT_FOUND"
+            "description": "The message code as the lookup sent it"
           },
           "text": {
             "type": "string",

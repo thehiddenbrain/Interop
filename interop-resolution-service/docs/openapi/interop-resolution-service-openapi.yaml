@@ -72,12 +72,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
-        '406':
-          description: 'INVALID_REQUEST / NOT_ACCEPTABLE: the service answers application/json only'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorResponse'
         '415':
           description: 'INVALID_REQUEST / UNSUPPORTED_MEDIA_TYPE: the request body must be application/json'
           content:
@@ -281,15 +275,12 @@ components:
         type:
           type: string
           description: The message type as the lookup sent it
-          example: ERROR
         status:
           type: string
           description: The status as the lookup sent it
-          example: '404'
         code:
           type: string
           description: The message code as the lookup sent it
-          example: MEMBER_NOT_FOUND
         text:
           type: string
           description: The message text as the lookup sent it
