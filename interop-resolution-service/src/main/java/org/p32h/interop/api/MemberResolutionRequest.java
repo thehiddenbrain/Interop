@@ -20,12 +20,12 @@ public record MemberResolutionRequest(
         @Schema(description = "The caller's id for this call, unique per request; echoed in the response and in every error response. Letters, digits, '.', '_', ':' or '-', at most 64 characters",
                 example = "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13", requiredMode = Schema.RequiredMode.REQUIRED, maxLength = 64,
                 pattern = "^[A-Za-z0-9._:-]{1,64}$") String requestId,
-        @Schema(description = "The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed); no shape, length or character check. The example is a masked pattern: a THP Medicare card number is a letter and 8 digits",
+        @Schema(description = "The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed); the service never checks its shape, length or characters. For instance a THP Medicare card number is a letter and 8 digits; the example is that pattern, masked",
                 example = "S########", requiredMode = Schema.RequiredMode.REQUIRED) String memberId,
-        @Schema(description = "Date of service, yyyy-MM-dd; the first date when the service covers a period. Defaults to today when omitted (dateOfServiceDefaulted is true). A sent value is the date evaluated: any future date is judged on the coverage on record; not a real date, or more than 10 years back, is a 400.",
+        @Schema(description = "Date of service, yyyy-MM-dd; the first date when the service covers a period. Omitted, null or blank: today in US Eastern time (America/New_York) is used, dateOfServiceDefaulted is true and the answer's dateOfService says which date was used; send the date whenever you have it. A sent value is the date evaluated: any future date is judged on the coverage on record; not a real date (DATE_OF_SERVICE_INVALID), or more than 10 years back (DATE_OF_SERVICE_OUT_OF_RANGE), is a 400.",
                 example = "2026-10-15") String dateOfService,
-        @Schema(description = "Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on every day from dateOfService to it. Not before dateOfService; needs dateOfService.", example = "2026-10-20") String dateOfServiceEnd,
-        @Schema(description = "Optional patient date of birth, yyyy-MM-dd, used only to verify the member or to tell apart the members on a plan who share the id. Never logged, never echoed.",
+        @Schema(description = "Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on every day from dateOfService to it. Not before dateOfService; needs dateOfService. Omitted, null or blank counts as not sent.", example = "2026-10-20") String dateOfServiceEnd,
+        @Schema(description = "Optional patient date of birth, yyyy-MM-dd, used only to verify the member or to tell apart the members on a plan who share the id. Omitted, null or blank counts as not sent. Not a real date is a 400 (DATE_OF_BIRTH_INVALID); in the future or more than 125 years ago is a 400 (DATE_OF_BIRTH_OUT_OF_RANGE). Never logged, never echoed.",
                 example = "1950-03-15") String dateOfBirth) {
 
     @Override

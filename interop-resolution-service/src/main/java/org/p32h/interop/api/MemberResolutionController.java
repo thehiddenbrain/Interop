@@ -2,6 +2,8 @@ package org.p32h.interop.api;
 
 import org.p32h.interop.service.ResolutionService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -31,11 +33,18 @@ public class MemberResolutionController {
                     + "When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says "
                     + "what to resend; the other members are never listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A sent date is the date evaluated; an "
                     + "unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the operation is a pure read "
-                    + "and may be repeated.")
+                    + "and may be repeated.",
+            parameters = @Parameter(in = ParameterIn.HEADER, name = "X-Correlation-Id", required = false,
+                    description = "Optional transport-level id for the call, 1 to 64 characters of letters, digits, '.', '_', ':' or '-'; echoed in the response header and in error bodies as correlationId, or generated when missing or invalid",
+                    schema = @Schema(type = "string", maxLength = 64, pattern = "^[A-Za-z0-9._:-]{1,64}$")))
     @ApiResponse(responseCode = "200", description = "outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; memberId.forVendors, each vendor with its payer, present for ACTIVE and INACTIVE",
             content = @Content(schema = @Schema(implementation = MemberResolutionResponse.class)))
     @ApiResponse(responseCode = "400", description = "INVALID_REQUEST for a missing or unusable clientId, clientType or requestId, a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (details[0].code HTTP_400, the lookup's text in the message)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "422", description = "DOB_MISMATCH: the date of birth matches no record for this id", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "INVALID_REQUEST / ROUTE_NOT_FOUND: wrong path; a connector defect (a member that is not found is a 200 with outcome NOT_FOUND)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "405", description = "INVALID_REQUEST / METHOD_NOT_ALLOWED: the operation is POST only", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "406", description = "INVALID_REQUEST / NOT_ACCEPTABLE: the service answers application/json only", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "415", description = "INVALID_REQUEST / UNSUPPORTED_MEDIA_TYPE: the request body must be application/json", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "502", description = "MEMBER_LOOKUP_ERROR or MEMBER_LOOKUP_INVALID_RESPONSE (the member lookup); MEMBER_PLAN_ERROR or MEMBER_PLAN_INVALID_RESPONSE (the member plan lookup)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "503", description = "MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds",
             headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying", schema = @Schema(type = "integer", example = "10")),

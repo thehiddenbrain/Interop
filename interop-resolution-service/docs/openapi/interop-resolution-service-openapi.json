@@ -20,6 +20,18 @@
         "summary": "Resolve a member id for a date of service",
         "description": "Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (or on every day of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors), each entry with the payer for that vendor's request (payerId, payerName). When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says what to resend; the other members are never listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A sent date is the date evaluated; an unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the operation is a pure read and may be repeated.",
         "operationId": "resolve",
+        "parameters": [
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "description": "Optional transport-level id for the call, 1 to 64 characters of letters, digits, '.', '_', ':' or '-'; echoed in the response header and in error bodies as correlationId, or generated when missing or invalid",
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -53,6 +65,46 @@
           },
           "422": {
             "description": "DOB_MISMATCH: the date of birth matches no record for this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "INVALID_REQUEST / ROUTE_NOT_FOUND: wrong path; a connector defect (a member that is not found is a 200 with outcome NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "INVALID_REQUEST / METHOD_NOT_ALLOWED: the operation is POST only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "INVALID_REQUEST / NOT_ACCEPTABLE: the service answers application/json only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "INVALID_REQUEST / UNSUPPORTED_MEDIA_TYPE: the request body must be application/json",
             "content": {
               "application/json": {
                 "schema": {
@@ -136,22 +188,22 @@
           },
           "memberId": {
             "type": "string",
-            "description": "The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed); no shape, length or character check. The example is a masked pattern: a THP Medicare card number is a letter and 8 digits",
+            "description": "The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed); the service never checks its shape, length or characters. For instance a THP Medicare card number is a letter and 8 digits; the example is that pattern, masked",
             "example": "S########"
           },
           "dateOfService": {
             "type": "string",
-            "description": "Date of service, yyyy-MM-dd; the first date when the service covers a period. Defaults to today when omitted (dateOfServiceDefaulted is true). A sent value is the date evaluated: any future date is judged on the coverage on record; not a real date, or more than 10 years back, is a 400.",
+            "description": "Date of service, yyyy-MM-dd; the first date when the service covers a period. Omitted, null or blank: today in US Eastern time (America/New_York) is used, dateOfServiceDefaulted is true and the answer's dateOfService says which date was used; send the date whenever you have it. A sent value is the date evaluated: any future date is judged on the coverage on record; not a real date (DATE_OF_SERVICE_INVALID), or more than 10 years back (DATE_OF_SERVICE_OUT_OF_RANGE), is a 400.",
             "example": "2026-10-15"
           },
           "dateOfServiceEnd": {
             "type": "string",
-            "description": "Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on every day from dateOfService to it. Not before dateOfService; needs dateOfService.",
+            "description": "Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on every day from dateOfService to it. Not before dateOfService; needs dateOfService. Omitted, null or blank counts as not sent.",
             "example": "2026-10-20"
           },
           "dateOfBirth": {
             "type": "string",
-            "description": "Optional patient date of birth, yyyy-MM-dd, used only to verify the member or to tell apart the members on a plan who share the id. Never logged, never echoed.",
+            "description": "Optional patient date of birth, yyyy-MM-dd, used only to verify the member or to tell apart the members on a plan who share the id. Omitted, null or blank counts as not sent. Not a real date is a 400 (DATE_OF_BIRTH_INVALID); in the future or more than 125 years ago is a 400 (DATE_OF_BIRTH_OUT_OF_RANGE). Never logged, never echoed.",
             "example": "1950-03-15"
           }
         },
@@ -236,7 +288,7 @@
           },
           "lineOfBusiness": {
             "type": "string",
-            "description": "The line of business Onyx routes on, from the plan in effect on the date of service: SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP; a member no rule covers keeps the member record's category (MCR, PP, COM). ACTIVE and INACTIVE only",
+            "description": "The line of business Onyx routes on, from the plan in effect on the date of service: SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP. When no rule applies, the member record's own category is passed through (MCR, PP, COM today; other values may appear), and the field is absent when the record carries none. ACTIVE and INACTIVE only. Agree with Point32Health how to route a value outside the list, or an absent one",
             "example": "MA-HMO"
           },
           "dateOfService": {
@@ -328,7 +380,7 @@
           },
           "payerId": {
             "type": "string",
-            "description": "The payer id to put on this vendor's request",
+            "description": "The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company, so use the entry's value as given",
             "example": "TUFTS"
           },
           "payerName": {

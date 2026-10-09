@@ -33,7 +33,9 @@ td code { white-space: nowrap; }
 .note { font-size: 13px; color: var(--muted); }
 .callout { border-left: 4px solid var(--accent); background: #f4f6f7; padding: 10px 14px; margin: 14px 0; max-width: 90ch; }
 .toc { columns: 2; font-size: 14px; } .toc a { color: var(--accent); text-decoration: none; }
-@media print { body { font-size: 12px; } .page { padding: 0; max-width: none; } h2 { break-after: avoid; } pre, table, .callout { break-inside: avoid; } .toc { display: none; } }
+@media print { body { font-size: 12px; } .page { padding: 0; max-width: none; } h2, h3, h4 { break-after: avoid; } .callout, .example, tr { break-inside: avoid; } thead { display: table-header-group; }
+  pre, pre code { white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible; } .tablewrap { overflow: visible; } table { font-size: 11px; table-layout: fixed; }
+  td code, th code { white-space: normal; overflow-wrap: break-word; } th code { background: none; color: inherit; } .toc { display: none; } }
 </style>
 </head>
 <body>
@@ -50,10 +52,10 @@ td code { white-space: nowrap; }
 <h2 id="overview">1 Overview</h2>
 <p>Onyx's interop lookups. Member resolution, POST /v1/interop/resolve: resolves an EMR-supplied member ID against the plan's member records, reports whether coverage is active on the date of service, and returns the ID as resolved and in every UM vendor's format, each with the payer for that vendor's request.</p>
 <p>One call per prior authorization. Send the member id exactly as the provider's EMR supplied it, the date of service (or the period of service) and, when known, the patient's date of birth. The answer says whether the member was found, whether coverage is active on that date, the line of business to route on, and the member id in every UM vendor's format with the payer to put on that vendor's request.</p>
-<div class="callout"><b>Base URL and credentials</b> are issued by Point32Health API Management for each environment and are not part of this document. The path below is relative to that base URL.</div>
+<div class="callout"><b>Base URL and credentials</b> are issued by Point32Health API Management for each environment and are not part of this document. The path below is relative to that base URL. The credential pack names the header the credential travels in; nothing in the body or the path carries a credential, and the service itself does not read it. A rejected credential is answered in front of the service (401 or 403) without the error envelope of section 6.</div>
 
 <h2 id="operation">2 The operation</h2>
-<p><code>POST /v1/interop/resolve</code> with <code>Content-Type: application/json</code>. The service always answers JSON, whatever <code>Accept</code> header is sent; every response carries <code>Cache-Control: no-store</code> and <code>X-Content-Type-Options: nosniff</code>. The call is a pure read and may be repeated; it is a POST because the member id is PHI and must not appear in a URL.</p>
+<p><code>POST /v1/interop/resolve</code> with <code>Content-Type: application/json</code>. The service always answers JSON, whatever <code>Accept</code> header is sent; every response carries <code>Cache-Control: no-store</code> and <code>X-Content-Type-Options: nosniff</code>.</p>
 <p>Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (or on every day of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors), each entry with the payer for that vendor's request (payerId, payerName). When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says what to resend; the other members are never listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A sent date is the date evaluated; an unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the operation is a pure read and may be repeated.</p>
 <h3>Headers</h3>
 <div class="tablewrap"><table class="">
@@ -70,6 +72,10 @@ td code { white-space: nowrap; }
 <tr><td><code>200</code></td><td>outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; memberId.forVendors, each vendor with its payer, present for ACTIVE and INACTIVE</td></tr>
 <tr><td><code>400</code></td><td>INVALID_REQUEST for a missing or unusable clientId, clientType or requestId, a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (details[0].code HTTP_400, the lookup's text in the message)</td></tr>
 <tr><td><code>422</code></td><td>DOB_MISMATCH: the date of birth matches no record for this id</td></tr>
+<tr><td><code>404</code></td><td>INVALID_REQUEST / ROUTE_NOT_FOUND: wrong path; a connector defect (a member that is not found is a 200 with outcome NOT_FOUND)</td></tr>
+<tr><td><code>405</code></td><td>INVALID_REQUEST / METHOD_NOT_ALLOWED: the operation is POST only</td></tr>
+<tr><td><code>406</code></td><td>INVALID_REQUEST / NOT_ACCEPTABLE: the service answers application/json only</td></tr>
+<tr><td><code>415</code></td><td>INVALID_REQUEST / UNSUPPORTED_MEDIA_TYPE: the request body must be application/json</td></tr>
 <tr><td><code>502</code></td><td>MEMBER_LOOKUP_ERROR or MEMBER_LOOKUP_INVALID_RESPONSE (the member lookup); MEMBER_PLAN_ERROR or MEMBER_PLAN_INVALID_RESPONSE (the member plan lookup)</td></tr>
 <tr><td><code>503</code></td><td>MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds; header <code>Retry-After</code> (Seconds to wait before retrying)</td></tr>
 <tr><td><code>500</code></td><td>INTERNAL_ERROR: the service itself failed; retry once later, then alert the service owners with the correlationId and requestId</td></tr>
@@ -83,10 +89,10 @@ td code { white-space: nowrap; }
 <tr><td><code>clientId</code></td><td>string</td><td>yes</td><td>The calling system, as registered with the plan: letters, digits, '.', '_' or '-', at most 50 characters</td></tr>
 <tr><td><code>clientType</code></td><td>EXT | INT</td><td>yes</td><td>EXT for a caller outside the plan, INT for an internal one</td></tr>
 <tr><td><code>requestId</code></td><td>string</td><td>yes</td><td>The caller's id for this call, unique per request; echoed in the response and in every error response. Letters, digits, '.', '_', ':' or '-', at most 64 characters</td></tr>
-<tr><td><code>memberId</code></td><td>string</td><td>yes</td><td>The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed); no shape, length or character check. The example is a masked pattern: a THP Medicare card number is a letter and 8 digits</td></tr>
-<tr><td><code>dateOfService</code></td><td>string</td><td></td><td>Date of service, yyyy-MM-dd; the first date when the service covers a period. Defaults to today when omitted (dateOfServiceDefaulted is true). A sent value is the date evaluated: any future date is judged on the coverage on record; not a real date, or more than 10 years back, is a 400.</td></tr>
-<tr><td><code>dateOfServiceEnd</code></td><td>string</td><td></td><td>Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on every day from dateOfService to it. Not before dateOfService; needs dateOfService.</td></tr>
-<tr><td><code>dateOfBirth</code></td><td>string</td><td></td><td>Optional patient date of birth, yyyy-MM-dd, used only to verify the member or to tell apart the members on a plan who share the id. Never logged, never echoed.</td></tr>
+<tr><td><code>memberId</code></td><td>string</td><td>yes</td><td>The member id exactly as the EMR supplied it. Looked up unchanged (surrounding whitespace removed); the service never checks its shape, length or characters. For instance a THP Medicare card number is a letter and 8 digits; the example is that pattern, masked</td></tr>
+<tr><td><code>dateOfService</code></td><td>string</td><td></td><td>Date of service, yyyy-MM-dd; the first date when the service covers a period. Omitted, null or blank: today in US Eastern time (America/New_York) is used, dateOfServiceDefaulted is true and the answer's dateOfService says which date was used; send the date whenever you have it. A sent value is the date evaluated: any future date is judged on the coverage on record; not a real date (DATE_OF_SERVICE_INVALID), or more than 10 years back (DATE_OF_SERVICE_OUT_OF_RANGE), is a 400.</td></tr>
+<tr><td><code>dateOfServiceEnd</code></td><td>string</td><td></td><td>Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on every day from dateOfService to it. Not before dateOfService; needs dateOfService. Omitted, null or blank counts as not sent.</td></tr>
+<tr><td><code>dateOfBirth</code></td><td>string</td><td></td><td>Optional patient date of birth, yyyy-MM-dd, used only to verify the member or to tell apart the members on a plan who share the id. Omitted, null or blank counts as not sent. Not a real date is a 400 (DATE_OF_BIRTH_INVALID); in the future or more than 125 years ago is a 400 (DATE_OF_BIRTH_OUT_OF_RANGE). Never logged, never echoed.</td></tr>
 </tbody></table></div>
 
 <h2 id="response">4 Response (200)</h2>
@@ -102,9 +108,9 @@ td code { white-space: nowrap; }
 <tr><td><code>memberId.forVendors[]</code></td><td>array</td><td></td><td>The resolved id in every configured vendor's format, each with the payer for that vendor's request; one entry per vendor, sorted by vendor code. ACTIVE and INACTIVE only</td></tr>
 <tr><td><code>memberId.forVendors[].vendor</code></td><td>CARELON | EVICORE | EVOLENT | MHK | ONYX | OPTUM</td><td></td><td>The vendor code</td></tr>
 <tr><td><code>memberId.forVendors[].memberId</code></td><td>string</td><td></td><td>The resolved id in this vendor's format: the member id to put on this vendor's request</td></tr>
-<tr><td><code>memberId.forVendors[].payerId</code></td><td>string</td><td></td><td>The payer id to put on this vendor's request</td></tr>
+<tr><td><code>memberId.forVendors[].payerId</code></td><td>string</td><td></td><td>The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company, so use the entry's value as given</td></tr>
 <tr><td><code>memberId.forVendors[].payerName</code></td><td>string</td><td></td><td>The payer name that goes with payerId</td></tr>
-<tr><td><code>lineOfBusiness</code></td><td>string</td><td></td><td>The line of business Onyx routes on, from the plan in effect on the date of service: SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP; a member no rule covers keeps the member record's category (MCR, PP, COM). ACTIVE and INACTIVE only</td></tr>
+<tr><td><code>lineOfBusiness</code></td><td>string</td><td></td><td>The line of business Onyx routes on, from the plan in effect on the date of service: SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP. When no rule applies, the member record's own category is passed through (MCR, PP, COM today; other values may appear), and the field is absent when the record carries none. ACTIVE and INACTIVE only. Agree with Point32Health how to route a value outside the list, or an absent one</td></tr>
 <tr><td><code>dateOfService</code></td><td>date (yyyy-MM-dd)</td><td>yes</td><td>The date evaluated; the first date when a period was asked about</td></tr>
 <tr><td><code>dateOfServiceEnd</code></td><td>date (yyyy-MM-dd)</td><td></td><td>The last date evaluated; present only when the request asked about a period</td></tr>
 <tr><td><code>dateOfServiceDefaulted</code></td><td>boolean</td><td>yes</td><td>true when no dateOfService was sent and today was used</td></tr>
@@ -133,12 +139,13 @@ td code { white-space: nowrap; }
 <tr><td><span class="pill neutral">200</span> <code>NOT_FOUND</code></td><td>No member for this id on that date. <code>sourceMessage</code> carries what the member lookup said, when it sent a message.</td><td>"Member not found" worklist. If Onyx holds a fuller form of the id (for instance with the suffix), one resend with it.</td></tr>
 <tr><td><span class="pill info">200</span> <code>AMBIGUOUS</code></td><td>Several members on the plan share the id and nothing sent tells them apart. Nobody is listed.</td><td>One resend with <code>dateOfBirth</code> or the member's full id including the suffix. If it is still AMBIGUOUS (twins share a date of birth, or the records carry none), intake takes the full id from the member's card and resends.</td></tr>
 <tr><td><span class="pill bad">400</span> / <span class="pill warn">422</span></td><td>Request or identity problem (the error catalog below).</td><td>Never retry. Route by <code>error.code</code> and <code>details[].code</code>.</td></tr>
-<tr><td><span class="pill bad">502</span> / <span class="pill bad">503</span> / <span class="pill bad">500</span></td><td>A lookup behind the service, or the service itself, could not answer.</td><td>Retry later with a new <code>requestId</code>, honouring <code>Retry-After</code> on a 503; if it persists, park the transaction and alert the service owners.</td></tr>
+<tr><td><span class="pill bad">502</span> / <span class="pill bad">503</span> / <span class="pill bad">500</span></td><td>A lookup behind the service, or the service itself, could not answer.</td><td>Retry as section 8 says, always with a new <code>requestId</code>; when the retries are used up, park the transaction and alert the service owners.</td></tr>
+<tr><td><span class="pill bad">401</span> / <span class="pill bad">403</span> / <span class="pill warn">429</span></td><td>Answered in front of the service by API Management, without the error envelope.</td><td>401 and 403: a credential problem; never retry. 429: treat like a 503 and retry after its <code>Retry-After</code>.</td></tr>
 <tr><td>No response at all (connection refused, timeout)</td><td>The service is down or unreachable.</td><td><b>Rule:</b> pass the member id to the UM vendor exactly as it was received from the EMR, and record the <code>requestId</code> so the transaction can be reconciled later.</td></tr>
 </tbody></table></div>
 
 <h2 id="errors">6 Errors</h2>
-<p>Every non-200 answer has one shape. <code>error.code</code> is stable and is what to branch on; <code>details[].code</code> refines it; <code>requestId</code> echoes the caller's id whenever it was usable, so a 400 about another field still carries it; <code>traceId</code> is present once the member lookup was made.</p>
+<p>Every non-200 answer produced by the service has one shape. Answers produced in front of it by API Management (401, 403, 429, or any response whose body is not JSON) do not carry this envelope: treat 401 and 403 as a credential problem and never retry them; treat 429 like a 503 and retry after its <code>Retry-After</code>. <code>error.code</code> is stable and is what to branch on; <code>details[].code</code> refines it; <code>requestId</code> echoes the caller's id whenever it was usable, so a 400 about another field still carries it; <code>traceId</code> is present once the member lookup was made.</p>
 <div class="tablewrap"><table class="">
 <colgroup><col style="width:24%"><col style="width:14%"><col style="width:8%"><col style="width:54%"></colgroup>
 <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Meaning</th></tr></thead><tbody>
@@ -155,21 +162,21 @@ td code { white-space: nowrap; }
 </tbody></table></div>
 <h3>Error catalog</h3>
 <div class="tablewrap"><table class="">
-<colgroup><col style="width:9%"><col style="width:22%"><col style="width:31%"><col style="width:38%"></colgroup>
+<colgroup><col style="width:8%"><col style="width:26%"><col style="width:30%"><col style="width:36%"></colgroup>
 <thead><tr><th>HTTP</th><th><code>error.code</code></th><th><code>details[].code</code></th><th>Meaning and Onyx action</th></tr></thead><tbody>
 <tr><td><code>400</code></td><td><code>INVALID_REQUEST</code></td><td><code>CLIENT_ID_MISSING</code>, <code>CLIENT_ID_INVALID</code>, <code>CLIENT_TYPE_MISSING</code>, <code>CLIENT_TYPE_INVALID</code>, <code>REQUEST_ID_MISSING</code>, <code>REQUEST_ID_INVALID</code>, <code>MEMBER_ID_MISSING</code>, <code>DATE_OF_SERVICE_INVALID</code>, <code>DATE_OF_SERVICE_OUT_OF_RANGE</code>, <code>DATE_OF_SERVICE_END_INVALID</code>, <code>DATE_OF_SERVICE_END_BEFORE_START</code>, <code>DATE_OF_SERVICE_END_WITHOUT_START</code>, <code>DATE_OF_BIRTH_INVALID</code>, <code>DATE_OF_BIRTH_OUT_OF_RANGE</code>, <code>MALFORMED_JSON</code>, <code>WRONG_JSON_TYPE</code></td><td>Never retry. Every problem with the request is reported together, one detail per problem. MEMBER_ID_MISSING and DATE_OF_SERVICE_OUT_OF_RANGE are provider data; the caller codes are configuration; the rest are mapping defects.</td></tr>
 <tr><td><code>400</code></td><td><code>MEMBER_LOOKUP_REJECTED</code></td><td><code>HTTP_400</code></td><td>The member lookup could not process the request as sent; the message carries its text. Never retry; send the request and the message to the service owners.</td></tr>
 <tr><td><code>422</code></td><td><code>DOB_MISMATCH</code></td><td><code>DOB_MISMATCH</code></td><td>The date of birth matches no record for this id. Manual identity review; never file the authorization.</td></tr>
 <tr><td><code>404, 405, 406, 415</code></td><td><code>INVALID_REQUEST</code></td><td><code>ROUTE_NOT_FOUND</code>, <code>METHOD_NOT_ALLOWED</code>, <code>NOT_ACCEPTABLE</code>, <code>UNSUPPORTED_MEDIA_TYPE</code></td><td>Wrong path, method or content type: a connector defect. ROUTE_NOT_FOUND is the only 404 this service returns; a member that is not found is a 200 with outcome NOT_FOUND.</td></tr>
-<tr><td><code>502</code></td><td><code>MEMBER_LOOKUP_ERROR</code>, <code>MEMBER_LOOKUP_INVALID_RESPONSE</code></td><td><code>HTTP_&lt;code&gt;</code>, <code>ERROR_MESSAGE</code>, <code>UNPARSEABLE_BODY</code>, <code>EMPTY_BODY</code>, <code>NO_MEMBER_ID</code>, <code>UNREADABLE_COVERAGE</code>, <code>CLIENT_ERROR</code></td><td>The member lookup answered outside its contract, or with data the service could not read. Park the transaction and alert the service owners.</td></tr>
-<tr><td><code>502</code></td><td><code>MEMBER_PLAN_ERROR</code>, <code>MEMBER_PLAN_INVALID_RESPONSE</code></td><td><code>HTTP_&lt;code&gt;</code>, <code>UNPARSEABLE_BODY</code>, <code>EMPTY_BODY</code>, <code>CLIENT_ERROR</code></td><td>The member plan lookup answered outside its contract, or with data the service could not read. Park the transaction and alert the service owners.</td></tr>
-<tr><td><code>503</code></td><td><code>MEMBER_LOOKUP_UNAVAILABLE</code>, <code>MEMBER_PLAN_UNAVAILABLE</code></td><td><code>CONNECT_FAILED</code>, <code>READ_TIMEOUT</code>, <code>HTTP_500</code>, <code>HTTP_5xx</code>, <code>HTTP_429</code>, <code>HTTP_408</code></td><td>A lookup could not be reached, timed out or is temporarily unavailable. Retry later with a new requestId, after the Retry-After seconds (10). If it persists, park the transaction and alert the service owners.</td></tr>
-<tr><td><code>500</code></td><td><code>INTERNAL_ERROR</code></td><td></td><td>The service itself failed. Retry once later; if it persists, alert the service owners with the correlationId and the requestId.</td></tr>
+<tr><td><code>502</code></td><td><code>MEMBER_LOOKUP_ERROR</code>, <code>MEMBER_LOOKUP_INVALID_RESPONSE</code></td><td><code>HTTP_&lt;code&gt;</code>, <code>ERROR_MESSAGE</code>, <code>UNPARSEABLE_BODY</code>, <code>EMPTY_BODY</code>, <code>NO_MEMBER_ID</code>, <code>UNREADABLE_COVERAGE</code>, <code>CLIENT_ERROR</code></td><td>The member lookup answered outside its contract, or with data the service could not read. Retry once with a new requestId; if it fails again, park the transaction and alert the service owners.</td></tr>
+<tr><td><code>502</code></td><td><code>MEMBER_PLAN_ERROR</code>, <code>MEMBER_PLAN_INVALID_RESPONSE</code></td><td><code>HTTP_&lt;code&gt;</code>, <code>UNPARSEABLE_BODY</code>, <code>EMPTY_BODY</code>, <code>CLIENT_ERROR</code></td><td>The member plan lookup answered outside its contract, or with data the service could not read. Retry once with a new requestId; if it fails again, park the transaction and alert the service owners.</td></tr>
+<tr><td><code>503</code></td><td><code>MEMBER_LOOKUP_UNAVAILABLE</code>, <code>MEMBER_PLAN_UNAVAILABLE</code></td><td><code>CONNECT_FAILED</code>, <code>READ_TIMEOUT</code>, <code>HTTP_500</code>, <code>HTTP_5xx</code>, <code>HTTP_429</code>, <code>HTTP_408</code></td><td>A lookup could not be reached, timed out or is temporarily unavailable. Retry after the Retry-After seconds (10) with a new requestId, as section 8 says; when the retries are used up, park the transaction and alert the service owners.</td></tr>
+<tr><td><code>500</code></td><td><code>INTERNAL_ERROR</code></td><td></td><td>The service itself failed. Retry once with a new requestId; if it fails again, park the transaction and alert the service owners with the correlationId and the requestId.</td></tr>
 </tbody></table></div>
 
 <h2 id="examples">7 Examples</h2>
-<p>Real answers of the service against test data. Member ids, names of test members and dates are fictitious.</p>
-<h4>Request</h4>
+<p>Real answers of the service against test data; the member ids and dates are fictitious.</p>
+<div class="example"><h4>Request</h4>
 <pre><code>POST /v1/interop/resolve
 Content-Type: application/json
 X-Correlation-Id: ONYX-PA-2026-000123
@@ -181,8 +188,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": "123456789",
   "dateOfService": "2026-10-15",
   "dateOfBirth": "1950-03-15"
-}</code></pre>
-<h4><span class="pill ok">200</span> ACTIVE, TMP card number with the date of birth verified: the id in every vendor's format</h4>
+}</code></pre></div>
+<div class="example"><h4><span class="pill ok">200</span> ACTIVE, TMP card number with the date of birth verified: the id in every vendor's format</h4>
 <pre><code>{ "outcome": "ACTIVE",
   "message": "Member found; coverage active on 2026-10-15",
   "memberId": { "received": "123456789", "resolved": "123456789   01",
@@ -199,8 +206,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "coverage": { "coverageId": "123456789012021010139991231", "active": true, "effectiveDate": "2021-01-01", "endDate": "3999-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
   "traceId": "INTEROP-1791253852491-77574" }</code></pre>
-<p class="note">The requests below carry the same <code>clientId</code>, <code>clientType</code> and <code>requestId</code>; only the member fields are shown.</p>
-<h4><span class="pill ok">200</span> ACTIVE, HPHC card form, no date of service sent: the resolved id on every entry</h4>
+<p class="note">The requests below carry the same <code>clientId</code>, <code>clientType</code> and <code>requestId</code>; only the member fields are shown.</p></div>
+<div class="example"><h4><span class="pill ok">200</span> ACTIVE, HPHC card form, no date of service sent: the resolved id on every entry</h4>
 <pre><code>{ "memberId": "HP-456789012" }
 
 { "outcome": "ACTIVE",
@@ -218,8 +225,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "dateOfService": "2026-10-05", "dateOfServiceDefaulted": true,
   "coverage": { "coverageId": "HP4567890122013030139991231", "active": true, "effectiveDate": "2013-03-01", "endDate": "3999-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852498-65261" }</code></pre>
-<h4><span class="pill warn">200</span> INACTIVE, SCO member: the ids are still returned</h4>
+  "traceId": "INTEROP-1791253852498-65261" }</code></pre></div>
+<div class="example"><h4><span class="pill warn">200</span> INACTIVE, SCO member: the ids are still returned</h4>
 <pre><code>{ "memberId": "234567890", "dateOfService": "2026-10-15" }
 
 { "outcome": "INACTIVE",
@@ -237,8 +244,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": false },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852504-23697" }</code></pre>
-<h4><span class="pill warn">200</span> INACTIVE, Public Plans dependent in a gap</h4>
+  "traceId": "INTEROP-1791253852504-23697" }</code></pre></div>
+<div class="example"><h4><span class="pill warn">200</span> INACTIVE, Public Plans dependent in a gap</h4>
 <pre><code>{ "memberId": "34567890102", "dateOfService": "2024-08-15" }
 
 { "outcome": "INACTIVE",
@@ -256,8 +263,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "dateOfService": "2024-08-15", "dateOfServiceDefaulted": false,
   "coverage": { "active": false },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852509-10102" }</code></pre>
-<h4><span class="pill info">200</span> AMBIGUOUS, 9-character Together family, no date of birth</h4>
+  "traceId": "INTEROP-1791253852509-10102" }</code></pre></div>
+<div class="example"><h4><span class="pill info">200</span> AMBIGUOUS, 9-character Together family, no date of birth</h4>
 <pre><code>{ "memberId": "345678901", "dateOfService": "2026-10-15" }
 
 { "outcome": "AMBIGUOUS",
@@ -265,8 +272,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "memberId": { "received": "345678901" },
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791255194024-32990" }</code></pre>
-<h4><span class="pill neutral">200</span> NOT_FOUND, no date of service sent: the member lookup answered 404, forwarded in <code>sourceMessage</code></h4>
+  "traceId": "INTEROP-1791255194024-32990" }</code></pre></div>
+<div class="example"><h4><span class="pill neutral">200</span> NOT_FOUND, no date of service sent: the member lookup answered 404, forwarded in <code>sourceMessage</code></h4>
 <pre><code>{ "memberId": "HP111222333" }
 
 { "outcome": "NOT_FOUND",
@@ -275,8 +282,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "dateOfService": "2026-10-05", "dateOfServiceDefaulted": true,
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
   "traceId": "INTEROP-1791253852517-51447",
-  "sourceMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND", "text": "No member found for the given id" } }</code></pre>
-<h4><span class="pill neutral">200</span> NOT_FOUND, 10-digit id: sent to the member lookup as typed, the member lookup has no record</h4>
+  "sourceMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND", "text": "No member found for the given id" } }</code></pre></div>
+<div class="example"><h4><span class="pill neutral">200</span> NOT_FOUND, 10-digit id: sent to the member lookup as typed, the member lookup has no record</h4>
 <pre><code>{ "memberId": "1234567890", "dateOfService": "2026-10-15" }
 
 { "outcome": "NOT_FOUND",
@@ -285,8 +292,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
   "traceId": "INTEROP-1791253852521-20476",
-  "sourceMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND", "text": "No member found for the given id" } }</code></pre>
-<h4><span class="pill ok">200</span> ACTIVE, converted member, old THP id, date after migration</h4>
+  "sourceMessage": { "type": "ERROR", "status": "404", "code": "MEMBER_NOT_FOUND", "text": "No member found for the given id" } }</code></pre></div>
+<div class="example"><h4><span class="pill ok">200</span> ACTIVE, converted member, old THP id, date after migration</h4>
 <pre><code>{ "memberId": "567890123 01", "dateOfService": "2026-10-15" }
 
 { "outcome": "ACTIVE",
@@ -304,36 +311,36 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
   "coverage": { "coverageId": "HP5678901232020010139991231", "active": true, "effectiveDate": "2020-01-01", "endDate": "3999-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852525-35782" }</code></pre>
-<h4><span class="pill warn">422</span> DOB_MISMATCH</h4>
+  "traceId": "INTEROP-1791253852525-35782" }</code></pre></div>
+<div class="example"><h4><span class="pill warn">422</span> DOB_MISMATCH</h4>
 <pre><code>{ "error": { "code": "DOB_MISMATCH", "message": "dateOfBirth does not match the plan record(s) for this member id",
     "details": [
       { "field": "dateOfBirth", "code": "DOB_MISMATCH", "message": "no returned record has this date of birth" } ] },
   "correlationId": "ONYX-PA-2026-000123",
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852529-13534" }</code></pre>
-<h4><span class="pill bad">503</span> MEMBER_LOOKUP_UNAVAILABLE: the member lookup answered 500:, its code and text forwarded, <code>Retry-After: 10</code></h4>
-<pre><code>{ "error": { "code": "MEMBER_LOOKUP_UNAVAILABLE", "message": "The member lookup reported an internal error: INTERNAL_ERROR search failed",
+  "traceId": "INTEROP-1791253852529-13534" }</code></pre></div>
+<div class="example"><h4><span class="pill bad">503</span> MEMBER_LOOKUP_UNAVAILABLE: the member lookup answered 500, its code and text forwarded, <code>Retry-After: 10</code></h4>
+<pre><code>{ "error": { "code": "MEMBER_LOOKUP_UNAVAILABLE", "message": "The member lookup reported an internal error: INTERNAL_ERROR lookup failed",
     "details": [
-      { "code": "HTTP_500", "message": "The member lookup reported an internal error: INTERNAL_ERROR search failed" } ] },
+      { "code": "HTTP_500", "message": "The member lookup reported an internal error: INTERNAL_ERROR lookup failed" } ] },
   "correlationId": "ONYX-PA-2026-000123",
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852533-40365" }</code></pre>
-<h4><span class="pill bad">400</span> MEMBER_LOOKUP_REJECTED: the member lookup itself answered 400; its code and text forwarded, no <code>Retry-After</code></h4>
+  "traceId": "INTEROP-1791253852533-40365" }</code></pre></div>
+<div class="example"><h4><span class="pill bad">400</span> MEMBER_LOOKUP_REJECTED: the member lookup itself answered 400; its code and text forwarded, no <code>Retry-After</code></h4>
 <pre><code>{ "error": { "code": "MEMBER_LOOKUP_REJECTED", "message": "The member lookup rejected the request: INVALID_REQUEST memberId could not be processed",
     "details": [
       { "code": "HTTP_400", "message": "The member lookup rejected the request: INVALID_REQUEST memberId could not be processed" } ] },
   "correlationId": "ONYX-PA-2026-000123",
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852536-12395" }</code></pre>
-<h4><span class="pill bad">502</span> MEMBER_LOOKUP_ERROR / ERROR_MESSAGE: the member lookup reported an error and no member; its code and text forwarded</h4>
-<pre><code>{ "error": { "code": "MEMBER_LOOKUP_ERROR", "message": "The member lookup reported an error: ES_TIMEOUT search backend timed out",
+  "traceId": "INTEROP-1791253852536-12395" }</code></pre></div>
+<div class="example"><h4><span class="pill bad">502</span> MEMBER_LOOKUP_ERROR / ERROR_MESSAGE: the member lookup reported an error and no member; its code and text forwarded</h4>
+<pre><code>{ "error": { "code": "MEMBER_LOOKUP_ERROR", "message": "The member lookup reported an error: LOOKUP_TIMEOUT lookup timed out",
     "details": [
-      { "code": "ERROR_MESSAGE", "message": "The member lookup reported an error: ES_TIMEOUT search backend timed out" } ] },
+      { "code": "ERROR_MESSAGE", "message": "The member lookup reported an error: LOOKUP_TIMEOUT lookup timed out" } ] },
   "correlationId": "ONYX-PA-2026-000123",
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
-  "traceId": "INTEROP-1791253852539-58663" }</code></pre>
-<h4><span class="pill bad">400</span> INVALID_REQUEST, two problems at once</h4>
+  "traceId": "INTEROP-1791253852539-58663" }</code></pre></div>
+<div class="example"><h4><span class="pill bad">400</span> INVALID_REQUEST, two problems at once</h4>
 <pre><code>{ "memberId": "", "dateOfService": "10/15/2026" }
 
 { "error": { "code": "INVALID_REQUEST", "message": "request rejected",
@@ -341,15 +348,15 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "field": "memberId", "code": "MEMBER_ID_MISSING", "message": "memberId is required" },
       { "field": "dateOfService", "code": "DATE_OF_SERVICE_INVALID", "message": "expected a real date in yyyy-MM-dd" } ] },
   "correlationId": "ONYX-PA-2026-000123",
-  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13" }</code></pre>
-<h4><span class="pill bad">400</span> INVALID_REQUEST, the caller not identified: no <code>clientId</code>, <code>clientType</code> or <code>requestId</code>, so nothing to echo</h4>
+  "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13" }</code></pre></div>
+<div class="example"><h4><span class="pill bad">400</span> INVALID_REQUEST, the caller not identified: no <code>clientId</code>, <code>clientType</code> or <code>requestId</code>, so nothing to echo</h4>
 <pre><code>{ "error": { "code": "INVALID_REQUEST", "message": "request rejected",
     "details": [
       { "field": "clientId", "code": "CLIENT_ID_MISSING", "message": "clientId is required" },
       { "field": "clientType", "code": "CLIENT_TYPE_MISSING", "message": "clientType is required: EXT or INT" },
       { "field": "requestId", "code": "REQUEST_ID_MISSING", "message": "requestId is required: the caller's id for this call" } ] },
-  "correlationId": "ONYX-PA-2026-000123" }</code></pre>
-<h4><span class="pill warn">200</span> INACTIVE for a 2027 date of service on a record that ends 12/31/2026; a vendor and an unknown property in the request, both ignored</h4>
+  "correlationId": "ONYX-PA-2026-000123" }</code></pre></div>
+<div class="example"><h4><span class="pill warn">200</span> INACTIVE for a 2027 date of service on a record that ends 12/31/2026; a vendor and an unknown property in the request, both ignored</h4>
 <pre><code>{ "memberId": "T20262026", "dateOfService": "2027-10-15", "vendor": "EVICORE", "anything": "goes" }
 
 { "outcome": "INACTIVE",
@@ -368,8 +375,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "coverage": { "active": false },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
   "traceId": "INTEROP-1791253852548-01454" }</code></pre>
-<p class="note">The date judged is the date that was sent. This test member's only record runs 01/01/2026 to 12/31/2026, so 2026-10-15 is ACTIVE and 2027-10-15 is INACTIVE. A record with no end date (blank or <code>12/31/3999</code>) would make a 2027 date ACTIVE, because that is what the record says (section 11).</p>
-<h4><span class="pill ok">200</span> ACTIVE for a period of service across two plan-year records</h4>
+<p class="note">The date judged is the date that was sent. This test member's only coverage period is 2026-01-01 to 2026-12-31, so 2026-10-15 is ACTIVE and 2027-10-15 is INACTIVE. An open-ended period (<code>endDate</code> 3999-12-31, see <code>coverage.endDate</code> in section 4) would make a 2027 date ACTIVE, because that is what the record says.</p></div>
+<div class="example"><h4><span class="pill ok">200</span> ACTIVE for a period of service across two plan-year records</h4>
 <pre><code>{ "memberId": "U20252026", "dateOfService": "2025-12-20", "dateOfServiceEnd": "2026-01-05" }
 
 { "outcome": "ACTIVE",
@@ -388,8 +395,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "coverage": { "coverageId": "U20252026012025010120261231", "active": true, "effectiveDate": "2025-01-01", "endDate": "2026-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
   "traceId": "INTEROP-1791253852552-13365" }</code></pre>
-<p class="note">This test member has one record for 2025 and one for 2026. They touch, so they are one continuous period, 2025-01-01 to 2026-12-31, and the period of service inside it is ACTIVE.</p>
-<h4><span class="pill warn">200</span> INACTIVE for a period of service that outlasts the coverage</h4>
+<p class="note">This test member has one record for 2025 and one for 2026. They touch, so they are one continuous period, 2025-01-01 to 2026-12-31, and the period of service inside it is ACTIVE.</p></div>
+<div class="example"><h4><span class="pill warn">200</span> INACTIVE for a period of service that outlasts the coverage</h4>
 <pre><code>{ "memberId": "U20252026", "dateOfService": "2026-12-20", "dateOfServiceEnd": "2027-01-05" }
 
 { "outcome": "INACTIVE",
@@ -408,8 +415,8 @@ X-Correlation-Id: ONYX-PA-2026-000123
   "coverage": { "coverageId": "U20252026012025010120261231", "active": false, "effectiveDate": "2025-01-01", "endDate": "2026-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
   "traceId": "INTEROP-1791253852556-60202" }</code></pre>
-<p class="note">Covered on the first day, not on the last: the flag is false, the message says where coverage ends, and the period is still shown so intake sees how far it goes.</p>
-<h4><span class="pill bad">400</span> An unusable date of service is refused, never answered for today</h4>
+<p class="note">Covered on the first day, not on the last: the flag is false, the message says where coverage ends, and the period is still shown so intake sees how far it goes.</p></div>
+<div class="example"><h4><span class="pill bad">400</span> An unusable date of service is refused, never answered for today</h4>
 <pre><code>{ "memberId": "T20262026", "dateOfService": "10/15/2027" }
 
 { "error": { "code": "INVALID_REQUEST", "message": "request rejected",
@@ -417,13 +424,12 @@ X-Correlation-Id: ONYX-PA-2026-000123
       { "field": "dateOfService", "code": "DATE_OF_SERVICE_INVALID", "message": "expected a real date in yyyy-MM-dd" } ] },
   "correlationId": "ONYX-PA-2026-000123",
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13" }</code></pre>
-<p class="note">Answering for today instead would read as "active" for a date nobody asked about.</p>
+<p class="note">Answering for today instead would read as "active" for a date nobody asked about.</p></div>
 
 <h2 id="practice">8 Timeouts, retries, security</h2>
 <ul>
 <li><b>Timeouts.</b> A successful answer normally takes well under a second. When a lookup behind the service cannot answer, the failure is reported within about 15 seconds; set the client timeout above that.</li>
-<li><b>Retries.</b> Retry only on 503 (after <code>Retry-After</code>), on 502 and 500 once, and on no response at all; always with a new <code>requestId</code>. Never retry a 400 or 422.</li>
-<li><b>If the service is down.</b> Pass the member id to the UM vendor exactly as it was received from the EMR, and record the <code>requestId</code> so the transaction can be reconciled later.</li>
+<li><b>Retry policy.</b> 503: wait the <code>Retry-After</code> seconds and retry; the number of attempts is to be agreed with Point32Health (three until then). 502 and 500: retry once. No response at all (connection refused, timeout): retry once. Never retry a 400, 401, 403 or 422. Every retry carries a new <code>requestId</code>. When the retries are used up: for 502, 503 and 500, park the transaction and alert the service owners with the <code>correlationId</code> and <code>requestId</code>; for no response at all, pass the member id to the UM vendor exactly as the EMR supplied it and record the <code>requestId</code> so the transaction can be reconciled later.</li>
 <li><b>Security.</b> Authentication, certificates and rate limits are handled by Point32Health API Management in front of the service; the credentials come with the base URL. The member id and date of birth are PHI: send them in the body only, never in a URL, and do not log the date of birth.</li>
 <li><b>Caller identification.</b> Onyx sends <code>clientId</code> <code>ONYX</code> and <code>clientType</code> <code>EXT</code> on every call, and a new <code>requestId</code> per call; support finds a call by that <code>requestId</code> or by the <code>traceId</code> in the answer.</li>
 </ul>
