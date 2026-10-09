@@ -169,11 +169,11 @@ criteria, read against the record (`sourceSysId` is the record's `sourceSystemId
 | `MA-TOGETHER` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` PL or GT |
 | `RI-TOGETHER` | `subsidiary` THPPRI and `sourceSystemId` 2048 |
 | `MA-QHP` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` NS or SB |
-| MMI's value (`MCR`, `PP`, `COM`, ...) | no record covers the date, or none a rule matches (TMP, HPHC and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED` |
+| MMI's value (`MCR`, `PP`, `COM`, ...) | no record covers the date, or none a rule matches (HPHC, commercial and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED` |
 
 A derived value is logged as `lob derived` with the record's fields and dates. When several records cover the date,
 the first one a rule matches gives the value, and `marker=LOB_SEVERAL_ON_DATE` is logged if they disagree. TMP members
-will also need a database lookup, to be added beside the rules.
+are covered by the MA-HMO and MA-PPO rules; their IPA variant is pending (below).
 
 | Profile | Member information service |
 |---|---|
@@ -560,8 +560,8 @@ covering record's line of business replaces MMI's; a failure is a 503 with `Retr
   PQA-LITE and PRD URLs follow the PQA naming.
 - The line-of-business values (`SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`) are the names Onyx routes on, and
   the ES Members criteria read the coverage record as `sourceSysId` = `sourceSystemId`, `coverage.subsidiary` = `subsidiary`,
-  `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`; MA-HMO and MA-PPO records carry SH, `subsidiary` TAHMO and the `businessLineKey` (0039 or 0099, 0235). Pending, with CRC: check the record's `ipa` against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value (the place is marked in `LineOfBusinessDeriver`). Rules for TMP, HPHC and commercial members, and the TMP database lookup, are
-  to come; until then those members keep MMI's value.
+  `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`; MA-HMO and MA-PPO records carry SH, `subsidiary` TAHMO and the `businessLineKey` (0039 or 0099, 0235). Pending, with CRC: check the record's `ipa` against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value (the place is marked in `LineOfBusinessDeriver`). TMP members are covered by MA-HMO and MA-PPO (all but the IPA variant). Rules for HPHC and commercial
+  members are to come; until then those members keep MMI's value.
 - With `dosStartDate`, which coverage MMI returns: only the segment covering that date or the whole history; and for
   a member with no coverage on that date, the member without coverage or a 404 (`NOT_FOUND` here instead of
   `INACTIVE` with its reason). The service evaluates whatever comes back: contiguous segments are still read as one

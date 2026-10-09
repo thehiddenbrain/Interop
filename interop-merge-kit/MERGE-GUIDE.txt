@@ -214,7 +214,7 @@ CHECK WHEN DONE
 
 OPEN ITEMS TO CONFIRM (do not block the merge)
   - coverageRecords sits in each member entry next to memberPlan.
-  - Members no rule covers (TMP, HPHC, commercial) keep MMI's value: keep, or send no lineOfBusiness?
+  - Members no rule covers (HPHC, commercial) keep MMI's value: keep, or send no lineOfBusiness?
   - A member information failure fails the answer: keep, or fall back to MMI's value?
   - SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER, MA-QHP are the values Onyx routes on.
   - MA-HMO / MA-PPO IPA variants: the check against the CRC RTU tables, to build with CRC.

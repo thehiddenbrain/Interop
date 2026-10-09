@@ -29,9 +29,9 @@ import org.slf4j.LoggerFactory;
  * </pre>
  * When several records cover the date, the first one a rule matches gives the value; if they give different values a
  * warning is logged ({@code marker=LOB_SEVERAL_ON_DATE}). A member with no record covering the date, or whose records match
- * no rule (TMP, HPHC and the other populations whose rules are still to come), keeps the line of business on the member
- * record (from MMI), logged with {@code marker=LOB_NOT_DERIVED}. TMP members will also need a database lookup; it belongs
- * here, beside the rules.
+ * no rule (HPHC, commercial and the other populations whose rules are still to come), keeps the line of business on the
+ * member record (from MMI), logged with {@code marker=LOB_NOT_DERIVED}. TMP members are covered by MA-HMO and MA-PPO; their
+ * IPA variant is pending (see {@code tahmoMedicareAdvantage}).
  */
 public class LineOfBusinessDeriver {
 
