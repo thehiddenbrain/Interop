@@ -1,5 +1,5 @@
 diff --git a/README.md b/README.md
-index 9f4e4a9..777fc10 100644
+index 9f4e4a9..2cf1d24 100644
 --- a/README.md
 +++ b/README.md
 @@ -8,8 +8,8 @@ member ID exactly as the provider's EMR supplied it, with the date of service, a
@@ -80,11 +80,11 @@ index 9f4e4a9..777fc10 100644
 +| `MA-TOGETHER` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` PL or GT |
 +| `RI-TOGETHER` | `subsidiary` THPPRI and `sourceSystemId` 2048 |
 +| `MA-QHP` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` NS or SB |
-+| MMI's value (`MCR`, `PP`, `COM`, ...) | no record covers the date, or none a rule matches (TMP, HPHC and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED` |
++| MMI's value (`MCR`, `PP`, `COM`, ...) | no record covers the date, or none a rule matches (HPHC, commercial and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED` |
 +
 +A derived value is logged as `lob derived` with the record's fields and dates. When several records cover the date,
 +the first one a rule matches gives the value, and `marker=LOB_SEVERAL_ON_DATE` is logged if they disagree. TMP members
-+will also need a database lookup, to be added beside the rules.
++are covered by the MA-HMO and MA-PPO rules; their IPA variant is pending (below).
 +
 +| Profile | Member information service |
 +|---|---|
@@ -280,8 +280,8 @@ index 9f4e4a9..777fc10 100644
 +  PQA-LITE and PRD URLs follow the PQA naming.
 +- The line-of-business values (`SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`) are the names Onyx routes on, and
 +  the ES Members criteria read the coverage record as `sourceSysId` = `sourceSystemId`, `coverage.subsidiary` = `subsidiary`,
-+  `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`; MA-HMO and MA-PPO records carry SH, `subsidiary` TAHMO and the `businessLineKey` (0039 or 0099, 0235). Pending, with CRC: check the record's `ipa` against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value (the place is marked in `LineOfBusinessDeriver`). Rules for TMP, HPHC and commercial members, and the TMP database lookup, are
-+  to come; until then those members keep MMI's value.
++  `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`; MA-HMO and MA-PPO records carry SH, `subsidiary` TAHMO and the `businessLineKey` (0039 or 0099, 0235). Pending, with CRC: check the record's `ipa` against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value (the place is marked in `LineOfBusinessDeriver`). TMP members are covered by MA-HMO and MA-PPO (all but the IPA variant). Rules for HPHC and commercial
++  members are to come; until then those members keep MMI's value.
 +- With `dosStartDate`, which coverage MMI returns: only the segment covering that date or the whole history; and for
 +  a member with no coverage on that date, the member without coverage or a 404 (`NOT_FOUND` here instead of
 +  `INACTIVE` with its reason). The service evaluates whatever comes back: contiguous segments are still read as one
@@ -290,7 +290,7 @@ index 9f4e4a9..777fc10 100644
  - MMI reports the company as `THP` or `HPHC`, the values eviCore's payer entries key on. Any other value gets eviCore
    the default payer and logs `VENDOR_PAYER_DEFAULTED`: watch for that marker in PQA.
 diff --git a/docs/design.html b/docs/design.html
-index 3c2d728..eea6ed9 100644
+index 3c2d728..c385a6c 100644
 --- a/docs/design.html
 +++ b/docs/design.html
 @@ -177,15 +177,15 @@ figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 8
@@ -348,7 +348,7 @@ index 3c2d728..eea6ed9 100644
 -<tr><td><code>memberId.forVendors[].payerId</code>, <code>.payerName</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The payer Onyx puts on that vendor's request: the vendor's own for the member's company when configured, else the default (<code>payer</code> block in <code>application.yaml</code>; <code>PAYER_ID</code> / <code>PAYER_NAME</code> override). Today eviCore's own (<code>TUFTS</code> for THP, <code>HPHC</code> for HPHC, id and name alike) and <code>Point32Health</code> for every other vendor (D9).</td></tr>
 -<tr><td><code>lineOfBusiness</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>MMI's line of business (<code>MCR</code>, <code>PP</code>, <code>COM</code>…); Onyx routes the transaction on it. The company (THP or HPHC) is not returned: the resolved id already tells it apart (<code>HP</code> prefix) and Onyx does not act on it.</td></tr>
 +<tr><td><code>memberId.forVendors[].payerId</code>, <code>.payerName</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>The payer Onyx puts on that vendor's request: the vendor's own for the member's company when configured, else the default (<code>payer</code> block in <code>application.yaml</code>; <code>PAYER_ID</code> / <code>PAYER_NAME</code> override). Today eviCore's own (<code>TUFTS</code> for THP, <code>HARVARD PILGRIM HEALTH</code> for HPHC, id and name alike) and <code>Point32Health</code> for every other vendor (D9).</td></tr>
-+<tr><td><code>lineOfBusiness</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>Derived from the member's coverage record on the date of service, from the member information service (section 9.5): <code>SCO</code>, <code>MA-HMO</code>, <code>MA-PPO</code>, <code>D-SNP</code>, <code>MA-TOGETHER</code>, <code>RI-TOGETHER</code> or <code>MA-QHP</code>; for a member no rule covers yet (TMP, HPHC…), MMI's line of business (<code>MCR</code>, <code>PP</code>, <code>COM</code>…). Onyx routes the transaction on it. The company (THP or HPHC) is not returned: the resolved id already tells it apart (<code>HP</code> prefix) and Onyx does not act on it.</td></tr>
++<tr><td><code>lineOfBusiness</code></td><td>✓</td><td>✓</td><td>–</td><td>–</td><td>Derived from the member's coverage record on the date of service, from the member information service (section 9.5): <code>SCO</code>, <code>MA-HMO</code>, <code>MA-PPO</code>, <code>D-SNP</code>, <code>MA-TOGETHER</code>, <code>RI-TOGETHER</code> or <code>MA-QHP</code>; for a member no rule covers yet (HPHC, commercial…), MMI's line of business (<code>MCR</code>, <code>PP</code>, <code>COM</code>…). Onyx routes the transaction on it. The company (THP or HPHC) is not returned: the resolved id already tells it apart (<code>HP</code> prefix) and Onyx does not act on it.</td></tr>
  <tr><td><code>dateOfService</code>, <code>dateOfServiceDefaulted</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>The (first) date evaluated and whether it was defaulted to today.</td></tr>
  <tr><td><code>dateOfServiceEnd</code></td><td>opt</td><td>opt</td><td>opt</td><td>opt</td><td>The last date evaluated, echoed when the request asked about a period.</td></tr>
 -<tr><td><code>coverage.coverageId</code></td><td>✓</td><td>opt</td><td>–</td><td>–</td><td>First in the block. An id for the coverage period, present whenever its dates are: <code>MEMBER_ID</code> + <code>EFF_DATE</code> + <code>END_DATE</code> run together with no separator, the resolved member id reduced to letters and digits, the dates as <code>yyyyMMdd</code> (<code>99991231</code> stands for an open-ended period); letters and digits only, as the Onyx requirement states. The same member with the same coverage always gets the same value.</td></tr>
@@ -477,7 +477,7 @@ index 3c2d728..eea6ed9 100644
 +<ul>
 +<li>One id per call: the resolved id exactly as MMI stores it (for a TMP member the 9 characters, three spaces and the suffix); <code>dos</code>, the date of service (the first day of a period), as <code>MM/dd/yyyy</code>; and <code>returnCoverageList</code>, always <code>true</code>.</li>
 +<li><b>The records read.</b> Those of the entries whose <code>memberId</code> matches the resolved id ignoring spacing and case, void records (<code>voidFlag</code> Y) left out, in the order sent. Of those, only the records whose <code>planStartDate</code> and <code>planEndDate</code> include the date of service, both ends inclusive. A plan date is read as the date written (<code>2024-02-01T05:00:00.000+00:00</code> is 2024-02-01); no end date is open-ended; a record without a start, or with a date that cannot be read, covers nothing.</li>
-+<li><b>The line of business</b> is derived in <code>LineOfBusinessDeriver</code> from the member portal's "ES Members" criteria, read against a covering record: <code>sourceSysId</code> is the record's <code>sourceSystemId</code>, <code>coverage.subsidiary</code> its <code>subsidiary</code> and <code>coverage.product</code> its <code>productCode</code>. SCO is read from <code>businessTypeIndicator</code> SH and a <code>planCode</code> with SCO in it, and is checked first, so an SCO record is never read as another value. MA-HMO and MA-PPO (<code>businessTypeIndicator</code> SH, <code>subsidiary</code> TAHMO, <code>businessLineKey</code> compared as the four digits) come next. Codes are compared ignoring case and surrounding spaces; the ES Members rules do not overlap. When several records cover the date, the first one a rule matches gives the value, and <code>marker=LOB_SEVERAL_ON_DATE</code> is logged if they disagree. A derived value is logged as <code>lob derived</code> with the record's fields and dates; otherwise <code>marker=LOB_NOT_DERIVED</code> with the number of records and of covering ones, and the first covering record's fields (<code>sourceSystemId</code>, <code>subsidiary</code>, <code>productCode</code>, <code>planCode</code>, <code>businessTypeIndicator</code>, <code>hierarchyLineOfBusiness</code>, <code>lineOfBusinessDesc</code>), so a PQA run shows what each uncovered member's record carries. TMP members will also need a database lookup, added beside the rules.</li>
++<li><b>The line of business</b> is derived in <code>LineOfBusinessDeriver</code> from the member portal's "ES Members" criteria, read against a covering record: <code>sourceSysId</code> is the record's <code>sourceSystemId</code>, <code>coverage.subsidiary</code> its <code>subsidiary</code> and <code>coverage.product</code> its <code>productCode</code>. SCO is read from <code>businessTypeIndicator</code> SH and a <code>planCode</code> with SCO in it, and is checked first, so an SCO record is never read as another value. MA-HMO and MA-PPO (<code>businessTypeIndicator</code> SH, <code>subsidiary</code> TAHMO, <code>businessLineKey</code> compared as the four digits) come next. Codes are compared ignoring case and surrounding spaces; the ES Members rules do not overlap. When several records cover the date, the first one a rule matches gives the value, and <code>marker=LOB_SEVERAL_ON_DATE</code> is logged if they disagree. A derived value is logged as <code>lob derived</code> with the record's fields and dates; otherwise <code>marker=LOB_NOT_DERIVED</code> with the number of records and of covering ones, and the first covering record's fields (<code>sourceSystemId</code>, <code>subsidiary</code>, <code>productCode</code>, <code>planCode</code>, <code>businessTypeIndicator</code>, <code>hierarchyLineOfBusiness</code>, <code>lineOfBusinessDesc</code>), so a PQA run shows what each uncovered member's record carries. TMP members are covered by MA-HMO and MA-PPO; their IPA variant is pending (below).</li>
 +</ul>
 +<div class="tablewrap"><table class="tight">
 +<thead><tr><th><code>lineOfBusiness</code></th><th>Coverage record covering the date of service (the member portal's "ES Members" criteria)</th></tr></thead>
@@ -489,7 +489,7 @@ index 3c2d728..eea6ed9 100644
 +<tr><td><code>MA-TOGETHER</code></td><td><code>subsidiary</code> THPPMA, <code>sourceSystemId</code> 2026 and <code>productCode</code> PL or GT</td></tr>
 +<tr><td><code>RI-TOGETHER</code></td><td><code>subsidiary</code> THPPRI and <code>sourceSystemId</code> 2048</td></tr>
 +<tr><td><code>MA-QHP</code></td><td><code>subsidiary</code> THPPMA, <code>sourceSystemId</code> 2026 and <code>productCode</code> NS or SB (the service's contract example, a Direct ConnectorCare plan, is one)</td></tr>
-+<tr><td>MMI's value (<code>MCR</code>, <code>PP</code>, <code>COM</code>…)</td><td>No record covers the date, or none a rule matches: TMP, HPHC and the other populations whose rules are still to come. Logged with <code>marker=LOB_NOT_DERIVED</code>.</td></tr>
++<tr><td>MMI's value (<code>MCR</code>, <code>PP</code>, <code>COM</code>…)</td><td>No record covers the date, or none a rule matches: HPHC, commercial and the other populations whose rules are still to come. TMP members are covered by MA-HMO and MA-PPO. Logged with <code>marker=LOB_NOT_DERIVED</code>.</td></tr>
 +</tbody></table></div>
 +<p><b>Pending, with CRC:</b> MA-HMO and MA-PPO may need an IPA variant. The record's <code>ipa</code> is to be checked against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value; the values and the table access are to be confirmed with CRC. The place for that lookup is marked in <code>LineOfBusinessDeriver</code>.</p>
 +<ul>
@@ -665,7 +665,7 @@ index 3c2d728..eea6ed9 100644
  <h2 id="questions"><span class="num">19</span>Open questions (confirm in PQA)</h2>
  <ol>
 +<li>The member information service: whether it takes every population's id as MMI stores it (its contract shows the THP form, the id, spaces and the two-digit suffix; HPHC and Public Plans ids are sent as stored too); its error contract (a 404 is taken as no records; the 400 and 500 in its contract are assumed); that it needs no authentication, like MMI; that each member entry carries <code>coverageRecords</code> (about five years) when <code>returnCoverageList</code> is true, with plan dates whose date part is the date meant; and the FQA, PQA-LITE and PRD URLs, which follow the PQA naming.</li>
-+<li>The line of business: the values sent (<code>SCO</code>, <code>MA-HMO</code>, <code>MA-PPO</code>, <code>D-SNP</code>, <code>MA-TOGETHER</code>, <code>RI-TOGETHER</code>, <code>MA-QHP</code>) are the names Onyx should route on; the coverage record's fields read the ES Members criteria (<code>sourceSysId</code> = <code>sourceSystemId</code>, <code>coverage.subsidiary</code> = <code>subsidiary</code>, <code>coverage.product</code> = <code>productCode</code>); an SCO record carries <code>businessTypeIndicator</code> SH and SCO in its <code>planCode</code>; MA-HMO and MA-PPO records carry SH, <code>subsidiary</code> TAHMO and the <code>businessLineKey</code>; the IPA check against the CRC RTU tables (MA-HMO or MA-PPO becoming an IPA value) is pending, to build with CRC; and the rules for the other populations (TMP, HPHC, commercial) and the TMP database lookup are to come. Until then those members keep MMI's value, so <code>lineOfBusiness</code> carries both kinds of value.</li>
++<li>The line of business: the values sent (<code>SCO</code>, <code>MA-HMO</code>, <code>MA-PPO</code>, <code>D-SNP</code>, <code>MA-TOGETHER</code>, <code>RI-TOGETHER</code>, <code>MA-QHP</code>) are the names Onyx should route on; the coverage record's fields read the ES Members criteria (<code>sourceSysId</code> = <code>sourceSystemId</code>, <code>coverage.subsidiary</code> = <code>subsidiary</code>, <code>coverage.product</code> = <code>productCode</code>); an SCO record carries <code>businessTypeIndicator</code> SH and SCO in its <code>planCode</code>; MA-HMO and MA-PPO records carry SH, <code>subsidiary</code> TAHMO and the <code>businessLineKey</code>; the IPA check against the CRC RTU tables (MA-HMO or MA-PPO becoming an IPA value) is pending, to build with CRC; TMP members are covered by MA-HMO and MA-PPO, all but the IPA variant; and the rules for the other populations (HPHC, commercial) are to come. Until then those members keep MMI's value, so <code>lineOfBusiness</code> carries both kinds of value.</li>
 +<li>With <code>dosStartDate</code>, which coverage MMI returns: only the segment covering that date or the whole history; and for a member with no coverage on that date, the member without coverage or a 404 (NOT_FOUND here instead of INACTIVE with its reason). The service evaluates whatever comes back: contiguous segments are still read as one period (<code>coverage</code> dates and <code>coverageId</code>), and a period of service is judged on what comes back for its first day.</li>
  <li>MMI reports the company as <code>THP</code> or <code>HPHC</code>, the values eviCore's payer entries key on. Any other value gets eviCore the default payer and logs <code>VENDOR_PAYER_DEFAULTED</code>: watch for that marker in PQA.</li>
  <li>MMI finds the member from the id as typed, including the 9-, 11- and 14-character forms of a TMP id and ids with hyphens or spaces (for example <code>123456789-01</code>, <code>HP-123456789</code>); the stub assumes the same. The service sends the id unchanged, so if MMI is strict about some form that is a finding to take to the MMI team, not a rule to add here.</li>
@@ -1729,7 +1729,7 @@ index 540b87f..669ecba 100644
          }
 diff --git a/src/main/java/org/p32h/interop/service/LineOfBusinessDeriver.java b/src/main/java/org/p32h/interop/service/LineOfBusinessDeriver.java
 new file mode 100644
-index 0000000..4cb7241
+index 0000000..3afbc58
 --- /dev/null
 +++ b/src/main/java/org/p32h/interop/service/LineOfBusinessDeriver.java
 @@ -0,0 +1,156 @@
@@ -1765,9 +1765,9 @@ index 0000000..4cb7241
 + * </pre>
 + * When several records cover the date, the first one a rule matches gives the value; if they give different values a
 + * warning is logged ({@code marker=LOB_SEVERAL_ON_DATE}). A member with no record covering the date, or whose records match
-+ * no rule (TMP, HPHC and the other populations whose rules are still to come), keeps the line of business on the member
-+ * record (from MMI), logged with {@code marker=LOB_NOT_DERIVED}. TMP members will also need a database lookup; it belongs
-+ * here, beside the rules.
++ * no rule (HPHC, commercial and the other populations whose rules are still to come), keeps the line of business on the
++ * member record (from MMI), logged with {@code marker=LOB_NOT_DERIVED}. TMP members are covered by MA-HMO and MA-PPO; their
++ * IPA variant is pending (see {@code tahmoMedicareAdvantage}).
 + */
 +public class LineOfBusinessDeriver {
 +
