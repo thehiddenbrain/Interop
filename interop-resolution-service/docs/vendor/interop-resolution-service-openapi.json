@@ -415,7 +415,7 @@
           },
           "statusCode": {
             "type": "string",
-            "description": "On an error only: the error code to branch on; the error catalog of the reference page lists them",
+            "description": "On an error only: the error code to branch on; the error catalog in section 6 lists them",
             "example": "INVALID_REQUEST"
           },
           "timestamp": {

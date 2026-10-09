@@ -42,7 +42,7 @@ td code { white-space: nowrap; }
 <div class="page">
 <h1>Interop Resolution Service</h1>
 <p class="lede">API reference for Onyx: member resolution, <code>POST /v1/resolve</code>.</p>
-<p class="meta">Version v1 · Point32Health · the OpenAPI document (YAML and JSON) that ships with this page carries the same contract.</p>
+<p class="meta">Version v1 · Point32Health</p>
 
 <div class="toc">
 <a href="#overview">1 Overview</a><br><a href="#operation">2 The operation and the envelope</a><br><a href="#request">3 Request</a><br><a href="#response">4 Response (200)</a><br>
@@ -65,7 +65,7 @@ td code { white-space: nowrap; }
 <tr><td><code>header.<wbr>httpStatus</code></td><td>integer</td><td>yes</td><td>The HTTP status of the answer, the same value as on the wire</td></tr>
 <tr><td><code>header.<wbr>message</code></td><td>string</td><td>yes</td><td>A short text about the answer; on an error it may repeat the code</td></tr>
 <tr><td><code>header.<wbr>status</code></td><td>success | error</td><td>yes</td><td>success or error</td></tr>
-<tr><td><code>header.<wbr>statusCode</code></td><td>string</td><td></td><td>On an error only: the error code to branch on; the error catalog of the reference page lists them</td></tr>
+<tr><td><code>header.<wbr>statusCode</code></td><td>string</td><td></td><td>On an error only: the error code to branch on; the error catalog in section 6 lists them</td></tr>
 <tr><td><code>header.<wbr>timestamp</code></td><td>integer (epoch ms)</td><td>yes</td><td>When the answer was produced, milliseconds since 1970-01-01 UTC</td></tr>
 </tbody></table></div>
 <p>The HTTP status on the wire and <code>header.httpStatus</code> always agree; branch on either. On an error, <code>header.statusCode</code> is the error code to branch on and <code>header.status</code> is <code>error</code>.</p>
@@ -142,7 +142,7 @@ td code { white-space: nowrap; }
 <tr><td><code>header.<wbr>httpStatus</code></td><td>integer</td><td>yes</td><td>The HTTP status of the answer, the same value as on the wire</td></tr>
 <tr><td><code>header.<wbr>message</code></td><td>string</td><td>yes</td><td>A short text about the answer; on an error it may repeat the code</td></tr>
 <tr><td><code>header.<wbr>status</code></td><td>success | error</td><td>yes</td><td>success or error</td></tr>
-<tr><td><code>header.<wbr>statusCode</code></td><td>string</td><td></td><td>On an error only: the error code to branch on; the error catalog of the reference page lists them</td></tr>
+<tr><td><code>header.<wbr>statusCode</code></td><td>string</td><td></td><td>On an error only: the error code to branch on; the error catalog in section 6 lists them</td></tr>
 <tr><td><code>header.<wbr>timestamp</code></td><td>integer (epoch ms)</td><td>yes</td><td>When the answer was produced, milliseconds since 1970-01-01 UTC</td></tr>
 </tbody></table></div>
 <p class="note">An AMBIGUOUS answer never lists the members who share the id.</p>
@@ -178,7 +178,7 @@ td code { white-space: nowrap; }
 <tr><td><code>header.<wbr>httpStatus</code></td><td>integer</td><td>yes</td><td>The HTTP status of the answer, the same value as on the wire</td></tr>
 <tr><td><code>header.<wbr>message</code></td><td>string</td><td>yes</td><td>A short text about the answer; on an error it may repeat the code</td></tr>
 <tr><td><code>header.<wbr>status</code></td><td>success | error</td><td>yes</td><td>success or error</td></tr>
-<tr><td><code>header.<wbr>statusCode</code></td><td>string</td><td></td><td>On an error only: the error code to branch on; the error catalog of the reference page lists them</td></tr>
+<tr><td><code>header.<wbr>statusCode</code></td><td>string</td><td></td><td>On an error only: the error code to branch on; the error catalog in section 6 lists them</td></tr>
 <tr><td><code>header.<wbr>timestamp</code></td><td>integer (epoch ms)</td><td>yes</td><td>When the answer was produced, milliseconds since 1970-01-01 UTC</td></tr>
 </tbody></table></div>
 <h3>Error catalog</h3>
