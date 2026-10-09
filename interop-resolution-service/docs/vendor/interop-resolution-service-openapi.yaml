@@ -113,8 +113,8 @@ components:
       properties:
         clientId:
           type: string
-          description: 'The calling system, as registered with the plan: letters, digits, ''.'', ''_'' or ''-'', at most 50
-            characters'
+          description: The calling system, as registered with the plan; Onyx sends ONYX. A plain name in the body, not the
+            OAuth 2.0 client id. Letters, digits, '.', '_' or '-', at most 50 characters
           example: ONYX
           maxLength: 50
           pattern: ^[A-Za-z0-9._-]{1,50}$

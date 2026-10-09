@@ -13,7 +13,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Schema(description = "Member resolution request: clientId, clientType, requestId and memberId are required; unknown properties are ignored; a sent date must be usable")
 public record MemberResolutionRequest(
-        @Schema(description = "The calling system, as registered with the plan: letters, digits, '.', '_' or '-', at most 50 characters",
+        @Schema(description = "The calling system, as registered with the plan; Onyx sends ONYX. A plain name in the body, not the OAuth 2.0 client id. Letters, digits, '.', '_' or '-', at most 50 characters",
                 example = "ONYX", requiredMode = Schema.RequiredMode.REQUIRED, maxLength = 50, pattern = "^[A-Za-z0-9._-]{1,50}$") String clientId,
         @Schema(description = "EXT for a caller outside the plan, INT for an internal one", example = "EXT",
                 allowableValues = {"EXT", "INT"}, requiredMode = Schema.RequiredMode.REQUIRED) String clientType,
