@@ -580,8 +580,9 @@ covering record's line of business replaces MMI's; a failure is a 503 with `Retr
   `INACTIVE` with its reason). The service evaluates whatever comes back: contiguous segments are still read as one
   period (`coverage` dates and `coverageId`), and a period of service is judged on what comes back for its first day.
 - A single record returned for any population is the member (TMP/SCO always return one).
-- MMI reports the company as `THP` or `HPHC`, the values eviCore's payer entries key on. Any other value gets eviCore
-  the default payer and logs `VENDOR_PAYER_DEFAULTED`: watch for that marker in PQA.
+- MMI reports the company as `THP` or `HPHC`, the values eviCore's and Evolent's payer entries key on, and the line of
+  business of a Public Plans member as `PP`, the value Evolent's Tufts Health Public Plans entry keys on. Any other
+  company gets those vendors the default payer and logs `VENDOR_PAYER_DEFAULTED`: watch for that marker in PQA.
 - MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500;
   confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `sourceMessage`
   can be filled: if the log shows `MMI_404_WITHOUT_ENVELOPE` for an id that exists nowhere, it does not.
