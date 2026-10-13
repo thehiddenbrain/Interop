@@ -263,7 +263,7 @@ For the TMP id `123456789` (resolved to `123456789   01`):
     "forVendors": [
       { "vendor": "CARELON", "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health" },
       { "vendor": "EVICORE", "memberId": "12345678901", "payerId": "TUFTS", "payerName": "TUFTS" },
-      { "vendor": "EVOLENT", "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health" },
+      { "vendor": "EVOLENT", "memberId": "12345678901", "payerId": "Tufts Health Plan", "payerName": "Tufts Health Plan" },
       { "vendor": "MHK",     "memberId": "123456789   01", "payerId": "Point32Health", "payerName": "Point32Health" },
       { "vendor": "ONYX",    "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health" },
       { "vendor": "OPTUM",   "memberId": "123456789", "payerId": "Point32Health", "payerName": "Point32Health" }
@@ -301,7 +301,9 @@ to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response h
 comes back as `requestId`. Each `memberId.forVendors` entry also carries `payerId` and `payerName`, the payer Onyx
 puts on that vendor's request: the vendor's own for the member's company when configured (section 4), else the
 default (`payer` block in `application.yaml`; `PAYER_ID` / `PAYER_NAME` override). Today eviCore gets its own (`TUFTS`
-for THP, `HARVARD PILGRIM HEALTH` for HPHC) and every other vendor gets `Point32Health`.
+for THP, `HARVARD PILGRIM HEALTH` for HPHC), Evolent gets its own (`Tufts Health Plan` for THP, `Tufts Health Public
+Plans` for a THP member whose member record carries line of business `PP`, `Harvard Pilgrim Health Care` for HPHC) and
+every other vendor gets `Point32Health`.
 
 Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 
@@ -438,6 +440,10 @@ member-id:
     EVOLENT:
       display-name: Evolent
       format: COMPACT_11
+      payer:                            # Evolent keys the payer on the heritage company, Public Plans members apart
+        THP:    { id: "Tufts Health Plan", name: "Tufts Health Plan" }
+        THP_PP: { id: "Tufts Health Public Plans", name: "Tufts Health Public Plans" }
+        HPHC:   { id: "Harvard Pilgrim Health Care", name: "Harvard Pilgrim Health Care" }
     CARELON:
       display-name: Carelon
       format: COMPACT_11
@@ -453,12 +459,15 @@ Formats: `COMPACT_11`, `SPACED_14`, `CORE_9`, `AS_STORED`. The TMP core is **9 c
 `VendorIdFormat` + one case in `VendorFormatter` + one test row.
 
 The payer per vendor lives in the same table. A vendor that keys the payer on the heritage company gets a `payer`
-block with an entry per company (`THP`, `HPHC`, as the member lookup reports it), each with an `id` and a `name`; a
-member of any other company, and every vendor without the block, gets the default payer (`payer.id` / `payer.name`,
-today `Point32Health`). eviCore has one: `TUFTS` for THP and `HARVARD PILGRIM HEALTH` for HPHC, as both id and name. The startup log
-prints each vendor's payer next to its format; an entry without an id or a name stops the application with a message
-naming it. If the member lookup reports a company that such a vendor has no entry for, the default payer goes out and
-the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor and the company.
+block with an entry per company (`THP`, `HPHC`, as the member lookup reports it), each with an `id` and a `name`. An
+entry keyed company and line of business (`THP_PP`) comes first for the members of that company whose member record
+carries that line of business (MMI's own value: `PP` is Public Plans), then the company's entry; a member of any
+other company, and every vendor without the block, gets the default payer (`payer.id` / `payer.name`, today
+`Point32Health`). eviCore has `TUFTS` for THP and `HARVARD PILGRIM HEALTH` for HPHC; Evolent has `Tufts Health Plan`
+for THP, `Tufts Health Public Plans` for THP_PP and `Harvard Pilgrim Health Care` for HPHC; all as both id and name.
+The startup log prints each vendor's payer next to its format; an entry without an id or a name stops the application
+with a message naming it. If the member lookup reports a company that such a vendor has no entry for, the default
+payer goes out and the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor, the company and the line of business.
 
 ## 5. Stub fixtures (DEV profile: `--spring.profiles.active=DEV`) and Postman
 
@@ -529,10 +538,13 @@ asserts no log line (message or exception text; payload logging is off in the `t
 of birth from the stub data or a member name, and no response body contains names or SSN; a stub call counter proves invalid requests
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI
 and echoed back unchanged in `memberId.received`, and the stub's `lastSearched()` proves the id arrives at MMI
-untouched. The payer is checked on every vendor entry of every identified answer in the scenarios (eviCore's `TUFTS` for THP,
-`HARVARD PILGRIM HEALTH` for HPHC, the default elsewhere, following the company that owns the date of service for a converted member),
-and `ResolutionServicePayerTest` proves, with an id and a name that differ, that both land in their own fields and that
-a company a vendor has no entry for gets the default and one `VENDOR_PAYER_DEFAULTED` warning.
+untouched. The payer is checked on every vendor entry of every identified answer in the scenarios (eviCore's `TUFTS` for THP
+and `HARVARD PILGRIM HEALTH` for HPHC; Evolent's `Tufts Health Plan` for THP, `Tufts Health Public Plans` for a Public Plans
+member and `Harvard Pilgrim Health Care` for HPHC; the default elsewhere, following the company that owns the date of service
+for a converted member), and `ResolutionServicePayerTest` proves, with an id and a name that differ, that both land in their
+own fields, that the entry for the company and the line of business on the member record comes before the company's where a
+vendor has one, and that a company a vendor has no entry for gets the default and one `VENDOR_PAYER_DEFAULTED` warning per
+such vendor.
 `callerMustIdentifyItselfAndTheCall` covers the caller fields: without them the answer is 400 with the
 three `_MISSING` codes and MMI is not called; a `clientType` other than `EXT` or `INT` (lower case included), an
 over-long or malformed `clientId` or `requestId` is a 400; a usable `requestId` is echoed even on a 400, an unusable

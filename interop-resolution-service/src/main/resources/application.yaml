@@ -91,7 +91,9 @@ member-id:
   # (11 continuous characters) and HPHC ids (HP + digits) are sent exactly as stored for every vendor.
   # The INCOMING member id is never checked or reshaped: it goes to MMI exactly as the EMR typed it.
   # Optional per vendor: payer.<COMPANY>.id / .name, the payer that vendor keys on for members of that company
-  # (THP, HPHC, as the member lookup reports it). Members of other companies, and vendors without it, get the default payer.
+  # (THP, HPHC, as the member lookup reports it); payer.<COMPANY>_<LOB> comes first for the members of that company whose
+  # member record carries that line of business (THP_PP: Tufts Health Public Plans). Members of other companies, and
+  # vendors without it, get the default payer.
   #   COMPACT_11  9 digits + suffix, no spaces        12345678901
   #   SPACED_14   9 digits + 3 spaces + suffix        123456789   01   (as stored)
   #   CORE_9      the 9-character core only, the number on the card
@@ -110,6 +112,10 @@ member-id:
     EVOLENT:
       display-name: Evolent
       format: COMPACT_11
+      payer:                            # Evolent keys the payer on the heritage company, Public Plans members apart
+        THP:    { id: "Tufts Health Plan", name: "Tufts Health Plan" }
+        THP_PP: { id: "Tufts Health Public Plans", name: "Tufts Health Public Plans" }
+        HPHC:   { id: "Harvard Pilgrim Health Care", name: "Harvard Pilgrim Health Care" }
     CARELON:
       display-name: Carelon
       format: COMPACT_11

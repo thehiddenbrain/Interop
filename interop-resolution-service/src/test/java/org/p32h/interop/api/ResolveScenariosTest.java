@@ -161,12 +161,16 @@ class ResolveScenariosTest {
         return entry(r, vendor).path("memberId").asText();
     }
 
-    /** Every vendor entry's payer: eviCore's own for the member's company, the default for every other vendor. */
-    private static void assertPayers(JsonNode r, String evicorePayer) {
+    /** Every vendor entry's payer: eviCore's and Evolent's own for the member's company, the default for every other vendor. */
+    private static void assertPayers(JsonNode r, String evicorePayer, String evolentPayer) {
         assertThat(r.at("/memberId/forVendors")).hasSize(6);
         for (JsonNode e : r.at("/memberId/forVendors")) {
             String vendor = e.get("vendor").asText();
-            String want = "EVICORE".equals(vendor) ? evicorePayer : "Point32Health";
+            String want = switch (vendor) {
+                case "EVICORE" -> evicorePayer;
+                case "EVOLENT" -> evolentPayer;
+                default -> "Point32Health";
+            };
             assertThat(e.properties()).extracting(Map.Entry::getKey).as(vendor).containsExactly("vendor", "memberId", "payerId", "payerName");
             assertThat(e.get("payerId").asText()).as(vendor).isEqualTo(want);
             assertThat(e.get("payerName").asText()).as(vendor).isEqualTo(want);
@@ -222,7 +226,7 @@ class ResolveScenariosTest {
         assertThat(r.properties()).extracting(Map.Entry::getKey).as("the whole answer, in this order").containsExactly(
                 "outcome", "message", "memberId", "lineOfBusiness", "dateOfService", "dateOfServiceDefaulted", "coverage",
                 "requestId", "traceId");
-        assertPayers(r, "TUFTS");
+        assertPayers(r, "TUFTS", "Tufts Health Plan");
         assertThat(r.at("/coverage/active").asBoolean()).isTrue();
         assertThat(r.get("memberId").properties()).extracting(Map.Entry::getKey).as("in this order").containsExactly("received", "resolved", "forVendors");
         assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("id, flag and period only, in this order").containsExactly("coverageId", "active", "effectiveDate", "endDate");
@@ -483,17 +487,17 @@ class ResolveScenariosTest {
         assertThat(after.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(after.at("/memberId/resolved").asText()).isEqualTo("HP567890123");
         assertThat(forVendor(after, "OPTUM")).isEqualTo("HP567890123");
-        assertPayers(after, "HARVARD PILGRIM HEALTH");
+        assertPayers(after, "HARVARD PILGRIM HEALTH", "Harvard Pilgrim Health Care");
 
         JsonNode before = call(200, req("56789012301", "2024-06-01"));
         assertThat(before.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(before.at("/memberId/resolved").asText()).isEqualTo("567890123   01");
         assertThat(forVendor(before, "OPTUM")).as("Optum gets the 9-character core").isEqualTo("567890123");
-        assertPayers(before, "TUFTS");
+        assertPayers(before, "TUFTS", "Tufts Health Plan");
 
         JsonNode newIdPreMigration = call(200, req("HP567890123", "2024-06-01"));
         assertThat(newIdPreMigration.at("/memberId/resolved").asText()).as("reverse legacy link").isEqualTo("567890123   01");
-        assertPayers(newIdPreMigration, "TUFTS");
+        assertPayers(newIdPreMigration, "TUFTS", "Tufts Health Plan");
 
         JsonNode nineDigits = call(200, req("567890123", "2026-10-15"));
         assertThat(nineDigits.get("outcome").asText()).as("9-digit old id, both records, one person").isEqualTo("ACTIVE");
@@ -801,7 +805,7 @@ class ResolveScenariosTest {
         assertThat(hphc.at("/memberId/received").asText()).isEqualTo("HP-456789012");
         assertThat(hphc.at("/memberId/resolved").asText()).isEqualTo("HP456789012");
         assertThat(hphc.at("/memberId/forVendors")).hasSize(6);
-        assertPayers(hphc, "HARVARD PILGRIM HEALTH");
+        assertPayers(hphc, "HARVARD PILGRIM HEALTH", "Harvard Pilgrim Health Care");
         hphc.at("/memberId/forVendors").forEach(e -> {
             assertThat(e.get("memberId").asText()).as(e.get("vendor").asText()).isEqualTo("HP456789012");
         });
@@ -809,7 +813,7 @@ class ResolveScenariosTest {
         JsonNode publicPlans = call(200, Map.of("memberId", "34567890102", "dateOfService", "2024-08-15"));
         assertThat(publicPlans.get("outcome").asText()).as("a gap in coverage still identifies the member").isEqualTo("INACTIVE");
         assertThat(publicPlans.at("/coverage/active").asBoolean()).isFalse();
-        assertPayers(publicPlans, "TUFTS");
+        assertPayers(publicPlans, "TUFTS", "Tufts Health Public Plans");
         assertThat(publicPlans.at("/memberId/forVendors")).hasSize(6);
         publicPlans.at("/memberId/forVendors").forEach(e -> assertThat(e.get("memberId").asText()).isEqualTo("34567890102"));
     }

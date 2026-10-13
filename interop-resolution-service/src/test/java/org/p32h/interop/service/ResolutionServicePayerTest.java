@@ -40,25 +40,28 @@ import org.slf4j.LoggerFactory;
 
 /**
  * The payer in each vendor entry, straight through the service, with an id and a name that differ so a swap would show:
- * the vendor's own for the member's company, the default otherwise, and a warning when a vendor that keys the payer on
- * the company has no entry for the member's.
+ * the vendor's own for the member's company, or for the company and the line of business on the member record, the
+ * default otherwise, and a warning when a vendor that keys the payer on the company has no entry for the member's.
  */
 class ResolutionServicePayerTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-03T16:00:00Z"), ZoneId.of("America/New_York"));
     private static final Payer DEFAULT = new Payer("DEFAULT-ID", "Default payer name");
 
-    /** A service whose member lookup always returns one member of {@code company}, covered from 2020 on. */
-    private static ResolutionService serviceFor(String company) {
+    /** A service whose member lookup always returns one member of {@code company} with {@code lineOfBusiness}, covered from 2020 on. */
+    private static ResolutionService serviceFor(String company, String lineOfBusiness) {
         Map<String, VendorConfig> table = new LinkedHashMap<>();
         table.put("EVICORE", new VendorConfig("eviCore", VendorIdFormat.COMPACT_11,
                 Map.of("THP", new PayerConfig("THP-ID", "THP payer name"))));
+        table.put("EVOLENT", new VendorConfig("Evolent", VendorIdFormat.COMPACT_11,
+                Map.of("THP", new PayerConfig("EVOLENT-THP-ID", "Evolent THP payer name"),
+                        "THP_PP", new PayerConfig("EVOLENT-THPP-ID", "Evolent Public Plans payer name"))));
         table.put("MHK", new VendorConfig("MHK", VendorIdFormat.SPACED_14, null));
         MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, table);
         MmiClient mmi = new MmiClient() {
             @Override
             public MmiResult search(String memberId, LocalDate dateOfService, String correlationId) {
-                MmiMember member = new MmiMember("TESTMEMBER", null, null, null, company, "COM", null, null,
+                MmiMember member = new MmiMember("TESTMEMBER", null, null, null, company, lineOfBusiness, null, null,
                         List.of(new MmiCoverage("01/01/2020", null, "g", "N")));
                 return new MmiResult("INTEROP-TEST", 200, new MmiResponse("INTEROP", "INT", "INTEROP-TEST", null, List.of(member)));
             }
@@ -85,8 +88,8 @@ class ResolutionServicePayerTest {
                 new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan, new LineOfBusinessDeriver());
     }
 
-    private static MemberResolutionResponse resolve(String company) {
-        return serviceFor(company).resolve(new MemberResolutionRequest("ONYX", "EXT", "TEST-1", "TESTMEMBER", "2026-10-15", null, null), "corr-1");
+    private static MemberResolutionResponse resolve(String company, String lineOfBusiness) {
+        return serviceFor(company, lineOfBusiness).resolve(new MemberResolutionRequest("ONYX", "EXT", "TEST-1", "TESTMEMBER", "2026-10-15", null, null), "corr-1");
     }
 
     private static VendorMemberId entry(MemberResolutionResponse r, String vendor) {
@@ -108,11 +111,30 @@ class ResolutionServicePayerTest {
     void idAndNameLandInTheirOwnFields() {
         ListAppender<ILoggingEvent> logs = captureServiceLog();
         try {
-            MemberResolutionResponse r = resolve("THP");
+            MemberResolutionResponse r = resolve("THP", "COM");
             assertThat(entry(r, "EVICORE")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
                     .as("the vendor's own payer for the member's company").containsExactly("THP-ID", "THP payer name");
+            assertThat(entry(r, "EVOLENT")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .as("a commercial THP member: the company's entry").containsExactly("EVOLENT-THP-ID", "Evolent THP payer name");
             assertThat(entry(r, "MHK")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
                     .as("a vendor without its own payer gets the default").containsExactly("DEFAULT-ID", "Default payer name");
+            assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("VENDOR_PAYER_DEFAULTED"));
+        } finally {
+            release(logs);
+        }
+    }
+
+    @Test
+    void aPublicPlansMemberGetsTheEntryForTheLineOfBusinessWhereTheVendorHasOne() {
+        ListAppender<ILoggingEvent> logs = captureServiceLog();
+        try {
+            MemberResolutionResponse r = resolve("THP", "PP");
+            assertThat(entry(r, "EVOLENT")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .as("the entry for THP and line of business PP").containsExactly("EVOLENT-THPP-ID", "Evolent Public Plans payer name");
+            assertThat(entry(r, "EVICORE")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .as("a vendor without a THP_PP entry keeps the company's").containsExactly("THP-ID", "THP payer name");
+            assertThat(entry(r, "MHK")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .containsExactly("DEFAULT-ID", "Default payer name");
             assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("VENDOR_PAYER_DEFAULTED"));
         } finally {
             release(logs);
@@ -123,13 +145,18 @@ class ResolutionServicePayerTest {
     void aCompanyTheVendorHasNoEntryForGetsTheDefaultAndAWarning() {
         ListAppender<ILoggingEvent> logs = captureServiceLog();
         try {
-            MemberResolutionResponse r = resolve("NEWCO");
+            MemberResolutionResponse r = resolve("NEWCO", "PP");
             assertThat(entry(r, "EVICORE")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
                     .containsExactly("DEFAULT-ID", "Default payer name");
+            assertThat(entry(r, "EVOLENT")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .containsExactly("DEFAULT-ID", "Default payer name");
             assertThat(logs.list).filteredOn(e -> e.getFormattedMessage().contains("VENDOR_PAYER_DEFAULTED"))
-                    .as("one warning, for the vendor that keys on the company; none for MHK")
-                    .singleElement()
-                    .satisfies(e -> assertThat(e.getFormattedMessage()).contains("vendor=EVICORE").contains("company=NEWCO"));
+                    .as("one warning per vendor that keys on the company; none for MHK")
+                    .extracting(ILoggingEvent::getFormattedMessage)
+                    .hasSize(2)
+                    .allSatisfy(m -> assertThat(m).contains("company=NEWCO").contains("lineOfBusiness=PP"))
+                    .anySatisfy(m -> assertThat(m).contains("vendor=EVICORE"))
+                    .anySatisfy(m -> assertThat(m).contains("vendor=EVOLENT"));
         } finally {
             release(logs);
         }

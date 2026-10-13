@@ -31,8 +31,9 @@ public record MemberIdProperties(
 
     /**
      * One vendor entry. The key of the map is the vendor code, as it appears in {@code memberId.forVendors}. {@code payer},
-     * optional, is the vendor's own payer per company (THP, HPHC); a member of any other company, and every vendor without
-     * it, gets the default payer ({@code payer.*}).
+     * optional, is the vendor's own payer per company (THP, HPHC) or per company and line of business on the member record
+     * (THP_PP, which applies before THP); a member of any other company, and every vendor without it, gets the default
+     * payer ({@code payer.*}).
      */
     public record VendorConfig(
             String displayName,
@@ -40,7 +41,7 @@ public record MemberIdProperties(
             @Valid Map<String, PayerConfig> payer) {
     }
 
-    /** The payer a vendor keys on for one company. */
+    /** The payer a vendor keys on for one company, or for one line of business of a company. */
     public record PayerConfig(@NotBlank String id, @NotBlank String name) {
     }
 }

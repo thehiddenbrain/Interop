@@ -26,17 +26,22 @@ class VendorRegistryTest {
     void payerIsTheVendorsOwnForTheCompanyElseTheDefault() {
         VendorRegistry r = new VendorRegistry(Map.of(
                 "EVICORE", new VendorConfig(null, VendorIdFormat.COMPACT_11,
-                        Map.of("thp", new PayerConfig("TUFTS", "Tufts Health Plan"), "HPHC", new PayerConfig("HPHC", "Harvard Pilgrim"))),
+                        Map.of("thp", new PayerConfig("TUFTS", "Tufts Health Plan"), "HPHC", new PayerConfig("HPHC", "Harvard Pilgrim"),
+                                "thp_pp", new PayerConfig("THPP", "Tufts Health Public Plans"))),
                 "MHK", new VendorConfig(null, VendorIdFormat.SPACED_14, null)), DEFAULT);
         Vendor evicore = r.all().get(0);
-        assertThat(evicore.payerFor("THP")).isEqualTo(new Payer("TUFTS", "Tufts Health Plan"));
-        assertThat(evicore.payerFor(" hphc ")).as("the company as the lookup reports it, case and blanks aside").isEqualTo(new Payer("HPHC", "Harvard Pilgrim"));
-        assertThat(evicore.payerFor("OTHER")).as("a company without an entry gets the default").isEqualTo(DEFAULT);
-        assertThat(evicore.payerFor(null)).isEqualTo(DEFAULT);
-        assertThat(evicore.hasOwnPayerFor("hphc")).isTrue();
-        assertThat(evicore.hasOwnPayerFor("OTHER")).isFalse();
-        assertThat(evicore.hasOwnPayerFor(null)).isFalse();
-        assertThat(r.all().get(1).payerFor("THP")).as("a vendor without entries gets the default").isEqualTo(DEFAULT);
+        assertThat(evicore.payerFor("THP", "COM")).isEqualTo(new Payer("TUFTS", "Tufts Health Plan"));
+        assertThat(evicore.payerFor("THP", null)).as("no line of business on the record: the company's entry").isEqualTo(new Payer("TUFTS", "Tufts Health Plan"));
+        assertThat(evicore.payerFor("THP", " pp ")).as("the entry for the company and the line of business on the record comes first")
+                .isEqualTo(new Payer("THPP", "Tufts Health Public Plans"));
+        assertThat(evicore.payerFor(" hphc ", "COM")).as("the company as the lookup reports it, case and blanks aside").isEqualTo(new Payer("HPHC", "Harvard Pilgrim"));
+        assertThat(evicore.payerFor("HPHC", "PP")).as("no entry for that line of business of the company: the company's").isEqualTo(new Payer("HPHC", "Harvard Pilgrim"));
+        assertThat(evicore.payerFor("OTHER", "PP")).as("a company without an entry gets the default").isEqualTo(DEFAULT);
+        assertThat(evicore.payerFor(null, "PP")).isEqualTo(DEFAULT);
+        assertThat(evicore.hasOwnPayerFor("hphc", null)).isTrue();
+        assertThat(evicore.hasOwnPayerFor("OTHER", "PP")).isFalse();
+        assertThat(evicore.hasOwnPayerFor(null, null)).isFalse();
+        assertThat(r.all().get(1).payerFor("THP", "PP")).as("a vendor without entries gets the default").isEqualTo(DEFAULT);
     }
 
     @Test

@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 
 /**
  * The vendor table from application.yaml, sorted by code: one {@code memberId.forVendors} entry per vendor, each with
- * its payer (the vendor's own per company, else the default). Built once at startup; a malformed key, a missing format,
+ * its payer (the vendor's own per company, or per company and line of business, else the default). Built once at startup; a malformed key, a missing format,
  * two keys that differ only in case or a payer without an id or a name stop the application with a message naming them.
  */
 public final class VendorRegistry {
@@ -49,7 +49,8 @@ public final class VendorRegistry {
                     String company = rawCompany.strip().toUpperCase(Locale.ROOT);
                     String where = "member-id.vendors." + rawKey + ".payer." + rawCompany;
                     if (!KEY.matcher(company).matches()) {
-                        throw new IllegalStateException(where + ": the company must match " + KEY.pattern() + " (THP, HPHC)");
+                        throw new IllegalStateException(where + ": the company must match " + KEY.pattern()
+                                + " (THP, HPHC; THP_PP for one line of business of a company)");
                     }
                     if (p == null || isBlank(p.id()) || isBlank(p.name())) {
                         throw new IllegalStateException(where + " needs an id and a name");
