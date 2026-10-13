@@ -357,7 +357,7 @@
           },
           "payerId": {
             "type": "string",
-            "description": "The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company, so use the entry's value as given",
+            "description": "The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company and plan population, so use the entry's value as given",
             "example": "TUFTS"
           },
           "payerName": {

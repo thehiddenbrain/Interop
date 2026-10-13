@@ -57,7 +57,7 @@ public record MemberResolutionResponse(
     public record VendorMemberId(
             @Schema(description = "The vendor code, for example EVICORE; today CARELON, EVICORE, EVOLENT, MHK, ONYX and OPTUM. Vendors can be added, so never treat the list as closed", example = "EVICORE") String vendor,
             @Schema(description = "The resolved id in this vendor's format: the member id to put on this vendor's request") String memberId,
-            @Schema(description = "The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company, so use the entry's value as given", example = "TUFTS") String payerId,
+            @Schema(description = "The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company and plan population, so use the entry's value as given", example = "TUFTS") String payerId,
             @Schema(description = "The payer name that goes with payerId", example = "TUFTS") String payerName) {
     }
 }
