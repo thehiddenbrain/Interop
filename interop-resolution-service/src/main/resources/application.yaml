@@ -75,7 +75,8 @@ member-info:
 
 # The default payer identity Onyx puts on its requests to a UM vendor; returned in every memberId.forVendors entry as
 # payerId and payerName. One value covers THP and HPHC. A vendor that keys the payer on the heritage company sets its
-# own per company in its member-id.vendors entry (EVICORE below). PAYER_ID / PAYER_NAME override the default per environment.
+# own per company, or per company and line of business, in its member-id.vendors entry (EVICORE and EVOLENT below).
+# PAYER_ID / PAYER_NAME override the default per environment.
 payer:
   id: ${PAYER_ID:Point32Health}
   name: ${PAYER_NAME:Point32Health}

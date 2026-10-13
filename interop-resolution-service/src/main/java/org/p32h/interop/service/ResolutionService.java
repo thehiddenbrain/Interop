@@ -241,9 +241,10 @@ public class ResolutionService {
     }
 
     private static void logOutcome(Resolved r, RequestValidator.Validated v, String lob, long start) {
-        log.info("resolution clientId={} clientType={} outcome={} reason={} memberId={} resolved={} company={} lob={} dos={} dosEnd={} dosDefaulted={} records={} persons={} mmiRequestId={} ms={}",
+        log.info("resolution clientId={} clientType={} outcome={} reason={} memberId={} resolved={} company={} lob={} lobOnRecord={} dos={} dosEnd={} "
+                        + "dosDefaulted={} records={} persons={} mmiRequestId={} ms={}",
                 v.clientId(), v.clientType(), r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(),
-                v.memberId(), r.storedMemberId(), r.company(), lob,
+                v.memberId(), r.storedMemberId(), r.company(), lob, r.recordLineOfBusiness(),
                 v.dateOfService(), v.dateOfServiceEnd() == null ? "-" : v.dateOfServiceEnd(), v.dateOfServiceDefaulted(), r.records(), r.persons(), r.mmiRequestId(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
     }

@@ -582,7 +582,9 @@ covering record's line of business replaces MMI's; a failure is a 503 with `Retr
 - A single record returned for any population is the member (TMP/SCO always return one).
 - MMI reports the company as `THP` or `HPHC`, the values eviCore's and Evolent's payer entries key on, and the line of
   business of a Public Plans member as `PP`, the value Evolent's Tufts Health Public Plans entry keys on. Any other
-  company gets those vendors the default payer and logs `VENDOR_PAYER_DEFAULTED`: watch for that marker in PQA.
+  company gets those vendors the default payer and logs `VENDOR_PAYER_DEFAULTED`: watch for that marker in PQA. A
+  Public Plans member MMI reports without `PP` would get Evolent `Tufts Health Plan` with no warning: the per-request
+  log line shows the member record's value as `lobOnRecord`, so check it on the Public Plans ids tried in PQA.
 - MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500;
   confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `sourceMessage`
   can be filled: if the log shows `MMI_404_WITHOUT_ENVELOPE` for an id that exists nowhere, it does not.

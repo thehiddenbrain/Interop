@@ -8,7 +8,7 @@ import org.springframework.validation.annotation.Validated;
 /**
  * The default payer identity Onyx puts on its requests to a UM vendor, returned in every {@code memberId.forVendors}
  * entry as {@code payerId} and {@code payerName}. One value covers THP and HPHC. A vendor that keys the payer on the
- * heritage company sets its own per company in its {@code member-id.vendors} entry.
+ * heritage company sets its own per company, or per company and line of business, in its {@code member-id.vendors} entry.
  */
 @ConfigurationProperties("payer")
 @Validated
