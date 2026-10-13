@@ -6,8 +6,9 @@ import java.util.Map;
 /**
  * One configured vendor: its code, the id format it stores, and the payer Onyx puts on its requests. A vendor that keys
  * the payer on the heritage company has an entry per company (THP, HPHC); an entry keyed company and line of business
- * (THP_PP) applies to the members of that company whose member record carries that line of business, before the
- * company's own. Every other member, and every vendor without entries, gets the default payer.
+ * (THP_PP) applies to the members of that company whose member record carries that line of business (the member lookup's
+ * own value, COM, MCR or PP, not the derived line of business of the answer), before the company's own. Every other
+ * member, and every vendor without entries, gets the default payer.
  */
 public record Vendor(String code, String displayName, VendorIdFormat format, Payer defaultPayer, Map<String, Payer> payerByCompany) {
 
