@@ -29,7 +29,7 @@ public class MemberResolutionController {
 
     @Operation(summary = "Resolve a member id for a date of service",
             description = "Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (or on every day "
-                    + "of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors), each entry with the payer for that vendor's request (payerId, payerName). "
+                    + "of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors), each entry with the payer for that vendor's request (payerId, payerName) and the member's name (name). "
                     + "When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says "
                     + "what to resend; the other members are never listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A sent date is the date evaluated; an "
                     + "unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the operation is a pure read "
@@ -37,7 +37,7 @@ public class MemberResolutionController {
             parameters = @Parameter(in = ParameterIn.HEADER, name = "X-Correlation-Id", required = false,
                     description = "Optional transport-level id for the call, 1 to 64 characters of letters, digits, '.', '_', ':' or '-'; echoed in the response header and in error bodies as correlationId, or generated when missing or invalid",
                     schema = @Schema(type = "string", maxLength = 64, pattern = "^[A-Za-z0-9._:-]{1,64}$")))
-    @ApiResponse(responseCode = "200", description = "outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; memberId.forVendors, each vendor with its payer, present for ACTIVE and INACTIVE",
+    @ApiResponse(responseCode = "200", description = "outcome ACTIVE | INACTIVE | NOT_FOUND | AMBIGUOUS; memberId.forVendors, each vendor with its payer and the member's name, present for ACTIVE and INACTIVE",
             content = @Content(schema = @Schema(implementation = MemberResolutionResponse.class)))
     @ApiResponse(responseCode = "400", description = "INVALID_REQUEST for a missing or unusable clientId, clientType or requestId, a missing memberId, an unusable date or a body that is not JSON; MEMBER_LOOKUP_REJECTED when the member lookup answered 400 (details[0].code HTTP_400, the lookup's text in the message)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "422", description = "DOB_MISMATCH: the date of birth matches no record for this id", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))

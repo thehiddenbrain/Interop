@@ -20,6 +20,9 @@ class MmiRecordMapperTest {
                 .as("a blank middle name and a missing last name are null, the name stays").isEqualTo(new MemberName("Taylor", null, null));
         assertThat(mapper.toRecord(new MmiMember("X1", null, null, null, null, null, "Morgan", "THP", null, null, null, null)).name())
                 .isEqualTo(new MemberName(null, null, "Morgan"));
+        assertThat(mapper.toRecord(new MmiMember("X1", null, null, null, "", "A", "Morgan", "THP", null, null, null, null)).name())
+                .as("the record keeps what MMI sent; the answer's HumanName decides what a middle name without a first name means")
+                .isEqualTo(new MemberName(null, "A", "Morgan"));
         assertThat(mapper.toRecord(new MmiMember("X1", null, null, null, " ", "A", "", "THP", null, null, null, null)).name())
                 .as("neither a first nor a last name: no name, whatever the middle name").isNull();
     }

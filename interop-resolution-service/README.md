@@ -6,7 +6,7 @@ document, is member ID resolution; payer ID and payer organization name lookups 
 Spring Boot service for Onyx. Onyx identifies itself and the call (`clientId`, `clientType`, `requestId`) and sends the
 member ID exactly as the provider's EMR supplied it, with the date of service, a single day or a period
 (`dateOfService` to `dateOfServiceEnd`). The service verifies the ID with MMI (Master Member Index), returns the ID it
-**resolved** to and that ID **in every UM vendor's format** with the payer for that vendor's request, and says
+**resolved** to and that ID **in every UM vendor's format** with the payer and the member's name for that vendor's request, and says
 whether coverage is **active**. One call serves a
 prior authorization whose codes go to several vendors. One operation, `POST /v1/interop/resolve`, two downstreams
 (MMI, and the member information service for the coverage records behind the line of business), no database, no state.
@@ -516,7 +516,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (163 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (169 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -549,7 +549,10 @@ member and `Harvard Pilgrim Health Care` for HPHC; the default elsewhere, follow
 for a converted member), and `ResolutionServicePayerTest` proves, with an id and a name that differ, that both land in their
 own fields, that the entry for the company and the line of business on the member record comes before the company's where a
 vendor has one, and that a company a vendor has no entry for gets the default and one `VENDOR_PAYER_DEFAULTED` warning per
-such vendor.
+such vendor. `ResolutionServiceNameTest` proves the name on every vendor entry as one HumanName (one given name without
+a middle name, no `family` without a last name, no `given` and no middle name in `text` without a first name), no name
+on any log line, and entries without a name plus one `MEMBER_NAME_MISSING` warning for a record without a first or last
+name.
 `callerMustIdentifyItselfAndTheCall` covers the caller fields: without them the answer is 400 with the
 three `_MISSING` codes and MMI is not called; a `clientType` other than `EXT` or `INT` (lower case included), an
 over-long or malformed `clientId` or `requestId` is a 400; a usable `requestId` is echoed even on a 400, an unusable

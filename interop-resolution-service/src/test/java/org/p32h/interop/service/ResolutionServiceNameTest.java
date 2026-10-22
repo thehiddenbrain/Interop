@@ -107,8 +107,7 @@ class ResolutionServiceNameTest {
             assertThat(r.memberId().forVendors()).hasSize(2).allSatisfy(e ->
                     assertThat(e.name()).as(e.vendor()).containsExactly(new HumanName("Taylor A Morgan", "Morgan", List.of("Taylor", "A"))));
             assertThat(logs.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .noneSatisfy(m -> assertThat(m).contains("Taylor", "Morgan"))
-                    .noneSatisfy(m -> assertThat(m).contains("MEMBER_NAME_MISSING"));
+                    .allSatisfy(m -> assertThat(m).doesNotContain("Taylor", "Morgan", "MEMBER_NAME_MISSING"));
         } finally {
             release(logs);
         }
@@ -121,7 +120,11 @@ class ResolutionServiceNameTest {
         assertThat(HumanName.of(new MemberName("Taylor", null, null)))
                 .as("no last name: no family").containsExactly(new HumanName("Taylor", null, List.of("Taylor")));
         assertThat(HumanName.of(new MemberName(null, null, "Morgan")))
-                .as("no first name: no given, whatever the middle name").containsExactly(new HumanName("Morgan", "Morgan", null));
+                .as("no first name: no given").containsExactly(new HumanName("Morgan", "Morgan", null));
+        assertThat(HumanName.of(new MemberName(null, "A", "Morgan")))
+                .as("a middle name without a first name is not a given name: left out of text too").containsExactly(new HumanName("Morgan", "Morgan", null));
+        assertThat(resolve(null, "A", "Morgan").memberId().forVendors()).extracting(VendorMemberId::name)
+                .allSatisfy(n -> assertThat(n).containsExactly(new HumanName("Morgan", "Morgan", null)));
         assertThat(HumanName.of(null)).isNull();
         assertThat(resolve("Taylor", null, "Morgan").memberId().forVendors()).extracting(VendorMemberId::name)
                 .allSatisfy(n -> assertThat(n).containsExactly(new HumanName("Taylor Morgan", "Morgan", List.of("Taylor"))));

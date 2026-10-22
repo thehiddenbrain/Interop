@@ -3,13 +3,13 @@ package org.p32h.interop.api;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.p32h.interop.domain.MemberName;
 
 /**
  * The 200 response of {@code POST /v1/interop/resolve}. Lean by design: the outcome, one sentence, the member id as
- * received, as resolved and in every configured vendor's format with the payer for that vendor's request, the line of
+ * received, as resolved and in every configured vendor's format with the payer and the member's name for that vendor's request, the line of
  * business (Onyx routes on it), the date
  * evaluated ({@code dateOfServiceEnd} too when a period was asked about), the coverage flag with its period and id, the
  * caller's request id, and a trace id for support (the id of the lookup behind the answer). An AMBIGUOUS answer lists
@@ -45,7 +45,7 @@ public record MemberResolutionResponse(
     public record MemberId(
             @Schema(description = "The member id as sent, surrounding whitespace removed", requiredMode = Schema.RequiredMode.REQUIRED) String received,
             @Schema(description = "The id the lookup resolved to, as the plan stores it; for a converted member a different number from the one received. Present on ACTIVE and INACTIVE answers only") String resolved,
-            @Schema(description = "The resolved id in every configured vendor's format, each with the payer for that vendor's request; one entry per vendor, sorted by vendor code. Present on ACTIVE and INACTIVE answers only") List<VendorMemberId> forVendors) {
+            @Schema(description = "The resolved id in every configured vendor's format, each with the payer and the member's name for that vendor's request; one entry per vendor, sorted by vendor code. Present on ACTIVE and INACTIVE answers only") List<VendorMemberId> forVendors) {
     }
 
     /**
@@ -73,7 +73,8 @@ public record MemberResolutionResponse(
      *
      * @param text   the full name: the given names and the family name, joined with spaces
      * @param family the last name, or null when the record has none
-     * @param given  the first name, then the middle name when there is one; null when the record has no first name
+     * @param given  the first name, then the middle name when there is one; null when the record has no first name (a
+     *               middle name alone is not a given name and is left out of text as well)
      */
     @Schema(description = "A name in the FHIR HumanName shape; either given or family is always present")
     public record HumanName(
@@ -88,7 +89,8 @@ public record MemberResolutionResponse(
             }
             List<String> given = name.first() == null ? null
                     : name.middle() == null ? List.of(name.first()) : List.of(name.first(), name.middle());
-            String text = String.join(" ", Stream.of(name.first(), name.middle(), name.last()).filter(Objects::nonNull).toList());
+            String text = Stream.concat(given == null ? Stream.<String>empty() : given.stream(), Stream.ofNullable(name.last()))
+                    .collect(Collectors.joining(" "));
             return List.of(new HumanName(text, name.last(), given));
         }
     }
