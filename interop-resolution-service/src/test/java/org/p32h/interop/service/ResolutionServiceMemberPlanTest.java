@@ -50,7 +50,7 @@ import org.springframework.http.ResponseEntity;
 /**
  * The coverage records behind the line of business, straight through the service: asked for with the resolved id, the
  * date of service and the correlation id; the line of business derived from the record covering the date of service (the
- * first day of a period), the member record's when none covers it or no rule matches; a failure of the member information
+ * first day of a period), from the most recent record when none covers it, the member record's when no rule matches; a failure of the member information
  * service fails the answer with MMI's request id as traceId.
  */
 class ResolutionServiceMemberPlanTest {

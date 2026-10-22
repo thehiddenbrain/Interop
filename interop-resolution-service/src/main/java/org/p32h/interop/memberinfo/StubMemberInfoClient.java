@@ -17,7 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * In-process member information service for local runs and tests. Answers from {@code member-info-stub/members.json}:
  * the entries whose member id matches the one asked about, ignoring spacing and case, with all their coverage records,
- * as the real service returns them; the service picks the record covering the date of service. A member without an entry
+ * as the real service returns them; the service picks the record covering the date of service, or the most recent one when none does. A member without an entry
  * gets an answer with no members.
  *
  * <p>Refuses to start outside the {@code DEV} and {@code test} profiles, and inside any Kubernetes/OpenShift pod,

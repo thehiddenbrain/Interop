@@ -7,7 +7,7 @@ import java.time.format.DateTimeParseException;
 /**
  * One coverage record as the member information service returns it in {@code coverageRecords}: the plan fields, every
  * field as sent (the same fields as its {@code memberPlan}). The line of business is derived from the record that covers
- * the date of service. Plan dates come as date-times (for example {@code 2024-02-01T05:00:00.000+00:00}) and are kept as
+ * the date of service, or from the most recent record when none does. Plan dates come as date-times (for example {@code 2024-02-01T05:00:00.000+00:00}) and are kept as
  * text; {@link #covers} reads their date as written.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

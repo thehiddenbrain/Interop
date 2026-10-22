@@ -172,7 +172,7 @@ criteria, read against the record (`sourceSysId` is the record's `sourceSystemId
 | `MA-QHP` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` NS or SB |
 | MMI's value (`MCR`, `PP`, `COM`, ...) | no record at all, or the record read matches no rule (HPHC, commercial and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED`. When no record covers the date (an INACTIVE member, typically) the most recent record is read instead: the latest plan end date, an open end counting as latest, then the latest start; logged with `marker=LOB_FROM_LATEST_RECORD` |
 
-A derived value is logged as `lob derived` with the record's fields and dates. When several records cover the date,
+A value from the covering record is logged as `lob derived` with the record's fields and dates, one from the most recent record as `marker=LOB_FROM_LATEST_RECORD`; `marker=LOB_NOT_DERIVED` carries the record counts and, with no covering record, `latestRecord` (none, or matches no rule). When several records cover the date,
 the first one a rule matches gives the value, and `marker=LOB_SEVERAL_ON_DATE` is logged if they disagree. TMP members
 are covered by the MA-HMO and MA-PPO rules; their IPA variant is pending (below).
 
@@ -522,7 +522,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (169 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (172 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -574,7 +574,7 @@ date of service is read, else the most recent one by end date then start, unread
 the date give the first match; no record or no match keeps MMI's value),
 `ResolutionServiceMemberPlanTest` (asked with the resolved id, the first day of a period and the correlation id; the
 covering record's line of business replaces MMI's, the most recent record's when none covers the date; a failure is a 503 with `Retry-After` and MMI's request id as `traceId`) and `theCoverageRecordsAreAskedForOnlyOnceTheMemberIsIdentified` (the Together subscriber gets `MA-TOGETHER` for 2026,
-`MA-QHP` for 2024 and `PP` for 2021; the SCO member `SCO` for 2025 and `MCR` for 2026; asked for `ACTIVE` and `INACTIVE`, never for
+`MA-QHP` for 2024 and, when no record covers 2021, `MA-TOGETHER` from its most recent record; the SCO member `SCO` for 2025 and, from its most recent record, `SCO` for 2026 too; asked for `ACTIVE` and `INACTIVE`, never for
 `NOT_FOUND` or `AMBIGUOUS`).
 
 ## 7. Assumptions to confirm in PQA

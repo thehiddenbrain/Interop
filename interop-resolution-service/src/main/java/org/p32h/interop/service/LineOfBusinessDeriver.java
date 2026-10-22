@@ -12,8 +12,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * The line of business Onyx routes on, derived from the member's coverage records as the member information service
- * returns them (about the last five years). Only the records whose plan start and end dates include the date of service
- * are read; the rules run on those.
+ * returns them (about the last five years). The records whose plan start and end dates include the date of service are
+ * read; when none does, the most recent record is. The rules run on what was read.
  *
  * <p>The rules are the member portal's "ES Members" criteria, read against a coverage record: {@code sourceSysId} is the
  * record's {@code sourceSystemId}, {@code coverage.subsidiary} its {@code subsidiary} and {@code coverage.product} its

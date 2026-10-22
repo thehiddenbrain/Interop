@@ -15,8 +15,8 @@ import org.p32h.interop.memberinfo.MemberPlan;
 import org.slf4j.LoggerFactory;
 
 /**
- * The member portal's ES Members criteria, one rule per line of business, run on the coverage records that cover the date
- * of service.
+ * The member portal's ES Members criteria, one rule per line of business, run on the coverage record that covers the date
+ * of service, or on the most recent record when none does.
  */
 class LineOfBusinessDeriverTest {
 

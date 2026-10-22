@@ -114,7 +114,7 @@ public class ResolutionService {
 
     /**
      * The identified member's coverage records from the member information service, and the line of business derived from
-     * the record that covers the date of service. A failure of that service fails the answer (503 or 502, carrying MMI's
+     * the record that covers the date of service, or from the most recent record when none does. A failure of that service fails the answer (503 or 502, carrying MMI's
      * request id as traceId).
      */
     private String lineOfBusiness(Resolved r, LocalDate dateOfService, String correlationId) {

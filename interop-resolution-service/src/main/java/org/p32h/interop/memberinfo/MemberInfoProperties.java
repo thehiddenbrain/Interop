@@ -8,7 +8,7 @@ import org.springframework.validation.annotation.Validated;
 
 /**
  * {@code member-info.*}: where the member information service is, and the two timeouts of its one HTTP call.
- * The service returns the member's coverage records; the one covering the date of service gives the line of business.
+ * The service returns the member's coverage records; the one covering the date of service, else the most recent one, gives the line of business.
  */
 @ConfigurationProperties("member-info")
 @Validated
