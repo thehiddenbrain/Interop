@@ -184,4 +184,16 @@ class MemberSelectorTest {
         assertThatThrownBy(() -> selector.select(List.of(stale, current), LocalDate.parse("1950-03-15"), DOS, RECENT_SINCE))
                 .as("the date of birth is checked first").isInstanceOf(DobMismatchException.class);
     }
+
+    @Test
+    void aConvertedPairWhoseOldRecordIsStaleIsStillOnePersonWithTheNewRecord() {
+        MemberRecord thp = rec("S00000003   01", "THP", null, "1950-03-15", span("2015-01-01", "2020-12-31"));
+        MemberRecord hphc = rec("HP000000003", "HPHC", "S00000003   01", "1950-03-15", span("2025-01-01", null));
+        assertThat(selector.select(List.of(thp, hphc), null, DOS, RECENT_SINCE)).as("the new record covers the date")
+                .isInstanceOfSatisfying(SelectionResult.Selected.class, s -> assertThat(s.record().storedMemberId()).isEqualTo("HP000000003"));
+        assertThat(selector.select(List.of(thp, hphc), null, LocalDate.parse("2018-06-01"), RECENT_SINCE)).as("a date inside the old record: the old id, the person is current through its new record")
+                .isInstanceOfSatisfying(SelectionResult.Selected.class, s -> assertThat(s.record().storedMemberId()).isEqualTo("S00000003   01"));
+        assertThat(selector.select(List.of(thp, hphc), null, LocalDate.parse("2022-06-01"), RECENT_SINCE)).as("a date in the gap: inactive, not nobody")
+                .isInstanceOfSatisfying(SelectionResult.Selected.class, s -> assertThat(s.coverage().active()).isFalse());
+    }
 }

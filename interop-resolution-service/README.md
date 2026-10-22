@@ -319,7 +319,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | Field | Present | Content |
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
-| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService>; ends <end of the coverage period>, before <dateOfServiceEnd>` (a period the coverage does not reach the end of; still `ACTIVE`) / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
+| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService>; ends <end of the coverage period>, before <dateOfServiceEnd>` (a period the coverage does not reach the end of; still `ACTIVE`) / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId, payerId, payerName, name[] }` per configured vendor, sorted by vendor code) when a member was identified |
 | `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
 | `dateOfService` | always | The (first) date evaluated |
@@ -486,7 +486,7 @@ payer goes out and the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor,
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
 and case (anything that is not a letter or digit is ignored), the leniency expected of the real MMI; the service
 itself hands the id over untouched. The stub returns each record's whole coverage history, as MMI does without a
-date; the member whose coverage ended 12/31/2023 is the stale one: `NOT_FOUND` today, `ACTIVE` for a 2023 date. `src/main/resources/member-info-stub/members.json` is the member information stub: the Together subscriber's coverage
+date; the member whose coverage ended 12/31/2023 is the stale one: `NOT_FOUND` today, `ACTIVE` for a 2023 date. The fixture dates are fixed while the DEV profile and Postman run on the real clock, so from 2027-01-01 the members whose coverage ended 12/31/2024 (the Public Plans twin, the old THP side of the converted member) fall outside the 24 months and become `NOT_FOUND`; move those end dates forward then. `src/main/resources/member-info-stub/members.json` is the member information stub: the Together subscriber's coverage
 records (THPPMA, source system 2026; product SB from 2022 to 2024, product GT from 2025 with no end), so its answers carry
 `MA-TOGETHER` for a 2026 date and `MA-QHP` for a 2024 one; and the SCO member's record (business type SH, a plan
 code with SCO in it, 2023 to 2025), so a 2025 date carries `SCO`. Any other member has no records and keeps MMI's line of
@@ -513,7 +513,7 @@ Postman: import `postman/InteropResolution.postman_collection.json` and
 `postman/Local.postman_environment.json` (`baseUrl = http://localhost:9090`). The collection sends `clientId` and
 `clientType` from its variables (`ONYX`, `EXT`) and a fresh `requestId` for every call from its pre-request script; a
 collection-level test checks that every 200 echoes it. Every request carries tests; run the whole collection with the
-Collection Runner for a green scenario pass (77 requests). Every folder but 6 exercises `POST /v1/interop/resolve`
+Collection Runner for a green scenario pass (79 requests). Every folder but 6 exercises `POST /v1/interop/resolve`
 (folder 6 is health and the OpenAPI document): folders 1 to 3 the populations and vendor formats, folder 4 not found
 and request validation, the caller fields included, folder 5 the member lookup failures, folder **7** every vendor's
 id from one lookup, the leniency (a `vendor` and unknown properties ignored, a missing member id answered 400
@@ -522,7 +522,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (172 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (174 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -557,7 +557,7 @@ member and `Harvard Pilgrim Health Care` for HPHC; the default elsewhere, follow
 for a converted member), and `ResolutionServicePayerTest` proves, with an id and a name that differ, that both land in their
 own fields, that the entry for the company and the line of business on the member record comes before the company's where a
 vendor has one, and that a company a vendor has no entry for gets the default and one `VENDOR_PAYER_DEFAULTED` warning per
-such vendor. `ResolutionServiceNameTest` proves the name on every vendor entry as one HumanName (one given name without
+such vendor. `ResolutionServiceRecentCoverageTest` proves the window is `member-id.recent-coverage-months` back from today (INACTIVE with 24 or 3 months, NOT_FOUND with 2, for coverage that ended two months ago). `ResolutionServiceNameTest` proves the name on every vendor entry as one HumanName (one given name without
 a middle name, no `family` without a last name, no `given` and no middle name in `text` without a first name), no name
 on any log line, and entries without a name plus one `MEMBER_NAME_MISSING` warning for a record without a first or last
 name.
