@@ -240,7 +240,7 @@ public class ResolutionService {
                             : "Member found; coverage active on " + v.dateOfService() + "; ends " + r.coverage().span().end()
                                     + ", before " + v.lastDateOfService();
             case INACTIVE -> "Member found; " + switch (r.coverage().reason()) {
-                case NO_COVERAGE_RECORDS -> "no coverage on record";
+                case NO_COVERAGE_RECORDS -> "no coverage on record"; // only from the evaluator in isolation: such a person is stale, NOT_FOUND
                 case NOT_YET_EFFECTIVE -> "coverage not yet effective on " + v.dateOfService();
                 case COVERAGE_ENDED -> "coverage ended before " + v.dateOfService();
                 case COVERAGE_GAP -> "no coverage on " + v.dateOfService() + " (gap between coverage periods)";

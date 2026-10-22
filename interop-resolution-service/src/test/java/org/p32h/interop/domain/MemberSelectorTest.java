@@ -175,14 +175,19 @@ class MemberSelectorTest {
     @Test
     void stalePersonsAreDroppedBeforeTheAmbiguityCheck() {
         MemberRecord current = rec("T00000002   02", "THP", null, "2012-09-09", span("2025-01-01", null));
-        MemberRecord stale = rec("T00000002   03", "THP", null, "2012-09-09", span("2019-01-01", "2021-12-31"));
+        MemberRecord stale = rec("T00000002   03", "THP", null, "1950-03-15", span("2019-01-01", "2021-12-31"));
         SelectionResult r = selector.select(List.of(stale, current), null, DOS, RECENT_SINCE);
         assertThat(r).as("the family's only current person is the member").isInstanceOfSatisfying(SelectionResult.Selected.class,
                 s -> assertThat(s.record().storedMemberId()).isEqualTo("T00000002   02"));
         assertThat(selector.select(List.of(stale, rec("T00000002   04", "THP", null, "2012-09-09", span("2018-01-01", "2020-12-31"))), null, DOS, RECENT_SINCE))
                 .as("two stale persons: nobody").isInstanceOfSatisfying(SelectionResult.NoneRecent.class, n -> assertThat(n.persons()).isEqualTo(2));
-        assertThatThrownBy(() -> selector.select(List.of(stale, current), LocalDate.parse("1950-03-15"), DOS, RECENT_SINCE))
-                .as("the date of birth is checked first").isInstanceOf(DobMismatchException.class);
+        assertThat(selector.select(List.of(stale, current), LocalDate.parse("1950-03-15"), DOS, RECENT_SINCE))
+                .as("the date of birth is checked first: it keeps only the stale person, who is then nobody")
+                .isInstanceOfSatisfying(SelectionResult.NoneRecent.class, n -> assertThat(n.persons()).isEqualTo(1));
+        assertThat(selector.select(List.of(stale, current), LocalDate.parse("2012-09-09"), DOS, RECENT_SINCE))
+                .isInstanceOfSatisfying(SelectionResult.Selected.class, s -> assertThat(s.record().storedMemberId()).isEqualTo("T00000002   02"));
+        assertThatThrownBy(() -> selector.select(List.of(stale, current), LocalDate.parse("1999-09-09"), DOS, RECENT_SINCE))
+                .as("a date of birth nobody carries").isInstanceOf(DobMismatchException.class);
     }
 
     @Test

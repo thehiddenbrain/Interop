@@ -505,6 +505,7 @@ separators removed.
 | `890123456` | one unreadable span + one valid -> ACTIVE with a warning |
 | `880000000` | only an unreadable span -> 502 `UNREADABLE_COVERAGE` |
 | `901234567` | company missing on the record (inferred), restrictedData Y |
+| `V67659951` | coverage 01/01/2020 to 12/31/2023, nothing since: more than 24 months before today -> NOT_FOUND (no `sourceMessage`, `marker=NO_RECENT_COVERAGE`); a 2023 date -> ACTIVE |
 | `500500500`, `503503503`, `400400400`, `888888888`, `202202202` | faults: MMI 500 -> 503 `MEMBER_LOOKUP_UNAVAILABLE` `HTTP_500` (message `The member lookup reported an internal error: INTERNAL_ERROR search failed (stub)`), timeout -> 503 `READ_TIMEOUT`, MMI 400 -> 400 `MEMBER_LOOKUP_REJECTED` `HTTP_400` (message `The member lookup rejected the request: INVALID_REQUEST memberId could not be processed (stub)`), an `ERROR` message `ES_TIMEOUT` with no members -> 502 `ERROR_MESSAGE` (the message carries `code=ES_TIMEOUT text=search backend timed out (stub)`), bad body -> 502 `UNPARSEABLE_BODY` |
 | `887777777`, `886666666` | an error message beside a member record -> 200 with a warning; a record without a member id -> 502 `NO_MEMBER_ID` |
 | anything else (for example `HP111222333`) | NOT_FOUND: the stub answers like the real MMI, HTTP 404 with `messages: [ { messageType ERROR, statusCode "404", messageCode MEMBER_NOT_FOUND, message "No member found for the given id (stub)" } ]` and no members; the service answers 200 `NOT_FOUND` with that message in `sourceMessage`. The payload log line for the stub prints `status=404` |
@@ -517,7 +518,7 @@ Collection Runner for a green scenario pass (79 requests). Every folder but 6 ex
 (folder 6 is health and the OpenAPI document): folders 1 to 3 the populations and vendor formats, folder 4 not found
 and request validation, the caller fields included, folder 5 the member lookup failures, folder **7** every vendor's
 id from one lookup, the leniency (a `vendor` and unknown properties ignored, a missing member id answered 400
-`INVALID_REQUEST`, an unusable date a 400) and periods of service. The DEV
+`INVALID_REQUEST`, an unusable date a 400) and periods of service and the recent-coverage window. The DEV
 stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` is true rather than a specific date.
 
 ## 6. Tests

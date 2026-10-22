@@ -282,7 +282,7 @@
         "properties": {
           "outcome": {
             "type": "string",
-            "description": "ACTIVE: member found, coverage active on the date of service (the first day of a period). INACTIVE: member found, not covered on that date; message says why. NOT_FOUND: no member for this id, or none with coverage on that date or at any time in the last 24 months. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend",
+            "description": "ACTIVE: member found, coverage active on the date of service (the first day of a period). INACTIVE: member found, not covered on that date, with coverage ending on or after today minus 24 months (an open-ended or future period counts); message says why. NOT_FOUND: no member for this id, or a member not covered on that date with no coverage ending in the last 24 months. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend",
             "enum": [
               "ACTIVE",
               "INACTIVE",
