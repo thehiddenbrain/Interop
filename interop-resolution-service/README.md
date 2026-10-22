@@ -325,7 +325,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `dateOfServiceDefaulted` | always | Whether the date of service was defaulted to today |
-| `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates come together, whenever a period covers the (first) date of service |
+| `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates are always in the block: on `ACTIVE` the period covering the (first) date of service, on `INACTIVE` the member's most recent period, which does not cover it |
 | `requestId` | always | The caller's `requestId`, echoed |
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
