@@ -117,9 +117,9 @@ member-id:
       display-name: Evolent
       format: COMPACT_11
       payer:                            # Evolent keys the payer on the heritage company, Public Plans members apart
-        THP:    { id: "Tufts Health Plan", name: "Tufts Health Plan" }
-        THP_PP: { id: "Tufts Health Public Plans", name: "Tufts Health Public Plans" }
-        HPHC:   { id: "Harvard Pilgrim Health Care", name: "Harvard Pilgrim Health Care" }
+        THP:    { id: "33", name: "Tufts Health Plan" }           # Tufts Health Plan, TMP and Senior products
+        THP_PP: { id: "32", name: "Tufts Health Public Plans" }
+        HPHC:   { id: "34", name: "Harvard Pilgrim Health Care" }
     CARELON:
       display-name: Carelon
       format: COMPACT_11

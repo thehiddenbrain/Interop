@@ -263,7 +263,7 @@ For the TMP id `123456789` (resolved to `123456789   01`):
     "forVendors": [
       { "vendor": "CARELON", "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
       { "vendor": "EVICORE", "memberId": "12345678901", "payerId": "TUFTS", "payerName": "TUFTS", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
-      { "vendor": "EVOLENT", "memberId": "12345678901", "payerId": "Tufts Health Plan", "payerName": "Tufts Health Plan", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
+      { "vendor": "EVOLENT", "memberId": "12345678901", "payerId": "33", "payerName": "Tufts Health Plan", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
       { "vendor": "MHK",     "memberId": "123456789   01", "payerId": "Point32Health", "payerName": "Point32Health", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
       { "vendor": "ONYX",    "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
       { "vendor": "OPTUM",   "memberId": "123456789", "payerId": "Point32Health", "payerName": "Point32Health", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] }
@@ -305,8 +305,9 @@ to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response h
 comes back as `requestId`. Each `memberId.forVendors` entry also carries `payerId` and `payerName`, the payer Onyx
 puts on that vendor's request: the vendor's own for the member's company when configured (section 4), else the
 default (`payer` block in `application.yaml`; `PAYER_ID` / `PAYER_NAME` override). Today eviCore gets its own (`TUFTS`
-for THP, `HARVARD PILGRIM HEALTH` for HPHC), Evolent gets its own (`Tufts Health Plan` for THP, `Tufts Health Public
-Plans` for a THP member whose member record carries line of business `PP`, `Harvard Pilgrim Health Care` for HPHC) and
+for THP, `HARVARD PILGRIM HEALTH` for HPHC), Evolent gets its own, a numeric id with a name (`33` Tufts Health Plan for THP, TMP and
+Senior products; `32` Tufts Health Public Plans for a THP member whose member record carries line of business `PP`;
+`34` Harvard Pilgrim Health Care for HPHC) and
 every other vendor gets `Point32Health`. Each entry also carries `name`, the member's name as the plan has it on record,
 in the FHIR HumanName shape the UM vendors take: one entry with `text` (the full name), `family` (the last name) and
 `given[]` (the first name, then the middle name when there is one). It is the same on every entry; Onyx puts it on the
@@ -452,9 +453,9 @@ member-id:
       display-name: Evolent
       format: COMPACT_11
       payer:                            # Evolent keys the payer on the heritage company, Public Plans members apart
-        THP:    { id: "Tufts Health Plan", name: "Tufts Health Plan" }
-        THP_PP: { id: "Tufts Health Public Plans", name: "Tufts Health Public Plans" }
-        HPHC:   { id: "Harvard Pilgrim Health Care", name: "Harvard Pilgrim Health Care" }
+        THP:    { id: "33", name: "Tufts Health Plan" }
+        THP_PP: { id: "32", name: "Tufts Health Public Plans" }
+        HPHC:   { id: "34", name: "Harvard Pilgrim Health Care" }
     CARELON:
       display-name: Carelon
       format: COMPACT_11
@@ -474,8 +475,8 @@ block with an entry per company (`THP`, `HPHC`, as the member lookup reports it)
 entry keyed company and line of business (`THP_PP`) comes first for the members of that company whose member record
 carries that line of business (MMI's own value: `PP` is Public Plans), then the company's entry; a member of any
 other company, and every vendor without the block, gets the default payer (`payer.id` / `payer.name`, today
-`Point32Health`). eviCore has `TUFTS` for THP and `HARVARD PILGRIM HEALTH` for HPHC; Evolent has `Tufts Health Plan`
-for THP, `Tufts Health Public Plans` for THP_PP and `Harvard Pilgrim Health Care` for HPHC; all as both id and name.
+`Point32Health`). eviCore has `TUFTS` for THP and `HARVARD PILGRIM HEALTH` for HPHC, as both id and name. Evolent has id `33`
+with name `Tufts Health Plan` for THP, `32` / `Tufts Health Public Plans` for THP_PP and `34` / `Harvard Pilgrim Health Care` for HPHC.
 The startup log prints each vendor's payer next to its format; an entry without an id or a name stops the application
 with a message naming it. If the member lookup reports a company that such a vendor has no entry for, the default
 payer goes out and the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor, the company and the line of business.
@@ -553,8 +554,8 @@ of birth from the stub data or a member name, and no response body contains SSN 
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI
 and echoed back unchanged in `memberId.received`, and the stub's `lastSearched()` proves the id arrives at MMI
 untouched. The payer is checked on every vendor entry of every identified answer in the scenarios (eviCore's `TUFTS` for THP
-and `HARVARD PILGRIM HEALTH` for HPHC; Evolent's `Tufts Health Plan` for THP, `Tufts Health Public Plans` for a Public Plans
-member and `Harvard Pilgrim Health Care` for HPHC; the default elsewhere, following the company that owns the date of service
+and `HARVARD PILGRIM HEALTH` for HPHC; Evolent's `33` / `Tufts Health Plan` for THP, `32` / `Tufts Health Public Plans` for a Public Plans
+member and `34` / `Harvard Pilgrim Health Care` for HPHC; the default elsewhere, following the company that owns the date of service
 for a converted member), and `ResolutionServicePayerTest` proves, with an id and a name that differ, that both land in their
 own fields, that the entry for the company and the line of business on the member record comes before the company's where a
 vendor has one, and that a company a vendor has no entry for gets the default and one `VENDOR_PAYER_DEFAULTED` warning per
@@ -601,7 +602,7 @@ covering record's line of business replaces MMI's, the most recent record's when
 - MMI reports the company as `THP` or `HPHC`, the values eviCore's and Evolent's payer entries key on, and the line of
   business of a Public Plans member as `PP`, the value Evolent's Tufts Health Public Plans entry keys on. Any other
   company gets those vendors the default payer and logs `VENDOR_PAYER_DEFAULTED`: watch for that marker in PQA. A
-  Public Plans member MMI reports without `PP` would get Evolent `Tufts Health Plan` with no warning: the per-request
+  Public Plans member MMI reports without `PP` would get Evolent `33` (Tufts Health Plan) with no warning: the per-request
   log line shows the member record's value as `lobOnRecord`, so check it on the Public Plans ids tried in PQA.
 - MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500;
   confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `sourceMessage`
