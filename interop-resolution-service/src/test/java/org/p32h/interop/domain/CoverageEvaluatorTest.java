@@ -29,7 +29,7 @@ class CoverageEvaluatorTest {
         CoverageDecision after = evaluator.evaluate(spans, LocalDate.parse("2024-06-01"));
         assertThat(after.active()).isFalse();
         assertThat(after.reason()).isEqualTo(CoverageReason.COVERAGE_ENDED);
-        assertThat(after.span()).isNull();
+        assertThat(after.span()).as("the most recent period, the one that ended").isEqualTo(span("2024-01-01", "2024-05-31"));
     }
 
     @Test
@@ -42,7 +42,7 @@ class CoverageEvaluatorTest {
         CoverageDecision d = evaluator.evaluate(List.of(span("2027-01-01", null)), LocalDate.parse("2026-10-15"));
         assertThat(d.active()).isFalse();
         assertThat(d.reason()).isEqualTo(CoverageReason.NOT_YET_EFFECTIVE);
-        assertThat(d.span()).isNull();
+        assertThat(d.span()).as("the most recent period, the one about to start").isEqualTo(span("2027-01-01", null));
     }
 
     @Test
@@ -51,7 +51,7 @@ class CoverageEvaluatorTest {
                 LocalDate.parse("2024-08-15"));
         assertThat(d.active()).isFalse();
         assertThat(d.reason()).isEqualTo(CoverageReason.COVERAGE_GAP);
-        assertThat(d.span()).isNull();
+        assertThat(d.span()).as("the most recent period, the one after the gap").isEqualTo(span("2025-01-01", null));
     }
 
     @Test
@@ -86,6 +86,19 @@ class CoverageEvaluatorTest {
     }
 
     // ---------------------------------------------------------------- a period of service
+
+    @Test
+    void anInactiveAnswerReportsTheMostRecentPeriod() {
+        List<CoverageSpan> history = List.of(span("2021-01-01", "2022-12-31"), span("2023-01-01", "2023-06-30"), span("2024-03-01", "2024-08-31"));
+        CoverageDecision d = evaluator.evaluate(history, LocalDate.parse("2026-10-15"));
+        assertThat(d.active()).isFalse();
+        assertThat(d.span()).as("adjacent records are one period; the latest one is reported, not the order given")
+                .isEqualTo(span("2024-03-01", "2024-08-31"));
+        assertThat(evaluator.evaluate(List.of(history.get(2), history.get(0), history.get(1)), LocalDate.parse("2026-10-15")).span())
+                .isEqualTo(span("2024-03-01", "2024-08-31"));
+        assertThat(evaluator.evaluate(history, LocalDate.parse("2023-10-01")).span()).as("a gap: the period after it")
+                .isEqualTo(span("2024-03-01", "2024-08-31"));
+    }
 
     @Test
     void aPeriodOfServiceIsJudgedOnItsFirstDay() {

@@ -204,7 +204,7 @@
       },
       "Coverage": {
         "type": "object",
-        "description": "The coverage flag and the continuous coverage period that covers the (first) date of service. The dates are present when active, and when inactive only because the period ends before the last date asked about; otherwise absent, and message says why",
+        "description": "The coverage flag and one continuous coverage period. ACTIVE: the period that covers the date of service (the first day of a period of service). INACTIVE: the member's most recent coverage period, the one that ends last (an open end counting as the latest); it does not cover the date of service, so branch on active, never on the dates. message says why the member is inactive",
         "properties": {
           "coverageId": {
             "type": "string",
@@ -217,12 +217,12 @@
           "effectiveDate": {
             "type": "string",
             "format": "date",
-            "description": "First day of the coverage period"
+            "description": "First day of the coverage period: on INACTIVE, of the most recent period"
           },
           "endDate": {
             "type": "string",
             "format": "date",
-            "description": "Last day of the coverage period; 3999-12-31 for an open-ended period"
+            "description": "Last day of the coverage period, on INACTIVE of the most recent period; 3999-12-31 for an open-ended period"
           }
         },
         "required": [

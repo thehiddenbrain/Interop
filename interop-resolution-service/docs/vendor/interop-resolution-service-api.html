@@ -133,8 +133,8 @@ td code { white-space: nowrap; }
 <tr><td><code>data.<wbr>coverage</code></td><td>object</td><td></td><td>The coverage flag and the coverage period behind it. coverageId, effectiveDate and endDate are present when active, and when inactive only because the period ends before the last date asked about; otherwise only active is sent and message says why. Present on ACTIVE and INACTIVE answers only</td></tr>
 <tr><td><code>data.<wbr>coverage.<wbr>coverageId</code></td><td>string</td><td></td><td>An id for the coverage period: the resolved id reduced to letters and digits, then the effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open-ended period). Present whenever the dates are; the same member with the same coverage always gets the same value</td></tr>
 <tr><td><code>data.<wbr>coverage.<wbr>active</code></td><td>boolean</td><td>yes</td><td>The flag: true when coverage holds on the date of service (the first day of a period of service)</td></tr>
-<tr><td><code>data.<wbr>coverage.<wbr>effectiveDate</code></td><td>date (yyyy-MM-dd)</td><td></td><td>First day of the coverage period</td></tr>
-<tr><td><code>data.<wbr>coverage.<wbr>endDate</code></td><td>date (yyyy-MM-dd)</td><td></td><td>Last day of the coverage period; 3999-12-31 for an open-ended period</td></tr>
+<tr><td><code>data.<wbr>coverage.<wbr>effectiveDate</code></td><td>date (yyyy-MM-dd)</td><td></td><td>First day of the coverage period: on INACTIVE, of the most recent period</td></tr>
+<tr><td><code>data.<wbr>coverage.<wbr>endDate</code></td><td>date (yyyy-MM-dd)</td><td></td><td>Last day of the coverage period, on INACTIVE of the most recent period; 3999-12-31 for an open-ended period</td></tr>
 <tr><td><code>data.<wbr>requestId</code></td><td>string</td><td>yes</td><td>The caller's requestId, echoed</td></tr>
 <tr><td><code>data.<wbr>traceId</code></td><td>string</td><td>yes</td><td>The id of the member lookup behind this answer; quote it to support</td></tr>
 <tr><td><code>data.<wbr>sourceMessage</code></td><td>object</td><td></td><td>What the member lookup said when it had no member for the id. NOT_FOUND only, and only when the lookup sent a message</td></tr>
@@ -157,7 +157,7 @@ td code { white-space: nowrap; }
 <colgroup><col style="width:18%"><col style="width:34%"><col style="width:48%"></colgroup>
 <thead><tr><th>Signal</th><th>Meaning</th><th>Onyx action</th></tr></thead><tbody>
 <tr><td><span class="pill ok">200</span> <code>ACTIVE</code></td><td>Member found; coverage active on the date of service, the first day of a period of service (<code>data.coverage.active</code> is true). When the coverage ends before the last day of the period, <code>data.message</code> says so and <code>data.coverage.endDate</code> shows how far it runs.</td><td>Send each vendor its <code>data.memberId.forVendors</code> entry: the <code>memberId</code> of the entry whose <code>vendor</code> is that vendor, already in the vendor's format, with that entry's <code>payerId</code>, <code>payerName</code> and <code>name</code> (the member's name as the plan has it, one FHIR HumanName) on the request. Route on <code>data.lineOfBusiness</code>. Keep <code>data.coverage.coverageId</code> with the transaction as the reference to the coverage period behind the decision.</td></tr>
-<tr><td><span class="pill warn">200</span> <code>INACTIVE</code></td><td>Member found; not covered on that date, with some coverage in the last 24 months. <code>data.message</code> says why.</td><td>Hold for intake. <code>data.memberId.forVendors</code> and <code>data.lineOfBusiness</code> are still there if the business rule says to submit anyway.</td></tr>
+<tr><td><span class="pill warn">200</span> <code>INACTIVE</code></td><td>Member found; not covered on that date, with some coverage in the last 24 months. <code>data.message</code> says why; <code>data.coverage</code> shows the member's most recent coverage period with its <code>coverageId</code>, which does not cover the date of service.</td><td>Hold for intake. <code>data.memberId.forVendors</code> and <code>data.lineOfBusiness</code> are still there if the business rule says to submit anyway.</td></tr>
 <tr><td><span class="pill neutral">200</span> <code>NOT_FOUND</code></td><td>No member for this id, or none with coverage on that date or at any time in the last 24 months. <code>data.sourceMessage</code> carries what the member lookup said, when it sent a message.</td><td>"Member not found" worklist. If Onyx holds a fuller form of the id (for instance with the suffix), one resend with it.</td></tr>
 <tr><td><span class="pill info">200</span> <code>AMBIGUOUS</code></td><td>Several members on the plan share the id and nothing sent tells them apart. Nobody is listed.</td><td>One resend with <code>dateOfBirth</code> or the member's full id including the suffix. If it is still AMBIGUOUS (twins share a date of birth, or the records carry none), intake takes the full id from the member's card and resends.</td></tr>
 <tr><td><span class="pill bad">400</span> / <span class="pill warn">422</span></td><td>Request or identity problem (the error catalog below).</td><td>Never retry. Route by <code>header.statusCode</code> and <code>data.details[].code</code>.</td></tr>
@@ -369,7 +369,12 @@ X-Correlation-Id: ONYX-PA-2026-000123
     "lineOfBusiness": "SCO",
     "dateOfService": "2026-10-15",
     "dateOfServiceDefaulted": false,
-    "coverage": {"active": false},
+    "coverage": {
+      "coverageId": "234567890012023010120251231",
+      "active": false,
+      "effectiveDate": "2023-01-01",
+      "endDate": "2025-12-31"
+    },
     "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
     "traceId": "INTEROP-1791253852504-23697"
   },
@@ -380,7 +385,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     "timestamp": 1791577776968
   }
 }</code></pre>
-<p class="note">No plan is in effect on that date, so <code>lineOfBusiness</code> comes from the member's most recent plan.</p></div>
+<p class="note">No plan is in effect on that date, so <code>lineOfBusiness</code> comes from the member's most recent plan, and <code>coverage</code> shows the most recent coverage period, the one that ended.</p></div>
 <div class="example"><h4><span class="pill info">200</span> AMBIGUOUS, 9-character Together family, no date of birth</h4>
 <pre><code>{"memberId": "345678901", "dateOfService": "2026-10-15"}
 

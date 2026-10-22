@@ -250,7 +250,7 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
 | `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
-| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, or a gap). Only for a member with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
+| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, or a gap); `coverage` shows the most recent period with its `coverageId`. Only for a member with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id (MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text), or every member MMI returned is stale: not covered on the date of service and with no coverage ending in the last 24 months. The stale case gets the same plain message and no `sourceMessage`; the log says `marker=NO_RECENT_COVERAGE` | "Member not found" worklist. |
 | `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth, or the records carry none), intake takes the full ID from the member's card. |
 
@@ -282,17 +282,21 @@ vendor, sorted by vendor code: that ID in the vendor's format, the value that go
 9-character core only, the number printed on the card: Optum stores the core, not the 11 characters.
 Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 characters, spaces, 2 digits); any other
 stored ID (Public Plans, HPHC) is passed as stored for every vendor.
-`coverage` is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`. The dates
-are those of the continuous period that covers the (first) date of service; an open-ended period ends `3999-12-31`, so
-every date sent is a real date and absent dates mean there is no period. Records that touch,
+`coverage` is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`. On `ACTIVE` the dates
+are those of the continuous period that covers the (first) date of service; on `INACTIVE` they are those of the member's
+most recent period, the one that ends last (an open end counting as the latest), which does not cover the date of
+service: Onyx branches on `active`, never on the dates. An open-ended period ends `3999-12-31`, so every date sent is a
+real date. Records that touch,
 as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true when
 that period covers the date of service; a period of service is judged on its first day, and when the coverage ends before
-the period's last day the message says so and `endDate` shows how far it runs. Otherwise there is no period and `message` says why.
+the period's last day the message says so and `endDate` shows how far it runs. Otherwise `active` is false and `message`
+says why (coverage ended, not yet effective, a gap); the most recent period is shown, the same rule the line of business
+uses when no plan is in effect, so an inactive answer reads like an active one.
 `coverage.coverageId` names that period, in the form the Onyx requirement sets: the resolved member
 id with its spaces and any punctuation removed, then the period's effective date, then its end date, both `yyyyMMdd`, run
 together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `39991231` stands for an open-ended
 period). It is present whenever the dates are, and the same member with the same coverage always gets the same
-value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring dates.
+value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no other periods.
 `lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`,
 `MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP`; when no record covers the date, the most recent record is read; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
 Onyx routes the transaction on it. The company (THP or

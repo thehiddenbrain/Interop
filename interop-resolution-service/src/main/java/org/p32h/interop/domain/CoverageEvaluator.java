@@ -12,7 +12,9 @@ import java.util.List;
  *
  * <p>Spans that overlap or touch (one starts the day after the other ends, as plan-year records do) are one
  * continuous coverage period. The answer is ACTIVE when one such period covers the date of service; the reported span
- * is that period. Pure function; every rule is a row in {@code CoverageEvaluatorTest}.
+ * is that period. When none covers it the answer is INACTIVE and the reported span is the most recent period: the one
+ * that ends last, an open end counting as the latest (periods never overlap, so it is also the one that starts last).
+ * Pure function; every rule is a row in {@code CoverageEvaluatorTest}.
  */
 public final class CoverageEvaluator {
 
@@ -25,15 +27,16 @@ public final class CoverageEvaluator {
         if (covering != null) {
             return new CoverageDecision(true, CoverageReason.COVERED, covering);
         }
+        CoverageSpan mostRecent = periods.get(periods.size() - 1);
         LocalDate earliestStart = periods.get(0).effective();
-        LocalDate latestEnd = periods.stream().map(CoverageSpan::endForSorting).max(Comparator.naturalOrder()).orElseThrow();
+        LocalDate latestEnd = mostRecent.endForSorting();
         if (dateOfService.isBefore(earliestStart)) {
-            return new CoverageDecision(false, CoverageReason.NOT_YET_EFFECTIVE, null);
+            return new CoverageDecision(false, CoverageReason.NOT_YET_EFFECTIVE, mostRecent);
         }
         if (!latestEnd.equals(LocalDate.MAX) && dateOfService.isAfter(latestEnd)) {
-            return new CoverageDecision(false, CoverageReason.COVERAGE_ENDED, null);
+            return new CoverageDecision(false, CoverageReason.COVERAGE_ENDED, mostRecent);
         }
-        return new CoverageDecision(false, CoverageReason.COVERAGE_GAP, null);
+        return new CoverageDecision(false, CoverageReason.COVERAGE_GAP, mostRecent);
     }
 
     /** Overlapping or adjacent spans joined into continuous periods, sorted by start. */
