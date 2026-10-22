@@ -57,10 +57,10 @@ class ResolutionServicePayerTest {
                 Map.of("THP", new PayerConfig("EVOLENT-THP-ID", "Evolent THP payer name"),
                         "THP_PP", new PayerConfig("EVOLENT-THPP-ID", "Evolent Public Plans payer name"))));
         table.put("MHK", new VendorConfig("MHK", VendorIdFormat.SPACED_14, null));
-        MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, table);
+        MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, 24, table);
         MmiClient mmi = new MmiClient() {
             @Override
-            public MmiResult search(String memberId, LocalDate dateOfService, String correlationId) {
+            public MmiResult search(String memberId, String correlationId) {
                 MmiMember member = new MmiMember("TESTMEMBER", null, null, null, null, null, null, company, lineOfBusiness, null, null,
                         List.of(new MmiCoverage("01/01/2020", null, "g", "N")));
                 return new MmiResult("INTEROP-TEST", 200, new MmiResponse("INTEROP", "INT", "INTEROP-TEST", null, List.of(member)));
@@ -85,7 +85,7 @@ class ResolutionServicePayerTest {
             }
         };
         return new ResolutionService(new RequestValidator(properties, CLOCK), new VendorRegistry(table, DEFAULT), mmi, mmiProperties,
-                new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan, new LineOfBusinessDeriver());
+                new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan, new LineOfBusinessDeriver(), properties, CLOCK);
     }
 
     private static MemberResolutionResponse resolve(String company, String lineOfBusiness) {

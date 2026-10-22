@@ -88,37 +88,20 @@ class CoverageEvaluatorTest {
     // ---------------------------------------------------------------- a period of service
 
     @Test
-    void aPeriodInsideOnePeriodIsCovered() {
-        CoverageDecision d = evaluator.evaluate(List.of(span("2026-01-01", "2026-12-31")), LocalDate.parse("2026-10-15"), LocalDate.parse("2026-10-20"));
-        assertThat(d.active()).isTrue();
-        assertThat(d.span().end()).isEqualTo(LocalDate.parse("2026-12-31"));
-    }
+    void aPeriodOfServiceIsJudgedOnItsFirstDay() {
+        List<CoverageSpan> planYears = List.of(span("2025-01-01", "2025-12-31"), span("2026-01-01", "2026-12-31"));
+        CoverageDecision across = evaluator.evaluate(planYears, LocalDate.parse("2025-12-20"));
+        assertThat(across.active()).as("a period across two adjacent records starts on a covered day").isTrue();
+        assertThat(across.span().effective()).isEqualTo(LocalDate.parse("2025-01-01"));
+        assertThat(across.span().end()).as("the span's end says how far the coverage runs").isEqualTo(LocalDate.parse("2026-12-31"));
+        CoverageDecision outlasts = evaluator.evaluate(planYears, LocalDate.parse("2026-12-20"));
+        assertThat(outlasts.active()).as("a period that outlasts the coverage is still active on its first day").isTrue();
+        assertThat(outlasts.span().end()).isEqualTo(LocalDate.parse("2026-12-31"));
 
-    @Test
-    void aPeriodAcrossTwoAdjacentRecordsIsCovered() {
-        CoverageDecision d = evaluator.evaluate(List.of(span("2025-01-01", "2025-12-31"), span("2026-01-01", "2026-12-31")),
-                LocalDate.parse("2025-12-20"), LocalDate.parse("2026-01-05"));
-        assertThat(d.active()).isTrue();
-        assertThat(d.span().effective()).isEqualTo(LocalDate.parse("2025-01-01"));
-        assertThat(d.span().end()).isEqualTo(LocalDate.parse("2026-12-31"));
-    }
-
-    @Test
-    void aPeriodThatOutlastsTheCoverageIsNotCovered() {
-        CoverageDecision d = evaluator.evaluate(List.of(span("2025-01-01", "2025-12-31"), span("2026-01-01", "2026-12-31")),
-                LocalDate.parse("2026-12-20"), LocalDate.parse("2027-01-05"));
-        assertThat(d.active()).isFalse();
-        assertThat(d.reason()).isEqualTo(CoverageReason.COVERAGE_ENDS_WITHIN_PERIOD);
-        assertThat(d.span().end()).as("the period that covers the first day, so the answer can say where it ends").isEqualTo(LocalDate.parse("2026-12-31"));
-    }
-
-    @Test
-    void aPeriodStartingInAGapOrBeforeCoverageIsJudgedOnItsFirstDay() {
         List<CoverageSpan> spans = List.of(span("2023-01-01", "2024-05-31"), span("2025-01-01", null));
-        assertThat(evaluator.evaluate(spans, LocalDate.parse("2024-08-15"), LocalDate.parse("2025-03-01")).reason()).isEqualTo(CoverageReason.COVERAGE_GAP);
-        assertThat(evaluator.evaluate(spans, LocalDate.parse("2022-12-01"), LocalDate.parse("2023-02-01")).reason()).isEqualTo(CoverageReason.NOT_YET_EFFECTIVE);
-        assertThat(evaluator.evaluate(List.of(span("2023-01-01", "2024-05-31")), LocalDate.parse("2024-06-01"), LocalDate.parse("2024-06-30")).reason())
-                .isEqualTo(CoverageReason.COVERAGE_ENDED);
+        assertThat(evaluator.evaluate(spans, LocalDate.parse("2024-08-15")).reason()).as("first day in a gap").isEqualTo(CoverageReason.COVERAGE_GAP);
+        assertThat(evaluator.evaluate(spans, LocalDate.parse("2022-12-01")).reason()).isEqualTo(CoverageReason.NOT_YET_EFFECTIVE);
+        assertThat(evaluator.evaluate(List.of(span("2023-01-01", "2024-05-31")), LocalDate.parse("2024-06-01")).reason()).isEqualTo(CoverageReason.COVERAGE_ENDED);
     }
 
     @Test

@@ -18,7 +18,7 @@
           "Member resolution"
         ],
         "summary": "Resolve a member id for a date of service",
-        "description": "Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (or on every day of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors), each entry with the payer for that vendor's request (payerId, payerName) and the member's name (name). When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says what to resend; the other members are never listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A sent date is the date evaluated; an unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the operation is a pure read and may be repeated.",
+        "description": "Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (the first day of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors), each entry with the payer for that vendor's request (payerId, payerName) and the member's name (name). When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says what to resend; the other members are never listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A sent date is the date evaluated; an unusable date is a 400. POST because the member id is PHI and must not appear in URLs; the operation is a pure read and may be repeated.",
         "operationId": "resolve",
         "parameters": [
           {
@@ -188,7 +188,7 @@
           },
           "dateOfServiceEnd": {
             "type": "string",
-            "description": "Optional last date of service, yyyy-MM-dd, when the service covers a period: coverage must hold on every day from dateOfService to it. Not before dateOfService; needs dateOfService. Omitted, null or blank counts as not sent.",
+            "description": "Optional last date of service, yyyy-MM-dd, when the service covers a period. The period is judged on its first day, dateOfService; coverage.endDate and the message say how far the coverage runs. Not before dateOfService; needs dateOfService. Omitted, null or blank counts as not sent.",
             "example": "2026-10-20"
           },
           "dateOfBirth": {
@@ -214,7 +214,7 @@
           },
           "active": {
             "type": "boolean",
-            "description": "The flag: true when coverage holds on the date of service, or on every day of the period of service"
+            "description": "The flag: true when coverage holds on the date of service (the first day of a period of service)"
           },
           "effectiveDate": {
             "type": "string",
@@ -284,7 +284,7 @@
         "properties": {
           "outcome": {
             "type": "string",
-            "description": "ACTIVE: member found, coverage active on the date of service (or on every day of the period). INACTIVE: member found, not covered on that date or not on every day of the period; message says why. NOT_FOUND: no member for this id on that date. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend",
+            "description": "ACTIVE: member found, coverage active on the date of service (the first day of a period). INACTIVE: member found, not covered on that date; message says why. NOT_FOUND: no member for this id, or none with coverage on that date or at any time in the last 24 months. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend",
             "enum": [
               "ACTIVE",
               "INACTIVE",

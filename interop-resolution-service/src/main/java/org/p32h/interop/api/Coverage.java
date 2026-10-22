@@ -16,7 +16,7 @@ import java.time.LocalDate;
 @Schema(description = "The coverage flag and the continuous coverage period that covers the (first) date of service. The dates are present when active, and when inactive only because the period ends before the last date asked about; otherwise absent, and message says why")
 public record Coverage(
         @Schema(description = "An id for the coverage period: the resolved id reduced to letters and digits, then the effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open-ended period). Present whenever the dates are; the same member with the same coverage always gets the same value") String coverageId,
-        @Schema(description = "The flag: true when coverage holds on the date of service, or on every day of the period of service", requiredMode = Schema.RequiredMode.REQUIRED) boolean active,
+        @Schema(description = "The flag: true when coverage holds on the date of service (the first day of a period of service)", requiredMode = Schema.RequiredMode.REQUIRED) boolean active,
         @Schema(description = "First day of the coverage period") LocalDate effectiveDate,
         @Schema(description = "Last day of the coverage period; 3999-12-31 for an open-ended period") LocalDate endDate) {
 

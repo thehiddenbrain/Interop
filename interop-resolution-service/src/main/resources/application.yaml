@@ -86,6 +86,8 @@ member-id:
     max-past-years: 10                  # MMI keeps 10 years of coverage history; no upper limit: a future date is judged on the coverage on record
     zone: America/New_York              # "today" for a defaulted date of service
   date-of-birth-max-age-years: 125
+  recent-coverage-months: 24          # a member not covered on the date of service, and with no coverage ending in the last
+                                      # 24 months (today back), is NOT_FOUND rather than INACTIVE
   # ------------------------------------------------------------------------------------------------------
   # Vendor -> format table. This is the ONLY place to add or change a vendor. Key = the vendor code in memberId.forVendors.
   # Formats apply to THP ids stored as 9 digits + spaces + 2-digit suffix (TMP / SCO). Public Plans ids

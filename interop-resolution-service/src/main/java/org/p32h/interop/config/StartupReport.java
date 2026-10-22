@@ -68,6 +68,8 @@ public class StartupReport implements ApplicationRunner {
         sb.append("payer (default)   : ").append(payer.id()).append(" / ").append(payer.name()).append('\n');
         sb.append("dos limit         : not older than ").append(memberId.dateOfService().maxPastYears())
           .append("y; any future date is judged on the coverage on record (").append(memberId.dateOfService().zone()).append(")\n");
+        sb.append("recent coverage   : not covered on the date of service and no coverage in the last ")
+          .append(memberId.recentCoverageMonths()).append(" months -> NOT_FOUND, not INACTIVE\n");
         sb.append("vendor formats (sample stored id 'S12345678   01' -> what the vendor receives):\n");
         vendors.all().forEach(v -> sb.append(String.format("  %-10s %-14s %-18s payer %s%n", v.code(), v.format(),
                 formatter.format("S12345678   01", v.format()).describe(), payerSummary(v))));

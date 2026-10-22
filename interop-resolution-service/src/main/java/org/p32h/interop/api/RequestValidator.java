@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
  * coverage history MMI keeps, is a 400. Only a missing or blank date defaults to today. There is no
  * upper limit: a future date is judged against the coverage on record, which is the only way a 2027 date can be told
  * apart from a 2026 one. A prior authorization may cover a period: {@code dateOfServiceEnd}, optional,
- * makes the request about every day from {@code dateOfService} to it; it must be a real date, not before the start,
+ * names the last day of the period, which is judged on its first day; it must be a real date, not before the start,
  * and never comes alone. The same holds for a sent date of birth: unusable means 400, never silently dropped.
  *
  * <p>Only what the operation needs is looked at: the member id, the dates and the date of birth. Anything else Onyx

@@ -28,7 +28,7 @@ public class MemberResolutionController {
     }
 
     @Operation(summary = "Resolve a member id for a date of service",
-            description = "Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (or on every day "
+            description = "Finds the member behind the id the EMR typed, says whether coverage is active on the date of service (the first day "
                     + "of a period of service), and returns the id as resolved and in every configured UM vendor's format (memberId.forVendors), each entry with the payer for that vendor's request (payerId, payerName) and the member's name (name). "
                     + "When several members on the plan match and no dateOfBirth settles it, the outcome is AMBIGUOUS and the message says "
                     + "what to resend; the other members are never listed. clientId, clientType (EXT or INT), requestId and memberId are required; unknown properties are ignored. A sent date is the date evaluated; an "

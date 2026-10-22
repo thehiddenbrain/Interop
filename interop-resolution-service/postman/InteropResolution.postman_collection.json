@@ -3885,7 +3885,7 @@
           "response": []
         },
         {
-          "name": "Period of service that outlasts the coverage: INACTIVE (ends within the period)",
+          "name": "Period of service that outlasts the coverage: ACTIVE on its first day",
           "event": [
             {
               "listen": "test",
@@ -3893,13 +3893,13 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "pm.test(\"outcome INACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"INACTIVE\"); });",
-                  "pm.test(\".coverage.active = false\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); });",
-                  "pm.test(\".message = Member found; coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05\"); });",
+                  "pm.test(\"outcome ACTIVE: a period is judged on its first day\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".coverage.active = true\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(true); });",
+                  "pm.test(\".message = Member found; coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05\"); });",
                   "pm.test(\".coverage.endDate = 2026-12-31 (how far coverage goes)\", function () { const j = pm.response.json(); pm.expect(j.coverage.endDate).to.eql(\"2026-12-31\"); });",
                   "pm.test(\"6 memberId.forVendors entries, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.memberId.forVendors.length).to.eql(6); pm.expect(j.memberId.forVendors.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
-                  "pm.test(\".coverage.coverageId present on the partly covered period\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2025010120261231\"); });",
+                  "pm.test(\".coverage.coverageId present\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2025010120261231\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
                 ]
               }
@@ -3937,7 +3937,113 @@
                 }
               }
             },
-            "description": "Coverage must hold on every day of the period. Here it covers the first day but ends before the last one."
+            "description": "A period of service is judged on its first day: covered on 2026-12-20, the answer is ACTIVE even though the coverage ends 2026-12-31, before the end of the period. The message and coverage.endDate say how far the coverage runs."
+          },
+          "response": []
+        },
+        {
+          "name": "Coverage ended more than 24 months ago, no date of service: NOT_FOUND, not INACTIVE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome NOT_FOUND: not covered today and no coverage in the last 24 months\", function () { pm.expect(pm.response.json().outcome).to.eql(\"NOT_FOUND\"); });",
+                  "pm.test(\".message = No member found for this id (nothing says the member exists)\", function () { pm.expect(pm.response.json().message).to.eql(\"No member found for this id\"); });",
+                  "pm.test(\"no sourceMessage, no resolved id, no forVendors, no coverage\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"sourceMessage\"); pm.expect(j.memberId).to.not.have.property(\"resolved\"); pm.expect(j.memberId).to.not.have.property(\"forVendors\"); pm.expect(j).to.not.have.property(\"coverage\"); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"Osei\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/interop/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "interop",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"clientType\": \"{{clientType}}\",\n  \"requestId\": \"{{requestId}}\",\n  \"memberId\": \"V67659951   01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Coverage 01/01/2020 to 12/31/2023, nothing since: more than 24 months before today."
+          },
+          "response": []
+        },
+        {
+          "name": "Coverage ended more than 24 months ago, date of service inside it: ACTIVE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE: covered on that date, whenever the coverage ended\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".coverage.endDate = 2023-12-31\", function () { pm.expect(pm.response.json().coverage.endDate).to.eql(\"2023-12-31\"); });",
+                  "pm.test(\"6 memberId.forVendors entries\", function () { pm.expect(pm.response.json().memberId.forVendors.length).to.eql(6); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/interop/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "interop",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"clientType\": \"{{clientType}}\",\n  \"requestId\": \"{{requestId}}\",\n  \"memberId\": \"V67659951   01\",\n  \"dateOfService\": \"2023-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Coverage 01/01/2020 to 12/31/2023, nothing since: more than 24 months before today."
           },
           "response": []
         },

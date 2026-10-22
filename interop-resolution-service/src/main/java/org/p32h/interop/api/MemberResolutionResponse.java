@@ -20,7 +20,7 @@ import org.p32h.interop.domain.MemberName;
  */
 @Schema(description = "The answer: the outcome Onyx branches on, one sentence for a person, the member id as received, as resolved and in every vendor's format with that vendor's payer, the line of business, the date evaluated, the coverage flag with its period, the caller's requestId and a traceId for support. A field that does not apply is absent, never null")
 public record MemberResolutionResponse(
-        @Schema(description = "ACTIVE: member found, coverage active on the date of service (or on every day of the period). INACTIVE: member found, not covered on that date or not on every day of the period; message says why. NOT_FOUND: no member for this id on that date. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend",
+        @Schema(description = "ACTIVE: member found, coverage active on the date of service (the first day of a period). INACTIVE: member found, not covered on that date; message says why. NOT_FOUND: no member for this id, or none with coverage on that date or at any time in the last 24 months. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend",
                 requiredMode = Schema.RequiredMode.REQUIRED) Outcome outcome,
         @Schema(description = "One sentence for a person reading the answer. Branch on outcome, not on this text", requiredMode = Schema.RequiredMode.REQUIRED) String message,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) MemberId memberId,

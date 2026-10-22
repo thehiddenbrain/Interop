@@ -6,6 +6,7 @@ import org.p32h.interop.api.MemberResolutionResponse;
 import org.p32h.interop.api.SourceMessage;
 import org.p32h.interop.api.Outcome;
 import org.p32h.interop.api.RequestValidator;
+import org.p32h.interop.config.MemberIdProperties;
 import org.p32h.interop.domain.CoverageDecision;
 import org.p32h.interop.domain.CoverageSpan;
 import org.p32h.interop.domain.MemberRecord;
@@ -26,6 +27,7 @@ import org.p32h.interop.mmi.MmiResult;
 import org.p32h.interop.vendor.Payer;
 import org.p32h.interop.vendor.VendorFormatter;
 import org.p32h.interop.vendor.VendorRegistry;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -44,6 +46,9 @@ public class ResolutionService {
 
     private static final Logger log = LoggerFactory.getLogger(ResolutionService.class);
 
+    /** The reason logged for a NOT_FOUND answered by the recent-coverage rule (the member exists, the answer says nothing of it). */
+    static final String NO_RECENT_COVERAGE = "NO_RECENT_COVERAGE";
+
     private final RequestValidator validator;
     private final VendorRegistry vendors;
     private final MmiClient mmi;
@@ -53,10 +58,13 @@ public class ResolutionService {
     private final VendorFormatter formatter;
     private final MemberInfoClient memberInfo;
     private final LineOfBusinessDeriver lineOfBusiness;
+    private final MemberIdProperties properties;
+    private final Clock clock;
 
     public ResolutionService(RequestValidator validator, VendorRegistry vendors, MmiClient mmi, MmiProperties mmiProperties,
             MmiRecordMapper mapper, MemberSelector selector, VendorFormatter formatter, MemberInfoClient memberInfo,
-            LineOfBusinessDeriver lineOfBusiness) {
+            LineOfBusinessDeriver lineOfBusiness,
+            MemberIdProperties properties, Clock clock) {
         this.validator = validator;
         this.vendors = vendors;
         this.mmi = mmi;
@@ -66,6 +74,8 @@ public class ResolutionService {
         this.formatter = formatter;
         this.memberInfo = memberInfo;
         this.lineOfBusiness = lineOfBusiness;
+        this.properties = properties;
+        this.clock = clock;
     }
 
     /** Resolves the member behind the id and renders the stored id, with the vendor's payer, for every configured vendor. */
@@ -119,7 +129,7 @@ public class ResolutionService {
     }
 
     /** MMI's answer reduced to one outcome, before it is rendered. */
-    private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String ambiguityReason,
+    private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String reason,
             int persons, String mmiRequestId, int records, SourceMessage mmiNote) {
 
         String storedMemberId() {
@@ -159,7 +169,7 @@ public class ResolutionService {
     }
 
     private Resolved resolveMember(RequestValidator.Validated v, String correlationId) {
-        MmiResult mmiResult = mmi.search(v.memberId(), v.dateOfService(), correlationId);
+        MmiResult mmiResult = mmi.search(v.memberId(), correlationId);
         List<MmiMember> members = mmiResult.response().membersOrEmpty();
         List<MmiMessage> messages = mmiResult.response().messagesOrEmpty();
 
@@ -187,14 +197,21 @@ public class ResolutionService {
             throw MmiException.invalidResponse(mmiResult.requestId(), "NO_MEMBER_ID", "every record returned lacks a member id", null);
         }
 
+        LocalDate recentSince = LocalDate.now(clock).minusMonths(properties.recentCoverageMonths());
         SelectionResult selection;
         try {
-            selection = selector.select(records, v.dateOfBirth(), v.dateOfService(), v.lastDateOfService());
+            selection = selector.select(records, v.dateOfBirth(), v.dateOfService(), recentSince);
         } catch (ResolutionException e) {
             throw e.withMmiRequestId(mmiResult.requestId());
         }
         if (selection instanceof SelectionResult.Ambiguous a) {
             return new Resolved(Outcome.AMBIGUOUS, null, null, a.reason(), a.persons(), mmiResult.requestId(), members.size(), null);
+        }
+        if (selection instanceof SelectionResult.NoneRecent n) {
+            log.info("marker=NO_RECENT_COVERAGE mmiRequestId={} persons={} latestCoverageEnd={} recentSince={}: not covered on the date "
+                    + "of service and no coverage in the last {} months; answered NOT_FOUND", mmiResult.requestId(), n.persons(),
+                    n.latestCoverageEnd(), recentSince, properties.recentCoverageMonths());
+            return new Resolved(Outcome.NOT_FOUND, null, null, NO_RECENT_COVERAGE, n.persons(), mmiResult.requestId(), members.size(), null);
         }
         SelectionResult.Selected s = (SelectionResult.Selected) selection;
         if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
@@ -216,20 +233,21 @@ public class ResolutionService {
      * why an INACTIVE member is not covered, and what to do about an AMBIGUOUS answer.
      */
     private static String message(Resolved r, RequestValidator.Validated v) {
-        String when = v.isPeriod() ? "from " + v.dateOfService() + " to " + v.lastDateOfService() : "on " + v.dateOfService();
         return switch (r.outcome()) {
-            case ACTIVE -> "Member found; coverage active " + when;
+            case ACTIVE -> !v.isPeriod() ? "Member found; coverage active on " + v.dateOfService()
+                    : r.coverage().span().covers(v.lastDateOfService())
+                            ? "Member found; coverage active from " + v.dateOfService() + " to " + v.lastDateOfService()
+                            : "Member found; coverage active on " + v.dateOfService() + "; ends " + r.coverage().span().end()
+                                    + ", before " + v.lastDateOfService();
             case INACTIVE -> "Member found; " + switch (r.coverage().reason()) {
                 case NO_COVERAGE_RECORDS -> "no coverage on record";
                 case NOT_YET_EFFECTIVE -> "coverage not yet effective on " + v.dateOfService();
                 case COVERAGE_ENDED -> "coverage ended before " + v.dateOfService();
                 case COVERAGE_GAP -> "no coverage on " + v.dateOfService() + " (gap between coverage periods)";
-                case COVERAGE_ENDS_WITHIN_PERIOD -> "coverage active on " + v.dateOfService() + " but ends " + r.coverage().span().end()
-                        + ", before " + v.lastDateOfService();
                 case COVERED -> throw new IllegalStateException("INACTIVE with reason COVERED");
             };
             case NOT_FOUND -> "No member found for this id";
-            case AMBIGUOUS -> switch (r.ambiguityReason()) {
+            case AMBIGUOUS -> switch (r.reason()) {
                 case MemberSelector.DOB_NOT_DISCRIMINATING -> "Several members match this id and date of birth; resend with the member's full id including the suffix";
                 case MemberSelector.DOB_NOT_ON_RECORDS -> "Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix";
                 default -> "Several members match this id; resend with dateOfBirth or the member's full id including the suffix";
@@ -248,7 +266,7 @@ public class ResolutionService {
     private static void logOutcome(Resolved r, RequestValidator.Validated v, String lob, long start) {
         log.info("resolution clientId={} clientType={} outcome={} reason={} memberId={} resolved={} company={} lob={} lobOnRecord={} dos={} dosEnd={} "
                         + "dosDefaulted={} records={} persons={} mmiRequestId={} ms={}",
-                v.clientId(), v.clientType(), r.outcome(), r.coverage() == null ? "-" : r.coverage().reason(),
+                v.clientId(), v.clientType(), r.outcome(), r.coverage() != null ? r.coverage().reason() : r.reason() == null ? "-" : r.reason(),
                 v.memberId(), r.storedMemberId(), r.company(), lob, r.recordLineOfBusiness(),
                 v.dateOfService(), v.dateOfServiceEnd() == null ? "-" : v.dateOfServiceEnd(), v.dateOfServiceDefaulted(), r.records(), r.persons(), r.mmiRequestId(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));

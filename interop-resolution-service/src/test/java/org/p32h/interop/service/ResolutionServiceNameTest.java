@@ -52,10 +52,10 @@ class ResolutionServiceNameTest {
         Map<String, VendorConfig> table = new LinkedHashMap<>();
         table.put("EVICORE", new VendorConfig("eviCore", VendorIdFormat.COMPACT_11, null));
         table.put("MHK", new VendorConfig("MHK", VendorIdFormat.SPACED_14, null));
-        MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, table);
+        MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, 24, table);
         MmiClient mmi = new MmiClient() {
             @Override
-            public MmiResult search(String memberId, LocalDate dateOfService, String correlationId) {
+            public MmiResult search(String memberId, String correlationId) {
                 MmiMember member = new MmiMember("TESTMEMBER", null, null, null, first, middle, last, "THP", "MCR", null, null,
                         List.of(new MmiCoverage("01/01/2020", null, "g", "N")));
                 return new MmiResult("INTEROP-TEST", 200, new MmiResponse("INTEROP", "INT", "INTEROP-TEST", null, List.of(member)));
@@ -81,7 +81,7 @@ class ResolutionServiceNameTest {
         };
         return new ResolutionService(new RequestValidator(properties, CLOCK), new VendorRegistry(table, new Payer("Point32Health", "Point32Health")),
                 mmi, mmiProperties, new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan,
-                new LineOfBusinessDeriver());
+                new LineOfBusinessDeriver(), properties, CLOCK);
     }
 
     private static MemberResolutionResponse resolve(String first, String middle, String last) {

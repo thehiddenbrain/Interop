@@ -6,44 +6,31 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Decides ACTIVE / INACTIVE for a date of service, or for a period of service (a prior authorization may carry
- * a start and an end date), from the readable, non-void spans of one person.
+ * Decides ACTIVE / INACTIVE for a date of service from the readable, non-void spans of one person. A period of service
+ * (a prior authorization may carry a start and an end date) is judged on its first day: covered on that day is ACTIVE,
+ * and the reported span tells how far the coverage runs.
  *
  * <p>Spans that overlap or touch (one starts the day after the other ends, as plan-year records do) are one
- * continuous coverage period. The answer is ACTIVE only when one such period covers every day from the first
- * date of service to the last; the reported span is that period. Pure function; every rule is a row in
- * {@code CoverageEvaluatorTest}.
+ * continuous coverage period. The answer is ACTIVE when one such period covers the date of service; the reported span
+ * is that period. Pure function; every rule is a row in {@code CoverageEvaluatorTest}.
  */
 public final class CoverageEvaluator {
 
-    /** A single date of service: a period of one day. */
     public CoverageDecision evaluate(List<CoverageSpan> spans, LocalDate dateOfService) {
-        return evaluate(spans, dateOfService, dateOfService);
-    }
-
-    /**
-     * @param start the first date of service
-     * @param end   the last date of service, {@code start} itself for a single date; never before {@code start}
-     */
-    public CoverageDecision evaluate(List<CoverageSpan> spans, LocalDate start, LocalDate end) {
         if (spans == null || spans.isEmpty()) {
             return new CoverageDecision(false, CoverageReason.NO_COVERAGE_RECORDS, null);
         }
         List<CoverageSpan> periods = merge(spans);
-        CoverageSpan atStart = periods.stream().filter(p -> p.covers(start)).findFirst().orElse(null);
-        if (atStart != null) {
-            if (atStart.covers(end)) {
-                return new CoverageDecision(true, CoverageReason.COVERED, atStart);
-            }
-            // covered on the first day, but the period ends before the last day asked about
-            return new CoverageDecision(false, CoverageReason.COVERAGE_ENDS_WITHIN_PERIOD, atStart);
+        CoverageSpan covering = periods.stream().filter(p -> p.covers(dateOfService)).findFirst().orElse(null);
+        if (covering != null) {
+            return new CoverageDecision(true, CoverageReason.COVERED, covering);
         }
         LocalDate earliestStart = periods.get(0).effective();
         LocalDate latestEnd = periods.stream().map(CoverageSpan::endForSorting).max(Comparator.naturalOrder()).orElseThrow();
-        if (start.isBefore(earliestStart)) {
+        if (dateOfService.isBefore(earliestStart)) {
             return new CoverageDecision(false, CoverageReason.NOT_YET_EFFECTIVE, null);
         }
-        if (!latestEnd.equals(LocalDate.MAX) && start.isAfter(latestEnd)) {
+        if (!latestEnd.equals(LocalDate.MAX) && dateOfService.isAfter(latestEnd)) {
             return new CoverageDecision(false, CoverageReason.COVERAGE_ENDED, null);
         }
         return new CoverageDecision(false, CoverageReason.COVERAGE_GAP, null);

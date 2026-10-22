@@ -446,5 +446,34 @@
         "voidFlag": "N"
       }
     ]
+  },
+  {
+    "_comment": "TMP member whose coverage ended 12/31/2023, more than 24 months before today: NOT_FOUND for a current date of service (no recent coverage), ACTIVE for a 2023 date.",
+    "memberId": "V67659951   01",
+    "subscriberMemberId": "V67659951   01",
+    "policyId": "V67659951",
+    "memberFirstName": "Blake",
+    "memberLastName": "Osei",
+    "memberDob": "02/02/1950",
+    "gender": "F",
+    "socialSecurityNumber": "***-**-7890",
+    "legacyMemberId": null,
+    "company": "THP",
+    "personId": null,
+    "mbin": null,
+    "agencyMemberNumber": null,
+    "agencySubscriberNumber": null,
+    "lineOfBusiness": "MCR",
+    "restrictedData": "N",
+    "migrationEffectiveDate": null,
+    "coverage": [
+      {
+        "effDate": "01/01/2020",
+        "endDate": "12/31/2023",
+        "groupId": "00001111",
+        "groupName": "Tufts Medicare Preferred HMO",
+        "voidFlag": "N"
+      }
+    ]
   }
 ]

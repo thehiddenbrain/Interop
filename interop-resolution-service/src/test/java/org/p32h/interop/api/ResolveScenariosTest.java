@@ -337,18 +337,6 @@ class ResolveScenariosTest {
         assertThat(forVendor(r, "EVICORE")).isEqualTo("90123456701");
     }
 
-    // ---------------------------------------------------------------- the date of service MMI is asked about
-
-    @Test
-    void theDateOfServiceGoesToMmiAsDosStartDate() throws Exception {
-        call(200, req("123456789", "2026-10-15"));
-        assertThat(stub.lastDateOfService()).as("the date sent").isEqualTo(LocalDate.parse("2026-10-15"));
-        call(200, req("123456789", null));
-        assertThat(stub.lastDateOfService()).as("no date sent: today, the date judged").isEqualTo(LocalDate.parse("2026-10-03"));
-        call(200, Map.of("memberId", "U20252026", "dateOfService", "2025-12-20", "dateOfServiceEnd", "2026-01-05"));
-        assertThat(stub.lastDateOfService()).as("a period: its first day").isEqualTo(LocalDate.parse("2025-12-20"));
-    }
-
     // ---------------------------------------------------------------- the coverage records behind the line of business
 
     @Autowired org.p32h.interop.memberinfo.MemberInfoClient memberInfoClient;
@@ -513,6 +501,32 @@ class ResolveScenariosTest {
         }
     }
 
+    // ---------------------------------------------------------------- the recent-coverage window
+
+    @Test
+    void aMemberWithNoCoverageInTheLast24MonthsIsNotFound() throws Exception {
+        JsonNode stale = stubMember("TMP member whose coverage ended 12/31/2023");
+        String id = stale.get("memberId").asText();
+        JsonNode today = call(200, req(id, null));
+        assertThat(today.get("outcome").asText()).as("not covered today and nothing since 2024-10-03").isEqualTo("NOT_FOUND");
+        assertThat(today.get("message").asText()).as("the plain not-found sentence: nothing says the member exists").isEqualTo("No member found for this id");
+        assertThat(today.has("sourceMessage")).isFalse();
+        assertThat(today.at("/memberId/resolved").isMissingNode()).isTrue();
+        assertThat(today.at("/memberId/forVendors").isMissingNode()).isTrue();
+        assertThat(today.has("coverage")).isFalse();
+        assertThat(today.get("traceId").asText()).as("the lookup was made").startsWith("INTEROP-");
+        assertThat(logs.list).extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(m -> assertThat(m).contains("marker=NO_RECENT_COVERAGE").contains("latestCoverageEnd=2023-12-31").contains("recentSince=2024-10-03"));
+
+        JsonNode justAfter = call(200, req(id, "2024-02-01"));
+        assertThat(justAfter.get("outcome").asText()).as("a date after the coverage ended, nothing recent: still NOT_FOUND").isEqualTo("NOT_FOUND");
+
+        JsonNode back = call(200, req(id, "2023-06-15"));
+        assertThat(back.get("outcome").asText()).as("covered on that date: the member, whenever the coverage ended").isEqualTo("ACTIVE");
+        assertThat(back.at("/coverage/endDate").asText()).isEqualTo("2023-12-31");
+        assertThat(back.at("/memberId/forVendors")).hasSize(6);
+    }
+
     @Test
     void everyVendorEntryCarriesTheMemberNameInFhirShape() throws Exception {
         JsonNode tmp = stubMember("TMP (Tufts Medicare Preferred)");
@@ -639,7 +653,7 @@ class ResolveScenariosTest {
     }
 
     @Test
-    void aPeriodOfServiceMustBeCoveredOnEveryDay() throws Exception {
+    void aPeriodOfServiceIsJudgedOnItsFirstDay() throws Exception {
         // two adjacent plan-year records (2025, 2026) are one continuous period
         JsonNode across = call(200, Map.of("memberId", "U20252026", "dateOfService", "2025-12-20", "dateOfServiceEnd", "2026-01-05"));
         assertThat(across.get("outcome").asText()).isEqualTo("ACTIVE");
@@ -651,11 +665,11 @@ class ResolveScenariosTest {
         assertThat(across.at("/coverage/coverageId").asText()).isEqualTo(across.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2025010120261231");
 
         JsonNode outlasts = call(200, Map.of("memberId", "U20252026", "dateOfService", "2026-12-20", "dateOfServiceEnd", "2027-01-05"));
-        assertThat(outlasts.get("outcome").asText()).as("covered on the first day only").isEqualTo("INACTIVE");
-        assertThat(outlasts.at("/coverage/active").asBoolean()).isFalse();
-        assertThat(outlasts.get("message").asText()).isEqualTo("Member found; coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05");
+        assertThat(outlasts.get("outcome").asText()).as("covered on the first day: active, however far the period runs").isEqualTo("ACTIVE");
+        assertThat(outlasts.at("/coverage/active").asBoolean()).isTrue();
+        assertThat(outlasts.get("message").asText()).isEqualTo("Member found; coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05");
         assertThat(outlasts.at("/coverage/endDate").asText()).as("the period that covers the first day is shown, so intake sees how far coverage goes").isEqualTo("2026-12-31");
-        assertThat(outlasts.at("/coverage/coverageId").asText()).as("the period has an id even when the answer is inactive")
+        assertThat(outlasts.at("/coverage/coverageId").asText()).as("the period has an id")
                 .isEqualTo(outlasts.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2025010120261231");
 
         JsonNode single = call(200, Map.of("memberId", "U20252026", "dateOfService", "2026-10-15"));
@@ -664,7 +678,8 @@ class ResolveScenariosTest {
         assertThat(single.at("/coverage/effectiveDate").asText()).isEqualTo("2025-01-01");
 
         JsonNode map = call(200, Map.of("memberId", "T20262026", "dateOfService", "2026-12-01", "dateOfServiceEnd", "2027-01-31"));
-        assertThat(map.get("outcome").asText()).as("a period that runs past the end of the record").isEqualTo("INACTIVE");
+        assertThat(map.get("outcome").asText()).as("a period that runs past the end of the record: judged on its first day").isEqualTo("ACTIVE");
+        assertThat(map.get("message").asText()).isEqualTo("Member found; coverage active on 2026-12-01; ends 2026-12-31, before 2027-01-31");
         assertThat(map.get("dateOfServiceEnd").asText()).isEqualTo("2027-01-31");
         assertThat(map.at("/memberId/forVendors")).hasSize(6);
         JsonNode mapOk = call(200, Map.of("memberId", "T20262026", "dateOfService", "2026-12-01", "dateOfServiceEnd", "2026-12-31"));

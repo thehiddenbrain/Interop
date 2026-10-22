@@ -93,10 +93,10 @@ class ResolutionServiceMemberPlanTest {
     /** A service whose MMI always returns one THP member with line of business MCR, and whose member plan lookup answers {@code plans}. */
     private ResolutionService service(Function<String, MemberInfoResponse> plans) {
         Map<String, VendorConfig> table = Map.of("MHK", new VendorConfig("MHK", VendorIdFormat.SPACED_14, null));
-        MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, table);
+        MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, 24, table);
         MmiClient mmi = new MmiClient() {
             @Override
-            public MmiResult search(String memberId, LocalDate dateOfService, String correlationId) {
+            public MmiResult search(String memberId, String correlationId) {
                 MmiMember member = new MmiMember(STORED, null, null, null, null, null, null, "THP", "MCR", null, null,
                         List.of(new MmiCoverage("01/01/2020", null, "g", "N")));
                 return new MmiResult("INTEROP-TEST", 200, new MmiResponse("INTEROP", "INT", "INTEROP-TEST", null, List.of(member)));
@@ -123,7 +123,7 @@ class ResolutionServiceMemberPlanTest {
                 Duration.ofSeconds(5), "N", List.of("ERROR"), false, new MmiProperties.Stub(false, ""));
         return new ResolutionService(new RequestValidator(properties, CLOCK), new VendorRegistry(table, new Payer("P", "P")), mmi,
                 mmiProperties, new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), memberInfo,
-                new LineOfBusinessDeriver());
+                new LineOfBusinessDeriver(), properties, CLOCK);
     }
 
     private static MemberResolutionResponse resolve(ResolutionService service) {

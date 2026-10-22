@@ -13,7 +13,7 @@ import org.springframework.validation.annotation.Validated;
 
 /**
  * Everything under {@code member-id.*} in application.yaml: the date-of-service window, the DOB sanity
- * limit and the vendor -> format map. Nothing here describes the shape of a member id: the id is passed to MMI as received. Bound once at startup and validated; a bad value stops the
+ * limit, the recent-coverage window and the vendor -> format map. Nothing here describes the shape of a member id: the id is passed to MMI as received. Bound once at startup and validated; a bad value stops the
  * application with a message naming the property.
  */
 @ConfigurationProperties("member-id")
@@ -21,6 +21,7 @@ import org.springframework.validation.annotation.Validated;
 public record MemberIdProperties(
         @Valid @NotNull @DefaultValue DateOfService dateOfService,
         @DefaultValue("125") @Positive int dateOfBirthMaxAgeYears,
+        @DefaultValue("24") @Positive int recentCoverageMonths,
         @Valid @NotEmpty Map<String, VendorConfig> vendors) {
 
     /** No upper limit on the date of service: a future date is judged against the coverage on record. */

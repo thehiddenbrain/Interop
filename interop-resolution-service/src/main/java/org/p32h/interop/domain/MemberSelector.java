@@ -18,6 +18,10 @@ import org.slf4j.LoggerFactory;
  *     are one person with two records.</li>
  * <li>If a date of birth was supplied and at least one record carries one, only persons with a matching
  *     DOB survive; none left is a {@link DobMismatchException}.</li>
+ * <li>Stale persons are dropped: neither covered on the date of service nor covered at all since
+ *     {@code recentSince} (no readable span ending on or after it; open-ended and future spans count as recent). A
+ *     person with an unreadable span is kept, since its recency is unknown. Nobody left is
+ *     {@link SelectionResult.NoneRecent}, answered as NOT_FOUND.</li>
  * <li>One person left: its record covering the date of service wins, else the record whose coverage ends
  *     last. Several persons left: AMBIGUOUS.</li>
  * </ol>
@@ -37,16 +41,13 @@ public final class MemberSelector {
         this.evaluator = evaluator;
     }
 
-    /** A single date of service. */
-    public SelectionResult select(List<MemberRecord> records, LocalDate dateOfBirth, LocalDate dateOfService) {
-        return select(records, dateOfBirth, dateOfService, dateOfService);
-    }
-
     /**
-     * @param start the first date of service: the record that covers it is the one whose stored id is returned
-     * @param end   the last date of service (equal to {@code start} for a single date); coverage must hold throughout
+     * @param dateOfService the date of service (the first day of a period): the record that covers it is the one whose
+     *                      stored id is returned
+     * @param recentSince   the first day of the recent window: a person not covered on the date of service keeps
+     *                      being answered (INACTIVE) only with a span ending on or after it
      */
-    public SelectionResult select(List<MemberRecord> records, LocalDate dateOfBirth, LocalDate start, LocalDate end) {
+    public SelectionResult select(List<MemberRecord> records, LocalDate dateOfBirth, LocalDate dateOfService, LocalDate recentSince) {
         List<MemberRecord> merged = mergeDuplicates(records);
         List<List<MemberRecord>> persons = groupPersons(merged);
 
@@ -68,15 +69,45 @@ public final class MemberSelector {
             }
         }
 
+        List<List<MemberRecord>> current = persons.stream().filter(p -> !stale(p, dateOfService, recentSince)).toList();
+        if (current.isEmpty()) {
+            return new SelectionResult.NoneRecent(persons.size(), latestEnd(persons));
+        }
+        if (current.size() < persons.size()) {
+            log.info("marker=STALE_PERSONS_DROPPED persons={} current={} recentSince={}", persons.size(), current.size(), recentSince);
+        }
+        persons = current;
+
         if (persons.size() == 1) {
             List<MemberRecord> person = persons.get(0);
-            MemberRecord chosen = chooseWithinPerson(person, start);
+            MemberRecord chosen = chooseWithinPerson(person, dateOfService);
             List<CoverageSpan> union = personSpans(person);
-            return new SelectionResult.Selected(chosen, evaluator.evaluate(union, start, end), union.size(),
+            return new SelectionResult.Selected(chosen, evaluator.evaluate(union, dateOfService), union.size(),
                     person.stream().mapToInt(MemberRecord::unreadableSpans).sum());
         }
         return new SelectionResult.Ambiguous(dobApplied ? DOB_NOT_DISCRIMINATING : dobUnchecked ? DOB_NOT_ON_RECORDS : MULTIPLE_PERSONS,
                 persons.size());
+    }
+
+    /**
+     * Not covered on the date of service, no readable span ending on or after {@code recentSince} (an open-ended or a
+     * future span always does) and no unreadable span that could hide one.
+     */
+    private boolean stale(List<MemberRecord> person, LocalDate dateOfService, LocalDate recentSince) {
+        List<CoverageSpan> union = personSpans(person);
+        if (evaluator.evaluate(union, dateOfService).active()) {
+            return false;
+        }
+        if (person.stream().anyMatch(r -> r.unreadableSpans() > 0)) {
+            return false;
+        }
+        return union.stream().noneMatch(s -> !s.endForSorting().isBefore(recentSince));
+    }
+
+    /** The latest coverage end across the persons, for the log; null when nobody has a span. */
+    private static LocalDate latestEnd(List<List<MemberRecord>> persons) {
+        return persons.stream().flatMap(p -> personSpans(p).stream())
+                .map(CoverageSpan::endForSorting).max(Comparator.naturalOrder()).orElse(null);
     }
 
     /** Every readable span of the person, across all of its records; a converted pair's history is one history. */

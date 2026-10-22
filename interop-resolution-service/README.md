@@ -114,7 +114,7 @@ looks like this:
 
 ```
 INFO  [<correlationId>] [<requestId>] org.p32h.interop.mmi.RestMmiClient - mmi request requestId=INTEROP-1791083521042-40296 POST http://mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp/master/member/v1
-{"memberId":"123456789","legacyMemberId":"123456789","dosStartDate":"10/15/2026","voidCoverageRecord":"N","clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296"}
+{"memberId":"123456789","legacyMemberId":"123456789","voidCoverageRecord":"N","clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296"}
 INFO  [<correlationId>] [<requestId>] org.p32h.interop.mmi.RestMmiClient - mmi response requestId=INTEROP-1791083521042-40296 status=200 contentType=application/json ms=18
 {"clientId":"INTEROP","clientType":"INT","requestId":"INTEROP-1791083521042-40296","messages":null,"members":[ ... ]}
 ```
@@ -219,7 +219,7 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed in the response h
 | `requestId` | yes | The caller's id for this call, new for every request (a UUID suits). Letters, digits, `.`, `_`, `:` or `-`, at most 64 characters (`REQUEST_ID_MISSING`, `REQUEST_ID_INVALID`). Echoed in the 200 body and in every error body once it was read and found usable; on every log line of the call. |
 | `memberId` | yes | As the EMR typed it. Only checked for presence; sent to MMI exactly as received, with surrounding whitespace removed. Not validated or reshaped here. |
 | `dateOfService` | no | `yyyy-MM-dd`; the first day when the service covers a period. **Defaults to today** when omitted (`dateOfServiceDefaulted: true` in the response). A date that is sent is the date judged, never replaced by today: any future date is judged against the coverage on record; a value that is not a real date, or more than 10 years back, is a 400. |
-| `dateOfServiceEnd` | no | `yyyy-MM-dd`, the last day when the service covers a period: coverage must then hold on every day from `dateOfService` to it. Not before `dateOfService` (`DATE_OF_SERVICE_END_BEFORE_START`), never alone (`DATE_OF_SERVICE_END_WITHOUT_START`), a real date (`DATE_OF_SERVICE_END_INVALID`). |
+| `dateOfServiceEnd` | no | `yyyy-MM-dd`, the last day when the service covers a period. The period is judged on its first day (`dateOfService`); `coverage.endDate` and the message say how far the coverage runs. Not before `dateOfService` (`DATE_OF_SERVICE_END_BEFORE_START`), never alone (`DATE_OF_SERVICE_END_WITHOUT_START`), a real date (`DATE_OF_SERVICE_END_INVALID`). |
 | `dateOfBirth` | recommended | The patient's date of birth, `yyyy-MM-dd`. Used only to verify the member or tell apart the members on a plan who share the id; a date that matches no record is 422 `DOB_MISMATCH`, and a value that is not a real date, is in the future or is more than 125 years ago is a 400. Never sent to MMI, never logged, never echoed. |
 | anything else | no | **Ignored**, a `vendor` included: the answer is always for every vendor. A field sent as the wrong JSON type (an object or array where a string is expected) is a body the service cannot read: 400 `WRONG_JSON_TYPE`. |
 
@@ -250,8 +250,8 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
 | `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
-| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, a gap, or no coverage on record) | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
-| `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
+| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, or a gap). Only for a member with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
+| `NOT_FOUND` | MMI has no member for this id (MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text), or every member MMI returned is stale: not covered on the date of service and with no coverage ending in the last 24 months. The stale case gets the same plain message and no `sourceMessage`; the log says `marker=NO_RECENT_COVERAGE` | "Member not found" worklist. |
 | `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth, or the records carry none), intake takes the full ID from the member's card. |
 
 For the TMP id `123456789` (resolved to `123456789   01`):
@@ -285,9 +285,9 @@ stored ID (Public Plans, HPHC) is passed as stored for every vendor.
 `coverage` is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`. The dates
 are those of the continuous period that covers the (first) date of service; an open-ended period ends `3999-12-31`, so
 every date sent is a real date and absent dates mean there is no period. Records that touch,
-as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true only when
-that period covers every day asked about; when it covers the first day but ends before the last, `active` is false and
-the period is still shown so intake sees how far coverage goes. Otherwise there is no period and `message` says why.
+as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true when
+that period covers the date of service; a period of service is judged on its first day, and when the coverage ends before
+the period's last day the message says so and `endDate` shows how far it runs. Otherwise there is no period and `message` says why.
 `coverage.coverageId` names that period, in the form the Onyx requirement sets: the resolved member
 id with its spaces and any punctuation removed, then the period's effective date, then its end date, both `yyyyMMdd`, run
 together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `39991231` stands for an open-ended
@@ -315,7 +315,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | Field | Present | Content |
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
-| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
+| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService>; ends <end of the coverage period>, before <dateOfServiceEnd>` (a period the coverage does not reach the end of; still `ACTIVE`) / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId, payerId, payerName, name[] }` per configured vendor, sorted by vendor code) when a member was identified |
 | `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
 | `dateOfService` | always | The (first) date evaluated |
@@ -388,8 +388,8 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
 2. One MMI call: `POST {mmi.base-url}/master/member/v1` with that ID in `memberId` **and**
    `legacyMemberId` (the MMI spec's hit-rate advice), `voidCoverageRecord: N`, this service's own `clientId` and
    `clientType: INT`, a fresh MMI `requestId` (`INTEROP-<millis>-<5 digits>`, returned as `traceId`; not the caller's
-   `requestId`), and the date of service (the first day of a period) in `dosStartDate` as `MM/dd/yyyy`;
-   no `dosEndDate`. The coverage MMI returns is evaluated locally. No demographics are ever sent.
+   `requestId`). No date goes to MMI (no `dosStartDate`, no `dosEndDate`): MMI returns the member's whole coverage
+   history and the date of service is judged here. No demographics are ever sent.
    MMI's HTTP status is kept with the answer and mapped as in the table in section 2 (Errors): 200 is parsed;
    404 is MMI's "no member for this id", a normal answer (`NOT_FOUND`) whatever the body, and a body that is not
    MMI's envelope only adds `marker=MMI_404_WITHOUT_ENVELOPE` to the log; 400 is 400 `MEMBER_LOOKUP_REJECTED` with MMI's
@@ -400,13 +400,15 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    message in `sourceMessage` when there is one. Members beside a 404 are ignored (the status wins) and `marker=MMI_NOT_FOUND_WITH_MEMBERS` is logged.
 3. Reduce the records: identical records merged; records linked through `legacyMemberId` (THP<->HPHC
    conversion) are one person and the record covering the date of service wins; a supplied DOB picks one
-   person or proves a mismatch; several persons without a DOB -> `AMBIGUOUS`.
+   person or proves a mismatch; a stale person (not covered on the date of service and no coverage ending in the last
+   24 months, today back; open-ended and future coverage counts as recent, an unreadable span keeps the person) is
+   dropped, and nobody left is `NOT_FOUND` with `marker=NO_RECENT_COVERAGE`; several persons left without a DOB -> `AMBIGUOUS`.
 4. Coverage: the readable, non-void spans that overlap or touch are joined into continuous periods; `active` when one
-   period covers every day from the first to the last date of service (inclusive; an end of null or `12/31/3999` is
-   open). The dates are always the ones that were sent (today only when none was sent), whatever year they are in:
+   period covers the date of service, the first day of a period of service (dates inclusive; an end of null or
+   `12/31/3999` is open). The dates are always the ones that were sent (today only when none was sent), whatever year they are in:
    a 2027 date against a record that ends 12/31/2026 is `INACTIVE` ("coverage ended before"), a period from
    2025-12-20 to 2026-01-05 against records for 2025 and 2026 is `ACTIVE` (one continuous period), a period that
-   runs past the end of coverage is `INACTIVE` ("coverage active on ... but ends ..., before ..."), and any date
+   runs past the end of coverage is `ACTIVE` too ("coverage active on ...; ends ..., before ..."), and any date
    against a record with no end date is `ACTIVE`, because that is what the record says. A span with an unreadable date is skipped and logged with `marker=UNREADABLE_SPAN`; the
    remaining spans decide. If a member has unreadable spans and no readable one, the answer is 502
    `UNREADABLE_COVERAGE`, never a confident INACTIVE. For a converted member the two records' spans are
@@ -479,8 +481,8 @@ payer goes out and the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor,
 `src/main/resources/mmi-stub/members.json` behaves like MMI: exact match, 9-character (policy) match returning
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
 and case (anything that is not a letter or digit is ignored), the leniency expected of the real MMI; the service
-itself hands the id over untouched. The stub ignores `dosStartDate` and returns each record's whole coverage
-history. `src/main/resources/member-info-stub/members.json` is the member information stub: the Together subscriber's coverage
+itself hands the id over untouched. The stub returns each record's whole coverage history, as MMI does without a
+date; the member whose coverage ended 12/31/2023 is the stale one: `NOT_FOUND` today, `ACTIVE` for a 2023 date. `src/main/resources/member-info-stub/members.json` is the member information stub: the Together subscriber's coverage
 records (THPPMA, source system 2026; product SB from 2022 to 2024, product GT from 2025 with no end), so its answers carry
 `MA-TOGETHER` for a 2026 date and `MA-QHP` for a 2024 one; and the SCO member's record (business type SH, a plan
 code with SCO in it, 2023 to 2025), so a 2025 date carries `SCO`. Any other member has no records and keeps MMI's line of
@@ -535,10 +537,12 @@ that unknown properties are ignored, and that an unusable date of service or dat
 DOB is still 422 `DOB_MISMATCH` after the one MMI call (`traceId` present). `aFutureDateOfServiceIsJudgedOnTheCoverageOnRecord` and
 `aSentDateOfServiceIsNeverReplacedByToday` cover a calendar-year record: a member whose only record runs 01/01/2026 to 12/31/2026 is
 ACTIVE for 2026-10-15 and INACTIVE for 2027-10-15, the response carries the date asked about, an unusable date is a 400
-and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. `aPeriodOfServiceMustBeCoveredOnEveryDay`: a member with
-adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the merged period in the coverage dates, INACTIVE
-from 2026-12-20 to 2027-01-05 ("coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05"), `dateOfServiceEnd`
-is echoed only when sent, and an end before the start, without a start or not a date is a 400. A capturing log appender
+and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. `aPeriodOfServiceIsJudgedOnItsFirstDay`: a member with
+adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the merged period in the coverage dates, ACTIVE
+from 2026-12-20 to 2027-01-05 as well ("coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05"), `dateOfServiceEnd`
+is echoed only when sent, and an end before the start, without a start or not a date is a 400.
+`aMemberWithNoCoverageInTheLast24MonthsIsNotFound`: the member whose coverage ended 12/31/2023 is NOT_FOUND today and for
+2024-02-01 (the plain sentence, no `sourceMessage`, a `traceId`, `marker=NO_RECENT_COVERAGE` in the log) and ACTIVE for 2023-06-15. A capturing log appender
 asserts no log line (message or exception text; payload logging is off in the `test` profile) contains a date
 of birth from the stub data or a member name, and no response body contains SSN or MMI's field names, and a member name appears only inside `memberId.forVendors`, never on an error, NOT_FOUND or AMBIGUOUS answer; a stub call counter proves invalid requests
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI
@@ -583,10 +587,10 @@ covering record's line of business replaces MMI's; a failure is a 503 with `Retr
   the ES Members criteria read the coverage record as `sourceSysId` = `sourceSystemId`, `coverage.subsidiary` = `subsidiary`,
   `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`; MA-HMO and MA-PPO records carry SH, `subsidiary` TAHMO and the `businessLineKey` (0039 or 0099, 0235). Pending, with CRC: check the record's `ipa` against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value (the place is marked in `LineOfBusinessDeriver`). TMP members are covered by MA-HMO and MA-PPO (all but the IPA variant). Rules for HPHC and commercial
   members are to come; until then those members keep MMI's value.
-- With `dosStartDate`, which coverage MMI returns: only the segment covering that date or the whole history; and for
-  a member with no coverage on that date, the member without coverage or a 404 (`NOT_FOUND` here instead of
-  `INACTIVE` with its reason). The service evaluates whatever comes back: contiguous segments are still read as one
-  period (`coverage` dates and `coverageId`), and a period of service is judged on what comes back for its first day.
+- Without a date in the request, MMI returns the member's whole coverage history (the request carries no
+  `dosStartDate` on purpose). The service evaluates it: contiguous segments are one period (`coverage` dates and
+  `coverageId`), a period of service is judged on its first day, and a member with nothing in the last 24 months is
+  `NOT_FOUND`.
 - A single record returned for any population is the member (TMP/SCO always return one).
 - MMI reports the company as `THP` or `HPHC`, the values eviCore's and Evolent's payer entries key on, and the line of
   business of a Public Plans member as `PP`, the value Evolent's Tufts Health Public Plans entry keys on. Any other
