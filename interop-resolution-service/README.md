@@ -161,7 +161,7 @@ criteria, read against the record (`sourceSysId` is the record's `sourceSystemId
 `subsidiary`, `coverage.product` its `productCode`; case and spaces ignored). SCO is read from `businessTypeIndicator` and
 `planCode`, and is checked first:
 
-| `lineOfBusiness` | Coverage record covering the date of service |
+| `lineOfBusiness` | Coverage record covering the date of service, else the most recent record |
 |---|---|
 | `SCO` | `businessTypeIndicator` SH and a `planCode` with SCO in it |
 | `MA-HMO` | `businessTypeIndicator` SH, `subsidiary` TAHMO and `businessLineKey` 0039 or 0099 (the four digits exactly) |
@@ -170,7 +170,7 @@ criteria, read against the record (`sourceSysId` is the record's `sourceSystemId
 | `MA-TOGETHER` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` PL or GT |
 | `RI-TOGETHER` | `subsidiary` THPPRI and `sourceSystemId` 2048 |
 | `MA-QHP` | `subsidiary` THPPMA, `sourceSystemId` 2026, `productCode` NS or SB |
-| MMI's value (`MCR`, `PP`, `COM`, ...) | no record covers the date, or none a rule matches (HPHC, commercial and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED` |
+| MMI's value (`MCR`, `PP`, `COM`, ...) | no record at all, or the record read matches no rule (HPHC, commercial and the populations whose rules are to come); logged with `marker=LOB_NOT_DERIVED`. When no record covers the date (an INACTIVE member, typically) the most recent record is read instead: the latest plan end date, an open end counting as latest, then the latest start; logged with `marker=LOB_FROM_LATEST_RECORD` |
 
 A derived value is logged as `lob derived` with the record's fields and dates. When several records cover the date,
 the first one a rule matches gives the value, and `marker=LOB_SEVERAL_ON_DATE` is logged if they disagree. TMP members
@@ -294,7 +294,7 @@ together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digit
 period). It is present whenever the dates are, and the same member with the same coverage always gets the same
 value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no neighbouring dates.
 `lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`,
-`MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP`; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
+`MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP`; when no record covers the date, the most recent record is read; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
 Onyx routes the transaction on it. The company (THP or
 HPHC) is not returned: the resolved id tells it apart (`HP` prefix) and Onyx does not act on it. The response is kept
 to what Onyx acts on; the correlation id is in the `X-Correlation-Id` response header, not in a 200 body, and the caller's `requestId`
@@ -414,8 +414,8 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    `UNREADABLE_COVERAGE`, never a confident INACTIVE. For a converted member the two records' spans are
    evaluated together, so a gap between the old and the new record is reported as a gap.
 5. For an identified member (`ACTIVE` or `INACTIVE`), one member information call with the resolved ID and the date
-   of service; the line of business is derived from the coverage record that covers the date of service (section 1;
-   MMI's value when none does or no rule matches).
+   of service; the line of business is derived from the coverage record that covers the date of service, or from the
+   most recent record when none does (section 1; MMI's value when there is no record or no rule matches).
    Its failure fails the answer (503 / 502).
 6. Format the resolved ID for every configured vendor, in vendor-code order (never from the input).
 
@@ -565,10 +565,11 @@ The member information call: `RestMemberInfoClientTest` (the exact body, `dos` a
 parsed, `returnCoverageList` always true, 404 as no records, 5xx/429/408 and timeouts as 503, other statuses and
 unreadable bodies as 502), `MemberInfoResponseTest` (the coverage records matched to the member ignoring spacing and
 case, void records skipped; a record covers its start and end dates inclusive, open when it has no end, nothing when its
-start is missing or a date unreadable), `LineOfBusinessDeriverTest` (each rule and its edges; only the record covering the
-date of service is read; several records on the date give the first match; no record or no match keeps MMI's value),
+start is missing or a date unreadable), `LineOfBusinessDeriverTest` (each rule and its edges; the record covering the
+date of service is read, else the most recent one by end date then start, unreadable dates left out; several records on
+the date give the first match; no record or no match keeps MMI's value),
 `ResolutionServiceMemberPlanTest` (asked with the resolved id, the first day of a period and the correlation id; the
-covering record's line of business replaces MMI's; a failure is a 503 with `Retry-After` and MMI's request id as `traceId`) and `theCoverageRecordsAreAskedForOnlyOnceTheMemberIsIdentified` (the Together subscriber gets `MA-TOGETHER` for 2026,
+covering record's line of business replaces MMI's, the most recent record's when none covers the date; a failure is a 503 with `Retry-After` and MMI's request id as `traceId`) and `theCoverageRecordsAreAskedForOnlyOnceTheMemberIsIdentified` (the Together subscriber gets `MA-TOGETHER` for 2026,
 `MA-QHP` for 2024 and `PP` for 2021; the SCO member `SCO` for 2025 and `MCR` for 2026; asked for `ACTIVE` and `INACTIVE`, never for
 `NOT_FOUND` or `AMBIGUOUS`).
 

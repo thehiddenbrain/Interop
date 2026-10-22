@@ -374,12 +374,12 @@ class ResolveScenariosTest {
         assertThat(call(200, req(subscriber, "2024-08-15")).get("lineOfBusiness").asText())
                 .as("the 2022-2024 record: THPPMA, 2026, SB").isEqualTo("MA-QHP");
         assertThat(call(200, req(subscriber, "2021-06-01")).get("lineOfBusiness").asText())
-                .as("no record covers 2021: the member record's").isEqualTo("PP");
+                .as("no record covers 2021: the most recent record, the open-ended Together one").isEqualTo("MA-TOGETHER");
         before += 3; // the subscriber's three answers
 
         JsonNode inactive = call(200, req(fixtureId("SCO member (Medicare)"), "2026-10-15"));
         assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");
-        assertThat(inactive.get("lineOfBusiness").asText()).as("no record covers 2026: the member record's").isEqualTo("MCR");
+        assertThat(inactive.get("lineOfBusiness").asText()).as("no record covers 2026: the most recent record, the SCO one").isEqualTo("SCO");
         assertThat(plans.calls()).as("asked for an INACTIVE member too").isEqualTo(before + 2);
         assertThat(call(200, req(fixtureId("SCO member (Medicare)"), "2025-06-15")).get("lineOfBusiness").asText())
                 .as("the 2023-2025 record: business type SH, plan code with SCO").isEqualTo("SCO");

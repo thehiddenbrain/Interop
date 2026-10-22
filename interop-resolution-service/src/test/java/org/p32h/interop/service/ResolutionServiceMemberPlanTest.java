@@ -151,11 +151,12 @@ class ResolutionServiceMemberPlanTest {
     }
 
     @Test
-    void noRecordsOrNoneCoveringTheDateKeepTheRecordsLineOfBusiness() {
+    void noRecordsKeepTheRecordsLineOfBusinessAndNoneCoveringTheDateReadsTheMostRecent() {
         assertThat(resolve(service(id -> new MemberInfoResponse(null, null))).lineOfBusiness()).isEqualTo("MCR");
+        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_NOT_DERIVED").contains("coverageRecords=0").contains("latestRecord=none"));
         assertThat(resolve(service(id -> answer(STORED, record("2048", "THPPRI", null, "2020-01-01", "2025-12-31")))).lineOfBusiness())
-                .as("a record that ended before the date of service").isEqualTo("MCR");
-        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_NOT_DERIVED").contains("covering=0"));
+                .as("a record that ended before the date of service: the most recent one").isEqualTo("RI-TOGETHER");
+        assertThat(messages()).anySatisfy(m -> assertThat(m).contains("marker=LOB_FROM_LATEST_RECORD").contains("covering=0").contains("lob=RI-TOGETHER"));
     }
 
     @Test

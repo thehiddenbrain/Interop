@@ -126,7 +126,7 @@ td code { white-space: nowrap; }
 <tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>name[]<wbr>.<wbr>text</code></td><td>string</td><td></td><td>The full name: the given names and the family name joined with spaces</td></tr>
 <tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>name[]<wbr>.<wbr>family</code></td><td>string</td><td></td><td>The last name; absent when the plan has none on record</td></tr>
 <tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>name[]<wbr>.<wbr>given</code></td><td>array</td><td></td><td>The first name, then the middle name when there is one; absent when the plan has no first name on record</td></tr>
-<tr><td><code>data.<wbr>lineOfBusiness</code></td><td>string</td><td></td><td>The line of business Onyx routes on, from the plan in effect on the date of service, for example SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP; values can be added, so never treat the list as closed. When no rule applies, the member record's own category is passed through (for example MCR, PP, COM), and the field is absent when the record carries none. Present on ACTIVE and INACTIVE answers only. Agree with Point32Health how to route a value outside the list, or an absent one</td></tr>
+<tr><td><code>data.<wbr>lineOfBusiness</code></td><td>string</td><td></td><td>The line of business Onyx routes on, from the plan in effect on the date of service, or from the member's most recent plan when none is in effect on it, for example SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP; values can be added, so never treat the list as closed. When no rule applies, the member record's own category is passed through (for example MCR, PP, COM), and the field is absent when the record carries none. Present on ACTIVE and INACTIVE answers only. Agree with Point32Health how to route a value outside the list, or an absent one</td></tr>
 <tr><td><code>data.<wbr>dateOfService</code></td><td>date (yyyy-MM-dd)</td><td>yes</td><td>The date evaluated; the first date when a period was asked about</td></tr>
 <tr><td><code>data.<wbr>dateOfServiceEnd</code></td><td>date (yyyy-MM-dd)</td><td></td><td>The last date evaluated; present only when the request asked about a period</td></tr>
 <tr><td><code>data.<wbr>dateOfServiceDefaulted</code></td><td>boolean</td><td>yes</td><td>true when no dateOfService was sent and today was used</td></tr>
@@ -366,7 +366,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
         }
       ]
     },
-    "lineOfBusiness": "MCR",
+    "lineOfBusiness": "SCO",
     "dateOfService": "2026-10-15",
     "dateOfServiceDefaulted": false,
     "coverage": {"active": false},
@@ -380,7 +380,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     "timestamp": 1791577776968
   }
 }</code></pre>
-<p class="note">No plan is in effect on that date, so <code>lineOfBusiness</code> falls back to the member record's category.</p></div>
+<p class="note">No plan is in effect on that date, so <code>lineOfBusiness</code> comes from the member's most recent plan.</p></div>
 <div class="example"><h4><span class="pill info">200</span> AMBIGUOUS, 9-character Together family, no date of birth</h4>
 <pre><code>{"memberId": "345678901", "dateOfService": "2026-10-15"}
 

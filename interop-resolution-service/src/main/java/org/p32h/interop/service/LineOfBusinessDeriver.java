@@ -1,6 +1,7 @@
 package org.p32h.interop.service;
 
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -29,7 +30,9 @@ import org.slf4j.LoggerFactory;
  *   MA-QHP          subsidiary THPPMA, sourceSystemId 2026 and productCode NS or SB
  * </pre>
  * When several records cover the date, the first one a rule matches gives the value; if they give different values a
- * warning is logged ({@code marker=LOB_SEVERAL_ON_DATE}). A member with no record covering the date, or whose records match
+ * warning is logged ({@code marker=LOB_SEVERAL_ON_DATE}). When no record covers the date (an INACTIVE member, typically),
+ * the most recent record is read instead: the one whose plan end date is latest, an open end counting as latest, then the
+ * latest start; logged with {@code marker=LOB_FROM_LATEST_RECORD}. A member with no record at all, or whose record matches
  * no rule (HPHC, commercial and the other populations whose rules are still to come), keeps the line of business on the
  * member record (from MMI), logged with {@code marker=LOB_NOT_DERIVED}. TMP members are covered by MA-HMO and MA-PPO; their
  * IPA variant is pending (see {@code tahmoMedicareAdvantage}).
@@ -72,8 +75,17 @@ public class LineOfBusinessDeriver {
         String fromRecord = record.lineOfBusiness();
         List<MemberPlan> covering = coverageRecords.stream().filter(c -> c.covers(dateOfService)).toList();
         if (covering.isEmpty()) {
-            log.info("marker=LOB_NOT_DERIVED memberId={} dos={} coverageRecords={} covering=0; lob={} from the member record",
-                    record.storedMemberId(), dateOfService, coverageRecords.size(), fromRecord);
+            MemberPlan latest = mostRecent(coverageRecords);
+            String value = latest == null ? null : lineOfBusinessOf(latest);
+            if (value != null) {
+                log.info("marker=LOB_FROM_LATEST_RECORD memberId={} dos={} coverageRecords={} covering=0 lob={} sourceSystemId={} subsidiary={} "
+                                + "productCode={} planStartDate={} planEndDate={}: no record covers the date, the most recent one is read",
+                        record.storedMemberId(), dateOfService, coverageRecords.size(), value, latest.sourceSystemId(), latest.subsidiary(),
+                        latest.productCode(), latest.planStartDate(), latest.planEndDate());
+                return value;
+            }
+            log.info("marker=LOB_NOT_DERIVED memberId={} dos={} coverageRecords={} covering=0 latestRecord={}; lob={} from the member record",
+                    record.storedMemberId(), dateOfService, coverageRecords.size(), latest == null ? "none" : "matches no rule", fromRecord);
             return fromRecord;
         }
         MemberPlan matched = null;
@@ -103,6 +115,22 @@ public class LineOfBusinessDeriver {
                 record.storedMemberId(), dateOfService, lob, matched.sourceSystemId(), matched.subsidiary(), matched.productCode(),
                 matched.planStartDate(), matched.planEndDate());
         return lob;
+    }
+
+    /**
+     * The record with the latest plan end date (no end date is the latest of all), then the latest start date; records
+     * whose start or end date cannot be read are left out. Null when none qualifies.
+     */
+    private static MemberPlan mostRecent(List<MemberPlan> coverageRecords) {
+        return coverageRecords.stream()
+                .filter(c -> MemberPlan.dateOf(c.planStartDate()) != null && endForRecency(c) != null)
+                .max(Comparator.comparing(LineOfBusinessDeriver::endForRecency).thenComparing(c -> MemberPlan.dateOf(c.planStartDate())))
+                .orElse(null);
+    }
+
+    /** The plan end date for ordering: {@link LocalDate#MAX} when there is none, null when it cannot be read. */
+    private static LocalDate endForRecency(MemberPlan c) {
+        return c.planEndDate() == null || c.planEndDate().isBlank() ? LocalDate.MAX : MemberPlan.dateOf(c.planEndDate());
     }
 
     /** The line of business the first matching rule gives this record, or null when none matches. */

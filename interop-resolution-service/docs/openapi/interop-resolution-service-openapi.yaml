@@ -248,11 +248,12 @@ components:
           $ref: '#/components/schemas/MemberId'
         lineOfBusiness:
           type: string
-          description: The line of business Onyx routes on, from the plan in effect on the date of service, for example SCO,
-            MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP; values can be added, so never treat the list as closed.
-            When no rule applies, the member record's own category is passed through (for example MCR, PP, COM), and the field
-            is absent when the record carries none. Present on ACTIVE and INACTIVE answers only. Agree with Point32Health
-            how to route a value outside the list, or an absent one
+          description: The line of business Onyx routes on, from the plan in effect on the date of service, or from the member's
+            most recent plan when none is in effect on it, for example SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER
+            or MA-QHP; values can be added, so never treat the list as closed. When no rule applies, the member record's own
+            category is passed through (for example MCR, PP, COM), and the field is absent when the record carries none. Present
+            on ACTIVE and INACTIVE answers only. Agree with Point32Health how to route a value outside the list, or an absent
+            one
           example: MA-HMO
         dateOfService:
           type: string

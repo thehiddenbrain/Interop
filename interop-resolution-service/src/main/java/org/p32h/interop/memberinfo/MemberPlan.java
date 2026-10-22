@@ -63,7 +63,7 @@ public record MemberPlan(
      * The date as written, the leading {@code yyyy-MM-dd}: {@code 2024-02-01T05:00:00.000+00:00}, {@code ...+0000},
      * {@code 2024-02-01T00:00:00} and {@code 2024-02-01} are all 2024-02-01. Null when blank or not a date.
      */
-    static LocalDate dateOf(String value) {
+    public static LocalDate dateOf(String value) {
         if (value == null || value.strip().length() < 10) {
             return null;
         }

@@ -134,7 +134,7 @@ class LineOfBusinessDeriverTest {
     }
 
     @Test
-    void onlyTheRecordCoveringTheDateOfServiceIsRead() {
+    void theRecordCoveringTheDateOfServiceIsReadElseTheMostRecentOne() {
         List<MemberPlan> fiveYears = List.of(
                 record("2048", "THPPRI", null, "2021-01-01T05:00:00.000+00:00", "2023-12-31T05:00:00.000+00:00"),
                 record("2026", "THPPMA", "SB", "2024-01-01T05:00:00.000+00:00", "2026-10-14T04:00:00.000+00:00"),
@@ -142,9 +142,31 @@ class LineOfBusinessDeriverTest {
         assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2022-06-01"))).isEqualTo("RI-TOGETHER");
         assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2026-10-14"))).as("the last day, inclusive").isEqualTo("MA-QHP");
         assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2026-10-15"))).as("the first day, inclusive").isEqualTo("MA-TOGETHER");
-        assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2020-06-01"))).as("before every record").isEqualTo("MCR");
+        assertThat(deriver.derive(RECORD, fiveYears, LocalDate.parse("2020-06-01"))).as("before every record: the most recent one, open-ended").isEqualTo("MA-TOGETHER");
+        assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage()).contains("marker=LOB_FROM_LATEST_RECORD")
+                .contains("coverageRecords=3").contains("covering=0").contains("lob=MA-TOGETHER").contains("productCode=GT"));
+    }
+
+    @Test
+    void whenNoRecordCoversTheDateTheMostRecentRecordIsRead() {
+        List<MemberPlan> ended = List.of(
+                record("2048", "THPPRI", null, "2019-01-01", "2021-12-31"),
+                record("2026", "THPPMA", "SB", "2022-01-01", "2023-06-30"));
+        assertThat(deriver.derive(RECORD, ended, DOS)).as("the latest end date wins, not the order").isEqualTo("MA-QHP");
+        assertThat(deriver.derive(RECORD, List.of(ended.get(1), ended.get(0)), DOS)).isEqualTo("MA-QHP");
+        assertThat(deriver.derive(RECORD, List.of(
+                record("2048", "THPPRI", null, "2022-01-01", "2023-06-30"),
+                record("2026", "THPPMA", "SB", "2023-01-01", "2023-06-30")), DOS)).as("same end: the later start").isEqualTo("MA-QHP");
+        assertThat(deriver.derive(RECORD, List.of(
+                record("2026", "THPPMA", "SB", "2020-01-01", "2023-06-30"),
+                record("2048", "THPPRI", null, "2027-01-01", null)), DOS)).as("a future record is the most recent: not yet effective").isEqualTo("RI-TOGETHER");
+        assertThat(deriver.derive(RECORD, List.of(record("2026", "THPPMA", "DMA", "2020-01-01", "2023-06-30")), DOS))
+                .as("the most recent record matches no rule: the member record's").isEqualTo("MCR");
         assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage()).contains("marker=LOB_NOT_DERIVED")
-                .contains("coverageRecords=3").contains("covering=0").contains("lob=MCR"));
+                .contains("covering=0").contains("latestRecord=matches no rule").contains("lob=MCR"));
+        assertThat(deriver.derive(RECORD, List.of(
+                record("2026", "THPPMA", "SB", "2020-01-01", "not a date"),
+                record("2048", "THPPRI", null, "2019-01-01", "2019-12-31")), DOS)).as("an unreadable end date leaves the record out").isEqualTo("RI-TOGETHER");
     }
 
     @Test
