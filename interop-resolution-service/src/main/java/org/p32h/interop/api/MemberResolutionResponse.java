@@ -3,6 +3,9 @@ package org.p32h.interop.api;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
+import org.p32h.interop.domain.MemberName;
 
 /**
  * The 200 response of {@code POST /v1/interop/resolve}. Lean by design: the outcome, one sentence, the member id as
@@ -52,12 +55,41 @@ public record MemberResolutionResponse(
      * @param memberId  the stored id in that vendor's format: what goes into that vendor's payload
      * @param payerId   the payer id that vendor keys on: its own for the member's company when configured, else the default
      * @param payerName the payer name that goes with it
+     * @param name      the member's name as the plan has it on record, one FHIR HumanName; null when the plan has none
      */
     @Schema(description = "Everything Onyx puts on one vendor's request")
     public record VendorMemberId(
             @Schema(description = "The vendor code, for example EVICORE; today CARELON, EVICORE, EVOLENT, MHK, ONYX and OPTUM. Vendors can be added, so never treat the list as closed", example = "EVICORE") String vendor,
             @Schema(description = "The resolved id in this vendor's format: the member id to put on this vendor's request") String memberId,
             @Schema(description = "The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company and plan population, so use the entry's value as given", example = "TUFTS") String payerId,
-            @Schema(description = "The payer name that goes with payerId", example = "TUFTS") String payerName) {
+            @Schema(description = "The payer name that goes with payerId", example = "TUFTS") String payerName,
+            @Schema(description = "The member's name as the plan has it on record, one entry in the FHIR HumanName shape: given[0] the first name, "
+                    + "given[1] the middle name when there is one, family the last name, text all of them joined. Put it on the vendor's request as given. "
+                    + "Absent only when the plan has no name on record; then use the name from the EMR") List<HumanName> name) {
+    }
+
+    /**
+     * The member's name in the FHIR HumanName shape, the form the UM vendors take.
+     *
+     * @param text   the full name: the given names and the family name, joined with spaces
+     * @param family the last name, or null when the record has none
+     * @param given  the first name, then the middle name when there is one; null when the record has no first name
+     */
+    @Schema(description = "A name in the FHIR HumanName shape; either given or family is always present")
+    public record HumanName(
+            @Schema(description = "The full name: the given names and the family name joined with spaces", example = "Taylor A Morgan") String text,
+            @Schema(description = "The last name; absent when the plan has none on record", example = "Morgan") String family,
+            @Schema(description = "The first name, then the middle name when there is one; absent when the plan has no first name on record") List<String> given) {
+
+        /** One HumanName for the record's name, or null when there is no name. */
+        public static List<HumanName> of(MemberName name) {
+            if (name == null) {
+                return null;
+            }
+            List<String> given = name.first() == null ? null
+                    : name.middle() == null ? List.of(name.first()) : List.of(name.first(), name.middle());
+            String text = String.join(" ", Stream.of(name.first(), name.middle(), name.last()).filter(Objects::nonNull).toList());
+            return List.of(new HumanName(text, name.last(), given));
+        }
     }
 }

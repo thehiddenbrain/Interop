@@ -1,6 +1,7 @@
 package org.p32h.interop.mmi;
 
 import org.p32h.interop.domain.CoverageSpan;
+import org.p32h.interop.domain.MemberName;
 import org.p32h.interop.domain.MemberRecord;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ public final class MmiRecordMapper {
         }
         return new MemberRecord(stored, matchKey, company,
                 m.lineOfBusiness() == null ? null : m.lineOfBusiness().strip(),
-                MemberRecord.matchKeyOf(m.legacyMemberId()), dob, List.copyOf(spans), unreadable);
+                MemberRecord.matchKeyOf(m.legacyMemberId()), dob,
+                MemberName.of(m.memberFirstName(), m.memberMiddleName(), m.memberLastName()), List.copyOf(spans), unreadable);
     }
 }

@@ -2,6 +2,7 @@ package org.p32h.interop.mmi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.p32h.interop.domain.MemberName;
 import org.p32h.interop.domain.MemberRecord;
 import java.time.LocalDate;
 import java.util.List;
@@ -9,11 +10,25 @@ import org.junit.jupiter.api.Test;
 
 class MmiRecordMapperTest {
 
+    @Test
+    void theNameIsTrimmedAndAbsentWithoutAFirstOrLastName() {
+        MemberRecord r = mapper.toRecord(new MmiMember("X1", null, null, null, " Taylor ", "A", "Morgan ", "THP", null, null, null, null));
+        assertThat(r.name()).isEqualTo(new MemberName("Taylor", "A", "Morgan"));
+        assertThat(r.name().toString()).as("a name never prints").doesNotContain("Taylor", "Morgan");
+        assertThat(r.toString()).doesNotContain("Taylor", "Morgan");
+        assertThat(mapper.toRecord(new MmiMember("X1", null, null, null, "Taylor", " ", null, "THP", null, null, null, null)).name())
+                .as("a blank middle name and a missing last name are null, the name stays").isEqualTo(new MemberName("Taylor", null, null));
+        assertThat(mapper.toRecord(new MmiMember("X1", null, null, null, null, null, "Morgan", "THP", null, null, null, null)).name())
+                .isEqualTo(new MemberName(null, null, "Morgan"));
+        assertThat(mapper.toRecord(new MmiMember("X1", null, null, null, " ", "A", "", "THP", null, null, null, null)).name())
+                .as("neither a first nor a last name: no name, whatever the middle name").isNull();
+    }
+
     private final MmiRecordMapper mapper = new MmiRecordMapper();
 
     @Test
     void mapsDatesStrictlyAndSkipsVoidAndUnreadableSpans() {
-        MmiMember m = new MmiMember("123456789   01", "123456789   01", "03/15/1950", null, "thp", " MCR ", "N", null, List.of(
+        MmiMember m = new MmiMember("123456789   01", "123456789   01", "03/15/1950", null, null, null, null, "thp", " MCR ", "N", null, List.of(
                 new MmiCoverage("01/01/2024", null, "g", "N"),
                 new MmiCoverage("01/01/2020", "12/31/3999", "g", "N"),
                 new MmiCoverage("01/01/2026", null, "g", "Y"),
@@ -33,18 +48,18 @@ class MmiRecordMapperTest {
 
     @Test
     void infersCompanyFromTheIdShapeWhenMissing() {
-        assertThat(mapper.toRecord(new MmiMember("HP456789012", null, null, null, null, null, null, null, null)).company()).isEqualTo("HPHC");
-        assertThat(mapper.toRecord(new MmiMember("123456789   01", null, null, null, "", null, null, null, null)).company()).isEqualTo("THP");
+        assertThat(mapper.toRecord(new MmiMember("HP456789012", null, null, null, null, null, null, null, null, null, null, null)).company()).isEqualTo("HPHC");
+        assertThat(mapper.toRecord(new MmiMember("123456789   01", null, null, null, null, null, null, "", null, null, null, null)).company()).isEqualTo("THP");
     }
 
     @Test
     void unreadableDobBecomesNull() {
-        assertThat(mapper.toRecord(new MmiMember("123456789   01", null, "1950-03-15", null, "THP", null, null, null, null)).dateOfBirth()).isNull();
+        assertThat(mapper.toRecord(new MmiMember("123456789   01", null, "1950-03-15", null, null, null, null, "THP", null, null, null, null)).dateOfBirth()).isNull();
     }
 
     @Test
     void legacyIdIsNormalisedForMatching() {
-        assertThat(mapper.toRecord(new MmiMember("HP567890123", null, null, "567890123   01", "HPHC", null, null, null, null)).legacyMatchKey())
+        assertThat(mapper.toRecord(new MmiMember("HP567890123", null, null, "567890123   01", null, null, null, "HPHC", null, null, null, null)).legacyMatchKey())
                 .isEqualTo("56789012301");
     }
 

@@ -14,7 +14,7 @@ class MemberSelectorTest {
 
     private static MemberRecord rec(String stored, String company, String legacy, String dob, CoverageSpan... spans) {
         return new MemberRecord(stored, MemberRecord.matchKeyOf(stored), company, "MCR", MemberRecord.matchKeyOf(legacy),
-                dob == null ? null : LocalDate.parse(dob), List.of(spans), 0);
+                dob == null ? null : LocalDate.parse(dob), null, List.of(spans), 0);
     }
 
     private static CoverageSpan span(String eff, String end) {
@@ -119,7 +119,7 @@ class MemberSelectorTest {
 
     @Test
     void unreadableSpansAreCountedAcrossThePerson() {
-        MemberRecord only = new MemberRecord("880000000   01", "88000000001", "THP", "MCR", null, null, List.of(), 1);
+        MemberRecord only = new MemberRecord("880000000   01", "88000000001", "THP", "MCR", null, null, null, List.of(), 1);
         SelectionResult.Selected s = (SelectionResult.Selected) selector.select(List.of(only), null, DOS);
         assertThat(s.readableSpans()).isZero();
         assertThat(s.unreadableSpans()).isEqualTo(1);

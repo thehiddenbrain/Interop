@@ -51,6 +51,8 @@ class ResolveScenariosTest {
     private static final String PATH = "/v1/interop/resolve";
     /** Every date of birth in the stub data, as MMI writes it (MM/dd/yyyy) and as yyyy-MM-dd: none may reach a log line. */
     private static final String[] STUB_DOBS = stubDobs();
+    /** Every first and last name in the stub data (four letters or more): none may reach a log line or an answer without a member. */
+    private static final String[] STUB_NAMES = stubNames();
 
     private static String[] stubDobs() {
         try (var in = ResolveScenariosTest.class.getResourceAsStream("/mmi-stub/members.json")) {
@@ -63,6 +65,33 @@ class ResolveScenariosTest {
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
+    }
+
+    private static String[] stubNames() {
+        JsonNode members = stubMembers();
+        return java.util.stream.Stream.concat(members.findValues("memberFirstName").stream(), members.findValues("memberLastName").stream())
+                .map(JsonNode::asText)
+                .filter(name -> name.length() >= 4)
+                .distinct()
+                .toArray(String[]::new);
+    }
+
+    private static JsonNode stubMembers() {
+        try (var in = ResolveScenariosTest.class.getResourceAsStream("/mmi-stub/members.json")) {
+            return tools.jackson.databind.json.JsonMapper.builder().build().readTree(in);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** The stub member whose comment starts with the given words. */
+    private static JsonNode stubMember(String commentStart) {
+        for (JsonNode m : stubMembers()) {
+            if (m.path("_comment").asText().startsWith(commentStart)) {
+                return m;
+            }
+        }
+        throw new AssertionError("no stub member whose comment starts with: " + commentStart);
     }
 
     @Value("${local.server.port}") int port;
@@ -171,7 +200,7 @@ class ResolveScenariosTest {
                 case "EVOLENT" -> evolentPayer;
                 default -> "Point32Health";
             };
-            assertThat(e.properties()).extracting(Map.Entry::getKey).as(vendor).containsExactly("vendor", "memberId", "payerId", "payerName");
+            assertThat(e.properties()).extracting(Map.Entry::getKey).as(vendor).containsExactly("vendor", "memberId", "payerId", "payerName", "name");
             assertThat(e.get("payerId").asText()).as(vendor).isEqualTo(want);
             assertThat(e.get("payerName").asText()).as(vendor).isEqualTo(want);
         }
@@ -189,7 +218,10 @@ class ResolveScenariosTest {
 
     private void assertNoPhi(String body) {
         if (body != null) {
-            assertThat(body).doesNotContain("memberFirstName", "memberLastName", "socialSecurityNumber", "memberDob", "Morgan", "Rivera", "***-**");
+            assertThat(body).doesNotContain("memberFirstName", "memberMiddleName", "memberLastName", "socialSecurityNumber", "memberDob", "***-**");
+            if (!body.contains("\"forVendors\"")) {
+                assertThat(body).as("a name travels only inside memberId.forVendors: never on an error, NOT_FOUND or AMBIGUOUS").doesNotContain(STUB_NAMES);
+            }
             assertThat(body).as("nothing a caller receives names MMI: no field, code, message or URL").doesNotContain("MMI", "mmi");
         }
         for (ILoggingEvent e : logs.list) {
@@ -199,8 +231,8 @@ class ResolveScenariosTest {
             }
             String line = text.toString();
             assertThat(line).as("every stub member's company has a payer entry wherever a vendor keys on it").doesNotContain("VENDOR_PAYER_DEFAULTED");
-            assertThat(line).as("no date of birth or name in a log line").doesNotContain(STUB_DOBS)
-                    .doesNotContain("1950-03-15", "2012-09-09", "Morgan", "Rivera");
+            assertThat(line).as("no date of birth or name in a log line").doesNotContain(STUB_DOBS).doesNotContain(STUB_NAMES)
+                    .doesNotContain("1950-03-15", "2012-09-09");
         }
     }
 
@@ -479,6 +511,43 @@ class ResolveScenariosTest {
             assertThat(r.get("lineOfBusiness").asText()).isEqualTo("COM");
             assertThat(r.at("/coverage/endDate").asText()).as("12/31/3999 is open-ended").isEqualTo("3999-12-31");
         }
+    }
+
+    @Test
+    void everyVendorEntryCarriesTheMemberNameInFhirShape() throws Exception {
+        JsonNode tmp = stubMember("TMP (Tufts Medicare Preferred)");
+        String first = tmp.get("memberFirstName").asText();
+        String middle = tmp.get("memberMiddleName").asText();
+        String last = tmp.get("memberLastName").asText();
+        JsonNode r = call(200, req(tmp.get("memberId").asText(), "2026-10-15"));
+        assertThat(r.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(r.at("/memberId/forVendors")).hasSize(6);
+        for (JsonNode e : r.at("/memberId/forVendors")) {
+            String vendor = e.get("vendor").asText();
+            JsonNode name = e.get("name");
+            assertThat(name).as(vendor).hasSize(1);
+            assertThat(name.get(0).properties()).extracting(Map.Entry::getKey).as(vendor).containsExactly("text", "family", "given");
+            assertThat(name.get(0).get("text").asText()).as(vendor).isEqualTo(first + " " + middle + " " + last);
+            assertThat(name.get(0).get("family").asText()).as(vendor).isEqualTo(last);
+            assertThat(name.get(0).get("given")).extracting(JsonNode::asText).as("given: the first name, then the middle name").containsExactly(first, middle);
+        }
+
+        JsonNode sco = stubMember("SCO member");
+        JsonNode inactive = call(200, req(sco.get("memberId").asText(), "2026-02-01"));
+        assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");
+        JsonNode scoName = entry(inactive, "OPTUM").get("name").get(0);
+        assertThat(scoName.get("text").asText()).as("no middle name on record").isEqualTo(sco.get("memberFirstName").asText() + " " + sco.get("memberLastName").asText());
+        assertThat(scoName.get("given")).extracting(JsonNode::asText).containsExactly(sco.get("memberFirstName").asText());
+        assertThat(scoName.get("family").asText()).isEqualTo(sco.get("memberLastName").asText());
+
+        Resp mismatch = post(reqDob(tmp.get("memberId").asText(), "2026-10-15", "1961-02-03"));
+        assertThat(mismatch.status()).isEqualTo(422);
+        assertThat(mismatch.body()).as("an identity failure never reveals the name").doesNotContain(first, last);
+
+        JsonNode subscriber = stubMember("Public Plans (Together) subscriber");
+        JsonNode ambiguous = call(200, req(subscriber.get("memberId").asText().substring(0, 9), "2026-10-15"));
+        assertThat(ambiguous.get("outcome").asText()).isEqualTo("AMBIGUOUS");
+        assertThat(ambiguous.toString()).as("nobody on the plan is named").doesNotContain(subscriber.get("memberLastName").asText());
     }
 
     @Test

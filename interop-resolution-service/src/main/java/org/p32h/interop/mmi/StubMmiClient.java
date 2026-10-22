@@ -133,13 +133,13 @@ public class StubMmiClient implements MmiClient {
                         List.of(new MmiMessage("ERROR", "500", "ES_TIMEOUT", "search backend timed out (stub)")), null));
             }
             case FAULT_ERROR_WITH_MEMBER -> {
-                MmiMember member = new MmiMember(FAULT_ERROR_WITH_MEMBER + "   01", null, "01/01/1951", null, "THP", "MCR", "N", null,
+                MmiMember member = new MmiMember(FAULT_ERROR_WITH_MEMBER + "   01", null, "01/01/1951", null, null, null, null, "THP", "MCR", "N", null,
                         List.of(new MmiCoverage("01/01/2024", null, "00001111", "N")));
                 return new MmiResult(requestId, 200, new MmiResponse(properties.clientId(), properties.clientType(), requestId,
                         List.of(new MmiMessage("ERROR", "500", "SECOND_PASS_FAILED", "legacy pass failed (stub)")), List.of(member)));
             }
             case FAULT_NO_MEMBER_ID -> {
-                MmiMember member = new MmiMember(null, null, "01/01/1951", null, "THP", "MCR", "N", null,
+                MmiMember member = new MmiMember(null, null, "01/01/1951", null, null, null, null, "THP", "MCR", "N", null,
                         List.of(new MmiCoverage("01/01/2024", null, "00001111", "N")));
                 return new MmiResult(requestId, 200, new MmiResponse(properties.clientId(), properties.clientType(), requestId, null, List.of(member)));
             }

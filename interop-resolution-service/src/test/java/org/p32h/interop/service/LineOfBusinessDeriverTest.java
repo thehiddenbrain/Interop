@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
  */
 class LineOfBusinessDeriverTest {
 
-    private static final MemberRecord RECORD = new MemberRecord("TESTMEMBER", "TESTMEMBER", "THP", "MCR", null, null, List.of(), 0);
+    private static final MemberRecord RECORD = new MemberRecord("TESTMEMBER", "TESTMEMBER", "THP", "MCR", null, null, null, List.of(), 0);
     private static final LocalDate DOS = LocalDate.parse("2026-10-15");
     private final LineOfBusinessDeriver deriver = new LineOfBusinessDeriver();
     private ListAppender<ILoggingEvent> logs;

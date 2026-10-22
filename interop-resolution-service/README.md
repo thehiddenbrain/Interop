@@ -249,7 +249,7 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
-| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId` and `payerName` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
+| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
 | `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, a gap, or no coverage on record) | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id. MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text | "Member not found" worklist. |
 | `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth, or the records carry none), intake takes the full ID from the member's card. |
@@ -261,12 +261,12 @@ For the TMP id `123456789` (resolved to `123456789   01`):
   "message": "Member found; coverage active on 2026-10-15",
   "memberId": { "received": "123456789", "resolved": "123456789   01",
     "forVendors": [
-      { "vendor": "CARELON", "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health" },
-      { "vendor": "EVICORE", "memberId": "12345678901", "payerId": "TUFTS", "payerName": "TUFTS" },
-      { "vendor": "EVOLENT", "memberId": "12345678901", "payerId": "Tufts Health Plan", "payerName": "Tufts Health Plan" },
-      { "vendor": "MHK",     "memberId": "123456789   01", "payerId": "Point32Health", "payerName": "Point32Health" },
-      { "vendor": "ONYX",    "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health" },
-      { "vendor": "OPTUM",   "memberId": "123456789", "payerId": "Point32Health", "payerName": "Point32Health" }
+      { "vendor": "CARELON", "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
+      { "vendor": "EVICORE", "memberId": "12345678901", "payerId": "TUFTS", "payerName": "TUFTS", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
+      { "vendor": "EVOLENT", "memberId": "12345678901", "payerId": "Tufts Health Plan", "payerName": "Tufts Health Plan", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
+      { "vendor": "MHK",     "memberId": "123456789   01", "payerId": "Point32Health", "payerName": "Point32Health", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
+      { "vendor": "ONYX",    "memberId": "12345678901", "payerId": "Point32Health", "payerName": "Point32Health", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] },
+      { "vendor": "OPTUM",   "memberId": "123456789", "payerId": "Point32Health", "payerName": "Point32Health", "name": [{ "text": "Taylor A Morgan", "family": "Morgan", "given": [ "Taylor", "A" ] }] }
     ] },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
@@ -303,7 +303,12 @@ puts on that vendor's request: the vendor's own for the member's company when co
 default (`payer` block in `application.yaml`; `PAYER_ID` / `PAYER_NAME` override). Today eviCore gets its own (`TUFTS`
 for THP, `HARVARD PILGRIM HEALTH` for HPHC), Evolent gets its own (`Tufts Health Plan` for THP, `Tufts Health Public
 Plans` for a THP member whose member record carries line of business `PP`, `Harvard Pilgrim Health Care` for HPHC) and
-every other vendor gets `Point32Health`.
+every other vendor gets `Point32Health`. Each entry also carries `name`, the member's name as the plan has it on record,
+in the FHIR HumanName shape the UM vendors take: one entry with `text` (the full name), `family` (the last name) and
+`given[]` (the first name, then the middle name when there is one). It is the same on every entry; Onyx puts it on the
+vendor's request as given. It is absent only when the plan has neither a first nor a last name on record (the log gets
+`marker=MEMBER_NAME_MISSING`); then Onyx uses the name from the EMR. The name travels only inside `memberId.forVendors`:
+never on an error, NOT_FOUND or AMBIGUOUS answer, and never in a log line.
 
 Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 
@@ -311,7 +316,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
 | `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService> but ends <end of the coverage period>, before <dateOfServiceEnd>` / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `Member found; no coverage on record` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
-| `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId, payerId, payerName }` per configured vendor, sorted by vendor code) when a member was identified |
+| `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId, payerId, payerName, name[] }` per configured vendor, sorted by vendor code) when a member was identified |
 | `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
 | `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
@@ -535,7 +540,7 @@ adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the 
 from 2026-12-20 to 2027-01-05 ("coverage active on 2026-12-20 but ends 2026-12-31, before 2027-01-05"), `dateOfServiceEnd`
 is echoed only when sent, and an end before the start, without a start or not a date is a 400. A capturing log appender
 asserts no log line (message or exception text; payload logging is off in the `test` profile) contains a date
-of birth from the stub data or a member name, and no response body contains names or SSN; a stub call counter proves invalid requests
+of birth from the stub data or a member name, and no response body contains SSN or MMI's field names, and a member name appears only inside `memberId.forVendors`, never on an error, NOT_FOUND or AMBIGUOUS answer; a stub call counter proves invalid requests
 never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and punctuation) is sent to MMI
 and echoed back unchanged in `memberId.received`, and the stub's `lastSearched()` proves the id arrives at MMI
 untouched. The payer is checked on every vendor entry of every identified answer in the scenarios (eviCore's `TUFTS` for THP

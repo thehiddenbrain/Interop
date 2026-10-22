@@ -97,7 +97,7 @@ class ResolutionServiceMemberPlanTest {
         MmiClient mmi = new MmiClient() {
             @Override
             public MmiResult search(String memberId, LocalDate dateOfService, String correlationId) {
-                MmiMember member = new MmiMember(STORED, null, null, null, "THP", "MCR", null, null,
+                MmiMember member = new MmiMember(STORED, null, null, null, null, null, null, "THP", "MCR", null, null,
                         List.of(new MmiCoverage("01/01/2020", null, "g", "N")));
                 return new MmiResult("INTEROP-TEST", 200, new MmiResponse("INTEROP", "INT", "INTEROP-TEST", null, List.of(member)));
             }

@@ -81,6 +81,7 @@ class RestMmiClientTest {
         assertThat(result.response().membersOrEmpty()).hasSize(1);
         assertThat(result.response().members().get(0).memberId()).isEqualTo("123456789   01");
         assertThat(result.response().members().get(0).toString()).doesNotContain("Taylor").doesNotContain("-1234");
+        assertThat(result.response().members().get(0).memberFirstName()).as("the name is read, to go on the vendor entries").isEqualTo("Taylor");
         server.verify();
     }
 

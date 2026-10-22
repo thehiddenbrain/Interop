@@ -188,6 +188,23 @@ components:
           description: Last day of the coverage period; 3999-12-31 for an open-ended period
       required:
       - active
+    HumanName:
+      type: object
+      description: A name in the FHIR HumanName shape; either given or family is always present
+      properties:
+        text:
+          type: string
+          description: 'The full name: the given names and the family name joined with spaces'
+          example: Taylor A Morgan
+        family:
+          type: string
+          description: The last name; absent when the plan has none on record
+          example: Morgan
+        given:
+          type: array
+          description: The first name, then the middle name when there is one; absent when the plan has no first name on record
+          items:
+            type: string
     MemberId:
       type: object
       description: The member id as received, as resolved, and in every vendor's format
@@ -308,6 +325,14 @@ components:
           type: string
           description: The payer name that goes with payerId
           example: TUFTS
+        name:
+          type: array
+          description: 'The member''s name as the plan has it on record, one entry in the FHIR HumanName shape: given[0] the
+            first name, given[1] the middle name when there is one, family the last name, text all of them joined. Put it
+            on the vendor''s request as given. Absent only when the plan has no name on record; then use the name from the
+            EMR'
+          items:
+            $ref: '#/components/schemas/HumanName'
     ApiErrorResponse:
       type: object
       description: The shape of every non-200 answer

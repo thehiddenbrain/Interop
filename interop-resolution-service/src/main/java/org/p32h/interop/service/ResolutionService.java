@@ -76,6 +76,11 @@ public class ResolutionService {
         String lob = r.record() == null ? null : lineOfBusiness(r, v.dateOfService(), correlationId);
         List<MemberResolutionResponse.VendorMemberId> forVendors = null;
         if (r.record() != null) {
+            List<MemberResolutionResponse.HumanName> name = MemberResolutionResponse.HumanName.of(r.record().name());
+            if (name == null) {
+                log.warn("marker=MEMBER_NAME_MISSING memberId={}: the member record has neither a first nor a last name; "
+                        + "the vendor entries carry no name", r.storedMemberId());
+            }
             forVendors = vendors.all().stream()
                     .map(vendor -> {
                         if (!vendor.payerByCompany().isEmpty() && !vendor.hasOwnPayerFor(r.company(), r.recordLineOfBusiness())) {
@@ -85,7 +90,7 @@ public class ResolutionService {
                         }
                         Payer payer = vendor.payerFor(r.company(), r.recordLineOfBusiness());
                         return new MemberResolutionResponse.VendorMemberId(vendor.code(),
-                                formatter.format(r.record().storedMemberId(), vendor.format()).value(), payer.id(), payer.name());
+                                formatter.format(r.record().storedMemberId(), vendor.format()).value(), payer.id(), payer.name(), name);
                     })
                     .toList();
         }

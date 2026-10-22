@@ -122,6 +122,10 @@ td code { white-space: nowrap; }
 <tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>memberId</code></td><td>string</td><td></td><td>The resolved id in this vendor's format: the member id to put on this vendor's request</td></tr>
 <tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>payerId</code></td><td>string</td><td></td><td>The payer id to put on this vendor's request; it differs by vendor and by the member's heritage company and plan population, so use the entry's value as given</td></tr>
 <tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>payerName</code></td><td>string</td><td></td><td>The payer name that goes with payerId</td></tr>
+<tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>name[]<wbr></code></td><td>array</td><td></td><td>The member's name as the plan has it on record, one entry in the FHIR HumanName shape: given[0] the first name, given[1] the middle name when there is one, family the last name, text all of them joined. Put it on the vendor's request as given. Absent only when the plan has no name on record; then use the name from the EMR</td></tr>
+<tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>name[]<wbr>.<wbr>text</code></td><td>string</td><td></td><td>The full name: the given names and the family name joined with spaces</td></tr>
+<tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>name[]<wbr>.<wbr>family</code></td><td>string</td><td></td><td>The last name; absent when the plan has none on record</td></tr>
+<tr><td><code>data.<wbr>memberId.<wbr>forVendors[]<wbr>.<wbr>name[]<wbr>.<wbr>given</code></td><td>array</td><td></td><td>The first name, then the middle name when there is one; absent when the plan has no first name on record</td></tr>
 <tr><td><code>data.<wbr>lineOfBusiness</code></td><td>string</td><td></td><td>The line of business Onyx routes on, from the plan in effect on the date of service, for example SCO, MA-HMO, MA-PPO, D-SNP, MA-TOGETHER, RI-TOGETHER or MA-QHP; values can be added, so never treat the list as closed. When no rule applies, the member record's own category is passed through (for example MCR, PP, COM), and the field is absent when the record carries none. Present on ACTIVE and INACTIVE answers only. Agree with Point32Health how to route a value outside the list, or an absent one</td></tr>
 <tr><td><code>data.<wbr>dateOfService</code></td><td>date (yyyy-MM-dd)</td><td>yes</td><td>The date evaluated; the first date when a period was asked about</td></tr>
 <tr><td><code>data.<wbr>dateOfServiceEnd</code></td><td>date (yyyy-MM-dd)</td><td></td><td>The last date evaluated; present only when the request asked about a period</td></tr>
@@ -152,7 +156,7 @@ td code { white-space: nowrap; }
 <div class="tablewrap"><table>
 <colgroup><col style="width:18%"><col style="width:34%"><col style="width:48%"></colgroup>
 <thead><tr><th>Signal</th><th>Meaning</th><th>Onyx action</th></tr></thead><tbody>
-<tr><td><span class="pill ok">200</span> <code>ACTIVE</code></td><td>Member found; coverage active on the date of service, or on every day of the period of service (<code>data.coverage.active</code> is true).</td><td>Send each vendor its <code>data.memberId.forVendors</code> entry: the <code>memberId</code> of the entry whose <code>vendor</code> is that vendor, already in the vendor's format, with that entry's <code>payerId</code> and <code>payerName</code> on the request. Route on <code>data.lineOfBusiness</code>. Keep <code>data.coverage.coverageId</code> with the transaction as the reference to the coverage period behind the decision.</td></tr>
+<tr><td><span class="pill ok">200</span> <code>ACTIVE</code></td><td>Member found; coverage active on the date of service, or on every day of the period of service (<code>data.coverage.active</code> is true).</td><td>Send each vendor its <code>data.memberId.forVendors</code> entry: the <code>memberId</code> of the entry whose <code>vendor</code> is that vendor, already in the vendor's format, with that entry's <code>payerId</code>, <code>payerName</code> and <code>name</code> (the member's name as the plan has it, one FHIR HumanName) on the request. Route on <code>data.lineOfBusiness</code>. Keep <code>data.coverage.coverageId</code> with the transaction as the reference to the coverage period behind the decision.</td></tr>
 <tr><td><span class="pill warn">200</span> <code>INACTIVE</code></td><td>Member found; not covered on that date, or not on every day of the period. <code>data.message</code> says why.</td><td>Hold for intake. <code>data.memberId.forVendors</code> and <code>data.lineOfBusiness</code> are still there if the business rule says to submit anyway.</td></tr>
 <tr><td><span class="pill neutral">200</span> <code>NOT_FOUND</code></td><td>No member for this id on that date. <code>data.sourceMessage</code> carries what the member lookup said, when it sent a message.</td><td>"Member not found" worklist. If Onyx holds a fuller form of the id (for instance with the suffix), one resend with it.</td></tr>
 <tr><td><span class="pill info">200</span> <code>AMBIGUOUS</code></td><td>Several members on the plan share the id and nothing sent tells them apart. Nobody is listed.</td><td>One resend with <code>dateOfBirth</code> or the member's full id including the suffix. If it is still AMBIGUOUS (twins share a date of birth, or the records carry none), intake takes the full id from the member's card and resends.</td></tr>
@@ -223,37 +227,55 @@ X-Correlation-Id: ONYX-PA-2026-000123
           "vendor": "CARELON",
           "memberId": "12345678901",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Taylor A Morgan", "family": "Morgan", "given": ["Taylor", "A"]}
+          ]
         },
         {
           "vendor": "EVICORE",
           "memberId": "12345678901",
           "payerId": "TUFTS",
-          "payerName": "TUFTS"
+          "payerName": "TUFTS",
+          "name": [
+            {"text": "Taylor A Morgan", "family": "Morgan", "given": ["Taylor", "A"]}
+          ]
         },
         {
           "vendor": "EVOLENT",
           "memberId": "12345678901",
           "payerId": "Tufts Health Plan",
-          "payerName": "Tufts Health Plan"
+          "payerName": "Tufts Health Plan",
+          "name": [
+            {"text": "Taylor A Morgan", "family": "Morgan", "given": ["Taylor", "A"]}
+          ]
         },
         {
           "vendor": "MHK",
           "memberId": "123456789   01",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Taylor A Morgan", "family": "Morgan", "given": ["Taylor", "A"]}
+          ]
         },
         {
           "vendor": "ONYX",
           "memberId": "12345678901",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Taylor A Morgan", "family": "Morgan", "given": ["Taylor", "A"]}
+          ]
         },
         {
           "vendor": "OPTUM",
           "memberId": "123456789",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Taylor A Morgan", "family": "Morgan", "given": ["Taylor", "A"]}
+          ]
         }
       ]
     },
@@ -292,37 +314,55 @@ X-Correlation-Id: ONYX-PA-2026-000123
           "vendor": "CARELON",
           "memberId": "23456789001",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Jordan Lee", "family": "Lee", "given": ["Jordan"]}
+          ]
         },
         {
           "vendor": "EVICORE",
           "memberId": "23456789001",
           "payerId": "TUFTS",
-          "payerName": "TUFTS"
+          "payerName": "TUFTS",
+          "name": [
+            {"text": "Jordan Lee", "family": "Lee", "given": ["Jordan"]}
+          ]
         },
         {
           "vendor": "EVOLENT",
           "memberId": "23456789001",
           "payerId": "Tufts Health Plan",
-          "payerName": "Tufts Health Plan"
+          "payerName": "Tufts Health Plan",
+          "name": [
+            {"text": "Jordan Lee", "family": "Lee", "given": ["Jordan"]}
+          ]
         },
         {
           "vendor": "MHK",
           "memberId": "234567890   01",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Jordan Lee", "family": "Lee", "given": ["Jordan"]}
+          ]
         },
         {
           "vendor": "ONYX",
           "memberId": "23456789001",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Jordan Lee", "family": "Lee", "given": ["Jordan"]}
+          ]
         },
         {
           "vendor": "OPTUM",
           "memberId": "234567890",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Jordan Lee", "family": "Lee", "given": ["Jordan"]}
+          ]
         }
       ]
     },
@@ -402,37 +442,55 @@ X-Correlation-Id: ONYX-PA-2026-000123
           "vendor": "CARELON",
           "memberId": "HP567890123",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Sam Patel", "family": "Patel", "given": ["Sam"]}
+          ]
         },
         {
           "vendor": "EVICORE",
           "memberId": "HP567890123",
           "payerId": "HARVARD PILGRIM HEALTH",
-          "payerName": "HARVARD PILGRIM HEALTH"
+          "payerName": "HARVARD PILGRIM HEALTH",
+          "name": [
+            {"text": "Sam Patel", "family": "Patel", "given": ["Sam"]}
+          ]
         },
         {
           "vendor": "EVOLENT",
           "memberId": "HP567890123",
           "payerId": "Harvard Pilgrim Health Care",
-          "payerName": "Harvard Pilgrim Health Care"
+          "payerName": "Harvard Pilgrim Health Care",
+          "name": [
+            {"text": "Sam Patel", "family": "Patel", "given": ["Sam"]}
+          ]
         },
         {
           "vendor": "MHK",
           "memberId": "HP567890123",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Sam Patel", "family": "Patel", "given": ["Sam"]}
+          ]
         },
         {
           "vendor": "ONYX",
           "memberId": "HP567890123",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Sam Patel", "family": "Patel", "given": ["Sam"]}
+          ]
         },
         {
           "vendor": "OPTUM",
           "memberId": "HP567890123",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Sam Patel", "family": "Patel", "given": ["Sam"]}
+          ]
         }
       ]
     },
@@ -534,37 +592,55 @@ X-Correlation-Id: ONYX-PA-2026-000123
           "vendor": "CARELON",
           "memberId": "U2025202601",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "EVICORE",
           "memberId": "U2025202601",
           "payerId": "TUFTS",
-          "payerName": "TUFTS"
+          "payerName": "TUFTS",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "EVOLENT",
           "memberId": "U2025202601",
           "payerId": "Tufts Health Plan",
-          "payerName": "Tufts Health Plan"
+          "payerName": "Tufts Health Plan",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "MHK",
           "memberId": "U20252026   01",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "ONYX",
           "memberId": "U2025202601",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "OPTUM",
           "memberId": "U20252026",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         }
       ]
     },
@@ -604,37 +680,55 @@ X-Correlation-Id: ONYX-PA-2026-000123
           "vendor": "CARELON",
           "memberId": "U2025202601",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "EVICORE",
           "memberId": "U2025202601",
           "payerId": "TUFTS",
-          "payerName": "TUFTS"
+          "payerName": "TUFTS",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "EVOLENT",
           "memberId": "U2025202601",
           "payerId": "Tufts Health Plan",
-          "payerName": "Tufts Health Plan"
+          "payerName": "Tufts Health Plan",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "MHK",
           "memberId": "U20252026   01",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "ONYX",
           "memberId": "U2025202601",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         },
         {
           "vendor": "OPTUM",
           "memberId": "U20252026",
           "payerId": "Point32Health",
-          "payerName": "Point32Health"
+          "payerName": "Point32Health",
+          "name": [
+            {"text": "Uma Continuous", "family": "Continuous", "given": ["Uma"]}
+          ]
         }
       ]
     },
@@ -664,7 +758,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
 <ul>
 <li><b>Timeouts.</b> A successful answer normally takes well under a second. When a lookup behind the service cannot answer, the failure is reported within about 15 seconds; set the client timeout above that.</li>
 <li><b>Retry policy.</b> 503: wait the <code>Retry-After</code> seconds (10 when the header is absent) and retry; the number of attempts is to be agreed with Point32Health (three until then). 502 and 500: retry once. 429 from the gateway: treat like a 503. No response at all (connection refused, timeout): retry once. Never retry a 400 or 422, and never retry a 401 or 403 with the same token. Every retry carries a new <code>requestId</code>. When the retries are used up: for 502, 503 and 500, park the transaction and alert the service owners with the <code>requestId</code> and the <code>X-Correlation-Id</code>; for no response at all, pass the member id to the UM vendor exactly as the EMR supplied it and record the <code>requestId</code> so the transaction can be reconciled later.</li>
-<li><b>Security.</b> OAuth 2.0 access tokens, issued per environment by Point32Health, on every call; certificates and rate limits are handled by the API gateway in front of the service. The member id and date of birth are PHI: send them in the body only, never in a URL, and do not log the date of birth.</li>
+<li><b>Security.</b> OAuth 2.0 access tokens, issued per environment by Point32Health, on every call; certificates and rate limits are handled by the API gateway in front of the service. The member id, the member's name and the date of birth are PHI: send them in the body only, never in a URL, and do not log the date of birth.</li>
 <li><b>Caller identification.</b> Onyx sends <code>clientId</code> <code>ONYX</code> and <code>clientType</code> <code>EXT</code> on every call, and a new <code>requestId</code> per call; support finds a call by that <code>requestId</code> or by the <code>traceId</code> in the answer.</li>
 </ul>
 </div>
