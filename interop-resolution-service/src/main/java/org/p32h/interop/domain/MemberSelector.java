@@ -82,7 +82,10 @@ public final class MemberSelector {
             List<MemberRecord> person = persons.get(0);
             MemberRecord chosen = chooseWithinPerson(person, dateOfService);
             List<CoverageSpan> union = personSpans(person);
-            return new SelectionResult.Selected(chosen, evaluator.evaluate(union, dateOfService), union.size(),
+            // the decision is the person's (a converted pair's history is one history); the span reported is the chosen record's own
+            CoverageDecision decision = evaluator.evaluate(union, dateOfService)
+                    .withRecordSpan(evaluator.recordSpan(chosen.spans(), dateOfService));
+            return new SelectionResult.Selected(chosen, decision, union.size(),
                     person.stream().mapToInt(MemberRecord::unreadableSpans).sum());
         }
         return new SelectionResult.Ambiguous(dobApplied ? DOB_NOT_DISCRIMINATING : dobUnchecked ? DOB_NOT_ON_RECORDS : MULTIPLE_PERSONS,

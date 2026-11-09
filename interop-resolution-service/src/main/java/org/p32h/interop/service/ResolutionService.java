@@ -149,17 +149,17 @@ public class ResolutionService {
             if (coverage == null) {
                 return null;
             }
-            if (coverage.span() == null) {
+            CoverageSpan reported = coverage.recordSpan();
+            if (reported == null) {
                 return new Coverage(null, coverage.active(), null, null);
             }
-            CoverageSpan period = coverage.span();
-            return new Coverage(coverageId(record.storedMemberId(), period), coverage.active(), period.effective(),
-                    period.end() == null ? Coverage.OPEN_END : period.end());
+            return new Coverage(coverageId(record.storedMemberId(), reported), coverage.active(), reported.effective(),
+                    reported.end() == null ? Coverage.OPEN_END : reported.end());
         }
 
         /**
          * MEMBER_ID + EFF_DATE + END_DATE run together (the form Onyx asked for), no separator, dates as yyyyMMdd, letters and digits only (the stored id loses its spaces and any punctuation);
-         * 39991231 stands for an open-ended period.
+         * the dates are those of the member record's own coverage span, as MMI holds it; 39991231 stands for an open end.
          */
         private static String coverageId(String storedMemberId, CoverageSpan period) {
             DateTimeFormatter compact = DateTimeFormatter.BASIC_ISO_DATE;

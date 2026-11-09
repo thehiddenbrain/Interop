@@ -264,9 +264,9 @@ class ResolveScenariosTest {
         assertThat(r.get("memberId").properties()).extracting(Map.Entry::getKey).as("in this order").containsExactly("received", "resolved", "forVendors");
         assertThat(r.get("coverage").properties()).extracting(Map.Entry::getKey).as("id, flag and period only, in this order").containsExactly("coverageId", "active", "effectiveDate", "endDate");
         assertThat(r.at("/coverage/coverageId").asText()).as("stored id (letters and digits only), effective and end as yyyyMMdd run together, open end 39991231")
-                .isEqualTo(r.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2021010139991231");
-        assertThat(r.at("/coverage/effectiveDate").asText()).as("two adjacent records are one continuous period").isEqualTo("2021-01-01");
-        assertThat(r.at("/coverage/endDate").asText()).as("an open-ended period ends 3999-12-31, never null").isEqualTo("3999-12-31");
+                .isEqualTo(r.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2024010139991231");
+        assertThat(r.at("/coverage/effectiveDate").asText()).as("the record that covers the date, not the joined period from 2021").isEqualTo("2024-01-01");
+        assertThat(r.at("/coverage/endDate").asText()).as("an open-ended record ends 3999-12-31, never null").isEqualTo("3999-12-31");
         assertThat(r.get("dateOfServiceDefaulted").asBoolean()).isFalse();
         assertThat(r.get("traceId").asText()).matches("INTEROP-\\d{13}-\\d{5}");
         assertThat(r.get("requestId").asText()).as("the caller's id for the call comes back").isEqualTo(lastRequestId);
@@ -668,28 +668,29 @@ class ResolveScenariosTest {
 
     @Test
     void aPeriodOfServiceIsJudgedOnItsFirstDay() throws Exception {
-        // two adjacent plan-year records (2025, 2026) are one continuous period
+        // two adjacent plan-year records (2025, 2026) are one continuous period for the decision; the block shows one record
         JsonNode across = call(200, Map.of("memberId", "U20252026", "dateOfService", "2025-12-20", "dateOfServiceEnd", "2026-01-05"));
         assertThat(across.get("outcome").asText()).isEqualTo("ACTIVE");
         assertThat(across.get("message").asText()).isEqualTo("Member found; coverage active from 2025-12-20 to 2026-01-05");
         assertThat(across.get("dateOfService").asText()).isEqualTo("2025-12-20");
         assertThat(across.get("dateOfServiceEnd").asText()).as("echoed when a period was asked about").isEqualTo("2026-01-05");
-        assertThat(across.at("/coverage/effectiveDate").asText()).isEqualTo("2025-01-01");
-        assertThat(across.at("/coverage/endDate").asText()).isEqualTo("2026-12-31");
-        assertThat(across.at("/coverage/coverageId").asText()).isEqualTo(across.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2025010120261231");
+        assertThat(across.at("/coverage/effectiveDate").asText()).as("the record that covers the first day").isEqualTo("2025-01-01");
+        assertThat(across.at("/coverage/endDate").asText()).as("the record's own end; the message tells how far coverage runs").isEqualTo("2025-12-31");
+        assertThat(across.at("/coverage/coverageId").asText()).isEqualTo(across.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2025010120251231");
 
         JsonNode outlasts = call(200, Map.of("memberId", "U20252026", "dateOfService", "2026-12-20", "dateOfServiceEnd", "2027-01-05"));
         assertThat(outlasts.get("outcome").asText()).as("covered on the first day: active, however far the period runs").isEqualTo("ACTIVE");
         assertThat(outlasts.at("/coverage/active").asBoolean()).isTrue();
         assertThat(outlasts.get("message").asText()).isEqualTo("Member found; coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05");
-        assertThat(outlasts.at("/coverage/endDate").asText()).as("the period that covers the first day is shown, so intake sees how far coverage goes").isEqualTo("2026-12-31");
-        assertThat(outlasts.at("/coverage/coverageId").asText()).as("the period has an id")
-                .isEqualTo(outlasts.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2025010120261231");
+        assertThat(outlasts.at("/coverage/effectiveDate").asText()).as("the 2026 record, not the joined period").isEqualTo("2026-01-01");
+        assertThat(outlasts.at("/coverage/endDate").asText()).as("the record that covers the first day is shown").isEqualTo("2026-12-31");
+        assertThat(outlasts.at("/coverage/coverageId").asText()).as("the record has an id")
+                .isEqualTo(outlasts.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2026010120261231");
 
         JsonNode single = call(200, Map.of("memberId", "U20252026", "dateOfService", "2026-10-15"));
         assertThat(single.has("dateOfServiceEnd")).as("absent for a single date").isFalse();
         assertThat(single.get("message").asText()).isEqualTo("Member found; coverage active on 2026-10-15");
-        assertThat(single.at("/coverage/effectiveDate").asText()).isEqualTo("2025-01-01");
+        assertThat(single.at("/coverage/effectiveDate").asText()).as("the 2026 record covers the date").isEqualTo("2026-01-01");
 
         JsonNode map = call(200, Map.of("memberId", "T20262026", "dateOfService", "2026-12-01", "dateOfServiceEnd", "2027-01-31"));
         assertThat(map.get("outcome").asText()).as("a period that runs past the end of the record: judged on its first day").isEqualTo("ACTIVE");
@@ -802,8 +803,8 @@ class ResolveScenariosTest {
         JsonNode active = call(200, req("123456789", "2026-10-15"));
         assertThat(active.get("coverage").properties()).extracting(Map.Entry::getKey).containsExactly("coverageId", "active", "effectiveDate", "endDate");
         assertThat(active.at("/coverage/coverageId").asText()).as("stored id (letters and digits only), effective and end as yyyyMMdd run together, open end 39991231")
-                .isEqualTo(active.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2021010139991231");
-        assertThat(active.at("/coverage/effectiveDate").asText()).isEqualTo("2021-01-01");
+                .isEqualTo(active.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2024010139991231");
+        assertThat(active.at("/coverage/effectiveDate").asText()).isEqualTo("2024-01-01");
 
         JsonNode inactive = call(200, req("234567890", null));
         assertThat(inactive.get("outcome").asText()).isEqualTo("INACTIVE");
