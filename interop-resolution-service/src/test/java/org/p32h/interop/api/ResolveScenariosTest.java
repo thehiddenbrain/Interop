@@ -321,6 +321,7 @@ class ResolveScenariosTest {
         assertThat(r.at("/coverage/active").asBoolean()).isFalse();
         assertThat(r.at("/coverage/effectiveDate").asText()).as("the most recent record, the one about to start").isEqualTo("2027-01-01");
         assertThat(r.at("/coverage/endDate").asText()).isEqualTo("3999-12-31");
+        assertThat(r.at("/coverage/coverageId").asText()).isEqualTo(r.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2027010139991231");
         assertThat(call(200, req("789012345", "2027-01-01")).get("outcome").asText()).isEqualTo("ACTIVE");
     }
 
@@ -693,6 +694,11 @@ class ResolveScenariosTest {
         assertThat(outlasts.at("/coverage/coverageId").asText()).as("the record has an id")
                 .isEqualTo(outlasts.at("/memberId/resolved").asText().replaceAll("[^A-Za-z0-9]", "") + "2026010120261231");
 
+        // the message runs to the end of the continuous coverage; the block still shows the record covering the first day
+        JsonNode beyond = call(200, Map.of("memberId", "U20252026", "dateOfService", "2025-12-20", "dateOfServiceEnd", "2027-01-05"));
+        assertThat(beyond.get("message").asText()).isEqualTo("Member found; coverage active on 2025-12-20; ends 2026-12-31, before 2027-01-05");
+        assertThat(beyond.at("/coverage/endDate").asText()).isEqualTo("2025-12-31");
+
         JsonNode single = call(200, Map.of("memberId", "U20252026", "dateOfService", "2026-10-15"));
         assertThat(single.has("dateOfServiceEnd")).as("absent for a single date").isFalse();
         assertThat(single.get("message").asText()).isEqualTo("Member found; coverage active on 2026-10-15");
@@ -805,7 +811,7 @@ class ResolveScenariosTest {
     }
 
     @Test
-    void coverageBlockIsTheFlagAndThePeriodOnly() throws Exception {
+    void coverageBlockIsTheIdFlagAndOneRecordsDatesOnly() throws Exception {
         JsonNode active = call(200, req("123456789", "2026-10-15"));
         assertThat(active.get("coverage").properties()).extracting(Map.Entry::getKey).containsExactly("coverageId", "active", "effectiveDate", "endDate");
         assertThat(active.at("/coverage/coverageId").asText()).as("stored id (letters and digits only), effective and end as yyyyMMdd run together, open end 39991231")

@@ -548,7 +548,9 @@ DOB is still 422 `DOB_MISMATCH` after the one MMI call (`traceId` present). `aFu
 ACTIVE for 2026-10-15 and INACTIVE for 2027-10-15, the response carries the date asked about, an unusable date is a 400
 and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. `aPeriodOfServiceIsJudgedOnItsFirstDay`: a member with
 adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the 2025 record in the coverage dates, ACTIVE
-from 2026-12-20 to 2027-01-05 as well ("coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05"), `dateOfServiceEnd`
+from 2025-12-20 to 2027-01-05 with the message running to the end of the continuous coverage ("ends 2026-12-31, before
+2027-01-05") while the block keeps the 2025 record, ACTIVE from 2026-12-20 to 2027-01-05 as well ("coverage active on
+2026-12-20; ends 2026-12-31, before 2027-01-05") with the 2026 record, `dateOfServiceEnd`
 is echoed only when sent, and an end before the start, without a start or not a date is a 400.
 `aMemberWithNoCoverageInTheLast24MonthsIsNotFound`: the member whose coverage ended 12/31/2023 is NOT_FOUND today and for
 2024-02-01 (the plain sentence, no `sourceMessage`, a `traceId`, `marker=NO_RECENT_COVERAGE` in the log) and ACTIVE for 2023-06-15. A capturing log appender
