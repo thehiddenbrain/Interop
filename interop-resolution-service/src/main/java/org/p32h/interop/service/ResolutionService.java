@@ -161,10 +161,10 @@ public class ResolutionService {
          * MEMBER_ID + EFF_DATE + END_DATE run together (the form Onyx asked for), no separator, dates as yyyyMMdd, letters and digits only (the stored id loses its spaces and any punctuation);
          * the dates are those of the member record's own coverage span, as MMI holds it; 39991231 stands for an open end.
          */
-        private static String coverageId(String storedMemberId, CoverageSpan period) {
+        private static String coverageId(String storedMemberId, CoverageSpan record) {
             DateTimeFormatter compact = DateTimeFormatter.BASIC_ISO_DATE;
-            return storedMemberId.replaceAll("[^A-Za-z0-9]", "") + period.effective().format(compact)
-                    + (period.end() == null ? "39991231" : period.end().format(compact));
+            return storedMemberId.replaceAll("[^A-Za-z0-9]", "") + record.effective().format(compact)
+                    + (record.end() == null ? "39991231" : record.end().format(compact));
         }
     }
 

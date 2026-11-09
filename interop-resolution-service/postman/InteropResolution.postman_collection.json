@@ -546,7 +546,7 @@
                   "pm.test(\".coverage.active = False\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(false)); });",
                   "pm.test(\"no .coverage.reason (the reason is in .message)\", function () { const j = pm.response.json(); pm.expect(j.coverage).to.not.have.property(\"reason\"); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });",
-                  "pm.test(\".coverage = the most recent period, 2023-01-01 .. 2025-12-31, with its coverageId (it does not cover the date of service)\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); pm.expect(j.coverage.effectiveDate).to.eql(\"2023-01-01\"); pm.expect(j.coverage.endDate).to.eql(\"2025-12-31\"); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2023010120251231\"); });"
+                  "pm.test(\".coverage = the most recent record, 2023-01-01 .. 2025-12-31, with its coverageId (it does not cover the date of service)\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); pm.expect(j.coverage.effectiveDate).to.eql(\"2023-01-01\"); pm.expect(j.coverage.endDate).to.eql(\"2025-12-31\"); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2023010120251231\"); });"
                 ]
               }
             }
@@ -659,7 +659,7 @@
                   "pm.test(\"memberId.forVendors EVICORE still returned\", function () { const j = pm.response.json(); pm.expect(j.memberId.forVendors.find(function (x) { return x.vendor === \"EVICORE\"; }).memberId).to.eql(\"T2026202601\"); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });",
-                  "pm.test(\".coverage = the most recent period, 2026-01-01 .. 2026-12-31, with its coverageId (it does not cover the date of service)\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); pm.expect(j.coverage.effectiveDate).to.eql(\"2026-01-01\"); pm.expect(j.coverage.endDate).to.eql(\"2026-12-31\"); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2026010120261231\"); });"
+                  "pm.test(\".coverage = the most recent record, 2026-01-01 .. 2026-12-31, with its coverageId (it does not cover the date of service)\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); pm.expect(j.coverage.effectiveDate).to.eql(\"2026-01-01\"); pm.expect(j.coverage.endDate).to.eql(\"2026-12-31\"); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2026010120261231\"); });"
                 ]
               }
             }
@@ -3346,7 +3346,7 @@
                   "pm.test(\"payer per vendor: eviCore TUFTS, Evolent 32 / Tufts Health Public Plans, every other vendor Point32Health\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"payerId\"); j.memberId.forVendors.forEach(function (v) { pm.expect(Object.keys(v), v.vendor).to.eql([\"vendor\", \"memberId\", \"payerId\", \"payerName\", \"name\"]); const wantId = v.vendor === \"EVICORE\" ? \"TUFTS\" : v.vendor === \"EVOLENT\" ? \"32\" : \"Point32Health\"; const wantName = v.vendor === \"EVOLENT\" ? \"Tufts Health Public Plans\" : wantId; pm.expect(v.payerId, v.vendor).to.eql(wantId); pm.expect(v.payerName, v.vendor).to.eql(wantName); }); });",
                   "pm.test(\"name per vendor: one FHIR HumanName with text, family and given (first name, then middle name)\", function () { const j = pm.response.json(); j.memberId.forVendors.forEach(function (v) { pm.expect(v.name, v.vendor).to.be.an(\"array\").with.lengthOf(1); const n = v.name[0]; pm.expect(Object.keys(n), v.vendor).to.eql([\"text\", \"family\", \"given\"]); pm.expect(n.given, v.vendor).to.be.an(\"array\").with.length.within(1, 2); pm.expect(n.family, v.vendor).to.be.a(\"string\").that.is.not.empty; pm.expect(n.text, v.vendor).to.eql(n.given.concat([n.family]).join(\" \")); pm.expect(n, v.vendor).to.not.have.property(\"memberFirstName\"); }); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });",
-                  "pm.test(\".coverage = the most recent period, 2025-01-01 .. 3999-12-31, with its coverageId (it does not cover the date of service)\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); pm.expect(j.coverage.effectiveDate).to.eql(\"2025-01-01\"); pm.expect(j.coverage.endDate).to.eql(\"3999-12-31\"); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2025010139991231\"); });"
+                  "pm.test(\".coverage = the most recent record, 2025-01-01 .. 3999-12-31, with its coverageId (it does not cover the date of service)\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); pm.expect(j.coverage.effectiveDate).to.eql(\"2025-01-01\"); pm.expect(j.coverage.endDate).to.eql(\"3999-12-31\"); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2025010139991231\"); });"
                 ]
               }
             }
@@ -3790,7 +3790,7 @@
                   "pm.test(\"6 memberId.forVendors entries, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.memberId.forVendors.length).to.eql(6); pm.expect(j.memberId.forVendors.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });",
-                  "pm.test(\".coverage = the most recent period, 2026-01-01 .. 2026-12-31, with its coverageId (it does not cover the date of service)\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); pm.expect(j.coverage.effectiveDate).to.eql(\"2026-01-01\"); pm.expect(j.coverage.endDate).to.eql(\"2026-12-31\"); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2026010120261231\"); });"
+                  "pm.test(\".coverage = the most recent record, 2026-01-01 .. 2026-12-31, with its coverageId (it does not cover the date of service)\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(false); pm.expect(j.coverage.effectiveDate).to.eql(\"2026-01-01\"); pm.expect(j.coverage.endDate).to.eql(\"2026-12-31\"); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2026010120261231\"); });"
                 ]
               }
             }
@@ -3883,7 +3883,7 @@
                 }
               }
             },
-            "description": "A prior authorization may cover a period: dateOfService is its first day, dateOfServiceEnd its last. Records that touch (12/31 then 01/01) are one continuous coverage period."
+            "description": "A prior authorization may cover a period: dateOfService is its first day, dateOfServiceEnd its last. Records that touch (12/31 then 01/01) are one continuous coverage period for the decision; the coverage block shows the record that covers the first day."
           },
           "response": []
         },
@@ -3899,7 +3899,7 @@
                   "pm.test(\"outcome ACTIVE: a period is judged on its first day\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
                   "pm.test(\".coverage.active = true\", function () { const j = pm.response.json(); pm.expect(j.coverage.active).to.eql(true); });",
                   "pm.test(\".message = Member found; coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05\", function () { const j = pm.response.json(); pm.expect(j.message).to.eql(\"Member found; coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05\"); });",
-                  "pm.test(\".coverage.endDate = 2026-12-31 (how far coverage goes)\", function () { const j = pm.response.json(); pm.expect(j.coverage.endDate).to.eql(\"2026-12-31\"); });",
+                  "pm.test(\".coverage.endDate = 2026-12-31 (the end of the 2026 record, which covers the first day)\", function () { const j = pm.response.json(); pm.expect(j.coverage.endDate).to.eql(\"2026-12-31\"); });",
                   "pm.test(\"6 memberId.forVendors entries, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.memberId.forVendors.length).to.eql(6); pm.expect(j.memberId.forVendors.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
                   "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
                   "pm.test(\".coverage.coverageId = the 2026 record\", function () { const j = pm.response.json(); pm.expect(j.coverage.coverageId).to.eql(j.memberId.resolved.replace(/[^A-Za-z0-9]/g, \"\") + \"2026010120261231\"); });",

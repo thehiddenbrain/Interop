@@ -278,7 +278,7 @@
       },
       "MemberResolutionResponse": {
         "type": "object",
-        "description": "The answer: the outcome Onyx branches on, one sentence for a person, the member id as received, as resolved and in every vendor's format with that vendor's payer, the line of business, the date evaluated, the coverage flag with its period, the caller's requestId and a traceId for support. A field that does not apply is absent, never null",
+        "description": "The answer: the outcome Onyx branches on, one sentence for a person, the member id as received, as resolved and in every vendor's format with that vendor's payer, the line of business, the date evaluated, the coverage flag with its record, the caller's requestId and a traceId for support. A field that does not apply is absent, never null",
         "properties": {
           "outcome": {
             "type": "string",

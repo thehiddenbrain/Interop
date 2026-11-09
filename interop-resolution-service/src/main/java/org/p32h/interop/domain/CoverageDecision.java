@@ -11,7 +11,10 @@ package org.p32h.interop.domain;
  */
 public record CoverageDecision(boolean active, CoverageReason reason, CoverageSpan span, CoverageSpan recordSpan) {
 
-    /** The same decision reporting another record span, for example the selected record's own. */
+    /**
+     * The same decision reporting another record span: the selected record's own. Null keeps this one; that happens only
+     * when no record of the person has a readable span, and then this one is null too.
+     */
     public CoverageDecision withRecordSpan(CoverageSpan other) {
         return other == null ? this : new CoverageDecision(active, reason, span, other);
     }

@@ -89,6 +89,9 @@ class MemberSelectorTest {
         assertThat(((SelectionResult.Selected) after).record().storedMemberId()).isEqualTo("HP567890123");
         SelectionResult before = selector.select(List.of(hphc, thp), null, LocalDate.parse("2024-06-01"), RECENT_SINCE);
         assertThat(((SelectionResult.Selected) before).record().storedMemberId()).isEqualTo("567890123   01");
+        assertThat(((SelectionResult.Selected) after).coverage().recordSpan()).as("the chosen record's own span").isEqualTo(span("2025-01-01", null));
+        assertThat(((SelectionResult.Selected) before).coverage().span()).as("the two records touch: one period for the decision").isEqualTo(span("2020-01-01", null));
+        assertThat(((SelectionResult.Selected) before).coverage().recordSpan()).as("but the block shows the old record's own dates").isEqualTo(span("2020-01-01", "2024-12-31"));
     }
 
     @Test
@@ -99,6 +102,7 @@ class MemberSelectorTest {
         SelectionResult.Selected s = (SelectionResult.Selected) r;
         assertThat(s.record().storedMemberId()).isEqualTo("HP567890123");
         assertThat(s.coverage().reason()).isEqualTo(CoverageReason.COVERAGE_ENDED);
+        assertThat(s.coverage().recordSpan()).isEqualTo(span("2025-01-01", "2025-12-31"));
     }
 
     @Test
@@ -117,6 +121,17 @@ class MemberSelectorTest {
         SelectionResult.Selected s = (SelectionResult.Selected) selector.select(List.of(thp, hphc), null, LocalDate.parse("2025-06-01"), RECENT_SINCE);
         assertThat(s.record().storedMemberId()).isEqualTo("HP567890123");
         assertThat(s.coverage().active()).isTrue();
+    }
+
+    @Test
+    void convertedPairReportsTheChosenRecordsOwnSpanNotTheOldRecordStillOpen() {
+        MemberRecord thp = rec("567890123   01", "THP", null, null, span("2020-01-01", null));
+        MemberRecord hphc = rec("HP567890123", "HPHC", "567890123   01", null, span("2025-01-01", "2025-12-31"));
+        SelectionResult.Selected s = (SelectionResult.Selected) selector.select(List.of(thp, hphc), null, LocalDate.parse("2025-06-01"), RECENT_SINCE);
+        assertThat(s.record().storedMemberId()).isEqualTo("HP567890123");
+        assertThat(s.coverage().active()).isTrue();
+        assertThat(s.coverage().recordSpan()).as("the HPHC record's dates go with the HPHC id, not the old record's open span")
+                .isEqualTo(span("2025-01-01", "2025-12-31"));
     }
 
     @Test

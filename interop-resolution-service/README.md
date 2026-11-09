@@ -249,8 +249,8 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
-| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
-| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, or a gap); `coverage` shows the most recent period with its `coverageId`. Only for a member with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
+| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage record must be referred to later. |
+| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, or a gap); `coverage` shows the most recent record with its `coverageId`. Only for a member with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id (MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text), or every member MMI returned is stale: not covered on the date of service and with no coverage ending in the last 24 months. The stale case gets the same plain message and no `sourceMessage`; the log says `marker=NO_RECENT_COVERAGE` | "Member not found" worklist. |
 | `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth, or the records carry none), intake takes the full ID from the member's card. |
 
@@ -296,8 +296,9 @@ when no plan is in effect, so an inactive answer reads like an active one.
 `coverage.coverageId` names that record, in the form the Onyx requirement sets: the resolved member
 id with its spaces and any punctuation removed, then the record's effective date, then its end date, both `yyyyMMdd`, run
 together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `39991231` stands for an open
-end). It is present whenever the dates are, and the same member with the same coverage always gets the same
-value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no other periods.
+end). It is present whenever the dates are, and the same record always gets the same value (a renewal, a new
+plan-year record, gets a new one), so Onyx can refer to the coverage behind a decision. Nothing else is returned about
+coverage: no reason code, no other records.
 `lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`,
 `MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP`; when no record covers the date, the most recent record is read; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
 Onyx routes the transaction on it. The company (THP or
@@ -418,7 +419,8 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    against a record with no end date is `ACTIVE`, because that is what the record says. A span with an unreadable date is skipped and logged with `marker=UNREADABLE_SPAN`; the
    remaining spans decide. If a member has unreadable spans and no readable one, the answer is 502
    `UNREADABLE_COVERAGE`, never a confident INACTIVE. For a converted member the two records' spans are
-   evaluated together, so a gap between the old and the new record is reported as a gap.
+   evaluated together, so a gap between the old and the new record is reported as a gap; the coverage block shows
+   the selected record's own dates.
 5. For an identified member (`ACTIVE` or `INACTIVE`), one member information call with the resolved ID and the date
    of service; the line of business is derived from the coverage record that covers the date of service, or from the
    most recent record when none does (section 1; MMI's value when there is no record or no rule matches).
@@ -525,7 +527,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (176 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (177 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -596,8 +598,8 @@ covering record's line of business replaces MMI's, the most recent record's when
   `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`; MA-HMO and MA-PPO records carry SH, `subsidiary` TAHMO and the `businessLineKey` (0039 or 0099, 0235). Pending, with CRC: check the record's `ipa` against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value (the place is marked in `LineOfBusinessDeriver`). TMP members are covered by MA-HMO and MA-PPO (all but the IPA variant). Rules for HPHC and commercial
   members are to come; until then those members keep MMI's value.
 - Without a date in the request, MMI returns the member's whole coverage history (the request carries no
-  `dosStartDate` on purpose). The service evaluates it: contiguous segments are one period (`coverage` dates and
-  `coverageId`), a period of service is judged on its first day, and a member with nothing in the last 24 months is
+  `dosStartDate` on purpose). The service evaluates it: contiguous segments are one period for the decision, while the
+  `coverage` dates and `coverageId` are one record's own, a period of service is judged on its first day, and a member with nothing in the last 24 months is
   `NOT_FOUND`.
 - A single record returned for any population is the member (TMP/SCO always return one).
 - MMI reports the company as `THP` or `HPHC`, the values eviCore's and Evolent's payer entries key on, and the line of

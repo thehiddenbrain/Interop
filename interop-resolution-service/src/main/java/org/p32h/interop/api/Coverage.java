@@ -21,6 +21,6 @@ public record Coverage(
         @Schema(description = "First day of the coverage record: on INACTIVE, of the most recent record") LocalDate effectiveDate,
         @Schema(description = "Last day of the coverage record, on INACTIVE of the most recent record; 3999-12-31 for an open end. A period of service can run on into the next record: message says how far the coverage runs") LocalDate endDate) {
 
-    /** The end date sent for an open-ended period, as MMI itself writes it (12/31/3999). */
+    /** The end date sent for an open-ended record, as MMI itself writes it (12/31/3999). */
     public static final LocalDate OPEN_END = LocalDate.of(3999, 12, 31);
 }

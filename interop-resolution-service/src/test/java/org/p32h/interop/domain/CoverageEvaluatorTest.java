@@ -88,16 +88,22 @@ class CoverageEvaluatorTest {
     // ---------------------------------------------------------------- a period of service
 
     @Test
-    void anInactiveAnswerReportsTheMostRecentPeriod() {
+    void anInactiveAnswerReportsTheMostRecentRecord() {
         List<CoverageSpan> history = List.of(span("2021-01-01", "2022-12-31"), span("2023-01-01", "2023-06-30"), span("2024-03-01", "2024-08-31"));
         CoverageDecision d = evaluator.evaluate(history, LocalDate.parse("2026-10-15"));
         assertThat(d.active()).isFalse();
-        assertThat(d.span()).as("adjacent records are one period; the latest one is reported, not the order given")
+        assertThat(d.span()).as("adjacent records are one period for the decision; the latest period, not the order given")
                 .isEqualTo(span("2024-03-01", "2024-08-31"));
-        assertThat(evaluator.evaluate(List.of(history.get(2), history.get(0), history.get(1)), LocalDate.parse("2026-10-15")).span())
-                .isEqualTo(span("2024-03-01", "2024-08-31"));
-        assertThat(evaluator.evaluate(history, LocalDate.parse("2023-10-01")).span()).as("a gap: the period after it")
-                .isEqualTo(span("2024-03-01", "2024-08-31"));
+        assertThat(d.recordSpan()).as("the record reported: the one that ends last").isEqualTo(span("2024-03-01", "2024-08-31"));
+        CoverageDecision reordered = evaluator.evaluate(List.of(history.get(2), history.get(0), history.get(1)), LocalDate.parse("2026-10-15"));
+        assertThat(reordered.span()).isEqualTo(span("2024-03-01", "2024-08-31"));
+        assertThat(reordered.recordSpan()).as("whatever the order given").isEqualTo(span("2024-03-01", "2024-08-31"));
+        CoverageDecision gap = evaluator.evaluate(history, LocalDate.parse("2023-10-01"));
+        assertThat(gap.span()).as("a gap: the period after it").isEqualTo(span("2024-03-01", "2024-08-31"));
+        assertThat(gap.recordSpan()).isEqualTo(span("2024-03-01", "2024-08-31"));
+        CoverageDecision notYet = evaluator.evaluate(List.of(span("2027-01-01", null)), LocalDate.parse("2026-10-15"));
+        assertThat(notYet.reason()).isEqualTo(CoverageReason.NOT_YET_EFFECTIVE);
+        assertThat(notYet.recordSpan()).as("not yet effective: the record about to start").isEqualTo(span("2027-01-01", null));
     }
 
     @Test
