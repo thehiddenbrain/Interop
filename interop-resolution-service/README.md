@@ -219,7 +219,7 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed in the response h
 | `requestId` | yes | The caller's id for this call, new for every request (a UUID suits). Letters, digits, `.`, `_`, `:` or `-`, at most 64 characters (`REQUEST_ID_MISSING`, `REQUEST_ID_INVALID`). Echoed in the 200 body and in every error body once it was read and found usable; on every log line of the call. |
 | `memberId` | yes | As the EMR typed it. Only checked for presence; sent to MMI exactly as received, with surrounding whitespace removed. Not validated or reshaped here. |
 | `dateOfService` | no | `yyyy-MM-dd`; the first day when the service covers a period. **Defaults to today** when omitted (`dateOfServiceDefaulted: true` in the response). A date that is sent is the date judged, never replaced by today: any future date is judged against the coverage on record; a value that is not a real date, or more than 10 years back, is a 400. |
-| `dateOfServiceEnd` | no | `yyyy-MM-dd`, the last day when the service covers a period. The period is judged on its first day (`dateOfService`); the message says how far the coverage runs. Not before `dateOfService` (`DATE_OF_SERVICE_END_BEFORE_START`), never alone (`DATE_OF_SERVICE_END_WITHOUT_START`), a real date (`DATE_OF_SERVICE_END_INVALID`). |
+| `dateOfServiceEnd` | no | `yyyy-MM-dd`, the last day when the service covers a period. The period is judged on its first day (`dateOfService`); `coverage.endDate` and the message say how far the coverage runs. Not before `dateOfService` (`DATE_OF_SERVICE_END_BEFORE_START`), never alone (`DATE_OF_SERVICE_END_WITHOUT_START`), a real date (`DATE_OF_SERVICE_END_INVALID`). |
 | `dateOfBirth` | recommended | The patient's date of birth, `yyyy-MM-dd`. Used only to verify the member or tell apart the members on a plan who share the id; a date that matches no record is 422 `DOB_MISMATCH`, and a value that is not a real date, is in the future or is more than 125 years ago is a 400. Never sent to MMI, never logged, never echoed. |
 | anything else | no | **Ignored**, a `vendor` included: the answer is always for every vendor. A field sent as the wrong JSON type (an object or array where a string is expected) is a body the service cannot read: 400 `WRONG_JSON_TYPE`. |
 
@@ -249,8 +249,8 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
-| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage record must be referred to later. |
-| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, or a gap); `coverage` shows the most recent record with its `coverageId`. Only for a member with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
+| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
+| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, or a gap); `coverage` shows the most recent period with its `coverageId`. Only for a member with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id (MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text), or every member MMI returned is stale: not covered on the date of service and with no coverage ending in the last 24 months. The stale case gets the same plain message and no `sourceMessage`; the log says `marker=NO_RECENT_COVERAGE` | "Member not found" worklist. |
 | `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth, or the records carry none), intake takes the full ID from the member's card. |
 
@@ -270,7 +270,7 @@ For the TMP id `123456789` (resolved to `123456789   01`):
     ] },
   "lineOfBusiness": "MCR",
   "dateOfService": "2026-10-15", "dateOfServiceDefaulted": false,
-  "coverage": { "coverageId": "123456789012024010139991231", "active": true, "effectiveDate": "2024-01-01", "endDate": "3999-12-31" },
+  "coverage": { "coverageId": "123456789012021010139991231", "active": true, "effectiveDate": "2021-01-01", "endDate": "3999-12-31" },
   "requestId": "3f6c2a9e-8b1d-4e7a-9c5f-2d4b6a8e0c13",
   "traceId": "INTEROP-1791253983086-71493" }
 ```
@@ -282,23 +282,21 @@ vendor, sorted by vendor code: that ID in the vendor's format, the value that go
 9-character core only, the number printed on the card: Optum stores the core, not the 11 characters.
 Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 characters, spaces, 2 digits); any other
 stored ID (Public Plans, HPHC) is passed as stored for every vendor.
-`coverage` is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`. The dates are those of one MMI
-coverage record of the member, never two records joined: on `ACTIVE` the record that covers the (first) date of
-service; on `INACTIVE` the member's most recent record, the one that ends last (an open end counting as the latest),
-which does not cover the date of service: Onyx branches on `active`, never on the dates. An open end is `3999-12-31`, so
-every date sent is a real date. The decision itself reads the records together: records that touch, as plan-year
-records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true when such a period covers
-the date of service; a period of service is judged on its first day, and when the continuous coverage ends before the
-period's last day the message says so. For example, records 04/01/2025 to 12/31/2025 and 01/01/2026 to 10/31/2026 give,
-for a 2026 date, `effectiveDate` 2026-01-01 and `endDate` 2026-10-31. Otherwise `active` is false and `message` says why
-(coverage ended, not yet effective, a gap); the most recent record is shown, the same rule the line of business uses
-when no plan is in effect, so an inactive answer reads like an active one.
-`coverage.coverageId` names that record, in the form the Onyx requirement sets: the resolved member
-id with its spaces and any punctuation removed, then the record's effective date, then its end date, both `yyyyMMdd`, run
-together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `39991231` stands for an open
-end). It is present whenever the dates are, and the same record always gets the same value (a renewal, a new
-plan-year record, gets a new one), so Onyx can refer to the coverage behind a decision. Nothing else is returned about
-coverage: no reason code, no other records.
+`coverage` is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`. On `ACTIVE` the dates
+are those of the continuous period that covers the (first) date of service; on `INACTIVE` they are those of the member's
+most recent period, the one that ends last (an open end counting as the latest), which does not cover the date of
+service: Onyx branches on `active`, never on the dates. An open-ended period ends `3999-12-31`, so every date sent is a
+real date. Records that touch,
+as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true when
+that period covers the date of service; a period of service is judged on its first day, and when the coverage ends before
+the period's last day the message says so and `endDate` shows how far it runs. Otherwise `active` is false and `message`
+says why (coverage ended, not yet effective, a gap); the most recent period is shown, the same rule the line of business
+uses when no plan is in effect, so an inactive answer reads like an active one.
+`coverage.coverageId` names that period, in the form the Onyx requirement sets: the resolved member
+id with its spaces and any punctuation removed, then the period's effective date, then its end date, both `yyyyMMdd`, run
+together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `39991231` stands for an open-ended
+period). It is present whenever the dates are, and the same member with the same coverage always gets the same
+value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no other periods.
 `lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`,
 `MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP`; when no record covers the date, the most recent record is read; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
 Onyx routes the transaction on it. The company (THP or
@@ -328,7 +326,7 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `dateOfServiceDefaulted` | always | Whether the date of service was defaulted to today |
-| `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates are always in the block, one MMI record's own: on `ACTIVE` the record covering the (first) date of service, on `INACTIVE` the member's most recent record, which does not cover it |
+| `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates are always in the block: on `ACTIVE` the period covering the (first) date of service, on `INACTIVE` the member's most recent period, which does not cover it |
 | `requestId` | always | The caller's `requestId`, echoed |
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
@@ -414,13 +412,12 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    period covers the date of service, the first day of a period of service (dates inclusive; an end of null or
    `12/31/3999` is open). The dates are always the ones that were sent (today only when none was sent), whatever year they are in:
    a 2027 date against a record that ends 12/31/2026 is `INACTIVE` ("coverage ended before"), a period from
-   2025-12-20 to 2026-01-05 against records for 2025 and 2026 is `ACTIVE` (one continuous period; the coverage block shows the 2025 record, which covers the first day), a period that
+   2025-12-20 to 2026-01-05 against records for 2025 and 2026 is `ACTIVE` (one continuous period), a period that
    runs past the end of coverage is `ACTIVE` too ("coverage active on ...; ends ..., before ..."), and any date
    against a record with no end date is `ACTIVE`, because that is what the record says. A span with an unreadable date is skipped and logged with `marker=UNREADABLE_SPAN`; the
    remaining spans decide. If a member has unreadable spans and no readable one, the answer is 502
    `UNREADABLE_COVERAGE`, never a confident INACTIVE. For a converted member the two records' spans are
-   evaluated together, so a gap between the old and the new record is reported as a gap; the coverage block shows
-   the selected record's own dates.
+   evaluated together, so a gap between the old and the new record is reported as a gap.
 5. For an identified member (`ACTIVE` or `INACTIVE`), one member information call with the resolved ID and the date
    of service; the line of business is derived from the coverage record that covers the date of service, or from the
    most recent record when none does (section 1; MMI's value when there is no record or no rule matches).
@@ -527,7 +524,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (177 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (174 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -547,10 +544,8 @@ DOB is still 422 `DOB_MISMATCH` after the one MMI call (`traceId` present). `aFu
 `aSentDateOfServiceIsNeverReplacedByToday` cover a calendar-year record: a member whose only record runs 01/01/2026 to 12/31/2026 is
 ACTIVE for 2026-10-15 and INACTIVE for 2027-10-15, the response carries the date asked about, an unusable date is a 400
 and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. `aPeriodOfServiceIsJudgedOnItsFirstDay`: a member with
-adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the 2025 record in the coverage dates, ACTIVE
-from 2025-12-20 to 2027-01-05 with the message running to the end of the continuous coverage ("ends 2026-12-31, before
-2027-01-05") while the block keeps the 2025 record, ACTIVE from 2026-12-20 to 2027-01-05 as well ("coverage active on
-2026-12-20; ends 2026-12-31, before 2027-01-05") with the 2026 record, `dateOfServiceEnd`
+adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the merged period in the coverage dates, ACTIVE
+from 2026-12-20 to 2027-01-05 as well ("coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05"), `dateOfServiceEnd`
 is echoed only when sent, and an end before the start, without a start or not a date is a 400.
 `aMemberWithNoCoverageInTheLast24MonthsIsNotFound`: the member whose coverage ended 12/31/2023 is NOT_FOUND today and for
 2024-02-01 (the plain sentence, no `sourceMessage`, a `traceId`, `marker=NO_RECENT_COVERAGE` in the log) and ACTIVE for 2023-06-15. A capturing log appender
@@ -600,8 +595,8 @@ covering record's line of business replaces MMI's, the most recent record's when
   `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`; MA-HMO and MA-PPO records carry SH, `subsidiary` TAHMO and the `businessLineKey` (0039 or 0099, 0235). Pending, with CRC: check the record's `ipa` against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value (the place is marked in `LineOfBusinessDeriver`). TMP members are covered by MA-HMO and MA-PPO (all but the IPA variant). Rules for HPHC and commercial
   members are to come; until then those members keep MMI's value.
 - Without a date in the request, MMI returns the member's whole coverage history (the request carries no
-  `dosStartDate` on purpose). The service evaluates it: contiguous segments are one period for the decision, while the
-  `coverage` dates and `coverageId` are one record's own, a period of service is judged on its first day, and a member with nothing in the last 24 months is
+  `dosStartDate` on purpose). The service evaluates it: contiguous segments are one period (`coverage` dates and
+  `coverageId`), a period of service is judged on its first day, and a member with nothing in the last 24 months is
   `NOT_FOUND`.
 - A single record returned for any population is the member (TMP/SCO always return one).
 - MMI reports the company as `THP` or `HPHC`, the values eviCore's and Evolent's payer entries key on, and the line of

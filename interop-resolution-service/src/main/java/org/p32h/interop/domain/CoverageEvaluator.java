@@ -8,49 +8,35 @@ import java.util.List;
 /**
  * Decides ACTIVE / INACTIVE for a date of service from the readable, non-void spans of one person. A period of service
  * (a prior authorization may carry a start and an end date) is judged on its first day: covered on that day is ACTIVE,
- * and the period's end tells how far the coverage runs.
+ * and the reported span tells how far the coverage runs.
  *
  * <p>Spans that overlap or touch (one starts the day after the other ends, as plan-year records do) are one
- * continuous coverage period, and the periods decide: ACTIVE when one covers the date of service, INACTIVE otherwise.
- * What is reported to Onyx is the record's own span, never a joined period ({@link #recordSpan}): the span covering the
- * date of service when active, the most recent span when inactive. Pure function; every rule is a row in
- * {@code CoverageEvaluatorTest}.
+ * continuous coverage period. The answer is ACTIVE when one such period covers the date of service; the reported span
+ * is that period. When none covers it the answer is INACTIVE and the reported span is the most recent period: the one
+ * that ends last, an open end counting as the latest (periods never overlap, so it is also the one that starts last).
+ * Pure function; every rule is a row in {@code CoverageEvaluatorTest}.
  */
 public final class CoverageEvaluator {
 
     public CoverageDecision evaluate(List<CoverageSpan> spans, LocalDate dateOfService) {
         if (spans == null || spans.isEmpty()) {
-            return new CoverageDecision(false, CoverageReason.NO_COVERAGE_RECORDS, null, null);
+            return new CoverageDecision(false, CoverageReason.NO_COVERAGE_RECORDS, null);
         }
         List<CoverageSpan> periods = merge(spans);
-        CoverageSpan reported = recordSpan(spans, dateOfService);
         CoverageSpan covering = periods.stream().filter(p -> p.covers(dateOfService)).findFirst().orElse(null);
         if (covering != null) {
-            return new CoverageDecision(true, CoverageReason.COVERED, covering, reported);
+            return new CoverageDecision(true, CoverageReason.COVERED, covering);
         }
         CoverageSpan mostRecent = periods.get(periods.size() - 1);
         LocalDate earliestStart = periods.get(0).effective();
         LocalDate latestEnd = mostRecent.endForSorting();
         if (dateOfService.isBefore(earliestStart)) {
-            return new CoverageDecision(false, CoverageReason.NOT_YET_EFFECTIVE, mostRecent, reported);
+            return new CoverageDecision(false, CoverageReason.NOT_YET_EFFECTIVE, mostRecent);
         }
         if (!latestEnd.equals(LocalDate.MAX) && dateOfService.isAfter(latestEnd)) {
-            return new CoverageDecision(false, CoverageReason.COVERAGE_ENDED, mostRecent, reported);
+            return new CoverageDecision(false, CoverageReason.COVERAGE_ENDED, mostRecent);
         }
-        return new CoverageDecision(false, CoverageReason.COVERAGE_GAP, mostRecent, reported);
-    }
-
-    /**
-     * The record span to report: of the spans covering the date of service, else of all of them, the one that ends last
-     * (an open end counting as the latest), then the one that starts last. Null when there is no span.
-     */
-    public CoverageSpan recordSpan(List<CoverageSpan> spans, LocalDate dateOfService) {
-        if (spans == null || spans.isEmpty()) {
-            return null;
-        }
-        Comparator<CoverageSpan> latest = Comparator.comparing(CoverageSpan::endForSorting).thenComparing(CoverageSpan::effective);
-        return spans.stream().filter(s -> s.covers(dateOfService)).max(latest)
-                .orElseGet(() -> spans.stream().max(latest).orElseThrow());
+        return new CoverageDecision(false, CoverageReason.COVERAGE_GAP, mostRecent);
     }
 
     /** Overlapping or adjacent spans joined into continuous periods, sorted by start. */

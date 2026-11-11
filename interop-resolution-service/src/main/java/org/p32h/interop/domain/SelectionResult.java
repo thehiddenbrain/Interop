@@ -11,8 +11,7 @@ public sealed interface SelectionResult {
 
     /**
      * @param record          the record whose stored id is returned
-     * @param coverage        decided over every readable span of the person (all records of a converted pair); its
-     *                        record span, the one reported, is the selected record's own
+     * @param coverage        evaluated over every readable span of the person (all records of a converted pair)
      * @param readableSpans   readable, non-void spans across the person
      * @param unreadableSpans spans skipped across the person because a date could not be read
      */

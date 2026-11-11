@@ -88,22 +88,16 @@ class CoverageEvaluatorTest {
     // ---------------------------------------------------------------- a period of service
 
     @Test
-    void anInactiveAnswerReportsTheMostRecentRecord() {
+    void anInactiveAnswerReportsTheMostRecentPeriod() {
         List<CoverageSpan> history = List.of(span("2021-01-01", "2022-12-31"), span("2023-01-01", "2023-06-30"), span("2024-03-01", "2024-08-31"));
         CoverageDecision d = evaluator.evaluate(history, LocalDate.parse("2026-10-15"));
         assertThat(d.active()).isFalse();
-        assertThat(d.span()).as("adjacent records are one period for the decision; the latest period, not the order given")
+        assertThat(d.span()).as("adjacent records are one period; the latest one is reported, not the order given")
                 .isEqualTo(span("2024-03-01", "2024-08-31"));
-        assertThat(d.recordSpan()).as("the record reported: the one that ends last").isEqualTo(span("2024-03-01", "2024-08-31"));
-        CoverageDecision reordered = evaluator.evaluate(List.of(history.get(2), history.get(0), history.get(1)), LocalDate.parse("2026-10-15"));
-        assertThat(reordered.span()).isEqualTo(span("2024-03-01", "2024-08-31"));
-        assertThat(reordered.recordSpan()).as("whatever the order given").isEqualTo(span("2024-03-01", "2024-08-31"));
-        CoverageDecision gap = evaluator.evaluate(history, LocalDate.parse("2023-10-01"));
-        assertThat(gap.span()).as("a gap: the period after it").isEqualTo(span("2024-03-01", "2024-08-31"));
-        assertThat(gap.recordSpan()).isEqualTo(span("2024-03-01", "2024-08-31"));
-        CoverageDecision notYet = evaluator.evaluate(List.of(span("2027-01-01", null)), LocalDate.parse("2026-10-15"));
-        assertThat(notYet.reason()).isEqualTo(CoverageReason.NOT_YET_EFFECTIVE);
-        assertThat(notYet.recordSpan()).as("not yet effective: the record about to start").isEqualTo(span("2027-01-01", null));
+        assertThat(evaluator.evaluate(List.of(history.get(2), history.get(0), history.get(1)), LocalDate.parse("2026-10-15")).span())
+                .isEqualTo(span("2024-03-01", "2024-08-31"));
+        assertThat(evaluator.evaluate(history, LocalDate.parse("2023-10-01")).span()).as("a gap: the period after it")
+                .isEqualTo(span("2024-03-01", "2024-08-31"));
     }
 
     @Test
@@ -121,31 +115,6 @@ class CoverageEvaluatorTest {
         assertThat(evaluator.evaluate(spans, LocalDate.parse("2024-08-15")).reason()).as("first day in a gap").isEqualTo(CoverageReason.COVERAGE_GAP);
         assertThat(evaluator.evaluate(spans, LocalDate.parse("2022-12-01")).reason()).isEqualTo(CoverageReason.NOT_YET_EFFECTIVE);
         assertThat(evaluator.evaluate(List.of(span("2023-01-01", "2024-05-31")), LocalDate.parse("2024-06-01")).reason()).isEqualTo(CoverageReason.COVERAGE_ENDED);
-    }
-
-    // ---------------------------------------------------------------- the record reported to Onyx
-
-    @Test
-    void theReportedSpanIsTheRecordNotTheJoinedPeriod() {
-        List<CoverageSpan> records = List.of(span("2025-04-01", "2025-12-31"), span("2026-01-01", "2026-10-31"));
-        CoverageDecision d = evaluator.evaluate(records, LocalDate.parse("2026-05-01"));
-        assertThat(d.active()).isTrue();
-        assertThat(d.span()).as("the two records are one period for the decision").isEqualTo(span("2025-04-01", "2026-10-31"));
-        assertThat(d.recordSpan()).as("but the record covering the date is what is reported").isEqualTo(span("2026-01-01", "2026-10-31"));
-        assertThat(evaluator.evaluate(records, LocalDate.parse("2025-06-01")).recordSpan()).isEqualTo(span("2025-04-01", "2025-12-31"));
-        assertThat(evaluator.evaluate(records, LocalDate.parse("2027-01-01")).recordSpan()).as("inactive: the most recent record")
-                .isEqualTo(span("2026-01-01", "2026-10-31"));
-    }
-
-    @Test
-    void whenRecordsOverlapTheOneEndingLastIsReported() {
-        List<CoverageSpan> records = List.of(span("2025-01-01", null), span("2020-01-01", "2026-12-31"), span("2026-01-01", "2026-06-30"));
-        assertThat(evaluator.evaluate(records, LocalDate.parse("2026-03-01")).recordSpan()).as("an open end is the latest").isEqualTo(span("2025-01-01", null));
-        List<CoverageSpan> sameEnd = List.of(span("2024-01-01", "2026-12-31"), span("2026-01-01", "2026-12-31"));
-        assertThat(evaluator.evaluate(sameEnd, LocalDate.parse("2026-03-01")).recordSpan()).as("same end: the later start").isEqualTo(span("2026-01-01", "2026-12-31"));
-        List<CoverageSpan> gap = List.of(span("2023-01-01", "2024-05-31"), span("2025-01-01", "2025-12-31"));
-        assertThat(evaluator.evaluate(gap, LocalDate.parse("2024-08-15")).recordSpan()).as("in a gap: the most recent record").isEqualTo(span("2025-01-01", "2025-12-31"));
-        assertThat(evaluator.recordSpan(List.of(), LocalDate.parse("2026-03-01"))).isNull();
     }
 
     @Test
