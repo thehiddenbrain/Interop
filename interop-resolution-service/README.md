@@ -8,13 +8,14 @@ member ID exactly as the provider's EMR supplied it, with the date of service, a
 (`dateOfService` to `dateOfServiceEnd`). The service verifies the ID with MMI (Master Member Index), returns the ID it
 **resolved** to and that ID **in every UM vendor's format** with the payer and the member's name for that vendor's request, and says
 whether coverage is **active**. One call serves a
-prior authorization whose codes go to several vendors. One operation, `POST /v1/interop/resolve`, two downstreams
-(MMI, and the member information service for the coverage records behind the line of business), no database, no state.
+prior authorization whose codes go to several vendors. One operation, `POST /v1/interop/resolve`, three reads
+(MMI, the member information service for the coverage records behind the line of business, and the coverage view in
+the ODS for the coverage dates and the `coverageId`), nothing written, no state.
 
 | | |
 |---|---|
 | Endpoint | `POST /v1/interop/resolve`, port **9090** |
-| Stack | Spring Boot 4.0.7 (Spring Framework 7, Jackson 3) / Java 17+ / Gradle 9.5 wrapper, springdoc 3: the same build shape as the EPA Workbench and the member profile service |
+| Stack | Spring Boot 4.0.7 (Spring Framework 7, Jackson 3; Spring Data JPA with Hibernate and the Oracle JDBC driver for the coverage view) / Java 17+ / Gradle 9.5 wrapper, springdoc 3: the same build shape as the EPA Workbench and the member profile service |
 | Swagger UI | `http://localhost:9090/swagger-ui.html` (off in `PRD`); the raw document is `/api-docs` |
 | OpenAPI to share | `docs/openapi/interop-resolution-service-openapi.yaml` and `.json`: `/api-docs` saved without the generated `localhost` server entry (the service answers JSON only, so the YAML is converted from the JSON). Regenerate after any contract change: start the service on `DEV`, save `/api-docs`, drop `servers`, convert to YAML. |
 | Vendor pack | `docs/vendor/interop-resolution-service-api.html` and `.pdf`: the API reference for Onyx, readable outside the firewall (Swagger UI is not). Built from the OpenAPI document and the examples in `docs/design.html` section 6.5, with nothing internal in it: no system names beyond "the member lookup" and "the member plan lookup", no hosts, ports or runtime. It describes the deployed shape: `POST /v1/resolve`, every answer in an envelope of `data` and `header` (`httpStatus`, `message`, `status`, `statusCode` on errors, `timestamp`), the error code as `header.statusCode` and the details in `data.details`; the OpenAPI document of that shape sits beside it in `docs/vendor`, derived from the one in `docs/openapi`. Share the four files together. Rebuild them after any contract change. |
@@ -32,8 +33,10 @@ The project is a standalone Gradle build in this folder, `interop-resolution-ser
    downloads the dependencies on the first import; wait for the *Synchronize Gradle projects* job in the
    bottom-right corner to finish before running anything.
 2. Right-click `InteropResolutionApplication` > **Run As > Spring Boot App**. The default profile is `PQA`
-   (the real PQA MMI, network needed). For the in-process stub open *Run Configurations... > Spring Boot App*
-   and put `DEV` in the **Profile** field.
+   (the real PQA MMI, network needed, and the three `ODS_` variables of the coverage view on the run configuration's
+   **Environment** tab: without them the service does not start, see *Point it at a real MMI* below). For the
+   in-process stub open *Run Configurations... > Spring Boot App* and put `DEV` in the **Profile** field; `DEV` needs
+   no network, no database and none of the variables.
 
 When `build.gradle` changes, right-click the project > **Gradle > Refresh Gradle Project**.
 
@@ -57,17 +60,23 @@ Spring Boot 4.0.7, no toolchain block, `options.release = 17` plus `-parameters`
 `targetCompatibility` 17, which is what STS reads for the Eclipse project's Java level), `springBoot { buildInfo() }`,
 and an `internalRepoUrl` Gradle property that swaps Maven Central for an internal mirror. Only a JDK 17 or
 newer is needed (17, 21 and 25 all work); the wrapper downloads Gradle and the dependencies on first use.
+The coverage view is read through JPA: `build.gradle` carries `spring-boot-starter-data-jpa` (Spring Data JPA,
+Hibernate) and, as `runtimeOnly`, the Oracle driver `com.oracle.database.jdbc:ojdbc11` and `com.h2database:h2`; H2 is
+used by the `DEV` and `test` profiles only.
 
 1. Run `InteropResolutionApplication` as a **Spring Boot App**. With no profile set it runs the **`PQA`**
-   profile and calls the PQA MMI. With Profile = `DEV` an **in-process MMI stub** answers from
-   `src/main/resources/mmi-stub/members.json`, so nothing needs network access.
+   profile and calls the PQA MMI; like every profile but `DEV`, it needs the three `ODS_` variables of the coverage
+   view and does not start without them (*Point it at a real MMI*, below). With Profile = `DEV` an
+   **in-process MMI stub** answers from `src/main/resources/mmi-stub/members.json` and an in-memory table stands in for
+   the coverage view, so nothing needs network access or a database.
 2. Open `http://localhost:9090/swagger-ui.html` or import the Postman collection in `postman/` (the collection
    expects the `DEV` profile).
 
 Command line: `./run.sh` (Mac/Linux) or `run.cmd` / `run.bat` (Windows) build the jar on first use and start it;
 `./gradlew bootRun` (PQA, the default), `./gradlew bootRun --args='--spring.profiles.active=DEV'` (stub),
 `./gradlew test` (all tests), `./gradlew bootJar` then `java -jar build/libs/interop-resolution-service-1.0.0.jar`
-(PQA) or `... --spring.profiles.active=DEV` (stub).
+(PQA) or `... --spring.profiles.active=DEV` (stub). A PQA run needs `ODS_JDBC_URL`, `ODS_USERNAME` and `ODS_PASSWORD`
+in the environment; the stub runs and the tests need none of them, and no database.
 
 ### Point it at a real MMI
 
@@ -81,26 +90,39 @@ Command line: `./run.sh` (Mac/Linux) or `run.cmd` / `run.bat` (Windows) build th
 
 One configuration file per environment in `src/main/resources`, named by the environment in upper case; the profile
 name is the file suffix (`SPRING_PROFILES_ACTIVE=DEV|FQA|PQA|PQA-LITE|PRD`). `application.yaml` holds what every
-environment shares (port, JSON rules, MMI path and timeouts, the vendor table); an environment file sets only what differs
-(the MMI and member information URLs, payload logging, the stubs, Swagger, log levels).
+environment shares (port, JSON rules, MMI path and timeouts, the data source of the coverage view, the vendor table);
+an environment file sets only what differs (the MMI and member information URLs, payload logging, the stubs, Swagger,
+log levels; in `DEV` also the in-memory table that stands in for the coverage view).
 
 #### Pointing at the real MMI, step by step
 
 The profile is the only switch. Any profile other than `DEV` turns the stub off and uses the MMI URL from
-that environment's `application-<ENV>.yaml`; nothing else changes.
+that environment's `application-<ENV>.yaml`; nothing else changes. The coverage view is the one thing the profile does
+not carry: every profile but `DEV` takes its connection from the environment variables `ODS_JDBC_URL`, `ODS_USERNAME`
+and `ODS_PASSWORD` (*The coverage view*, below), and does not start without them.
 
 1. **STS**: Run > Run Configurations > Spring Boot App > `InteropResolutionApplication` > **Profile** field:
-   `PQA` (or on the Arguments tab, Program arguments: `--spring.profiles.active=PQA`). Apply, Run.
+   `PQA` (or on the Arguments tab, Program arguments: `--spring.profiles.active=PQA`); on the **Environment** tab, the
+   three `ODS_` variables. Apply, Run.
 2. **Command line**: `set SPRING_PROFILES_ACTIVE=PQA` then `run.cmd` (Windows), or
-   `SPRING_PROFILES_ACTIVE=PQA ./run.sh`, or `java -jar build/libs/interop-resolution-service-1.0.0.jar --spring.profiles.active=PQA`.
+   `SPRING_PROFILES_ACTIVE=PQA ./run.sh`, or `java -jar build/libs/interop-resolution-service-1.0.0.jar --spring.profiles.active=PQA`,
+   each with the three `ODS_` variables set in the same shell.
 3. **Check the startup banner** in the console. It must say `profiles : [PQA]`, `mmi client : REST`,
    `member-info client: REST` and the PQA URLs. If it says `STUB`, the profile did not apply. `http://localhost:9090/actuator/info` shows the build.
+   The banner has no line for the coverage view, and the database is not called while starting: the service comes up
+   whether or not the database can be reached, and `/actuator/health` stays `UP` (the database is not part of the health
+   check). Two things Hibernate logs at startup are expected for the same reason: a notice that `OracleDialect` does
+   not need to be specified explicitly (it could be detected; it is named because the database is not asked), and
+   `Database info` lines that read `undefined/unknown`.
 4. **Network**: your machine (or the pod) must reach `mastermemberindexserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp`
    on port 80 (plain HTTP, no token, as the MMI contract states). If it cannot, every call answers
    `503 MEMBER_LOOKUP_UNAVAILABLE` with `CONNECT_FAILED` and the log line `mmi call failed ... cause=...` names the reason.
    It must also reach `memberinfoserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` on port 80; if it cannot, every
    identified member answers `503 MEMBER_PLAN_UNAVAILABLE` with `CONNECT_FAILED` and the log line
-   `member-info call failed ... cause=...` names the reason.
+   `member-info call failed ... cause=...` names the reason. And it must reach the ODS database named in
+   `ODS_JDBC_URL`; if it cannot, every identified member answers `503 COVERAGE_LOOKUP_UNAVAILABLE` with `UNAVAILABLE`
+   in about 2 seconds, `NOT_FOUND` and `AMBIGUOUS` answers are unaffected, and the log line
+   `coverage lookup failed ... cause=...` names the reason.
 5. **Try it**: a Postman request with a real PQA member id, typed as the EMR has it, or
    `curl -X POST http://localhost:9090/v1/interop/resolve -H "Content-Type: application/json" -d "{\"memberId\":\"<real id>\"}"`.
    The response carries `traceId` (`INTEROP-<millis>-<5 digits>`), which the MMI team can find in their logs.
@@ -142,8 +164,9 @@ profile file needed), `MMI_CLIENT_ID` (placeholder `INTEROP`; register the real 
 MMI team), `MMI_CONNECT_TIMEOUT=2s`, `MMI_READ_TIMEOUT=5s`, `MMI_LOG_PAYLOADS=true|false`.
 
 **Deployment rule: always set `SPRING_PROFILES_ACTIVE`.** The default profile is `PQA` so that "Run As >
-Spring Boot App" in STS talks to the PQA MMI with no setup. A pod that forgets the variable would therefore call
-the PQA MMI, wrong in PRD and in FQA: set `PRD`, `FQA`, `PQA` or `PQA-LITE` explicitly in every deployment. Two
+Spring Boot App" in STS talks to the PQA MMI with no profile to set. A pod that forgets the variable would therefore call
+the PQA MMI, wrong in PRD and in FQA: set `PRD`, `FQA`, `PQA` or `PQA-LITE` explicitly in every deployment, together
+with `ODS_JDBC_URL`, `ODS_USERNAME` and `ODS_PASSWORD` for the coverage view (the password from the secret store). Two
 guards back each stub (MMI and member information): it refuses to start with any explicitly active profile other than
 `DEV` or `test`, and it refuses to start inside a Kubernetes/OpenShift pod at all (it checks `KUBERNETES_SERVICE_HOST`).
 
@@ -192,12 +215,45 @@ logged (`member-info request` / `member-info response`); the startup banner show
 `member-info url` and `member-info log`. Overrides: `MEMBER_INFO_BASE_URL`, `MEMBER_INFO_CONNECT_TIMEOUT=2s`,
 `MEMBER_INFO_READ_TIMEOUT=5s`, `MEMBER_INFO_LOG_PAYLOADS=true|false`.
 
+**The coverage view (coverage dates and `coverageId`).** After the member information call and, like it, only for an
+identified member (`ACTIVE` or `INACTIVE`; never for `NOT_FOUND`, `AMBIGUOUS` or an error), the service reads the
+member's rows in the coverage view, the Oracle view `member_coverage_rel_v` in the ODS: once per answer, one query by
+`member_id` with the resolved id exactly as MMI stores it, which is the format the view holds. The view has three
+columns, `member_id`, `eff_date` and `end_date`; the three together are unique, and an open end is 12/31/3999, never
+null. One row gives `coverage.effectiveDate`, `coverage.endDate` and `coverage.coverageId` (section 2 says which row,
+and why); `coverage.active` still comes from MMI's records. A member with no row at all gets the flag alone, and the
+log gets a warning with `marker=COVERAGE_ROW_NOT_FOUND`. The read goes through JPA (Spring Data JPA, Hibernate): the
+entity `org.p32h.interop.coverage.MemberCoverageRow` (read only, the three columns as its id) and the repository
+`MemberCoverageRowRepository` with one query, `findByMemberId`: every row of the member, in a read-only transaction
+limited to 2 seconds.
+
+In `DEV`, and in the `test` profile the tests run on, an in-memory table stands in for the view (section 5): no
+database, no network. In every other profile the connection comes from the environment: `application.yaml` sets
+`spring.datasource.url`, `username` and `password` from `ODS_JDBC_URL` (`jdbc:oracle:thin:@//host:1521/service`),
+`ODS_USERNAME` and `ODS_PASSWORD`. The three are required there: started without them, the service stops at startup
+(the console shows `'url' must start with "jdbc"`, the URL that was not set). The password comes from the secret store,
+never from a file; the account needs `SELECT` on the view only. The rest is set in `application.yaml`: the Hikari pool
+(`maximum-pool-size` 10, `connection-timeout` 2000 ms, `initialization-fail-timeout` -1), JPA (`open-in-view` false,
+`database-platform` `org.hibernate.dialect.OracleDialect`, `hibernate.ddl-auto` none,
+`hibernate.boot.allow_jdbc_metadata_access` false: no database call while starting, and Hibernate's notice at startup
+that it could have detected the dialect is expected) and `management.health.db.enabled` false: a database outage fails
+the answers that need it, not the pod.
+
+A database that cannot be reached or does not answer in time, or a query that fails, fails the answer: 503
+`COVERAGE_LOOKUP_UNAVAILABLE` with `Retry-After: 10`, detail code `UNAVAILABLE`, the message
+`the coverage lookup is unavailable` and no `traceId`. `ApiExceptionHandler` maps Spring's `DataAccessException` and
+`TransactionException` to it; the log line `coverage lookup failed ... cause=...` names the reason, and nothing the
+caller receives names the database. Verified by running the service with the database unreachable: it still starts,
+`/actuator/health` stays `UP`, an identified member gets the 503 in about 2 seconds, and `NOT_FOUND` and `AMBIGUOUS`
+answers are unaffected.
+
 ## 2. The API
 
 One operation, `POST` with a JSON body (the member id is PHI and must not appear in a URL), a pure read that may be
 repeated. Every call identifies the caller and itself: `clientId`, `clientType` (`EXT` or `INT`) and `requestId` are
-required, and the `requestId` comes back in every answer, 200 or error. Nothing a caller receives names MMI: the
-bodies speak of "the member lookup", the trace id of that lookup is `traceId`, and what the lookup said on a miss is
+required, and the `requestId` comes back in every answer, 200 or error. Nothing a caller receives names MMI or the
+database behind the coverage view: the bodies speak of "the member lookup" and "the coverage lookup", the trace id of
+the member lookup is `traceId`, and what that lookup said on a miss is
 `sourceMessage`. The answer carries the member id in every configured vendor's format, so one call serves a prior
 authorization whose codes go to several vendors.
 
@@ -219,7 +275,7 @@ X-Correlation-Id: ONYX-PA-2026-000123        (optional; echoed in the response h
 | `requestId` | yes | The caller's id for this call, new for every request (a UUID suits). Letters, digits, `.`, `_`, `:` or `-`, at most 64 characters (`REQUEST_ID_MISSING`, `REQUEST_ID_INVALID`). Echoed in the 200 body and in every error body once it was read and found usable; on every log line of the call. |
 | `memberId` | yes | As the EMR typed it. Only checked for presence; sent to MMI exactly as received, with surrounding whitespace removed. Not validated or reshaped here. |
 | `dateOfService` | no | `yyyy-MM-dd`; the first day when the service covers a period. **Defaults to today** when omitted (`dateOfServiceDefaulted: true` in the response). A date that is sent is the date judged, never replaced by today: any future date is judged against the coverage on record; a value that is not a real date, or more than 10 years back, is a 400. |
-| `dateOfServiceEnd` | no | `yyyy-MM-dd`, the last day when the service covers a period. The period is judged on its first day (`dateOfService`); `coverage.endDate` and the message say how far the coverage runs. Not before `dateOfService` (`DATE_OF_SERVICE_END_BEFORE_START`), never alone (`DATE_OF_SERVICE_END_WITHOUT_START`), a real date (`DATE_OF_SERVICE_END_INVALID`). |
+| `dateOfServiceEnd` | no | `yyyy-MM-dd`, the last day when the service covers a period. The period is judged on its first day (`dateOfService`); the message says how far the coverage runs. Not before `dateOfService` (`DATE_OF_SERVICE_END_BEFORE_START`), never alone (`DATE_OF_SERVICE_END_WITHOUT_START`), a real date (`DATE_OF_SERVICE_END_INVALID`). |
 | `dateOfBirth` | recommended | The patient's date of birth, `yyyy-MM-dd`. Used only to verify the member or tell apart the members on a plan who share the id; a date that matches no record is 422 `DOB_MISMATCH`, and a value that is not a real date, is in the future or is more than 125 years ago is a 400. Never sent to MMI, never logged, never echoed. |
 | anything else | no | **Ignored**, a `vendor` included: the answer is always for every vendor. A field sent as the wrong JSON type (an object or array where a string is expected) is a body the service cannot read: 400 `WRONG_JSON_TYPE`. |
 
@@ -249,8 +305,8 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
-| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage period must be referred to later. |
-| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, or a gap); `coverage` shows the most recent period with its `coverageId`. Only for a member with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
+| `ACTIVE` | Member verified, `coverage.active = true` on the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage must be referred to later: it names the member's row in the coverage view and is matched against the ids Onyx built from the plan's coverage extract. |
+| `INACTIVE` | Member verified, `coverage.active = false`; `message` says why (coverage ended, not yet effective, or a gap); `coverage` carries the id and dates of the member's row in the coverage view (the row covering the date of service when there is one, else the most recent), which need not agree with the flag. Only for a member with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id (MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text), or every member MMI returned is stale: not covered on the date of service and with no coverage ending in the last 24 months. The stale case gets the same plain message and no `sourceMessage`; the log says `marker=NO_RECENT_COVERAGE` | "Member not found" worklist. |
 | `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth, or the records carry none), intake takes the full ID from the member's card. |
 
@@ -282,21 +338,28 @@ vendor, sorted by vendor code: that ID in the vendor's format, the value that go
 9-character core only, the number printed on the card: Optum stores the core, not the 11 characters.
 Vendor formatting applies only to a stored ID of the TMP/SCO shape (9 characters, spaces, 2 digits); any other
 stored ID (Public Plans, HPHC) is passed as stored for every vendor.
-`coverage` is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`. On `ACTIVE` the dates
-are those of the continuous period that covers the (first) date of service; on `INACTIVE` they are those of the member's
-most recent period, the one that ends last (an open end counting as the latest), which does not cover the date of
-service: Onyx branches on `active`, never on the dates. An open-ended period ends `3999-12-31`, so every date sent is a
-real date. Records that touch,
+`coverage` is flat, in this order: `coverageId`, `active`, `effectiveDate`, `endDate`. `active` is the flag, and it
+comes from the coverage decision on MMI's records. Records that touch,
 as plan-year records do (one ends 12/31, the next starts 01/01), are one continuous period. `active` is true when
-that period covers the date of service; a period of service is judged on its first day, and when the coverage ends before
-the period's last day the message says so and `endDate` shows how far it runs. Otherwise `active` is false and `message`
-says why (coverage ended, not yet effective, a gap); the most recent period is shown, the same rule the line of business
-uses when no plan is in effect, so an inactive answer reads like an active one.
-`coverage.coverageId` names that period, in the form the Onyx requirement sets: the resolved member
-id with its spaces and any punctuation removed, then the period's effective date, then its end date, both `yyyyMMdd`, run
-together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `39991231` stands for an open-ended
-period). It is present whenever the dates are, and the same member with the same coverage always gets the same
-value, so Onyx can refer to the coverage behind a decision. Nothing else is returned about coverage: no reason code, no other periods.
+such a period covers the date of service; a period of service is judged on its first day, and when the coverage ends before
+the period's last day the message says so and gives the end of that continuous period. Otherwise `active` is false and `message`
+says why (coverage ended, not yet effective, a gap).
+The id and the two dates are not MMI's: they are those of the member's row in the coverage view (`member_coverage_rel_v`,
+section 1), read with the resolved id. The row is the one that covers the (first) date of service; when several rows
+cover it, the one that ends last, then the one that starts last; when none covers it, the member's most recent row
+(ends last, then starts last). An open end is `3999-12-31`, so every date sent is a real date. The row need not agree
+with the flag: when MMI knows the coverage ended (`INACTIVE`) while the view still holds an open-ended row, the answer
+is `INACTIVE` with the row's dates. Onyx branches on `outcome` and `active`, never on the dates. The dates are the
+view's because Onyx matches `coverageId` against the ids it built from the plan's coverage extract, which comes from the
+same coverage table as the view; MMI's dates differ, because MMI also applies group coverage and so cuts its spans more
+finely, while the coverage table often carries an open end.
+`coverage.coverageId` names that row, in the form the Onyx requirement sets: the resolved member
+id with its spaces and any punctuation removed, then the row's effective date, then its end date, both `yyyyMMdd`, run
+together with no separator (`<MEMBER_ID><yyyyMMdd><yyyyMMdd>`, letters and digits only; `39991231` stands for an open
+end). It is present whenever the dates are, and the same member with the same row always gets the same
+value, so Onyx can match it against the id it holds for that coverage. When the view has no row at all for the member,
+the block carries `active` only, no id and no dates, and the log gets a warning with `marker=COVERAGE_ROW_NOT_FOUND`.
+Nothing else is returned about coverage: no reason code, no other periods.
 `lineOfBusiness` is derived from the member's coverage record on the date of service (section 1): `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`,
 `MA-TOGETHER`, `RI-TOGETHER` or `MA-QHP`; when no record covers the date, the most recent record is read; a member no rule covers yet keeps MMI's value (`MCR`, `PP`, `COM`, ...).
 Onyx routes the transaction on it. The company (THP or
@@ -320,13 +383,13 @@ Response fields, in JSON order (absent blocks are omitted, not sent as `null`):
 | Field | Present | Content |
 |---|---|---|
 | `outcome` | always | `ACTIVE`, `INACTIVE`, `NOT_FOUND`, `AMBIGUOUS` |
-| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService>; ends <end of the coverage period>, before <dateOfServiceEnd>` (a period the coverage does not reach the end of; still `ACTIVE`) / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
+| `message` | always | One sentence for the outcome: `Member found; coverage active on <dateOfService>` (for a period: `Member found; coverage active from <dateOfService> to <dateOfServiceEnd>`) / `Member found; coverage active on <dateOfService>; ends <end of the coverage period>, before <dateOfServiceEnd>` (a period the coverage does not reach the end of; still `ACTIVE`; the end named is that of the continuous period on MMI's records, which need not be `coverage.endDate`) / `Member found; coverage ended before <dateOfService>` / `Member found; coverage not yet effective on <dateOfService>` / `Member found; no coverage on <dateOfService> (gap between coverage periods)` / `No member found for this id` / `Several members match this id; resend with dateOfBirth or the member's full id including the suffix` (or, when a DOB was sent and several share it, `Several members match this id and date of birth; resend with the member's full id including the suffix`; when a DOB was sent that no record carries, `Several members match this id and their records carry no date of birth to check; resend with the member's full id including the suffix`) |
 | `memberId` | always | `received`; `resolved` and `forVendors[]` (`{ vendor, memberId, payerId, payerName, name[] }` per configured vendor, sorted by vendor code) when a member was identified |
 | `lineOfBusiness` | `ACTIVE`, `INACTIVE` | From the member's coverage record on the date of service: `SCO`, `MA-HMO`, `MA-PPO`, `D-SNP`, `MA-TOGETHER`, `RI-TOGETHER`, `MA-QHP`; otherwise MMI's line of business (`MCR`, `PP`, `COM`, ...). Onyx routes the transaction on it |
 | `dateOfService` | always | The (first) date evaluated |
 | `dateOfServiceEnd` | when a period was asked about | The last date evaluated, as sent |
 | `dateOfServiceDefaulted` | always | Whether the date of service was defaulted to today |
-| `coverage` | `ACTIVE`, `INACTIVE` | From the resolved record and the coverage decision: `coverage { coverageId?, active, effectiveDate?, endDate? }`; the id and the two dates are always in the block: on `ACTIVE` the period covering the (first) date of service, on `INACTIVE` the member's most recent period, which does not cover it |
+| `coverage` | `ACTIVE`, `INACTIVE` | `coverage { coverageId?, active, effectiveDate?, endDate? }`: `active` from the coverage decision on MMI's records; the id and the two dates from the member's row in the coverage view, the row covering the (first) date of service or else the member's most recent row, so they need not agree with the flag; they are absent only when the view has no row for the member |
 | `requestId` | always | The caller's `requestId`, echoed |
 | `traceId` | always | For the logs on both sides (the correlation id is in the response header) |
 | `sourceMessage` | `NOT_FOUND`, only when MMI sent a message | `{ "type", "status", "code", "text" }`: the first entry of MMI's `messages[]`, as MMI sent it |
@@ -354,7 +417,8 @@ message is confirmed in PQA (section 7)):
 ### Errors (non-200): `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "requestId", "traceId" }`
 
 Every answer the application produces has this shape. `requestId` echoes the caller's id when it was read and
-usable, on a 400 about another field too; `traceId` is present once MMI was called, including on a 422. The one exception is a request Tomcat rejects before it
+usable, on a 400 about another field too; `traceId` is present once MMI was called, including on a 422, but not
+on 503 `COVERAGE_LOOKUP_UNAVAILABLE`. The one exception is a request Tomcat rejects before it
 reaches the application (malformed percent-encoding in the URL, a header block over 8 KB): that returns Spring
 Boot's default error JSON.
 
@@ -381,6 +445,7 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 | 503 | `MEMBER_LOOKUP_UNAVAILABLE` (`Retry-After: 10`) | MMI unreachable (`CONNECT_FAILED`) or timed out (`READ_TIMEOUT`); MMI 500 (`HTTP_500`; the message forwards MMI's code and text when present); a 5xx, 429 or 408 from a gateway in front of MMI (`HTTP_<code>`). | Retry later. |
 | 502 | `MEMBER_PLAN_ERROR`, `MEMBER_PLAN_INVALID_RESPONSE` | The member information service answered a status other than 200, 404, 408, 429 and 5xx (`HTTP_<code>`), or an empty or unreadable body (`EMPTY_BODY`, `UNPARSEABLE_BODY`). `traceId` present. | Park, alert the service owners. |
 | 503 | `MEMBER_PLAN_UNAVAILABLE` (`Retry-After: 10`) | The member information service unreachable (`CONNECT_FAILED`), timed out (`READ_TIMEOUT`) or answered 5xx, 429 or 408 (`HTTP_<code>`). `traceId` present. | Retry later. |
+| 503 | `COVERAGE_LOOKUP_UNAVAILABLE` (`Retry-After: 10`) | The coverage view could not be read for an identified member: the database cannot be reached or does not answer in time, or the query fails (`details[0].code` `UNAVAILABLE`, message `the coverage lookup is unavailable`; nothing in the body names the database). No `traceId`. | Retry later. |
 | 500 | `INTERNAL_ERROR` | a bug here | Retry once later, alert the service owners. |
 
 **If this service itself is unreachable**, Onyx's agreed fallback is to pass the member ID exactly as it
@@ -417,15 +482,28 @@ received it from the EMR to the UM vendor. Nothing here needs to be built for th
    against a record with no end date is `ACTIVE`, because that is what the record says. A span with an unreadable date is skipped and logged with `marker=UNREADABLE_SPAN`; the
    remaining spans decide. If a member has unreadable spans and no readable one, the answer is 502
    `UNREADABLE_COVERAGE`, never a confident INACTIVE. For a converted member the two records' spans are
-   evaluated together, so a gap between the old and the new record is reported as a gap.
+   evaluated together, so a gap between the old and the new record is reported as a gap. This step decides the
+   outcome, `active` and the message; the id and the dates of the `coverage` block come from step 6.
 5. For an identified member (`ACTIVE` or `INACTIVE`), one member information call with the resolved ID and the date
    of service; the line of business is derived from the coverage record that covers the date of service, or from the
    most recent record when none does (section 1; MMI's value when there is no record or no rule matches).
    Its failure fails the answer (503 / 502).
-6. Format the resolved ID for every configured vendor, in vendor-code order (never from the input).
+6. For an identified member, after the member information call, one read of the coverage view: every row of
+   `member_coverage_rel_v` for the resolved ID exactly as MMI stores it, in one query (for a converted member, the rows
+   under the ID it resolved to). The row that covers the date of service, the first day of a period of service, gives
+   `coverage.effectiveDate`, `coverage.endDate` and `coverage.coverageId`; when several rows cover it, the one that ends
+   last, then the one that starts last; when none covers it, the member's most recent row (ends last, then starts last).
+   The row need not agree with step 4: MMI may know the coverage ended while the view still holds an open-ended row, and
+   the answer is then `INACTIVE` with the row's dates. With no row at all for the member the block carries `active` only
+   and the log gets `marker=COVERAGE_ROW_NOT_FOUND`. The view is never read for `NOT_FOUND`, `AMBIGUOUS` or an error.
+   Its failure fails the answer (503 `COVERAGE_LOOKUP_UNAVAILABLE`).
+7. Format the resolved ID for every configured vendor, in vendor-code order (never from the input).
 
 Before step 1 the caller fields are checked, the request type ignores what the operation does not need (a `vendor`,
 unknown properties), and a date that was sent is validated, because the date of service is the date the answer is about.
+
+The three reads (steps 2, 5 and 6) run one after another, and the read of the coverage view is one query by member id.
+(The dev team's reactive code runs it alongside the member information call.)
 
 TMP / SCO members have no dependents: a 9-character card number returns exactly one record and resolves
 directly. Only populations with dependents (HPHC commercial, Together) can produce `AMBIGUOUS`.
@@ -487,11 +565,16 @@ payer goes out and the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor,
 the family, legacy-id match and the second pass through `legacyMemberId`. The stub matches ignoring separators
 and case (anything that is not a letter or digit is ignored), the leniency expected of the real MMI; the service
 itself hands the id over untouched. The stub returns each record's whole coverage history, as MMI does without a
-date; the member whose coverage ended 12/31/2023 is the stale one: `NOT_FOUND` today, `ACTIVE` for a 2023 date. The fixture dates are fixed while the DEV profile and Postman run on the real clock, so from 2027-01-01 the members whose coverage ended 12/31/2024 (the Public Plans twin, the old THP side of the converted member) fall outside the 24 months and become `NOT_FOUND`; move those end dates forward then. `src/main/resources/member-info-stub/members.json` is the member information stub: the Together subscriber's coverage
+date; the member whose coverage ended 12/31/2023 is the stale one: `NOT_FOUND` today, `ACTIVE` for a 2023 date. The fixture dates are fixed while the DEV profile and Postman run on the real clock, so from 2027-01-01 the members whose coverage ended 12/31/2024 (the Public Plans twin, the old THP side of the converted member) fall outside the 24 months and become `NOT_FOUND`; move those end dates forward then, in `coverage-dev/data.sql` as well. `src/main/resources/member-info-stub/members.json` is the member information stub: the Together subscriber's coverage
 records (THPPMA, source system 2026; product SB from 2022 to 2024, product GT from 2025 with no end), so its answers carry
 `MA-TOGETHER` for a 2026 date and `MA-QHP` for a 2024 one; and the SCO member's record (business type SH, a plan
 code with SCO in it, 2023 to 2025), so a 2025 date carries `SCO`. Any other member has no records and keeps MMI's line of
-business. The fault ids below are recognised by the first 9 characters of the id with
+business. An in-memory H2 table named `member_coverage_rel_v` stands in for the coverage view: it is created from
+`src/main/resources/coverage-dev/schema.sql` and filled from `coverage-dev/data.sql`, one row per continuous coverage
+period of each stub member id (an open end as 12/31/3999; a converted member has rows under each of its two ids). Keep
+`data.sql` in step with `mmi-stub/members.json`. The `DEV` and `test` profiles use the table, so neither needs a
+database or the network; H2 is a runtime dependency that only those two profiles use.
+The fault ids below are recognised by the first 9 characters of the id with
 separators removed.
 
 | Member ID (as typed; the stub ignores separators and case) | Case |
@@ -524,13 +607,13 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (174 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (188 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
 `badRequestWithoutABodyIsStillForwardedAs400`, `internalErrorIsUnavailable503WithMmiText`,
 `statusOutsideMmiContractSaysSo`, plus 429, 408, read timeout, connection refused and unparseable body),
-configuration validation, and the end-to-end scenario matrix over HTTP against the stub with "today" fixed at
+configuration validation, and the end-to-end scenario matrix over HTTP against the stub and the in-memory coverage table with "today" fixed at
 2026-10-03. The scenarios assert `message` on `ACTIVE`, `message` and `sourceMessage` on `NOT_FOUND`,
 that `400400400` is 400 `MEMBER_LOOKUP_REJECTED` / `HTTP_400` with MMI's text and no `Retry-After`, and that
 the 502 `ERROR_MESSAGE` body carries MMI's `code=ES_TIMEOUT` and `text=`. Four of the scenarios cover
@@ -544,7 +627,7 @@ DOB is still 422 `DOB_MISMATCH` after the one MMI call (`traceId` present). `aFu
 `aSentDateOfServiceIsNeverReplacedByToday` cover a calendar-year record: a member whose only record runs 01/01/2026 to 12/31/2026 is
 ACTIVE for 2026-10-15 and INACTIVE for 2027-10-15, the response carries the date asked about, an unusable date is a 400
 and never "active for today", only a missing date defaults to today, and a far-future date is judged, not refused. `aPeriodOfServiceIsJudgedOnItsFirstDay`: a member with
-adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the merged period in the coverage dates, ACTIVE
+adjacent 2025 and 2026 records is ACTIVE from 2025-12-20 to 2026-01-05 with the member's coverage row, 2025 through 2026, in the coverage dates, ACTIVE
 from 2026-12-20 to 2027-01-05 as well ("coverage active on 2026-12-20; ends 2026-12-31, before 2027-01-05"), `dateOfServiceEnd`
 is echoed only when sent, and an end before the start, without a start or not a date is a 400.
 `aMemberWithNoCoverageInTheLast24MonthsIsNotFound`: the member whose coverage ended 12/31/2023 is NOT_FOUND today and for
@@ -578,6 +661,15 @@ the date give the first match; no record or no match keeps MMI's value),
 covering record's line of business replaces MMI's, the most recent record's when none covers the date; a failure is a 503 with `Retry-After` and MMI's request id as `traceId`) and `theCoverageRecordsAreAskedForOnlyOnceTheMemberIsIdentified` (the Together subscriber gets `MA-TOGETHER` for 2026,
 `MA-QHP` for 2024 and, when no record covers 2021, `MA-TOGETHER` from its most recent record; the SCO member `SCO` for 2025 and, from its most recent record, `SCO` for 2026 too; asked for `ACTIVE` and `INACTIVE`, never for
 `NOT_FOUND` or `AMBIGUOUS`).
+The coverage view: `ResolutionServiceCoverageRowTest` (the dates and the id are the row's, not MMI's; of several rows
+covering the date, the one that ends last, then the one that starts last; with no covering row, the most recent one; the
+row need not agree with the flag; with no row at all the block carries the flag only; a period of service takes the row
+covering its first day; the view is not read when no member was identified), `MemberCoverageRowRepositoryTest` against
+the in-memory table (every row of the member and only those, rows that differ in the end date only included; the id is
+matched exactly as stored; a row covers its first and last day; the stub members' rows are loaded) and
+`CoverageLookupFailureTest` (a database that cannot be reached is 503 `COVERAGE_LOOKUP_UNAVAILABLE` with `Retry-After`,
+and so is a query that does not answer in time, with nothing in the body naming the database; an answer that needs no
+row is unaffected and the view is not read).
 
 ## 7. Assumptions to confirm in PQA
 
@@ -595,9 +687,13 @@ covering record's line of business replaces MMI's, the most recent record's when
   `coverage.product` = `productCode`. An SCO record carries `businessTypeIndicator` SH and SCO in its `planCode`; MA-HMO and MA-PPO records carry SH, `subsidiary` TAHMO and the `businessLineKey` (0039 or 0099, 0235). Pending, with CRC: check the record's `ipa` against the CRC RTU tables, where MA-HMO may become an MA-HMO IPA value and MA-PPO an MA-PPO IPA value (the place is marked in `LineOfBusinessDeriver`). TMP members are covered by MA-HMO and MA-PPO (all but the IPA variant). Rules for HPHC and commercial
   members are to come; until then those members keep MMI's value.
 - Without a date in the request, MMI returns the member's whole coverage history (the request carries no
-  `dosStartDate` on purpose). The service evaluates it: contiguous segments are one period (`coverage` dates and
-  `coverageId`), a period of service is judged on its first day, and a member with nothing in the last 24 months is
+  `dosStartDate` on purpose). The service evaluates it: contiguous segments are one period (for the `ACTIVE` /
+  `INACTIVE` decision and the message; the `coverage` dates and `coverageId` come from the coverage view), a period of
+  service is judged on its first day, and a member with nothing in the last 24 months is
   `NOT_FOUND`.
+- The coverage view (`member_coverage_rel_v` in the ODS) is read by `member_id`, with the id exactly as MMI stores it.
+  Confirm in PQA that the read by `member_id` is fast (the query is limited to 2 seconds), that the account has
+  `SELECT` on the view, and that one member's `coverageId` matches the id Onyx holds for that member.
 - A single record returned for any population is the member (TMP/SCO always return one).
 - MMI reports the company as `THP` or `HPHC`, the values eviCore's and Evolent's payer entries key on, and the line of
   business of a Public Plans member as `PP`, the value Evolent's Tufts Health Public Plans entry keys on. Any other
