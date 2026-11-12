@@ -2,6 +2,9 @@ package org.p32h.interop.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.p32h.interop.api.MemberResolutionRequest;
 import org.p32h.interop.api.MemberResolutionResponse;
 import org.p32h.interop.api.Outcome;
@@ -33,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 /**
  * The coverage dates and the coverageId come from the member's row in the coverage view; ACTIVE or INACTIVE and the
@@ -41,7 +45,9 @@ import org.junit.jupiter.api.Test;
 class ResolutionServiceCoverageRowTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-03T16:00:00Z"), ZoneId.of("America/New_York"));
-    private static final String STORED = "TESTMEMBER";
+    /** The id as the EMR typed it, and the same member's id as MMI stores it: the view is asked with the stored one. */
+    private static final String SENT = "TESTMEMBER";
+    private static final String STORED = "TEST  MEMBER";
 
     /** The member ids the coverage view was asked for, in order. */
     private final List<String> asked = new ArrayList<>();
@@ -90,7 +96,7 @@ class ResolutionServiceCoverageRowTest {
     }
 
     private static MemberResolutionRequest on(String dateOfService, String dateOfServiceEnd) {
-        return new MemberResolutionRequest("ONYX", "EXT", "TEST-1", STORED, dateOfService, dateOfServiceEnd, null);
+        return new MemberResolutionRequest("ONYX", "EXT", "TEST-1", SENT, dateOfService, dateOfServiceEnd, null);
     }
 
     private static List<MmiCoverage> mmi(String eff, String end) {
@@ -106,8 +112,9 @@ class ResolutionServiceCoverageRowTest {
         assertThat(r.coverage().active()).isTrue();
         assertThat(r.coverage().effectiveDate()).as("the row's start, not MMI's 2024-01-01").isEqualTo(LocalDate.parse("2023-04-01"));
         assertThat(r.coverage().endDate()).as("the row's open end, not MMI's 2026-12-31").isEqualTo(LocalDate.parse("3999-12-31"));
-        assertThat(r.coverage().coverageId()).as("stored id, then the row's two dates as yyyyMMdd").isEqualTo(STORED + "20230401" + "39991231");
-        assertThat(asked).as("asked once, with the id as MMI stores it").containsExactly(STORED);
+        assertThat(r.coverage().coverageId()).as("the stored id without its spaces, then the row's two dates as yyyyMMdd")
+                .isEqualTo("TESTMEMBER" + "20230401" + "39991231");
+        assertThat(asked).as("asked once, with the id as MMI stores it, not as it was sent").containsExactly(STORED);
     }
 
     @Test
@@ -122,13 +129,13 @@ class ResolutionServiceCoverageRowTest {
 
     @Test
     void whenNoRowCoversTheDateTheMostRecentRowIsShown() {
-        List<MemberCoverageRow> ended = List.of(row("2025-01-01", "2026-07-31"), row("2020-01-01", "2024-12-31"));
+        List<MemberCoverageRow> ended = List.of(row("2020-01-01", "2022-12-31"), row("2025-01-01", "2026-07-31"), row("2023-01-01", "2024-12-31"));
         MemberResolutionResponse r = service(mmi("01/01/2020", "07/31/2026"), ended).resolve(on("2026-10-15", null), "corr-1");
         assertThat(r.outcome()).isEqualTo(Outcome.INACTIVE);
         assertThat(r.coverage().active()).isFalse();
-        assertThat(r.coverage().effectiveDate()).as("whatever the order of the rows").isEqualTo(LocalDate.parse("2025-01-01"));
+        assertThat(r.coverage().effectiveDate()).as("neither the first nor the last of the list").isEqualTo(LocalDate.parse("2025-01-01"));
         assertThat(r.coverage().endDate()).isEqualTo(LocalDate.parse("2026-07-31"));
-        assertThat(r.coverage().coverageId()).isEqualTo(STORED + "20250101" + "20260731");
+        assertThat(r.coverage().coverageId()).isEqualTo("TESTMEMBER" + "20250101" + "20260731");
     }
 
     @Test
@@ -150,13 +157,23 @@ class ResolutionServiceCoverageRowTest {
 
     @Test
     void withoutARowTheBlockCarriesTheFlagOnly() {
-        MemberResolutionResponse r = service(mmi("01/01/2020", null), List.of()).resolve(on("2026-10-15", null), "corr-1");
-        assertThat(r.outcome()).isEqualTo(Outcome.ACTIVE);
-        assertThat(r.coverage().active()).isTrue();
-        assertThat(r.coverage().coverageId()).isNull();
-        assertThat(r.coverage().effectiveDate()).isNull();
-        assertThat(r.coverage().endDate()).isNull();
-        assertThat(r.memberId().forVendors()).as("the ids are returned all the same").hasSize(1);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        Logger serviceLog = (Logger) LoggerFactory.getLogger(ResolutionService.class);
+        serviceLog.addAppender(logs);
+        try {
+            MemberResolutionResponse r = service(mmi("01/01/2020", null), List.of()).resolve(on("2026-10-15", null), "corr-1");
+            assertThat(r.outcome()).isEqualTo(Outcome.ACTIVE);
+            assertThat(r.coverage().active()).isTrue();
+            assertThat(r.coverage().coverageId()).isNull();
+            assertThat(r.coverage().effectiveDate()).isNull();
+            assertThat(r.coverage().endDate()).isNull();
+            assertThat(r.memberId().forVendors()).as("the ids are returned all the same").hasSize(1);
+            assertThat(logs.list).extracting(ILoggingEvent::getFormattedMessage).as("the missing row is logged with its marker")
+                    .anySatisfy(m -> assertThat(m).contains("marker=COVERAGE_ROW_NOT_FOUND", "memberId=" + STORED));
+        } finally {
+            serviceLog.detachAppender(logs);
+        }
     }
 
     @Test

@@ -31,11 +31,12 @@ class MemberCoverageRowRepositoryTest {
         insert("ROWS-A", "2024-01-01", "2024-12-31");
         insert("ROWS-A", "2025-01-01", "2025-06-30");
         insert("ROWS-A", "2025-01-01", "3999-12-31");   // the same member and start as the row above: only the end differs
+        insert("ROWS-A", "2024-06-01", "3999-12-31");   // the same member and end as the row above: only the start differs
         insert("ROWS-B", "2025-01-01", "3999-12-31");
 
         List<MemberCoverageRow> rows = repository.findByMemberId("ROWS-A");
         assertThat(rows).extracting(r -> r.getEffDate() + ".." + r.getEndDate())
-                .containsExactlyInAnyOrder("2024-01-01..2024-12-31", "2025-01-01..2025-06-30", "2025-01-01..3999-12-31");
+                .containsExactlyInAnyOrder("2024-01-01..2024-12-31", "2025-01-01..2025-06-30", "2025-01-01..3999-12-31", "2024-06-01..3999-12-31");
         assertThat(rows).allMatch(r -> r.getMemberId().equals("ROWS-A"));
         assertThat(repository.findByMemberId("ROWS-NONE")).isEmpty();
     }

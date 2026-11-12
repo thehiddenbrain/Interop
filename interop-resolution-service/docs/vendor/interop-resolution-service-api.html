@@ -582,7 +582,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     "timestamp": 1791577786968
   }
 }</code></pre></div>
-<div class="example"><h4><span class="pill ok">200</span> ACTIVE for a period of service across two plan-year records</h4>
+<div class="example"><h4><span class="pill ok">200</span> ACTIVE for a period of service across a year end</h4>
 <pre><code>{"memberId": "U20252026", "dateOfService": "2025-12-20", "dateOfServiceEnd": "2026-01-05"}
 
 {
@@ -669,7 +669,7 @@ X-Correlation-Id: ONYX-PA-2026-000123
     "timestamp": 1791577789968
   }
 }</code></pre>
-<p class="note">This test member has one record for 2025 and one for 2026. They touch, so they are one continuous period, 2025-01-01 to 2026-12-31, and the period of service inside it is ACTIVE.</p></div>
+<p class="note">This test member is covered without a break from 2025-01-01 to 2026-12-31, so the period of service is ACTIVE. <code>coverage</code> shows the member's coverage record.</p></div>
 <div class="example"><h4><span class="pill ok">200</span> ACTIVE for a period of service that outlasts the coverage: judged on its first day</h4>
 <pre><code>{"memberId": "U20252026", "dateOfService": "2026-12-20", "dateOfServiceEnd": "2027-01-05"}
 

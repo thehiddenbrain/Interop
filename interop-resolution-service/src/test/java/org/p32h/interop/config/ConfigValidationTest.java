@@ -86,6 +86,16 @@ class ConfigValidationTest {
     }
 
     @Test
+    void aDatabaseVariableThatIsNotDefinedFails() {
+        runner.withPropertyValues("spring.datasource.url=jdbc:h2:mem:config", "spring.datasource.username=sa",
+                        "spring.datasource.password=${ODS_PASSWORD_NOT_DEFINED}")
+                .run(ctx -> {
+                    assertThat(ctx).as("never started with the text ${...} for a password").hasFailed();
+                    assertThat(rootMessage(ctx.getStartupFailure())).contains("ODS_PASSWORD_NOT_DEFINED");
+                });
+    }
+
+    @Test
     void stubInTestProfileStarts() {
         runner.withPropertyValues("spring.profiles.active=test", "mmi.stub.enabled=true", "member-info.stub.enabled=true")
                 .run(ctx -> assertThat(ctx).hasNotFailed());

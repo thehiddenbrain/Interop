@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Starts the Interop Resolution Service. Needs Java 17 or newer on the PATH.
 # Uses the prebuilt jar in build/libs/ when present, otherwise builds it with the Gradle wrapper.
+# Every profile but DEV needs ODS_JDBC_URL, ODS_USERNAME and ODS_PASSWORD: the database behind the coverage view.
 set -e
 cd "$(dirname "$0")"
 if ! command -v java >/dev/null 2>&1; then

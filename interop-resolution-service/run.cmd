@@ -9,6 +9,7 @@ rem  Options (environment variables, set them before running):
 rem    INTEROP_JAVA_HOME=C:\Program Files\Java\jdk-17   use this JDK for the build and the app
 rem    SERVER_PORT=9091                               change the port
 rem    SPRING_PROFILES_ACTIVE=DEV                     in-process MMI stub instead of the PQA MMI (the default profile is PQA)
+rem    ODS_JDBC_URL, ODS_USERNAME, ODS_PASSWORD       the database behind the coverage view; every profile but DEV needs all three
 rem =====================================================================
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"

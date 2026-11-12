@@ -6,8 +6,7 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
   sql:
-    init:
-      mode: always
+    init:                               # run against an in-memory database only (the default mode)
       schema-locations: classpath:coverage-dev/schema.sql
       data-locations: classpath:coverage-dev/data.sql
 mmi:

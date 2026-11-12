@@ -7,6 +7,7 @@ import org.p32h.interop.api.SourceMessage;
 import org.p32h.interop.api.Outcome;
 import org.p32h.interop.api.RequestValidator;
 import org.p32h.interop.config.MemberIdProperties;
+import org.p32h.interop.coverage.CoverageLookupException;
 import org.p32h.interop.coverage.MemberCoverageRow;
 import org.p32h.interop.coverage.MemberCoverageRowRepository;
 import org.p32h.interop.domain.CoverageDecision;
@@ -36,7 +37,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionException;
 
 /**
  * The member resolution, {@code POST /v1/interop/resolve}: ask MMI once with the member id exactly as received,
@@ -89,7 +92,7 @@ public class ResolutionService {
         RequestValidator.Validated v = validator.validate(request);
         Resolved r = resolveMember(v, correlationId);
         String lob = r.record() == null ? null : lineOfBusiness(r, v.dateOfService(), correlationId);
-        MemberCoverageRow row = r.record() == null ? null : coverageRow(r.storedMemberId(), v.dateOfService());
+        MemberCoverageRow row = r.record() == null ? null : coverageRow(r, v.dateOfService());
         List<MemberResolutionResponse.VendorMemberId> forVendors = null;
         if (r.record() != null) {
             List<MemberResolutionResponse.HumanName> name = MemberResolutionResponse.HumanName.of(r.record().name());
@@ -138,17 +141,23 @@ public class ResolutionService {
      * The identified member's row in the coverage view: the row that covers the date of service (the one that ends last,
      * then starts last, when several do), else the member's most recent row; null when the member has none. MMI decides
      * ACTIVE or INACTIVE; the row only gives the dates and the coverageId, so it need not agree with the flag. A database
-     * that cannot be reached or does not answer in time fails the answer (503, see {@code ApiExceptionHandler}).
+     * that cannot be reached (a {@code TransactionException}: no connection), does not answer in time or fails the query
+     * fails the answer: 503, carrying MMI's request id as traceId.
      */
-    private MemberCoverageRow coverageRow(String storedMemberId, LocalDate dateOfService) {
-        List<MemberCoverageRow> rows = coverageRows.findByMemberId(storedMemberId);
+    private MemberCoverageRow coverageRow(Resolved r, LocalDate dateOfService) {
+        List<MemberCoverageRow> rows;
+        try {
+            rows = coverageRows.findByMemberId(r.storedMemberId());
+        } catch (DataAccessException | TransactionException e) {
+            throw new CoverageLookupException(r.mmiRequestId(), e);
+        }
         Comparator<MemberCoverageRow> latest = Comparator.comparing(MemberCoverageRow::getEndDate)
                 .thenComparing(MemberCoverageRow::getEffDate);
         MemberCoverageRow row = rows.stream().filter(c -> c.covers(dateOfService)).max(latest)
                 .orElseGet(() -> rows.stream().max(latest).orElse(null));
         if (row == null) {
             log.warn("marker=COVERAGE_ROW_NOT_FOUND memberId={}: the coverage view has no row for this member; the coverage "
-                    + "block carries the flag only", storedMemberId);
+                    + "block carries the flag only", r.storedMemberId());
         }
         return row;
     }

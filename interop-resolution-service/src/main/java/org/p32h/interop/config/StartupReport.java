@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Prints the effective configuration in the first lines of every start: profile, MMI and member information targets and
- * client types (REST or STUB) and the vendor format table rendered against a sample id, so a wrong environment or a
- * wrong vendor format is visible before the first request.
+ * client types (REST or STUB), the database behind the coverage view and the vendor format table rendered against a
+ * sample id, so a wrong environment or a wrong vendor format is visible before the first request.
  */
 @Component
 public class StartupReport implements ApplicationRunner {
@@ -34,6 +34,8 @@ public class StartupReport implements ApplicationRunner {
     private final PayerProperties payer;
     private final MemberInfoProperties memberInfo;
     private final MemberInfoClient memberInfoClient;
+    private final String coverageDatabase;
+    private final String coverageUser;
 
     public StartupReport(Environment environment, MmiProperties mmi, MmiClient mmiClient, VendorRegistry vendors,
             VendorFormatter formatter, MemberIdProperties memberId, PayerProperties payer, MemberInfoProperties memberInfo,
@@ -47,6 +49,12 @@ public class StartupReport implements ApplicationRunner {
         this.payer = payer;
         this.memberInfo = memberInfo;
         this.memberInfoClient = memberInfoClient;
+        // Read here, while the service is starting, so that an ODS_* variable that is not defined stops the start. Left
+        // unresolved, the text "${ODS_PASSWORD}" itself would go to the database as the password, again and again.
+        String url = environment.getProperty("spring.datasource.url", "");
+        this.coverageDatabase = url.substring(url.indexOf('@') + 1);     // never what stands before the @
+        this.coverageUser = environment.getProperty("spring.datasource.username");
+        environment.getProperty("spring.datasource.password");
     }
 
     @Override
@@ -65,6 +73,7 @@ public class StartupReport implements ApplicationRunner {
         sb.append("member-info url   : ").append(memberInfo.baseUrl()).append(memberInfo.path()).append('\n');
         sb.append("member-info time  : connect=").append(memberInfo.connectTimeout()).append(" read=").append(memberInfo.readTimeout()).append('\n');
         sb.append("member-info log   : ").append(memberInfo.logPayloads() ? "ON (request and response bodies)" : "off").append('\n');
+        sb.append("coverage view     : member_coverage_rel_v at ").append(coverageDatabase).append(" as ").append(coverageUser).append('\n');
         sb.append("payer (default)   : ").append(payer.id()).append(" / ").append(payer.name()).append('\n');
         sb.append("dos limit         : not older than ").append(memberId.dateOfService().maxPastYears())
           .append("y; any future date is judged on the coverage on record (").append(memberId.dateOfService().zone()).append(")\n");

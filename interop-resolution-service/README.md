@@ -230,22 +230,30 @@ limited to 2 seconds.
 In `DEV`, and in the `test` profile the tests run on, an in-memory table stands in for the view (section 5): no
 database, no network. In every other profile the connection comes from the environment: `application.yaml` sets
 `spring.datasource.url`, `username` and `password` from `ODS_JDBC_URL` (`jdbc:oracle:thin:@//host:1521/service`),
-`ODS_USERNAME` and `ODS_PASSWORD`. The three are required there: started without them, the service stops at startup
-(the console shows `'url' must start with "jdbc"`, the URL that was not set). The password comes from the secret store,
-never from a file; the account needs `SELECT` on the view only. The rest is set in `application.yaml`: the Hikari pool
-(`maximum-pool-size` 10, `connection-timeout` 2000 ms, `initialization-fail-timeout` -1), JPA (`open-in-view` false,
+`ODS_USERNAME` and `ODS_PASSWORD`. The three are required there, and the service does not start without them. With no
+URL, or a blank one, the console shows `Failed to configure a DataSource: 'url' attribute is not specified`; an
+in-memory database is never used in its place (`embedded-database-connection: none`). With a user name or a password
+that is not defined it shows `Could not resolve placeholder 'ODS_PASSWORD'`: `StartupReport` reads the three while
+starting, so the text `${ODS_PASSWORD}` is never sent to the database as a password. A wrong password is not seen at
+startup: the service starts, identified members get the 503 below, and the pool keeps retrying the login, so an
+account that locks after failed logins must be corrected promptly. The password comes from the secret store, never
+from a file; the account needs `SELECT` on the view only. The rest is set in `application.yaml`: the Hikari pool
+(`maximum-pool-size` 10, `connection-timeout` 2000 ms, `validation-timeout` 1000 ms, `initialization-fail-timeout` -1,
+and the driver property `oracle.jdbc.ReadTimeout` 5000 ms, which cuts off a database that stops answering in the
+middle of a query; a query that merely runs long is cancelled after the 2 seconds), JPA (`open-in-view` false,
 `database-platform` `org.hibernate.dialect.OracleDialect`, `hibernate.ddl-auto` none,
 `hibernate.boot.allow_jdbc_metadata_access` false: no database call while starting, and Hibernate's notice at startup
 that it could have detected the dialect is expected) and `management.health.db.enabled` false: a database outage fails
-the answers that need it, not the pod.
+the answers that need it, not the pod. The startup banner shows `coverage view`: the database (never what stands
+before the `@` of the URL) and the account.
 
 A database that cannot be reached or does not answer in time, or a query that fails, fails the answer: 503
 `COVERAGE_LOOKUP_UNAVAILABLE` with `Retry-After: 10`, detail code `UNAVAILABLE`, the message
-`the coverage lookup is unavailable` and no `traceId`. `ApiExceptionHandler` maps Spring's `DataAccessException` and
-`TransactionException` to it; the log line `coverage lookup failed ... cause=...` names the reason, and nothing the
-caller receives names the database. Verified by running the service with the database unreachable: it still starts,
+`the coverage lookup is unavailable` and MMI's request id as `traceId`. `ResolutionService` catches Spring's
+`DataAccessException` and `TransactionException` around the read and raises `CoverageLookupException`; the log line
+`coverage lookup failed ... cause=...` names the reason, and nothing the caller receives names the database. Verified by running the service with the database unreachable: it still starts,
 `/actuator/health` stays `UP`, an identified member gets the 503 in about 2 seconds, and `NOT_FOUND` and `AMBIGUOUS`
-answers are unaffected.
+answers are unaffected. `CoverageDatabaseDownTest` runs the same on every build.
 
 ## 2. The API
 
@@ -417,7 +425,7 @@ message is confirmed in PQA (section 7)):
 ### Errors (non-200): `{ "error": { "code", "message", "details": [ { "field", "code", "message" } ] }, "correlationId", "requestId", "traceId" }`
 
 Every answer the application produces has this shape. `requestId` echoes the caller's id when it was read and
-usable, on a 400 about another field too; `traceId` is present once MMI was called, including on a 422, but not
+usable, on a 400 about another field too; `traceId` is present once MMI was called, including on a 422 and
 on 503 `COVERAGE_LOOKUP_UNAVAILABLE`. The one exception is a request Tomcat rejects before it
 reaches the application (malformed percent-encoding in the URL, a header block over 8 KB): that returns Spring
 Boot's default error JSON.
@@ -445,7 +453,7 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 | 503 | `MEMBER_LOOKUP_UNAVAILABLE` (`Retry-After: 10`) | MMI unreachable (`CONNECT_FAILED`) or timed out (`READ_TIMEOUT`); MMI 500 (`HTTP_500`; the message forwards MMI's code and text when present); a 5xx, 429 or 408 from a gateway in front of MMI (`HTTP_<code>`). | Retry later. |
 | 502 | `MEMBER_PLAN_ERROR`, `MEMBER_PLAN_INVALID_RESPONSE` | The member information service answered a status other than 200, 404, 408, 429 and 5xx (`HTTP_<code>`), or an empty or unreadable body (`EMPTY_BODY`, `UNPARSEABLE_BODY`). `traceId` present. | Park, alert the service owners. |
 | 503 | `MEMBER_PLAN_UNAVAILABLE` (`Retry-After: 10`) | The member information service unreachable (`CONNECT_FAILED`), timed out (`READ_TIMEOUT`) or answered 5xx, 429 or 408 (`HTTP_<code>`). `traceId` present. | Retry later. |
-| 503 | `COVERAGE_LOOKUP_UNAVAILABLE` (`Retry-After: 10`) | The coverage view could not be read for an identified member: the database cannot be reached or does not answer in time, or the query fails (`details[0].code` `UNAVAILABLE`, message `the coverage lookup is unavailable`; nothing in the body names the database). No `traceId`. | Retry later. |
+| 503 | `COVERAGE_LOOKUP_UNAVAILABLE` (`Retry-After: 10`) | The coverage view could not be read for an identified member: the database cannot be reached or does not answer in time, or the query fails (`details[0].code` `UNAVAILABLE`, message `the coverage lookup is unavailable`; nothing in the body names the database). Carries MMI's request id as `traceId`. | Retry later. |
 | 500 | `INTERNAL_ERROR` | a bug here | Retry once later, alert the service owners. |
 
 **If this service itself is unreachable**, Onyx's agreed fallback is to pass the member ID exactly as it
@@ -573,7 +581,8 @@ business. An in-memory H2 table named `member_coverage_rel_v` stands in for the 
 `src/main/resources/coverage-dev/schema.sql` and filled from `coverage-dev/data.sql`, one row per continuous coverage
 period of each stub member id (an open end as 12/31/3999; a converted member has rows under each of its two ids). Keep
 `data.sql` in step with `mmi-stub/members.json`. The `DEV` and `test` profiles use the table, so neither needs a
-database or the network; H2 is a runtime dependency that only those two profiles use.
+database or the network; H2 is a runtime dependency that only those two profiles use. The two scripts run against an
+in-memory database only (Spring's default), so a `DEV` run pointed at another database creates nothing there.
 The fault ids below are recognised by the first 9 characters of the id with
 separators removed.
 
@@ -607,7 +616,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (188 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (192 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -661,15 +670,20 @@ the date give the first match; no record or no match keeps MMI's value),
 covering record's line of business replaces MMI's, the most recent record's when none covers the date; a failure is a 503 with `Retry-After` and MMI's request id as `traceId`) and `theCoverageRecordsAreAskedForOnlyOnceTheMemberIsIdentified` (the Together subscriber gets `MA-TOGETHER` for 2026,
 `MA-QHP` for 2024 and, when no record covers 2021, `MA-TOGETHER` from its most recent record; the SCO member `SCO` for 2025 and, from its most recent record, `SCO` for 2026 too; asked for `ACTIVE` and `INACTIVE`, never for
 `NOT_FOUND` or `AMBIGUOUS`).
-The coverage view: `ResolutionServiceCoverageRowTest` (the dates and the id are the row's, not MMI's; of several rows
+The coverage view: `ResolutionServiceCoverageRowTest` (the dates and the id are the row's, not MMI's, and the view is
+asked with the id as MMI stores it, not as it was sent; of several rows
 covering the date, the one that ends last, then the one that starts last; with no covering row, the most recent one; the
-row need not agree with the flag; with no row at all the block carries the flag only; a period of service takes the row
+row need not agree with the flag; with no row at all the block carries the flag only and `COVERAGE_ROW_NOT_FOUND` is
+logged; a period of service takes the row
 covering its first day; the view is not read when no member was identified), `MemberCoverageRowRepositoryTest` against
-the in-memory table (every row of the member and only those, rows that differ in the end date only included; the id is
+the in-memory table (every row of the member and only those, rows that differ in one date only included; the id is
 matched exactly as stored; a row covers its first and last day; the stub members' rows are loaded) and
-`CoverageLookupFailureTest` (a database that cannot be reached is 503 `COVERAGE_LOOKUP_UNAVAILABLE` with `Retry-After`,
-and so is a query that does not answer in time, with nothing in the body naming the database; an answer that needs no
-row is unaffected and the view is not read).
+`CoverageLookupFailureTest` (a database that cannot be reached is 503 `COVERAGE_LOOKUP_UNAVAILABLE` with `Retry-After`
+and the `traceId`, and so is a query that does not answer in time, with nothing in the body naming the database; an
+answer that needs no row is unaffected and the view is not read), and `CoverageDatabaseDownTest`, where nothing is
+mocked and the database is really absent (the service starts, `/actuator/health` is `UP`, an identified member gets the
+same 503 and `NOT_FOUND` is unaffected). `ConfigValidationTest` has the database variable that is not defined: the
+start fails naming it.
 
 ## 7. Assumptions to confirm in PQA
 

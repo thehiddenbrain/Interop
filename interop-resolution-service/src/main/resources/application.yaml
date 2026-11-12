@@ -4,6 +4,7 @@ spring:
   profiles:
     default: PQA                        # "Run As > Spring Boot App" in STS with no profile talks to the PQA MMI; Profile = DEV for the in-process stub.
                                         # One file per environment: application-DEV.yaml, -FQA, -PQA, -PQA-LITE, -PRD (the profile name is the suffix)
+                                        # Every profile but DEV needs ODS_JDBC_URL, ODS_USERNAME and ODS_PASSWORD (the datasource below)
   jackson:
     default-property-inclusion: non_null
     deserialization:
@@ -17,17 +18,22 @@ spring:
       include-stacktrace: never
   # The coverage view member_coverage_rel_v (Oracle): read once per answer for an identified member (ACTIVE or INACTIVE),
   # by the resolved member id; the row gives coverage.effectiveDate, coverage.endDate and coverage.coverageId. The three
-  # values are required outside DEV (the DEV profile brings its own in-memory table); the password comes from the
-  # secret store, never from a file. A database that is down or slow fails the answer with 503
-  # COVERAGE_LOOKUP_UNAVAILABLE; it does not stop the service from starting and is not part of the health check.
+  # values are required outside DEV (the DEV profile brings its own in-memory table) and the service does not start
+  # without them; the password comes from the secret store, never from a file. A database that is down or slow fails
+  # the answer with 503 COVERAGE_LOOKUP_UNAVAILABLE; it does not stop the service from starting and is not part of the
+  # health check.
   datasource:
-    url: ${ODS_JDBC_URL}                # jdbc:oracle:thin:@//host:1521/service
+    url: ${ODS_JDBC_URL:}               # jdbc:oracle:thin:@//host:1521/service
     username: ${ODS_USERNAME}
     password: ${ODS_PASSWORD}
+    embedded-database-connection: none  # no url is an error, never a silent in-memory database
     hikari:
       maximum-pool-size: 10
       connection-timeout: 2000          # ms to wait for a connection before the answer fails
+      validation-timeout: 1000          # ms for the aliveness check of a pooled connection; must stay below connection-timeout
       initialization-fail-timeout: -1   # start even when the database is down
+      data-source-properties:
+        oracle.jdbc.ReadTimeout: 5000   # ms; a database that stops answering in the middle of a query is cut off, not waited for
   jpa:
     open-in-view: false
     database-platform: org.hibernate.dialect.OracleDialect   # named because the database is not asked at startup; Hibernate's notice that it could detect it is expected

@@ -24,9 +24,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * The database behind the coverage view is down or slow: an answer that needs the member's row is 503
- * {@code COVERAGE_LOOKUP_UNAVAILABLE} with {@code Retry-After}, an answer that needs no row is unaffected, and nothing
- * the caller receives names the database.
+ * The read of the coverage view fails, whatever the kind of failure: an answer that needs the member's row is 503
+ * {@code COVERAGE_LOOKUP_UNAVAILABLE} with {@code Retry-After} and the member lookup's traceId, an answer that needs no
+ * row is unaffected, and nothing the caller receives names the database. {@code CoverageDatabaseDownTest} runs the same
+ * against a database that really is not there.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -40,8 +41,8 @@ class CoverageLookupFailureTest {
     }
 
     /** The stored id of the stub member whose comment starts with the given words. */
-    private String stubMemberId(String commentStart) throws Exception {
-        try (var in = getClass().getResourceAsStream("/mmi-stub/members.json")) {
+    static String stubMemberId(ObjectMapper json, String commentStart) throws Exception {
+        try (var in = CoverageLookupFailureTest.class.getResourceAsStream("/mmi-stub/members.json")) {
             for (JsonNode m : json.readTree(in)) {
                 if (m.path("_comment").asText().startsWith(commentStart)) {
                     return m.path("memberId").asText();
@@ -51,7 +52,7 @@ class CoverageLookupFailureTest {
         throw new AssertionError("no stub member whose comment starts with: " + commentStart);
     }
 
-    private Resp resolve(String memberId) {
+    static Resp resolve(ObjectMapper json, int port, String memberId) {
         String body = json.writeValueAsString(Map.of("clientId", "ONYX", "clientType", "EXT", "requestId", "TEST-1",
                 "memberId", memberId, "dateOfService", "2026-10-15"));
         return RestClient.builder().baseUrl("http://localhost:" + port).build().post().uri("/v1/interop/resolve")
@@ -60,7 +61,7 @@ class CoverageLookupFailureTest {
                         new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8)));
     }
 
-    private void assertUnavailable(Resp r) {
+    static void assertUnavailable(ObjectMapper json, Resp r) {
         assertThat(r.status()).isEqualTo(503);
         assertThat(r.headers().getFirst("Retry-After")).isEqualTo("10");
         JsonNode body = json.readTree(r.body());
@@ -68,27 +69,28 @@ class CoverageLookupFailureTest {
         assertThat(body.at("/error/message").asText()).isEqualTo("the coverage lookup is unavailable");
         assertThat(body.at("/error/details/0/code").asText()).isEqualTo("UNAVAILABLE");
         assertThat(body.get("requestId").asText()).isEqualTo("TEST-1");
+        assertThat(body.path("traceId").asText()).as("the member lookup was made, so its id comes back").matches("INTEROP-\\d{13}-\\d{5}");
         assertThat(r.body().toLowerCase()).as("nothing names the database or carries the failure text")
-                .doesNotContain("database", "oracle", "jdbc", "jpa", "hibernate", "transaction", "ods", "mmi", "connection refused");
+                .doesNotContain("database", "oracle", "jdbc", "jpa", "hibernate", "transaction", "ods", "mmi", "connection");
     }
 
     @Test
     void aDatabaseThatCannotBeReachedIs503() throws Exception {
         when(coverageRows.findByMemberId(anyString()))
                 .thenThrow(new CannotCreateTransactionException("Could not open JPA EntityManager for transaction: connection refused"));
-        assertUnavailable(resolve(stubMemberId("TMP (Tufts Medicare Preferred)")));
+        assertUnavailable(json, resolve(json, port, stubMemberId(json, "TMP (Tufts Medicare Preferred)")));
     }
 
     @Test
     void aQueryThatDoesNotAnswerInTimeIs503() throws Exception {
         when(coverageRows.findByMemberId(anyString())).thenThrow(new QueryTimeoutException("ORA-01013: connection refused by timeout"));
-        assertUnavailable(resolve(stubMemberId("TMP (Tufts Medicare Preferred)")));
+        assertUnavailable(json, resolve(json, port, stubMemberId(json, "TMP (Tufts Medicare Preferred)")));
     }
 
     @Test
     void anAnswerThatNeedsNoRowIsUnaffected() {
         when(coverageRows.findByMemberId(anyString())).thenThrow(new CannotCreateTransactionException("down"));
-        Resp r = resolve("NOSUCHMEMBER");
+        Resp r = resolve(json, port, "NOSUCHMEMBER");
         assertThat(r.status()).isEqualTo(200);
         assertThat(json.readTree(r.body()).get("outcome").asText()).isEqualTo("NOT_FOUND");
         verify(coverageRows, never()).findByMemberId(anyString());
