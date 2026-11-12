@@ -150,7 +150,7 @@ What the lines tell you:
 | `mmi response ... status=404`, this service answers `200 NOT_FOUND` | Member not found: MMI's normal answer when it has no member for that id in that environment; `sourceMessage` in the response carries MMI's message when the body had one. If every id comes back `NOT_FOUND`, check the URL: a 404 whose body is not MMI's envelope (Spring's default error JSON with `status` / `error` / `path`, an HTML page) is still `NOT_FOUND`, but the log shows `marker=MMI_404_WITHOUT_ENVELOPE` with the URL | Use an id that exists in PQA. If the marker appears, compare the URL on the `mmi request` line with the MMI team's; `mmi.path` is `/master/member/v1` |
 | `mmi response ... status=400`, this service answers `400 MEMBER_LOOKUP_REJECTED` with `HTTP_400` | MMI could not process the request as sent; the error message forwards MMI's code and text when the body had a message | Send the request line's JSON and MMI's text to the MMI team; adjust `mmi.client-id` / `mmi.client-type` if they ask |
 | `mmi response ... status=500`, this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` with `HTTP_500` and `Retry-After: 10` | An internal error in MMI; the error message forwards MMI's code and text when the body had a message | Retry later; if it persists, send the request line's JSON and MMI's message to the MMI team |
-| `mmi response ... status=<anything else>` (403, 502, 503 ...), this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` (5xx, 429, 408) or `502 MEMBER_LOOKUP_ERROR` (other 4xx) with `HTTP_<code>` | The status is outside MMI's contract: a gateway, proxy or container answered, not MMI; the error message says so, and the URL is on the log line | Check the host, the proxy settings and the URL on the `mmi request` line |
+| `mmi response ... status=<anything else>` (403, 502, 503 ...), this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` (5xx, 429, 408) or `502 MEMBER_LOOKUP_ERROR` (other 4xx) with `HTTP_<code>` | The status is outside MMI's contract: a gateway, proxy or container answered, not MMI; the error message says so; the URL is not in it (it is on the `mmi request` and `mmi call failed` lines) | Check the host, the proxy settings and the URL on the `mmi request` line |
 | `mmi response ... status=200` then `502 MEMBER_LOOKUP_INVALID_RESPONSE` with `UNPARSEABLE_BODY` from this service | The body is not the MMI JSON (often an HTML sign-in or proxy page, `contentType=text/html`) | The call is being intercepted before MMI; check proxy settings and the host |
 | `mmi response ... status=200` and the body has fields this service does not know | MMI added or renamed fields | Paste the response line; the DTOs in `org.p32h.interop.mmi` are updated to match |
 | `mmi response ... status=200`, `members` is empty and `messages[]` has no `ERROR` message, this service answers `200 NOT_FOUND` | MMI answered 200 with no member (MMI's contract uses 404 for that; this form is kept as `NOT_FOUND` too) | Use an id that exists in PQA |
@@ -231,26 +231,28 @@ limited to 2 seconds.
 In `DEV`, and in the `test` profile the tests run on, an in-memory table stands in for the view (section 5): no
 database, no network. In every other profile the connection comes from the environment: `application.yaml` sets
 `spring.datasource.url`, `username` and `password` from `ODS_JDBC_URL` (`jdbc:oracle:thin:@//host:1521/service`),
-`ODS_USERNAME` and `ODS_PASSWORD`. The account and its password go in their own two variables, never in the URL.
-The three are required there, and the service does not start without them. With no
-URL, or a blank one, the console shows `Failed to configure a DataSource: 'url' attribute is not specified`; an
-in-memory database is never used in its place (`embedded-database-connection: none`). With a user name or a password
-that is not defined it shows `spring.datasource.password is not defined` (or `username`), and with an empty one
-`spring.datasource.password is empty`: `StartupReport` checks the two while starting, so neither the text
-`${ODS_PASSWORD}` nor a logon without a password is ever sent to the database, and the message never shows a value.
-Neither value may contain `${`: Spring expands a `${...}` inside a value before it reaches the database, and the
-login then fails. A wrong password is not seen at startup: the service starts, identified members get the 503 below, and
-the pool retries the login every few seconds, so an account that locks after a number of failed logins locks within
-the minute. Check the password before the first run. The password comes from the secret store, never from a file; the account needs `SELECT` on the view only. The rest is set in `application.yaml`: the Hikari pool
-(`maximum-pool-size` 10, `connection-timeout` 2000 ms, `validation-timeout` 1000 ms, `initialization-fail-timeout` -1,
-and the driver property `oracle.jdbc.ReadTimeout` 5000 ms, which cuts off a database that stops answering in the
-middle of a query; a query that merely runs long is cancelled after the 2 seconds), JPA (`open-in-view` false,
-`database-platform` `org.hibernate.dialect.OracleDialect`, `hibernate.ddl-auto` none,
-`hibernate.boot.allow_jdbc_metadata_access` false: no database call while starting, and Hibernate's notice at startup
-that it could have detected the dialect is expected) and `management.health.db.enabled` false: a database outage fails
-the answers that need it, not the pod. The startup banner shows `coverage view`: the database and the account. The URL
-is printed without its connection properties and only in a plain form (`jdbc:oracle:thin:@...`, nothing between `thin:`
-and the `@`); a URL that carries an account or a password prints as `(not shown)`.
+`ODS_USERNAME` and `ODS_PASSWORD`. The account and its password go in their own two variables, never in the URL. The
+three are required there, and the service does not start without them. With no URL, or a blank one, the console shows
+`Failed to configure a DataSource: 'url' attribute is not specified`; an in-memory database is never used in its place
+(`embedded-database-connection: none`). With a user name or a password that is not defined it shows
+`spring.datasource.password is not defined` (or `username`), and with an empty one
+`spring.datasource.password is empty`: `StartupReport` checks the two while starting, before these profiles open their
+first connection, so neither the text `${ODS_PASSWORD}` nor a logon without a password goes to the database; the
+message never shows a value. Keep `${` out of both values: Spring replaces a `${name}` it can resolve, and one with a
+default (`${name:x}`), before the value reaches the database, and the login then fails. A wrong password is not seen
+at startup: the service starts, identified members get the 503 below, and the pool retries the login every few
+seconds, so an account that locks after a number of failed logins locks within the minute. Check the password before
+the first run. The password comes from the secret store, never from a file; the account needs `SELECT` on the view
+only. The rest is set in `application.yaml`: the Hikari pool (`maximum-pool-size` 10, `connection-timeout` 2000 ms,
+`validation-timeout` 1000 ms, `initialization-fail-timeout` -1, and the driver property `oracle.jdbc.ReadTimeout` 5000
+ms, which cuts off a database that stops answering in the middle of a query; a query that merely runs long is
+cancelled after the 2 seconds), JPA (`open-in-view` false, `database-platform` `org.hibernate.dialect.OracleDialect`,
+`hibernate.ddl-auto` none, `hibernate.boot.allow_jdbc_metadata_access` false: no database call while starting, and
+Hibernate's notice at startup that it could have detected the dialect is expected) and `management.health.db.enabled`
+false: a database outage fails the answers that need it, not the pod. The startup banner shows `coverage view`: the
+database and the account. The URL is printed without its connection properties and only in a plain form
+(`jdbc:oracle:thin:@...`, nothing between `thin:` and the `@`); a URL that carries an account or a password prints as
+`(not shown)`.
 
 A database that cannot be reached or does not answer in time, or a query that fails, fails the answer: 503
 `COVERAGE_LOOKUP_UNAVAILABLE` with `Retry-After: 10`, detail code `UNAVAILABLE`, the message
@@ -454,7 +456,7 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 | 400 | `INVALID_REQUEST` | Missing or unusable caller fields (`CLIENT_ID_MISSING`, `CLIENT_ID_INVALID`, `CLIENT_TYPE_MISSING`, `CLIENT_TYPE_INVALID`, `REQUEST_ID_MISSING`, `REQUEST_ID_INVALID`), a missing or blank member ID (`MEMBER_ID_MISSING`), bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE` for a date more than 10 years back; there is no upper limit, a future date is judged on the coverage on record; `DATE_OF_SERVICE_END_INVALID`, `DATE_OF_SERVICE_END_BEFORE_START`, `DATE_OF_SERVICE_END_WITHOUT_START` for the end of a period of service; `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); every problem is listed in `details[]`. Unknown properties, a vendor included, are ignored, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operation is POST /v1/interop/resolve".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems, the caller codes are Onyx configuration, anything else is an Onyx mapping defect. |
 | 400 | `MEMBER_LOOKUP_REJECTED` | MMI answered 400: it could not process the request as sent (`details[0].code` `HTTP_400`; the message forwards MMI's code and text when MMI sent a message). `traceId` present, no `Retry-After`. | Never retry as is. Alert the service owners with the `traceId`; MMI's text says what it did not accept. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
-| 502 | `MEMBER_LOOKUP_ERROR`, `MEMBER_LOOKUP_INVALID_RESPONSE` | MMI reported an error of its own in `messages[]` with no members (`ERROR_MESSAGE`; the message forwards MMI's code and text: `The member lookup reported an error: ES_TIMEOUT ...`); a 4xx other than 400 and 404 from the MMI endpoint, which is a gateway or proxy answering, not MMI (`HTTP_<code>`; the message says so, and the URL goes to the log only); an unreadable 2xx body (`EMPTY_BODY`, `UNPARSEABLE_BODY`); records without a member id (`NO_MEMBER_ID`); or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read). | Park, alert the service owners. |
+| 502 | `MEMBER_LOOKUP_ERROR`, `MEMBER_LOOKUP_INVALID_RESPONSE` | MMI reported an error of its own in `messages[]` with no members (`ERROR_MESSAGE`; the message forwards MMI's code and text: `The member lookup reported an error: ES_TIMEOUT ...`); a 4xx other than 400, 404, 408 and 429 from the MMI endpoint, which is a gateway or proxy answering, not MMI (`HTTP_<code>`; the message says so, and the URL goes to the log only); an unreadable 2xx body (`EMPTY_BODY`, `UNPARSEABLE_BODY`); records without a member id (`NO_MEMBER_ID`); or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read). | Park, alert the service owners. |
 | 503 | `MEMBER_LOOKUP_UNAVAILABLE` (`Retry-After: 10`) | MMI unreachable (`CONNECT_FAILED`) or timed out (`READ_TIMEOUT`); MMI 500 (`HTTP_500`; the message forwards MMI's code and text when present); a 5xx, 429 or 408 from a gateway in front of MMI (`HTTP_<code>`). | Retry later. |
 | 502 | `MEMBER_PLAN_ERROR`, `MEMBER_PLAN_INVALID_RESPONSE` | The member information service answered a status other than 200, 404, 408, 429 and 5xx (`HTTP_<code>`), or an empty or unreadable body (`EMPTY_BODY`, `UNPARSEABLE_BODY`). `traceId` present. | Park, alert the service owners. |
 | 503 | `MEMBER_PLAN_UNAVAILABLE` (`Retry-After: 10`) | The member information service unreachable (`CONNECT_FAILED`), timed out (`READ_TIMEOUT`) or answered 5xx, 429 or 408 (`HTTP_<code>`). `traceId` present. | Retry later. |

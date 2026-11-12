@@ -102,8 +102,9 @@ class ConfigValidationTest {
 
     @Test
     void anEmptyDatabaseUserNameOrPasswordFails() {
-        ApplicationContextRunner oracle = runner.withPropertyValues("spring.datasource.url=jdbc:oracle:thin:@//ods-host:1521/odssvc",
-                "spring.jpa.database-platform=org.hibernate.dialect.OracleDialect",
+        // the three jpa settings are those of application.yaml: nothing is asked of the database while starting
+        ApplicationContextRunner oracle = runner.withPropertyValues("spring.datasource.url=jdbc:oracle:thin:@//localhost:1/odssvc",
+                "spring.jpa.database-platform=org.hibernate.dialect.OracleDialect", "spring.jpa.hibernate.ddl-auto=none",
                 "spring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false");
         oracle.withPropertyValues("spring.datasource.username=ods_reader", "spring.datasource.password=")
                 .run(ctx -> assertThat(rootMessage(ctx.getStartupFailure())).as("never a logon without a password")
@@ -111,7 +112,7 @@ class ConfigValidationTest {
         oracle.withPropertyValues("spring.datasource.username=", "spring.datasource.password=secret")
                 .run(ctx -> assertThat(rootMessage(ctx.getStartupFailure())).contains("spring.datasource.username is empty"));
         oracle.withPropertyValues("spring.datasource.username=ods_reader", "spring.datasource.password=secret")
-                .run(ctx -> assertThat(ctx).as("the same database with both: nothing to refuse, and no connection is made to start").hasNotFailed());
+                .run(ctx -> assertThat(ctx).as("the same database with both: nothing to refuse").hasNotFailed());
     }
 
     @Test

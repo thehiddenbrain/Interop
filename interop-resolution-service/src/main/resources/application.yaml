@@ -24,7 +24,7 @@ spring:
   # health check.
   datasource:
     url: ${ODS_JDBC_URL:}               # jdbc:oracle:thin:@//host:1521/service; the account and password never go in the URL
-    username: ${ODS_USERNAME}           # both must be given and not empty; neither may contain ${, which Spring would expand
+    username: ${ODS_USERNAME}           # both must be given and not empty; keep ${ out of both: Spring replaces a ${name} it can resolve
     password: ${ODS_PASSWORD}
     embedded-database-connection: none  # no url is an error, never a silent in-memory database
     hikari:
