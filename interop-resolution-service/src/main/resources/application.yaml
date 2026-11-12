@@ -23,7 +23,7 @@ spring:
   # the answer with 503 COVERAGE_LOOKUP_UNAVAILABLE; it does not stop the service from starting and is not part of the
   # health check.
   datasource:
-    url: ${ODS_JDBC_URL:}               # jdbc:oracle:thin:@//host:1521/service
+    url: ${ODS_JDBC_URL:}               # jdbc:oracle:thin:@//host:1521/service; the account and password never go in the URL
     username: ${ODS_USERNAME}
     password: ${ODS_PASSWORD}
     embedded-database-connection: none  # no url is an error, never a silent in-memory database

@@ -231,7 +231,8 @@ limited to 2 seconds.
 In `DEV`, and in the `test` profile the tests run on, an in-memory table stands in for the view (section 5): no
 database, no network. In every other profile the connection comes from the environment: `application.yaml` sets
 `spring.datasource.url`, `username` and `password` from `ODS_JDBC_URL` (`jdbc:oracle:thin:@//host:1521/service`),
-`ODS_USERNAME` and `ODS_PASSWORD`. The three are required there, and the service does not start without them. With no
+`ODS_USERNAME` and `ODS_PASSWORD`. The account and its password go in their own two variables, never in the URL.
+The three are required there, and the service does not start without them. With no
 URL, or a blank one, the console shows `Failed to configure a DataSource: 'url' attribute is not specified`; an
 in-memory database is never used in its place (`embedded-database-connection: none`). With a user name or a password
 that is not defined it shows `spring.datasource.password is not defined` (or `username`): `StartupReport` checks the
