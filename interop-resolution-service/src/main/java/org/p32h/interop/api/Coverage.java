@@ -5,22 +5,20 @@ import java.time.LocalDate;
 
 /**
  * The coverage answer for the date (or period) of service, flat, in this order:
- * {@code coverageId}, {@code active}, {@code effectiveDate}, {@code endDate}. {@code active} is the flag Onyx acts on.
- * The dates are those of one continuous coverage period: on an ACTIVE answer the period that covers the date of
- * service (the first day of a period of service); on an INACTIVE answer the member's most recent coverage period, the
- * one that ends last (an open end counting as the latest), which does not cover the date of service. An open-ended
- * period ends {@code 3999-12-31}, so every date sent is a real date. {@code coverageId} (in the form the Onyx
- * requirement sets) names that period: MEMBER_ID + EFF_DATE + END_DATE run together with no separator, the resolved
- * member id reduced to letters and digits, the dates as {@code yyyyMMdd}; present whenever the dates are. Why the
- * member is inactive is said in {@code message}.
+ * {@code coverageId}, {@code active}, {@code effectiveDate}, {@code endDate}. {@code active} is the flag Onyx acts on;
+ * it comes from the coverage decision made on MMI's records. The id and the two dates are those of the member's row in
+ * the coverage view ({@code member_coverage_rel_v}): the row that covers the date of service (the first day of a period
+ * of service), else the member's most recent row, the one that ends last. They are what Onyx holds from the coverage
+ * extract, and they need not agree with the flag: Onyx branches on {@code active}, never on the dates. An open end is
+ * {@code 3999-12-31}. {@code coverageId} (in the form the Onyx requirement sets) names that row: MEMBER_ID + EFF_DATE +
+ * END_DATE run together with no separator, the resolved member id reduced to letters and digits, the dates as
+ * {@code yyyyMMdd}. The id and the dates are absent when the view has no row for the member. Why the member is inactive
+ * is said in {@code message}.
  */
-@Schema(description = "The coverage flag and one continuous coverage period. ACTIVE: the period that covers the date of service (the first day of a period of service). INACTIVE: the member's most recent coverage period, the one that ends last (an open end counting as the latest); it does not cover the date of service, so branch on active, never on the dates. message says why the member is inactive")
+@Schema(description = "The coverage flag and the member's coverage record. active says whether coverage holds on the date of service. coverageId, effectiveDate and endDate are those of the plan's coverage record for the member: the record that covers the date of service (the first day of a period of service) when there is one, otherwise the member's most recent record, the one that ends last. The dates need not agree with the flag, so branch on active, never on the dates. message says why the member is inactive")
 public record Coverage(
-        @Schema(description = "An id for the coverage period: the resolved id reduced to letters and digits, then the effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open-ended period). Present whenever the dates are; the same member with the same coverage always gets the same value") String coverageId,
+        @Schema(description = "An id for the coverage record: the resolved id reduced to letters and digits, then the record's effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open end). Present whenever the dates are; absent when the plan holds no coverage record for the member") String coverageId,
         @Schema(description = "The flag: true when coverage holds on the date of service (the first day of a period of service)", requiredMode = Schema.RequiredMode.REQUIRED) boolean active,
-        @Schema(description = "First day of the coverage period: on INACTIVE, of the most recent period") LocalDate effectiveDate,
-        @Schema(description = "Last day of the coverage period, on INACTIVE of the most recent period; 3999-12-31 for an open-ended period") LocalDate endDate) {
-
-    /** The end date sent for an open-ended period, as MMI itself writes it (12/31/3999). */
-    public static final LocalDate OPEN_END = LocalDate.of(3999, 12, 31);
+        @Schema(description = "First day of the coverage record") LocalDate effectiveDate,
+        @Schema(description = "Last day of the coverage record; 3999-12-31 for an open end") LocalDate endDate) {
 }

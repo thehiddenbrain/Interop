@@ -123,7 +123,7 @@ class ResolutionServiceMemberPlanTest {
                 Duration.ofSeconds(5), "N", List.of("ERROR"), false, new MmiProperties.Stub(false, ""));
         return new ResolutionService(new RequestValidator(properties, CLOCK), new VendorRegistry(table, new Payer("P", "P")), mmi,
                 mmiProperties, new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), memberInfo,
-                new LineOfBusinessDeriver(), properties, CLOCK);
+                memberId -> List.of(), new LineOfBusinessDeriver(), properties, CLOCK);
     }
 
     private static MemberResolutionResponse resolve(ResolutionService service) {

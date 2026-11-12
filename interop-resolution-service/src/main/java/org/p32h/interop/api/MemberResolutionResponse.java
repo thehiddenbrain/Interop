@@ -11,14 +11,14 @@ import org.p32h.interop.domain.MemberName;
  * The 200 response of {@code POST /v1/interop/resolve}. Lean by design: the outcome, one sentence, the member id as
  * received, as resolved and in every configured vendor's format with the payer and the member's name for that vendor's request, the line of
  * business (Onyx routes on it), the date
- * evaluated ({@code dateOfServiceEnd} too when a period was asked about), the coverage flag with its period and id, the
+ * evaluated ({@code dateOfServiceEnd} too when a period was asked about), the coverage flag with the member's coverage record (its id and dates), the
  * caller's request id, and a trace id for support (the id of the lookup behind the answer). An AMBIGUOUS answer lists
  * nobody: it says in {@code message} what to resend. Optional blocks are
- * absent when they do not apply (global non-null inclusion); an open-ended coverage period ends {@code 3999-12-31}.
+ * absent when they do not apply (global non-null inclusion); an open-ended coverage record ends {@code 3999-12-31}.
  * {@code sourceMessage} is what the member lookup said when it had no member for the id (NOT_FOUND only). Nothing in
  * the body names MMI. The correlation id travels in the {@code X-Correlation-Id} response header.
  */
-@Schema(description = "The answer: the outcome Onyx branches on, one sentence for a person, the member id as received, as resolved and in every vendor's format with that vendor's payer, the line of business, the date evaluated, the coverage flag with its period, the caller's requestId and a traceId for support. A field that does not apply is absent, never null")
+@Schema(description = "The answer: the outcome Onyx branches on, one sentence for a person, the member id as received, as resolved and in every vendor's format with that vendor's payer, the line of business, the date evaluated, the coverage flag with the member's coverage record, the caller's requestId and a traceId for support. A field that does not apply is absent, never null")
 public record MemberResolutionResponse(
         @Schema(description = "ACTIVE: member found, coverage active on the date of service (the first day of a period). INACTIVE: member found, not covered on that date, with coverage ending on or after today minus 24 months (an open-ended or future period counts); message says why. NOT_FOUND: no member for this id, or a member not covered on that date with no coverage ending in the last 24 months. AMBIGUOUS: several members match and nothing sent tells them apart; message says what to resend",
                 requiredMode = Schema.RequiredMode.REQUIRED) Outcome outcome,
@@ -29,7 +29,7 @@ public record MemberResolutionResponse(
         @Schema(description = "The date evaluated; the first date when a period was asked about", requiredMode = Schema.RequiredMode.REQUIRED) LocalDate dateOfService,
         @Schema(description = "The last date evaluated; present only when the request asked about a period") LocalDate dateOfServiceEnd,
         @Schema(description = "true when no dateOfService was sent and today was used", requiredMode = Schema.RequiredMode.REQUIRED) boolean dateOfServiceDefaulted,
-        @Schema(description = "The coverage flag and one coverage period with its id and dates: on ACTIVE the period that covers the date of service, on INACTIVE the member's most recent period, which does not cover it (branch on active, never on the dates; message says why the member is inactive). Present on ACTIVE and INACTIVE answers only") Coverage coverage,
+        @Schema(description = "The coverage flag and the member's coverage record with its id and dates: the record that covers the date of service when there is one, otherwise the member's most recent record. The dates need not agree with the flag (branch on active, never on the dates; message says why the member is inactive). Present on ACTIVE and INACTIVE answers only") Coverage coverage,
         @Schema(description = "The caller's requestId, echoed", requiredMode = Schema.RequiredMode.REQUIRED) String requestId,
         @Schema(description = "The id of the member lookup behind this answer; quote it to support", requiredMode = Schema.RequiredMode.REQUIRED) String traceId,
         @Schema(description = "What the member lookup said when it had no member for the id. NOT_FOUND only, and only when the lookup sent a message") SourceMessage sourceMessage) {

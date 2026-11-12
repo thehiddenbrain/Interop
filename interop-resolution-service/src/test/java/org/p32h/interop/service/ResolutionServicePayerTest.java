@@ -85,7 +85,7 @@ class ResolutionServicePayerTest {
             }
         };
         return new ResolutionService(new RequestValidator(properties, CLOCK), new VendorRegistry(table, DEFAULT), mmi, mmiProperties,
-                new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan, new LineOfBusinessDeriver(), properties, CLOCK);
+                new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan, memberId -> List.of(), new LineOfBusinessDeriver(), properties, CLOCK);
     }
 
     private static MemberResolutionResponse resolve(String company, String lineOfBusiness) {

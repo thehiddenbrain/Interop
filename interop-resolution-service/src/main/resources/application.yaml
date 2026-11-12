@@ -15,6 +15,26 @@ spring:
     error:                              # Boot 4 name (was server.error.*): for the rare error Tomcat answers before this service sees it
       include-message: never
       include-stacktrace: never
+  # The coverage view member_coverage_rel_v (Oracle): read once per answer for an identified member (ACTIVE or INACTIVE),
+  # by the resolved member id; the row gives coverage.effectiveDate, coverage.endDate and coverage.coverageId. The three
+  # values are required outside DEV (the DEV profile brings its own in-memory table); the password comes from the
+  # secret store, never from a file. A database that is down or slow fails the answer with 503
+  # COVERAGE_LOOKUP_UNAVAILABLE; it does not stop the service from starting and is not part of the health check.
+  datasource:
+    url: ${ODS_JDBC_URL}                # jdbc:oracle:thin:@//host:1521/service
+    username: ${ODS_USERNAME}
+    password: ${ODS_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 2000          # ms to wait for a connection before the answer fails
+      initialization-fail-timeout: -1   # start even when the database is down
+  jpa:
+    open-in-view: false
+    database-platform: org.hibernate.dialect.OracleDialect   # named because the database is not asked at startup; Hibernate's notice that it could detect it is expected
+    hibernate:
+      ddl-auto: none                    # read only: nothing is ever created or altered
+    properties:
+      hibernate.boot.allow_jdbc_metadata_access: false   # no database call while starting
 
 server:
   port: 9090
@@ -28,6 +48,9 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    db:
+      enabled: false                    # a database outage fails the answers that need it, not the pod
   info:
     build:
       enabled: true

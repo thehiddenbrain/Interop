@@ -45,7 +45,7 @@ public class MemberResolutionController {
     @ApiResponse(responseCode = "405", description = "INVALID_REQUEST / METHOD_NOT_ALLOWED: the operation is POST only", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "415", description = "INVALID_REQUEST / UNSUPPORTED_MEDIA_TYPE: the request body must be application/json", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "502", description = "MEMBER_LOOKUP_ERROR or MEMBER_LOOKUP_INVALID_RESPONSE (the member lookup); MEMBER_PLAN_ERROR or MEMBER_PLAN_INVALID_RESPONSE (the member plan lookup)", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    @ApiResponse(responseCode = "503", description = "MEMBER_LOOKUP_UNAVAILABLE or MEMBER_PLAN_UNAVAILABLE; retry after the Retry-After seconds",
+    @ApiResponse(responseCode = "503", description = "MEMBER_LOOKUP_UNAVAILABLE, MEMBER_PLAN_UNAVAILABLE or COVERAGE_LOOKUP_UNAVAILABLE; retry after the Retry-After seconds",
             headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying", schema = @Schema(type = "integer", example = "10")),
             content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "500", description = "INTERNAL_ERROR: the service itself failed; retry once later, then alert the service owners with the correlationId and requestId", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))

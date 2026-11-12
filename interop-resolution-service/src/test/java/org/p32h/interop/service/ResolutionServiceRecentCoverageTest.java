@@ -8,6 +8,7 @@ import org.p32h.interop.api.Outcome;
 import org.p32h.interop.api.RequestValidator;
 import org.p32h.interop.config.MemberIdProperties;
 import org.p32h.interop.config.MemberIdProperties.VendorConfig;
+import org.p32h.interop.coverage.MemberCoverageRow;
 import org.p32h.interop.domain.CoverageEvaluator;
 import org.p32h.interop.domain.MemberSelector;
 import org.p32h.interop.memberinfo.MemberInfoClient;
@@ -37,7 +38,7 @@ class ResolutionServiceRecentCoverageTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-03T16:00:00Z"), ZoneId.of("America/New_York"));
 
-    /** A service whose member lookup returns one THP member covered 01/01/2020 to 07/31/2026, with the given window. */
+    /** A service whose member lookup returns one THP member covered 01/01/2020 to 07/31/2026 (the same in the coverage view), with the given window. */
     private static ResolutionService serviceWith(int recentCoverageMonths) {
         Map<String, VendorConfig> table = Map.of("MHK", new VendorConfig("MHK", VendorIdFormat.SPACED_14, null));
         MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125,
@@ -70,6 +71,7 @@ class ResolutionServiceRecentCoverageTest {
         };
         return new ResolutionService(new RequestValidator(properties, CLOCK), new VendorRegistry(table, new Payer("Point32Health", "Point32Health")),
                 mmi, mmiProperties, new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan,
+                memberId -> List.of(new MemberCoverageRow(memberId, LocalDate.parse("2020-01-01"), LocalDate.parse("2026-07-31"))),
                 new LineOfBusinessDeriver(), properties, CLOCK);
     }
 

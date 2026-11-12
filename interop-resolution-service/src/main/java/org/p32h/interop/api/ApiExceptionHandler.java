@@ -10,11 +10,14 @@ import org.p32h.interop.mmi.MmiException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.NestedExceptionUtils;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.transaction.TransactionException;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -54,6 +57,22 @@ public class ApiExceptionHandler {
         }
         return builder.body(new ApiErrorResponse(new ApiErrorResponse.Error(e.code(), e.getMessage(),
                 List.of(new ErrorDetail(null, e.detail(), e.getMessage()))), CorrelationFilter.current(), CorrelationFilter.requestId(), e.traceId()));
+    }
+
+    /**
+     * The coverage view is the only thing read from a database, so a database failure is the coverage lookup: no
+     * connection (a {@code TransactionException}, not a {@code DataAccessException}), a timeout or a failed query. 503 so
+     * Onyx retries later; nothing in the body names the database.
+     */
+    @ExceptionHandler({DataAccessException.class, TransactionException.class})
+    public ResponseEntity<ApiErrorResponse> coverageLookup(RuntimeException e) {
+        Throwable cause = NestedExceptionUtils.getMostSpecificCause(e);
+        log.warn("coverage lookup failed correlationId={} type={} cause={}: {}", CorrelationFilter.current(), e.getClass().getSimpleName(),
+                cause.getClass().getSimpleName(), cause.getMessage());
+        String message = "the coverage lookup is unavailable";
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "10")
+                .body(new ApiErrorResponse(new ApiErrorResponse.Error("COVERAGE_LOOKUP_UNAVAILABLE", message,
+                        List.of(new ErrorDetail(null, "UNAVAILABLE", message))), CorrelationFilter.current(), CorrelationFilter.requestId(), null));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

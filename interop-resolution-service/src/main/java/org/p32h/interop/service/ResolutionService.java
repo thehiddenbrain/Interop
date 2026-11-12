@@ -7,8 +7,9 @@ import org.p32h.interop.api.SourceMessage;
 import org.p32h.interop.api.Outcome;
 import org.p32h.interop.api.RequestValidator;
 import org.p32h.interop.config.MemberIdProperties;
+import org.p32h.interop.coverage.MemberCoverageRow;
+import org.p32h.interop.coverage.MemberCoverageRowRepository;
 import org.p32h.interop.domain.CoverageDecision;
-import org.p32h.interop.domain.CoverageSpan;
 import org.p32h.interop.domain.MemberRecord;
 import org.p32h.interop.domain.MemberSelector;
 import org.p32h.interop.domain.ResolutionException;
@@ -30,6 +31,7 @@ import org.p32h.interop.vendor.VendorRegistry;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
@@ -39,7 +41,8 @@ import org.springframework.stereotype.Service;
 /**
  * The member resolution, {@code POST /v1/interop/resolve}: ask MMI once with the member id exactly as received,
  * reduce the records to one person, decide coverage on the date (or period) of service, ask the member information
- * service for that member's coverage records to derive the line of business, and render the stored id for every configured vendor.
+ * service for that member's coverage records to derive the line of business, read the member's row in the coverage view
+ * for the coverage dates and the coverageId, and render the stored id for every configured vendor.
  */
 @Service
 public class ResolutionService {
@@ -57,13 +60,14 @@ public class ResolutionService {
     private final MemberSelector selector;
     private final VendorFormatter formatter;
     private final MemberInfoClient memberInfo;
+    private final MemberCoverageRowRepository coverageRows;
     private final LineOfBusinessDeriver lineOfBusiness;
     private final MemberIdProperties properties;
     private final Clock clock;
 
     public ResolutionService(RequestValidator validator, VendorRegistry vendors, MmiClient mmi, MmiProperties mmiProperties,
             MmiRecordMapper mapper, MemberSelector selector, VendorFormatter formatter, MemberInfoClient memberInfo,
-            LineOfBusinessDeriver lineOfBusiness,
+            MemberCoverageRowRepository coverageRows, LineOfBusinessDeriver lineOfBusiness,
             MemberIdProperties properties, Clock clock) {
         this.validator = validator;
         this.vendors = vendors;
@@ -73,6 +77,7 @@ public class ResolutionService {
         this.selector = selector;
         this.formatter = formatter;
         this.memberInfo = memberInfo;
+        this.coverageRows = coverageRows;
         this.lineOfBusiness = lineOfBusiness;
         this.properties = properties;
         this.clock = clock;
@@ -84,6 +89,7 @@ public class ResolutionService {
         RequestValidator.Validated v = validator.validate(request);
         Resolved r = resolveMember(v, correlationId);
         String lob = r.record() == null ? null : lineOfBusiness(r, v.dateOfService(), correlationId);
+        MemberCoverageRow row = r.record() == null ? null : coverageRow(r.storedMemberId(), v.dateOfService());
         List<MemberResolutionResponse.VendorMemberId> forVendors = null;
         if (r.record() != null) {
             List<MemberResolutionResponse.HumanName> name = MemberResolutionResponse.HumanName.of(r.record().name());
@@ -107,7 +113,7 @@ public class ResolutionService {
         MemberResolutionResponse response = new MemberResolutionResponse(r.outcome(), message(r, v),
                 new MemberResolutionResponse.MemberId(v.memberId(), r.storedMemberId(), forVendors),
                 lob, v.dateOfService(), v.dateOfServiceEnd(), v.dateOfServiceDefaulted(),
-                r.coverageBlock(), v.requestId(), r.mmiRequestId(), r.mmiNote());
+                r.coverageBlock(row), v.requestId(), r.mmiRequestId(), r.mmiNote());
         logOutcome(r, v, lob, start);
         return response;
     }
@@ -128,6 +134,25 @@ public class ResolutionService {
         return lineOfBusiness.derive(r.record(), coverageRecords, dateOfService);
     }
 
+    /**
+     * The identified member's row in the coverage view: the row that covers the date of service (the one that ends last,
+     * then starts last, when several do), else the member's most recent row; null when the member has none. MMI decides
+     * ACTIVE or INACTIVE; the row only gives the dates and the coverageId, so it need not agree with the flag. A database
+     * that cannot be reached or does not answer in time fails the answer (503, see {@code ApiExceptionHandler}).
+     */
+    private MemberCoverageRow coverageRow(String storedMemberId, LocalDate dateOfService) {
+        List<MemberCoverageRow> rows = coverageRows.findByMemberId(storedMemberId);
+        Comparator<MemberCoverageRow> latest = Comparator.comparing(MemberCoverageRow::getEndDate)
+                .thenComparing(MemberCoverageRow::getEffDate);
+        MemberCoverageRow row = rows.stream().filter(c -> c.covers(dateOfService)).max(latest)
+                .orElseGet(() -> rows.stream().max(latest).orElse(null));
+        if (row == null) {
+            log.warn("marker=COVERAGE_ROW_NOT_FOUND memberId={}: the coverage view has no row for this member; the coverage "
+                    + "block carries the flag only", storedMemberId);
+        }
+        return row;
+    }
+
     /** MMI's answer reduced to one outcome, before it is rendered. */
     private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String reason,
             int persons, String mmiRequestId, int records, SourceMessage mmiNote) {
@@ -145,26 +170,25 @@ public class ResolutionService {
             return record == null ? null : record.lineOfBusiness();
         }
 
-        Coverage coverageBlock() {
+        /** The flag from MMI's coverage decision; the id and the dates from the member's row in the coverage view, absent when there is none. */
+        Coverage coverageBlock(MemberCoverageRow row) {
             if (coverage == null) {
                 return null;
             }
-            if (coverage.span() == null) {
+            if (row == null) {
                 return new Coverage(null, coverage.active(), null, null);
             }
-            CoverageSpan period = coverage.span();
-            return new Coverage(coverageId(record.storedMemberId(), period), coverage.active(), period.effective(),
-                    period.end() == null ? Coverage.OPEN_END : period.end());
+            return new Coverage(coverageId(record.storedMemberId(), row.getEffDate(), row.getEndDate()), coverage.active(),
+                    row.getEffDate(), row.getEndDate());
         }
 
         /**
          * MEMBER_ID + EFF_DATE + END_DATE run together (the form Onyx asked for), no separator, dates as yyyyMMdd, letters and digits only (the stored id loses its spaces and any punctuation);
-         * 39991231 stands for an open-ended period.
+         * the dates are those of the member's row in the coverage view, where an open end is 12/31/3999.
          */
-        private static String coverageId(String storedMemberId, CoverageSpan period) {
+        private static String coverageId(String storedMemberId, LocalDate effective, LocalDate end) {
             DateTimeFormatter compact = DateTimeFormatter.BASIC_ISO_DATE;
-            return storedMemberId.replaceAll("[^A-Za-z0-9]", "") + period.effective().format(compact)
-                    + (period.end() == null ? "39991231" : period.end().format(compact));
+            return storedMemberId.replaceAll("[^A-Za-z0-9]", "") + effective.format(compact) + end.format(compact);
         }
     }
 

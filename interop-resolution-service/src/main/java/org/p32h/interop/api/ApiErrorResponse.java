@@ -17,7 +17,7 @@ public record ApiErrorResponse(
 
     @Schema(description = "The error: a stable code to branch on, a message for a person, and one detail per problem")
     public record Error(
-            @Schema(description = "INVALID_REQUEST, MEMBER_LOOKUP_REJECTED, DOB_MISMATCH, MEMBER_LOOKUP_ERROR, MEMBER_LOOKUP_INVALID_RESPONSE, MEMBER_LOOKUP_UNAVAILABLE, MEMBER_PLAN_ERROR, MEMBER_PLAN_INVALID_RESPONSE, MEMBER_PLAN_UNAVAILABLE or INTERNAL_ERROR",
+            @Schema(description = "INVALID_REQUEST, MEMBER_LOOKUP_REJECTED, DOB_MISMATCH, MEMBER_LOOKUP_ERROR, MEMBER_LOOKUP_INVALID_RESPONSE, MEMBER_LOOKUP_UNAVAILABLE, MEMBER_PLAN_ERROR, MEMBER_PLAN_INVALID_RESPONSE, MEMBER_PLAN_UNAVAILABLE, COVERAGE_LOOKUP_UNAVAILABLE or INTERNAL_ERROR",
                     example = "INVALID_REQUEST", requiredMode = Schema.RequiredMode.REQUIRED) String code,
             @Schema(description = "One sentence for a person", requiredMode = Schema.RequiredMode.REQUIRED) String message,
             @Schema(description = "One entry per problem found; every problem with a request is reported together") List<ErrorDetail> details) {

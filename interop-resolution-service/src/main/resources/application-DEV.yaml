@@ -1,6 +1,18 @@
 # DEV: developer profile (activate with --spring.profiles.active=DEV, or Profile = DEV in the STS run configuration):
-# no network, in-process MMI stub with the fixtures in mmi-stub/members.json and member information stub with the
-# fixtures in member-info-stub/members.json.
+# no network, in-process MMI stub with the fixtures in mmi-stub/members.json, member information stub with the
+# fixtures in member-info-stub/members.json, and an in-memory table for the coverage view filled from coverage-dev/data.sql.
+spring:
+  datasource:                                               # an in-memory table stands in for the coverage view
+    url: jdbc:h2:mem:coverage;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:coverage-dev/schema.sql
+      data-locations: classpath:coverage-dev/data.sql
 mmi:
   base-url: http://mmi-stub.local
   stub:

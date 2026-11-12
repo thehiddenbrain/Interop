@@ -81,7 +81,7 @@ class ResolutionServiceNameTest {
         };
         return new ResolutionService(new RequestValidator(properties, CLOCK), new VendorRegistry(table, new Payer("Point32Health", "Point32Health")),
                 mmi, mmiProperties, new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan,
-                new LineOfBusinessDeriver(), properties, CLOCK);
+                memberId -> List.of(), new LineOfBusinessDeriver(), properties, CLOCK);
     }
 
     private static MemberResolutionResponse resolve(String first, String middle, String last) {
