@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.p32h.interop.InteropResolutionApplication;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /** A wrong configuration must stop the application with a message that names the property. */
@@ -100,10 +101,27 @@ class ConfigValidationTest {
     }
 
     @Test
-    void aPasswordThatMerelyContainsBracesIsPassedOn() {
+    void anEmptyDatabaseUserNameOrPasswordFails() {
+        ApplicationContextRunner oracle = runner.withPropertyValues("spring.datasource.url=jdbc:oracle:thin:@//ods-host:1521/odssvc",
+                "spring.jpa.database-platform=org.hibernate.dialect.OracleDialect",
+                "spring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false");
+        oracle.withPropertyValues("spring.datasource.username=ods_reader", "spring.datasource.password=")
+                .run(ctx -> assertThat(rootMessage(ctx.getStartupFailure())).as("never a logon without a password")
+                        .contains("spring.datasource.password is empty"));
+        oracle.withPropertyValues("spring.datasource.username=", "spring.datasource.password=secret")
+                .run(ctx -> assertThat(rootMessage(ctx.getStartupFailure())).contains("spring.datasource.username is empty"));
+        oracle.withPropertyValues("spring.datasource.username=ods_reader", "spring.datasource.password=secret")
+                .run(ctx -> assertThat(ctx).as("the same database with both: nothing to refuse, and no connection is made to start").hasNotFailed());
+    }
+
+    @Test
+    void aPasswordWithBracesInsideIsNotTakenForAMissingVariable() {
         runner.withPropertyValues("spring.datasource.url=jdbc:h2:mem:braces", "spring.datasource.username=sa",
                         "spring.datasource.password=Xy${zz}Q1")
-                .run(ctx -> assertThat(ctx).as("only a value that is nothing but ${...} is refused").hasNotFailed());
+                .run(ctx -> {
+                    assertThat(ctx).as("only a value that is nothing but ${...} is refused").hasNotFailed();
+                    assertThat(ctx.getBean(DataSourceProperties.class).getPassword()).as("and this one arrives as given").isEqualTo("Xy${zz}Q1");
+                });
     }
 
     @Test

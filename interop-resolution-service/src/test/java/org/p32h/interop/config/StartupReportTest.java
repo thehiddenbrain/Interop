@@ -2,10 +2,42 @@ package org.p32h.interop.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.p32h.interop.InteropResolutionApplication;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.DefaultApplicationArguments;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /** The banner's coverage view line shows where the database is and nothing a JDBC URL may carry besides. */
 class StartupReportTest {
+
+    @Test
+    void theBannerShowsTheDatabaseAndTheAccountNeverThePassword() {
+        new ApplicationContextRunner().withUserConfiguration(InteropResolutionApplication.class)
+                .withPropertyValues("mmi.client-id=INTEROP", "mmi.base-url=http://mmi.test", "member-info.base-url=http://member-info.test",
+                        "member-id.vendors.EVICORE.format=COMPACT_11",
+                        "spring.datasource.url=jdbc:h2:mem:banner;DB_CLOSE_DELAY=-1", "spring.datasource.username=sa",
+                        "spring.datasource.password=BannerPw1")
+                .run(ctx -> {
+                    ListAppender<ILoggingEvent> logs = new ListAppender<>();
+                    logs.start();
+                    Logger reportLog = (Logger) LoggerFactory.getLogger(StartupReport.class);
+                    reportLog.addAppender(logs);
+                    try {
+                        ctx.getBean(StartupReport.class).run(new DefaultApplicationArguments());
+                    } finally {
+                        reportLog.detachAppender(logs);
+                    }
+                    assertThat(logs.list).hasSize(1);
+                    String banner = logs.list.get(0).getFormattedMessage();
+                    assertThat(banner.lines().filter(line -> line.startsWith("coverage view")))
+                            .containsExactly("coverage view     : member_coverage_rel_v at jdbc:h2:mem:banner as sa");
+                    assertThat(banner).doesNotContain("BannerPw1");
+                });
+    }
 
     @Test
     void aPlainUrlIsShownWithoutItsConnectionProperties() {

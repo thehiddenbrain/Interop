@@ -51,18 +51,23 @@ public class StartupReport implements ApplicationRunner {
         this.memberInfo = memberInfo;
         this.memberInfoClient = memberInfoClient;
         // An ODS_* variable that is not defined leaves its ${...} text in the value, and that text would go to the
-        // database as the user name or the password, again and again: stop the start here instead.
-        requireDefined("spring.datasource.username", dataSource.getUsername());
-        requireDefined("spring.datasource.password", dataSource.getPassword());
-        this.coverageDatabase = database(dataSource.getUrl());
+        // database as the user name or the password, again and again; an empty one would send a logon without an
+        // account or a password the same way. Stop the start here instead. An empty value is right for H2 only, the
+        // stand-in database of DEV and the tests; a missing URL is reported by the datasource itself.
+        String url = dataSource.getUrl();
+        boolean emptyAllowed = url == null || url.isBlank() || url.startsWith("jdbc:h2:");
+        requireDefined("spring.datasource.username", dataSource.getUsername(), emptyAllowed);
+        requireDefined("spring.datasource.password", dataSource.getPassword(), emptyAllowed);
+        this.coverageDatabase = database(url);
         this.coverageUser = dataSource.getUsername();
     }
 
     /** The message names the property and never shows the value. */
-    private static void requireDefined(String property, String value) {
-        if (value != null && value.matches("\\$\\{[^}]*}")) {
-            throw new IllegalStateException(property + " is not defined: every profile but DEV needs ODS_JDBC_URL, "
-                    + "ODS_USERNAME and ODS_PASSWORD");
+    private static void requireDefined(String property, String value, boolean emptyAllowed) {
+        boolean empty = value == null || value.isBlank();
+        if (empty ? !emptyAllowed : value.matches("\\$\\{[^}]*}")) {
+            throw new IllegalStateException(property + (empty ? " is empty" : " is not defined")
+                    + ": every profile but DEV needs ODS_JDBC_URL, ODS_USERNAME and ODS_PASSWORD");
         }
     }
 

@@ -150,11 +150,11 @@ What the lines tell you:
 | `mmi response ... status=404`, this service answers `200 NOT_FOUND` | Member not found: MMI's normal answer when it has no member for that id in that environment; `sourceMessage` in the response carries MMI's message when the body had one. If every id comes back `NOT_FOUND`, check the URL: a 404 whose body is not MMI's envelope (Spring's default error JSON with `status` / `error` / `path`, an HTML page) is still `NOT_FOUND`, but the log shows `marker=MMI_404_WITHOUT_ENVELOPE` with the URL | Use an id that exists in PQA. If the marker appears, compare the URL on the `mmi request` line with the MMI team's; `mmi.path` is `/master/member/v1` |
 | `mmi response ... status=400`, this service answers `400 MEMBER_LOOKUP_REJECTED` with `HTTP_400` | MMI could not process the request as sent; the error message forwards MMI's code and text when the body had a message | Send the request line's JSON and MMI's text to the MMI team; adjust `mmi.client-id` / `mmi.client-type` if they ask |
 | `mmi response ... status=500`, this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` with `HTTP_500` and `Retry-After: 10` | An internal error in MMI; the error message forwards MMI's code and text when the body had a message | Retry later; if it persists, send the request line's JSON and MMI's message to the MMI team |
-| `mmi response ... status=<anything else>` (403, 502, 503 ...), this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` (5xx, 429, 408) or `502 MEMBER_LOOKUP_ERROR` (other 4xx) with `HTTP_<code>` | The status is outside MMI's contract: a gateway, proxy or container answered, not MMI; the error message says so and repeats the URL | Check the host, the proxy settings and the URL on the `mmi request` line |
+| `mmi response ... status=<anything else>` (403, 502, 503 ...), this service answers `503 MEMBER_LOOKUP_UNAVAILABLE` (5xx, 429, 408) or `502 MEMBER_LOOKUP_ERROR` (other 4xx) with `HTTP_<code>` | The status is outside MMI's contract: a gateway, proxy or container answered, not MMI; the error message says so, and the URL is on the log line | Check the host, the proxy settings and the URL on the `mmi request` line |
 | `mmi response ... status=200` then `502 MEMBER_LOOKUP_INVALID_RESPONSE` with `UNPARSEABLE_BODY` from this service | The body is not the MMI JSON (often an HTML sign-in or proxy page, `contentType=text/html`) | The call is being intercepted before MMI; check proxy settings and the host |
 | `mmi response ... status=200` and the body has fields this service does not know | MMI added or renamed fields | Paste the response line; the DTOs in `org.p32h.interop.mmi` are updated to match |
 | `mmi response ... status=200`, `members` is empty and `messages[]` has no `ERROR` message, this service answers `200 NOT_FOUND` | MMI answered 200 with no member (MMI's contract uses 404 for that; this form is kept as `NOT_FOUND` too) | Use an id that exists in PQA |
-| `mmi response ... status=200`, `members` is empty and `messages[]` has an `ERROR` message (for example `ES_TIMEOUT`), this service answers `502 MEMBER_LOOKUP_ERROR` with `ERROR_MESSAGE` | MMI reported a failure of its own; the 502 message forwards MMI's `code=` and `text=` | Send the request line's JSON and MMI's message to the MMI team |
+| `mmi response ... status=200`, `members` is empty and `messages[]` has an `ERROR` message (for example `ES_TIMEOUT`), this service answers `502 MEMBER_LOOKUP_ERROR` with `ERROR_MESSAGE` | MMI reported a failure of its own; the 502 message forwards MMI's code and text | Send the request line's JSON and MMI's message to the MMI team |
 
 Turn it off with `mmi.log-payloads: false` in the profile file, or `MMI_LOG_PAYLOADS=false` once the
 problem is found. The rest of the log is the same whether or not payload logging is on.
@@ -235,9 +235,11 @@ database, no network. In every other profile the connection comes from the envir
 The three are required there, and the service does not start without them. With no
 URL, or a blank one, the console shows `Failed to configure a DataSource: 'url' attribute is not specified`; an
 in-memory database is never used in its place (`embedded-database-connection: none`). With a user name or a password
-that is not defined it shows `spring.datasource.password is not defined` (or `username`): `StartupReport` checks the
-two while starting, so the text `${ODS_PASSWORD}` is never sent to the database as a password, and the message never
-shows a value. A wrong password is not seen at startup: the service starts, identified members get the 503 below, and
+that is not defined it shows `spring.datasource.password is not defined` (or `username`), and with an empty one
+`spring.datasource.password is empty`: `StartupReport` checks the two while starting, so neither the text
+`${ODS_PASSWORD}` nor a logon without a password is ever sent to the database, and the message never shows a value.
+Neither value may contain `${`: Spring expands a `${...}` inside a value before it reaches the database, and the
+login then fails. A wrong password is not seen at startup: the service starts, identified members get the 503 below, and
 the pool retries the login every few seconds, so an account that locks after a number of failed logins locks within
 the minute. Check the password before the first run. The password comes from the secret store, never from a file; the account needs `SELECT` on the view only. The rest is set in `application.yaml`: the Hikari pool
 (`maximum-pool-size` 10, `connection-timeout` 2000 ms, `validation-timeout` 1000 ms, `initialization-fail-timeout` -1,
@@ -452,7 +454,7 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 | 400 | `INVALID_REQUEST` | Missing or unusable caller fields (`CLIENT_ID_MISSING`, `CLIENT_ID_INVALID`, `CLIENT_TYPE_MISSING`, `CLIENT_TYPE_INVALID`, `REQUEST_ID_MISSING`, `REQUEST_ID_INVALID`), a missing or blank member ID (`MEMBER_ID_MISSING`), bad dates (`DATE_OF_SERVICE_INVALID`, `DATE_OF_SERVICE_OUT_OF_RANGE` for a date more than 10 years back; there is no upper limit, a future date is judged on the coverage on record; `DATE_OF_SERVICE_END_INVALID`, `DATE_OF_SERVICE_END_BEFORE_START`, `DATE_OF_SERVICE_END_WITHOUT_START` for the end of a period of service; `DATE_OF_BIRTH_INVALID`, `DATE_OF_BIRTH_OUT_OF_RANGE`), or a body the service cannot read (`MALFORMED_JSON`, or `WRONG_JSON_TYPE` for the body or any field); every problem is listed in `details[]`. Unknown properties, a vendor included, are ignored, not rejected. (404 / 405 / 406 / 415 use the same envelope for a wrong route, method, representation or content type; the 404 detail `ROUTE_NOT_FOUND` says "the operation is POST /v1/interop/resolve".) | Never retry. `MEMBER_ID_MISSING` and `DATE_OF_SERVICE_OUT_OF_RANGE` are provider data problems, the caller codes are Onyx configuration, anything else is an Onyx mapping defect. |
 | 400 | `MEMBER_LOOKUP_REJECTED` | MMI answered 400: it could not process the request as sent (`details[0].code` `HTTP_400`; the message forwards MMI's code and text when MMI sent a message). `traceId` present, no `Retry-After`. | Never retry as is. Alert the service owners with the `traceId`; MMI's text says what it did not accept. |
 | 422 | `DOB_MISMATCH` | a DOB was sent and matches no record for this ID | Manual identity review; never file the auth. |
-| 502 | `MEMBER_LOOKUP_ERROR`, `MEMBER_LOOKUP_INVALID_RESPONSE` | MMI reported an error of its own in `messages[]` with no members (`ERROR_MESSAGE`; the message forwards MMI's code and text: `The member lookup reported an error: ES_TIMEOUT ...`); a 4xx other than 400 and 404 from the MMI endpoint, which is a gateway or proxy answering, not MMI (`HTTP_<code>`; the message says so and repeats the URL); an unreadable 2xx body (`EMPTY_BODY`, `UNPARSEABLE_BODY`); records without a member id (`NO_MEMBER_ID`); or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read). | Park, alert the service owners. |
+| 502 | `MEMBER_LOOKUP_ERROR`, `MEMBER_LOOKUP_INVALID_RESPONSE` | MMI reported an error of its own in `messages[]` with no members (`ERROR_MESSAGE`; the message forwards MMI's code and text: `The member lookup reported an error: ES_TIMEOUT ...`); a 4xx other than 400 and 404 from the MMI endpoint, which is a gateway or proxy answering, not MMI (`HTTP_<code>`; the message says so, and the URL goes to the log only); an unreadable 2xx body (`EMPTY_BODY`, `UNPARSEABLE_BODY`); records without a member id (`NO_MEMBER_ID`); or the member's only coverage spans have unreadable dates (`UNREADABLE_COVERAGE`: the service refuses to say INACTIVE on data it cannot read). | Park, alert the service owners. |
 | 503 | `MEMBER_LOOKUP_UNAVAILABLE` (`Retry-After: 10`) | MMI unreachable (`CONNECT_FAILED`) or timed out (`READ_TIMEOUT`); MMI 500 (`HTTP_500`; the message forwards MMI's code and text when present); a 5xx, 429 or 408 from a gateway in front of MMI (`HTTP_<code>`). | Retry later. |
 | 502 | `MEMBER_PLAN_ERROR`, `MEMBER_PLAN_INVALID_RESPONSE` | The member information service answered a status other than 200, 404, 408, 429 and 5xx (`HTTP_<code>`), or an empty or unreadable body (`EMPTY_BODY`, `UNPARSEABLE_BODY`). `traceId` present. | Park, alert the service owners. |
 | 503 | `MEMBER_PLAN_UNAVAILABLE` (`Retry-After: 10`) | The member information service unreachable (`CONNECT_FAILED`), timed out (`READ_TIMEOUT`) or answered 5xx, 429 or 408 (`HTTP_<code>`). `traceId` present. | Retry later. |
@@ -602,7 +604,7 @@ separators removed.
 | `880000000` | only an unreadable span -> 502 `UNREADABLE_COVERAGE` |
 | `901234567` | company missing on the record (inferred), restrictedData Y |
 | `V67659951` | coverage 01/01/2020 to 12/31/2023, nothing since: more than 24 months before today -> NOT_FOUND (no `sourceMessage`, `marker=NO_RECENT_COVERAGE`); a 2023 date -> ACTIVE |
-| `500500500`, `503503503`, `400400400`, `888888888`, `202202202` | faults: MMI 500 -> 503 `MEMBER_LOOKUP_UNAVAILABLE` `HTTP_500` (message `The member lookup reported an internal error: INTERNAL_ERROR search failed (stub)`), timeout -> 503 `READ_TIMEOUT`, MMI 400 -> 400 `MEMBER_LOOKUP_REJECTED` `HTTP_400` (message `The member lookup rejected the request: INVALID_REQUEST memberId could not be processed (stub)`), an `ERROR` message `ES_TIMEOUT` with no members -> 502 `ERROR_MESSAGE` (the message carries `code=ES_TIMEOUT text=search backend timed out (stub)`), bad body -> 502 `UNPARSEABLE_BODY` |
+| `500500500`, `503503503`, `400400400`, `888888888`, `202202202` | faults: MMI 500 -> 503 `MEMBER_LOOKUP_UNAVAILABLE` `HTTP_500` (message `The member lookup reported an internal error: INTERNAL_ERROR search failed (stub)`), timeout -> 503 `READ_TIMEOUT`, MMI 400 -> 400 `MEMBER_LOOKUP_REJECTED` `HTTP_400` (message `The member lookup rejected the request: INVALID_REQUEST memberId could not be processed (stub)`), an `ERROR` message `ES_TIMEOUT` with no members -> 502 `ERROR_MESSAGE` (message `The member lookup reported an error: ES_TIMEOUT search backend timed out (stub)`), bad body -> 502 `UNPARSEABLE_BODY` |
 | `887777777`, `886666666` | an error message beside a member record -> 200 with a warning; a record without a member id -> 502 `NO_MEMBER_ID` |
 | anything else (for example `HP111222333`) | NOT_FOUND: the stub answers like the real MMI, HTTP 404 with `messages: [ { messageType ERROR, statusCode "404", messageCode MEMBER_NOT_FOUND, message "No member found for the given id (stub)" } ]` and no members; the service answers 200 `NOT_FOUND` with that message in `sourceMessage`. The payload log line for the stub prints `status=404` |
 
@@ -619,7 +621,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (195 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (197 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -628,7 +630,7 @@ a gap and with overlapping records), vendor formats, MMI mapping, the REST clien
 configuration validation, and the end-to-end scenario matrix over HTTP against the stub and the in-memory coverage table with "today" fixed at
 2026-10-03. The scenarios assert `message` on `ACTIVE`, `message` and `sourceMessage` on `NOT_FOUND`,
 that `400400400` is 400 `MEMBER_LOOKUP_REJECTED` / `HTTP_400` with MMI's text and no `Retry-After`, and that
-the 502 `ERROR_MESSAGE` body carries MMI's `code=ES_TIMEOUT` and `text=`. Four of the scenarios cover
+the 502 `ERROR_MESSAGE` body carries MMI's code `ES_TIMEOUT` and its text. Four of the scenarios cover
 the vendor ids: the TMP id rendered for every vendor from one MMI call (Optum as the 9-character core, `memberId` in the order `received`,
 `resolved`, `forVendors`, no `vendor` in the response); HPHC and Public Plans ids passed as stored to every vendor, with the defaulted
 date and an INACTIVE gap; NOT_FOUND and AMBIGUOUS answers without `memberId.forVendors`, and a DOB that settles the
@@ -686,8 +688,9 @@ and the `traceId`, and so is a query that does not answer in time, with nothing 
 answer that needs no row is unaffected and the view is not read), and `CoverageDatabaseDownTest`, where nothing is
 mocked and the database is really absent (the service starts, `/actuator/health` is `UP`, an identified member gets the
 same 503 and `NOT_FOUND` is unaffected). `ConfigValidationTest` has the database user name or password that is not
-defined (the start fails naming the property, never the value) and `StartupReportTest` the banner's database text (a
-URL carrying an account, a password or connection properties never prints them).
+defined, or empty (the start fails naming the property, never the value) and `StartupReportTest` the banner's
+`coverage view` line (the database and the account, never the password; a URL carrying an account, a password or
+connection properties never prints them).
 
 ## 7. Assumptions to confirm in PQA
 
