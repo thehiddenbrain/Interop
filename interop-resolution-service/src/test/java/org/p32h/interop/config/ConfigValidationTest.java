@@ -91,8 +91,19 @@ class ConfigValidationTest {
                         "spring.datasource.password=${ODS_PASSWORD_NOT_DEFINED}")
                 .run(ctx -> {
                     assertThat(ctx).as("never started with the text ${...} for a password").hasFailed();
-                    assertThat(rootMessage(ctx.getStartupFailure())).contains("ODS_PASSWORD_NOT_DEFINED");
+                    assertThat(rootMessage(ctx.getStartupFailure())).as("the property is named, the value is not shown")
+                            .contains("spring.datasource.password is not defined").doesNotContain("ODS_PASSWORD_NOT_DEFINED");
                 });
+        runner.withPropertyValues("spring.datasource.url=jdbc:h2:mem:config", "spring.datasource.username=${ODS_USERNAME_NOT_DEFINED}",
+                        "spring.datasource.password=secret")
+                .run(ctx -> assertThat(rootMessage(ctx.getStartupFailure())).contains("spring.datasource.username is not defined"));
+    }
+
+    @Test
+    void aPasswordThatMerelyContainsBracesIsPassedOn() {
+        runner.withPropertyValues("spring.datasource.url=jdbc:h2:mem:braces", "spring.datasource.username=sa",
+                        "spring.datasource.password=Xy${zz}Q1")
+                .run(ctx -> assertThat(ctx).as("only a value that is nothing but ${...} is refused").hasNotFailed());
     }
 
     @Test

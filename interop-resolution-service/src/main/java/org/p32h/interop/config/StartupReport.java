@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceProperties;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -39,7 +40,7 @@ public class StartupReport implements ApplicationRunner {
 
     public StartupReport(Environment environment, MmiProperties mmi, MmiClient mmiClient, VendorRegistry vendors,
             VendorFormatter formatter, MemberIdProperties memberId, PayerProperties payer, MemberInfoProperties memberInfo,
-            MemberInfoClient memberInfoClient) {
+            MemberInfoClient memberInfoClient, DataSourceProperties dataSource) {
         this.environment = environment;
         this.mmi = mmi;
         this.mmiClient = mmiClient;
@@ -49,12 +50,29 @@ public class StartupReport implements ApplicationRunner {
         this.payer = payer;
         this.memberInfo = memberInfo;
         this.memberInfoClient = memberInfoClient;
-        // Read here, while the service is starting, so that an ODS_* variable that is not defined stops the start. Left
-        // unresolved, the text "${ODS_PASSWORD}" itself would go to the database as the password, again and again.
-        String url = environment.getProperty("spring.datasource.url", "");
-        this.coverageDatabase = url.substring(url.indexOf('@') + 1);     // never what stands before the @
-        this.coverageUser = environment.getProperty("spring.datasource.username");
-        environment.getProperty("spring.datasource.password");
+        // An ODS_* variable that is not defined leaves its ${...} text in the value, and that text would go to the
+        // database as the user name or the password, again and again: stop the start here instead.
+        requireDefined("spring.datasource.username", dataSource.getUsername());
+        requireDefined("spring.datasource.password", dataSource.getPassword());
+        this.coverageDatabase = database(dataSource.getUrl());
+        this.coverageUser = dataSource.getUsername();
+    }
+
+    /** The message names the property and never shows the value. */
+    private static void requireDefined(String property, String value) {
+        if (value != null && value.matches("\\$\\{[^}]*}")) {
+            throw new IllegalStateException(property + " is not defined: every profile but DEV needs ODS_JDBC_URL, "
+                    + "ODS_USERNAME and ODS_PASSWORD");
+        }
+    }
+
+    /**
+     * The database of a JDBC URL, for the banner. Connection properties are cut off, and what is left is shown only in a
+     * form that cannot carry an account or a password: nothing between {@code thin:} and the {@code @}.
+     */
+    static String database(String url) {
+        String plain = url == null ? "" : url.replaceFirst("[;?].*", "");
+        return plain.matches("jdbc:(oracle:thin:@|h2:mem:)[\\w.:/()=, -]+") ? plain : "(not shown)";
     }
 
     @Override

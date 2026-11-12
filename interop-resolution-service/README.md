@@ -109,7 +109,8 @@ and `ODS_PASSWORD` (*The coverage view*, below), and does not start without them
    each with the three `ODS_` variables set in the same shell.
 3. **Check the startup banner** in the console. It must say `profiles : [PQA]`, `mmi client : REST`,
    `member-info client: REST` and the PQA URLs. If it says `STUB`, the profile did not apply. `http://localhost:9090/actuator/info` shows the build.
-   The banner has no line for the coverage view, and the database is not called while starting: the service comes up
+   The banner's `coverage view` line shows the database and the account; the database itself is not called while
+   starting: the service comes up
    whether or not the database can be reached, and `/actuator/health` stays `UP` (the database is not part of the health
    check). Two things Hibernate logs at startup are expected for the same reason: a notice that `OracleDialect` does
    not need to be specified explicitly (it could be detected; it is named because the database is not asked), and
@@ -233,19 +234,20 @@ database, no network. In every other profile the connection comes from the envir
 `ODS_USERNAME` and `ODS_PASSWORD`. The three are required there, and the service does not start without them. With no
 URL, or a blank one, the console shows `Failed to configure a DataSource: 'url' attribute is not specified`; an
 in-memory database is never used in its place (`embedded-database-connection: none`). With a user name or a password
-that is not defined it shows `Could not resolve placeholder 'ODS_PASSWORD'`: `StartupReport` reads the three while
-starting, so the text `${ODS_PASSWORD}` is never sent to the database as a password. A wrong password is not seen at
-startup: the service starts, identified members get the 503 below, and the pool keeps retrying the login, so an
-account that locks after failed logins must be corrected promptly. The password comes from the secret store, never
-from a file; the account needs `SELECT` on the view only. The rest is set in `application.yaml`: the Hikari pool
+that is not defined it shows `spring.datasource.password is not defined` (or `username`): `StartupReport` checks the
+two while starting, so the text `${ODS_PASSWORD}` is never sent to the database as a password, and the message never
+shows a value. A wrong password is not seen at startup: the service starts, identified members get the 503 below, and
+the pool retries the login every few seconds, so an account that locks after a number of failed logins locks within
+the minute. Check the password before the first run. The password comes from the secret store, never from a file; the account needs `SELECT` on the view only. The rest is set in `application.yaml`: the Hikari pool
 (`maximum-pool-size` 10, `connection-timeout` 2000 ms, `validation-timeout` 1000 ms, `initialization-fail-timeout` -1,
 and the driver property `oracle.jdbc.ReadTimeout` 5000 ms, which cuts off a database that stops answering in the
 middle of a query; a query that merely runs long is cancelled after the 2 seconds), JPA (`open-in-view` false,
 `database-platform` `org.hibernate.dialect.OracleDialect`, `hibernate.ddl-auto` none,
 `hibernate.boot.allow_jdbc_metadata_access` false: no database call while starting, and Hibernate's notice at startup
 that it could have detected the dialect is expected) and `management.health.db.enabled` false: a database outage fails
-the answers that need it, not the pod. The startup banner shows `coverage view`: the database (never what stands
-before the `@` of the URL) and the account.
+the answers that need it, not the pod. The startup banner shows `coverage view`: the database and the account. The URL
+is printed without its connection properties and only in a plain form (`jdbc:oracle:thin:@...`, nothing between `thin:`
+and the `@`); a URL that carries an account or a password prints as `(not shown)`.
 
 A database that cannot be reached or does not answer in time, or a query that fails, fails the answer: 503
 `COVERAGE_LOOKUP_UNAVAILABLE` with `Retry-After: 10`, detail code `UNAVAILABLE`, the message
@@ -616,7 +618,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (192 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (195 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -682,8 +684,9 @@ matched exactly as stored; a row covers its first and last day; the stub members
 and the `traceId`, and so is a query that does not answer in time, with nothing in the body naming the database; an
 answer that needs no row is unaffected and the view is not read), and `CoverageDatabaseDownTest`, where nothing is
 mocked and the database is really absent (the service starts, `/actuator/health` is `UP`, an identified member gets the
-same 503 and `NOT_FOUND` is unaffected). `ConfigValidationTest` has the database variable that is not defined: the
-start fails naming it.
+same 503 and `NOT_FOUND` is unaffected). `ConfigValidationTest` has the database user name or password that is not
+defined (the start fails naming the property, never the value) and `StartupReportTest` the banner's database text (a
+URL carrying an account, a password or connection properties never prints them).
 
 ## 7. Assumptions to confirm in PQA
 
