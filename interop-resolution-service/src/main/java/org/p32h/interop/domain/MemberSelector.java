@@ -44,8 +44,8 @@ public final class MemberSelector {
     /**
      * @param dateOfService the date of service (the first day of a period): the record that covers it is the one whose
      *                      stored id is returned
-     * @param recentSince   the first day of the recent window: a person not covered on the date of service keeps
-     *                      being answered (INACTIVE) only with a span ending on or after it
+     * @param recentSince   the first day of the recent window: a person not covered on the date of service is kept
+     *                      as the member only with a span ending on or after it
      */
     public SelectionResult select(List<MemberRecord> records, LocalDate dateOfBirth, LocalDate dateOfService, LocalDate recentSince) {
         List<MemberRecord> merged = mergeDuplicates(records);
