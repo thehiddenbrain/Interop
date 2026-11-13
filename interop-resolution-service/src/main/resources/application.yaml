@@ -16,12 +16,12 @@ spring:
     error:                              # Boot 4 name (was server.error.*): for the rare error Tomcat answers before this service sees it
       include-message: never
       include-stacktrace: never
-  # The coverage view member_coverage_rel_v (Oracle): read once per answer for an identified member (ACTIVE or INACTIVE),
-  # by the resolved member id; the row gives coverage.effectiveDate, coverage.endDate and coverage.coverageId. The three
-  # values are required outside DEV (the DEV profile brings its own in-memory table) and the service does not start
-  # without them; the password comes from the secret store, never from a file. A database that is down or slow fails
-  # the answer with 503 COVERAGE_LOOKUP_UNAVAILABLE; it does not stop the service from starting and is not part of the
-  # health check.
+  # The coverage view member_coverage_rel_v (Oracle): read once per answer for a member MMI identified, by the resolved
+  # member id; its rows decide ACTIVE or INACTIVE and give coverage.effectiveDate, coverage.endDate and
+  # coverage.coverageId. The three values are required outside DEV (the DEV profile brings its own in-memory table) and
+  # the service does not start without them; the password comes from the secret store, never from a file. A database
+  # that is down or slow fails the answer with 503 COVERAGE_LOOKUP_UNAVAILABLE; it does not stop the service from
+  # starting and is not part of the health check.
   datasource:
     url: ${ODS_JDBC_URL:}               # jdbc:oracle:thin:@//host:1521/service; the account and password never go in the URL
     username: ${ODS_USERNAME}           # both must be given and not empty; keep ${ out of both: Spring replaces a ${name} it can resolve
@@ -81,7 +81,7 @@ mmi:
   void-coverage-record: N               # MMI drops void and negative spans; the service also skips voidFlag=Y
   error-message-types: [ERROR]          # messageType values MMI uses for errors in a 200 envelope
   # MMI's HTTP contract and how this service answers (fixed in RestMmiClient, not configurable):
-  #   200 -> outcome from the records      404 (no member) -> 200 NOT_FOUND
+  #   200 -> the member from the records      404 (no member) -> 200 NOT_FOUND
   #   400 (bad request) -> 400 MEMBER_LOOKUP_REJECTED with MMI's text      500 (internal error) -> 503 MEMBER_LOOKUP_UNAVAILABLE
   #   anything else is a gateway or proxy, not MMI: 503 (5xx/429/408) or 502
   log-payloads: ${MMI_LOG_PAYLOADS:false}  # print the full MMI request and response bodies (PHI); DEV/FQA/PQA/PQA-LITE turn it on

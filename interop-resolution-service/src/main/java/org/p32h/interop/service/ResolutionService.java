@@ -190,7 +190,7 @@ public class ResolutionService {
                 .orElseGet(() -> rows.stream().max(latest).orElse(null));
     }
 
-    /** MMI's answer reduced to one outcome, before it is rendered. */
+    /** The outcome of a request before it is rendered: MMI's answer reduced to one member, then ACTIVE or INACTIVE as the coverage view has it. */
     private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String reason,
             int persons, String mmiRequestId, int records, SourceMessage mmiNote) {
 
@@ -295,8 +295,8 @@ public class ResolutionService {
     }
 
     /**
-     * One plain sentence per outcome, for a human reading the response. It carries what used to be separate fields:
-     * why an INACTIVE member is not covered, and what to do about an AMBIGUOUS answer.
+     * One plain sentence per outcome, for a human reading the response: it says why an INACTIVE member is not covered,
+     * and what to do about an AMBIGUOUS answer.
      */
     private static String message(Resolved r, RequestValidator.Validated v) {
         return switch (r.outcome()) {

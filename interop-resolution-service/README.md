@@ -323,7 +323,7 @@ property are ignored), and the same payload with `"dateOfService": "10/15/2027"`
 | `outcome` | Meaning | Onyx action |
 |---|---|---|
 | `ACTIVE` | Member verified, `coverage.active = true`: a row of the member in the coverage view covers the date of service | Send each vendor its `memberId.forVendors` entry: it is already in that vendor's format (for Optum, the 9-character core only). The entry's `payerId`, `payerName` and `name` go on the same request. Keep `coverage.coverageId` with the transaction if the coverage must be referred to later: it names the member's row in the coverage view and is matched against the ids Onyx built from the plan's coverage extract. |
-| `INACTIVE` | Member verified, `coverage.active = false`: no row of the member in the coverage view covers the date of service. `message` says why (coverage ended, not yet effective, a gap, or no coverage on record); `coverage` carries the id and dates of the member's most recent row. Only for a member MMI shows with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
+| `INACTIVE` | Member verified, `coverage.active = false`: no row of the member in the coverage view covers the date of service. `message` says why (coverage ended, not yet effective, a gap, or no coverage on record); `coverage` carries the id and dates of the member's most recent row (none when the view has no row for the member). Only for a member MMI shows as current: covered on the date of service, or with some coverage ending in the last 24 months (`member-id.recent-coverage-months`); otherwise the answer is `NOT_FOUND` | Hold for intake. `memberId.forVendors` is still there if the business rule says to submit anyway. |
 | `NOT_FOUND` | MMI has no member for this id (MMI answers that with HTTP 404; it is a normal answer, so this service answers 200 with `message` "No member found for this id" and, when MMI sent a message, `sourceMessage` with MMI's own type / status / code / text), or every member MMI returned is stale on MMI's own spans: not covered on the date of service and with no coverage ending in the last 24 months. The stale case gets the same plain message and no `sourceMessage`; the log says `marker=NO_RECENT_COVERAGE` | "Member not found" worklist. |
 | `AMBIGUOUS` | Several members on the plan share the ID (a 9-character ID of a population with dependents) and no DOB settled it. Nobody is listed: the others on the plan may not be the patient | Resend with `dateOfBirth` or the member's full ID including the suffix; if it is still `AMBIGUOUS` (twins share a date of birth, or the records carry none), intake takes the full ID from the member's card. |
 
@@ -446,7 +446,7 @@ from this service (`ROUTE_NOT_FOUND`). Nothing in this mapping is configurable.
 
 | MMI | This service |
 |---|---|
-| 200 | `outcome` from the records: `ACTIVE`, `INACTIVE` or `AMBIGUOUS`. No members -> 200 `NOT_FOUND`, unless `messages[]` carries an `ERROR`-typed message (`mmi.error-message-types`): then 502 `MEMBER_LOOKUP_ERROR` / `ERROR_MESSAGE`, forwarding MMI's code and text (`The member lookup reported an error: ES_TIMEOUT ...`) |
+| 200 | The records say who the member is: one member, whose `ACTIVE` or `INACTIVE` the coverage view then decides, or `AMBIGUOUS`. No members -> 200 `NOT_FOUND`, unless `messages[]` carries an `ERROR`-typed message (`mmi.error-message-types`): then 502 `MEMBER_LOOKUP_ERROR` / `ERROR_MESSAGE`, forwarding MMI's code and text (`The member lookup reported an error: ES_TIMEOUT ...`) |
 | 404 (member not found) | 200 `NOT_FOUND`, whatever the body; `sourceMessage` carries MMI's first message when there is one. MMI's envelope is a JSON object with any of `members` / `messages` / `clientId` / `requestId`; an empty body counts as one. A 404 with any other body (a container's default error JSON, an HTML page) is still `NOT_FOUND`, and the log gets a WARN with `marker=MMI_404_WITHOUT_ENVELOPE` naming the URL, because a wrong `mmi.base-url` / `mmi.path` looks exactly like that |
 | 400 (bad request) | 400 `MEMBER_LOOKUP_REJECTED`, `details[0].code` `HTTP_400`, message `The member lookup rejected the request` + `: <MMI code> <MMI text>` when MMI sent a message. No `Retry-After`; `traceId` present |
 | 500 (internal error) | 503 `MEMBER_LOOKUP_UNAVAILABLE`, `details[0].code` `HTTP_500`, message `The member lookup reported an internal error` + `: <code> <text>` when present; `Retry-After: 10` |
@@ -728,9 +728,11 @@ connection properties never prints them).
   are one period and a period of service is judged on its first day.
 - The coverage view (`member_coverage_rel_v` in the ODS) is read by `member_id`, with the id exactly as MMI stores it.
   Confirm in PQA that the read by `member_id` is fast (the query is limited to 2 seconds), that the account has
-  `SELECT` on the view, and that one member's `coverageId` matches the id Onyx holds for that member. Watch the log
-  for `marker=COVERAGE_STATUS_DIFFERS` (the view and MMI's spans disagree on whether a member is covered; the view
-  decides) and `marker=COVERAGE_ROW_NOT_FOUND` (a member MMI knows has no row, and is answered `INACTIVE`).
+  `SELECT` on the view, that one member's `coverageId` matches the id Onyx holds for that member, and that the view
+  never holds a row whose `end_date` is before its `eff_date` (such a row covers no day, but it could be shown as the
+  most recent row of an `INACTIVE` member). Watch the log for `marker=COVERAGE_STATUS_DIFFERS` (the view and MMI's
+  spans disagree on whether a member is covered; the view decides) and `marker=COVERAGE_ROW_NOT_FOUND` (a member MMI
+  knows has no row, and is answered `INACTIVE`).
 - A single record returned for any population is the member (TMP/SCO always return one).
 - MMI reports the company as `THP` or `HPHC`, the values eviCore's and Evolent's payer entries key on, and the line of
   business of a Public Plans member as `PP`, the value Evolent's Tufts Health Public Plans entry keys on. Any other

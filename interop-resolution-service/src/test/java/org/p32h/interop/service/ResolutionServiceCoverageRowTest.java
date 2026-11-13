@@ -104,7 +104,7 @@ class ResolutionServiceCoverageRowTest {
         return List.of(new MmiCoverage(eff, end, "g", "N"));
     }
 
-    /** What the service logged while the call ran. */
+    /** What the service logged while the call ran, each line with its level in front. */
     private static List<String> logged(Runnable call) {
         ListAppender<ILoggingEvent> logs = new ListAppender<>();
         logs.start();
@@ -115,7 +115,7 @@ class ResolutionServiceCoverageRowTest {
         } finally {
             serviceLog.detachAppender(logs);
         }
-        return logs.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        return logs.list.stream().map(e -> e.getLevel() + " " + e.getFormattedMessage()).toList();
     }
 
     @Test
@@ -165,7 +165,7 @@ class ResolutionServiceCoverageRowTest {
             assertThat(active.coverage().endDate()).isEqualTo(LocalDate.parse("3999-12-31"));
         });
         assertThat(log).as("the two sources disagree, and the log says so")
-                .anySatisfy(m -> assertThat(m).contains("marker=COVERAGE_STATUS_DIFFERS", "memberId=" + STORED, "dos=2026-10-15"));
+                .anySatisfy(m -> assertThat(m).contains("INFO marker=COVERAGE_STATUS_DIFFERS", "memberId=" + STORED, "dos=2026-10-15"));
         // MMI has the member covered; the only row ended before the date
         ResolutionService covered = service(mmi("01/01/2020", null), List.of(row("2020-01-01", "2025-12-31")));
         log = logged(() -> {
@@ -175,7 +175,7 @@ class ResolutionServiceCoverageRowTest {
             assertThat(inactive.coverage().active()).isFalse();
             assertThat(inactive.coverage().endDate()).as("the most recent row").isEqualTo(LocalDate.parse("2025-12-31"));
         });
-        assertThat(log).anySatisfy(m -> assertThat(m).contains("marker=COVERAGE_STATUS_DIFFERS"));
+        assertThat(log).anySatisfy(m -> assertThat(m).contains("INFO marker=COVERAGE_STATUS_DIFFERS"));
         // both say covered: nothing to report
         ResolutionService agreeing = service(mmi("01/01/2020", null), List.of(row("2020-01-01", "3999-12-31")));
         assertThat(logged(() -> agreeing.resolve(on("2026-10-15", null), "corr-1")))
@@ -208,7 +208,7 @@ class ResolutionServiceCoverageRowTest {
             assertThat(r.memberId().forVendors()).as("the ids are returned all the same").hasSize(1);
         });
         assertThat(log).as("the missing row is logged with its marker")
-                .anySatisfy(m -> assertThat(m).contains("marker=COVERAGE_ROW_NOT_FOUND", "memberId=" + STORED));
+                .anySatisfy(m -> assertThat(m).contains("WARN marker=COVERAGE_ROW_NOT_FOUND", "memberId=" + STORED));
     }
 
     @Test
