@@ -29,7 +29,7 @@ public record MemberResolutionResponse(
         @Schema(description = "The date evaluated; the first date when a period was asked about", requiredMode = Schema.RequiredMode.REQUIRED) LocalDate dateOfService,
         @Schema(description = "The last date evaluated; present only when the request asked about a period") LocalDate dateOfServiceEnd,
         @Schema(description = "true when no dateOfService was sent and today was used", requiredMode = Schema.RequiredMode.REQUIRED) boolean dateOfServiceDefaulted,
-        @Schema(description = "The coverage flag and the member's coverage record with its id and dates: the record that covers the date of service when there is one, otherwise the member's most recent record. The dates need not agree with the flag (branch on active, never on the dates; message says why the member is inactive). Present on ACTIVE and INACTIVE answers only") Coverage coverage,
+        @Schema(description = "The coverage flag and the member's coverage record with its id and dates: on ACTIVE the record that covers the date of service, on INACTIVE the member's most recent record. Branch on active, never on the dates; message says why the member is inactive. Present on ACTIVE and INACTIVE answers only") Coverage coverage,
         @Schema(description = "The caller's requestId, echoed", requiredMode = Schema.RequiredMode.REQUIRED) String requestId,
         @Schema(description = "The id of the member lookup behind this answer; quote it to support", requiredMode = Schema.RequiredMode.REQUIRED) String traceId,
         @Schema(description = "What the member lookup said when it had no member for the id. NOT_FOUND only, and only when the lookup sent a message") SourceMessage sourceMessage) {

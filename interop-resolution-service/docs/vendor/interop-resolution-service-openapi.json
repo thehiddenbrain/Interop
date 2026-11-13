@@ -204,11 +204,11 @@
       },
       "Coverage": {
         "type": "object",
-        "description": "The coverage flag and the member's coverage record. active says whether coverage holds on the date of service. coverageId, effectiveDate and endDate are those of the plan's coverage record for the member: the record that covers the date of service (the first day of a period of service) when there is one, otherwise the member's most recent record, the one that ends last. The dates need not agree with the flag, so branch on active, never on the dates. message says why the member is inactive",
+        "description": "The coverage flag and the member's coverage record. active says whether coverage holds on the date of service: it is true when one of the plan's coverage records for the member covers that date (the first day of a period of service). coverageId, effectiveDate and endDate are those of that record; when no record covers the date they are those of the member's most recent record, the one that ends last. Branch on active, never on the dates. message says why the member is inactive",
         "properties": {
           "coverageId": {
             "type": "string",
-            "description": "An id for the coverage record: the resolved id reduced to letters and digits, then the record's effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open end). Present whenever the dates are; absent when the plan holds no coverage record for the member"
+            "description": "An id for the coverage record: the resolved id reduced to letters and digits, then the record's effective and end dates as yyyyMMdd, run together with no separator (39991231 for an open end). Present whenever the dates are; absent when the plan holds no coverage record for the member, who is then inactive"
           },
           "active": {
             "type": "boolean",
@@ -318,7 +318,7 @@
           },
           "coverage": {
             "$ref": "#/components/schemas/Coverage",
-            "description": "The coverage flag and the member's coverage record with its id and dates: the record that covers the date of service when there is one, otherwise the member's most recent record. The dates need not agree with the flag (branch on active, never on the dates; message says why the member is inactive). Present on ACTIVE and INACTIVE answers only"
+            "description": "The coverage flag and the member's coverage record with its id and dates: on ACTIVE the record that covers the date of service, on INACTIVE the member's most recent record. Branch on active, never on the dates; message says why the member is inactive. Present on ACTIVE and INACTIVE answers only"
           },
           "requestId": {
             "type": "string",

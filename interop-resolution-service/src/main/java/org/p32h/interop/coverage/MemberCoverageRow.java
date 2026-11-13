@@ -13,7 +13,8 @@ import org.hibernate.annotations.Immutable;
 /**
  * One row of the coverage view {@code member_coverage_rel_v}: a member's coverage as the plan's coverage table holds
  * it. Read only. The view has no primary key; member id, effective date and end date together are unique, so the three
- * are the id. An open end is 12/31/3999, never null. The coverage dates and the coverageId of an answer come from here.
+ * are the id. An open end is 12/31/3999, never null. ACTIVE or INACTIVE, the coverage dates and the coverageId of an
+ * answer come from here.
  */
 @Entity
 @Immutable

@@ -39,8 +39,9 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
 /**
- * The coverage dates and the coverageId come from the member's row in the coverage view; ACTIVE or INACTIVE and the
- * message stay MMI's. The row is the one covering the date of service, else the most recent one.
+ * ACTIVE or INACTIVE, the message, the coverage dates and the coverageId all come from the member's rows in the
+ * coverage view; MMI tells who the member is. The row shown is the one covering the date of service, else the most
+ * recent one.
  */
 class ResolutionServiceCoverageRowTest {
 
@@ -103,11 +104,25 @@ class ResolutionServiceCoverageRowTest {
         return List.of(new MmiCoverage(eff, end, "g", "N"));
     }
 
+    /** What the service logged while the call ran. */
+    private static List<String> logged(Runnable call) {
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        Logger serviceLog = (Logger) LoggerFactory.getLogger(ResolutionService.class);
+        serviceLog.addAppender(logs);
+        try {
+            call.run();
+        } finally {
+            serviceLog.detachAppender(logs);
+        }
+        return logs.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
+
     @Test
     void theDatesAndTheIdAreTheRowsNotMmis() {
         MemberResolutionResponse r = service(mmi("01/01/2024", "12/31/2026"), List.of(row("2023-04-01", "3999-12-31")))
                 .resolve(on("2026-10-15", null), "corr-1");
-        assertThat(r.outcome()).as("MMI decides").isEqualTo(Outcome.ACTIVE);
+        assertThat(r.outcome()).as("the row covers the date").isEqualTo(Outcome.ACTIVE);
         assertThat(r.message()).isEqualTo("Member found; coverage active on 2026-10-15");
         assertThat(r.coverage().active()).isTrue();
         assertThat(r.coverage().effectiveDate()).as("the row's start, not MMI's 2024-01-01").isEqualTo(LocalDate.parse("2023-04-01"));
@@ -139,49 +154,74 @@ class ResolutionServiceCoverageRowTest {
     }
 
     @Test
-    void theRowNeedNotAgreeWithTheFlag() {
-        // MMI knows the coverage ended; the coverage view still holds an open-ended row
-        MemberResolutionResponse inactive = service(mmi("01/01/2020", "07/31/2026"), List.of(row("2020-01-01", "3999-12-31")))
-                .resolve(on("2026-10-15", null), "corr-1");
-        assertThat(inactive.outcome()).isEqualTo(Outcome.INACTIVE);
-        assertThat(inactive.message()).isEqualTo("Member found; coverage ended before 2026-10-15");
-        assertThat(inactive.coverage().active()).as("the flag is MMI's").isFalse();
-        assertThat(inactive.coverage().endDate()).as("the dates are the row's, open end and all").isEqualTo(LocalDate.parse("3999-12-31"));
-        // MMI says covered; the only row ended before the date
-        MemberResolutionResponse active = service(mmi("01/01/2020", null), List.of(row("2020-01-01", "2025-12-31")))
-                .resolve(on("2026-10-15", null), "corr-1");
-        assertThat(active.outcome()).isEqualTo(Outcome.ACTIVE);
-        assertThat(active.coverage().active()).isTrue();
-        assertThat(active.coverage().endDate()).as("the most recent row, though it does not cover the date").isEqualTo(LocalDate.parse("2025-12-31"));
+    void theRowsDecideActiveOrInactiveNotMmi() {
+        // MMI has the coverage ended; the coverage view holds an open-ended row
+        ResolutionService ended = service(mmi("01/01/2020", "07/31/2026"), List.of(row("2020-01-01", "3999-12-31")));
+        List<String> log = logged(() -> {
+            MemberResolutionResponse active = ended.resolve(on("2026-10-15", null), "corr-1");
+            assertThat(active.outcome()).as("a row covers the date").isEqualTo(Outcome.ACTIVE);
+            assertThat(active.message()).isEqualTo("Member found; coverage active on 2026-10-15");
+            assertThat(active.coverage().active()).isTrue();
+            assertThat(active.coverage().endDate()).isEqualTo(LocalDate.parse("3999-12-31"));
+        });
+        assertThat(log).as("the two sources disagree, and the log says so")
+                .anySatisfy(m -> assertThat(m).contains("marker=COVERAGE_STATUS_DIFFERS", "memberId=" + STORED, "dos=2026-10-15"));
+        // MMI has the member covered; the only row ended before the date
+        ResolutionService covered = service(mmi("01/01/2020", null), List.of(row("2020-01-01", "2025-12-31")));
+        log = logged(() -> {
+            MemberResolutionResponse inactive = covered.resolve(on("2026-10-15", null), "corr-1");
+            assertThat(inactive.outcome()).as("no row covers the date").isEqualTo(Outcome.INACTIVE);
+            assertThat(inactive.message()).isEqualTo("Member found; coverage ended before 2026-10-15");
+            assertThat(inactive.coverage().active()).isFalse();
+            assertThat(inactive.coverage().endDate()).as("the most recent row").isEqualTo(LocalDate.parse("2025-12-31"));
+        });
+        assertThat(log).anySatisfy(m -> assertThat(m).contains("marker=COVERAGE_STATUS_DIFFERS"));
+        // both say covered: nothing to report
+        ResolutionService agreeing = service(mmi("01/01/2020", null), List.of(row("2020-01-01", "3999-12-31")));
+        assertThat(logged(() -> agreeing.resolve(on("2026-10-15", null), "corr-1")))
+                .noneSatisfy(m -> assertThat(m).contains("marker=COVERAGE_STATUS_DIFFERS"));
     }
 
     @Test
-    void withoutARowTheBlockCarriesTheFlagOnly() {
-        ListAppender<ILoggingEvent> logs = new ListAppender<>();
-        logs.start();
-        Logger serviceLog = (Logger) LoggerFactory.getLogger(ResolutionService.class);
-        serviceLog.addAppender(logs);
-        try {
-            MemberResolutionResponse r = service(mmi("01/01/2020", null), List.of()).resolve(on("2026-10-15", null), "corr-1");
-            assertThat(r.outcome()).isEqualTo(Outcome.ACTIVE);
-            assertThat(r.coverage().active()).isTrue();
+    void theReasonOfAnInactiveAnswerIsReadFromTheRows() {
+        List<MmiCoverage> covered = mmi("01/01/2020", null);   // MMI has the member covered throughout
+        assertThat(service(covered, List.of(row("2027-01-01", "3999-12-31"))).resolve(on("2026-10-15", null), "corr-1").message())
+                .isEqualTo("Member found; coverage not yet effective on 2026-10-15");
+        MemberResolutionResponse gap = service(covered, List.of(row("2024-01-01", "2026-06-30"), row("2027-01-01", "3999-12-31")))
+                .resolve(on("2026-10-15", null), "corr-1");
+        assertThat(gap.outcome()).isEqualTo(Outcome.INACTIVE);
+        assertThat(gap.message()).isEqualTo("Member found; no coverage on 2026-10-15 (gap between coverage periods)");
+        assertThat(gap.coverage().effectiveDate()).as("the most recent row: the one that ends last").isEqualTo(LocalDate.parse("2027-01-01"));
+    }
+
+    @Test
+    void withoutARowTheMemberIsInactiveAndTheBlockCarriesTheFlagOnly() {
+        ResolutionService service = service(mmi("01/01/2020", null), List.of());   // MMI has the member covered
+        List<String> log = logged(() -> {
+            MemberResolutionResponse r = service.resolve(on("2026-10-15", null), "corr-1");
+            assertThat(r.outcome()).as("the view has no coverage for the member").isEqualTo(Outcome.INACTIVE);
+            assertThat(r.message()).isEqualTo("Member found; no coverage on record");
+            assertThat(r.coverage().active()).isFalse();
             assertThat(r.coverage().coverageId()).isNull();
             assertThat(r.coverage().effectiveDate()).isNull();
             assertThat(r.coverage().endDate()).isNull();
             assertThat(r.memberId().forVendors()).as("the ids are returned all the same").hasSize(1);
-            assertThat(logs.list).extracting(ILoggingEvent::getFormattedMessage).as("the missing row is logged with its marker")
-                    .anySatisfy(m -> assertThat(m).contains("marker=COVERAGE_ROW_NOT_FOUND", "memberId=" + STORED));
-        } finally {
-            serviceLog.detachAppender(logs);
-        }
+        });
+        assertThat(log).as("the missing row is logged with its marker")
+                .anySatisfy(m -> assertThat(m).contains("marker=COVERAGE_ROW_NOT_FOUND", "memberId=" + STORED));
     }
 
     @Test
     void aPeriodOfServiceTakesTheRowCoveringItsFirstDay() {
         List<MemberCoverageRow> rows = List.of(row("2026-01-01", "2026-10-17"), row("2026-10-18", "3999-12-31"));
         MemberResolutionResponse r = service(mmi("01/01/2026", null), rows).resolve(on("2026-10-15", "2026-10-20"), "corr-1");
-        assertThat(r.message()).isEqualTo("Member found; coverage active from 2026-10-15 to 2026-10-20");
+        assertThat(r.message()).as("the two rows touch: one continuous coverage").isEqualTo("Member found; coverage active from 2026-10-15 to 2026-10-20");
         assertThat(r.coverage().endDate()).as("the row covering 2026-10-15").isEqualTo(LocalDate.parse("2026-10-17"));
+        // the rows stop before the period does, whatever MMI has
+        MemberResolutionResponse cut = service(mmi("01/01/2026", null), List.of(row("2026-01-01", "2026-10-17")))
+                .resolve(on("2026-10-15", "2026-10-20"), "corr-1");
+        assertThat(cut.outcome()).isEqualTo(Outcome.ACTIVE);
+        assertThat(cut.message()).isEqualTo("Member found; coverage active on 2026-10-15; ends 2026-10-17, before 2026-10-20");
     }
 
     @Test

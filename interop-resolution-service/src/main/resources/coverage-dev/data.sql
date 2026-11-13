@@ -18,3 +18,5 @@ insert into member_coverage_rel_v (member_id, eff_date, end_date) values ('78901
 insert into member_coverage_rel_v (member_id, eff_date, end_date) values ('890123456   01', DATE '2025-01-01', DATE '3999-12-31');
 insert into member_coverage_rel_v (member_id, eff_date, end_date) values ('901234567   01', DATE '2022-01-01', DATE '3999-12-31');
 insert into member_coverage_rel_v (member_id, eff_date, end_date) values ('V67659951   01', DATE '2020-01-01', DATE '2023-12-31');
+-- the member the stub returns beside an error message (StubMmiClient.FAULT_ERROR_WITH_MEMBER)
+insert into member_coverage_rel_v (member_id, eff_date, end_date) values ('887777777   01', DATE '2024-01-01', DATE '3999-12-31');

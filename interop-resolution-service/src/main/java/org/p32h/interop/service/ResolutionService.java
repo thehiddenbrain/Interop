@@ -11,6 +11,8 @@ import org.p32h.interop.coverage.CoverageLookupException;
 import org.p32h.interop.coverage.MemberCoverageRow;
 import org.p32h.interop.coverage.MemberCoverageRowRepository;
 import org.p32h.interop.domain.CoverageDecision;
+import org.p32h.interop.domain.CoverageEvaluator;
+import org.p32h.interop.domain.CoverageSpan;
 import org.p32h.interop.domain.MemberRecord;
 import org.p32h.interop.domain.MemberSelector;
 import org.p32h.interop.domain.ResolutionException;
@@ -43,9 +45,10 @@ import org.springframework.transaction.TransactionException;
 
 /**
  * The member resolution, {@code POST /v1/interop/resolve}: ask MMI once with the member id exactly as received,
- * reduce the records to one person, decide coverage on the date (or period) of service, ask the member information
- * service for that member's coverage records to derive the line of business, read the member's row in the coverage view
- * for the coverage dates and the coverageId, and render the stored id for every configured vendor.
+ * reduce the records to one person, ask the member information service for that member's coverage records to derive
+ * the line of business, read the member's rows in the coverage view, which decide ACTIVE or INACTIVE on the date (or
+ * period) of service and give the coverage dates and the coverageId, and render the stored id for every configured
+ * vendor.
  */
 @Service
 public class ResolutionService {
@@ -54,6 +57,8 @@ public class ResolutionService {
 
     /** The reason logged for a NOT_FOUND answered by the recent-coverage rule (the member exists, the answer says nothing of it). */
     static final String NO_RECENT_COVERAGE = "NO_RECENT_COVERAGE";
+
+    private static final CoverageEvaluator COVERAGE = new CoverageEvaluator();
 
     private final RequestValidator validator;
     private final VendorRegistry vendors;
@@ -90,9 +95,11 @@ public class ResolutionService {
     public MemberResolutionResponse resolve(MemberResolutionRequest request, String correlationId) {
         long start = System.nanoTime();
         RequestValidator.Validated v = validator.validate(request);
-        Resolved r = resolveMember(v, correlationId);
-        String lob = r.record() == null ? null : lineOfBusiness(r, v.dateOfService(), correlationId);
-        MemberCoverageRow row = r.record() == null ? null : coverageRow(r, v.dateOfService());
+        Resolved found = resolveMember(v, correlationId);
+        String lob = found.record() == null ? null : lineOfBusiness(found, v.dateOfService(), correlationId);
+        List<MemberCoverageRow> rows = found.record() == null ? List.of() : coverageRows(found);
+        Resolved r = found.record() == null ? found : found.decidedOn(coverage(found, rows, v.dateOfService()));
+        MemberCoverageRow row = shownRow(rows, v.dateOfService());
         List<MemberResolutionResponse.VendorMemberId> forVendors = null;
         if (r.record() != null) {
             List<MemberResolutionResponse.HumanName> name = MemberResolutionResponse.HumanName.of(r.record().name());
@@ -138,33 +145,60 @@ public class ResolutionService {
     }
 
     /**
-     * The identified member's row in the coverage view: the row that covers the date of service (the one that ends last,
-     * then starts last, when several do), else the member's most recent row; null when the member has none. MMI decides
-     * ACTIVE or INACTIVE; the row only gives the dates and the coverageId, so it need not agree with the flag. A database
-     * that cannot be reached (a {@code TransactionException}: no connection), does not answer in time or fails the query
-     * fails the answer: 503, carrying MMI's request id as traceId.
+     * The identified member's rows in the coverage view, read once. A database that cannot be reached (a
+     * {@code TransactionException}: no connection), does not answer in time or fails the query fails the answer: 503,
+     * carrying MMI's request id as traceId.
      */
-    private MemberCoverageRow coverageRow(Resolved r, LocalDate dateOfService) {
+    private List<MemberCoverageRow> coverageRows(Resolved found) {
         List<MemberCoverageRow> rows;
         try {
-            rows = coverageRows.findByMemberId(r.storedMemberId());
+            rows = coverageRows.findByMemberId(found.storedMemberId());
         } catch (DataAccessException | TransactionException e) {
-            throw new CoverageLookupException(r.mmiRequestId(), e);
+            throw new CoverageLookupException(found.mmiRequestId(), e);
         }
+        if (rows.isEmpty()) {
+            log.warn("marker=COVERAGE_ROW_NOT_FOUND memberId={}: the coverage view has no row for this member; answered "
+                    + "INACTIVE, the coverage block carries the flag only", found.storedMemberId());
+        }
+        return rows;
+    }
+
+    /**
+     * ACTIVE or INACTIVE on the date of service, decided on the member's rows in the coverage view: covered when a row
+     * covers the date, and without any row not covered. MMI's spans tell who the member is; they do not decide this,
+     * and an answer on which the two disagree is logged.
+     */
+    private static CoverageDecision coverage(Resolved found, List<MemberCoverageRow> rows, LocalDate dateOfService) {
+        CoverageDecision decision = COVERAGE.evaluate(
+                rows.stream().map(c -> new CoverageSpan(c.getEffDate(), c.getEndDate())).toList(), dateOfService);
+        if (decision.active() != found.coverage().active()) {
+            log.info("marker=COVERAGE_STATUS_DIFFERS memberId={} dos={}: the coverage view says {} ({}), MMI's spans say {} ({}); "
+                    + "the view decides", found.storedMemberId(), dateOfService, decision.active() ? "covered" : "not covered",
+                    decision.reason(), found.coverage().active() ? "covered" : "not covered", found.coverage().reason());
+        }
+        return decision;
+    }
+
+    /**
+     * The row whose dates and coverageId the answer shows: the row that covers the date of service (the one that ends
+     * last, then starts last, when several do), else the member's most recent row; null when the member has none.
+     */
+    private static MemberCoverageRow shownRow(List<MemberCoverageRow> rows, LocalDate dateOfService) {
         Comparator<MemberCoverageRow> latest = Comparator.comparing(MemberCoverageRow::getEndDate)
                 .thenComparing(MemberCoverageRow::getEffDate);
-        MemberCoverageRow row = rows.stream().filter(c -> c.covers(dateOfService)).max(latest)
+        return rows.stream().filter(c -> c.covers(dateOfService)).max(latest)
                 .orElseGet(() -> rows.stream().max(latest).orElse(null));
-        if (row == null) {
-            log.warn("marker=COVERAGE_ROW_NOT_FOUND memberId={}: the coverage view has no row for this member; the coverage "
-                    + "block carries the flag only", r.storedMemberId());
-        }
-        return row;
     }
 
     /** MMI's answer reduced to one outcome, before it is rendered. */
     private record Resolved(Outcome outcome, MemberRecord record, CoverageDecision coverage, String reason,
             int persons, String mmiRequestId, int records, SourceMessage mmiNote) {
+
+        /** The same member with ACTIVE or INACTIVE as the coverage view has it, in place of what MMI's spans said. */
+        Resolved decidedOn(CoverageDecision view) {
+            return new Resolved(view.active() ? Outcome.ACTIVE : Outcome.INACTIVE, record, view, reason, persons, mmiRequestId,
+                    records, mmiNote);
+        }
 
         String storedMemberId() {
             return record == null ? null : record.storedMemberId();
@@ -179,7 +213,7 @@ public class ResolutionService {
             return record == null ? null : record.lineOfBusiness();
         }
 
-        /** The flag from MMI's coverage decision; the id and the dates from the member's row in the coverage view, absent when there is none. */
+        /** The flag as decided on the member's rows in the coverage view; the id and the dates from the row shown, absent when the member has none. */
         Coverage coverageBlock(MemberCoverageRow row) {
             if (coverage == null) {
                 return null;
@@ -248,14 +282,13 @@ public class ResolutionService {
         }
         SelectionResult.Selected s = (SelectionResult.Selected) selection;
         if (s.readableSpans() == 0 && s.unreadableSpans() > 0) {
-            // every span the member has is unreadable: answering INACTIVE would be a confident wrong answer
+            // every span MMI holds for the member is unreadable: whether this is a current member cannot be told from it
             throw MmiException.invalidResponse(mmiResult.requestId(), "UNREADABLE_COVERAGE",
                     "every coverage span on the member record has an unreadable date; coverage cannot be determined", null);
         }
         CoverageDecision coverage = s.coverage();
         if (s.unreadableSpans() > 0) {
-            log.warn("marker=UNREADABLE_SPANS_ON_SELECTED mmiRequestId={} count={} active={}", mmiResult.requestId(),
-                    s.unreadableSpans(), coverage.active());
+            log.warn("marker=UNREADABLE_SPANS_ON_SELECTED mmiRequestId={} count={}", mmiResult.requestId(), s.unreadableSpans());
         }
         return new Resolved(coverage.active() ? Outcome.ACTIVE : Outcome.INACTIVE, s.record(), coverage, null, 1,
                 mmiResult.requestId(), members.size(), null);
@@ -273,7 +306,7 @@ public class ResolutionService {
                             : "Member found; coverage active on " + v.dateOfService() + "; ends " + r.coverage().span().end()
                                     + ", before " + v.lastDateOfService();
             case INACTIVE -> "Member found; " + switch (r.coverage().reason()) {
-                case NO_COVERAGE_RECORDS -> "no coverage on record"; // only from the evaluator in isolation: such a person is stale, NOT_FOUND
+                case NO_COVERAGE_RECORDS -> "no coverage on record"; // the member has no row in the coverage view
                 case NOT_YET_EFFECTIVE -> "coverage not yet effective on " + v.dateOfService();
                 case COVERAGE_ENDED -> "coverage ended before " + v.dateOfService();
                 case COVERAGE_GAP -> "no coverage on " + v.dateOfService() + " (gap between coverage periods)";
