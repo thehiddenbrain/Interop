@@ -93,5 +93,39 @@
         "lineOfBusinessDesc": null
       }
     ]
+  },
+  {
+    "_comment": "The D-SNP member's coverage record: source system 2064 and product DMA, from 2026 with no end, so the line of business is D-SNP. Only the fields the rule and the date check read are filled.",
+    "requestId": null,
+    "memberId": "34570890101",
+    "coverageRecords": [
+      {
+        "benefitId": null,
+        "businessLineKey": null,
+        "businessTypeIndicator": null,
+        "carrier": null,
+        "carrierCode": null,
+        "gridId": null,
+        "groupId": null,
+        "ratingState": null,
+        "homeGroupId": null,
+        "network": null,
+        "networkId": null,
+        "planCode": null,
+        "planEndDate": "3999-12-31T05:00:00.000+00:00",
+        "planName": null,
+        "planStartDate": "2026-01-01T05:00:00.000+00:00",
+        "planType": null,
+        "productCode": "DMA",
+        "sourceSystemId": "2064",
+        "subsidiary": null,
+        "voidFlag": "N",
+        "ipa": null,
+        "hierarchyLineOfBusiness": null,
+        "hierarchyCompany": null,
+        "hierarchyCompanyDesc": null,
+        "lineOfBusinessDesc": null
+      }
+    ]
   }
 ]

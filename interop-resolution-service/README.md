@@ -388,7 +388,8 @@ puts on that vendor's request: the vendor's own for the member's company when co
 default (`payer` block in `application.yaml`; `PAYER_ID` / `PAYER_NAME` override). Today eviCore gets its own (`TUFTS`
 for THP, `HARVARD PILGRIM HEALTH` for HPHC), Evolent gets its own, a numeric id with a name (`33` Tufts Health Plan for THP, TMP and
 Senior products; `32` Tufts Health Public Plans for a THP member whose member record carries line of business `PP`;
-`34` Harvard Pilgrim Health Care for HPHC) and
+`33` Tufts Health Plan again for a D-SNP member, whose member record carries `PP` too but whose answer carries line of
+business `D-SNP`; `34` Harvard Pilgrim Health Care for HPHC) and
 every other vendor gets `Point32Health`. Each entry also carries `name`, the member's name as the plan has it on record,
 in the FHIR HumanName shape the UM vendors take: one entry with `text` (the full name), `family` (the last name) and
 `given[]` (the first name, then the middle name when there is one). It is the same on every entry; Onyx puts it on the
@@ -555,9 +556,10 @@ member-id:
       display-name: Evolent
       format: COMPACT_11
       payer:                            # Evolent keys the payer on the heritage company, Public Plans members apart
-        THP:    { id: "33", name: "Tufts Health Plan" }
-        THP_PP: { id: "32", name: "Tufts Health Public Plans" }
-        HPHC:   { id: "34", name: "Harvard Pilgrim Health Care" }
+        THP:       { id: "33", name: "Tufts Health Plan" }
+        THP_PP:    { id: "32", name: "Tufts Health Public Plans" }
+        THP_D-SNP: { id: "33", name: "Tufts Health Plan" }        # D-SNP: PP on the member record, 33 for Evolent all the same
+        HPHC:      { id: "34", name: "Harvard Pilgrim Health Care" }
     CARELON:
       display-name: Carelon
       format: COMPACT_11
@@ -574,11 +576,14 @@ Formats: `COMPACT_11`, `SPACED_14`, `CORE_9`, `AS_STORED`. The TMP core is **9 c
 
 The payer per vendor lives in the same table. A vendor that keys the payer on the heritage company gets a `payer`
 block with an entry per company (`THP`, `HPHC`, as the member lookup reports it), each with an `id` and a `name`. An
-entry keyed company and line of business (`THP_PP`) comes first for the members of that company whose member record
-carries that line of business (MMI's own value: `PP` is Public Plans), then the company's entry; a member of any
-other company, and every vendor without the block, gets the default payer (`payer.id` / `payer.name`, today
-`Point32Health`). eviCore has `TUFTS` for THP and `HARVARD PILGRIM HEALTH` for HPHC, as both id and name. Evolent has id `33`
-with name `Tufts Health Plan` for THP, `32` / `Tufts Health Public Plans` for THP_PP and `34` / `Harvard Pilgrim Health Care` for HPHC.
+entry keyed company and line of business comes before the company's entry and is looked for twice: first with the line
+of business of the answer (`THP_D-SNP`: the derived value of section 1, `D-SNP`, `SCO`, `MA-HMO` and so on), then with
+the one on the member record (`THP_PP`: MMI's own value, where `PP` is Public Plans). A member of any other company,
+and every vendor without the block, gets the default payer (`payer.id` / `payer.name`, today `Point32Health`). eviCore
+has `TUFTS` for THP and `HARVARD PILGRIM HEALTH` for HPHC, as both id and name. Evolent has id `33` with name
+`Tufts Health Plan` for THP, `32` / `Tufts Health Public Plans` for THP_PP, `33` / `Tufts Health Plan` for THP_D-SNP
+(MMI reports a D-SNP member as `PP`, and Evolent wants `33` for it) and `34` / `Harvard Pilgrim Health Care` for HPHC.
+A D-SNP member whose coverage records match no D-SNP rule keeps MMI's `PP` as its line of business and so gets `32`.
 The startup log prints each vendor's payer next to its format; an entry without an id or a name stops the application
 with a message naming it. If the member lookup reports a company that such a vendor has no entry for, the default
 payer goes out and the log gets `marker=VENDOR_PAYER_DEFAULTED` with the vendor, the company and the line of business.
@@ -592,7 +597,8 @@ itself hands the id over untouched. The stub returns each record's whole coverag
 date; the member whose coverage ended 12/31/2023 is the stale one: `NOT_FOUND` today, `ACTIVE` for a 2023 date. The fixture dates are fixed while the DEV profile and Postman run on the real clock, so from 2027-01-01 the member whose coverage ended 12/31/2024 (the Public Plans twin) falls outside the 24 months and becomes `NOT_FOUND`; move that end date forward then, in `coverage-dev/data.sql` as well. `src/main/resources/member-info-stub/members.json` is the member information stub: the Together subscriber's coverage
 records (THPPMA, source system 2026; product SB from 2022 to 2024, product GT from 2025 with no end), so its answers carry
 `MA-TOGETHER` for a 2026 date and `MA-QHP` for a 2024 one; and the SCO member's record (business type SH, a plan
-code with SCO in it, 2023 to 2025), so a 2025 date carries `SCO`. Any other member has no records and keeps MMI's line of
+code with SCO in it, 2023 to 2025), so a 2025 date carries `SCO`; and the D-SNP member's record (source system 2064,
+product DMA, from 2026 with no end), so its answers carry `D-SNP`. Any other member has no records and keeps MMI's line of
 business. An in-memory H2 table named `member_coverage_rel_v` stands in for the coverage view: it is created from
 `src/main/resources/coverage-dev/schema.sql` and filled from `coverage-dev/data.sql`, one row per continuous coverage
 period of each stub member id (an open end as 12/31/3999; a converted member has rows under each of its two ids), and
@@ -609,6 +615,7 @@ separators removed.
 | `123456789` / `12345678901` / `123456789   01` | TMP, active, open-ended |
 | `234567890` | SCO, coverage ended 2025-12-31 -> INACTIVE |
 | `345678901` | Together family: 01 subscriber (DOB 1985-06-01), 02 dependent (DOB 2012-09-09, gap 06/2024 to 12/2024), 03 twin (ended 2024-12-31) -> AMBIGUOUS without DOB |
+| `34570890101` | Public Plans D-SNP member: `PP` on the member record, a coverage record with source system 2064 and product DMA -> `D-SNP`, and Evolent's payer `33` instead of `32` |
 | `HP456789012` / `HP-456789012` | HPHC, active (end `12/31/3999`) |
 | `567890123 01` <-> `HP567890123` | converted member: THP to 2024-12-31, HPHC from 2025-01-01 |
 | `678901234` | void span + ended span -> INACTIVE |
@@ -625,7 +632,7 @@ Postman: import `postman/InteropResolution.postman_collection.json` and
 `postman/Local.postman_environment.json` (`baseUrl = http://localhost:9090`). The collection sends `clientId` and
 `clientType` from its variables (`ONYX`, `EXT`) and a fresh `requestId` for every call from its pre-request script; a
 collection-level test checks that every 200 echoes it. Every request carries tests; run the whole collection with the
-Collection Runner for a green scenario pass (79 requests). Every folder but 6 exercises `POST /v1/interop/resolve`
+Collection Runner for a green scenario pass (80 requests). Every folder but 6 exercises `POST /v1/interop/resolve`
 (folder 6 is health and the OpenAPI document): folders 1 to 3 the populations and vendor formats, folder 4 not found
 and request validation, the caller fields included, folder 5 the member lookup failures, folder **7** every vendor's
 id from one lookup, the leniency (a `vendor` and unknown properties ignored, a missing member id answered 400
@@ -634,7 +641,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (198 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (201 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,
@@ -665,11 +672,12 @@ never reach MMI and that every odd-shaped id (10 digits, 40 digits, letters and 
 and echoed back unchanged in `memberId.received`, and the stub's `lastSearched()` proves the id arrives at MMI
 untouched. The payer is checked on every vendor entry of every identified answer in the scenarios (eviCore's `TUFTS` for THP
 and `HARVARD PILGRIM HEALTH` for HPHC; Evolent's `33` / `Tufts Health Plan` for THP, `32` / `Tufts Health Public Plans` for a Public Plans
-member and `34` / `Harvard Pilgrim Health Care` for HPHC; the default elsewhere, following the company that owns the date of service
+member, `33` again for the D-SNP member and `34` / `Harvard Pilgrim Health Care` for HPHC; the default elsewhere, following the company that owns the date of service
 for a converted member), and `ResolutionServicePayerTest` proves, with an id and a name that differ, that both land in their
 own fields, that the entry for the company and the line of business on the member record comes before the company's where a
-vendor has one, and that a company a vendor has no entry for gets the default and one `VENDOR_PAYER_DEFAULTED` warning per
-such vendor. `ResolutionServiceRecentCoverageTest` proves the window is `member-id.recent-coverage-months` back from today (INACTIVE with 24 or 3 months, NOT_FOUND with 2, for coverage that ended two months ago). `ResolutionServiceNameTest` proves the name on every vendor entry as one HumanName (one given name without
+vendor has one, that the entry for the line of business of the answer comes before that one (a D-SNP member whose record
+carries `PP`, while another Public Plans member keeps the entry for `PP`), and that a company a vendor has no entry for gets
+the default and one `VENDOR_PAYER_DEFAULTED` warning per such vendor. `ResolutionServiceRecentCoverageTest` proves the window is `member-id.recent-coverage-months` back from today (INACTIVE with 24 or 3 months, NOT_FOUND with 2, for coverage that ended two months ago). `ResolutionServiceNameTest` proves the name on every vendor entry as one HumanName (one given name without
 a middle name, no `family` without a last name, no `given` and no middle name in `text` without a first name), no name
 on any log line, and entries without a name plus one `MEMBER_NAME_MISSING` warning for a record without a first or last
 name.
@@ -738,7 +746,9 @@ connection properties never prints them).
   business of a Public Plans member as `PP`, the value Evolent's Tufts Health Public Plans entry keys on. Any other
   company gets those vendors the default payer and logs `VENDOR_PAYER_DEFAULTED`: watch for that marker in PQA. A
   Public Plans member MMI reports without `PP` would get Evolent `33` (Tufts Health Plan) with no warning: the per-request
-  log line shows the member record's value as `lobOnRecord`, so check it on the Public Plans ids tried in PQA.
+  log line shows the member record's value as `lobOnRecord`, so check it on the Public Plans ids tried in PQA. A D-SNP
+  member gets Evolent `33` through the derived line of business (`lob=D-SNP` on the same line): check one in PQA too,
+  since a D-SNP member whose coverage records match no rule keeps `PP` and would get `32`.
 - MMI's error `messageType` is `ERROR` (`mmi.error-message-types`). MMI's contract is 200 / 404 / 400 / 500;
   confirm in PQA that a not-found 404 carries the envelope (`messages[]` with MMI's code and text), so `sourceMessage`
   can be filled: if the log shows `MMI_404_WITHOUT_ENVELOPE` for an id that exists nowhere, it does not.

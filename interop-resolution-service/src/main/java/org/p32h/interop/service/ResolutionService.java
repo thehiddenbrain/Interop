@@ -109,12 +109,12 @@ public class ResolutionService {
             }
             forVendors = vendors.all().stream()
                     .map(vendor -> {
-                        if (!vendor.payerByCompany().isEmpty() && !vendor.hasOwnPayerFor(r.company(), r.recordLineOfBusiness())) {
+                        if (!vendor.payerByCompany().isEmpty() && !vendor.hasOwnPayerFor(r.company(), lob, r.recordLineOfBusiness())) {
                             log.warn("marker=VENDOR_PAYER_DEFAULTED vendor={} company={} lineOfBusiness={}: the vendor keys the payer on "
                                     + "the company and has no entry for this one; the default payer was returned", vendor.code(), r.company(),
                                     r.recordLineOfBusiness());
                         }
-                        Payer payer = vendor.payerFor(r.company(), r.recordLineOfBusiness());
+                        Payer payer = vendor.payerFor(r.company(), lob, r.recordLineOfBusiness());
                         return new MemberResolutionResponse.VendorMemberId(vendor.code(),
                                 formatter.format(r.record().storedMemberId(), vendor.format()).value(), payer.id(), payer.name(), name);
                     })

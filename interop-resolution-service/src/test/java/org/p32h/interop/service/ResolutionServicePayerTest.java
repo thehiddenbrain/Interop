@@ -15,7 +15,9 @@ import org.p32h.interop.config.MemberIdProperties.VendorConfig;
 import org.p32h.interop.domain.CoverageEvaluator;
 import org.p32h.interop.domain.MemberSelector;
 import org.p32h.interop.memberinfo.MemberInfoClient;
+import org.p32h.interop.memberinfo.MemberInfoMember;
 import org.p32h.interop.memberinfo.MemberInfoResponse;
+import org.p32h.interop.memberinfo.MemberPlan;
 import org.p32h.interop.mmi.MmiClient;
 import org.p32h.interop.mmi.MmiCoverage;
 import org.p32h.interop.mmi.MmiMember;
@@ -40,22 +42,27 @@ import org.slf4j.LoggerFactory;
 
 /**
  * The payer in each vendor entry, straight through the service, with an id and a name that differ so a swap would show:
- * the vendor's own for the member's company, or for the company and the line of business on the member record, the
- * default otherwise, and a warning when a vendor that keys the payer on the company has no entry for the member's.
+ * the vendor's own for the member's company, or for the company and a line of business (the one of the answer first,
+ * then the one on the member record), the default otherwise, and a warning when a vendor that keys the payer on the
+ * company has no entry for the member's.
  */
 class ResolutionServicePayerTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-03T16:00:00Z"), ZoneId.of("America/New_York"));
     private static final Payer DEFAULT = new Payer("DEFAULT-ID", "Default payer name");
 
-    /** A service whose member lookup always returns one member of {@code company} with {@code lineOfBusiness}, covered from 2020 on. */
-    private static ResolutionService serviceFor(String company, String lineOfBusiness) {
+    /**
+     * A service whose member lookup always returns one member of {@code company} with {@code lineOfBusiness}, covered from
+     * 2020 on, and whose member plan lookup returns {@code coverageRecords} for that member.
+     */
+    private static ResolutionService serviceFor(String company, String lineOfBusiness, MemberPlan... coverageRecords) {
         Map<String, VendorConfig> table = new LinkedHashMap<>();
         table.put("EVICORE", new VendorConfig("eviCore", VendorIdFormat.COMPACT_11,
                 Map.of("THP", new PayerConfig("THP-ID", "THP payer name"))));
         table.put("EVOLENT", new VendorConfig("Evolent", VendorIdFormat.COMPACT_11,
                 Map.of("THP", new PayerConfig("EVOLENT-THP-ID", "Evolent THP payer name"),
-                        "THP_PP", new PayerConfig("EVOLENT-THPP-ID", "Evolent Public Plans payer name"))));
+                        "THP_PP", new PayerConfig("EVOLENT-THPP-ID", "Evolent Public Plans payer name"),
+                        "THP_D-SNP", new PayerConfig("EVOLENT-DSNP-ID", "Evolent D-SNP payer name"))));
         table.put("MHK", new VendorConfig("MHK", VendorIdFormat.SPACED_14, null));
         MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, 24, table);
         MmiClient mmi = new MmiClient() {
@@ -73,10 +80,10 @@ class ResolutionServicePayerTest {
         };
         MmiProperties mmiProperties = new MmiProperties("http://mmi.test", "/master/member/v1", "INTEROP", "INT", Duration.ofSeconds(2),
                 Duration.ofSeconds(5), "N", List.of("ERROR"), false, new MmiProperties.Stub(false, ""));
-        MemberInfoClient noPlan = new MemberInfoClient() {
+        MemberInfoClient plans = new MemberInfoClient() {
             @Override
             public MemberInfoResponse lookup(String memberId, LocalDate dateOfService, String correlationId) {
-                return new MemberInfoResponse(null, List.of());
+                return new MemberInfoResponse(null, List.of(new MemberInfoMember(null, "TESTMEMBER", List.of(coverageRecords))));
             }
 
             @Override
@@ -85,11 +92,12 @@ class ResolutionServicePayerTest {
             }
         };
         return new ResolutionService(new RequestValidator(properties, CLOCK), new VendorRegistry(table, DEFAULT), mmi, mmiProperties,
-                new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), noPlan, memberId -> List.of(), new LineOfBusinessDeriver(), properties, CLOCK);
+                new MmiRecordMapper(), new MemberSelector(new CoverageEvaluator()), new VendorFormatter(), plans, memberId -> List.of(), new LineOfBusinessDeriver(), properties, CLOCK);
     }
 
-    private static MemberResolutionResponse resolve(String company, String lineOfBusiness) {
-        return serviceFor(company, lineOfBusiness).resolve(new MemberResolutionRequest("ONYX", "EXT", "TEST-1", "TESTMEMBER", "2026-10-15", null, null), "corr-1");
+    private static MemberResolutionResponse resolve(String company, String lineOfBusiness, MemberPlan... coverageRecords) {
+        return serviceFor(company, lineOfBusiness, coverageRecords)
+                .resolve(new MemberResolutionRequest("ONYX", "EXT", "TEST-1", "TESTMEMBER", "2026-10-15", null, null), "corr-1");
     }
 
     private static VendorMemberId entry(MemberResolutionResponse r, String vendor) {
@@ -135,6 +143,26 @@ class ResolutionServicePayerTest {
                     .as("a vendor without a THP_PP entry keeps the company's").containsExactly("THP-ID", "THP payer name");
             assertThat(entry(r, "MHK")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
                     .containsExactly("DEFAULT-ID", "Default payer name");
+            assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("VENDOR_PAYER_DEFAULTED"));
+        } finally {
+            release(logs);
+        }
+    }
+
+    @Test
+    void aDsnpMemberGetsTheEntryForTheLineOfBusinessOfTheAnswerAlthoughItsRecordCarriesPublicPlans() {
+        ListAppender<ILoggingEvent> logs = captureServiceLog();
+        try {
+            MemberResolutionResponse dsnp = resolve("THP", "PP", LineOfBusinessDeriverTest.record("2064", null, "DMA", "2026-01-01", null));
+            assertThat(dsnp.lineOfBusiness()).isEqualTo("D-SNP");
+            assertThat(entry(dsnp, "EVOLENT")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .as("THP_D-SNP comes before THP_PP").containsExactly("EVOLENT-DSNP-ID", "Evolent D-SNP payer name");
+            assertThat(entry(dsnp, "EVICORE")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .as("a vendor without that entry keeps the company's").containsExactly("THP-ID", "THP payer name");
+            MemberResolutionResponse together = resolve("THP", "PP", LineOfBusinessDeriverTest.record("2026", "THPPMA", "GT", "2026-01-01", null));
+            assertThat(together.lineOfBusiness()).isEqualTo("MA-TOGETHER");
+            assertThat(entry(together, "EVOLENT")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .as("another Public Plans member keeps the entry for PP").containsExactly("EVOLENT-THPP-ID", "Evolent Public Plans payer name");
             assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("VENDOR_PAYER_DEFAULTED"));
         } finally {
             release(logs);

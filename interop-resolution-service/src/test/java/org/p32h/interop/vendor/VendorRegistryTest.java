@@ -30,18 +30,37 @@ class VendorRegistryTest {
                                 "thp_pp", new PayerConfig("THPP", "Tufts Health Public Plans"))),
                 "MHK", new VendorConfig(null, VendorIdFormat.SPACED_14, null)), DEFAULT);
         Vendor evicore = r.all().get(0);
-        assertThat(evicore.payerFor("THP", "COM")).isEqualTo(new Payer("TUFTS", "Tufts Health Plan"));
-        assertThat(evicore.payerFor("THP", null)).as("no line of business on the record: the company's entry").isEqualTo(new Payer("TUFTS", "Tufts Health Plan"));
-        assertThat(evicore.payerFor("THP", " pp ")).as("the entry for the company and the line of business on the record comes first")
+        assertThat(evicore.payerFor("THP", "COM", "COM")).isEqualTo(new Payer("TUFTS", "Tufts Health Plan"));
+        assertThat(evicore.payerFor("THP", null, null)).as("no line of business at all: the company's entry").isEqualTo(new Payer("TUFTS", "Tufts Health Plan"));
+        assertThat(evicore.payerFor("THP", "MA-TOGETHER", " pp ")).as("the entry for the company and the line of business on the record comes before the company's")
                 .isEqualTo(new Payer("THPP", "Tufts Health Public Plans"));
-        assertThat(evicore.payerFor(" hphc ", "COM")).as("the company as the lookup reports it, case and blanks aside").isEqualTo(new Payer("HPHC", "Harvard Pilgrim"));
-        assertThat(evicore.payerFor("HPHC", "PP")).as("no entry for that line of business of the company: the company's").isEqualTo(new Payer("HPHC", "Harvard Pilgrim"));
-        assertThat(evicore.payerFor("OTHER", "PP")).as("a company without an entry gets the default").isEqualTo(DEFAULT);
-        assertThat(evicore.payerFor(null, "PP")).isEqualTo(DEFAULT);
-        assertThat(evicore.hasOwnPayerFor("hphc", null)).isTrue();
-        assertThat(evicore.hasOwnPayerFor("OTHER", "PP")).isFalse();
-        assertThat(evicore.hasOwnPayerFor(null, null)).isFalse();
-        assertThat(r.all().get(1).payerFor("THP", "PP")).as("a vendor without entries gets the default").isEqualTo(DEFAULT);
+        assertThat(evicore.payerFor(" hphc ", "COM", "COM")).as("the company as the lookup reports it, case and blanks aside").isEqualTo(new Payer("HPHC", "Harvard Pilgrim"));
+        assertThat(evicore.payerFor("HPHC", "PP", "PP")).as("no entry for that line of business of the company: the company's").isEqualTo(new Payer("HPHC", "Harvard Pilgrim"));
+        assertThat(evicore.payerFor("OTHER", "PP", "PP")).as("a company without an entry gets the default").isEqualTo(DEFAULT);
+        assertThat(evicore.payerFor(null, "PP", "PP")).isEqualTo(DEFAULT);
+        assertThat(evicore.hasOwnPayerFor("hphc", null, null)).isTrue();
+        assertThat(evicore.hasOwnPayerFor("OTHER", "PP", "PP")).isFalse();
+        assertThat(evicore.hasOwnPayerFor(null, null, null)).isFalse();
+        assertThat(r.all().get(1).payerFor("THP", "PP", "PP")).as("a vendor without entries gets the default").isEqualTo(DEFAULT);
+    }
+
+    @Test
+    void theLineOfBusinessOfTheAnswerComesBeforeTheOneOnTheRecord() {
+        VendorRegistry r = new VendorRegistry(Map.of(
+                "EVOLENT", new VendorConfig(null, VendorIdFormat.COMPACT_11,
+                        Map.of("THP", new PayerConfig("33", "Tufts Health Plan"), "THP_PP", new PayerConfig("32", "Tufts Health Public Plans"),
+                                "thp_d-snp", new PayerConfig("33", "Tufts Health Plan, D-SNP")))), DEFAULT);
+        Vendor evolent = r.all().get(0);
+        assertThat(evolent.payerFor("THP", "D-SNP", "PP")).as("a D-SNP member, whose member record carries PP")
+                .isEqualTo(new Payer("33", "Tufts Health Plan, D-SNP"));
+        assertThat(evolent.payerFor("THP", " d-snp ", "PP")).as("case and blanks aside").isEqualTo(new Payer("33", "Tufts Health Plan, D-SNP"));
+        assertThat(evolent.payerFor("THP", "MA-TOGETHER", "PP")).as("another Public Plans member keeps the entry for PP")
+                .isEqualTo(new Payer("32", "Tufts Health Public Plans"));
+        assertThat(evolent.payerFor("THP", "PP", "PP")).as("nothing derived: the answer carries the record's value")
+                .isEqualTo(new Payer("32", "Tufts Health Public Plans"));
+        assertThat(evolent.payerFor("THP", "MA-HMO", "MCR")).as("no entry for either: the company's").isEqualTo(new Payer("33", "Tufts Health Plan"));
+        assertThat(evolent.payerFor("HPHC", "D-SNP", "PP")).as("the entry belongs to THP: no entry for this company at all").isEqualTo(DEFAULT);
+        assertThat(evolent.hasOwnPayerFor("THP", "D-SNP", null)).isTrue();
     }
 
     @Test

@@ -919,6 +919,16 @@ class ResolveScenariosTest {
     }
 
     @Test
+    void aDsnpMemberGetsEvolents33AlthoughItsMemberRecordCarriesPublicPlans() throws Exception {
+        String dsnpMember = CoverageLookupFailureTest.stubMemberId(json, "Public Plans D-SNP member");
+        JsonNode dsnp = call(200, Map.of("memberId", dsnpMember, "dateOfService", "2026-10-15"));
+        assertThat(dsnp.get("outcome").asText()).isEqualTo("ACTIVE");
+        assertThat(dsnp.get("lineOfBusiness").asText()).as("from the coverage record: source system 2064, product DMA").isEqualTo("D-SNP");
+        assertPayers(dsnp, "TUFTS", "33", "Tufts Health Plan");
+        dsnp.at("/memberId/forVendors").forEach(e -> assertThat(e.get("memberId").asText()).as("a Public Plans id goes out as stored").isEqualTo(dsnpMember));
+    }
+
+    @Test
     void resolutionWithoutAnIdentifiedMemberCarriesNoVendorIds() throws Exception {
         JsonNode notFound = call(200, Map.of("memberId", "HP111222333", "dateOfService", "2026-10-15"));
         assertThat(notFound.get("outcome").asText()).isEqualTo("NOT_FOUND");

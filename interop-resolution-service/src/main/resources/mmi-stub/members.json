@@ -475,5 +475,29 @@
         "voidFlag": "N"
       }
     ]
+  },
+  {
+    "_comment": "Public Plans D-SNP member. The member record carries line of business PP; the coverage record (source system 2064, product DMA) makes the answer D-SNP, and Evolent's payer is 33 for it.",
+    "memberId": "34570890101",
+    "subscriberMemberId": "34570890101",
+    "policyId": "345708901",
+    "memberFirstName": "Devon",
+    "memberLastName": "Santos",
+    "memberDob": "03/14/1958",
+    "gender": "M",
+    "socialSecurityNumber": "***-**-7788",
+    "legacyMemberId": null,
+    "company": "THP",
+    "lineOfBusiness": "PP",
+    "restrictedData": "N",
+    "coverage": [
+      {
+        "effDate": "01/01/2026",
+        "endDate": null,
+        "groupId": "DS000001",
+        "groupName": "D-SNP",
+        "voidFlag": "N"
+      }
+    ]
   }
 ]

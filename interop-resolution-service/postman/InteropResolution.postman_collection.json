@@ -3387,6 +3387,64 @@
           "response": []
         },
         {
+          "name": "Public Plans D-SNP member: Evolent's payer is 33",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"outcome ACTIVE\", function () { pm.expect(pm.response.json().outcome).to.eql(\"ACTIVE\"); });",
+                  "pm.test(\".message is a non-empty string\", function () { const j = pm.response.json(); pm.expect(j.message).to.be.a(\"string\"); pm.expect(j.message.length).to.be.above(0); });",
+                  "pm.test(\".lineOfBusiness = D-SNP (source system 2064, product DMA)\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.lineOfBusiness)).to.eql(JSON.stringify(\"D-SNP\")); });",
+                  "pm.test(\".coverage.active = True\", function () { const j = pm.response.json(); pm.expect(JSON.stringify(j.coverage.active)).to.eql(JSON.stringify(true)); });",
+                  "pm.test(\"6 memberId.forVendors entries, one per vendor, sorted by code\", function () { const j = pm.response.json(); pm.expect(j.memberId.forVendors.length).to.eql(6); pm.expect(j.memberId.forVendors.map(function (v) { return v.vendor; })).to.eql([\"CARELON\", \"EVICORE\", \"EVOLENT\", \"MHK\", \"ONYX\", \"OPTUM\"]); });",
+                  "pm.test(\"every vendor memberId = 34570890101\", function () { const j = pm.response.json(); j.memberId.forVendors.forEach(function (v) { pm.expect(JSON.stringify(v.memberId), v.vendor).to.eql(JSON.stringify(\"34570890101\")); }); });",
+                  "pm.test(\"traceId present (the lookup was made)\", function () { const j = pm.response.json(); pm.expect(j.traceId).to.be.a(\"string\"); pm.expect(/^[^-]+-\\d{13}-\\d{5}$/.test(j.traceId)).to.eql(true); });",
+                  "pm.test(\"payer per vendor: eviCore TUFTS, Evolent 33 / Tufts Health Plan although the member record carries PP, every other vendor Point32Health\", function () { const j = pm.response.json(); pm.expect(j).to.not.have.property(\"payerId\"); j.memberId.forVendors.forEach(function (v) { pm.expect(Object.keys(v), v.vendor).to.eql([\"vendor\", \"memberId\", \"payerId\", \"payerName\", \"name\"]); const wantId = v.vendor === \"EVICORE\" ? \"TUFTS\" : v.vendor === \"EVOLENT\" ? \"33\" : \"Point32Health\"; const wantName = v.vendor === \"EVOLENT\" ? \"Tufts Health Plan\" : wantId; pm.expect(v.payerId, v.vendor).to.eql(wantId); pm.expect(v.payerName, v.vendor).to.eql(wantName); }); });",
+                  "pm.test(\"name per vendor: one FHIR HumanName with text, family and given (first name, then middle name)\", function () { const j = pm.response.json(); j.memberId.forVendors.forEach(function (v) { pm.expect(v.name, v.vendor).to.be.an(\"array\").with.lengthOf(1); const n = v.name[0]; pm.expect(Object.keys(n), v.vendor).to.eql([\"text\", \"family\", \"given\"]); pm.expect(n.given, v.vendor).to.be.an(\"array\").with.length.within(1, 2); pm.expect(n.family, v.vendor).to.be.a(\"string\").that.is.not.empty; pm.expect(n.text, v.vendor).to.eql(n.given.concat([n.family]).join(\" \")); pm.expect(n, v.vendor).to.not.have.property(\"memberFirstName\"); }); });",
+                  "pm.test(\"no PHI leaks\", function () { const b = pm.response.text(); pm.expect(b).to.not.include(\"memberFirstName\"); pm.expect(b).to.not.include(\"socialSecurityNumber\"); pm.expect(b).to.not.include(\"memberDob\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/interop/resolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "interop",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"clientType\": \"{{clientType}}\",\n  \"requestId\": \"{{requestId}}\",\n  \"memberId\": \"34570890101\",\n  \"dateOfService\": \"2026-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Unknown id: NOT_FOUND, no vendor ids",
           "event": [
             {

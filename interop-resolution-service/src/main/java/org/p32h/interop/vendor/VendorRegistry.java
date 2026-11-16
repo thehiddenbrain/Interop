@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
 public final class VendorRegistry {
 
     private static final Pattern KEY = Pattern.compile("^[A-Z0-9_]{2,32}$");
+    /** A payer key: a company, or a company and a line of business, which may carry a hyphen (D-SNP, MA-HMO). */
+    private static final Pattern PAYER_KEY = Pattern.compile("^[A-Z0-9_-]{2,32}$");
 
     private final List<Vendor> vendors = new ArrayList<>();
 
@@ -48,9 +50,9 @@ public final class VendorRegistry {
                 cfg.payer().forEach((rawCompany, p) -> {
                     String company = rawCompany.strip().toUpperCase(Locale.ROOT);
                     String where = "member-id.vendors." + rawKey + ".payer." + rawCompany;
-                    if (!KEY.matcher(company).matches()) {
-                        throw new IllegalStateException(where + ": the company must match " + KEY.pattern()
-                                + " (THP, HPHC; THP_PP for one line of business of a company)");
+                    if (!PAYER_KEY.matcher(company).matches()) {
+                        throw new IllegalStateException(where + ": the company must match " + PAYER_KEY.pattern()
+                                + " (THP, HPHC; THP_PP or THP_D-SNP for one line of business of a company)");
                     }
                     if (p == null || isBlank(p.id()) || isBlank(p.name())) {
                         throw new IllegalStateException(where + " needs an id and a name");
