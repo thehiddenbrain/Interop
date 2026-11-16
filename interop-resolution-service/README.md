@@ -202,7 +202,7 @@ are covered by the MA-HMO and MA-PPO rules; their IPA variant is pending (below)
 
 | Profile | Member information service |
 |---|---|
-| `DEV` | in-process stub, `member-info-stub/members.json` (the Together subscriber's records: `MA-QHP` 2022 to 2024, `MA-TOGETHER` from 2025; the SCO member's: `SCO` 2023 to 2025; any other member has none) |
+| `DEV` | in-process stub, `member-info-stub/members.json` (the Together subscriber's records: `MA-QHP` 2022 to 2024, `MA-TOGETHER` from 2025; the SCO member's: `SCO` 2023 to 2025; the D-SNP member's: `D-SNP` from 2026; any other member has none) |
 | `FQA` | `http://memberinfoserviceapp-spring-boot-fqa.apps.tdqocp.thp.tahphq.tahp` (assumed from the PQA URL: confirm) |
 | `PQA` | `http://memberinfoserviceapp-spring-boot-pqa.apps.tdqocp.thp.tahphq.tahp` |
 | `PQA-LITE` | `http://memberinfoserviceapp-spring-boot-pqa-lite.apps.tdqocp.thp.tahphq.tahp` (assumed: confirm) |
@@ -641,7 +641,7 @@ stub's "today" is the real date, so those tests assert `dateOfServiceDefaulted` 
 
 ## 6. Tests
 
-`./gradlew test` (201 tests): request validation, coverage rules, selection rules (including converted members in
+`./gradlew test` (202 tests): request validation, coverage rules, selection rules (including converted members in
 a gap and with overlapping records), vendor formats, MMI mapping, the REST client against a mock server
 (`notFoundWithAnMmiEnvelopeIsANormalAnswer`, `notFoundWithAnEmptyBodyIsANormalAnswer`,
 `notFoundWithoutAnMmiEnvelopeIsStillNotFoundButWarns`, `badRequestIsForwardedAs400WithMmiText`,

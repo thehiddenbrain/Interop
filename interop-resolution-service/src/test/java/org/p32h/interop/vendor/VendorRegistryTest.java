@@ -61,6 +61,12 @@ class VendorRegistryTest {
         assertThat(evolent.payerFor("THP", "MA-HMO", "MCR")).as("no entry for either: the company's").isEqualTo(new Payer("33", "Tufts Health Plan"));
         assertThat(evolent.payerFor("HPHC", "D-SNP", "PP")).as("the entry belongs to THP: no entry for this company at all").isEqualTo(DEFAULT);
         assertThat(evolent.hasOwnPayerFor("THP", "D-SNP", null)).isTrue();
+        // a table with the line-of-business entry alone: the vendor has its own payer for that member and for no other
+        Vendor dsnpOnly = new VendorRegistry(Map.of("CARELON", new VendorConfig(null, VendorIdFormat.COMPACT_11,
+                Map.of("THP_D-SNP", new PayerConfig("DSNP", "D-SNP payer")))), DEFAULT).all().get(0);
+        assertThat(dsnpOnly.hasOwnPayerFor("THP", "D-SNP", "PP")).as("found through the line of business of the answer").isTrue();
+        assertThat(dsnpOnly.hasOwnPayerFor("THP", "MA-TOGETHER", "PP")).isFalse();
+        assertThat(dsnpOnly.payerFor("THP", "MA-TOGETHER", "PP")).isEqualTo(DEFAULT);
     }
 
     @Test

@@ -64,6 +64,12 @@ class ResolutionServicePayerTest {
                         "THP_PP", new PayerConfig("EVOLENT-THPP-ID", "Evolent Public Plans payer name"),
                         "THP_D-SNP", new PayerConfig("EVOLENT-DSNP-ID", "Evolent D-SNP payer name"))));
         table.put("MHK", new VendorConfig("MHK", VendorIdFormat.SPACED_14, null));
+        return serviceFor(table, company, lineOfBusiness, coverageRecords);
+    }
+
+    /** The same service with the vendor table given. */
+    private static ResolutionService serviceFor(Map<String, VendorConfig> table, String company, String lineOfBusiness,
+            MemberPlan... coverageRecords) {
         MemberIdProperties properties = new MemberIdProperties(new MemberIdProperties.DateOfService(10, "America/New_York"), 125, 24, table);
         MmiClient mmi = new MmiClient() {
             @Override
@@ -164,6 +170,30 @@ class ResolutionServicePayerTest {
             assertThat(entry(together, "EVOLENT")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
                     .as("another Public Plans member keeps the entry for PP").containsExactly("EVOLENT-THPP-ID", "Evolent Public Plans payer name");
             assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("VENDOR_PAYER_DEFAULTED"));
+        } finally {
+            release(logs);
+        }
+    }
+
+    @Test
+    void aVendorWithTheLineOfBusinessEntryAloneHasItsOwnPayerForThatMemberOnly() {
+        Map<String, VendorConfig> table = Map.of("CARELON", new VendorConfig("Carelon", VendorIdFormat.COMPACT_11,
+                Map.of("THP_D-SNP", new PayerConfig("CARELON-DSNP-ID", "Carelon D-SNP payer name"))));
+        MemberResolutionRequest request = new MemberResolutionRequest("ONYX", "EXT", "TEST-1", "TESTMEMBER", "2026-10-15", null, null);
+        ListAppender<ILoggingEvent> logs = captureServiceLog();
+        try {
+            MemberResolutionResponse dsnp = serviceFor(table, "THP", "PP", LineOfBusinessDeriverTest.record("2064", null, "DMA", "2026-01-01", null))
+                    .resolve(request, "corr-1");
+            assertThat(entry(dsnp, "CARELON")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .containsExactly("CARELON-DSNP-ID", "Carelon D-SNP payer name");
+            assertThat(logs.list).as("its own payer was found: nothing defaulted")
+                    .noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("VENDOR_PAYER_DEFAULTED"));
+            MemberResolutionResponse together = serviceFor(table, "THP", "PP", LineOfBusinessDeriverTest.record("2026", "THPPMA", "GT", "2026-01-01", null))
+                    .resolve(request, "corr-1");
+            assertThat(entry(together, "CARELON")).extracting(VendorMemberId::payerId, VendorMemberId::payerName)
+                    .as("no entry for this member").containsExactly("DEFAULT-ID", "Default payer name");
+            assertThat(logs.list).filteredOn(e -> e.getFormattedMessage().contains("VENDOR_PAYER_DEFAULTED"))
+                    .as("the default went out, and the log says so").hasSize(1);
         } finally {
             release(logs);
         }
