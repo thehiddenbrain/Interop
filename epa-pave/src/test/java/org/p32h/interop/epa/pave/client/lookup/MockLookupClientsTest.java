@@ -135,7 +135,12 @@ class MockLookupClientsTest {
         ProviderLookupResult found = providers(Map.of()).lookup("1234567893");
         assertThat(found.status()).isEqualTo(LookupStatus.FOUND);
         assertThat(found.provider().displayName()).isEqualTo("Pat Placeholder-Provider");
-        assertThat(found.provider().taxonomyCode()).isEqualTo("2084S0012X");
+        assertThat(found.provider().specialty()).isEqualTo("Sleep Medicine");
+        // This fixture returns no taxonomy code, and none is made up for it.
+        assertThat(found.provider().taxonomyCode()).isNull();
+        // One that does, written as a group and as a list of one.
+        assertThat(providers(Map.of()).lookup("1000000020").provider().taxonomyCode()).isEqualTo("207RC0000X");
+        assertThat(providers(Map.of()).lookup("1000000038").provider().taxonomyCode()).isEqualTo("207X00000X");
         assertThat(found.wire().request().note()).isEqualTo("Mock profile. Answered from the fixture file 1234567893.json. Nothing left this machine.");
         assertThat(found.wire().response().headers()).containsExactly(new WireHeader("Content-Type", "application/json"));
 

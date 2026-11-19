@@ -19,6 +19,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
  * on the loopback interface.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class ServerErrorPagesTest {
 
     @LocalServerPort
@@ -26,6 +27,9 @@ class ServerErrorPagesTest {
 
     @org.springframework.beans.factory.annotation.Autowired
     org.springframework.core.env.Environment environment;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    org.springframework.boot.logging.LoggingSystem loggingSystem;
 
     private String exchange(String requestLine) throws IOException {
         return exchange(requestLine, "Host: localhost");
@@ -68,7 +72,7 @@ class ServerErrorPagesTest {
         assertThat(api).contains("cache-control: no-store").contains("x-content-type-options: nosniff")
                 .contains("content-security-policy: default-src 'self'").contains("x-frame-options: deny");
         String page = exchange("GET /no/such/page HTTP/1.1").toLowerCase();
-        assertThat(page).contains("cache-control: no-cache").contains("x-content-type-options: nosniff");
+        assertThat(page).contains("cache-control: no-store").contains("x-content-type-options: nosniff");
 
         String otherName = exchange("GET /api/mode HTTP/1.1", "Host: attacker.example");
         assertSharedErrorShape(otherName, "403");
@@ -79,6 +83,48 @@ class ServerErrorPagesTest {
         // The same request from the tool's own page is not stopped by the guard. It goes on to an ordinary answer.
         String ownPage = exchange("POST /api/crd HTTP/1.1", "Host: localhost:" + port + "\r\nOrigin: http://localhost:" + port + "\r\nContent-Length: 0");
         assertThat(ownPage).doesNotStartWith("HTTP/1.1 403");
+    }
+
+    @Test
+    void noWayOfWritingAnAddressGetsPastTheGuardOrLeavesAnAnswerInTheBrowser() throws IOException {
+        // The framework finds the controller for each of these spellings of /api/mode. An earlier
+        // guard read the address as written, took none of them for the API, and let them through.
+        for (String address : new String[] {"/api/mode", "/%61pi/mode", "/ap%69/mode", "/%61%70%69/mode", "/api;x=1/mode", "/api/%6Dode"}) {
+            String own = exchange("GET " + address + " HTTP/1.1", "Host: localhost:" + port);
+            assertThat(own).as(address).startsWith("HTTP/1.1 200").contains("\"mode\"");
+            assertThat(own.toLowerCase()).as(address).contains("cache-control: no-store");
+
+            String otherName = exchange("GET " + address + " HTTP/1.1", "Host: attacker.example");
+            assertSharedErrorShape(otherName, "403");
+            assertThat(otherName).as(address).doesNotContain("\"mode\"");
+
+            String otherSite = exchange("POST " + address + " HTTP/1.1",
+                    "Host: localhost:" + port + "\r\nOrigin: https://attacker.example\r\nContent-Length: 0");
+            assertSharedErrorShape(otherSite, "403");
+            assertThat(otherSite).as(address).contains("a page that is not part of this tool");
+        }
+        // A page and a static file are refused under another name too, and are not kept either.
+        for (String address : new String[] {"/", "/index.html"}) {
+            assertThat(exchange("GET " + address + " HTTP/1.1", "Host: attacker.example")).as(address).startsWith("HTTP/1.1 403");
+            assertThat(exchange("GET " + address + " HTTP/1.1", "Host: localhost:" + port).toLowerCase()).as(address)
+                    .contains("cache-control: no-store").doesNotContain("cache-control: no-cache");
+        }
+    }
+
+    @Test
+    void theServerAndTheFrameworkDoNotWriteARefusedAddressToTheLog(
+            org.springframework.boot.test.system.CapturedOutput output) throws IOException {
+        // An address can hold a member ID. With their default levels the server writes the first of
+        // these to the log and the framework the second. The server only does so the first time on
+        // each connection handler, so the levels are asserted as well as the output.
+        assertThat(exchange("GET /api/members/S123456789{11 HTTP/1.1")).startsWith("HTTP/1.1 400");
+        assertThat(exchange("GET /api/members/x/../S123456789 HTTP/1.1")).doesNotStartWith("HTTP/1.1 200");
+        assertThat(exchange("GET /api/members/S123456789/no/such/address HTTP/1.1")).startsWith("HTTP/1.1 404");
+        assertThat(output.getAll()).doesNotContain("S123456789");
+        assertThat(loggingSystem.getLoggerConfiguration("org.apache.coyote.http11.Http11Processor").getEffectiveLevel())
+                .isEqualTo(org.springframework.boot.logging.LogLevel.WARN);
+        assertThat(loggingSystem.getLoggerConfiguration("org.springframework.web.servlet.resource.ResourceHandlerUtils").getEffectiveLevel())
+                .isEqualTo(org.springframework.boot.logging.LogLevel.ERROR);
     }
 
     @Test

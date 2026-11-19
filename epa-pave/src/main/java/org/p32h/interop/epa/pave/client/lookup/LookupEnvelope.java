@@ -19,9 +19,10 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>The rule is deliberately plain so that it can be narrowed when the contracts are final: a
  * wrapper name is followed when it holds an object, a list or null, and the first wrapper name in
- * the list wins. A record that itself carries an object under a wrapper name would be read from
- * that object. That would show as a lookup that recognised nothing, with every field listed, never
- * as a wrong member.
+ * the list wins. Its known cost: a record that arrives bare and itself carries an object under a
+ * wrapper name is read from that object. That shows as a lookup that recognised nothing, with
+ * every field listed. Should the inner object happen to be a record in its own right, the mapping
+ * compares the identifier it carries with the one that was asked for and says when they differ.
  */
 final class LookupEnvelope {
 

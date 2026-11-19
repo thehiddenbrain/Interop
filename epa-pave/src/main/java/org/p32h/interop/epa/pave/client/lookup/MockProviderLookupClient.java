@@ -16,7 +16,10 @@ import org.springframework.stereotype.Component;
  * {@link ProviderResponseMapping#map}, the same method the live client uses.
  *
  * <p>An NPI with no fixture is not found. {@code 9999999995} is one on purpose, so the sentinel
- * for "provider not found" is not found here too.
+ * for "provider not found" is not found here too. {@code 9999999987} is the sentinel for a
+ * directory that is failing: it answers HTTP 500 with a body that is not JSON, so the fault state
+ * can be seen without a network. {@code 1000000020} is found and out of network, which is the
+ * "needs a look" state. Setting {@code lookup.provider.enabled} to false shows the disabled state.
  */
 @Component
 @Profile("mock")

@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.client.lookup;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.LookupField;
@@ -32,12 +33,22 @@ final class LookupReader {
     record Read(Shown shown, String text, String source, Spelling spelling) {
 
         boolean hasText() {
-            return text != null;
+            return Texts.present(text);
         }
 
-        /** True when the value sits under one of the given spellings. */
-        boolean under(List<Spelling> spellings) {
-            return spelling != null && spellings.contains(spelling);
+        /**
+         * The value as a yes or a no, for a field that asks a question: true, false, or null when
+         * the value is neither. A JSON true or false, and the words a service writes for them.
+         */
+        Boolean yesOrNo() {
+            if (!hasText()) {
+                return null;
+            }
+            return switch (text.toLowerCase(Locale.ROOT)) {
+                case "true", "yes", "y" -> Boolean.TRUE;
+                case "false", "no", "n" -> Boolean.FALSE;
+                default -> null;
+            };
         }
 
         LookupField field(String name, String label) {
@@ -94,6 +105,10 @@ final class LookupReader {
      * The first object found under one of the names, in the record and then in what wraps it. Null
      * when there is none. For a group of fields that must all come from one place, such as the
      * parts of an address: read from two objects they would describe an address nobody has.
+     *
+     * <p>Unlike a single value, an object under one of these names is looked for beside a wrapped
+     * record too. The names it is called with are names of things a record has, such as an
+     * address, and a response has none of its own.
      */
     TrackedJson.Node object(List<String> names) {
         for (TrackedJson.Node scope : scopes) {

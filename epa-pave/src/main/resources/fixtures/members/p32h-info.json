@@ -1,7 +1,7 @@
 {
   "memberId": "P32H-INFO",
   "description": "Sentinel for CRD scenario 5, additional information needed. A Commercial member. The record arrives as a list of one, with PascalCase names.",
-  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
   "expect": {
     "status": "FOUND",
     "needsALook": false,

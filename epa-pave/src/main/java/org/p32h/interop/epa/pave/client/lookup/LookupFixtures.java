@@ -37,6 +37,23 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>These files are the whole of what the mock knows. Nothing that is looked up is added to it,
  * and nothing about a lookup is remembered.
+ *
+ * <h4>What a file holds</h4>
+ * <ul>
+ *   <li>{@code memberId} or {@code npi}: the identifier the file answers for. A member ID is
+ *       written in its no-space form, and is found whatever letter case it is typed in</li>
+ *   <li>{@code behavior}: {@code respond}, {@code timeout} or {@code unavailable}. Left out, it is
+ *       {@code respond}</li>
+ *   <li>{@code httpStatus}: the status to answer with, when the behavior is respond</li>
+ *   <li>{@code response}: the body as JSON, in whatever shape the API might send. It goes through
+ *       the same mapping as a live response. Or {@code responseText}: a body that is deliberately
+ *       not JSON, as text</li>
+ *   <li>{@code description}, {@code basis} and {@code assumption}: what the file is for, that it
+ *       is synthetic, and anything it assumes about the live service</li>
+ *   <li>{@code expect}: what the file claims to produce. A test drives every file through the
+ *       mock client and fails when a file stops producing its claim</li>
+ * </ul>
+ * A key outside this list is refused by name, so a misspelt one cannot be dropped in silence.
  */
 @Component
 @Profile("mock")
@@ -53,6 +70,15 @@ public class LookupFixtures {
      */
     public record Fixture(String identifier, String source, String description, ScenarioBehavior behavior, Integer httpStatus,
                           String body, boolean json) {
+
+        /**
+         * Prints the file name only. A fixture is synthetic, but it holds a member ID and a response
+         * body, and no type that holds those prints them.
+         */
+        @Override
+        public String toString() {
+            return "Fixture[" + source + "]";
+        }
     }
 
     static final String MEMBERS = "classpath*:fixtures/members/*.json";
@@ -121,7 +147,8 @@ public class LookupFixtures {
             try {
                 fixture = parse(file.getKey(), file.getValue(), identifierKey);
             } catch (IllegalArgumentException e) {
-                // The message is this class's own and names the file and the rule. It quotes nothing from the file but its keys.
+                // Every exception caught here is thrown by parse, below, and says which rule the file broke. None quotes
+                // anything from the file but its keys, so the message is safe to pass on beside the file name.
                 throw new IllegalStateException("Lookup fixture " + file.getKey() + ": " + e.getMessage());
             }
             String key = identifierKey.equals(MEMBER_KEY) ? memberKey(fixture.identifier()) : fixture.identifier();

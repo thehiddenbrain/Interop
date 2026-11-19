@@ -27,9 +27,11 @@ import org.springframework.web.client.RestClient;
  * for the lookup. The request leaves through the shared executor. Nothing here builds a url, adds
  * a configured header or opens a connection.
  *
- * <p>Everything that stops a lookup before it is sent is an answer and not an exception. A lookup
- * that is switched off, has no url, or is configured with a placeholder nobody gave a value is
- * DISABLED: the tester types the details by hand, and the message says what is missing.
+ * <p>Every refusal the gateway and the executor make for a lookup is turned into an answer here
+ * and is not thrown. A lookup that is switched off, has no url, or is configured with a
+ * placeholder nobody gave a value is DISABLED: the tester types the details by hand, and the
+ * message says what is missing. A lookup overtaken by a change of configuration, or left without
+ * the access token it was told to carry, is a FAULT that says nothing was sent.
  *
  * <p>Nothing here logs. The identifier is in the url, and the two clients log the outcome only.
  */
@@ -94,6 +96,8 @@ final class LookupSender {
             return Attempt.notSent(LookupOutcomes.noPlaceForTheIdentifier(words));
         } catch (ProdWriteBlockedException e) {
             return Attempt.notSent(LookupOutcomes.refusedByTheGuardrail(words, e.environment() == null ? null : e.environment().name()));
+        } catch (ConfigurationChangedException e) {
+            return Attempt.notSent(LookupOutcomes.configurationChanged(words));
         }
         // A gateway that hands back an incomplete target without refusing it gets the same answers.
         ResolvedUrl url = call.url();

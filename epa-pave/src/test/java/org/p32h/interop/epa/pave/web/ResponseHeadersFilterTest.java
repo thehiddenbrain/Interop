@@ -18,17 +18,13 @@ class ResponseHeadersFilterTest {
     }
 
     @Test
-    void anApiResponseIsNeverStoredByTheBrowser() throws Exception {
+    void nothingThisToolServesIsStoredByTheBrowserWhateverTheAddress() throws Exception {
         // A lookup answers with a member's name and date of birth. The browser's disk cache is storage too.
-        for (String path : new String[] {"/api/members/S123456789", "/api/runs", "/api/mode", "/api/crd"}) {
+        // The rule is not "an API response", because the framework also finds an API controller for the
+        // spellings at the end of this list, and a test on the address as written would miss them.
+        for (String path : new String[] {"/api/members/S123456789", "/api/runs", "/api/mode", "/api/crd", "/", "/index.html", "/js/app.js",
+                "/css/pave.css", "/%61pi/members/S123456789", "/ap%69/runs", "/api;x=1/members/S123456789"}) {
             assertThat(get(path).getHeader("Cache-Control")).as(path).isEqualTo("no-store");
-        }
-    }
-
-    @Test
-    void aStaticFileIsRevalidatedSoAnEditShowsOnRefresh() throws Exception {
-        for (String path : new String[] {"/", "/index.html", "/js/app.js", "/css/pave.css"}) {
-            assertThat(get(path).getHeader("Cache-Control")).as(path).isEqualTo("no-cache");
         }
     }
 

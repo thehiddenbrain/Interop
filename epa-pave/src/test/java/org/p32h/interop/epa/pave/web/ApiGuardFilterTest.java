@@ -14,8 +14,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Other web pages are kept away from the API: by the host a request names, and for a change by
- * the origin a browser states.
+ * Other web pages are kept away from the tool: by the host a request names, and for a change by
+ * the origin a browser states. Both hold for every address.
  */
 class ApiGuardFilterTest {
 
@@ -152,11 +152,39 @@ class ApiGuardFilterTest {
     }
 
     @Test
-    void pagesAndStaticFilesAreNotHeldToEitherCheck() throws Exception {
-        // They hold no data. Everything they show comes from the API.
-        assertThat(passes("GET", "/", "Host", "anything.example")).isTrue();
-        assertThat(passes("GET", "/css/pave.css", "Host", "anything.example")).isTrue();
-        assertThat(passes("GET", "/apidocs", "Host", "anything.example")).isTrue();
+    void everyAddressIsHeldToBothChecksBecauseNoAddressIsSortedIntoApiAndNotApi() throws Exception {
+        // The framework finds an API controller for the last four spellings as well. A check that
+        // first decided which addresses are the API let them past, so the filter decides nothing.
+        for (String path : new String[] {"/", "/index.html", "/css/pave.css", "/apidocs", "/%61pi/mode", "/ap%69/mode", "/%61%70%69/mode",
+                "/api;x=1/mode"}) {
+            assertThat(passes("GET", path, "Host", "anything.example")).as(path).isFalse();
+            assertThat(passes("GET", path, "Host", "localhost:8057")).as(path).isTrue();
+            assertThat(passes("POST", path, "Host", "localhost:8057", "Origin", "https://attacker.example")).as(path).isFalse();
+            assertThat(passes("POST", path, "Host", "localhost:8057", "Origin", "http://localhost:8057")).as(path).isTrue();
+        }
+    }
+
+    @Test
+    void onlyTheReceiversAddressWrittenExactlyIsExemptFromTheHostCheck() throws Exception {
+        for (String path : new String[] {"/%61pi/pas/notifications", "/api;x=1/pas/notifications", "/api/pas/notifications;x=1",
+                "/api/pas/notifications/", "/api/pas/%6Eotifications", "/api/pas//notifications", "/api/pas/notifications/sample"}) {
+            assertThat(passes("POST", path, "Host", "callbacks.qa.example")).as(path).isFalse();
+        }
+    }
+
+    @Test
+    void aBrowserOpeningAPageUnderAnotherNameIsToldWhatToDoInPlainText() throws Exception {
+        MockHttpServletResponse response = send("GET", "/", "Host", "qa-laptop.example:8057", "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentType()).startsWith("text/plain");
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
+        assertThat(response.getContentAsString()).isEqualTo("This request was addressed to a host name this tool does not answer to.\n"
+                + "Open the tool as http://localhost and its port. To use another name for this machine, list the name under "
+                + "app.allowed-hosts and start the tool again.\n");
+        // A script of the tool asks for JSON and gets the shared shape.
+        assertThat(send("GET", "/api/mode", "Host", "qa-laptop.example:8057", "Accept", "application/json").getContentType())
+                .startsWith("application/json");
     }
 
     @Test

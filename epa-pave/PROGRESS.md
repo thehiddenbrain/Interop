@@ -19,14 +19,16 @@ CRD (two runs, discovery, scenarios), the ledger (query, one run, a note, health
 a replay that came back "same"), a chain, and a suite of six cases read from a CSV with CRLF line
 endings and a quoted cell holding a comma.
 
-**What this revision is and is not.** Wave A is merged from the branches as they stood: the ledger
-(A2) and the configuration layer with the production guardrail (A1) are their agents' final
-commits, with the change requests from both reports applied and two routes to production that
-A1 reported as open now closed (D-125). The code list (A3) and the lookups (A4) are checkpoints
-that build green and whose agents are still finishing. Their final
-commits are merged when they report. Wave B (PAS, DTR) is not merged: the PAS and DTR endpoints do
-not exist in this revision. There is no frontend in this revision: the first pass is being built
-on its own branch against a stand-in, and has not been reviewed.
+**What this revision is and is not.** Wave A is complete and merged at its agents' final commits:
+the configuration layer with the production guardrail (A1), the ledger (A2), the procedure code
+list and picker (A3), and member and provider lookup (A4). The change requests from all four
+reports that touch shared code are applied or handed on: two routes to production that A1
+reported as open are closed (D-125), and a way past the request guard that A4 found is closed
+(D-127). The follow-ups from A3's report are being worked on a branch of their own and are not in
+this revision. Wave B (PAS, DTR) is not merged here: PAS is finished and DTR is at a checkpoint,
+both integrated with the chain on a branch that builds green and is not yet this one, so the PAS
+and DTR endpoints do not exist in this revision. There is no frontend in this revision: the first
+pass is being built and reviewed on its own branch.
 
 **The waves were interrupted once.** About an hour into Wave A and Wave B every background agent
 was stopped at the same moment by a usage limit, part-way through its package. What each had
@@ -52,12 +54,12 @@ next frontend pass and do not exist on screen yet.
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
 | Spine 1: shared contracts | done, reviewed by six seats, frozen |
-| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | A1 and A2 done and merged. A3 and A4 merged at a green checkpoint, their agents still finishing |
-| Spine 2: integrate Wave A. V2 PHI audit | merged and wired, application starts, endpoints exercised over HTTP. Final merge of A1, A3, A4 and the V2 audit still to do |
-| Spine 3: CRD reference vertical | built and tested against fakes. To do after Wave A: wire as beans, `/api/mode` |
-| Wave B: B1 PAS and subscriptions, B2 DTR | building again after the interruption, both taken over |
-| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | case runner, suites and the chain view built and tested against fakes. Chain as a suite case and cross-protocol tests not started |
-| Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | C1 pass 0 (frame, result view, CRD, suites, chain) building against the dev harness. The rest not started |
+| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | done, all four merged at their final commits |
+| Spine 2: integrate Wave A. V2 PHI audit | merged and wired, application starts, endpoints exercised over HTTP. The V2 audit has not run yet |
+| Spine 3: CRD reference vertical | done and wired. Follow-ups from the code list report (placeholder list honesty, coding systems) in progress on a branch |
+| Wave B: B1 PAS and subscriptions, B2 DTR | PAS done. DTR at a green checkpoint, its agent still finishing. Follow-ups from the PAS report in progress on a branch |
+| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | PAS, DTR and the chain as a suite case are integrated on a side branch that builds green (1795 tests). Not on this branch until DTR is final. V3 has not run |
+| Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | C1 pass 0 (frame, result view, CRD, suites, chain) built against a stand-in and under independent review in a browser. The rest not started |
 | Spine 5: clean build twice, fresh-clone build, push, pull request | not started |
 
 ### What Spine 1 contains
@@ -82,11 +84,13 @@ next frontend pass and do not exist on screen yet.
 ### Not done at this commit
 
 - No frontend. `http://localhost:8057/` answers 404 on this revision.
-- No PAS and no DTR: Wave B is not merged. A suite can run CRD cases only; PAS, DTR and chain rows
-  are reported as not runnable. The chain view shows DTR and PAS stages but nothing can run them.
+- No PAS and no DTR on this branch. A suite can run CRD cases only; PAS, DTR and chain rows are
+  reported as not runnable. The chain view shows DTR and PAS stages but nothing can run them.
 - Comparing a pasted CRD request with the tool's own is not in this revision.
-- A3 and A4 are merged as checkpoints, not as finished packages. What their agents report as not
-  done is not known yet.
+- The procedure code list in use by default is a synthetic placeholder. Until the follow-up lands,
+  a conformance finding that says the code list and the service disagree does not say that the
+  list it compared with is the placeholder. On mock both sides are synthetic. On live this would
+  mislead, and the README must not be written as if it were settled.
 - From A1's report: no real vendor Postman export was available, so every Postman file the tests
   use is hand-written to the shape the specification describes, and detection by url is verified
   only for the standard FHIR operation paths and `/cds-services`. Concurrency in the store is
@@ -95,11 +99,18 @@ next frontend pass and do not exist on screen yet.
   the code, since a test cannot observe a sync. Two instances pointed at one ledger directory are
   not coordinated. A note written after the clock was set back across midnight is on disk and is
   not applied when the run is read.
+- From A3's report: no real P32H export of the code list was available, so its header row, the
+  spellings of its authorization flag, its date format and its vendor names are assumptions.
+- From A4's report: neither lookup has met the real member API or the real provider directory.
+  Both response contracts are open (section 26 of the build prompt), so the two mappings are
+  assumptions no real response has tested. A member ID that contains a slash cannot be looked up.
+  A name returned in one piece is shown as a field and cannot prefill first and last name.
 - The section 27 verification agents have not run. No independent review of the integrator's own
-  code has run.
+  code has run, and one defect in that code has since been found by another package's owner
+  (D-127), which is a reason to expect more.
 - README, `run.sh`, `run.cmd` and the sample files do not exist yet.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The build runs 1311 tests, 2 of them skipped because the build ran as root, for which a
+- The build runs 1346 tests, 2 of them skipped because the build ran as root, for which a
   read-only folder is not read-only. The same refusals are covered by tests that did run.
 
 ## The plan, written before any feature code
