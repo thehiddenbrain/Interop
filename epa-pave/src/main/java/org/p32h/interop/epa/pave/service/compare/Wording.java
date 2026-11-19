@@ -244,8 +244,11 @@ final class Wording {
      */
     static String referenceElsewhere(ReferenceText tool, List<ResourceIndex.Resource> toolTargets, ReferenceText yours,
                                      List<ResourceIndex.Resource> yourTargets) {
-        return "The two references do not follow one matched pair of resources: the tool's " + target(tool, toolTargets, "the tool's request")
-                + ", and yours " + target(yours, yourTargets, "your request") + ".";
+        String sentence = "The two references do not follow one matched pair of resources: the tool's "
+                + target(tool, toolTargets, "the tool's request") + ", and yours " + target(yours, yourTargets, "your request") + ".";
+        // When neither request carries what is pointed at, nothing shows whether the two ids name one thing or two.
+        boolean bothOutside = toolTargets.isEmpty() && yourTargets.isEmpty() && tool.type() != null && tool.type().equals(yours.type());
+        return bothOutside ? sentence + " Whether the two name the same " + tool.type() + " cannot be seen from the requests." : sentence;
     }
 
     private static String target(ReferenceText reference, List<ResourceIndex.Resource> targets, String document) {

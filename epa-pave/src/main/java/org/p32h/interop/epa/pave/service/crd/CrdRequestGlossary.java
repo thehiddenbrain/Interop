@@ -309,6 +309,14 @@ public final class CrdRequestGlossary implements Glossary {
         return Character.toUpperCase(text.charAt(0)) + text.substring(1);
     }
 
+    /** Every entry that is listed by its path, for the test that reads each sentence. The shapes are not among them. */
+    static Map<String, Entry> listed() {
+        Map<String, Entry> all = new HashMap<>(DOCUMENT);
+        all.putAll(ANY_KEY);
+        all.putAll(FHIR);
+        return all;
+    }
+
     @Override
     public Entry describe(ElementPath element) {
         Entry entry = DOCUMENT.get(element.document());
@@ -509,7 +517,8 @@ public final class CrdRequestGlossary implements Glossary {
             case "context.encounterId":
                 return onlyInYours ? "This tool does not build an encounterId." : null;
             case "context.selections":
-                return onlyInTool || onlyInYours ? "This tool sends selections for order-select only." : null;
+                // Said of the whole element and of one selection alike, since both sit at this path.
+                return onlyInTool || onlyInYours ? "This tool selects every order it builds, and sends selections for order-select only." : null;
             case "prefetch":
                 return onlyInTool ? "This tool sends prefetch unless the form says to leave it out."
                         : onlyInYours ? "This tool left prefetch out because the form said so." : null;

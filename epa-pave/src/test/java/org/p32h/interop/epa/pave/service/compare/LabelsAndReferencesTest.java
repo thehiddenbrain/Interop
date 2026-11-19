@@ -110,6 +110,25 @@ class LabelsAndReferencesTest {
     }
 
     @Test
+    void aReferenceToWhatNeitherRequestCarriesIsListedAndSaysThatNothingShowsWhetherTheTwoAreTheSame() {
+        String order = "{'context':{'patientId':'%s'},'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'%s'}}}";
+        List<Difference> all = differences(order.formatted("patient-1", "Patient/patient-1"), order.formatted("8842", "Patient/8842"));
+        // No Patient is in either request, so there is no pair these could follow, and no id difference to count them on.
+        assertThat(lines(all)).containsExactly("context.patientId | DIFFERENT_VALUE | BUILD", "order.subject.reference | DIFFERENT_VALUE | BUILD");
+        for (Difference difference : all) {
+            assertThat(difference.explanation()).startsWith("The two references do not follow one matched pair of resources: the tool's points "
+                    + "at a Patient that the tool's request does not contain, and yours points at a Patient that your request does not "
+                    + "contain. Whether the two name the same Patient cannot be seen from the requests.");
+        }
+        // Two different kinds of resource are two different things, and nothing more needs saying.
+        List<Difference> kinds = differences(order.formatted("x", "Patient/a"), order.formatted("x", "Group/b"));
+        assertThat(kinds).singleElement().satisfies(difference -> assertThat(difference.explanation())
+                .startsWith("The two references do not follow one matched pair of resources: the tool's points at a Patient that the tool's "
+                        + "request does not contain, and yours points at a Group that your request does not contain.")
+                .doesNotContain("Whether the two"));
+    }
+
+    @Test
     void theSameResourcePointedAtInAnotherFormIsWrittenDifferentlyAndIsListed() {
         List<Difference> all = differences(request("patient-1", "Patient/patient-1", "Patient/patient-1", "patient-1"),
                 request("8842", "https://ehr.example.invalid/fhir/Patient/8842", "Patient/8842", "Patient/8842"));
