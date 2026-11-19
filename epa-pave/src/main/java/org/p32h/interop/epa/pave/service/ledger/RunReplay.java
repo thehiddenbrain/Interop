@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.ledger;
 import org.p32h.interop.epa.pave.model.CaseOutcome;
 import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.FieldError;
+import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
@@ -309,7 +310,8 @@ public class RunReplay {
 
     private static ReplayEntry notCompleted(RunRecord original, ReplayStatus status, CaseOutcome outcome, String fallback) {
         String reason = Texts.present(outcome.reason()) ? outcome.reason().strip() : fallback + " The runner gave no further reason.";
-        if ((status == ReplayStatus.INVALID || status == ReplayStatus.NOT_REPLAYABLE) && Texts.blank(original.npi())) {
+        boolean namesAProvider = original.protocol() == Protocol.CRD || original.protocol() == Protocol.DTR || original.protocol() == Protocol.PAS;
+        if ((status == ReplayStatus.INVALID || status == ReplayStatus.NOT_REPLAYABLE) && namesAProvider && Texts.blank(original.npi())) {
             // The line cannot say whether an NPI was sent and not kept, or never sent. The tester can.
             reason += " This line holds no NPI. If the original run had one, it was not recorded (tracking.record-npi), and that is "
                     + "why the same request cannot be sent again.";
@@ -319,11 +321,15 @@ public class RunReplay {
                 original, replayed);
     }
 
-    private static ReplayEntry compared(RunRecord original, RunRecord replayed, CaseOutcome outcome) {
-        if (replayed == null) {
-            return new ReplayEntry(original.runId(), ReplayStatus.ERROR, "The runner reported that this run was sent again and returned no "
-                    + "record of it, so there is nothing to compare.", null, List.of(), outcome.notRecorded(), original, null);
+    private static ReplayEntry compared(RunRecord asRead, RunRecord asReturned, CaseOutcome outcome) {
+        if (asReturned == null) {
+            return new ReplayEntry(asRead.runId(), ReplayStatus.ERROR, "The runner reported that this run was sent again and returned no "
+                    + "record of it, so there is nothing to compare.", null, List.of(), outcome.notRecorded(), asRead, null);
         }
+        // Both in the form a ledger line reads back in, so a record that has been through the
+        // ledger and one that has not are compared like for like. See TrackingPolicy.settled.
+        RunRecord original = TrackingPolicy.settled(asRead);
+        RunRecord replayed = TrackingPolicy.settled(asReturned);
         if (replayed.operation() != original.operation()) {
             return new ReplayEntry(original.runId(), ReplayStatus.ERROR, "The runner answered with the record of another operation ("
                     + replayed.operation().label() + "), so the two cannot be compared.", replayed.runId(), List.of(),
@@ -349,11 +355,12 @@ public class RunReplay {
         compare(differences, "nextAction", original.nextAction(), replayed.nextAction());
 
         ReplayStatus status = !differences.isEmpty() ? ReplayStatus.CHANGED : notKept.isEmpty() ? ReplayStatus.SAME : ReplayStatus.NOT_COMPARABLE;
-        // Two answers that were not kept as text look alike on the line whenever they are the same
-        // length. Calling them the same would be a comparison that passed because nothing was compared.
+        // Two answers that were not kept as text read alike on the line. Calling them the same
+        // would be a comparison that passed because nothing was compared.
         String reason = status != ReplayStatus.NOT_COMPARABLE ? null : "What the ledger kept is the same for both runs, but part of the "
-                + "answer was not kept as text (" + String.join(", ", notKept) + "): the line holds only how long it was. The two "
-                + "cannot be shown to be the same, so they are not reported as the same. Compare the two results on screen.";
+                + "answer was not kept as text (" + String.join(", ", notKept) + "): the line says only that something was there. The "
+                + "two cannot be shown to be the same, so they are not reported as the same. The text itself is shown on the result of "
+                + "a run when it is made, and is never kept.";
         return new ReplayEntry(original.runId(), status, reason, replayed.runId(), differences, outcome.notRecorded(), original, replayed);
     }
 

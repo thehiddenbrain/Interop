@@ -39,9 +39,10 @@ import org.springframework.web.bind.annotation.RestController;
  * The test run ledger over HTTP: the history list, one record, a note on a record, the CSV for
  * sign-off, replay, and whether tracking is alive.
  *
- * <p>A note or a replay whose run could not be written still answers 200. What the ledger did is
- * in the receipt, exactly as it is on the result of a run, so the screen has one way to learn that
- * something was not recorded and one place to say so.
+ * <p>A note that could not be written still answers 200, and so does a replay whose runs the
+ * ledger did not keep. What the ledger did is in the answer: the receipt for a note, and the
+ * ledger's own message on each run of a replay. The result of a run says it the same way, so the
+ * screen has one way to learn that something was not recorded.
  */
 @RestController
 @RequestMapping("/api/runs")

@@ -288,6 +288,31 @@ class JsonlRunLedgerTest {
         assertThat(written.correlation().get(RunRecord.CORR_AUTHORIZATION_REF)).matches("[0-9a-f]{64}");
     }
 
+    @Test
+    void whatTheRecordDidNotKeepAsTextReadsBackExactlyAsTheReceiptHadIt() {
+        // A vendor this tool does not know, a sentence where a code belongs and a code that is not
+        // one. The record keeps a statement in place of each, and checks that statement again on
+        // every copy. What the receipt carries, what is on disk and what is read back must agree.
+        String sentence = "Authorization is needed, see the letter that was sent and the notes that follow it. ".repeat(2);
+        JsonlRunLedger ledger = ledger(home, clock);
+
+        LedgerReceipt receipt = ledger.record(draft("run-1", clock).delegatedVendor("Acme")
+                .coverageCodes(List.of("pa-needed=" + sentence, "doc-needed=x y", "free text")).procedureCodes(List.of("95810", "bad code!")).build());
+
+        assertThat(receipt.recorded()).isTrue();
+        assertThat(JsonSafe.mapper().readValue(lines(todayFile()).get(0), RunRecord.class)).isEqualTo(receipt.record());
+        assertThat(ledger.find("run-1")).contains(receipt.record());
+        assertThat(ledger.query(RunQuery.all())).containsExactly(receipt.record());
+        // After a restart, and with a note applied, which copies the record once more.
+        JsonlRunLedger restarted = ledger(home, clock);
+        assertThat(restarted.find("run-1")).contains(receipt.record());
+        restarted.addNote("run-1", "a note", null);
+        assertThat(restarted.find("run-1").orElseThrow().toBuilder().note(null).build()).isEqualTo(receipt.record());
+        // The line says that something was there, and holds none of it.
+        assertThat(text(todayFile())).doesNotContain("Acme").doesNotContain("see the letter").doesNotContain("bad code!")
+                .contains("(vendor not on the known list, ").contains("pa-needed=(not a code, ").contains("(not a code entry, ");
+    }
+
     // ---- append only ----
 
     @Test

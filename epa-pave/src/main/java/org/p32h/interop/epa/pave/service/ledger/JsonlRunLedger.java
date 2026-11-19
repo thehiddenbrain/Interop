@@ -210,8 +210,8 @@ public class JsonlRunLedger implements RunLedger {
 
     /**
      * Proves the directory can be written to by writing to it. Asking the file system is not
-     * enough: its answer is wrong for an administrator, for some network shares and for a folder
-     * with a read-only flag that does not stop files being created in it.
+     * enough: what it says about a folder and what happens when a file is made in it are two
+     * things, and they differ for an administrator and on some network shares.
      */
     private void proveWritable() throws IOException {
         Path probe = directory.resolve(".write-check-" + UUID.randomUUID() + ".tmp");
@@ -413,7 +413,10 @@ public class JsonlRunLedger implements RunLedger {
         return counted;
     }
 
-    /** Reads one file. The bytes are taken while no line is being written, and parsed after the lock is given back. */
+    /**
+     * Reads one file. The bytes are taken while no line is being written, so the last line is never
+     * half of one this instance is still writing. A query does not hold the lock while it parses them.
+     */
     private LedgerLines.Content read(Path file) throws IOException {
         String name = file.getFileName().toString();
         byte[] bytes;

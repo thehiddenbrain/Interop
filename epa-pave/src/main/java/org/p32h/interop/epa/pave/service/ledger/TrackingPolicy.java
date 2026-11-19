@@ -68,7 +68,7 @@ final class TrackingPolicy {
             }
             out.correlation(correlation);
         }
-        return out.build();
+        return settled(out.build());
     }
 
     /**
@@ -79,8 +79,32 @@ final class TrackingPolicy {
     static RunRecord withoutMemberData(RunRecord draft) {
         Map<String, String> correlation = new LinkedHashMap<>(draft.correlation());
         correlation.remove(RunRecord.CORR_AUTHORIZATION_REF);
-        return draft.toBuilder().memberId(null).memberToken(null).memberIdLast4(null).npi(null).dateOfService(null)
-                .correlation(correlation).build();
+        return settled(draft.toBuilder().memberId(null).memberToken(null).memberIdLast4(null).npi(null).dateOfService(null)
+                .correlation(correlation).build());
+    }
+
+    /**
+     * The record as it will read back from a ledger line.
+     *
+     * <p>The record type replaces text it will not keep, such as a sentence where a code belongs,
+     * with a statement that something was there and how long it was. It runs the same check again
+     * every time a record is copied or read, and its own statement is not a code either, so the
+     * number in it changes on the next copy and settles after one or two more. Left alone, a line
+     * could read back differently from the record the receipt carried, and a replay would report
+     * that as a change in the answer. Copying here until nothing changes makes what is written the
+     * same as what is read. Nothing is lost by it: the text was never kept, and once the record
+     * type leaves its own statements alone this does nothing.
+     */
+    static RunRecord settled(RunRecord record) {
+        RunRecord current = record;
+        for (int copies = 0; copies < 4; copies++) {
+            RunRecord copy = current.toBuilder().build();
+            if (copy.equals(current)) {
+                return current;
+            }
+            current = copy;
+        }
+        return current;
     }
 
     /** The form written for a member-linked identifier under this policy, or null when there is nothing to write. */

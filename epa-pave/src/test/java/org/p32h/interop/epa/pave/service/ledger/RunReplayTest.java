@@ -344,6 +344,24 @@ class RunReplayTest {
         assertThat(only(replay.replay(null, null, List.of("run-2"))).status()).isEqualTo(ReplayStatus.CHANGED);
     }
 
+    @Test
+    void aRecordThatNeverWentThroughTheLedgerIsComparedLikeForLike() {
+        RunReplay replay = replay();
+        recorded(draft("run-1", clock).delegatedVendor("Acme"));
+        // The ledger did not keep the replay, so its record comes straight from the run and was
+        // never read back from a line. The same unknown vendor must not be reported as a change.
+        runner.answer = spec -> new CaseOutcome(spec, CaseStatus.COMPLETED, null,
+                List.of(draft("replay-1", clock).delegatedVendor("Acme").replayOfRunId("run-1").build()),
+                List.of("This run was NOT recorded: the ledger file could not be written."));
+
+        ReplayEntry entry = only(replay.replay(null, null, List.of("run-1")));
+
+        assertThat(entry.differences()).isEmpty();
+        assertThat(entry.status()).isEqualTo(ReplayStatus.NOT_COMPARABLE);
+        assertThat(entry.replayed().delegatedVendor()).isEqualTo(entry.original().delegatedVendor());
+        assertThat(entry.notRecorded()).containsExactly("This run was NOT recorded: the ledger file could not be written.");
+    }
+
     // ---- not replayable ----
 
     @Test
