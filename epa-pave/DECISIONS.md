@@ -654,3 +654,20 @@ controllers and services carry no stereotype annotation, so the application cont
 to build them. Their tests register them through a small annotated subclass. The integrator adds
 the annotations when the wave is merged.
 
+**D-101. A suite row and a replay take the path a manual run takes.**
+`ProtocolCaseRunner` runs one case from its inputs alone. It looks the member and the provider up
+again from the source, then calls the same service method the screen calls, so a case writes the
+same kind of ledger line and is held to the same guardrail. It never carries a production unlock:
+a write the guardrail refuses comes back as blocked, never as failed. It never throws. Each way a
+case can end without an answer has its own status, so a results table can say which it was:
+invalid inputs, tool not configured, blocked, or not runnable. A key in a case that this tool does
+not know makes the case invalid and is named, because dropping a misspelt "expected" in silence
+would turn a failing case into an unverified one.
+
+**D-102. A case for a member the lookup cannot give is still sent.**
+When the member lookup answers not found, is not configured, or fails, the case is sent with the
+member ID alone and the result carries a note saying so. Nothing is made up to fill the gap. This
+is the safer reading: refusing the case would make "member not found at the payer" untestable from
+a suite, and inventing a name or a date of birth would test something nobody asked for. The same
+holds for the provider lookup and the NPI.
+

@@ -15,13 +15,23 @@ import java.util.List;
  * @param notRecorded for each run the ledger did not keep, the ledger's own message saying why.
  *                    Empty when every run was kept. A suite table shows these, so a full disk or
  *                    tracking switched off is never a column of blank rows
+ * @param notes       what a reader of the result should know about how the case was run, such as
+ *                    that the member could not be looked up and the request went out with the
+ *                    member ID alone. Never member data
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<RunRecord> runs, List<String> notRecorded) {
+public record CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<RunRecord> runs, List<String> notRecorded,
+                          List<String> notes) {
 
     public CaseOutcome {
         runs = runs == null ? List.of() : List.copyOf(runs);
         notRecorded = notRecorded == null ? List.of() : List.copyOf(notRecorded);
+        notes = notes == null ? List.of() : List.copyOf(notes);
+    }
+
+    /** An outcome with nothing to add about how the case was run. */
+    public CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<RunRecord> runs, List<String> notRecorded) {
+        this(spec, status, reason, runs, notRecorded, List.of());
     }
 
     /** An outcome whose runs were all kept by the ledger, or that ran nothing. */

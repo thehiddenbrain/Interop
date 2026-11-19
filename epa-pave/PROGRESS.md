@@ -4,27 +4,38 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**Spine 1 is frozen.** Six reviewers read the shared types before the freeze, each from the seat
-of one downstream owner, and every finding was checked against the code and applied. What changed
-and why is in the four "Changes made after" sections of `DECISIONS.md` (D-039 to D-096). From here
-on a wave agent may not edit a shared type: it reports the change it needs and the integrator
-makes it.
+**Spine 1 is frozen and both waves are building.** Six reviewers read the shared types before the
+freeze, each from the seat of one downstream owner, and every finding was checked against the code
+and applied. What changed and why is in the four "Changes made after" sections of `DECISIONS.md`
+(D-039 to D-096). From here on a wave agent may not edit a shared type: it reports the change it
+needs and the integrator makes it.
 
-The CRD vertical was built by the integrator against fakes while the review ran, ahead of Wave A:
-scenarios, mock and live clients, request builder, response mapper, outcome rules, verdicts,
-conformance checker, service and controller. It is tested but not yet wired as Spring beans,
-because the gateway, the ledger and the code list arrive with Wave A.
+Wave A (four agents) and Wave B (two agents) run at the same time, each agent in its own git
+worktree and each followed by a verifier that did not write the code it reads. Wave B does not
+wait for Wave A because it builds against the frozen interfaces and the test fakes, with the CRD
+vertical as its worked example.
+
+The integrator built the following against fakes while the waves ran. All of it is tested, none
+of it is wired as Spring beans yet, because the gateway, the ledger and the code list arrive with
+Wave A:
+
+- the CRD vertical: scenarios, mock and live clients, request builder, response mapper, outcome
+  rules, verdicts, conformance checker, service, controller and controller tests
+- raw send (D-097, D-098): one collection request sent as written through the same gateway and
+  guardrail
+- the case runner (D-101): one case run from its inputs alone, the path a suite row and a replay
+  take, with the CRD step registered
 
 | Step | State |
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
 | Spine 1: shared contracts | done, reviewed by six seats, frozen |
-| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | next |
+| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | building |
 | Spine 2: integrate Wave A. V2 PHI audit | not started |
-| Spine 3: CRD reference vertical | built and tested against fakes. To do after Wave A: wire as beans, controller tests, `/api/mode`, raw send |
-| Wave B: B1 PAS and subscriptions, B2 DTR | not started |
-| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | not started |
-| Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | not started |
+| Spine 3: CRD reference vertical | built and tested against fakes. To do after Wave A: wire as beans, `/api/mode` |
+| Wave B: B1 PAS and subscriptions, B2 DTR | building |
+| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | case runner done, the rest not started |
+| Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | briefs written, not started |
 | Spine 5: clean build twice, fresh-clone build, push, pull request | not started |
 
 ### What Spine 1 contains
@@ -48,13 +59,15 @@ because the gateway, the ledger and the code list arrive with Wave A.
 
 ### Not done at this commit
 
-- Nothing runs end to end in the application yet. `CrdService` and `CrdController` are not Spring
-  beans, so `POST /api/crd` does not exist in the running application. `GET /api/mode` does not
-  exist yet either.
-- No ledger, no code list, no lookup, no Postman configuration layer: those are Wave A.
-- No PAS, no DTR, no frontend.
+- Nothing runs end to end in the application yet. `CrdService`, `CrdController`, `RawService` and
+  `RawController` are not Spring beans, so `POST /api/crd` and `POST /api/raw` do not exist in the
+  running application. `GET /api/mode` does not exist yet either.
+- No ledger, no code list, no lookup, no Postman configuration layer on this branch: those are
+  Wave A, still building on its own branches.
+- No PAS, no DTR on this branch: those are Wave B, still building. No chain, no suites, no
+  frontend.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The build runs 390 tests. None of them is a controller test for CRD through MockMvc yet.
+- The build runs 426 tests.
 
 ## The plan, written before any feature code
 
@@ -125,7 +138,7 @@ conformance checker, service), `service/scenario/` (scenario loader), `web/CrdCo
 
 **Spine 4**
 
-`service/chain/` and `web/ChainController` (section 28.1), `service/run/` case runner used by
+`service/chain/` and `web/ChainController` (section 28.1), `service/cases/` case runner used by
 replay and suites, `service/suite/` and `web/SuiteController` (section 28.2), cross-protocol
 tests.
 
