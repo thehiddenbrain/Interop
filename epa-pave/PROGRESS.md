@@ -46,6 +46,12 @@ Wave A:
   the response time distribution, the CSV export and the controller. The CSV text itself is read
   through a small interface that the code list agent's reader will sit behind when Wave A is merged
 
+**Added by the operator during the build (D-118, D-119):** paste a request of your own and send
+it, and compare a pasted CRD request with the one the tool builds, with each difference
+explained. Sending a pasted body already worked on the server. The comparison is being built and
+independently verified on its own branch. The paste box and the comparison view are part of the
+next frontend pass and do not exist on screen yet.
+
 | Step | State |
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |

@@ -792,3 +792,28 @@ tool only, so vendor text that ever reached the page as markup could neither run
 and "no request leaves the machine for an asset" is enforced by the browser as well as by a test.
 Static files are served `no-cache`, so a tester who edits one sees the edit on refresh.
 
+## Requirements the operator added during the build
+
+**D-118. A tester can paste a request of their own and send it, on every protocol tab.**
+Asked for by the operator while the waves were building: "I should be able to copy paste the
+request payload in the browser to run the CRD in case the tool is not formulating it as per
+requirement." The server already did this: a run that carries `rawBody` sends that text exactly
+as written once its placeholders are filled in, the form's member, provider and codes become
+optional, the ledger line says the body was not built by the tool, and on mock a sentinel member
+ID inside the body selects the scenario. What was missing is the box on the screen, which the
+next frontend pass adds to the shared form so that CRD, DTR and PAS all have it.
+
+**D-119. The tool compares a pasted CRD request with its own and explains each difference.**
+Asked for in the same message: "when this tool generates the request and when I copy/paste my
+request given by the UM vendor, you should be able to show the diff and explain them."
+`POST /api/crd/compare` builds the tool's request for the same case and hook as the pasted one,
+reading the case out of the pasted request where the form is empty, and lists the differences in
+five groups: differs on every call, labels (ids and the references that follow them), the case,
+how the request is built, and not classified. It sends nothing and records nothing. Two rules
+shape it. The comparison says what differs and what each element is, and never which request is
+right or what the vendor requires, because the tool does not know: the vendor's reference harness
+was not available when the request builder was written (D-001) and the guides could not be
+reached (D-008), which is exactly why the operator asked. And an element the tool cannot describe
+with confidence is listed as not classified, since a tester would repeat a wrong description to
+the vendor. The comparison covers CRD. Nothing equivalent exists for DTR or PAS.
+
