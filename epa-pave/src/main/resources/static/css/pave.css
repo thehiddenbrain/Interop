@@ -638,7 +638,6 @@ legend, .case-legend {
     display: inline-block;
     max-width: 100%;
     padding: 0 6px;
-    border-radius: 2px;
     font-size: var(--text-small);
     line-height: 1.35;
     font-family: var(--font-body);
@@ -1100,8 +1099,20 @@ legend, .case-legend {
     border-bottom: 1px solid var(--ink-strong);
 }
 
+/*
+ * A table wider than its place scrolls sideways inside this frame. The frame clips, so it keeps
+ * a little room at the right and the bottom for the focus ring of a control in the last column
+ * or the last row, and reaches the same distance outwards so the table still ends on the margin.
+ */
 .table-scroll {
     overflow-x: auto;
+    margin-right: -6px;
+    padding: 0 6px 6px 0;
+}
+
+/* The frame reaches the edge of its pane, so its own ring is drawn just inside it. */
+.table-scroll:focus-visible {
+    outline-offset: -3px;
 }
 
 .section-heading {
@@ -2223,7 +2234,38 @@ details.fold > :not(summary) {
         overflow-y: auto;
         padding-top: var(--gap-4);
         padding-bottom: 48px;
-        padding-right: 4px;
+        padding-right: 6px;
+    }
+
+    /*
+     * A focus ring is drawn outside its control, and a pane that clips would cut the ring of a
+     * control that sits at its edge. So each pane reaches six pixels into the page margin and
+     * pads the same six back: the content stays on the margin and the ring is whole.
+     */
+    main > [role="tabpanel"], .tabpanel--stacked > [role="tabpanel"] {
+        margin-left: -6px;
+        margin-right: -6px;
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+
+    .case-pane__scroll {
+        margin-left: -6px;
+        padding-left: 6px;
+    }
+
+    /* The readout fills its pane to the edge, so its own ring is drawn just inside it. */
+    .readout:focus-visible {
+        outline-offset: -3px;
+    }
+
+    /*
+     * A pane that scrolls is the containing block of what is placed absolutely inside it, such as
+     * the text kept for screen readers. Otherwise that text escapes the pane, lies below the
+     * window, and lets the window itself be scrolled out from under the frame.
+     */
+    main > [role="tabpanel"], .tabpanel--stacked > [role="tabpanel"], .case-pane__scroll, .readout {
+        position: relative;
     }
 }
 
