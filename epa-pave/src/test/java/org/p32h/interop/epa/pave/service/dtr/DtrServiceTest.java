@@ -1724,4 +1724,33 @@ class DtrServiceTest {
                 "carry.questionnaireResponse");
         assertThat(ledger.records()).hasSize(1);
     }
+
+    @Test
+    void aFaultPartWayThroughTheLoopOnMockLosesNothingAndTheStepCanBeSentAgainFromTheResultBeforeIt() {
+        RunEnvelope<DtrDetail> fetched = fetch("P32H-DTR-LOOPERR");
+        RunEnvelope<DtrDetail> first = service().runNextQuestion(following(fetched, "P32H-DTR-LOOPERR").build(), RunOrigin.manual(), null);
+        assertThat(linkIds(first.detail().form().asked())).containsExactly("knee-1-imaging");
+
+        RunEnvelope<DtrDetail> failed = service().runNextQuestion(following(first, "P32H-DTR-LOOPERR", DtrAnswerInput.of("knee-1-imaging", "true"))
+                .expected("NEXT_QUESTION").build(), RunOrigin.manual(), null);
+        assertThat(failed.verdict().outcomeCode()).isEqualTo("SERVICE_ERROR");
+        assertThat(failed.verdict().tone()).isEqualTo(Tone.FAULT);
+        assertThat(failed.verdict().supporting().get(0)).startsWith("Mock scenario dtr-14-adaptive-loop-fault answered");
+        assertThat(failed.expectation().result()).isEqualTo(TestResult.FAIL);
+        assertThat(failed.error().kind()).isEqualTo(ErrorKind.VENDOR_ERROR);
+        assertThat(failed.error().issues()).hasSize(1);
+        assertThat(failed.nextStep().action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
+        // What was sent is shown, with the answer in it, so nothing the tester typed is lost from view.
+        assertThat(JsonSafe.parse(failed.wire().request().body()).node().at("/item/0/answer/0/valueBoolean").asBoolean()).isTrue();
+        assertThat(failed.wire().request().note()).contains("step \"service-fails\"");
+        assertThat(ledger.last().outcome()).isEqualTo("SERVICE_ERROR");
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, fetched.runId());
+
+        // Nothing is kept on the server, so the same step is sent again from the result before the fault.
+        RunEnvelope<DtrDetail> again = service().runNextQuestion(following(first, "P32H-DTR-LOOPERR", DtrAnswerInput.of("knee-1-imaging", "true"))
+                .build(), RunOrigin.manual(), null);
+        assertThat(again.verdict().outcomeCode()).isEqualTo("SERVICE_ERROR");
+        assertThat(again.runId()).isNotEqualTo(failed.runId());
+        assertThat(ledger.records()).hasSize(4);
+    }
 }

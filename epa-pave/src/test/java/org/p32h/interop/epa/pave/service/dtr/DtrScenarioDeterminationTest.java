@@ -109,7 +109,7 @@ class DtrScenarioDeterminationTest {
     void everyBundledScenarioIsCompleteSyntheticAndUsesOnlyPlaceholderIdentifiers() {
         ScenarioRepository.Loaded loaded = scenarios.load("dtr");
         assertThat(loaded.problems()).isEmpty();
-        assertThat(loaded.scenarios()).extracting(Scenario::number).containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13);
+        assertThat(loaded.scenarios()).extracting(Scenario::number).containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14);
         Pattern looksLikeAnIdentifier = Pattern.compile("\"[A-Za-z]{0,3}\\d{8,}\"");
         for (Scenario scenario : loaded.scenarios()) {
             assertThat(scenario.id()).startsWith("dtr-");
@@ -134,7 +134,7 @@ class DtrScenarioDeterminationTest {
     @Test
     void theScenariosThatModelWhatThePublishedGuidesDoNotDefineSayWhatTheyAssume() {
         for (Scenario scenario : scenarios.list("dtr")) {
-            if (List.of(2, 7, 8, 9, 10, 13).contains(scenario.number())) {
+            if (List.of(2, 7, 8, 9, 10, 13, 14).contains(scenario.number())) {
                 assertThat(scenario.assumption()).as(scenario.id()).isNotBlank();
             }
             // Every scenario with an adaptive loop states the rule its steps are chosen by, in words.
@@ -162,7 +162,8 @@ class DtrScenarioDeterminationTest {
         table.put("P32H-DTR-BAD400", DtrOutcome.REJECTED);
         table.put("P32H-DTR-TIMEOUT", DtrOutcome.TIMEOUT);
         table.put("P32H-DTR-TWO", DtrOutcome.PACKAGE_LOADED);
-        assertThat(table).hasSize(13);
+        table.put("P32H-DTR-LOOPERR", DtrOutcome.PACKAGE_LOADED);
+        assertThat(table).hasSize(14);
         table.forEach((sentinel, outcome) -> {
             VendorExchange exchange = fetch(null, sentinel, DtrFixtures.NPI);
             assertThat(mapper.readPackage(exchange, List.of()).outcome()).as(sentinel).isEqualTo(outcome);
@@ -179,7 +180,7 @@ class DtrScenarioDeterminationTest {
     @Test
     void everyScenarioFileProducesThePackageItClaims() {
         List<Scenario> all = scenarios.list("dtr");
-        assertThat(all).hasSize(13);
+        assertThat(all).hasSize(14);
         for (Scenario scenario : all) {
             VendorExchange exchange = fetch(scenario.id(), null, null);
             DtrReading reading = mapper.readPackage(exchange, List.of());
@@ -240,6 +241,14 @@ class DtrScenarioDeterminationTest {
                     reached.add(stepName);
                     assertClaim(what, scenario.step(stepName).expect(), step.exchange(), step.reading());
                     FormStateView form = step.reading().detail().form();
+                    if (!call.has("asked")) {
+                        // A call the file lists no questions for is one the service answers with a fault, and no form comes back.
+                        assertThat(step.reading().outcome().fault()).as(what + " is a fault").isTrue();
+                        assertThat(form).as(what + " returns no form").isNull();
+                        stepsWalked++;
+                        continue;
+                    }
+                    assertThat(form).as(what + " returns a form").isNotNull();
                     assertThat(form.asked()).as(what + " asks").extracting(QuestionRef::linkId)
                             .containsExactlyElementsOf(DtrFixtures.texts(call.get("asked")));
                     if (call.has("appeared")) {
@@ -257,8 +266,8 @@ class DtrScenarioDeterminationTest {
             assertThat(reached).as(scenario.id() + ": every step the file defines is reached by one of its paths")
                     .containsExactlyInAnyOrderElementsOf(scenario.steps().keySet());
         }
-        assertThat(adaptiveScenarios).isEqualTo(2);
-        assertThat(stepsWalked).isGreaterThanOrEqualTo(14);
+        assertThat(adaptiveScenarios).isEqualTo(3);
+        assertThat(stepsWalked).isGreaterThanOrEqualTo(16);
     }
 
     @Test

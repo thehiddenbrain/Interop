@@ -1,0 +1,165 @@
+{
+  "id": "dtr-14-adaptive-loop-fault",
+  "number": 14,
+  "label": "Adaptive loop, the service fails part way through",
+  "description": "The package holds one adaptive questionnaire and the first next-question call returns a question. Once that question is answered the service fails with HTTP 500. The answer already given is not lost: the step can be sent again from the result before it. This is a finding about the environment, not about the member or the questionnaire.",
+  "sentinelMemberId": "P32H-DTR-LOOPERR",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "PACKAGE_LOADED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "questionnaires": "1",
+      "questionnaire-kind": "adaptive",
+      "questions": "0"
+    }
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
+  "assumption": "How the live service reports a failure of its rules in the middle of the adaptive loop is not known. This file models an HTTP 500 carrying a FHIR OperationOutcome.",
+  "nextQuestion": {
+    "rule": "The step is chosen from the answers in the QuestionnaireResponse that was sent. With no answer to the first question the service asks it. With any answer to it the service fails.",
+    "select": [
+      {
+        "when": {
+          "knee-1-imaging": "(none)"
+        },
+        "step": "first-question"
+      },
+      {
+        "when": {
+          "knee-1-imaging": "(any)"
+        },
+        "step": "service-fails"
+      }
+    ]
+  },
+  "paths": [
+    {
+      "name": "the service fails after the first answer",
+      "calls": [
+        {
+          "answers": [],
+          "step": "first-question",
+          "asked": [
+            "knee-1-imaging"
+          ],
+          "appeared": [
+            "knee-1-imaging"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "knee-1-imaging",
+              "values": [
+                "true"
+              ]
+            }
+          ],
+          "step": "service-fails"
+        }
+      ]
+    }
+  ],
+  "response": {
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "PackageBundle",
+        "resource": {
+          "resourceType": "Bundle",
+          "type": "collection",
+          "entry": [
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/knee-arthroscopy-adaptive",
+              "resource": {
+                "resourceType": "Questionnaire",
+                "id": "knee-arthroscopy-adaptive",
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                    "valueBoolean": true
+                  }
+                ],
+                "url": "https://example.org/p32h-placeholder/Questionnaire/knee-arthroscopy-adaptive",
+                "version": "1.0.0",
+                "title": "Knee arthroscopy criteria, adaptive (placeholder)",
+                "status": "active"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": {
+    "first-question": {
+      "httpStatus": 200,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "NEXT_QUESTION",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "response-status": "in-progress",
+          "questions": "1",
+          "answered": "0"
+        }
+      },
+      "response": {
+        "resourceType": "QuestionnaireResponse",
+        "contained": [
+          {
+            "resourceType": "Questionnaire",
+            "id": "knee-arthroscopy-adaptive",
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                "valueBoolean": true
+              }
+            ],
+            "url": "https://example.org/p32h-placeholder/Questionnaire/knee-arthroscopy-adaptive",
+            "version": "1.0.0",
+            "title": "Knee arthroscopy criteria, adaptive (placeholder)",
+            "status": "active",
+            "item": [
+              {
+                "linkId": "knee-1-imaging",
+                "text": "Has imaging of the knee been completed in the past 6 months?",
+                "type": "boolean",
+                "required": true
+              }
+            ]
+          }
+        ],
+        "questionnaire": "#knee-arthroscopy-adaptive",
+        "status": "in-progress"
+      }
+    },
+    "service-fails": {
+      "httpStatus": 500,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "SERVICE_ERROR",
+        "errorType": "SERVER_ERROR",
+        "httpStatus": 500
+      },
+      "response": {
+        "resourceType": "OperationOutcome",
+        "issue": [
+          {
+            "severity": "error",
+            "code": "exception",
+            "details": {
+              "text": "The criteria could not be evaluated."
+            },
+            "diagnostics": "The criteria could not be evaluated."
+          }
+        ]
+      }
+    }
+  }
+}

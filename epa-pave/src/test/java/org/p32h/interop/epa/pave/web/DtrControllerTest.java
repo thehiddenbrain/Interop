@@ -524,7 +524,7 @@ class DtrControllerTest {
     void theScenarioListIsOfferedOnMockAndIsEmptyOnLiveWhereTheVocabularyIsStillServed() throws Exception {
         String mock = mvc("mock").perform(get("/api/dtr/scenarios")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.available").value(true))
-                .andExpect(jsonPath("$.scenarios.length()").value(13))
+                .andExpect(jsonPath("$.scenarios.length()").value(14))
                 .andExpect(jsonPath("$.scenarios[1].sentinelMemberId").value("P32H-DTR-ADAPT"))
                 .andExpect(jsonPath("$.scenarios[6].expectedOutcome").value("NO_QUESTIONNAIRE"))
                 .andExpect(jsonPath("$.problems.length()").value(0))
