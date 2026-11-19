@@ -3,7 +3,7 @@ plugins {
     id 'org.springframework.boot' version "${springBootVersion}"
 }
 
-group = 'com.thehiddenbrain.interop.epa'
+group = 'org.p32h.interop.epa'
 version = '1.0.0'
 
 java {

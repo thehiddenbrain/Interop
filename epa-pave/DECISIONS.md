@@ -13,6 +13,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-004 | `build.gradle` as given in section 2 does not resolve. One line was added | A changed build file nobody is told about is a mystery for the next build |
 | D-005 | The Spring Boot 4.0.7 BOM manages JUnit Jupiter 6.0.3, and the stack table says JUnit 5 | The pin in the stack table does not match what resolves |
 | D-008 | `hl7.org` and `build.fhir.org` are blocked from the build environment | Implementation guide details could not be checked against the published guides |
+| D-053 | The root package and the Gradle group are `org.p32h.interop.epa...`, not `com.thehiddenbrain.interop.epa...` | Changed on the operator's instruction during the build. It overrides the identity table in section 2 |
 
 ## Build and environment
 
@@ -345,3 +346,13 @@ targets.
 The script is never run. When a run uses a collection request that carries one, the result and the
 ledger record say so, because a value Postman would have computed was not computed and that is
 often the unseen cause of a failure.
+
+**D-053. Root package and group.**
+The identity table in section 2 of the build prompt gives the root package as
+`com.thehiddenbrain.interop.epa.pave` and the group as `com.thehiddenbrain.interop.epa`. During the
+build the operator said the package name should be `org.p32h.`. That was read as a correction to
+the reverse-domain prefix, and one substitution was applied to both rows: `com.thehiddenbrain`
+became `org.p32h` and every other segment was kept. The root package is
+`org.p32h.interop.epa.pave` and the group is `org.p32h.interop.epa`. The directory, the project
+name, the jar name `epa-pave-1.0.0.jar` and the port are unchanged. If a shorter package was
+meant, such as `org.p32h.epa.pave` or `org.p32h.pave`, it is one mechanical rename.

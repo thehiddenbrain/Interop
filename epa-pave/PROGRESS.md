@@ -71,7 +71,7 @@ the full build, fixes the seams and commits. No wave agent merges its own work.
 
 ### Package and file list
 
-Root package `com.thehiddenbrain.interop.epa.pave`.
+Root package `org.p32h.interop.epa.pave`.
 
 **Spine 1, frozen**
 
