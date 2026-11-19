@@ -216,5 +216,4 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
                 + CodeListText.join(new ArrayList<>(list.lineNames().values())) + ". If one of those is the same line under another "
                 + "name, add it to codelist.line-of-business-aliases.";
     }
-
 }

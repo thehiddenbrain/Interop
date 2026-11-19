@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.Texts;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -100,7 +101,7 @@ final class JsonCodeList {
             if (container) {
                 nested.add(at);
             }
-            if (cells.values().stream().anyMatch(cell -> cell != null && !cell.isBlank())) {
+            if (cells.values().stream().anyMatch(Texts::present)) {
                 List<String> aligned = new ArrayList<>();
                 int width = cells.keySet().stream().mapToInt(Integer::intValue).max().orElse(-1) + 1;
                 for (int i = 0; i < width; i++) {
@@ -145,7 +146,7 @@ final class JsonCodeList {
             List<String> parts = new ArrayList<>();
             for (JsonNode element : JsonSafe.elements(value)) {
                 String part = JsonSafe.text(element);
-                if (part != null) {
+                if (Texts.present(part)) {
                     parts.add(part);
                 }
             }

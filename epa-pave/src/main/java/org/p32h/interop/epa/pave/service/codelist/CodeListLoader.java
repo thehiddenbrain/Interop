@@ -294,6 +294,11 @@ final class CodeListLoader {
             table.rows().forEach(this::read);
         }
 
+        /**
+         * The cell of a row under a column, or null when the file has no such column, the row has
+         * no such cell, or the cell is blank. Never an empty or a blank string, which is why the
+         * code below can ask a cell whether it is null and need ask nothing else.
+         */
         private String cell(SourceTable.Row row, CodeListColumn column) {
             return CodeListText.clean(row.cell(columns.position(column)));
         }
