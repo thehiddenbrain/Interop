@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 
@@ -16,6 +17,7 @@ import java.util.List;
  * @param variables  every placeholder and how it resolved
  * @param unresolved names of placeholders no layer could supply
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record ResolvedText(String template, String display, @JsonIgnore String value, List<VariableUse> variables,
                            List<String> unresolved) {
 

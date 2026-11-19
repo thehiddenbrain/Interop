@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.crd;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
@@ -32,7 +33,10 @@ public record CrdRunRequest(
         String chainId,
         RequestRef request,
         String rawBody,
-        Map<String, String> variables) implements RunRequest {
+        Map<String, String> variables,
+        Map<String, List<String>> carry,
+        Long configEpoch,
+        @JsonAnySetter Map<String, Object> unrecognised) implements RunRequest {
 
     public static final String ORDER_SIGN = "order-sign";
     public static final String ORDER_SELECT = "order-select";
@@ -42,6 +46,8 @@ public record CrdRunRequest(
         providerOverrides = providerOverrides == null ? List.of() : List.copyOf(providerOverrides);
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
         variables = variables == null ? Map.of() : Map.copyOf(variables);
+        carry = carry == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(carry));
+        unrecognised = unrecognised == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(unrecognised));
     }
 
     public static Builder builder() {
@@ -71,6 +77,8 @@ public record CrdRunRequest(
         private RequestRef request;
         private String rawBody;
         private Map<String, String> variables = Map.of();
+        private Map<String, List<String>> carry = Map.of();
+        private Long configEpoch;
 
         private Builder() {
         }
@@ -155,9 +163,20 @@ public record CrdRunRequest(
             return this;
         }
 
+        public Builder carry(Map<String, List<String>> value) {
+            this.carry = value;
+            return this;
+        }
+
+        public Builder configEpoch(Long value) {
+            this.configEpoch = value;
+            return this;
+        }
+
         public CrdRunRequest build() {
             return new CrdRunRequest(hook, member, memberOverrides, provider, providerOverrides, procedureCodes, dateOfService,
-                    includePrefetch, scenarioId, expected, testerRef, note, chainId, request, rawBody, variables);
+                    includePrefetch, scenarioId, expected, testerRef, note, chainId, request, rawBody, variables, carry, configEpoch,
+                    Map.of());
         }
     }
 }

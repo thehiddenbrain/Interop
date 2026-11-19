@@ -1,5 +1,7 @@
 package org.p32h.interop.epa.pave.model;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 import java.util.Map;
 
@@ -12,14 +14,23 @@ import java.util.Map;
  *
  * <p>Construct with {@link #builder()}.
  *
- * @param chain       true to run the whole journey, CRD then DTR then PAS, as far as each step allows
- * @param operation   the single operation to run when {@code chain} is false
+ * @param chain       true to run the whole journey, CRD then DTR then PAS, as far as each step
+ *                    allows. A row that leaves it out is not a chain
+ * @param operation   the single operation to run when {@code chain} is false. For a chain, the
+ *                    CRD hook it starts with, where null means order-sign
  * @param correlation identifiers a follow-up read needs, keyed by the RunRecord CORR constants:
  *                    the claim id for a PAS inquiry, the subscription id for a subscription read
+ * @param configEpoch the configuration epoch the case must run under, or null to not check. A
+ *                    suite pins the epoch it started under, so its cases cannot drift to another
+ *                    environment part way through
+ * @param unrecognised every key of a suite row this tool does not know. A case that has any is
+ *                    reported as invalid, naming them: a misspelt {@code expected} would otherwise
+ *                    make every row unverified without a word
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record CaseSpec(
         String caseId,
-        boolean chain,
+        Boolean chain,
         EpaOperation operation,
         String memberId,
         String npi,
@@ -32,11 +43,17 @@ public record CaseSpec(
         String chainId,
         String suiteRunId,
         String replayOfRunId,
-        Map<String, String> correlation) {
+        Map<String, String> correlation,
+        Long configEpoch,
+        @JsonAnySetter Map<String, Object> unrecognised) {
 
     public CaseSpec {
+        // Boxed, because Jackson 3 refuses to bind a missing property to a primitive and a suite
+        // row may leave this out. Normalised here so callers never see a null.
+        chain = chain != null && chain;
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
         correlation = correlation == null ? Map.of() : Map.copyOf(correlation);
+        unrecognised = unrecognised == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(unrecognised));
     }
 
     public static Builder builder() {
@@ -65,6 +82,7 @@ public record CaseSpec(
         private String suiteRunId;
         private String replayOfRunId;
         private Map<String, String> correlation = Map.of();
+        private Long configEpoch;
 
         private Builder() {
         }
@@ -144,9 +162,14 @@ public record CaseSpec(
             return this;
         }
 
+        public Builder configEpoch(Long value) {
+            this.configEpoch = value;
+            return this;
+        }
+
         public CaseSpec build() {
             return new CaseSpec(caseId, chain, operation, memberId, npi, procedureCodes, dateOfService, scenarioId, expected,
-                    testerRef, note, chainId, suiteRunId, replayOfRunId, correlation);
+                    testerRef, note, chainId, suiteRunId, replayOfRunId, correlation, configEpoch, Map.of());
         }
     }
 }

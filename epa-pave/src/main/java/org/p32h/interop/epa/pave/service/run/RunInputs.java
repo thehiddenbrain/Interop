@@ -11,6 +11,7 @@ import org.p32h.interop.epa.pave.model.OutcomeCode;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.IsoDates;
+import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -105,6 +106,23 @@ public final class RunInputs {
     public RunInputs scenario(String scenarioId, EpaProperties epa) {
         if (Texts.present(scenarioId) && !epa.mock()) {
             errors.add(new FieldError("scenarioId", "A scenario can be chosen on the mock profile only. On live the answer comes from the service."));
+        }
+        return this;
+    }
+
+    /**
+     * The checks every request shares beyond its own fields: no field the tool does not know, and
+     * a chain id that is blank, a request for a new one, or an id this tool minted.
+     */
+    public RunInputs common(RunRequest request) {
+        for (String key : request.unrecognised().keySet()) {
+            errors.add(new FieldError(key, "This tool does not know the field \"" + key + "\". Check its spelling. Nothing was sent, "
+                    + "because a field that is quietly dropped can change what a run means."));
+        }
+        String chainId = Texts.trimToNull(request.chainId());
+        if (chainId != null && !RunRequest.NEW_CHAIN.equals(chainId) && !RunStamps.isChainId(chainId)) {
+            errors.add(new FieldError("chainId", "The chain id must be blank, \"" + RunRequest.NEW_CHAIN + "\" to start a chain, or an "
+                    + "id this tool returned for one."));
         }
         return this;
     }

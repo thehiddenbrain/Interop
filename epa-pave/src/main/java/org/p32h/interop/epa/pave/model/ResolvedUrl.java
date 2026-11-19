@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 
@@ -17,6 +18,7 @@ import java.util.List;
  * @param source     where the template came from, in words, for example the name of a collection
  *                   request or the application.yml property
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record ResolvedUrl(String template, String display, @JsonIgnore String value, List<VariableUse> variables,
                           List<String> unresolved, String source) {
 

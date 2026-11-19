@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import java.util.Map;
  * @param reason   why this is the next step, tied to what the response said
  * @param carry    values the next step starts from, by CARRY key
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record NextStepView(NextAction action, String headline, String reason, Map<String, List<String>> carry) {
 
     /** The canonical url of each questionnaire the payer named, in the order returned. */

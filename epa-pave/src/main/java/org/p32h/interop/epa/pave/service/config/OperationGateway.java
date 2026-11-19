@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.service.config;
 
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
@@ -85,11 +86,19 @@ public interface OperationGateway {
      *       On the mock profile nothing is sent, so a write with no environment is allowed.</li>
      * </ul>
      *
+     * <h4>The configuration the caller saw</h4>
+     * When {@code intent.expectedEpoch()} is set and is not the epoch of the snapshot this call is
+     * prepared against, the call is refused with {@link ConfigurationChangedException}, on both
+     * profiles and for reads as well as writes. The environment strip is drawn per browser tab and
+     * the active environment is one value for the whole server: without this, a tab still showing a
+     * sandbox would send to whatever another tab had activated since.
+     *
      * <h4>Mock and live</h4>
      * On the mock profile a target that is not configured or not resolved is not an error, because
      * nothing is sent; the returned call says what was and was not resolved. On the live profile
      * it is an error raised before anything is sent.
      *
+     * @throws ConfigurationChangedException  when the intent names an epoch that is no longer current
      * @throws ProdWriteBlockedException      when the guardrail refuses the call
      * @throws NotFoundException              when {@code intent.request()} names a request that does not exist
      * @throws BadInputException              when {@code intent.request()} is not mapped to the intent's operation

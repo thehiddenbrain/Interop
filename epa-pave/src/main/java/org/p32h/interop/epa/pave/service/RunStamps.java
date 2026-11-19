@@ -20,6 +20,18 @@ public final class RunStamps {
         return "chain-" + UUID.randomUUID();
     }
 
+    /** True when the text has the shape of an id {@link #newChainId()} mints. */
+    public static boolean isChainId(String text) {
+        if (text == null || !text.startsWith("chain-")) {
+            return false;
+        }
+        try {
+            return UUID.fromString(text.substring(6)).toString().equals(text.substring(6));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     public static String newSuiteRunId() {
         return "suite-" + UUID.randomUUID();
     }

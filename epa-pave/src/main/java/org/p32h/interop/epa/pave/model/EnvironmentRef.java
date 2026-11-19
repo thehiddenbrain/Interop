@@ -1,5 +1,7 @@
 package org.p32h.interop.epa.pave.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
@@ -9,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param kind the kind, or null when no environment is active
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(value = "active", allowGetters = true)
 public record EnvironmentRef(String name, EnvironmentKind kind) {
 
     private static final EnvironmentRef NONE = new EnvironmentRef(null, null);
@@ -22,10 +25,16 @@ public record EnvironmentRef(String name, EnvironmentKind kind) {
         return NONE;
     }
 
+    /**
+     * True when an environment is active. Serialised, so the environment strip reads a flag and
+     * never has to infer "none" from an object with no name in it.
+     */
+    @JsonProperty("active")
     public boolean active() {
         return Texts.present(name);
     }
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public boolean production() {
         return kind == EnvironmentKind.PROD;
     }

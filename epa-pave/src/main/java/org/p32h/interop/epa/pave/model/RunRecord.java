@@ -32,6 +32,11 @@ import java.util.Map;
  *                         used, or null when it came from the fallback layer or nothing is configured
  * @param attachmentMode   for a PAS submission that carries supporting documentation, how it
  *                         travelled: fhir or x12-275
+ * @param nextAction       the {@link NextAction} name the result stated as the next step. The
+ *                         result on screen is gone when the browser tab is, and this line is all
+ *                         the history, a reopened chain and a suite row ever see, so the answer to
+ *                         "what do I do next" is kept here. A name, like the findings, so an old
+ *                         line stays readable if the enum changes
  * @param correlation      identifiers that tie runs together, keyed by the CORR constants
  * @param findings         {@link FindingKind} names raised on this run
  * @param unrecordedInputs names of things this run sent that cannot be rebuilt from this line and
@@ -44,8 +49,8 @@ import java.util.Map;
 @JsonPropertyOrder({"recordType", "runId", "timestamp", "protocol", "operation", "target", "profile", "environment",
         "environmentKind", "scenarioId", "procedureCodes", "lineOfBusiness", "outcome", "coverageCodes",
         "delegatedVendor", "httpStatus", "elapsedMillis", "errorType", "expected", "result", "note", "testerRef",
-        "chainId", "suiteRunId", "caseId", "replayOfRunId", "hook", "attachmentMode", "targetSource", "memberId", "memberToken",
-        "memberIdLast4", "npi",
+        "chainId", "suiteRunId", "caseId", "replayOfRunId", "hook", "attachmentMode", "nextAction", "targetSource", "memberId",
+        "memberToken", "memberIdLast4", "npi",
         "dateOfService", "correlation", "findings", "unrecordedInputs", "slow"})
 public record RunRecord(
         String recordType,
@@ -76,6 +81,7 @@ public record RunRecord(
         @JsonInclude(JsonInclude.Include.NON_NULL) String replayOfRunId,
         @JsonInclude(JsonInclude.Include.NON_NULL) String hook,
         @JsonInclude(JsonInclude.Include.NON_NULL) String attachmentMode,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String nextAction,
         @JsonInclude(JsonInclude.Include.NON_NULL) String targetSource,
         @JsonInclude(JsonInclude.Include.NON_NULL) String memberId,
         @JsonInclude(JsonInclude.Include.NON_NULL) String memberToken,
@@ -182,6 +188,7 @@ public record RunRecord(
         b.replayOfRunId = replayOfRunId;
         b.hook = hook;
         b.attachmentMode = attachmentMode;
+        b.nextAction = nextAction;
         b.targetSource = targetSource;
         b.memberId = memberId;
         b.memberToken = memberToken;
@@ -223,6 +230,7 @@ public record RunRecord(
         private String replayOfRunId;
         private String hook;
         private String attachmentMode;
+        private String nextAction;
         private String targetSource;
         private String memberId;
         private String memberToken;
@@ -384,6 +392,16 @@ public record RunRecord(
             return this;
         }
 
+        public Builder nextAction(String value) {
+            this.nextAction = value;
+            return this;
+        }
+
+        public Builder nextAction(NextAction value) {
+            this.nextAction = value == null ? null : value.name();
+            return this;
+        }
+
         public Builder targetSource(String value) {
             this.targetSource = value;
             return this;
@@ -445,7 +463,7 @@ public record RunRecord(
             return new RunRecord(TYPE_RUN, runId, timestamp, protocol, operation, target, profile, environment,
                     environmentKind, scenarioId, procedureCodes, lineOfBusiness, outcome, coverageCodes, delegatedVendor,
                     httpStatus, elapsedMillis, errorType, expected, result, note, testerRef, chainId, suiteRunId, caseId,
-                    replayOfRunId, hook, attachmentMode, targetSource, memberId, memberToken, memberIdLast4, npi, dateOfService, correlation,
+                    replayOfRunId, hook, attachmentMode, nextAction, targetSource, memberId, memberToken, memberIdLast4, npi, dateOfService, correlation,
                     findings, unrecordedInputs, slow);
         }
 

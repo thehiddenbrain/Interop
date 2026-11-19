@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.model.crd;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.p32h.interop.epa.pave.model.IssueView;
 import org.p32h.interop.epa.pave.model.Presence;
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.List;
  *                              Empty when the tester's own body was sent
  * @param bodyBuiltByTool       false when the tester's edited body was sent in place of a built one
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record CrdDetail(CrdResponseKind responseKind, String responseNote, Presence cardsPresence, List<CardView> cards,
                         Presence systemActionsPresence, List<ActionView> systemActions,
                         List<CoverageInformationView> coverageInformation, List<IssueView> issues, List<String> requestNotes,

@@ -474,3 +474,57 @@ items from the same codes and systems, so copies would be a correctness risk.
 Only `fhir` and `x12-275` are accepted. A PAS submission that carries documentation records the
 mode it used.
 
+## Changes made after the frontend, chain and suites review
+
+**D-071. The ledger line records the stated next step.**
+`RunRecord.nextAction` holds the name of the next step the result stated. The result on screen is
+gone when the browser tab is, and the ledger line is all the history, a reopened chain and a suite
+row ever see, so without it a history record could not answer "what do I do next", and a chain row
+could not say that the flow ended at CRD.
+
+**D-072. A receipt always carries the record.**
+`LedgerReceipt.record` is the record after the tracking policy, whether or not it reached the file.
+A suite row and a replay see nothing of a run except that record, so dropping it when a write
+failed would make a run that happened vanish from their results. When no ledger applied the policy
+(none is available, or it threw), the receipt carries the record with everything the policy governs
+removed. `CaseOutcome.notRecorded` lists the ledger's message for each run it did not keep.
+
+**D-073. The hand-off between steps is part of the shared request.**
+`RunRequest.carry` is the previous result's `nextStep.carry`, posted back unchanged. A run that
+carries anything is marked `prior-step` in the ledger, so a replay does not run it without them.
+
+**D-074. Only the tool mints a chain id.**
+A blank chain id means no chain. The literal `new` makes the service mint one, which comes back on
+the result. Any other value must have the shape of an id this tool minted, or the run is refused:
+free text there would be written to the ledger as it stands.
+
+**D-075. A run says which configuration its screen was drawn from.**
+`GET /api/mode` gives the configuration epoch. The browser posts it back as `configEpoch`, the
+gateway refuses a call whose epoch is no longer current, and a suite pins the epoch it started
+under. The active environment is one value for the whole server and the environment strip is drawn
+per tab, so without this a tab still showing a sandbox would send to whatever another tab
+activated. A request with no epoch is not checked, which keeps a plain curl example working.
+
+**D-076. The outcome vocabulary is served, not copied.**
+Each protocol's scenarios endpoint also returns every outcome with its label and tone, and the
+element names an expectation may use, on live as well as on mock. The expectation picker and the
+history list read them from there.
+
+**D-077. A failure of the tool after the call is a result.**
+The service wraps only the reading and wording of the response in a try. On a failure it logs
+under a reference, records the run as `TOOL_ERROR` and returns the usual result shape with the
+request that went out, the response as received and the ledger receipt, answered with 500. A
+mapper defect after a successful submission must not leave a tester with "internal error" and no
+sign that a request reached the payer.
+
+**D-078. A request field the tool does not know is refused.**
+Each run request and each suite row collects unknown fields, and a request that has any is refused
+with a 422 naming them. A misspelt `expected` would otherwise be dropped without a word and the run
+recorded as unverified.
+
+**D-079. What the browser is sent.**
+A null is left out, never written as null, with the ledger record as the documented exception.
+`EnvironmentRef` serialises an `active` flag. An entry in the returned fields says whether it is a
+field, a raw body or a note. Which results answer 403 and 500, and with which body, is stated on
+`RunResponses`.
+

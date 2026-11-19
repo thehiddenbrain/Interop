@@ -2,10 +2,14 @@ package org.p32h.interop.epa.pave.web;
 
 import org.p32h.interop.epa.pave.client.crd.MockOnyxCrdClient;
 import org.p32h.interop.epa.pave.config.EpaProperties;
+import org.p32h.interop.epa.pave.model.CrdOutcome;
+import org.p32h.interop.epa.pave.model.OutcomeOption;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
-import org.p32h.interop.epa.pave.model.ScenarioSummary;
+import org.p32h.interop.epa.pave.model.RunOutcome;
+import org.p32h.interop.epa.pave.model.ScenarioList;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
+import org.p32h.interop.epa.pave.service.crd.CrdCodes;
 import org.p32h.interop.epa.pave.service.crd.CrdDiscovery;
 import org.p32h.interop.epa.pave.service.crd.CrdRunRequest;
 import org.p32h.interop.epa.pave.service.crd.CrdService;
@@ -29,16 +33,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
  */
 @RequestMapping("/api/crd")
 public class CrdController {
-
-    /**
-     * The scenario list.
-     *
-     * @param available false on the live profile, where there is no selector to offer
-     * @param reason    why there is none, or null
-     * @param problems  scenario files that could not be used, by name, with the reason
-     */
-    public record ScenarioList(boolean available, String reason, List<ScenarioSummary> scenarios, List<String> problems) {
-    }
 
     private final CrdService service;
     private final ScenarioRepository scenarios;
@@ -68,14 +62,17 @@ public class CrdController {
     /**
      * On mock, the scenarios a tester can choose from. On live the list is empty and says why: a
      * scenario forced against the real service would produce a result that did not come from it.
+     * On both, the outcomes and element names a tester can declare as an expectation.
      */
     @GetMapping("/scenarios")
     public ScenarioList scenarios() {
+        List<OutcomeOption> outcomes = OutcomeOption.listOf(CrdOutcome.values(), RunOutcome.values());
         if (!epa.mock()) {
             return new ScenarioList(false, "Scenarios exist on the mock profile only. On live every answer comes from the service.",
-                    List.of(), List.of());
+                    List.of(), List.of(), outcomes, CrdCodes.EXPECTATION_ELEMENTS);
         }
         ScenarioRepository.Loaded loaded = scenarios.load(MockOnyxCrdClient.SCENARIOS);
-        return new ScenarioList(true, null, loaded.scenarios().stream().map(Scenario::summary).toList(), loaded.problems());
+        return new ScenarioList(true, null, loaded.scenarios().stream().map(Scenario::summary).toList(), loaded.problems(), outcomes,
+                CrdCodes.EXPECTATION_ELEMENTS);
     }
 }

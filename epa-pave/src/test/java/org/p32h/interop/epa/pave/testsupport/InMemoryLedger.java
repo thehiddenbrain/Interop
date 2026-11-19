@@ -59,7 +59,8 @@ public final class InMemoryLedger implements RunLedger {
             throw failure;
         }
         if (refusal != null) {
-            return new LedgerReceipt(false, null, refusal, records.size());
+            // As the real ledger does: the record is returned whether or not it was kept.
+            return new LedgerReceipt(false, draft, refusal, records.size());
         }
         records.add(draft);
         return new LedgerReceipt(true, draft, null, records.size());
@@ -130,7 +131,7 @@ public final class InMemoryLedger implements RunLedger {
 
     @Override
     public LedgerHealth health() {
-        return new LedgerHealth(true, "memory", true, "memory", records.size(), 0, null, null);
+        return new LedgerHealth(true, "memory", true, "memory", records.size(), 0, null, refusal, null, refusal == null ? 0 : 1);
     }
 
     @Override

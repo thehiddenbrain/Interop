@@ -24,6 +24,7 @@ import org.p32h.interop.epa.pave.model.FindingKind;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.NextAction;
+import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
@@ -37,10 +38,12 @@ import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
 import org.p32h.interop.epa.pave.service.RunLedger;
+import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.config.RequestRef;
 import org.p32h.interop.epa.pave.service.config.TestPreparedCalls;
+import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
@@ -71,6 +74,7 @@ class CrdServiceTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-03-10T15:00:00Z"), ZoneId.of("America/New_York"));
     private static final AppProperties APP = AppProperties.of(Map.of("mock-latency-enabled", "false"));
     private static final String SURNAME = "Placeholder-Surname";
+    private static final String CHAIN = "chain-00000000-0000-4000-8000-000000000001";
 
     private final FakeGateway gateway = FakeGateway.unconfigured();
     private final InMemoryLedger ledger = new InMemoryLedger();
@@ -109,7 +113,7 @@ class CrdServiceTest {
     @Test
     void aRunReturnsTheVerdictTheTestResultTheNextStepAndTheLedgerReceipt() {
         RunEnvelope<CrdDetail> result = service().run(request("P32H-PA-REQ").expected("AUTH_REQUIRED").testerRef("QA-17")
-                .note("first run").chainId("chain-1").build(), RunOrigin.manual(), null);
+                .note("first run").chainId(CHAIN).build(), RunOrigin.manual(), null);
 
         // What happened.
         assertThat(result.verdict().headline()).isEqualTo("Prior authorization is required.");
@@ -126,7 +130,7 @@ class CrdServiceTest {
         assertThat(ledger.only().runId()).isEqualTo(result.runId());
         assertThat(result.protocol()).isEqualTo(Protocol.CRD);
         assertThat(result.operation()).isEqualTo(EpaOperation.CRD_ORDER_SIGN);
-        assertThat(result.chainId()).isEqualTo("chain-1");
+        assertThat(result.chainId()).isEqualTo(CHAIN);
         assertThat(result.profile()).isEqualTo("mock");
         assertThat(result.error()).isNull();
         assertThat(result.timing().slow()).isFalse();
@@ -298,6 +302,77 @@ class CrdServiceTest {
         assertThat(ledger.only().coverageCodes()).containsExactly("95810: covered=covered", "95810: pa-needed=no-auth", "E0601: (no answer)");
     }
 
+    // ---- the hand-off between steps, and the configuration the screen was drawn from ----
+
+    @Test
+    void theNextStepIsWrittenToTheLedgerSoHistoryCanStillSayWhatToDoNext() {
+        run("P32H-NO-AUTH");
+        run("P32H-DOC-DTR");
+        run("P32H-PA-REQ");
+        run("P32H-EMPTY");
+        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsExactly("FLOW_ENDS", "START_DTR", "START_PAS", "REVIEW");
+    }
+
+    @Test
+    void aChainIsStartedByTheServiceAndItsIdComesBackOnTheResult() {
+        RunEnvelope<CrdDetail> first = service().run(request("P32H-DOC-DTR").chainId("new").build(), RunOrigin.manual(), null);
+        assertThat(RunStamps.isChainId(first.chainId())).isTrue();
+        assertThat(ledger.last().chainId()).isEqualTo(first.chainId());
+        // The next step posts the id back, and it is kept as given.
+        RunEnvelope<CrdDetail> second = service().run(request("P32H-DOC-DTR").chainId(first.chainId()).build(), RunOrigin.manual(), null);
+        assertThat(second.chainId()).isEqualTo(first.chainId());
+        // No chain is the default, and free text is refused: it would be written to the ledger as it stands.
+        assertThat(run("P32H-NO-AUTH").chainId()).isNull();
+        assertInvalid(service(), request("S123456789").chainId("Placeholder-Surname follow-up").build(), "chainId");
+        assertInvalid(service(), request("S123456789").chainId("chain-1").build(), "chainId");
+    }
+
+    @Test
+    void aRunThatUsedSomethingAnEarlierStepHandedOnSaysSoInTheLedger() {
+        service().run(request("P32H-NO-AUTH").carry(Map.of(NextStepView.CARRY_PROCEDURE_CODES, List.of("95810"))).build(),
+                RunOrigin.manual(), null);
+        assertThat(ledger.only().unrecordedInputs()).containsExactly(RunRecord.INPUT_PRIOR_STEP);
+    }
+
+    @Test
+    void aRunIsRefusedWhenTheConfigurationChangedAfterItsScreenWasDrawn() {
+        // The tab was drawn at epoch 0 and still shows that environment. Another tab has since
+        // activated a different one. Sending would go somewhere the tester is not looking at.
+        gateway.changeConfiguration();
+        assertThatThrownBy(() -> service().run(request("P32H-NO-AUTH").configEpoch(0L).build(), RunOrigin.manual(), null))
+                .isInstanceOf(ConfigurationChangedException.class).hasMessageContaining("Reload");
+        assertThat(ledger.records()).isEmpty();
+        // With the current epoch it is sent, and with none the check is not made.
+        assertThat(service().run(request("P32H-NO-AUTH").configEpoch(1L).build(), RunOrigin.manual(), null).ledger().recorded()).isTrue();
+        assertThat(gateway.lastIntent().expectedEpoch()).isEqualTo(1L);
+        assertThat(run("P32H-NO-AUTH").ledger().recorded()).isTrue();
+        assertThat(gateway.lastIntent().expectedEpoch()).isNull();
+    }
+
+    @Test
+    void aRequestFieldTheToolDoesNotKnowIsRefusedAndNeverQuietlyDropped() {
+        // "expectd" for "expected": dropped silently, this run would be recorded as unverified.
+        CrdRunRequest misspelt = JsonSafe.mapper().readValue("{\"member\":{\"memberId\":\"P32H-NO-AUTH\"},"
+                + "\"provider\":{\"npi\":\"1234567893\"},\"procedureCodes\":[{\"code\":\"95810\"}],\"expectd\":\"NO_AUTH_REQUIRED\"}",
+                CrdRunRequest.class);
+        assertThat(misspelt.unrecognised()).containsOnlyKeys("expectd");
+        assertThatThrownBy(() -> service().run(misspelt, RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                    assertThat(error.field()).isEqualTo("expectd");
+                    assertThat(error.message()).contains("does not know the field \"expectd\"");
+                }));
+        assertThat(ledger.records()).isEmpty();
+
+        // The same request spelt correctly binds every field it posts, including the two a chain uses.
+        CrdRunRequest correct = JsonSafe.mapper().readValue("{\"member\":{\"memberId\":\"P32H-NO-AUTH\"},"
+                + "\"provider\":{\"npi\":\"1234567893\"},\"procedureCodes\":[{\"code\":\"95810\"}],\"expected\":\"NO_AUTH_REQUIRED\","
+                + "\"carry\":{\"procedureCodes\":[\"95810\"]},\"configEpoch\":0,\"hook\":\"order-sign\"}", CrdRunRequest.class);
+        assertThat(correct.unrecognised()).isEmpty();
+        assertThat(correct.carry()).containsEntry("procedureCodes", List.of("95810"));
+        assertThat(correct.configEpoch()).isZero();
+        assertThat(service().run(correct, RunOrigin.manual(), null).expectation().result()).isEqualTo(TestResult.PASS);
+    }
+
     // ---- the production guardrail ----
 
     private static ProdWriteBlockedException blockedWrite() {
@@ -361,6 +436,7 @@ class CrdServiceTest {
         assertThat(record.memberId()).isEqualTo("S1234567801");
         assertThat(record.procedureCodes()).containsExactly("95810");
         assertThat(record.testerRef()).isEqualTo("QA-17");
+        assertThat(record.nextAction()).isEqualTo("UNLOCK_OR_SWITCH");
     }
 
     @Test
@@ -498,6 +574,7 @@ class CrdServiceTest {
         assertThat(result.verdict().outcomeCode()).isEqualTo("NO_AUTH_REQUIRED");
         assertThat(result.ledger().recorded()).isFalse();
         assertThat(result.ledger().message()).contains("NOT recorded");
+        assertThat(result.ledger().record().runId()).isEqualTo(result.runId());
     }
 
     @Test
@@ -507,6 +584,22 @@ class CrdServiceTest {
         assertThat(result.verdict().outcomeCode()).isEqualTo("NO_AUTH_REQUIRED");
         assertThat(result.ledger().recorded()).isFalse();
         assertThat(result.ledger().message()).contains("NOT recorded").doesNotContain(SURNAME);
+        // The receipt still carries the record, so a suite row or a replay does not lose the run.
+        // No ledger applied the tracking policy to it, so everything the policy governs is left out.
+        RunRecord unkept = result.ledger().record();
+        assertThat(unkept.runId()).isEqualTo(result.runId());
+        assertThat(unkept.outcome()).isEqualTo("NO_AUTH_REQUIRED");
+        assertThat(unkept.memberId()).isNull();
+        assertThat(unkept.npi()).isNull();
+        assertThat(unkept.dateOfService()).isNull();
+        assertThat(result.ledger().runsToday()).isNull();
+    }
+
+    @Test
+    void anAuthorizationNumberDoesNotRideAlongInAReceiptTheLedgerNeverSaw() {
+        ledger.throwing(new IllegalStateException("disk full"));
+        RunEnvelope<CrdDetail> result = run("P32H-PA-SAT");
+        assertThat(result.ledger().record().correlation()).doesNotContainKey(RunRecord.CORR_AUTHORIZATION_REF);
     }
 
     @Test
@@ -533,14 +626,48 @@ class CrdServiceTest {
         // The code is given its system, so the request is built without the code list. The code
         // list is then consulted only after the call, where this failure hits.
         codeList.failing(new IllegalStateException("code list exploded"));
-        CrdRunRequest request = request("P32H-NO-AUTH")
+        CrdRunRequest request = request("P32H-NO-AUTH").expected("NO_AUTH_REQUIRED")
                 .procedureCodes(List.of(new CodeInput("95810", "http://www.ama-assn.org/go/cpt", null))).build();
-        assertThatThrownBy(() -> service().run(request, RunOrigin.manual(), null)).isInstanceOf(IllegalStateException.class);
+        RunEnvelope<CrdDetail> result = service().run(request, RunOrigin.manual(), null);
+
         // The service was called, so the run happened and is recorded as a failure of the tool.
         assertThat(ledger.only().outcome()).isEqualTo("TOOL_ERROR");
         assertThat(ledger.only().result()).isEqualTo(TestResult.UNVERIFIED);
         assertThat(ledger.only().httpStatus()).isEqualTo(200);
         assertThat(ledger.only().scenarioId()).isEqualTo("crd-02-no-auth");
+        assertThat(ledger.only().nextAction()).isEqualTo("REVIEW");
+        assertThat(ledger.only().memberId()).isEqualTo("P32H-NO-AUTH");
+
+        // And the tester is not left with "internal error" alone: the result ties the failure to
+        // its ledger line and still shows what was sent and what came back.
+        assertThat(RunSupport.isToolError(result)).isTrue();
+        assertThat(result.runId()).isEqualTo(ledger.only().runId());
+        assertThat(result.ledger().recorded()).isTrue();
+        assertThat(result.verdict().outcomeCode()).isEqualTo("TOOL_ERROR");
+        assertThat(result.verdict().tone()).isEqualTo(Tone.FAULT);
+        assertThat(result.verdict().supporting().get(0)).startsWith("Mock scenario crd-02-no-auth answered");
+        assertThat(result.expectation().result()).isEqualTo(TestResult.UNVERIFIED);
+        assertThat(result.expectation().expected()).isEqualTo("NO_AUTH_REQUIRED");
+        assertThat(result.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(result.error().kind()).isEqualTo(ErrorKind.INTERNAL);
+        assertThat(result.error().reference()).isNotBlank();
+        // The exception's own message is never shown: it can quote a body.
+        assertThat(result.error().title() + result.error().action() + result.verdict().headline()).doesNotContain("code list exploded");
+        assertThat(result.wire().request().body()).contains("\"hook\"");
+        assertThat(result.wire().response().body()).contains("\"no-auth\"");
+        assertThat(result.wire().response().status()).isEqualTo(200);
+        assertThat(result.detail()).isNull();
+    }
+
+    @Test
+    void aFailureOfThisToolAfterTheCallIsStillReportedWhenTheLedgerCannotWriteEither() {
+        codeList.failing(new IllegalStateException("code list exploded"));
+        ledger.refusing("This run was NOT recorded: the ledger file could not be written.");
+        RunEnvelope<CrdDetail> result = service().run(request("P32H-NO-AUTH")
+                .procedureCodes(List.of(new CodeInput("95810", "http://www.ama-assn.org/go/cpt", null))).build(), RunOrigin.manual(), null);
+        assertThat(RunSupport.isToolError(result)).isTrue();
+        assertThat(result.ledger().recorded()).isFalse();
+        assertThat(result.ledger().message()).contains("NOT recorded");
     }
 
     @Test

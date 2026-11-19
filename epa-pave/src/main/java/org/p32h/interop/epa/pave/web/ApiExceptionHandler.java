@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.model.ErrorView;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
+import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
@@ -176,19 +177,7 @@ public class ApiExceptionHandler {
 
     /** Exception types and the top frames of each, with no messages. */
     static String describe(Throwable error) {
-        StringBuilder out = new StringBuilder();
-        int depth = 0;
-        for (Throwable t = error; t != null && depth < 6; t = t.getCause() == t ? null : t.getCause(), depth++) {
-            if (depth > 0) {
-                out.append(" <- caused by ");
-            }
-            out.append(t.getClass().getName());
-            StackTraceElement[] frames = t.getStackTrace();
-            for (int i = 0; i < Math.min(frames.length, 8); i++) {
-                out.append(System.lineSeparator()).append("    at ").append(frames[i]);
-            }
-        }
-        return out.toString();
+        return Faults.describe(error);
     }
 
     private static ResponseEntity<ErrorView> respond(HttpStatus status, ErrorView body) {

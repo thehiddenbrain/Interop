@@ -14,9 +14,20 @@ import java.util.List;
  *
  * <p>Construct with {@link #builder()}.
  *
+ * <p>The verdict, the test result, the next step and the ledger receipt are always present. The
+ * rest depends on how far the run got, and the screen must not assume more:
+ * <ul>
+ *   <li>a run the production guardrail refused has no {@code detail}, no {@code timing} and a
+ *       {@code wire} whose response is absent, because nothing was sent</li>
+ *   <li>a run in which this tool failed after the call has no {@code detail} and no
+ *       {@code determination}, but does carry the {@code wire} and the {@code timing}</li>
+ *   <li>a call that got no response, such as a timeout, has a {@code wire} whose response says so</li>
+ * </ul>
+ * A null is left out of the JSON, never written as null.
+ *
  * @param <D>              the protocol's own detail type
  * @param additionalFields everything the response carried that the designed view did not use
- * @param error            set when the call failed; the rest of the envelope is still filled in
+ * @param error            set when the call failed, was refused, or the tool failed after it
  * @param ledger           what the ledger did with this run. Checked by the screen on every result
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)

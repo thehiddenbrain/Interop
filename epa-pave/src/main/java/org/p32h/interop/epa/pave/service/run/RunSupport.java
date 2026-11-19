@@ -33,11 +33,17 @@ import org.p32h.interop.epa.pave.model.WireView;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
+import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -51,6 +57,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class RunSupport {
+
+    private static final Logger log = LoggerFactory.getLogger(RunSupport.class);
 
     private final EpaProperties epa;
     private final TrackingProperties tracking;
@@ -162,11 +170,21 @@ public class RunSupport {
                 .expected(Texts.trimToNull(request.expected()))
                 .note(Texts.trimToNull(request.note()))
                 .testerRef(Texts.trimToNull(request.testerRef()))
-                .chainId(Texts.trimToNull(request.chainId()))
+                .chainId(chainId(request))
                 .memberId(Texts.trimToNull(memberId(request).sent()))
                 .npi(npi(request))
                 .dateOfService(Texts.trimToNull(request.dateOfService()))
                 .unrecordedInputs(unrecordedInputs(request));
+    }
+
+    /**
+     * The chain a run belongs to: none for a blank id, a newly minted id when the request asks for
+     * one, otherwise the id given. The id is minted here and nowhere else, and it reaches the
+     * tester on the result, so the browser never invents one.
+     */
+    public static String chainId(RunRequest request) {
+        String chainId = Texts.trimToNull(request.chainId());
+        return RunRequest.NEW_CHAIN.equals(chainId) ? RunStamps.newChainId() : chainId;
     }
 
     /** The member ID of a request as typed and as sent. Both empty when the request names no member. */
@@ -209,6 +227,10 @@ public class RunSupport {
         if (request.request() != null) {
             inputs.add(RunRecord.INPUT_CHOSEN_REQUEST);
         }
+        if (request.carry() != null && !request.carry().isEmpty()) {
+            // Whatever an earlier step handed on is not on this line, so the line alone cannot rebuild the request.
+            inputs.add(RunRecord.INPUT_PRIOR_STEP);
+        }
         return inputs;
     }
 
@@ -224,7 +246,7 @@ public class RunSupport {
      */
     public <D> RunEnvelope<D> blocked(EpaOperation operation, ProdWriteBlockedException refusal, RunRequest request,
                                       RunOrigin origin) {
-        RunRecord record = fill(blockedDraft(operation, refusal, origin), request).build();
+        RunRecord record = fill(blockedDraft(operation, refusal, origin), request).nextAction(NextAction.UNLOCK_OR_SWITCH).build();
         LedgerReceipt receipt = record(record);
         ResolvedUrl target = refusal.target();
         MemberIdForms memberId = memberId(request);
@@ -255,6 +277,61 @@ public class RunSupport {
     }
 
     /**
+     * The result of a run in which the service was called and this tool then failed to read its
+     * answer. The rule, the same for every protocol: the service wraps only the reading and wording
+     * of the response in a try, and on a failure returns this. The failure is logged under a
+     * reference, the run is recorded as a failure of the tool, and the result still carries the
+     * request that went out, the response as received and the ledger receipt. A tester whose
+     * submission reached the payer must never be told only "internal error".
+     *
+     * @param draft the draft as filled so far. Its outcome, result and next action are set here
+     * @param <D>   the protocol's detail type. A result of this kind has no detail
+     */
+    public <D> RunEnvelope<D> toolError(EpaOperation operation, PreparedCall call, VendorExchange exchange, RunRecord.Builder draft,
+                                        RunRequest request, RuntimeException error) {
+        String reference = UUID.randomUUID().toString();
+        // The exception types and frames only. Never its message, which can quote a body or a url.
+        log.error("A run failed inside this tool after the service was called, reference {}: {}", reference, Faults.describe(error));
+        RunRecord record = draft.outcome(RunOutcome.TOOL_ERROR).result(TestResult.UNVERIFIED).nextAction(NextAction.REVIEW).build();
+        LedgerReceipt receipt = record(record);
+        MemberIdForms memberId = memberId(request);
+        List<String> supporting = new ArrayList<>();
+        String scenario = scenarioLine(exchange);
+        if (scenario != null) {
+            supporting.add(scenario);
+        }
+        supporting.add(exchange.httpStatus() == null ? "No response arrived from the service."
+                : "The service answered with HTTP " + exchange.httpStatus() + ". Its answer is shown below exactly as received.");
+        return RunEnvelope.<D>builder()
+                .runId(record.runId())
+                .chainId(record.chainId())
+                .protocol(operation.protocol())
+                .operation(operation)
+                .environment(call.environment())
+                .profile(epa.mode())
+                .verdict(VerdictView.of(RunOutcome.TOOL_ERROR, "The request was sent, and this tool then failed while reading the answer.",
+                        supporting))
+                .expectation(Expectations.notCompared(request.expected(), RunOutcome.TOOL_ERROR,
+                        "This tool failed before it could compare the answer with what was expected."))
+                .nextStep(NextStepView.of(NextAction.REVIEW, "Next: read the response as received, below, and report the reference.",
+                        "This is a defect in this tool, not a finding about the service, the member or the code."))
+                .additionalFields(exchange.bodyFields())
+                .wire(exchange.wire(memberId.typed().isEmpty() ? null : memberId))
+                .error(ErrorView.of(ErrorKind.INTERNAL, "This tool hit an internal error after the service had been called.",
+                                "Report the reference below with what you were doing. The server log holds the detail under the same "
+                                        + "reference. The request was sent: do not assume it had no effect.")
+                        .withReference(reference).withHttpStatus(exchange.httpStatus()))
+                .ledger(receipt)
+                .timing(timing(exchange))
+                .build();
+    }
+
+    /** True when a result is the one {@link #toolError} builds, which a controller answers with 500. */
+    public static boolean isToolError(RunEnvelope<?> envelope) {
+        return envelope != null && envelope.error() != null && envelope.error().kind() == ErrorKind.INTERNAL;
+    }
+
+    /**
      * The line that says which mock scenario answered and how it came to be the one, or null when
      * the answer came from a real service. Every protocol puts it first under the verdict. Without
      * it a default scenario's answer reads as an answer about the member and code on the form.
@@ -274,14 +351,28 @@ public class RunSupport {
     public LedgerReceipt record(RunRecord draft) {
         RunLedger target = ledger.getIfAvailable();
         if (target == null) {
-            return new LedgerReceipt(false, null, "This run was NOT recorded: no ledger is available in this build.", 0);
+            return new LedgerReceipt(false, withoutMemberData(draft), "This run was NOT recorded: no ledger is available in this build.",
+                    null);
         }
         try {
             return target.record(draft);
         } catch (RuntimeException e) {
-            return new LedgerReceipt(false, null, "This run was NOT recorded: the ledger failed while writing it ("
-                    + e.getClass().getSimpleName() + ").", 0);
+            return new LedgerReceipt(false, withoutMemberData(draft), "This run was NOT recorded: the ledger failed while writing it ("
+                    + e.getClass().getSimpleName() + ").", null);
         }
+    }
+
+    /**
+     * The draft with everything the tracking policy governs removed. A receipt always carries the
+     * record, and normally the ledger has applied the policy to it. When no ledger did, this is the
+     * one form that is right under any policy: the real member ID must not ride along in a receipt
+     * just because the write failed.
+     */
+    private static RunRecord withoutMemberData(RunRecord draft) {
+        Map<String, String> correlation = new LinkedHashMap<>(draft.correlation());
+        correlation.remove(RunRecord.CORR_AUTHORIZATION_REF);
+        return draft.toBuilder().memberId(null).memberToken(null).memberIdLast4(null).npi(null).dateOfService(null)
+                .correlation(correlation).build();
     }
 
     /** The finding for a run that used a collection request with a pre-request script, or null when it did not. */

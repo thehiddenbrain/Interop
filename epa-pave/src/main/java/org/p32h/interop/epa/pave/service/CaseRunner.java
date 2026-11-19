@@ -19,8 +19,13 @@ public interface CaseRunner {
      * url or an unresolved placeholder becomes {@code NOT_CONFIGURED}, invalid inputs become
      * {@code INVALID}, and a case whose inputs are not kept becomes {@code NOT_RUNNABLE}, each with
      * the reason. An operation that is not outbound, such as a notification that was received, has
-     * nothing to send again and is {@code NOT_RUNNABLE}. A case never carries a production unlock,
-     * so a write against a production environment is always reported as blocked.
+     * nothing to send again and is {@code NOT_RUNNABLE}. A case with a key this tool does not know
+     * is {@code INVALID}, naming the key. A case whose configuration epoch is no longer current is
+     * {@code NOT_CONFIGURED}, saying the configuration changed. A case never carries a production
+     * unlock, so a write against a production environment is always reported as blocked.
+     *
+     * <p>The outcome lists the record of every step that ran, taken from the ledger's receipt,
+     * whether or not the ledger kept it, with the ledger's message for each one it did not keep.
      *
      * <p>Replay must not call this for a ledger record that lists any
      * {@link org.p32h.interop.epa.pave.model.RunRecord#unrecordedInputs()}: such a run

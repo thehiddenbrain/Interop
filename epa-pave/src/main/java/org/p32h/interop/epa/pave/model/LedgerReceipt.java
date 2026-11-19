@@ -10,10 +10,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * record and does not is worse off than one who knows tracking is off.
  *
  * @param recorded  true only when the line was written, flushed and synced
- * @param written   the record as stored, after the tracking policy was applied. Null when not recorded
+ * @param record    the record after the tracking policy was applied, whether or not it reached
+ *                  the file. It is given either way because a suite row and a replay see nothing
+ *                  of a run except this record: if it were dropped when a write failed, a run that
+ *                  happened would vanish from their results with no word as to why
  * @param message   why the record was not written, or null
- * @param runsToday how many runs today's ledger file holds after this write
+ * @param runsToday how many runs today's ledger file holds after this write. Null when the ledger
+ *                  cannot say, which is not the same as none
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record LedgerReceipt(boolean recorded, RunRecord written, String message, int runsToday) {
+public record LedgerReceipt(boolean recorded, RunRecord record, String message, Integer runsToday) {
 }

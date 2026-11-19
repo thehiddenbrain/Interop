@@ -463,6 +463,7 @@ class CrdResponseMapperTest {
         CrdReading reading = read("{\"cards\":[{\"summary\":\"s\",\"indicator\":\"info\",\"indicator\":\"warning\"}]}");
         assertThat(reading.detail().cards().get(0).indicator().value()).isEqualTo("warning");
         assertThat(reading.additionalFields()).singleElement().satisfies(note -> {
+            assertThat(note.kind()).isEqualTo(AdditionalField.Kind.NOTE);
             assertThat(note.path()).isEqualTo("(body)");
             assertThat(note.value()).contains("repeats a key").contains("wire view");
         });
@@ -523,7 +524,8 @@ class CrdResponseMapperTest {
         assertThat(truncated.detail().responseKind()).isEqualTo(CrdResponseKind.NOT_JSON);
         assertThat(truncated.detail().responseNote()).contains("wire view").contains("not valid JSON");
         // The text as received is on the result itself, not only in the wire view, which is collapsed by default.
-        assertThat(truncated.additionalFields()).containsExactly(new AdditionalField("(body, not JSON)", Presence.VALUE, "{\"cards\": ["));
+        assertThat(truncated.additionalFields()).containsExactly(AdditionalField.unparsedBody("{\"cards\": ["));
+        assertThat(truncated.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.RAW_BODY);
 
         CrdReading html500 = mapper.read(TestExchanges.crd(502, "<html>Bad Gateway</html>"));
         assertThat(html500.outcome()).isEqualTo(CrdOutcome.SERVICE_ERROR);

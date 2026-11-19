@@ -22,10 +22,8 @@ import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
-import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Shown;
-import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
 import org.p32h.interop.epa.pave.model.TrackedJson;
@@ -134,19 +132,55 @@ public class CrdService {
             // The codes that went out are the ones in the tester's body, not the ones left on the form.
             draft.procedureCodes(orders.stream().map(SentOrder::code).filter(Texts::present).distinct().toList());
         }
+        Interpreted read;
         try {
-            return interpret(request, operation, call, exchange, draft, requestNotes, orders, !ownBody, memberId);
+            // Only the reading and wording of the response is inside the try. The ledger write is
+            // outside it, so a failure after the write cannot produce a second line for one run.
+            read = interpret(request, call, exchange, orders);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
-            // happened, so it gets its line before the failure is reported.
-            support.record(draft.outcome(RunOutcome.TOOL_ERROR).result(TestResult.UNVERIFIED).build());
-            throw e;
+            // happened: it gets its line, and the tester still gets the request and the response.
+            return support.toolError(operation, call, exchange, draft, request, e);
         }
+
+        RunRecord record = draft
+                .outcome(read.reading().outcome())
+                .coverageCodes(read.reading().ledgerCodes())
+                .delegatedVendor(read.reading().delegatedVendor())
+                .result(read.expectation().result())
+                .nextAction(read.nextStep().action())
+                .correlation(read.correlation())
+                .findings(read.findings().stream().map(f -> f.kind().name()).distinct().toList())
+                .build();
+        LedgerReceipt receipt = support.record(record);
+
+        return RunEnvelope.<CrdDetail>builder()
+                .runId(record.runId())
+                .chainId(record.chainId())
+                .protocol(Protocol.CRD)
+                .operation(operation)
+                .environment(call.environment())
+                .profile(epa.mode())
+                .verdict(read.verdict())
+                .expectation(read.expectation())
+                .nextStep(read.nextStep())
+                .determination(determination(read.reading()))
+                .detail(read.reading().detail().withRequest(requestNotes, !ownBody))
+                .findings(read.findings())
+                .additionalFields(read.reading().additionalFields())
+                .wire(exchange.wire(memberId.typed().isEmpty() ? null : memberId))
+                .error(read.error())
+                .ledger(receipt)
+                .timing(read.timing())
+                .build();
     }
 
-    private RunEnvelope<CrdDetail> interpret(CrdRunRequest request, EpaOperation operation, PreparedCall call, VendorExchange exchange,
-                                             RunRecord.Builder draft, List<String> requestNotes, List<SentOrder> orders,
-                                             boolean builtByTool, MemberIdForms memberId) {
+    /** Everything worked out from one response, before anything is written. */
+    private record Interpreted(CrdReading reading, List<Finding> findings, VerdictView verdict, ExpectationView expectation,
+                               NextStepView nextStep, ErrorView error, Timing timing, Map<String, String> correlation) {
+    }
+
+    private Interpreted interpret(CrdRunRequest request, PreparedCall call, VendorExchange exchange, List<SentOrder> orders) {
         CrdReading reading = mapper.read(exchange, orders);
         CrdOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
@@ -172,36 +206,7 @@ public class CrdService {
         if (!questionnaires.isEmpty()) {
             correlation.put(RunRecord.CORR_QUESTIONNAIRE, String.join(" ", questionnaires));
         }
-
-        RunRecord record = draft
-                .outcome(outcome)
-                .coverageCodes(reading.ledgerCodes())
-                .delegatedVendor(reading.delegatedVendor())
-                .result(expectation.result())
-                .correlation(correlation)
-                .findings(findings.stream().map(f -> f.kind().name()).distinct().toList())
-                .build();
-        LedgerReceipt receipt = support.record(record);
-
-        return RunEnvelope.<CrdDetail>builder()
-                .runId(record.runId())
-                .chainId(record.chainId())
-                .protocol(Protocol.CRD)
-                .operation(operation)
-                .environment(call.environment())
-                .profile(epa.mode())
-                .verdict(verdict)
-                .expectation(expectation)
-                .nextStep(nextStep)
-                .determination(determination(reading))
-                .detail(reading.detail().withRequest(requestNotes, builtByTool))
-                .findings(findings)
-                .additionalFields(reading.additionalFields())
-                .wire(exchange.wire(memberId.typed().isEmpty() ? null : memberId))
-                .error(error)
-                .ledger(receipt)
-                .timing(timing)
-                .build();
+        return new Interpreted(reading, findings, verdict, expectation, nextStep, error, timing, correlation);
     }
 
     /** What the request would be, without sending it. Nothing is recorded. */
@@ -257,11 +262,12 @@ public class CrdService {
     }
 
     private static CallIntent intent(EpaOperation operation, CrdRunRequest request, ProdUnlock unlock) {
-        return CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()).withUnlock(unlock);
+        return CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()).withUnlock(unlock)
+                .withExpectedEpoch(request.configEpoch());
     }
 
     private void validate(CrdRunRequest request) {
-        RunInputs inputs = new RunInputs(support.clock());
+        RunInputs inputs = new RunInputs(support.clock()).common(request);
         String hook = CrdRequestBuilder.hook(request);
         inputs.require(CrdRunRequest.ORDER_SIGN.equals(hook) || CrdRunRequest.ORDER_SELECT.equals(hook), "hook",
                 "The hook must be order-sign or order-select.");

@@ -15,6 +15,7 @@ import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.config.TestPreparedCalls;
 import org.p32h.interop.epa.pave.service.config.WriteAccess;
+import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -106,6 +107,9 @@ public final class FakeGateway implements OperationGateway {
         intents.add(intent);
         if (failure != null) {
             throw failure;
+        }
+        if (intent.expectedEpoch() != null && intent.expectedEpoch() != epoch) {
+            throw ConfigurationChangedException.sinceTheScreenWasDrawn();
         }
         String template = urls.get(intent.operation());
         ResolvedUrl url;
