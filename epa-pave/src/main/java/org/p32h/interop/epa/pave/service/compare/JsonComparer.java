@@ -37,6 +37,9 @@ import tools.jackson.databind.JsonNode;
  *   <li>The same number written with a different precision is reported as written differently:
  *       neither as equal nor as a different value.</li>
  *   <li>Lists are matched as {@link ArrayMatcher} describes.</li>
+ *   <li>The members of an object whose keys are free are matched by key. What is left is matched
+ *       by resource type under another key, and then a resource with the one Bundle that holds
+ *       one of its type, each only when nothing else could be meant.</li>
  *   <li>Two resources of different types are not compared beneath: they are one difference. The
  *       one exception is a resource against a Bundle that holds exactly one resource of that
  *       type, which is how the answer to a FHIR search carries it: the wrapping is one
@@ -44,6 +47,9 @@ import tools.jackson.databind.JsonNode;
  *   <li>When two matched resources have different ids, that is one difference, a label. A
  *       reference that differs only because it follows such a pair is counted on that difference
  *       and not listed. A reference that differs for any other reason is listed.</li>
+ *   <li>A reference that is the same text in both documents is not a difference. Where the two
+ *       documents label the resource it names differently, a note says that the text points at
+ *       the resource in one document only.</li>
  * </ul>
  * Differences come back in the document order of the tool's document. What only the other
  * document has follows its neighbours.
@@ -372,9 +378,47 @@ public final class JsonComparer {
         }
 
         /**
+         * Pairs a resource that is left on one side with a Bundle that is left under another key on
+         * the other side, when that Bundle is the only one left there that holds exactly one
+         * resource of the type and no bare resource of the type is left there. A FHIR search
+         * answers with such a Bundle, so the two are the same content in two shapes, under two
+         * keys. Anything less certain is left unpaired: which one is meant would be a guess.
+         *
+         * @param bare      the object whose bare resources are looked at, in its own order of keys
+         * @param paired    receives the key on the bare side and the key of the Bundle it was paired with
+         * @param pairedBack the same, the other way round
+         */
+        private void pairWithBundles(JsonNode bare, JsonNode wrapping, Map<String, List<String>> bareLeft, Map<String, List<String>> wrappingLeft,
+                                     Map<String, String> paired, Map<String, String> pairedBack) {
+            List<String> bundles = wrappingLeft.getOrDefault(BUNDLE, List.of());
+            for (Map.Entry<String, JsonNode> member : bare.properties()) {
+                String key = member.getKey();
+                String type = ResourceIndex.resourceType(member.getValue());
+                List<String> sameType = type == null || BUNDLE.equals(type) ? null : bareLeft.get(type);
+                if (sameType == null || sameType.size() != 1 || !sameType.get(0).equals(key) || paired.containsKey(key)
+                        || wrappingLeft.containsKey(type)) {
+                    continue;
+                }
+                String found = null;
+                int candidates = 0;
+                for (String bundleKey : bundles) {
+                    if (!pairedBack.containsKey(bundleKey) && onlyEntryOf(wrapping.get(bundleKey), type) >= 0) {
+                        found = bundleKey;
+                        candidates++;
+                    }
+                }
+                if (candidates == 1) {
+                    paired.put(key, found);
+                    pairedBack.put(found, key);
+                }
+            }
+        }
+
+        /**
          * An object whose keys are free. Members are matched by key first. What is left on both
          * sides is matched by resource type when exactly one member of that type is left on each
-         * side, and reported as the same content under a different key.
+         * side, and reported as the same content under a different key. A resource still left is
+         * then matched with the one Bundle that holds it, as {@link #pairWithBundles} describes.
          */
         private void freeKeyed(Place at, JsonNode tool, JsonNode yours) {
             Map<String, List<String>> toolLeft = new LinkedHashMap<>();
@@ -400,6 +444,8 @@ public final class JsonComparer {
                     renamedFrom.put(theirs.get(0), left.getValue().get(0));
                 }
             }
+            pairWithBundles(tool, yours, toolLeft, yourLeft, renamed, renamedFrom);
+            pairWithBundles(yours, tool, yourLeft, toolLeft, renamedFrom, renamed);
             for (Map.Entry<String, JsonNode> member : tool.properties()) {
                 String key = member.getKey();
                 JsonNode other = yours.get(key);
@@ -407,7 +453,9 @@ public final class JsonComparer {
                     walk(at.key(key, true), member.getValue(), other, key, tool, yours);
                 } else if (renamed.containsKey(key)) {
                     String yourKey = renamed.get(key);
-                    String type = ResourceIndex.resourceType(member.getValue());
+                    String toolType = ResourceIndex.resourceType(member.getValue());
+                    // Where one side wraps its resource in a Bundle, the pair is named after the resource and not after the wrapper.
+                    String type = BUNDLE.equals(toolType) ? ResourceIndex.resourceType(yours.get(yourKey)) : toolType;
                     Place matched = at.matchedByType(type, key, yourKey);
                     slots.add(ready(difference(matched.resource(type), DifferenceKind.DIFFERENT_KEY, Shown.of(key), Shown.of(yourKey), null,
                             null, Grouping.STRUCTURE, null, Wording.differentKey(type, key, yourKey), null)));

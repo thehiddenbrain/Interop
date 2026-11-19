@@ -72,7 +72,7 @@ public final class CrdRequestGlossary implements Glossary {
         document(null, "fhirAuthorization.access_token", "The token a service presents to the sender's FHIR server.");
         document(BUILD, "fhirAuthorization.token_type", "The kind of token, which CDS Hooks fixes as Bearer.");
         document(null, "fhirAuthorization.expires_in", "How many seconds the token stays valid.");
-        document(null, "fhirAuthorization.scope", "What the token allows a service to read on the sender's FHIR server.");
+        document(null, "fhirAuthorization.scope", "What the token allows a service to do on the sender's FHIR server.");
         document(null, "fhirAuthorization.subject", "The client id the service is registered under with the sender's authorization server.");
         document(BUILD, "context", "What the hook is about: who is ordering, for which patient, and the orders themselves.");
         document(BUILD, "context.userId", "The clinician using the sender's system, written as a resource type and an id.");
@@ -112,7 +112,7 @@ public final class CrdRequestGlossary implements Glossary {
         fhir(BUILD, "Coverage.subscriber", "The person who holds the policy, as a reference.");
         fhir(BUILD, "Coverage.policyHolder", "The owner of the policy, as a reference.");
         fhir(BUILD, "Coverage.beneficiary", "The person the coverage is for, as a reference to the Patient.");
-        fhir(CASE, "Coverage.dependent", "A number that tells one covered person from another under the same subscriber.");
+        fhir(CASE, "Coverage.dependent", "An identifier that tells one covered person from another under the same coverage.");
         fhir(CASE, "Coverage.relationship", "How the member is related to the subscriber, for example self or spouse.");
         fhir(CASE, "Coverage.period", "The dates between which the coverage is in force.");
         fhir(CASE, "Coverage.period.start", "The date the coverage starts.");
@@ -201,7 +201,7 @@ public final class CrdRequestGlossary implements Glossary {
             fhir(CASE, type + ".note", "A comment on the order, in words.");
         }
         for (String type : List.of("ServiceRequest", "DeviceRequest", "MedicationRequest")) {
-            fhir(BUILD, type + ".insurance", "The coverage the order is to be checked against, as a reference.");
+            fhir(BUILD, type + ".insurance", "The coverage that goes with the order, as a reference.");
             fhir(BUILD, type + ".performer", "Who is asked to carry the order out, as a reference.");
             fhir(CASE, type + ".performerType", "The kind of provider asked to carry the order out, as a code.");
             fhir(BUILD, type + ".basedOn", "The plan or order this one carries out, as a reference.");

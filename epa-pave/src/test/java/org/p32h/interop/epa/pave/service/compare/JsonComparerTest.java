@@ -493,6 +493,84 @@ class JsonComparerTest {
         assertThat(lines(all)).containsExactly("prefetch.patient | ONLY_IN_TOOL", "prefetch.one | ONLY_IN_YOURS", "prefetch.two | ONLY_IN_YOURS");
     }
 
+    private static final String SEARCH = "{'resourceType':'Bundle','type':'searchset','entry':[%s]}";
+    private static final String FOUND_COVERAGE = "{'resource':{'resourceType':'Coverage','id':'cov-9','status':'draft'}}";
+
+    private static List<Difference> freeKeyed(String toolPrefetch, String yourPrefetch) {
+        return new JsonComparer(FREE_KEYS, Glossary.NONE).compare(json("{'prefetch':{" + toolPrefetch + "}}"), json("{'prefetch':{" + yourPrefetch + "}}"))
+                .differences();
+    }
+
+    @Test
+    void aResourceUnderOneKeyIsMatchedWithTheSearchResultThatHoldsItUnderAnotherKey() {
+        // What a prefetch written as a search gives: the same coverage, inside a Bundle, under a key of the service's choosing.
+        List<Difference> all = freeKeyed("'coverage':{'resourceType':'Coverage','id':'c1','status':'active'}",
+                "'coverageSearch':" + SEARCH.formatted(FOUND_COVERAGE));
+        assertThat(lines(all)).containsExactly("prefetch[Coverage] | DIFFERENT_KEY", "prefetch[Coverage] | DIFFERENT_VALUE",
+                "prefetch[Coverage].id | DIFFERENT_VALUE", "prefetch[Coverage].status | DIFFERENT_VALUE");
+        assertThat(all.get(0).toolValue().value()).isEqualTo("coverage");
+        assertThat(all.get(0).yourValue().value()).isEqualTo("coverageSearch");
+        assertThat(all.get(0).explanation()).startsWith("The tool's request holds this Coverage under the key `coverage` and your request "
+                + "holds it under `coverageSearch`.");
+        // The second difference is the wrapping, and the whole Bundle is its value.
+        assertThat(all.get(1).explanation()).startsWith("The tool's request holds a Coverage resource here and your request holds a Bundle with "
+                + "one Coverage in it.");
+        assertThat(all.get(1).yourValue().value()).contains("searchset");
+        assertThat(all.get(1).toolPointer()).isEqualTo("/prefetch/coverage");
+        assertThat(all.get(1).yourPointer()).isEqualTo("/prefetch/coverageSearch");
+        // The two coverages are then compared with each other, each pointed at where it really sits.
+        assertThat(all.get(2).group()).isEqualTo(DifferenceGroup.LABELS);
+        assertThat(all.get(3).toolPointer()).isEqualTo("/prefetch/coverage/status");
+        assertThat(all.get(3).yourPointer()).isEqualTo("/prefetch/coverageSearch/entry/0/resource/status");
+    }
+
+    @Test
+    void theSameHoldsWhenItIsTheToolsDocumentThatHoldsTheSearchResult() {
+        List<Difference> all = freeKeyed("'coverageSearch':" + SEARCH.formatted(FOUND_COVERAGE),
+                "'coverage':{'resourceType':'Coverage','id':'c1','status':'active'}");
+        assertThat(lines(all)).containsExactly("prefetch[Coverage] | DIFFERENT_KEY", "prefetch[Coverage] | DIFFERENT_VALUE",
+                "prefetch[Coverage].id | DIFFERENT_VALUE", "prefetch[Coverage].status | DIFFERENT_VALUE");
+        assertThat(all.get(0).explanation()).startsWith("The tool's request holds this Coverage under the key `coverageSearch` and your "
+                + "request holds it under `coverage`.");
+        assertThat(all.get(1).explanation()).startsWith("Your request holds a Coverage resource here and the tool's request holds a Bundle with "
+                + "one Coverage in it.");
+        assertThat(all.get(3).toolPointer()).isEqualTo("/prefetch/coverageSearch/entry/0/resource/status");
+        assertThat(all.get(3).yourPointer()).isEqualTo("/prefetch/coverage/status");
+    }
+
+    @Test
+    void aResourceIsNotMatchedWithASearchResultWhenWhichOneIsMeantWouldBeAGuess() {
+        String coverage = "'coverage':{'resourceType':'Coverage','id':'c1','status':'active'}";
+        // Two Bundles that each hold one coverage.
+        assertThat(lines(freeKeyed(coverage, "'one':" + SEARCH.formatted(FOUND_COVERAGE) + ",'two':" + SEARCH.formatted(FOUND_COVERAGE))))
+                .containsExactly("prefetch.coverage | ONLY_IN_TOOL", "prefetch.one | ONLY_IN_YOURS", "prefetch.two | ONLY_IN_YOURS");
+        // One Bundle that holds two.
+        assertThat(lines(freeKeyed(coverage, "'found':" + SEARCH.formatted(FOUND_COVERAGE + "," + FOUND_COVERAGE))))
+                .containsExactly("prefetch.coverage | ONLY_IN_TOOL", "prefetch.found | ONLY_IN_YOURS");
+        // A Bundle that holds none of the type.
+        assertThat(lines(freeKeyed(coverage, "'found':" + SEARCH.formatted("{'resource':{'resourceType':'Patient','id':'p'}}"))))
+                .containsExactly("prefetch.coverage | ONLY_IN_TOOL", "prefetch.found | ONLY_IN_YOURS");
+        // Two coverages left on the side that holds them bare.
+        assertThat(lines(freeKeyed(coverage + ",'other':{'resourceType':'Coverage','id':'c2'}", "'found':" + SEARCH.formatted(FOUND_COVERAGE))))
+                .containsExactly("prefetch.coverage | ONLY_IN_TOOL", "prefetch.other | ONLY_IN_TOOL", "prefetch.found | ONLY_IN_YOURS");
+        // Two bare coverages left on the other side as well as the search result: three candidates for one coverage.
+        assertThat(lines(freeKeyed(coverage, "'a':{'resourceType':'Coverage','id':'c2'},'b':{'resourceType':'Coverage','id':'c3'},'found':"
+                + SEARCH.formatted(FOUND_COVERAGE)))).containsExactly("prefetch.coverage | ONLY_IN_TOOL", "prefetch.a | ONLY_IN_YOURS",
+                "prefetch.b | ONLY_IN_YOURS", "prefetch.found | ONLY_IN_YOURS");
+    }
+
+    @Test
+    void aBareResourceOfTheTypeIsPreferredToASearchResultAndASearchResultIsUsedOnce() {
+        String coverage = "'coverage':{'resourceType':'Coverage','id':'c1','status':'active'}";
+        // The other side holds the coverage bare under another key, and a search result as well: the bare one is the counterpart.
+        assertThat(lines(freeKeyed(coverage, "'found':" + SEARCH.formatted(FOUND_COVERAGE) + ",'cov':{'resourceType':'Coverage','id':'c1','status':'active'}")))
+                .containsExactly("prefetch[Coverage] | DIFFERENT_KEY", "prefetch.found | ONLY_IN_YOURS");
+        // One Bundle holds a patient and a coverage. It is the counterpart of the first resource that finds it, and of no second one.
+        String both = "'everything':" + SEARCH.formatted("{'resource':{'resourceType':'Patient','id':'p'}}," + FOUND_COVERAGE);
+        assertThat(lines(freeKeyed("'patient':{'resourceType':'Patient','id':'p'}," + coverage, both))).containsExactly(
+                "prefetch[Patient] | DIFFERENT_KEY", "prefetch[Patient] | DIFFERENT_VALUE", "prefetch.coverage | ONLY_IN_TOOL");
+    }
+
     @Test
     void anObjectTheRulesDoNotNameIsMatchedByKeyAlone() {
         assertThat(lines(differences(FREE_TOOL, FREE_YOURS))).containsExactly("prefetch.patient | ONLY_IN_TOOL",

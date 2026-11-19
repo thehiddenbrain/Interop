@@ -537,6 +537,38 @@ class CrdRequestComparerTest {
         assertThat(comparison.toolBody()).startsWith("{\n  \"hook\" : \"order-sign\",\n  \"hookInstance\" : ");
     }
 
+    @Test
+    void aPrefetchWrittenAsASearchIsComparedWithTheResourceThisToolSendsUnderItsOwnKey() {
+        // The sample again, with its coverage as a search answers with it: inside a Bundle, under a key of the service's choosing.
+        JsonNode root = JsonSafe.parse(fixture("vendor-shaped-order-sign.json")).node();
+        tools.jackson.databind.node.ObjectNode prefetch = (tools.jackson.databind.node.ObjectNode) root.at("/prefetch");
+        JsonNode coverage = prefetch.remove("coverageRequest");
+        tools.jackson.databind.node.ObjectNode search = prefetch.putObject("coverageSearch");
+        search.put("resourceType", "Bundle").put("type", "searchset").put("total", 1);
+        search.putArray("entry").addObject().set("resource", coverage);
+
+        RequestComparison bare = compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json")).build());
+        RequestComparison wrapped = compare(CrdRunRequest.builder().rawBody(root.toString()).build());
+        // Everything the bare coverage gave is still found, and one difference more says how the coverage is wrapped.
+        List<String> expected = new ArrayList<>(lines(bare));
+        expected.add(expected.indexOf("prefetch[Coverage] | DIFFERENT_KEY | BUILD") + 1, "prefetch[Coverage] | DIFFERENT_VALUE | BUILD");
+        assertThat(lines(wrapped)).containsExactlyElementsOf(expected);
+
+        Difference key = wrapped.differences().stream().filter(d -> d.kind() == DifferenceKind.DIFFERENT_KEY && d.path().equals("prefetch[Coverage]"))
+                .findFirst().orElseThrow();
+        assertThat(key.yourValue().value()).isEqualTo("coverageSearch");
+        Difference wrapping = wrapped.differences().stream()
+                .filter(d -> d.kind() == DifferenceKind.DIFFERENT_VALUE && d.path().equals("prefetch[Coverage]")).findFirst().orElseThrow();
+        assertThat(wrapping.explanation()).isEqualTo("The tool's request holds a Coverage resource here and your request holds a Bundle with one "
+                + "Coverage in it. The two Coverage resources are compared with each other in the differences that follow, and the rest of the "
+                + "Bundle is given whole here. " + CrdRequestGlossary.PREFETCH_SHAPES);
+        assertThat(wrapping.yourPointer()).isEqualTo("/prefetch/coverageSearch");
+        // What is compared beneath is pointed at inside the Bundle, and the case is read from there too.
+        assertThat(at(wrapped, "prefetch[Coverage].payor").yourPointer()).isEqualTo("/prefetch/coverageSearch/entry/0/resource/payor");
+        assertThat(source(wrapped, "member.memberId").path()).isEqualTo("prefetch.coverageSearch.entry[0].resource.subscriberId");
+        assertThat(at(wrapped, "prefetch[Coverage].id").referencesFollowing()).isEqualTo(at(bare, "prefetch[Coverage].id").referencesFollowing());
+    }
+
     // ---- the form wins, and what is borrowed is never mixed between two members ----
 
     @Test
