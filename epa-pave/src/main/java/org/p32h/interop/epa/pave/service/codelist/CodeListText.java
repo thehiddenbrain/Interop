@@ -2,10 +2,13 @@ package org.p32h.interop.epa.pave.service.codelist;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * How the text of a code list cell or header is read, compared and shown. Kept in one place so
- * that a header, a line of business and a requested line are all compared by the same rule.
+ * that a line of business in the list and the line a member has are compared by one rule, and a
+ * header in the file and a candidate name by one rule. The two rules are not the same: a header
+ * may lose more than a line of business may.
  */
 final class CodeListText {
 
@@ -13,6 +16,9 @@ final class CodeListText {
     static final int LISTED = 10;
 
     private static final int SHOWN_LENGTH = 60;
+
+    /** One or more groups in round or square brackets at the very end of a compared form, which holds no spaces by then. */
+    private static final Pattern BRACKETED_ENDING = Pattern.compile("(?:[(\\[][^()\\[\\]]*[)\\]])+$");
 
     private CodeListText() {
     }
@@ -49,20 +55,53 @@ final class CodeListText {
     }
 
     /**
-     * The form two names are compared in: lower case, with spaces, underscores, hyphens and dots
-     * left out. "PA Required", "pa_required" and "PA-Required." all become "parequired". A space
-     * or a hyphen of any kind counts, since a header typed in a spreadsheet can hold a no-break
-     * space or a dash the keyboard does not have. Nothing else is left out: a question mark or a
-     * slash still tells two names apart.
+     * The form two lines of business are compared in: lower case, with spaces, underscores,
+     * hyphens and dots left out. "Medicare Advantage", "medicare_advantage" and
+     * "Medicare-Advantage." all become "medicareadvantage". A space or a hyphen of any kind counts,
+     * since a cell typed in a spreadsheet can hold a no-break space or a dash the keyboard does
+     * not have. Nothing else is left out: a slash, a question mark or a bracket still tells two
+     * lines apart, because two lines of business are two lists with two answers.
      */
     static String key(String text) {
+        return compared(text, false);
+    }
+
+    /**
+     * The form a header and a candidate name are compared in: as {@link #key}, with a slash, a
+     * question mark and a colon left out as well. "PA Required?", "pa_required:" and "PA-Required"
+     * all become "parequired", and "CPT/HCPCS Code" becomes "cpthcpcscode". A header is titled by a
+     * person, and those three are how a person titles a column. A bracket is kept here: see
+     * {@link #headerBase}.
+     */
+    static String headerKey(String text) {
+        return compared(text, true);
+    }
+
+    /**
+     * A header's compared form without a bracketed part at its end: "Auth Required (Y/N)" becomes
+     * "authrequired", as does "Auth Required [Y/N] (2026)". Round and square brackets count, and
+     * only at the end. A header with no such ending, or with nothing before it, comes back as
+     * {@link #headerKey} gives it.
+     *
+     * <p>This is the weaker of the two forms and is used only where the stronger one found
+     * nothing. What stands in the brackets may say which values a column takes, and it may be the
+     * one thing that tells two columns apart.
+     */
+    static String headerBase(String text) {
+        String written = headerKey(text);
+        String shortened = BRACKETED_ENDING.matcher(written).replaceFirst("");
+        return shortened.isEmpty() ? written : shortened;
+    }
+
+    private static String compared(String text, boolean header) {
         if (text == null) {
             return "";
         }
         StringBuilder out = new StringBuilder(text.length());
         text.toLowerCase(Locale.ROOT).codePoints().forEach(codePoint -> {
             boolean left = invisible(codePoint) || codePoint == '_' || codePoint == '.' || codePoint == '-'
-                    || Character.getType(codePoint) == Character.DASH_PUNCTUATION;
+                    || Character.getType(codePoint) == Character.DASH_PUNCTUATION
+                    || (header && (codePoint == '/' || codePoint == '?' || codePoint == ':'));
             if (!left) {
                 out.appendCodePoint(codePoint);
             }

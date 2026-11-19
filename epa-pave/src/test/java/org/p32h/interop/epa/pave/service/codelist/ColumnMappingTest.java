@@ -49,10 +49,23 @@ class ColumnMappingTest {
         Map<String, CodeListColumn> owners = new HashMap<>();
         for (CodeListColumn column : CodeListColumn.values()) {
             for (String candidate : column.candidates(DEFAULTS)) {
-                CodeListColumn other = owners.put(CodeListText.key(candidate), column);
+                CodeListColumn other = owners.put(CodeListText.headerKey(candidate), column);
                 assertThat(other == null || other == column).as(candidate + " is listed for " + other + " and " + column).isTrue();
+                // None is written with a bracketed ending, so each can also find a header that has one.
+                assertThat(CodeListText.headerBase(candidate)).as(candidate).isEqualTo(CodeListText.headerKey(candidate));
             }
         }
+    }
+
+    @Test
+    void theThreeNamesAddedForTheCodeColumnComeAfterTheOnesThatWereThereBefore() {
+        // Tried last, so a file that was read one way before these were added is read the same way now.
+        assertThat(DEFAULTS.code()).containsExactly("code", "procedure code", "proc code", "cpt", "hcpcs", "cpt/hcpcs", "cpt hcpcs code",
+                "service code", "billing code", "cpt code", "hcpcs code", "procedure");
+        ColumnMapping mapping = match("Procedure", "HCPCS Code", "CPT Code", "Billing Code");
+        assertThat(mapping.recognised()).containsExactly(Map.entry("code", "Billing Code"));
+        assertThat(mapping.unrecognised()).isEmpty();
+        assertThat(mapping.warnings()).hasSize(3);
     }
 
     @Test
@@ -80,11 +93,130 @@ class ColumnMappingTest {
     }
 
     @Test
-    void anythingElseInAHeaderStillTellsItApart() {
-        // A question mark is not a space. This header is reported, so someone can add it to the candidates.
-        ColumnMapping mapping = match("Code", "PA Required?", "Auth Required (Y/N)", "Code Description 2");
+    void aHeaderIsAlsoMatchedIgnoringASlashAQuestionMarkAndAColon() {
+        // How a person titles a column: a question, a label with a colon, two code sets with a slash between them.
+        ColumnMapping mapping = match("CPT/HCPCS Code", "Description:", "PA Required?", "Line of Business:", "Eff. Date:", "Vendor ?");
+        // Each is found, and each is reported as it is written in the file, punctuation and all.
+        assertThat(mapping.recognised()).containsExactly(
+                Map.entry("code", "CPT/HCPCS Code"),
+                Map.entry("description", "Description:"),
+                Map.entry("authRequired", "PA Required?"),
+                Map.entry("lineOfBusiness", "Line of Business:"),
+                Map.entry("delegatedVendor", "Vendor ?"),
+                Map.entry("effectiveDate", "Eff. Date:"));
+        assertThat(mapping.unrecognised()).isEmpty();
+        assertThat(mapping.warnings()).isEmpty();
+        // The slash is ignored on both sides: the candidate written with one finds the header written without.
+        assertThat(match("CPT HCPCS", "PA").recognised()).containsExactly(Map.entry("code", "CPT HCPCS"), Map.entry("authRequired", "PA"));
+        assertThat(match("cpt/hcpcs").recognised()).containsExactly(Map.entry("code", "cpt/hcpcs"));
+    }
+
+    @Test
+    void aBracketedPartAtTheEndOfAHeaderIsIgnored() {
+        // What a spreadsheet author adds to say which values a column takes, or in which unit.
+        ColumnMapping mapping = match("Code (CPT or HCPCS)", "Auth Required (Y/N)", "Description [short]", "Effective Date (MM/DD/YYYY)",
+                "Notes (internal) (2026)");
+        assertThat(mapping.recognised()).containsExactly(
+                Map.entry("code", "Code (CPT or HCPCS)"),
+                Map.entry("description", "Description [short]"),
+                Map.entry("authRequired", "Auth Required (Y/N)"),
+                Map.entry("effectiveDate", "Effective Date (MM/DD/YYYY)"),
+                Map.entry("notes", "Notes (internal) (2026)"));
+        assertThat(mapping.unrecognised()).isEmpty();
+        assertThat(mapping.warnings()).isEmpty();
+        assertThat(mapping.position(CodeListColumn.AUTH_REQUIRED)).isEqualTo(1);
+        // With a question mark or a colon after the bracket as well.
+        assertThat(match("Code", "PA Required (Y/N)?").recognised()).containsEntry("authRequired", "PA Required (Y/N)?");
+        assertThat(match("Code", "PA Required? (Y/N):").recognised()).containsEntry("authRequired", "PA Required? (Y/N):");
+    }
+
+    @Test
+    void onlyABracketedPartAtTheEndIsIgnoredAndAHeaderThatIsNothingElseIsNotAName() {
+        // In the middle of a header the bracket is part of the name, and a header that is only a
+        // bracket has no name left to match. An unclosed bracket is not a bracketed part at all.
+        ColumnMapping mapping = match("Code", "PA (prior) Required", "(Y/N)", "Description (short", "Notes) more");
         assertThat(mapping.recognised()).containsExactly(Map.entry("code", "Code"));
-        assertThat(mapping.unrecognised()).containsExactly("PA Required?", "Auth Required (Y/N)", "Code Description 2");
+        assertThat(mapping.unrecognised()).containsExactly("PA (prior) Required", "(Y/N)", "Description (short", "Notes) more");
+        assertThat(mapping.warnings()).isEmpty();
+    }
+
+    @Test
+    void aHeaderThatMatchesAsWrittenIsReadBeforeOneThatMatchesOnlyWithoutItsBracketedEnding() {
+        // "Description" is a name of the column as it stands. "Description (Long)" is one only
+        // once its ending is left out, so it does not win by standing further to the left.
+        ColumnMapping mapping = match("Code", "Description (Long)", "Description", "PA");
+        assertThat(mapping.position(CodeListColumn.DESCRIPTION)).isEqualTo(2);
+        assertThat(mapping.recognised()).containsExactly(Map.entry("code", "Code"), Map.entry("description", "Description"),
+                Map.entry("authRequired", "PA"));
+        // The one that was not read matched a name, so it is not among the unrecognised. It is named, with the reason.
+        assertThat(mapping.unrecognised()).isEmpty();
+        assertThat(mapping.warnings()).containsExactly("The header \"Description (Long)\" reads as a name this tool knows for description once "
+                + "its bracketed ending is left out, but description was read from \"Description\". The column \"Description (Long)\" was "
+                + "not read.");
+
+        // The same holds across the names of one column. "code" is listed before "procedure code",
+        // and still the header that is a name as written is the one read.
+        ColumnMapping across = match("Code (retired)", "Procedure Code");
+        assertThat(across.recognised()).containsExactly(Map.entry("code", "Procedure Code"));
+        assertThat(across.warnings()).containsExactly("The header \"Code (retired)\" reads as a name this tool knows for code once its "
+                + "bracketed ending is left out, but code was read from \"Procedure Code\". The column \"Code (retired)\" was not read.");
+    }
+
+    @Test
+    void twoHeadersThatDifferOnlyInTheirBracketedEndingsAreNeverChosenBetween() {
+        // One flag for each line of business, told apart by what stands in the brackets. Reading
+        // the first as the flag would answer for a Commercial member with the Medicare column.
+        ColumnMapping mapping = match("Code", "PA Required (Medicare)", "PA Required (Commercial)", "Notes");
+        assertThat(mapping.has(CodeListColumn.AUTH_REQUIRED)).isFalse();
+        assertThat(mapping.recognised()).containsExactly(Map.entry("code", "Code"), Map.entry("notes", "Notes"));
+        assertThat(mapping.unrecognised()).isEmpty();
+        assertThat(mapping.warnings()).containsExactly("The headers \"PA Required (Medicare)\" and \"PA Required (Commercial)\" read as the "
+                + "same name once their bracketed endings are left out, a name this tool knows for authRequired. Which of them is meant "
+                + "cannot be told, so neither was read. Name the one to read, exactly as written, under codelist.columns.auth-required.");
+
+        // Three of them read as a sentence too.
+        assertThat(match("Code", "Description (short)", "Description (long)", "Description [web]").warnings()).singleElement().asString()
+                .startsWith("The headers \"Description (short)\", \"Description (long)\" and \"Description [web]\" read as the same name")
+                .contains("so none of them was read. Name the one to read, exactly as written, under codelist.columns.description.");
+    }
+
+    @Test
+    void namingOneOfThemAsWrittenIsWhatReadsIt() {
+        // What the warning says to do. A name configured with a bracketed ending is matched as written and never without it.
+        CodelistProperties.Columns medicare = CodelistProperties.of(Map.of("columns.auth-required[0]", "PA Required (Medicare)")).columns();
+        ColumnMapping mapping = ColumnMapping.match(List.of("Code", "PA Required (Medicare)", "PA Required (Commercial)"), medicare);
+        assertThat(mapping.position(CodeListColumn.AUTH_REQUIRED)).isEqualTo(1);
+        assertThat(mapping.recognised()).containsExactly(Map.entry("code", "Code"), Map.entry("authRequired", "PA Required (Medicare)"));
+        // The other one is a column nobody named, and is reported as that.
+        assertThat(mapping.unrecognised()).containsExactly("PA Required (Commercial)");
+        assertThat(mapping.warnings()).isEmpty();
+
+        // In a file that has only the other column, the name configured for Medicare does not find it.
+        ColumnMapping other = ColumnMapping.match(List.of("Code", "PA Required (Commercial)", "PA Required"), medicare);
+        assertThat(other.has(CodeListColumn.AUTH_REQUIRED)).isFalse();
+        assertThat(other.unrecognised()).containsExactly("PA Required (Commercial)", "PA Required");
+    }
+
+    @Test
+    void aHeaderReadAsWrittenIsNotReadASecondTimeWithoutItsEnding() {
+        // The description column of this file was named in full, ending and all. Without its
+        // ending the same header reads as the code, and one header is one column at most.
+        CodelistProperties.Columns columns = CodelistProperties.of(Map.of("columns.description[0]", "Code (description)")).columns();
+        ColumnMapping mapping = ColumnMapping.match(List.of("Code (description)", "PA"), columns);
+        assertThat(mapping.recognised()).containsExactly(Map.entry("description", "Code (description)"), Map.entry("authRequired", "PA"));
+        assertThat(mapping.has(CodeListColumn.CODE)).isFalse();
+        assertThat(mapping.unrecognised()).isEmpty();
+        assertThat(mapping.warnings()).isEmpty();
+    }
+
+    @Test
+    void whatElseIsInAHeaderStillTellsItApart() {
+        // A digit, a hash, a star, an ampersand: none of these is ignored, so each of these is
+        // another name and is reported for someone to add to the candidates.
+        ColumnMapping mapping = match("Code", "Code Description 2", "PA Required*", "Code #", "Vendor & Delegate", "Requires Authorization?");
+        assertThat(mapping.recognised()).containsExactly(Map.entry("code", "Code"));
+        assertThat(mapping.unrecognised()).containsExactly("Code Description 2", "PA Required*", "Code #", "Vendor & Delegate",
+                "Requires Authorization?");
     }
 
     @Test
@@ -159,6 +291,22 @@ class ColumnMappingTest {
         // The column that lost still finds its own header through its next candidate.
         ColumnMapping two = ColumnMapping.match(List.of("Code", "Type", "System"), columns);
         assertThat(two.recognised()).containsExactly(Map.entry("code", "Code"), Map.entry("codeType", "Type"), Map.entry("system", "System"));
+
+        // The same when the header carries a bracketed ending and is found without it.
+        ColumnMapping bracketed = ColumnMapping.match(List.of("Code", "Type (CPT or HCPCS)"), columns);
+        assertThat(bracketed.recognised()).containsExactly(Map.entry("code", "Code"), Map.entry("codeType", "Type (CPT or HCPCS)"));
+        assertThat(bracketed.has(CodeListColumn.SYSTEM)).isFalse();
+        assertThat(bracketed.warnings()).containsExactly("The header \"Type (CPT or HCPCS)\" reads as a name that is listed under both "
+                + "codelist.columns.code-type and codelist.columns.system. It was read as codeType and not as system. Take the name out "
+                + "of one of the two.");
+    }
+
+    @Test
+    void theColumnsAreReportedInTheOrderTheyAreLookedForHoweverEachWasFound() {
+        // The description is found only without its bracketed ending, after every column that matches as written.
+        ColumnMapping mapping = match("Notes", "PA", "Description (short)", "Code");
+        assertThat(mapping.recognised()).containsExactly(Map.entry("code", "Code"), Map.entry("description", "Description (short)"),
+                Map.entry("authRequired", "PA"), Map.entry("notes", "Notes"));
     }
 
     @Test

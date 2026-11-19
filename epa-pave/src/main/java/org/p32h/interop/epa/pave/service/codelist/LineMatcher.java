@@ -12,8 +12,9 @@ import org.p32h.interop.epa.pave.model.Texts;
 /**
  * The one rule by which a line of business is matched, as the code list directory documents it.
  *
- * <p>A requested line matches a row when it equals a line the row names, compared the way headers
- * are: case, spaces, underscores, hyphens and dots ignored. A cell that names several lines,
+ * <p>A requested line matches a row when it equals a line the row names once case, spaces,
+ * underscores, hyphens and dots are ignored. That is less than is ignored in a header: a question
+ * mark, a colon or a bracketed ending is part of a line's name. A cell that names several lines,
  * separated by a comma, a semicolon, a slash or a bar, belongs to each. An alias maps a name as
  * the member API gives it to the names the list uses.
  *

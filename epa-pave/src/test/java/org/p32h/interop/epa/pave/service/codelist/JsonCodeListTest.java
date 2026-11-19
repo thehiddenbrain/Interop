@@ -194,6 +194,28 @@ class JsonCodeListTest {
     }
 
     @Test
+    void keysAreFoundTheWayHeadersAreWithAQuestionMarkASlashOrABracketedEnding() {
+        ProcedureCodeService service = TestCodeLists.json(directory, "[{\"CPT/HCPCS Code\":\"A1\",\"PA Required?\":\"Y\",\"Vendor (if any)\":\"eviCore\"},"
+                // The same two keys written without the punctuation are the same two headers, so this row is read as well.
+                + "{\"cpt hcpcs code\":\"A2\",\"PA Required\":\"N\"}]");
+        assertThat(service.selfCheck().rowCount()).isEqualTo(2);
+        assertThat(service.selfCheck().recognisedColumns()).containsExactly(Map.entry("code", "CPT/HCPCS Code"),
+                Map.entry("authRequired", "PA Required?"), Map.entry("delegatedVendor", "Vendor (if any)"));
+        assertThat(service.selfCheck().unrecognisedColumns()).isEmpty();
+        assertThat(service.selfCheck().warnings()).isEmpty();
+        assertThat(only(service, "A1").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(only(service, "A1").delegatedVendor()).isEqualTo("eviCore");
+        assertThat(only(service, "A2").authRequired()).isEqualTo(AuthRequirement.NOT_REQUIRED);
+    }
+
+    @Test
+    void keysThatDifferInABracketedEndingStayTwoKeysSoNeitherIsLost() {
+        // Two rates for two years are two columns. Neither is one this tool reads, and both are reported.
+        ProcedureCodeService service = TestCodeLists.json(directory, "[{\"code\":\"A1\",\"Rate (2025)\":\"1\",\"Rate (2026)\":\"2\"}]");
+        assertThat(service.selfCheck().unrecognisedColumns()).containsExactly("Rate (2025)", "Rate (2026)");
+    }
+
+    @Test
     void whatIsNotARowIsReportedAndWhatIsEmptyIsNot() {
         ProcedureCodeService service = TestCodeLists.json(directory, "[{\"code\":\"A1\"},\"A2\",[\"A3\"],{},{\"code\":null,\"notes\":\"\"},"
                 + "{\"code\":\"\",\"notes\":\"no code\"},{\"code\":\"A4\"},7]");

@@ -30,11 +30,15 @@ public record CodelistProperties(
     /**
      * Candidate header names per column. The header row of the real export is not known in advance,
      * so each column is found by trying these in order; the first one present wins. Matching ignores
-     * case, spaces, underscores, hyphens and dots. Only the code column is required.
+     * case, spaces, underscores, hyphens, dots, slashes, question marks and colons, so "PA Required?"
+     * and "CPT/HCPCS Code" are found. A bracketed part at the end of a header, as in
+     * "Auth Required (Y/N)", is ignored as well, but only for a column that no header matches as
+     * written, and never to choose between two headers that differ only in that part. Only the code
+     * column is required.
      */
     public record Columns(
             @DefaultValue({"code", "procedure code", "proc code", "cpt", "hcpcs", "cpt/hcpcs", "cpt hcpcs code",
-                    "service code", "billing code"}) List<String> code,
+                    "service code", "billing code", "cpt code", "hcpcs code", "procedure"}) List<String> code,
             @DefaultValue({"description", "desc", "code description", "procedure description", "short description",
                     "long description"}) List<String> description,
             @DefaultValue({"code type", "codetype", "type", "code set"}) List<String> codeType,

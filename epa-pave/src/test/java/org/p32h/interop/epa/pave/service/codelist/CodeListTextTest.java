@@ -42,13 +42,54 @@ class CodeListTextTest {
     }
 
     @Test
-    void nothingElseIsIgnoredSoTwoDifferentNamesStayDifferent() {
-        assertThat(CodeListText.key("PA Required?")).isEqualTo("parequired?");
-        assertThat(CodeListText.key("CPT/HCPCS")).isEqualTo("cpt/hcpcs");
-        assertThat(CodeListText.key("Code (CPT)")).isEqualTo("code(cpt)");
-        assertThat(CodeListText.key("Code #")).isEqualTo("code#");
+    void inALineOfBusinessNothingElseIsIgnoredSoTwoDifferentLinesStayDifferent() {
+        // This is the form lines of business are compared in. What a header may lose beyond it, a line keeps.
+        assertThat(CodeListText.key("Medicare?")).isEqualTo("medicare?");
+        assertThat(CodeListText.key("Medicare/Medicaid")).isEqualTo("medicare/medicaid");
+        assertThat(CodeListText.key("Medicare (HMO)")).isEqualTo("medicare(hmo)");
+        assertThat(CodeListText.key("Medicare:")).isEqualTo("medicare:");
+        assertThat(CodeListText.key("Plan #2")).isEqualTo("plan#2");
         // Comparing is never a prefix or a part: these are three lines of business, not one.
         assertThat(List.of(CodeListText.key("Medicare"), CodeListText.key("Medicare Advantage"), CodeListText.key("Medicaid"))).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void aHeaderIsComparedIgnoringASlashAQuestionMarkAndAColonAsWell() {
+        String expected = "parequired";
+        for (String written : new String[] {"PA Required", "PA Required?", "PA Required:", "pa_required?", "PA-Required ?", "P/A Required",
+                "PA\u00A0Required\u00A0?", "\uFEFFPA Required:"}) {
+            assertThat(CodeListText.headerKey(written)).as(written).isEqualTo(expected);
+        }
+        assertThat(CodeListText.headerKey("CPT/HCPCS Code")).isEqualTo("cpthcpcscode");
+        assertThat(CodeListText.headerKey("cpt hcpcs code")).isEqualTo("cpthcpcscode");
+        assertThat(CodeListText.headerKey(null)).isEmpty();
+        assertThat(CodeListText.headerKey(" ? / : - ")).isEmpty();
+        // A bracket is kept in this form, and so is everything else that is not one of those three.
+        assertThat(CodeListText.headerKey("Auth Required (Y/N)")).isEqualTo("authrequired(yn)");
+        assertThat(CodeListText.headerKey("Code #")).isEqualTo("code#");
+        assertThat(CodeListText.headerKey("PA Required*")).isEqualTo("parequired*");
+        assertThat(CodeListText.headerKey("Vendor & Delegate")).isEqualTo("vendor&delegate");
+        assertThat(CodeListText.headerKey("Code\\Type")).isEqualTo("code\\type");
+    }
+
+    @Test
+    void aBracketedPartAtTheEndOfAHeaderIsLeftOutOfItsShorterForm() {
+        assertThat(CodeListText.headerBase("Auth Required (Y/N)")).isEqualTo("authrequired");
+        assertThat(CodeListText.headerBase("Auth Required [Y/N]")).isEqualTo("authrequired");
+        assertThat(CodeListText.headerBase("Auth Required (Y/N)?")).isEqualTo("authrequired");
+        assertThat(CodeListText.headerBase("Effective Date (MM/DD/YYYY):")).isEqualTo("effectivedate");
+        // More than one, one after the other.
+        assertThat(CodeListText.headerBase("Notes (internal) [2026]")).isEqualTo("notes");
+        assertThat(CodeListText.headerBase("Code ()")).isEqualTo("code");
+        // Only at the end, only when closed, and only when something stands before it.
+        assertThat(CodeListText.headerBase("PA (prior) Required")).isEqualTo("pa(prior)required");
+        assertThat(CodeListText.headerBase("Description (short")).isEqualTo("description(short");
+        assertThat(CodeListText.headerBase("Notes) more")).isEqualTo("notes)more");
+        assertThat(CodeListText.headerBase("(Y/N)")).isEqualTo("(yn)");
+        assertThat(CodeListText.headerBase("Code (CPT (or HCPCS))")).isEqualTo("code(cpt(orhcpcs))");
+        // A header with no bracket has one form.
+        assertThat(CodeListText.headerBase("PA Required?")).isEqualTo("parequired");
+        assertThat(CodeListText.headerBase(null)).isEmpty();
     }
 
     @Test
@@ -108,12 +149,72 @@ class CodeListTextTest {
                 "1/5/26", "01/05/26",
                 // The day first: 31/1/2026 cannot be month 31, and it is not turned round into January.
                 "31/1/2026",
-                // Other ways of writing a date, a time of day, a spreadsheet serial number, and words.
-                "2026/01/05", "05-Jan-2026", "Jan 5, 2026", "1-5-2026", "2026-1-5", "2026-01-05 00:00:00", "2026-01-05T00:00:00", "1/5/2026 0:00",
-                "46027", "2026", "202601", "TBD", "n/a", "-"}) {
+                // Other ways of writing a date, a spreadsheet serial number, and words.
+                "2026/01/05", "05-Jan-2026", "Jan 5, 2026", "1-5-2026", "2026-1-5", "46027", "2026", "202601", "TBD", "n/a", "-"}) {
             assertThat(CodeListDates.read(written)).as(written).isNull();
         }
         assertThat(CodeListDates.read(null)).isNull();
         assertThat(CodeListDates.read("  ")).isNull();
+    }
+
+    @Test
+    void aDateFollowedByATimeOfDayIsReadAsThatDate() {
+        // What a database or a spreadsheet writes when the column is a date and a time.
+        LocalDate expected = LocalDate.of(2026, 1, 5);
+        for (String written : new String[] {
+                // Each of the three forms, with and without seconds.
+                "1/5/2026 0:00", "1/5/2026 00:00", "01/05/2026 0:00:00", "2026-01-05 00:00:00", "2026-01-05 00:00", "20260105 00:00:00",
+                // The T of a timestamp, in either case.
+                "2026-01-05T00:00:00", "2026-01-05T00:00", "2026-01-05t00:00:00",
+                // Fractions of a second.
+                "2026-01-05 00:00:00.000", "2026-01-05T00:00:00.0000000", "2026-01-05 00:00:00,5",
+                // The twelve hour clock, as a spreadsheet in the United States shows it.
+                "1/5/2026 12:00:00 AM", "1/5/2026 12:00 am", "1/5/2026 11:59 PM", "1/5/2026 1:05:09PM",
+                // A zone, written as Z, as an offset or as the two names for none.
+                "2026-01-05T00:00:00Z", "2026-01-05T00:00:00z", "2026-01-05T00:00:00.000Z", "2026-01-05T00:00:00+00:00",
+                "2026-01-05T00:00:00-0500", "2026-01-05 00:00:00+00", "2026-01-05 00:00:00 -05:00", "2026-01-05 00:00:00 UTC",
+                "2026-01-05 00:00:00 GMT", "2026-01-05 00:00:00.0000000 +00:00",
+                // More than one space between the two, and white space around the cell.
+                "2026-01-05   00:00:00", "  1/5/2026 0:00  "}) {
+            assertThat(CodeListDates.read(written)).as(written).isEqualTo(expected);
+        }
+        // The time and the zone decide nothing. The date is the one that is written.
+        assertThat(CodeListDates.read("12/31/2026 23:59:59")).isEqualTo(LocalDate.of(2026, 12, 31));
+        assertThat(CodeListDates.read("2026-12-31T23:59:59-05:00")).isEqualTo(LocalDate.of(2026, 12, 31));
+        assertThat(CodeListDates.read("2026-12-31T00:30:00+14:00")).isEqualTo(LocalDate.of(2026, 12, 31));
+        assertThat(CodeListDates.read("12/31/9999 0:00")).isEqualTo(LocalDate.of(9999, 12, 31));
+    }
+
+    @Test
+    void whatFollowsTheDateHasToBeATimeOfDayOrTheCellIsNotRead() {
+        for (String written : new String[] {
+                // A time that is not a time.
+                "2026-01-05 25:00", "2026-01-05 24:00:00", "1/5/2026 0:60", "1/5/2026 0:00:60", "2026-01-05 99:99:99", "2026-01-05 -1:00",
+                // The twelve hour clock has no hour 0 and no hour 13.
+                "1/5/2026 0:00 AM", "1/5/2026 13:00 PM",
+                // Not the shape of one: no minutes, one digit of minutes, no colons, too many parts.
+                "2026-01-05 00", "2026-01-05 0:0", "20260105T000000", "2026-01-05 00:00:00:00", "2026-01-05 000:00",
+                // A zone that is not one.
+                "2026-01-05T00:00:00+25:00", "2026-01-05T00:00:00+05:75", "2026-01-05 00:00:00 EST5", "2026-01-05T00:00:00ZZ",
+                // Words, a second time, a separator with nothing after it, and a zone with no time before it.
+                "2026-01-05 noon", "2026-01-05 00:00 TBD", "2026-01-05 00:00 00:00", "2026-01-05T", "2026-01-05Z", "2026-01-05+01:00",
+                // A good time after something that is not one of the three date forms, or not a real day.
+                "2026-02-30 00:00:00", "13/1/2026 0:00", "1/5/26 0:00", "2026-1-5 00:00:00", "05-Jan-2026 00:00:00", "2026/01/05 00:00"}) {
+            assertThat(CodeListDates.read(written)).as(written).isNull();
+        }
+    }
+
+    @Test
+    void aCellWrittenWithATimeZoneIsToldApartBecauseItsDateMayBeAnotherDaySomewhereElse() {
+        for (String zoned : new String[] {"2026-01-05T00:00:00Z", "2026-01-05T00:00:00z", "2026-01-05 00:00:00+00", "2026-01-05T00:00:00-0500",
+                "2026-01-05 00:00:00 -05:00", "2026-01-05 00:00:00 UTC", "2026-01-05 00:00:00 gmt", "1/5/2026 12:00 AM +01:00"}) {
+            assertThat(CodeListDates.zoned(zoned)).as(zoned).isTrue();
+            assertThat(CodeListDates.read(zoned)).as(zoned).isEqualTo(LocalDate.of(2026, 1, 5));
+        }
+        // No zone, no time, not a date at all, and nothing.
+        for (String plain : new String[] {"2026-01-05 00:00:00", "1/5/2026 0:00", "1/5/2026 11:59 PM", "2026-01-05", "20260105",
+                "2026-01-05T25:00:00Z", "TBD", "", null}) {
+            assertThat(CodeListDates.zoned(plain)).as(String.valueOf(plain)).isFalse();
+        }
     }
 }

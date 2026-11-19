@@ -399,9 +399,68 @@ class ProcedureCodeServiceLoadingTest {
         assertThatThrownBy(() -> TestCodeLists.load(commas, Map.of("delimiter", "|"))).isInstanceOf(UnusableCodeListException.class)
                 .hasMessageContaining("it holds a comma. If that is what separates the cells of this file, set codelist.delimiter to \",\". ");
         // One header that simply is not a known one gets no such hint.
-        Path other = TestCodeLists.write(directory, "other.csv", "Procedure\nE0601\n");
+        Path other = TestCodeLists.write(directory, "other.csv", "Reference\nE0601\n");
         assertThatThrownBy(() -> TestCodeLists.load(other)).isInstanceOf(UnusableCodeListException.class)
                 .hasMessageNotContaining("read as one cell");
+    }
+
+    @Test
+    void headersWrittenTheWayAPersonTitlesAColumnAreFoundAndTheSelfCheckShowsThemAsWritten() {
+        // A slash between two code sets, a colon, a question, and a bracket that says what the column takes.
+        ProcedureCodeService service = TestCodeLists.csv(directory, "CPT/HCPCS Code,Description:,PA Required?,Delegated Vendor (if any),"
+                + "Line of Business [LOB],Internal Ref (do not use)\n"
+                + "95810,Sleep study,Yes,eviCore,Medicare,r-1\nE0601,CPAP device,No,,Commercial,r-2\n");
+
+        CodeListSelfCheck check = service.selfCheck();
+        // Found, and reported exactly as the file writes them: nobody should have to guess which header was meant.
+        assertThat(check.recognisedColumns()).containsExactly(Map.entry("code", "CPT/HCPCS Code"), Map.entry("description", "Description:"),
+                Map.entry("authRequired", "PA Required?"), Map.entry("lineOfBusiness", "Line of Business [LOB]"),
+                Map.entry("delegatedVendor", "Delegated Vendor (if any)"));
+        // A header that is nobody's stays nobody's, bracket and all.
+        assertThat(check.unrecognisedColumns()).containsExactly("Internal Ref (do not use)");
+        assertThat(check.warnings()).isEmpty();
+        assertThat(check.statingAuthRequirement()).isEqualTo(2);
+        assertThat(service.rowsFor("95810", "Medicare", null)).singleElement().satisfies(row -> {
+            assertThat(row.authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+            assertThat(row.delegatedVendor()).isEqualTo("eviCore");
+            assertThat(row.description()).isEqualTo("Sleep study");
+        });
+        assertThat(service.rowsFor("E0601", "Commercial", null).get(0).authRequired()).isEqualTo(AuthRequirement.NOT_REQUIRED);
+    }
+
+    @Test
+    void aCodeColumnHeadedCptCodeHcpcsCodeOrProcedureIsFound() {
+        for (String header : new String[] {"CPT Code", "HCPCS Code", "Procedure", "cpt_code", "HCPCS-CODE", "PROCEDURE:"}) {
+            ProcedureCodeService service = TestCodeLists.csv(directory, header + ",PA\nE0601,No\n");
+            assertThat(service.selfCheck().recognisedColumns()).as(header).containsExactly(Map.entry("code", header), Map.entry("authRequired", "PA"));
+            assertThat(codes(service)).as(header).containsExactly("E0601");
+        }
+        // They are tried last. A file that also has one of the names that were there before is read as it was before.
+        ProcedureCodeService both = TestCodeLists.csv(directory, "Procedure,Code,PA\nSleep study,95810,Yes\n");
+        assertThat(both.selfCheck().recognisedColumns()).containsEntry("code", "Code");
+        assertThat(codes(both)).containsExactly("95810");
+    }
+
+    @Test
+    void twoFlagColumnsToldApartOnlyByABracketAreNotChosenBetweenAndTheSelfCheckSaysWhatToDo() {
+        // One flag for each line of business. Read as "the" flag, the first would answer for every member.
+        Path file = TestCodeLists.write(directory, "export.csv", "Code,PA Required (Medicare),PA Required (Commercial)\n95810,Yes,No\n");
+        ProcedureCodeService service = TestCodeLists.load(file);
+        assertThat(service.rowsFor("95810", null, null).get(0).authRequired()).isEqualTo(AuthRequirement.UNKNOWN);
+        assertThat(service.selfCheck().statingAuthRequirement()).isZero();
+        assertThat(service.selfCheck().recognisedColumns()).containsExactly(Map.entry("code", "Code"));
+        assertThat(service.selfCheck().warnings()).containsExactly(
+                "The headers \"PA Required (Medicare)\" and \"PA Required (Commercial)\" read as the same name once their bracketed endings "
+                        + "are left out, a name this tool knows for authRequired. Which of them is meant cannot be told, so neither was "
+                        + "read. Name the one to read, exactly as written, under codelist.columns.auth-required.",
+                "No column was recognised as the prior authorization flag, so no row says whether prior authorization is required and "
+                        + "nothing can be compared with the service on that point. If the file has such a column, name its header under "
+                        + "codelist.columns.auth-required.");
+        // Doing what it says reads that column and leaves the other as a column nobody named.
+        ProcedureCodeService named = TestCodeLists.load(file, Map.of("columns.auth-required[0]", "PA Required (Commercial)"));
+        assertThat(named.rowsFor("95810", null, null).get(0).authRequired()).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        assertThat(named.selfCheck().unrecognisedColumns()).containsExactly("PA Required (Medicare)");
+        assertThat(named.selfCheck().warnings()).isEmpty();
     }
 
     @Test
