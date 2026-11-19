@@ -22,19 +22,29 @@ import java.util.Map;
  * <p>Construct with {@link #builder()}. A service hands the ledger a draft holding the real member
  * ID; the ledger applies the tracking policy and returns the record as actually written.
  *
- * @param outcome       the protocol outcome code, for example NO_AUTH_REQUIRED
- * @param coverageCodes standard codes from the response as {@code name=code} pairs
- * @param errorType     an {@link OnyxFailureType} name, or {@link #ERROR_BLOCKED}
- * @param correlation   identifiers that tie runs together, keyed by the CORR constants
- * @param findings      {@link FindingKind} names raised on this run
+ * @param outcome          the protocol outcome code, for example NO_AUTH_REQUIRED
+ * @param coverageCodes    standard codes from the response as {@code name=code} pairs. Coded values
+ *                         only: an identifier such as an authorization number belongs in
+ *                         {@code correlation} under {@link #CORR_AUTHORIZATION_REF}
+ * @param errorType        an {@link OnyxFailureType} name, or {@link #ERROR_BLOCKED}
+ * @param memberId         the member ID in its no-space form
+ * @param targetSource     where the url came from: the name of the collection request that was
+ *                         used, or null when it came from the fallback layer or nothing is configured
+ * @param correlation      identifiers that tie runs together, keyed by the CORR constants
+ * @param findings         {@link FindingKind} names raised on this run
+ * @param unrecordedInputs names of things this run sent that cannot be rebuilt from this line and
+ *                         a fresh lookup, from the INPUT constants. Names only, never values. Empty
+ *                         means the line is enough to run the same request again. Replay refuses a
+ *                         record that lists any, because re-running it would send something else
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.ALWAYS)
 @JsonPropertyOrder({"recordType", "runId", "timestamp", "protocol", "operation", "target", "profile", "environment",
         "environmentKind", "scenarioId", "procedureCodes", "lineOfBusiness", "outcome", "coverageCodes",
         "delegatedVendor", "httpStatus", "elapsedMillis", "errorType", "expected", "result", "note", "testerRef",
-        "chainId", "suiteRunId", "caseId", "replayOfRunId", "hook", "memberId", "memberToken", "memberIdLast4", "npi",
-        "dateOfService", "correlation", "findings", "slow"})
+        "chainId", "suiteRunId", "caseId", "replayOfRunId", "hook", "targetSource", "memberId", "memberToken",
+        "memberIdLast4", "npi",
+        "dateOfService", "correlation", "findings", "unrecordedInputs", "slow"})
 public record RunRecord(
         String recordType,
         String runId,
@@ -63,6 +73,7 @@ public record RunRecord(
         @JsonInclude(JsonInclude.Include.NON_NULL) String caseId,
         @JsonInclude(JsonInclude.Include.NON_NULL) String replayOfRunId,
         @JsonInclude(JsonInclude.Include.NON_NULL) String hook,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String targetSource,
         @JsonInclude(JsonInclude.Include.NON_NULL) String memberId,
         @JsonInclude(JsonInclude.Include.NON_NULL) String memberToken,
         @JsonInclude(JsonInclude.Include.NON_NULL) String memberIdLast4,
@@ -70,6 +81,7 @@ public record RunRecord(
         @JsonInclude(JsonInclude.Include.NON_NULL) String dateOfService,
         @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, String> correlation,
         @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> findings,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> unrecordedInputs,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) Boolean slow) {
 
     /** The record type of a run line. Other line types in the same file carry a different value. */
@@ -89,6 +101,19 @@ public record RunRecord(
     /** The canonical url of a questionnaire a run fetched or answered. */
     public static final String CORR_QUESTIONNAIRE = "questionnaire";
 
+    /** The request body was loaded from a collection and edited by hand. It is not kept. */
+    public static final String INPUT_BODY = "body";
+    /** Member details were typed or overridden by hand, so a fresh lookup would not reproduce them. */
+    public static final String INPUT_MEMBER_DETAILS = "member-details";
+    /** Provider details were typed or overridden by hand. */
+    public static final String INPUT_PROVIDER_DETAILS = "provider-details";
+    /** Placeholder values were typed on the form for this run only. */
+    public static final String INPUT_RUN_VALUES = "run-values";
+    /** The tester picked a specific collection request, which may not be the one a re-run would use. */
+    public static final String INPUT_CHOSEN_REQUEST = "chosen-request";
+    /** The run used something an earlier step produced, such as questionnaire answers, which the ledger does not hold. */
+    public static final String INPUT_PRIOR_STEP = "prior-step";
+
     public RunRecord {
         // Boxed, not primitive, because Jackson 3 refuses to bind a missing property to a primitive
         // and a line without these two must still be readable. They are normalised here so callers
@@ -100,6 +125,7 @@ public record RunRecord(
         coverageCodes = coverageCodes == null ? List.of() : List.copyOf(coverageCodes);
         correlation = correlation == null ? Map.of() : Map.copyOf(correlation);
         findings = findings == null ? List.of() : List.copyOf(findings);
+        unrecordedInputs = unrecordedInputs == null ? List.of() : List.copyOf(unrecordedInputs);
     }
 
     public static Builder builder() {
@@ -134,6 +160,7 @@ public record RunRecord(
         b.caseId = caseId;
         b.replayOfRunId = replayOfRunId;
         b.hook = hook;
+        b.targetSource = targetSource;
         b.memberId = memberId;
         b.memberToken = memberToken;
         b.memberIdLast4 = memberIdLast4;
@@ -141,6 +168,7 @@ public record RunRecord(
         b.dateOfService = dateOfService;
         b.correlation = correlation;
         b.findings = findings;
+        b.unrecordedInputs = unrecordedInputs;
         b.slow = slow;
         return b;
     }
@@ -172,6 +200,7 @@ public record RunRecord(
         private String caseId;
         private String replayOfRunId;
         private String hook;
+        private String targetSource;
         private String memberId;
         private String memberToken;
         private String memberIdLast4;
@@ -179,6 +208,7 @@ public record RunRecord(
         private String dateOfService;
         private Map<String, String> correlation = Map.of();
         private List<String> findings = List.of();
+        private List<String> unrecordedInputs = List.of();
         private boolean slow;
 
         private Builder() {
@@ -326,6 +356,11 @@ public record RunRecord(
             return this;
         }
 
+        public Builder targetSource(String value) {
+            this.targetSource = value;
+            return this;
+        }
+
         public Builder memberId(String value) {
             this.memberId = value;
             return this;
@@ -361,6 +396,11 @@ public record RunRecord(
             return this;
         }
 
+        public Builder unrecordedInputs(List<String> value) {
+            this.unrecordedInputs = value;
+            return this;
+        }
+
         public Builder slow(boolean value) {
             this.slow = value;
             return this;
@@ -377,8 +417,8 @@ public record RunRecord(
             return new RunRecord(TYPE_RUN, runId, timestamp, protocol, operation, target, profile, environment,
                     environmentKind, scenarioId, procedureCodes, lineOfBusiness, outcome, coverageCodes, delegatedVendor,
                     httpStatus, elapsedMillis, errorType, expected, result, note, testerRef, chainId, suiteRunId, caseId,
-                    replayOfRunId, hook, memberId, memberToken, memberIdLast4, npi, dateOfService, correlation, findings,
-                    slow);
+                    replayOfRunId, hook, targetSource, memberId, memberToken, memberIdLast4, npi, dateOfService, correlation,
+                    findings, unrecordedInputs, slow);
         }
 
         private static void require(String value, String name) {

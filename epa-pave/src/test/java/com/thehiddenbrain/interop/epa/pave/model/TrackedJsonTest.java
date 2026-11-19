@@ -127,6 +127,18 @@ class TrackedJsonTest {
     }
 
     @Test
+    void aNodeReportsItsPathTheWayTheAdditionalFieldsWriteIt() {
+        TrackedJson tracked = tracked("{\"data\":{\"member\":[{\"dob\":\"1970-01-01\",\"a.b\":1}]}}");
+        TrackedJson.Node member = tracked.root().child("data").children("member").get(0);
+        assertThat(member.child("dob").path()).isEqualTo("data.member[0].dob");
+        assertThat(member.child("a.b").path()).isEqualTo("data.member[0].\"a.b\"");
+        assertThat(tracked.root().path()).isEqualTo("(root)");
+        assertThat(member.properties().get(0).getValue().path()).isEqualTo("data.member[0].dob");
+        // The same spelling the walker uses for a field nobody read.
+        assertThat(paths(tracked)).containsExactly("data.member[0].dob", "data.member[0].\"a.b\"");
+    }
+
+    @Test
     void propertiesWalksAnObjectInDocumentOrderWithoutConsuming() {
         TrackedJson tracked = tracked("{\"z\":1,\"a\":2}");
         assertThat(tracked.root().properties()).extracting(e -> e.getKey()).containsExactly("z", "a");

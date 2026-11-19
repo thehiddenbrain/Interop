@@ -13,6 +13,7 @@ import com.thehiddenbrain.interop.epa.pave.model.EpaOperation;
 import com.thehiddenbrain.interop.epa.pave.model.FieldError;
 import com.thehiddenbrain.interop.epa.pave.model.TestResult;
 import com.thehiddenbrain.interop.epa.pave.service.error.BadInputException;
+import com.thehiddenbrain.interop.epa.pave.service.error.ConfigurationChangedException;
 import com.thehiddenbrain.interop.epa.pave.service.error.EndpointNotConfiguredException;
 import com.thehiddenbrain.interop.epa.pave.service.error.NotFoundException;
 import com.thehiddenbrain.interop.epa.pave.service.error.ProdWriteBlockedException;
@@ -47,6 +48,9 @@ class ApiExceptionHandlerTest {
                 case "bad-input" -> throw new BadInputException("This file is not a Postman collection export.", "Export the collection as v2.1 and upload that file.");
                 case "unresolved" -> throw new UnresolvedVariablesException(EpaOperation.CRD_ORDER_SIGN, List.of("baseUrl", "crdServiceId"),
                         "Onyx Sandbox", "{{baseUrl}}/cds-services/{{crdServiceId}}");
+                case "unresolved-with-reason" -> throw new UnresolvedVariablesException(EpaOperation.PAS_SUBMIT, List.of("clientSecret"),
+                        "Onyx Sandbox", "{{clientSecret}}", Map.of("clientSecret", "it points at the operating system variable PAVE_ONYX_SECRET, which is not set."));
+                case "changed" -> throw new ConfigurationChangedException();
                 case "unresolved-no-env" -> throw new UnresolvedVariablesException(EpaOperation.PAS_INQUIRE, List.of("baseUrl"), null, "{{baseUrl}}/Claim/$inquire");
                 case "not-configured" -> throw new EndpointNotConfiguredException(EpaOperation.PAS_SUBMIT, "There is no url for PAS submit.");
                 case "blocked" -> throw new ProdWriteBlockedException(EpaOperation.PAS_SUBMIT, new EnvironmentRef("Onyx Production", EnvironmentKind.PROD),
@@ -104,6 +108,22 @@ class ApiExceptionHandlerTest {
         mvc.perform(get("/throw/unresolved-no-env")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title").value("PAS inquire cannot be sent: the placeholder {{baseUrl}} has no value, "
                         + "and no environment is active. Nothing was sent."));
+    }
+
+    @Test
+    void aVariableThatIsDefinedButHasNoValueSaysWhy() throws Exception {
+        // "Add it to the environment" would be the wrong advice here: it is in the environment.
+        mvc.perform(get("/throw/unresolved-with-reason")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("variables.clientSecret"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("No value for {{clientSecret}}: it points at the operating system "
+                        + "variable PAVE_ONYX_SECRET, which is not set."));
+    }
+
+    @Test
+    void aConfigurationChangeBetweenPreparingAndSendingIs409AndNothingWasSent() throws Exception {
+        mvc.perform(get("/throw/changed")).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.kind").value("CONFIGURATION"))
+                .andExpect(jsonPath("$.title").value("The configuration changed while this request was being prepared. Nothing was sent."));
     }
 
     @Test

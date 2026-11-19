@@ -4,6 +4,7 @@ import com.thehiddenbrain.interop.epa.pave.model.ErrorKind;
 import com.thehiddenbrain.interop.epa.pave.model.ErrorView;
 import com.thehiddenbrain.interop.epa.pave.model.FieldError;
 import com.thehiddenbrain.interop.epa.pave.service.error.BadInputException;
+import com.thehiddenbrain.interop.epa.pave.service.error.ConfigurationChangedException;
 import com.thehiddenbrain.interop.epa.pave.service.error.EndpointNotConfiguredException;
 import com.thehiddenbrain.interop.epa.pave.service.error.NotFoundException;
 import com.thehiddenbrain.interop.epa.pave.service.error.ProdWriteBlockedException;
@@ -62,7 +63,9 @@ public class ApiExceptionHandler {
                 + String.join(", ", e.variables().stream().map(v -> "{{" + v + "}}").toList())
                 + (e.variables().size() == 1 ? " has" : " have") + " no value, and " + environment + ". Nothing was sent.";
         List<FieldError> fields = e.variables().stream()
-                .map(v -> new FieldError("variables." + v, "No value for {{" + v + "}}. Type one here, or add it to the environment on the Config tab."))
+                .map(v -> new FieldError("variables." + v, e.reasons().containsKey(v)
+                        ? "No value for {{" + v + "}}: " + e.reasons().get(v)
+                        : "No value for {{" + v + "}}. Type one here, or add it to the environment on the Config tab."))
                 .toList();
         return respond(HttpStatus.UNPROCESSABLE_CONTENT, new ErrorView(ErrorKind.CONFIGURATION, title,
                 "Type a value for each marked variable, or define it in the active environment on the Config tab.", null, fields, List.of(), null));
@@ -72,6 +75,13 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorView> notConfigured(EndpointNotConfiguredException e) {
         return respond(HttpStatus.CONFLICT, ErrorView.of(ErrorKind.CONFIGURATION, e.getMessage() + " Nothing was sent.",
                 "Open the Config tab, upload a collection that contains this request, or set the fallback url in application.yml."));
+    }
+
+    @ExceptionHandler(ConfigurationChangedException.class)
+    public ResponseEntity<ErrorView> configurationChanged(ConfigurationChangedException e) {
+        return respond(HttpStatus.CONFLICT, ErrorView.of(ErrorKind.CONFIGURATION,
+                "The configuration changed while this request was being prepared. Nothing was sent.",
+                "Check which environment is active, then send again."));
     }
 
     @ExceptionHandler(ProdWriteBlockedException.class)

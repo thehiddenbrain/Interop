@@ -14,6 +14,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * @param authRequiredSource the cell text the requirement was read from, so a tester can see why a
  *                           value came out UNKNOWN
+ * @param lineOfBusiness     the cell text as written. A cell may name several lines
+ * @param effectiveDate      ISO yyyy-MM-dd when the cell could be read as a date, otherwise the
+ *                           cell text exactly as written
+ * @param endDate            as effectiveDate
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ProcedureCode(

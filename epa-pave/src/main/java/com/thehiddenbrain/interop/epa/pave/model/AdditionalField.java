@@ -15,4 +15,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AdditionalField(String path, Presence presence, String value) {
+
+    /** Prints the path and presence, never the value, which can be member data. */
+    @Override
+    public String toString() {
+        return "AdditionalField[" + path + ", " + presence + "]";
+    }
 }

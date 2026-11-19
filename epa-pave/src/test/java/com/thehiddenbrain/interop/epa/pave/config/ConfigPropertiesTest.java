@@ -60,6 +60,7 @@ class ConfigPropertiesTest {
             assertThat(endpoint.connectTimeoutMs()).isEqualTo(3000).isLessThan(onyx.connectTimeoutMs());
             assertThat(endpoint.readTimeoutMs()).isEqualTo(5000).isLessThan(onyx.readTimeoutMs());
             assertThat(endpoint.headers()).isEmpty();
+            assertThat(endpoint.useOnyxAuth()).isFalse();
         }
     }
 
@@ -92,28 +93,52 @@ class ConfigPropertiesTest {
         assertThat(tracking.recordNpi()).isTrue();
 
         OnyxProperties onyx = OnyxProperties.of(Map.of("crd.url", "{{baseUrl}}", "pas.attachment-mode", "x12-275",
-                "auth.enabled", "true", "auth.client-secret", "placeholder-secret", "variables.crdServiceId", "order-sign-crd"));
+                "auth.enabled", "true", "auth.client-secret", "placeholder-secret", "variables.crdOrderSignServiceId", "order-sign-crd"));
         assertThat(onyx.crd().url()).isEqualTo("{{baseUrl}}");
         assertThat(onyx.pas().attachmentMode()).isEqualTo("x12-275");
         assertThat(onyx.auth().enabled()).isTrue();
-        assertThat(onyx.variables()).containsEntry("crdServiceId", "order-sign-crd");
+        assertThat(onyx.variables()).containsEntry("crdOrderSignServiceId", "order-sign-crd");
 
         LookupProperties lookup = LookupProperties.of(Map.of("member.url", "https://example.invalid/members/{id}",
                 "member.headers.X-Api-Key", "{{memberApiKey}}", "provider.enabled", "false"));
         assertThat(lookup.member().url()).isEqualTo("https://example.invalid/members/{id}");
         assertThat(lookup.member().headers()).containsEntry("X-Api-Key", "{{memberApiKey}}");
         assertThat(lookup.provider().enabled()).isFalse();
+        assertThat(LookupProperties.of(Map.of("member.use-onyx-auth", "true")).member().useOnyxAuth()).isTrue();
+        // A header value can be an API key typed literally, so it is not printed.
+        assertThat(LookupProperties.of(Map.of("member.headers.X-Api-Key", "placeholder-key-value")).toString())
+                .doesNotContain("placeholder-key-value").contains("X-Api-Key");
 
         CodelistProperties codelist = CodelistProperties.of(Map.of("columns.code[0]", "Proc Cd", "delimiter", "|"));
         assertThat(codelist.columns().code()).containsExactly("Proc Cd");
         assertThat(codelist.columns().description()).isNotEmpty();
         assertThat(codelist.delimiter()).isEqualTo("|");
+        // With no alias configured a line of business matches only itself.
+        assertThat(CodelistProperties.defaults().lineOfBusinessAliases()).isEmpty();
+        CodelistProperties aliased = CodelistProperties.of(Map.of("line-of-business-aliases.MCR[0]", "Medicare",
+                "line-of-business-aliases.MCR[1]", "Medicare Advantage"));
+        assertThat(aliased.lineOfBusinessAliases()).containsEntry("MCR", java.util.List.of("Medicare", "Medicare Advantage"));
     }
 
     @Test
-    void theClientSecretIsNotPrinted() {
-        OnyxProperties onyx = OnyxProperties.of(Map.of("auth.client-secret", "placeholder-secret"));
-        assertThat(onyx.auth().toString()).doesNotContain("placeholder-secret");
-        assertThat(onyx.toString()).doesNotContain("placeholder-secret");
+    void noSecretIsPrintedOrSerialisedFromAPropertiesRecord() {
+        // The shortest way to build "everything in force" is to return these records, and the
+        // shortest startup log line prints one. Neither may show a secret.
+        OnyxProperties onyx = OnyxProperties.of(Map.of("auth.client-secret", "placeholder-secret-1",
+                "variables.clientSecret", "placeholder-secret-2", "variables.baseUrl", "https://example.invalid"));
+        LookupProperties lookup = LookupProperties.of(Map.of("member.headers.X-Api-Key", "placeholder-secret-3"));
+
+        assertThat(onyx.auth().toString()).doesNotContain("placeholder-secret-1");
+        assertThat(onyx.toString()).doesNotContain("placeholder-secret-1").doesNotContain("placeholder-secret-2").contains("clientSecret");
+        assertThat(lookup.toString()).doesNotContain("placeholder-secret-3").contains("X-Api-Key");
+
+        String onyxJson = com.thehiddenbrain.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(onyx);
+        String lookupJson = com.thehiddenbrain.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(lookup);
+        assertThat(onyxJson).doesNotContain("placeholder-secret-1").doesNotContain("placeholder-secret-2");
+        assertThat(lookupJson).doesNotContain("placeholder-secret-3");
+        // The values are still there for the code that sends them.
+        assertThat(onyx.auth().clientSecret()).isEqualTo("placeholder-secret-1");
+        assertThat(onyx.variables()).containsEntry("clientSecret", "placeholder-secret-2");
+        assertThat(lookup.member().headers()).containsEntry("X-Api-Key", "placeholder-secret-3");
     }
 }

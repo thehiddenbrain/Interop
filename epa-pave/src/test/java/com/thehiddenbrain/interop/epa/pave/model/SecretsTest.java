@@ -9,7 +9,8 @@ class SecretsTest {
     @Test
     void namesThatReadAsCredentialsAreSecret() {
         for (String name : new String[] {"clientSecret", "client_secret", "CLIENT-SECRET", "apiKey", "api_key", "x-api-key",
-                "password", "accessToken", "access_token", "bearerToken", "privateKey", "subscription.key", "jwt"}) {
+                "password", "accessToken", "access_token", "bearerToken", "privateKey", "subscription.key", "jwt",
+                "auth", "basicAuth", "authHeader", "authorizationHeader", "cookie", "sessionCookie", "passphrase"}) {
             assertThat(Secrets.looksSecret(name)).as(name).isTrue();
         }
     }
@@ -17,7 +18,8 @@ class SecretsTest {
     @Test
     void namesThatLocateOrDescribeACredentialAreNotSecret() {
         for (String name : new String[] {"tokenUrl", "token_url", "clientId", "client_id", "baseUrl", "keyId", "tokenType",
-                "secretName", "monkeyUrl", "keyword", "tokenizer", "scopes", "crdServiceId", "host"}) {
+                "secretName", "monkeyUrl", "keyword", "tokenizer", "scopes", "crdServiceId", "host", "authUrl",
+                "authType", "auth_method", "tokenAudience", "author", "crdOrderSignServiceId"}) {
             assertThat(Secrets.looksSecret(name)).as(name).isFalse();
         }
     }

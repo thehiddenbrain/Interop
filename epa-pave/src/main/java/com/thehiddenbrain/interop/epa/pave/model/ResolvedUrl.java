@@ -43,9 +43,12 @@ public record ResolvedUrl(String template, String display, @JsonIgnore String va
         return configured() && unresolved.isEmpty() && Texts.present(value);
     }
 
-    /** Prints the display form only, so logging one of these cannot leak a secret held in a query string. */
+    /**
+     * Prints the template only. The display form masks secrets but still holds whatever identifier
+     * the url carries, and for a lookup that is the member ID.
+     */
     @Override
     public String toString() {
-        return "ResolvedUrl[" + (display == null ? template : display) + "]";
+        return "ResolvedUrl[" + template + "]";
     }
 }

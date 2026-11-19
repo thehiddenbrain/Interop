@@ -34,7 +34,7 @@ public final class TrackedJson {
     }
 
     public Node root() {
-        return new Node(root, "");
+        return new Node(root, "", "");
     }
 
     /** Every leaf that no view read, in document order. A leaf is a scalar, a null or an empty container. */
@@ -85,15 +85,18 @@ public final class TrackedJson {
 
         private final JsonNode node;
         private final String pointer;
+        private final String path;
 
-        private Node(JsonNode node, String pointer) {
+        private Node(JsonNode node, String pointer, String path) {
             this.node = node == null ? tools.jackson.databind.node.MissingNode.getInstance() : node;
             this.pointer = pointer;
+            this.path = path;
         }
 
         /** The named child. Navigation only: nothing is consumed. */
         public Node child(String field) {
-            return new Node(JsonSafe.child(node, field), pointer + "/" + escape(field));
+            return new Node(JsonSafe.child(node, field), pointer + "/" + escape(field),
+                    path.isEmpty() ? displayName(field) : path + "." + displayName(field));
         }
 
         /** Walks object fields in order. Navigation only. */
@@ -120,7 +123,7 @@ public final class TrackedJson {
                 }
                 int index = 0;
                 for (JsonNode element : node) {
-                    out.add(new Node(element, pointer + "/" + index));
+                    out.add(new Node(element, pointer + "/" + index, path + "[" + index + "]"));
                     index++;
                 }
             }
@@ -136,7 +139,7 @@ public final class TrackedJson {
             List<Map.Entry<String, Node>> out = new ArrayList<>();
             if (node.isObject()) {
                 for (Map.Entry<String, JsonNode> property : node.properties()) {
-                    out.add(Map.entry(property.getKey(), new Node(property.getValue(), pointer + "/" + escape(property.getKey()))));
+                    out.add(Map.entry(property.getKey(), child(property.getKey())));
                 }
             }
             return out;
@@ -228,6 +231,15 @@ public final class TrackedJson {
         /** The JSON Pointer of this node within the document. */
         public String pointer() {
             return pointer;
+        }
+
+        /**
+         * Where this node sits, written the way {@link AdditionalField#path()} writes it, for example
+         * {@code data.member.dob}. A mapper that reports which field a value came from uses this, so
+         * that name and the names in the additional fields read alike.
+         */
+        public String path() {
+            return path.isEmpty() ? "(root)" : path;
         }
     }
 }

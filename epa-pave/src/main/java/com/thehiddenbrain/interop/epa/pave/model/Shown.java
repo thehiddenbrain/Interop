@@ -67,4 +67,13 @@ public record Shown(Presence presence, String value) {
     public String orNull() {
         return value;
     }
+
+    /**
+     * Prints the presence and never the value. Every view type is built from these, and a value
+     * read from a response can be member data, so this one override keeps all of them out of a log.
+     */
+    @Override
+    public String toString() {
+        return "Shown[" + presence + "]";
+    }
 }

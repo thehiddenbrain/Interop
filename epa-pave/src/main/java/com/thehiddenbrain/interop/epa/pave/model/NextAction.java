@@ -16,6 +16,8 @@ public enum NextAction {
     FIX_TEST_DATA,
     /** The request was rejected as invalid. Check what was sent. */
     FIX_REQUEST,
+    /** The payer asked for more information before it can answer. Supply it and send again. */
+    SUPPLY_INFORMATION,
     /** The service failed or could not be reached. Check the environment. */
     CHECK_ENVIRONMENT,
     /** The tool is not configured to send this. Open Config. */

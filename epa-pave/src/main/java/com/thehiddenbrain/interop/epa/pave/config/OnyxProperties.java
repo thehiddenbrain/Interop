@@ -1,5 +1,6 @@
 package com.thehiddenbrain.interop.epa.pave.config;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -12,7 +13,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * collection request. Each is a base url, may contain {@code {{placeholders}}}, and the tool
  * appends the standard path for the operation.
  *
- * @param variables fallback values for placeholders, consulted after the environment and the collection
+ * @param variables fallback values for placeholders, consulted after the environment and the
+ *                  collection. Keys are placeholder names and are case sensitive, so they cannot be
+ *                  supplied through operating system variables, which Spring lower-cases. To keep a
+ *                  secret out of this file give the variable the value {@code {{env:PAVE_NAME}}}
  */
 @ConfigurationProperties("onyx")
 public record OnyxProperties(
@@ -23,10 +27,18 @@ public record OnyxProperties(
         @DefaultValue("5000") int connectTimeoutMs,
         @DefaultValue("15000") int readTimeoutMs,
         @DefaultValue Auth auth,
-        Map<String, String> variables) {
+        @JsonIgnore Map<String, String> variables) {
 
     public OnyxProperties {
         variables = variables == null ? Map.of() : Map.copyOf(variables);
+    }
+
+    /** Prints variable names only. A value can be a secret. */
+    @Override
+    public String toString() {
+        return "OnyxProperties[crd=" + crd + ", dtr=" + dtr + ", pas=" + pas + ", subscription=" + subscription
+                + ", connectTimeoutMs=" + connectTimeoutMs + ", readTimeoutMs=" + readTimeoutMs + ", auth=" + auth
+                + ", variables=" + variables.keySet() + "]";
     }
 
     /** @param url the CDS Hooks base. Services are addressed as {@code url/cds-services/service-id} */
@@ -58,7 +70,7 @@ public record OnyxProperties(
             @DefaultValue("false") boolean enabled,
             @DefaultValue("") String tokenUrl,
             @DefaultValue("") String clientId,
-            @DefaultValue("") String clientSecret,
+            @JsonIgnore @DefaultValue("") String clientSecret,
             @DefaultValue("") String scopes) {
 
         /** Redacted, because a record's default toString would print the client secret. */

@@ -1,6 +1,7 @@
 package com.thehiddenbrain.interop.epa.pave.model;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * One test case described by its inputs alone, so it can be run again without a browser. A suite
@@ -11,8 +12,10 @@ import java.util.List;
  *
  * <p>Construct with {@link #builder()}.
  *
- * @param chain     true to run the whole journey, CRD then DTR then PAS, as far as each step allows
- * @param operation the single operation to run when {@code chain} is false
+ * @param chain       true to run the whole journey, CRD then DTR then PAS, as far as each step allows
+ * @param operation   the single operation to run when {@code chain} is false
+ * @param correlation identifiers a follow-up read needs, keyed by the RunRecord CORR constants:
+ *                    the claim id for a PAS inquiry, the subscription id for a subscription read
  */
 public record CaseSpec(
         String caseId,
@@ -28,10 +31,12 @@ public record CaseSpec(
         String note,
         String chainId,
         String suiteRunId,
-        String replayOfRunId) {
+        String replayOfRunId,
+        Map<String, String> correlation) {
 
     public CaseSpec {
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
+        correlation = correlation == null ? Map.of() : Map.copyOf(correlation);
     }
 
     public static Builder builder() {
@@ -59,6 +64,7 @@ public record CaseSpec(
         private String chainId;
         private String suiteRunId;
         private String replayOfRunId;
+        private Map<String, String> correlation = Map.of();
 
         private Builder() {
         }
@@ -133,9 +139,14 @@ public record CaseSpec(
             return this;
         }
 
+        public Builder correlation(Map<String, String> value) {
+            this.correlation = value;
+            return this;
+        }
+
         public CaseSpec build() {
             return new CaseSpec(caseId, chain, operation, memberId, npi, procedureCodes, dateOfService, scenarioId, expected,
-                    testerRef, note, chainId, suiteRunId, replayOfRunId);
+                    testerRef, note, chainId, suiteRunId, replayOfRunId, correlation);
         }
     }
 }

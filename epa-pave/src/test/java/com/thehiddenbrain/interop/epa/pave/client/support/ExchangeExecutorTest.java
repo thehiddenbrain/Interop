@@ -24,7 +24,11 @@ import com.thehiddenbrain.interop.epa.pave.model.VendorExchange;
 import com.thehiddenbrain.interop.epa.pave.model.WireHeader;
 import com.thehiddenbrain.interop.epa.pave.service.config.PreparedCall;
 import com.thehiddenbrain.interop.epa.pave.service.config.TestPreparedCalls;
+import com.thehiddenbrain.interop.epa.pave.service.error.ConfigurationChangedException;
 import com.thehiddenbrain.interop.epa.pave.service.error.EndpointNotConfiguredException;
+import com.thehiddenbrain.interop.epa.pave.service.error.UnresolvedVariablesException;
+import com.thehiddenbrain.interop.epa.pave.testsupport.FakeGateway;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -303,6 +307,42 @@ class ExchangeExecutorTest {
         VendorExchange exchange = post();
         assertThat(exchange.responseHeaders()).contains(new WireHeader("X-Request-Id", "abc-123"));
         assertThat(exchange.responseHeaders().toString()).doesNotContain("placeholder-cookie");
+    }
+
+    @Test
+    void aBodyThatStillHoldsAPlaceholderIsRefusedAndNeverSentAsNoBody() {
+        // An unresolved text has no send form. Treating that as "no body" would send an empty
+        // request and report it as sent, and the tester would see a vendor rejection with no cause.
+        ResolvedText unresolved = new ResolvedText("{\"patient\":\"{{patientId}}\"}", null, null, List.of(), List.of("patientId"));
+        assertThatThrownBy(() -> executor.execute(client, TestPreparedCalls.to(EpaOperation.PAS_SUBMIT, URL), unresolved,
+                ExchangeOptions.json("application/fhir+json")))
+                .isInstanceOfSatisfying(UnresolvedVariablesException.class, e -> {
+                    assertThat(e.variables()).containsExactly("patientId");
+                    assertThat(e.operation()).isEqualTo(EpaOperation.PAS_SUBMIT);
+                    assertThat(e.environmentName()).isEqualTo("Test Sandbox");
+                });
+        server.verify();
+    }
+
+    @Test
+    void aCallPreparedUnderAnEarlierConfigurationIsRefused() {
+        FakeGateway gateway = new FakeGateway().url(EpaOperation.PAS_SUBMIT, URL);
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("gateway", gateway);
+        ExchangeExecutor guarded = new ExchangeExecutor(beans.getBeanProvider(com.thehiddenbrain.interop.epa.pave.service.config.OperationGateway.class));
+        PreparedCall prepared = gateway.prepare(com.thehiddenbrain.interop.epa.pave.service.config.CallIntent.of(EpaOperation.PAS_SUBMIT));
+
+        // The tester switches environment, or relocks, between preparing and sending.
+        gateway.changeConfiguration();
+
+        assertThatThrownBy(() -> guarded.execute(client, prepared, ResolvedText.plain(REQUEST), ExchangeOptions.json("application/fhir+json")))
+                .isInstanceOf(ConfigurationChangedException.class);
+        server.verify();
+
+        // A call prepared under the current configuration goes out.
+        PreparedCall fresh = gateway.prepare(com.thehiddenbrain.interop.epa.pave.service.config.CallIntent.of(EpaOperation.PAS_SUBMIT));
+        server.expect(requestTo(URL)).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        assertThat(guarded.execute(client, fresh, ResolvedText.plain(REQUEST), ExchangeOptions.json("application/fhir+json")).ok()).isTrue();
     }
 
     @Test

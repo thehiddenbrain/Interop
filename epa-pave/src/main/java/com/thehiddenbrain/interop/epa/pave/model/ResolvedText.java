@@ -34,9 +34,12 @@ public record ResolvedText(String template, String display, @JsonIgnore String v
         return unresolved.isEmpty() && value != null;
     }
 
-    /** Prints the display form only, so logging one of these cannot leak a secret. */
+    /**
+     * Prints nothing of the content. Even the display form can hold member data, since a request
+     * body is one of these.
+     */
     @Override
     public String toString() {
-        return "ResolvedText[" + (display == null ? template : display) + "]";
+        return "ResolvedText[" + (resolved() ? "resolved" : "unresolved " + unresolved) + "]";
     }
 }

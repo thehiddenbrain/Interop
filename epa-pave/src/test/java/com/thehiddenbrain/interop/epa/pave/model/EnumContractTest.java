@@ -60,14 +60,66 @@ class EnumContractTest {
     }
 
     @Test
-    void readsStayReadsWhateverTheirMethod() {
+    void aReadSentWithItsOwnMethodIsARead() {
         // PAS inquire and the DTR operations are POSTs that change nothing, so they are allowed on production.
         assertThat(EpaOperation.PAS_INQUIRE.writesWith("POST")).isFalse();
+        assertThat(EpaOperation.PAS_INQUIRE.writesWith(" post ")).isFalse();
         assertThat(EpaOperation.CRD_ORDER_SIGN.writesWith("POST")).isFalse();
+        assertThat(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE.writesWith("POST")).isFalse();
         assertThat(EpaOperation.DTR_NEXT_QUESTION.writesWith("POST")).isFalse();
         assertThat(EpaOperation.SUBSCRIPTION_GET.writesWith("GET")).isFalse();
         assertThat(EpaOperation.MEMBER_LOOKUP.writesWith("GET")).isFalse();
-        assertThat(EpaOperation.PAS_SUBMIT.writesWith("GET")).isTrue();
+        assertThat(EpaOperation.CRD_DISCOVERY.writesWith("HEAD")).isFalse();
+    }
+
+    @Test
+    void aWriteIsAWriteWhateverItsMethod() {
+        for (EpaOperation operation : EpaOperation.values()) {
+            if (operation.write()) {
+                for (String method : new String[] {"GET", "POST", "PUT", "DELETE", "", null}) {
+                    assertThat(operation.writesWith(method)).as(operation + " with " + method).isTrue();
+                }
+            }
+        }
+    }
+
+    @Test
+    void aReadOperationSentWithAMethodThatChangesStateIsAWrite() {
+        // The guardrail is decided on what is sent, not on the name the caller gave it. Naming
+        // "Subscription get" and sending a DELETE must not pass as a read.
+        assertThat(EpaOperation.SUBSCRIPTION_GET.writesWith("DELETE")).isTrue();
+        assertThat(EpaOperation.SUBSCRIPTION_GET.writesWith("PUT")).isTrue();
+        assertThat(EpaOperation.SUBSCRIPTION_GET.writesWith("POST")).isTrue();
+        assertThat(EpaOperation.PAS_INQUIRE.writesWith("PUT")).isTrue();
+        assertThat(EpaOperation.PAS_INQUIRE.writesWith("DELETE")).isTrue();
+        assertThat(EpaOperation.CRD_DISCOVERY.writesWith("POST")).isTrue();
+        assertThat(EpaOperation.MEMBER_LOOKUP.writesWith("POST")).isTrue();
+        assertThat(EpaOperation.CRD_ORDER_SIGN.writesWith("PATCH")).isTrue();
+        // With no method stated, a mapped read is judged by its own flag.
+        assertThat(EpaOperation.SUBSCRIPTION_GET.writesWith(null)).isFalse();
+        assertThat(EpaOperation.PAS_INQUIRE.writesWith(" ")).isFalse();
+    }
+
+    @Test
+    void everyOnyxOperationHasAFallbackPathAndTheOthersHaveNone() {
+        assertThat(EpaOperation.CRD_ORDER_SIGN.fallbackPath()).isEqualTo("/cds-services/{{crdOrderSignServiceId}}");
+        assertThat(EpaOperation.CRD_ORDER_SELECT.fallbackPath()).isEqualTo("/cds-services/{{crdOrderSelectServiceId}}");
+        assertThat(EpaOperation.CRD_DISCOVERY.fallbackPath()).isEqualTo("/cds-services");
+        assertThat(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE.fallbackPath()).isEqualTo("/Questionnaire/$questionnaire-package");
+        assertThat(EpaOperation.DTR_NEXT_QUESTION.fallbackPath()).isEqualTo("/Questionnaire/$next-question");
+        assertThat(EpaOperation.PAS_SUBMIT.fallbackPath()).isEqualTo("/Claim/$submit");
+        assertThat(EpaOperation.PAS_INQUIRE.fallbackPath()).isEqualTo("/Claim/$inquire");
+        assertThat(EpaOperation.SUBSCRIPTION_CREATE.fallbackPath()).isEqualTo("/Subscription");
+        assertThat(EpaOperation.SUBSCRIPTION_GET.fallbackPath()).isEqualTo("/Subscription/{id}");
+        assertThat(EpaOperation.SUBSCRIPTION_UPDATE.fallbackPath()).isEqualTo("/Subscription/{id}");
+        assertThat(EpaOperation.SUBSCRIPTION_DELETE.fallbackPath()).isEqualTo("/Subscription/{id}");
+        // A notification is inbound, so there is nowhere for the tool to send one.
+        assertThat(EpaOperation.SUBSCRIPTION_NOTIFICATION.fallbackPath()).isNull();
+        assertThat(EpaOperation.MEMBER_LOOKUP.fallbackPath()).isNull();
+        assertThat(EpaOperation.PROVIDER_LOOKUP.fallbackPath()).isNull();
+        assertThat(EpaOperation.UNMAPPED.fallbackPath()).isNull();
+        // The service id is not known, so it is never a literal in a path.
+        assertThat(EpaOperation.CRD_ORDER_SIGN.fallbackPath()).contains("{{");
     }
 
     @Test

@@ -13,7 +13,11 @@ public record EnvironmentRef(String name, EnvironmentKind kind) {
 
     private static final EnvironmentRef NONE = new EnvironmentRef(null, null);
 
-    /** No environment is active. Mock needs none; live cannot send without one or a fallback url. */
+    /**
+     * No environment is active. Mock needs none. On live a read can still go to a fallback url, but
+     * a write is refused: with no environment there is no kind, so the tool cannot tell whether the
+     * target is production.
+     */
     public static EnvironmentRef none() {
         return NONE;
     }

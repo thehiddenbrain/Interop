@@ -49,13 +49,16 @@ class RunRecordTest {
     void theConditionalFieldsAreWrittenOnlyWhenPresent() {
         JsonNode bare = JsonSafe.parse(JsonSafe.mapper().writeValueAsString(minimal().build())).node();
         for (String field : List.of("memberId", "memberToken", "memberIdLast4", "npi", "dateOfService", "chainId", "suiteRunId",
-                "caseId", "replayOfRunId", "hook", "correlation", "findings", "slow")) {
+                "caseId", "replayOfRunId", "hook", "targetSource", "correlation", "findings", "unrecordedInputs", "slow")) {
             assertThat(bare.has(field)).as(field + " is omitted when not set").isFalse();
         }
         JsonNode full = JsonSafe.parse(JsonSafe.mapper().writeValueAsString(minimal().memberId("S123456789").npi("1234567893")
                 .dateOfService("2026-02-01").chainId("chain-1").hook("order-sign").slow(true)
-                .correlation(Map.of(RunRecord.CORR_CLAIM_ID, "c1")).findings(List.of("SLOW_RESPONSE")).build())).node();
+                .correlation(Map.of(RunRecord.CORR_CLAIM_ID, "c1")).findings(List.of("SLOW_RESPONSE"))
+                .unrecordedInputs(List.of(RunRecord.INPUT_BODY, RunRecord.INPUT_MEMBER_DETAILS)).build())).node();
         assertThat(full.get("memberId").asString()).isEqualTo("S123456789");
+        // The record names what it could not keep. It holds the names only, never the values.
+        assertThat(full.get("unrecordedInputs").toString()).isEqualTo("[\"body\",\"member-details\"]");
         assertThat(full.get("correlation").get("claimId").asString()).isEqualTo("c1");
         assertThat(full.get("slow").asBoolean()).isTrue();
     }
@@ -109,9 +112,11 @@ class RunRecordTest {
         RunRecord record = minimal().target("onyx").profile("mock").environment("E", EnvironmentKind.UAT).scenarioId("s")
                 .procedureCodes(List.of("1")).lineOfBusiness("Commercial").coverageCodes(List.of("a=b")).delegatedVendor("Evolent")
                 .httpStatus(200).elapsedMillis(7).errorType(OnyxFailureType.TIMEOUT).expected("x").note("n").testerRef("t")
-                .chainId("c").suiteRunId("su").caseId("ca").replayOfRunId("r").hook("order-sign").memberId("S123456789")
+                .chainId("c").suiteRunId("su").caseId("ca").replayOfRunId("r").hook("order-sign")
+                .targetSource("order-sign Happy Path").memberId("S123456789")
                 .memberToken("tok").memberIdLast4("6789").npi("1234567893").dateOfService("2026-02-01")
-                .correlation(Map.of("k", "v")).findings(List.of("SLOW_RESPONSE")).slow(true).build();
+                .correlation(Map.of("k", "v")).findings(List.of("SLOW_RESPONSE"))
+                .unrecordedInputs(List.of(RunRecord.INPUT_RUN_VALUES)).slow(true).build();
         assertThat(record.toBuilder().build()).isEqualTo(record);
         // Guards the copy against a component being added to the record and forgotten in toBuilder.
         long nonNull = Arrays.stream(RunRecord.class.getRecordComponents()).filter(c -> {

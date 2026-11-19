@@ -2,7 +2,9 @@ package com.thehiddenbrain.interop.epa.pave.service.config;
 
 import com.thehiddenbrain.interop.epa.pave.model.EnvironmentRef;
 import com.thehiddenbrain.interop.epa.pave.model.ResolvedText;
+import com.thehiddenbrain.interop.epa.pave.service.error.BadInputException;
 import com.thehiddenbrain.interop.epa.pave.service.error.EndpointNotConfiguredException;
+import com.thehiddenbrain.interop.epa.pave.service.error.NotFoundException;
 import com.thehiddenbrain.interop.epa.pave.service.error.ProdWriteBlockedException;
 import com.thehiddenbrain.interop.epa.pave.service.error.UnresolvedVariablesException;
 import java.util.Map;
@@ -17,24 +19,79 @@ import java.util.Map;
 public interface OperationGateway {
 
     /**
-     * Resolves the target for an operation and applies the production guardrail.
+     * Resolves the target for an operation and applies the production guardrail, both against one
+     * snapshot of the configuration.
      *
-     * <p>On the mock profile a target that is not configured or not resolved is not an error,
-     * because nothing is sent; the returned call says what was and was not resolved. On the live
-     * profile it is an error raised before anything is sent. The guardrail applies on both
-     * profiles, so it can be exercised on mock exactly as it behaves on live.
+     * <h4>Where the call goes</h4>
+     * In order:
+     * <ol>
+     *   <li>The collection request named by {@code intent.request()}. It must exist, and unless the
+     *       intent's operation is {@code UNMAPPED} it must be mapped to that operation. A read
+     *       button can therefore never be pointed at a write request.</li>
+     *   <li>Otherwise the default request for the operation: the first request mapped to it, in
+     *       collection order, whose name does not contain "error".</li>
+     *   <li>Otherwise the fallback layer: the base url for the operation's protocol from
+     *       {@code application.yml} plus
+     *       {@link com.thehiddenbrain.interop.epa.pave.model.EpaOperation#fallbackPath()}. For the
+     *       two lookups the template is {@code lookup.member.url} or {@code lookup.provider.url},
+     *       and the headers configured for that lookup are resolved and returned on the call.</li>
+     *   <li>For CDS Hooks discovery with none of the above: the url of a mapped CRD hook request cut
+     *       at {@code /cds-services}.</li>
+     * </ol>
+     * {@code SUBSCRIPTION_NOTIFICATION} has no outbound target. Asking for one is a programming
+     * error and throws {@link IllegalArgumentException}: a sample notification is delivered to this
+     * tool's own receiver and nowhere else.
      *
-     * @throws ProdWriteBlockedException      when the operation is a write, the active environment
-     *                                        is production, and writes are not unlocked
-     * @throws UnresolvedVariablesException   on live, when a placeholder has no value in any layer
+     * <h4>The method</h4>
+     * The method of the collection request, or the operation's default for a fallback target.
+     * {@code intent.method()} is honoured only for {@code UNMAPPED}.
+     *
+     * <h4>Tokens in the url</h4>
+     * After {@code {{placeholder}}} resolution, each single-brace {@code {name}} token and each
+     * Postman path variable {@code :name} in the url is replaced by
+     * {@code intent.urlValues().get(name)}, percent-encoded so that it stays one path segment or
+     * one query value whatever characters it holds. A token with no value is listed in
+     * {@link com.thehiddenbrain.interop.epa.pave.model.ResolvedUrl#unresolved()} and treated as an
+     * unresolved placeholder, with one exception: {@code SUBSCRIPTION_GET} from the fallback layer
+     * with no {@code id} drops the trailing segment and lists subscriptions. The template keeps the
+     * token; the display and send forms hold the substituted url.
+     *
+     * <h4>The guardrail</h4>
+     * The same on both profiles. The call is a write when any of these is a write for the method
+     * that will actually be sent, by
+     * {@link com.thehiddenbrain.interop.epa.pave.model.EpaOperation#writesWith(String)}: the
+     * intent's operation, the operation the request is mapped to, and the operation that detection
+     * reads from the request's own name and from its url, both as a template and as resolved. An
+     * operator correction can therefore never turn a detected write into a read.
+     * <ul>
+     *   <li>A write to an environment of kind {@code prod} is refused unless the configuration
+     *       floor allows production writes and {@code intent.unlock()} is an unlock this gateway
+     *       minted for that environment and still holds.</li>
+     *   <li>On the live profile a write with no active environment is refused, because the tool
+     *       cannot tell whether a fallback url is production. Reads still go to the fallback url.
+     *       On the mock profile nothing is sent, so a write with no environment is allowed.</li>
+     * </ul>
+     *
+     * <h4>Mock and live</h4>
+     * On the mock profile a target that is not configured or not resolved is not an error, because
+     * nothing is sent; the returned call says what was and was not resolved. On the live profile
+     * it is an error raised before anything is sent.
+     *
+     * @throws ProdWriteBlockedException      when the guardrail refuses the call
+     * @throws NotFoundException              when {@code intent.request()} names a request that does not exist
+     * @throws BadInputException              when {@code intent.request()} is not mapped to the intent's operation
+     * @throws UnresolvedVariablesException   on live, when a placeholder or url token has no value
      * @throws EndpointNotConfiguredException on live, when there is no url for the operation at all
      */
     PreparedCall prepare(CallIntent intent);
 
     /**
-     * Resolves placeholders in arbitrary text, such as a request body or an authentication setting,
-     * against the active configuration. Never throws for an unresolved placeholder; the result
-     * lists what could not be resolved.
+     * Resolves placeholders in text that belongs to no request, such as an authentication setting,
+     * against the active configuration: the run values given, the active environment and the
+     * application.yml layer. There is no collection layer here, because the text belongs to no
+     * collection. Text that belongs to a call, such as its body, is resolved with
+     * {@link PreparedCall#resolve(String)} so it shares that call's snapshot. Never throws for an
+     * unresolved placeholder; the result lists what could not be resolved.
      */
     ResolvedText resolve(String template, Map<String, String> runValues);
 
@@ -45,8 +102,10 @@ public interface OperationGateway {
     WriteAccess writeAccess(ProdUnlock unlock);
 
     /**
-     * A counter that moves on every time the active environment or its contents change. Anything
-     * cached per environment, such as an access token, is keyed on it.
+     * A counter that moves on every change to the stored configuration: activating, uploading,
+     * replacing or removing an environment or a collection, and correcting a mapping. Every unlock
+     * and every prepared call is tied to the epoch it was made in, and anything cached per
+     * environment, such as an access token, is keyed on it.
      */
     long epoch();
 }

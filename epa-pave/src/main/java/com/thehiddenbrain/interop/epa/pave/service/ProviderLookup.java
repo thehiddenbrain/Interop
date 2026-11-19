@@ -6,8 +6,11 @@ import com.thehiddenbrain.interop.epa.pave.model.ProviderLookupResult;
 public interface ProviderLookup {
 
     /**
-     * Looks up one provider. The NPI check digit is validated first, and an NPI that fails it is a
-     * validation error, not a lookup: a typing mistake is not a question worth asking the directory.
+     * Looks up one provider. The NPI check digit is validated first: a typing mistake is not a
+     * question worth asking the directory.
+     *
+     * @throws com.thehiddenbrain.interop.epa.pave.service.error.ValidationException with field
+     *         {@code npi} when the text is not ten digits or the check digit fails. Answered with 422
      */
     ProviderLookupResult lookup(String npi);
 }

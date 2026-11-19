@@ -20,13 +20,24 @@ public interface RunLedger {
      * Appends one run.
      *
      * <p>The draft carries the real member ID. The ledger applies the tracking policy before
-     * writing: unless recording member IDs is configured it stores a salted token and the last
-     * four characters, and drops the member ID and the date of service. The receipt holds the
-     * record as actually written.
+     * writing, and rewrites exactly these parts of the draft and nothing else:
+     * <ul>
+     *   <li>{@code memberId}: whitespace is removed, then it is stored as is when recording member
+     *       IDs is configured, and otherwise replaced by {@code memberToken} and
+     *       {@code memberIdLast4}</li>
+     *   <li>{@code dateOfService}: kept only when the member ID is kept</li>
+     *   <li>{@code npi}: kept only when recording NPIs is configured</li>
+     *   <li>the correlation entry {@link RunRecord#CORR_AUTHORIZATION_REF}: follows the member ID
+     *       policy, since an authorization number identifies a member's request</li>
+     * </ul>
+     * The receipt holds the record as actually written.
      */
     LedgerReceipt record(RunRecord draft);
 
-    /** Runs matching the query, newest first, each with its latest note applied. */
+    /**
+     * Runs matching the query, newest first, each with its latest note applied. A correlation
+     * filter is given the raw identifier; the ledger applies its storage policy before comparing.
+     */
     List<RunRecord> query(RunQuery query);
 
     /** One run by id, with its latest note applied. */
@@ -42,8 +53,10 @@ public interface RunLedger {
     LedgerHealth health();
 
     /**
-     * The token the ledger stores in place of an identifier, for matching an incoming value against
-     * a stored one without the ledger holding the value itself.
+     * The form the ledger writes for a member-linked identifier under the current policy: the
+     * identifier with whitespace removed when recording member IDs is configured, otherwise its
+     * salted token. To match an incoming identifier against a stored one, compare the stored value
+     * with this and never with the raw identifier, so the match works under either policy.
      */
     String tokenFor(String identifier);
 }

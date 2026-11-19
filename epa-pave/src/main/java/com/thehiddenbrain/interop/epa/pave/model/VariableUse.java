@@ -12,4 +12,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record VariableUse(String name, VariableSource source, boolean secret, String display) {
+
+    /** Prints no value. A value typed for one run can be a member ID. */
+    @Override
+    public String toString() {
+        return "VariableUse[" + name + ", " + source + (secret ? ", secret" : "") + "]";
+    }
 }

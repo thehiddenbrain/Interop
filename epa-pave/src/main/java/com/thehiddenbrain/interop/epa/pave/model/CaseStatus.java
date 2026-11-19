@@ -9,5 +9,10 @@ public enum CaseStatus {
     /** The case cannot be run from what is known: a member ID that was not recorded, an operation whose inputs are not kept. */
     NOT_RUNNABLE,
     /** The case inputs are not valid: a malformed NPI, an unknown expectation. */
-    INVALID
+    INVALID,
+    /**
+     * The tool has no url, or an unresolved placeholder, for this operation in the active
+     * environment. The record is not at fault: fix the configuration and run again.
+     */
+    NOT_CONFIGURED
 }

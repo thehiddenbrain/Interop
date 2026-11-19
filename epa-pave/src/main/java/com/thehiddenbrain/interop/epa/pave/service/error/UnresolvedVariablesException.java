@@ -2,6 +2,7 @@ package com.thehiddenbrain.interop.epa.pave.service.error;
 
 import com.thehiddenbrain.interop.epa.pave.model.EpaOperation;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A url, header or body still contains a placeholder that no layer can supply. Nothing was sent.
@@ -16,13 +17,25 @@ public class UnresolvedVariablesException extends RuntimeException {
     private final List<String> variables;
     private final String environmentName;
     private final String template;
+    private final Map<String, String> reasons;
 
     public UnresolvedVariablesException(EpaOperation operation, List<String> variables, String environmentName, String template) {
+        this(operation, variables, environmentName, template, Map.of());
+    }
+
+    /**
+     * @param reasons for a variable that is defined but still has no value, why: for example that
+     *                it is blank in the environment, or that the operating system variable it
+     *                points at is not set. A variable with no entry is simply not defined anywhere
+     */
+    public UnresolvedVariablesException(EpaOperation operation, List<String> variables, String environmentName, String template,
+                                        Map<String, String> reasons) {
         super("Unresolved placeholders: " + variables);
         this.operation = operation;
         this.variables = variables == null ? List.of() : List.copyOf(variables);
         this.environmentName = environmentName;
         this.template = template;
+        this.reasons = reasons == null ? Map.of() : Map.copyOf(reasons);
     }
 
     public EpaOperation operation() {
@@ -41,5 +54,10 @@ public class UnresolvedVariablesException extends RuntimeException {
     /** The template that could not be resolved, placeholders intact. */
     public String template() {
         return template;
+    }
+
+    /** Why a defined variable has no value, by variable name. Empty for a variable that is not defined at all. */
+    public Map<String, String> reasons() {
+        return reasons;
     }
 }

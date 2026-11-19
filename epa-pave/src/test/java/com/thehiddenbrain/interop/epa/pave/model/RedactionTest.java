@@ -58,6 +58,34 @@ class RedactionTest {
     }
 
     @Test
+    void aLookupUrlThatHoldsTheMemberIdIsNotPrinted() {
+        // The wire view has to show the url that was sent, member ID included. Nothing else may.
+        ResolvedUrl url = new ResolvedUrl("https://example.invalid/members/{id}", "https://example.invalid/members/" + MEMBER_ID,
+                "https://example.invalid/members/" + MEMBER_ID, List.of(), List.of(), "lookup.member.url");
+        assertThat(url.toString()).doesNotContain(MEMBER_ID).contains("{id}");
+        com.thehiddenbrain.interop.epa.pave.service.config.PreparedCall call =
+                com.thehiddenbrain.interop.epa.pave.service.config.TestPreparedCalls.with(EpaOperation.MEMBER_LOOKUP, "GET", url,
+                        List.of(new ResolvedHeader("X-Api-Key", "[secret memberApiKey]", "hunter2-value")), EnvironmentRef.none(), null, false);
+        assertThat(call.toString()).doesNotContain(MEMBER_ID).doesNotContain("hunter2-value");
+        com.thehiddenbrain.interop.epa.pave.service.config.CallIntent intent =
+                com.thehiddenbrain.interop.epa.pave.service.config.CallIntent.of(EpaOperation.MEMBER_LOOKUP).withUrlValue("id", MEMBER_ID);
+        assertThat(intent.toString()).doesNotContain(MEMBER_ID);
+        assertThat(intent.urlValues()).containsEntry("id", MEMBER_ID);
+    }
+
+    @Test
+    void viewValuesAreNotPrinted() {
+        // Every view type is built from Shown, so redacting it there covers all of them.
+        assertThat(Shown.of(SURNAME).toString()).isEqualTo("Shown[VALUE]");
+        assertThat(new LookupField("lastName", "Last name", Shown.of(SURNAME), "name.family").toString()).doesNotContain(SURNAME);
+        assertThat(new AdditionalField("member.nickname", Presence.VALUE, "\"" + SURNAME + "\"").toString()).doesNotContain(SURNAME);
+        assertThat(new VariableUse("memberId", VariableSource.RUN_VALUE, false, MEMBER_ID).toString()).doesNotContain(MEMBER_ID);
+        assertThat(new IssueView(Shown.of("error"), Shown.of("not-found"), Shown.of(SURNAME + " not found"), Shown.absent(),
+                List.of(), List.of(), List.of()).toString()).doesNotContain(SURNAME);
+        assertThat(RunQuery.correlated(RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER-0001").toString()).doesNotContain("PA-PLACEHOLDER-0001");
+    }
+
+    @Test
     void anEnvelopeDoesNotPrintItsDetailOrWire() {
         RunRecord record = RunRecord.builder().runId("run-1").timestamp("2026-01-05T10:15:30.000-05:00").protocol(Protocol.CRD)
                 .operation(EpaOperation.CRD_ORDER_SIGN).outcome(CrdOutcome.NO_AUTH_REQUIRED).result(TestResult.UNVERIFIED).build();

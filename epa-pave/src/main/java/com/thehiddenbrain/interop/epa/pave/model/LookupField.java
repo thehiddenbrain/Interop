@@ -13,4 +13,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record LookupField(String name, String label, Shown value, String sourceField) {
+
+    /** Prints the field name and presence, never the value, which is member data. */
+    @Override
+    public String toString() {
+        return "LookupField[" + name + ", " + (value == null ? null : value.presence()) + "]";
+    }
 }

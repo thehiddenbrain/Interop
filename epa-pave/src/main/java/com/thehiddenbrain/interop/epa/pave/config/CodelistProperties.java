@@ -12,13 +12,20 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param format    auto, csv or json. Auto decides from the file extension
  * @param delimiter the CSV field delimiter
  * @param columns   for each column the tool knows, the header names it may appear under
+ * @param lineOfBusinessAliases a line of business as the member API names it, mapped to the names
+ *                  the list uses for it. Empty by default: with no alias a line matches only itself
  */
 @ConfigurationProperties("codelist")
 public record CodelistProperties(
         @DefaultValue("") String file,
         @DefaultValue("auto") String format,
         @DefaultValue(",") String delimiter,
-        @DefaultValue Columns columns) {
+        @DefaultValue Columns columns,
+        Map<String, List<String>> lineOfBusinessAliases) {
+
+    public CodelistProperties {
+        lineOfBusinessAliases = lineOfBusinessAliases == null ? Map.of() : Map.copyOf(lineOfBusinessAliases);
+    }
 
     /**
      * Candidate header names per column. The header row of the real export is not known in advance,

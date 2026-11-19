@@ -13,5 +13,10 @@ public enum FindingKind {
     /** The procedure code list and the service disagree on the delegated vendor. */
     CODE_LIST_DISAGREES_ON_VENDOR,
     /** The call completed but took longer than the configured threshold. */
-    SLOW_RESPONSE
+    SLOW_RESPONSE,
+    /**
+     * The collection request carries a pre-request script. It was not run, so a value Postman would
+     * have computed was not computed. A failure with no other visible cause often traces to this.
+     */
+    PRE_REQUEST_SCRIPT_NOT_RUN
 }

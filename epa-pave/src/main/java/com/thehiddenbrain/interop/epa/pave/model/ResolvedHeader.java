@@ -11,8 +11,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  */
 public record ResolvedHeader(String name, String display, @JsonIgnore String value) {
 
+    /** Prints the name only. */
     @Override
     public String toString() {
-        return "ResolvedHeader[" + name + ": " + display + "]";
+        return "ResolvedHeader[" + name + "]";
     }
 }

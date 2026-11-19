@@ -9,6 +9,5 @@ package com.thehiddenbrain.interop.epa.pave.model;
  */
 public enum VendorSignal {
     MEMBER_NOT_FOUND,
-    PROVIDER_NOT_FOUND,
-    COVERAGE_INACTIVE
+    PROVIDER_NOT_FOUND
 }

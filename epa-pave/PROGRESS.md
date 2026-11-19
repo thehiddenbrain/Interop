@@ -4,19 +4,24 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**Spine 1 written and building. Not yet frozen.** An independent contract review is running: six
-reviewers, each reading the shared types from the seat of one downstream owner. The freeze, and
-the Wave A fan-out, follow once their findings are applied.
+**Spine 1 written, reviewed in part, building. Not yet frozen.** Six reviewers are reading the
+shared types, each from the seat of one downstream owner. Two have reported and every finding of
+theirs is applied (see "Changes made after the contract review" in `DECISIONS.md`). Four are
+still running. The freeze and the Wave A fan-out follow the last report.
+
+While the review runs, the integrator has started the CRD vertical's pure logic, which has no
+dependency on Wave A: the scenario loader, the mock client, the response mapper and the outcome
+rules. It is not wired into a service or a controller yet.
 
 | Step | State |
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
-| Spine 1: shared contracts | written, build green, under review, not frozen |
+| Spine 1: shared contracts | written, build green, 2 of 6 reviews applied, not frozen |
 | Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | briefs written, not started |
 | Spine 2: integrate Wave A. V2 PHI audit | not started |
-| Spine 3: CRD reference vertical | not started. The 14 scenario files are drafted; nothing reads them yet |
+| Spine 3: CRD reference vertical | in progress: scenarios, mock client, mapper, outcome rules done and tested. Request builder, validation, service, controller, live client tests to do |
 | Wave B: B1 PAS and subscriptions, B2 DTR | not started |
-| Spine 4: integrate Wave B, chain, cross-protocol tests. V3 guardrail audit | not started |
+| Spine 4: integrate Wave B, chain, raw send, cross-protocol tests. V3 guardrail audit | not started |
 | Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | not started |
 | Spine 5: clean build twice, fresh-clone build, push, pull request | not started |
 
