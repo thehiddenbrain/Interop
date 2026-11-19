@@ -80,7 +80,7 @@ Wave A:
 - No PAS, no DTR on this branch: those are Wave B, still building. No chain, no suites, no
   frontend.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The build runs 527 tests.
+- The build runs 542 tests.
 
 ## The plan, written before any feature code
 

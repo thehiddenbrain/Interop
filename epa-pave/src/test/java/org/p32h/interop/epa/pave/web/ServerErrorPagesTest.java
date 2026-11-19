@@ -24,10 +24,17 @@ class ServerErrorPagesTest {
     @LocalServerPort
     int port;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    org.springframework.core.env.Environment environment;
+
     private String exchange(String requestLine) throws IOException {
+        return exchange(requestLine, "Host: localhost");
+    }
+
+    private String exchange(String requestLine, String headers) throws IOException {
         try (Socket socket = new Socket(InetAddress.getLoopbackAddress(), port)) {
             socket.setSoTimeout(10000);
-            socket.getOutputStream().write((requestLine + "\r\nHost: localhost\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+            socket.getOutputStream().write((requestLine + "\r\n" + headers + "\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
             socket.getOutputStream().flush();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             InputStream in = socket.getInputStream();
@@ -52,6 +59,34 @@ class ServerErrorPagesTest {
         // Characters a url may not hold. The server refuses this before any controller sees it.
         assertSharedErrorShape(exchange("GET /api/mode{bad}|x HTTP/1.1"), "400");
         assertSharedErrorShape(exchange("GET /api/%ZZ HTTP/1.1"), "400");
+    }
+
+    @Test
+    void theRunningServerAppliesTheGuardAndTheHeadersToEveryResponse() throws IOException {
+        // The two filters are unit tested apart. This checks they are in the running server's chain, in front of everything.
+        String api = exchange("GET /api/no-such-endpoint HTTP/1.1").toLowerCase();
+        assertThat(api).contains("cache-control: no-store").contains("x-content-type-options: nosniff")
+                .contains("content-security-policy: default-src 'self'").contains("x-frame-options: deny");
+        String page = exchange("GET /no/such/page HTTP/1.1").toLowerCase();
+        assertThat(page).contains("cache-control: no-cache").contains("x-content-type-options: nosniff");
+
+        String otherName = exchange("GET /api/mode HTTP/1.1", "Host: attacker.example");
+        assertSharedErrorShape(otherName, "403");
+        assertThat(otherName).contains("a host name this tool does not answer to");
+        String otherSite = exchange("POST /api/crd HTTP/1.1", "Host: localhost:" + port + "\r\nOrigin: https://attacker.example\r\nContent-Length: 0");
+        assertSharedErrorShape(otherSite, "403");
+        assertThat(otherSite).contains("a page that is not part of this tool");
+        // The same request from the tool's own page is not stopped by the guard. It goes on to an ordinary answer.
+        String ownPage = exchange("POST /api/crd HTTP/1.1", "Host: localhost:" + port + "\r\nOrigin: http://localhost:" + port + "\r\nContent-Length: 0");
+        assertThat(ownPage).doesNotStartWith("HTTP/1.1 403");
+    }
+
+    @Test
+    void theServerListensOnThisMachineOnly() {
+        // Set in application.yml, so a default start is not offered to the network.
+        assertThat(environment.getProperty("server.address")).isEqualTo("127.0.0.1");
+        assertThat(environment.getProperty("server.servlet.session.cookie.same-site")).isEqualTo("strict");
+        assertThat(environment.getProperty("server.servlet.session.cookie.http-only")).isEqualTo("true");
     }
 
     @Test

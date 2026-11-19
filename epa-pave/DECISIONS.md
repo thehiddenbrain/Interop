@@ -765,3 +765,30 @@ It is a test configuration, and `PaveApplicationTest` checks that nothing from t
 part of the application's context: without that, the application's own start-up test picked the
 stand-ins up from the class path and would have passed on wiring the application does not have.
 
+**D-115. The tool listens on this machine only, unless someone decides otherwise.**
+`server.address` is `127.0.0.1` in `application.yml`. The specification is silent on the bind
+address, and the framework's default is every interface. The tool has no sign-in, and on the live
+profile its API looks up real UAT members and can submit to whatever environment is active, so
+the reading that is safer if wrong is not to offer it to the network by default. The cost falls on
+one feature: a vendor's notification can reach the receiver only when an operator sets an address
+the vendor can reach, which the specification already expects to be rare on a corporate
+workstation. The polling path needs nothing. The README says how to open it and what that exposes.
+
+**D-116. Other web pages are kept away from the API.**
+A tester's browser has other pages open, and a tool on localhost with credentials behind it is a
+known target for them. Two checks in one filter: an API request must be addressed to localhost, a
+loopback address, the bound address or a name listed in `app.allowed-hosts`, which stops a page
+served from a name that has been pointed at this machine from reading answers; and a request that
+changes something must not state another origin, which stops a page on another site from sending
+one. A client that states no origin, such as curl or a vendor's server, is let through. A delivery
+to the notification receiver is exempt from the host check only. The session cookie is
+SameSite=Strict and HttpOnly, since the production unlock lives in the session.
+
+**D-117. API responses are never stored by the browser, and pages load from this tool only.**
+Every `/api/` response carries `Cache-Control: no-store`: a lookup answers with a member's name and
+date of birth, and "no member data is persisted" has to include the browser's disk cache. Every
+response carries a Content-Security-Policy that allows scripts, styles and connections from this
+tool only, so vendor text that ever reached the page as markup could neither run nor call out,
+and "no request leaves the machine for an asset" is enforced by the browser as well as by a test.
+Static files are served `no-cache`, so a tester who edits one sees the edit on refresh.
+

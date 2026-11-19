@@ -15,12 +15,21 @@ server:
   # Deliberately not 8080. The existing tools on this programme use 8080 and this one is meant to
   # run beside them. 8057 is the regulation number, so it is easy to remember and unlikely to clash.
   port: 8057
+  # This machine only. The tool has no sign-in, and on the live profile its API looks up real UAT
+  # members, so it is not offered to the network unless someone decides to. To let a vendor's
+  # notification reach the receiver, set this to an address the vendor can reach and read the
+  # README section on the receiver first.
+  address: 127.0.0.1
   servlet:
     session:
       cookie:
         # Browsers share cookies between ports on one host. The default cookie name would collide
         # with any other tool on localhost and each would keep discarding the other's session.
         name: PAVESESSION
+        # The production unlock lives in the session. A page on another site must not be able to
+        # borrow it, and no script needs to read it.
+        same-site: strict
+        http-only: true
   error:
     whitelabel:
       enabled: false
@@ -55,6 +64,8 @@ app:
   scenario-dir: ""
   autocomplete-limit: 25
   mock-latency-enabled: true
+  # Host names, besides localhost, under which this tool answers API requests. See the README.
+  allowed-hosts: []
 
 # Fallback layer only, used when no uploaded environment supplies a url.
 onyx:
