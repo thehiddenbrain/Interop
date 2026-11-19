@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,6 +25,7 @@ import org.p32h.interop.epa.pave.postman.PostmanFiles;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * Can a write reach a production environment without an unlock this gateway minted for it and
@@ -637,6 +639,32 @@ class ProductionGuardrailTest {
         assertThat(closed.gateway.activeEnvironment().name()).isEqualTo(PRODUCTION);
         assertThat(blocked(closed, CallIntent.of(EpaOperation.PAS_SUBMIT).withUnlock(unlock)).action()).contains("no unlock is possible");
         assertThat(closed.gateway.writeAccess(unlock).writesAllowed()).isFalse();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void evenAnUnlockTheGatewayHoldsCannotOverrideTheFloor() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = production(profile, false);
+            // No route mints an unlock while the floor is closed, so one is planted in the gateway's own registry:
+            // the floor has to hold by itself, and not only because the door to an unlock is shut.
+            ProdUnlock planted = TestPreparedCalls.unlock(PRODUCTION, fixture.gateway.epoch());
+            ReflectionTestUtils.setField(fixture.gateway, "mintedEpoch", fixture.gateway.epoch());
+            ((Set<ProdUnlock>) ReflectionTestUtils.getField(fixture.gateway, "minted")).add(planted);
+
+            for (EpaOperation operation : writes()) {
+                ProdWriteBlockedException refusal = blocked(fixture, intentFor(operation).withUnlock(planted));
+                assertThat(refusal.action()).as(profile + " " + operation).contains("no unlock is possible");
+            }
+            assertThat(fixture.gateway.writeAccess(planted).writesAllowed()).as(profile).isFalse();
+
+            // The same planted unlock opens the same gateway once the floor allows it, so the test plants what it means to.
+            ConfigFixture open = production(profile, true);
+            ProdUnlock honoured = TestPreparedCalls.unlock(PRODUCTION, open.gateway.epoch());
+            ReflectionTestUtils.setField(open.gateway, "mintedEpoch", open.gateway.epoch());
+            ((Set<ProdUnlock>) ReflectionTestUtils.getField(open.gateway, "minted")).add(honoured);
+            assertThat(open.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT).withUnlock(honoured)).method()).isEqualTo("POST");
+        }
     }
 
     @Test

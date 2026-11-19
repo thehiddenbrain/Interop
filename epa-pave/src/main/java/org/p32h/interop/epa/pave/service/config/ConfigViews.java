@@ -396,9 +396,11 @@ public final class ConfigViews {
      * @param resolved   true when every placeholder has a value
      * @param unresolved the placeholders that have none
      * @param tokens     the tokens that are filled from the identifier a call is for
-     * @param source     where the template came from, in words
-     * @param request    the collection request it came from, or absent
-     * @param scripted   true when that request carries a pre-request script this tool will not run
+     * @param source      where the template came from, in words
+     * @param requestName the name of the collection request the call would be sent with, or absent
+     *                    when the url came from application.yml or was derived
+     * @param request     a reference to that request, for choosing it again, or absent
+     * @param scripted    true when that request carries a pre-request script this tool will not run
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record TargetView(String template, String display, boolean resolved, List<String> unresolved, List<String> tokens,
