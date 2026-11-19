@@ -62,13 +62,21 @@ export function hasValue(value) {
 }
 
 /**
- * A list of Shown values. An empty list is said in words: for a list the server sends [] both
- * when the response had no such element and when it had an empty one, and where the difference
- * matters the view carries a separate presence for the list itself.
+ * The mark for a field that can repeat and came back with nothing. It has words of its own
+ * because the server sends [] both when the response had no such field and when it had an empty
+ * one: "not returned" would claim more than this page knows.
+ */
+export function noneMark() {
+    return el('span', {class: 'presence presence--none', title: 'The response carried none of these.'}, 'none returned');
+}
+
+/**
+ * A list of Shown values. An empty list is said in words, and where the difference between a
+ * missing list and an empty one matters the view carries a separate presence for the list itself.
  */
 export function shownList(values, options) {
     if (!Array.isArray(values) || values.length === 0) {
-        return el('span', {class: 'presence presence--none', title: 'The response carried none of these.'}, 'none returned');
+        return noneMark();
     }
     if (values.length === 1) {
         return shown(values[0], options);

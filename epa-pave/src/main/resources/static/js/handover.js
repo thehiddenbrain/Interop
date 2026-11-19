@@ -7,9 +7,11 @@
 // and the next pass has it to build on. There is no form here: a form that cannot send anything
 // would be worse than none.
 //
-// Seam for the next pass: app.handover(tabId) returns {carry, fromRunId, fromProtocol, chainId}
-// or null. A real tab reads it in onShow, sends carry with its first run, and places the shared
-// case with caseSlot.append(app.caseContext.node, app.chain.control) as tab-crd.js does.
+// Seam for the next pass: app.carriedTo(tabId) returns {carry, fromRunId, fromProtocol, chainId,
+// forCase} or null. forCase is the member ID, NPI and codes the run was sent with. A real tab is
+// built on createWorkbench as tab-crd.js is: it reads what was carried in onShow, places the
+// shared case with bench.showCase(), and sends carry with its first run only while the case on
+// screen is still forCase. Values carried for one member must not go out with another.
 
 import {el, fill, code, facts, table, heading} from './dom.js';
 
@@ -26,29 +28,41 @@ export function protocolPlaceholder(spec) {
         return el('span', {class: 'presence presence--none'}, text);
     }
 
-    function draw() {
-        const handed = app.handover(spec.id);
-        const summary = app.caseContext.summary();
-        const parts = [el('p', {class: 'plain-statement'}, spec.sentence)];
-        const theCase = [
+    function caseRows(summary) {
+        return [
             ['Member ID', summary.memberId ? code(summary.memberId) : none('none typed')],
             ['NPI', summary.npi ? code(summary.npi) : none('none typed')],
             ['Procedure codes', summary.codes.length > 0 ? summary.codes.map((value, index) => [index > 0 ? ', ' : null, code(value)]) : none('none typed')]
         ];
+    }
+
+    function draw() {
+        const handed = app.carriedTo(spec.id);
+        const onScreen = app.caseContext.summary();
+        const parts = [el('p', {class: 'plain-statement'}, spec.sentence)];
         if (!handed) {
             parts.push(el('section', {class: 'panel'},
                 heading(2, 'Nothing has been carried here yet'),
                 el('p', null, 'When a result names ' + spec.label + ' as the next step, its button brings the case and what the step needs to this tab.'),
                 el('p', {class: 'quiet'}, 'The case typed on the CRD tab is the case this tab will use:'),
-                facts(theCase, 'facts--ruled')));
+                facts(caseRows(onScreen), 'facts--ruled')));
         } else {
+            const sentWith = handed.forCase || onScreen;
             parts.push(el('section', {class: 'panel'},
                 heading(2, 'Carried here from the ' + handed.fromProtocol + ' result'),
+                el('p', {class: 'quiet'}, 'The run it came from, and the case that run was sent with:'),
                 facts([
                     ['From run', code(handed.fromRunId)],
                     ['Chain', handed.chainId ? code(handed.chainId) : none('not part of a chain')]
-                ].concat(theCase), 'facts--ruled'),
-                el('p', null, 'The previous step handed on these values. The first run from this tab will send them back to the server unchanged:'),
+                ].concat(caseRows(sentWith)), 'facts--ruled'),
+                // The values below belong to the case of that run. A tester who has typed another
+                // case since must see that before anything is sent with them.
+                sameCase(sentWith, onScreen) ? null : [
+                    el('p', null, el('strong', null, 'The case on screen has changed since that run.'),
+                        ' What was carried belongs to the case above, not to the one on screen now:'),
+                    facts(caseRows(onScreen), 'facts--ruled')
+                ],
+                el('p', null, 'The values the previous step handed on, which the next step posts back to the server unchanged:'),
                 carryTable(handed.carry)));
         }
         fill(panel, el('div', {class: 'placeholder'}, parts));
@@ -65,6 +79,10 @@ export function protocolPlaceholder(spec) {
             draw();
         }
     };
+}
+
+function sameCase(one, other) {
+    return one.memberId === other.memberId && one.npi === other.npi && JSON.stringify(one.codes) === JSON.stringify(other.codes);
 }
 
 function carryTable(carry) {

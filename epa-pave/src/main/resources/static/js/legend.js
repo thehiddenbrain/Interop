@@ -4,7 +4,7 @@
 
 import {el, fill, button} from './dom.js';
 import {TONES, RESULTS, toneMark, stamp, slowFlag, mockMark} from './marks.js';
-import {presenceMark} from './shown.js';
+import {presenceMark, noneMark} from './shown.js';
 
 export function openLegend(dialog) {
     fill(dialog,
@@ -36,15 +36,18 @@ export function openLegend(dialog) {
 
                 group('Marks', null, [
                     row(el('span', {class: 'swatch swatch--cream'}), 'Cream: test data typed by hand, which a lookup would not give back.'),
+                    row(el('span', {class: 'swatch swatch--nothing'}),
+                        'A dashed outline: nothing is there. No answer, nothing declared, nothing returned. The words inside say which.'),
                     row(el('span', {class: 'swatch swatch--fault'}), 'A heavy black frame: a fault to report. The environment failed, or a run was not recorded.'),
                     row(el('span', {class: 'swatch swatch--blocked'}), 'A purple frame: the production guardrail refused to send.'),
                     row(slowFlag(), 'The call completed but took longer than the threshold.')
                 ]),
 
-                group('A value that is not there', 'Three different findings, never shown as a blank cell.', [
+                group('A value that is not there', 'Each is a different finding, and none is ever shown as a blank cell.', [
                     row(presenceMark('ABSENT'), 'The response did not carry the field.'),
                     row(presenceMark('NULL'), 'The response carried the field with an explicit null.'),
-                    row(presenceMark('EMPTY'), 'The response carried the field and it was empty.')
+                    row(presenceMark('EMPTY'), 'The response carried the field and it was empty.'),
+                    row(noneMark(), 'A field that can repeat, and the response carried none of them.')
                 ]))));
     if (!dialog.open) {
         dialog.showModal();

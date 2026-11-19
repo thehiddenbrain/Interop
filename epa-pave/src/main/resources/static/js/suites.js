@@ -7,7 +7,7 @@
 // sentence, and never as a failure: it has no test result at all.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButton, count, millis, when} from './dom.js';
+import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButton, count, millis, when, whenText} from './dom.js';
 import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {outcome, stamp, slowFlag} from './marks.js';
 import {errorPanel} from './result.js';
@@ -318,7 +318,8 @@ export function createSuites(app) {
 
     function resultsSection(rows, total) {
         const compared = Boolean(run.comparedWith);
-        const headings = [{text: 'Row', class: 'num'}, 'Case', 'Runs', 'Expected', 'Outcome', 'Test result', {text: 'Elapsed', class: 'num'}, 'Findings'];
+        const headings = [{text: 'Row', class: 'num'}, 'Case', 'Runs', 'Expected', 'Outcome', {text: 'Test result', class: 'col-stamp'},
+            {text: 'Elapsed', class: 'num col-time'}, 'Findings'];
         if (compared) {
             headings.push('Last time');
         }
@@ -327,7 +328,9 @@ export function createSuites(app) {
         return el('section', {class: 'result__section'},
             heading(3, filter ? 'Results: ' + filter.label : 'Results', filter ? rows.length + ' of ' + total : total),
             rows.length === 0 ? el('p', {class: 'quiet'}, 'No case matches this count.')
-                : el('div', {class: 'table-scroll'}, el('table', {class: 'grid suite-results' + (compared ? ' suite-results--compared' : '')},
+                // The frame takes the focus so that, where the table is wider than the window, the arrow keys scroll it.
+                : el('div', {class: 'table-scroll', role: 'region', tabIndex: 0, aria: {label: 'The results table'}},
+                    el('table', {class: 'grid suite-results' + (compared ? ' suite-results--compared' : '')},
                     el('thead', null, el('tr', null, headings.map(item => typeof item === 'string'
                         ? el('th', {scope: 'col'}, item) : el('th', {scope: 'col', class: item.class}, item.text)))),
                     el('tbody', null, body))));
@@ -343,8 +346,10 @@ export function createSuites(app) {
             row.expected ? code(row.expected) : none('none declared'),
             sent ? outcome(row.outcomeLabel || row.outcome, row.tone) : none('no outcome'),
             row.result ? stamp(row.result) : none('not compared'),
-            {class: 'num', node: typeof row.elapsedMillis === 'number' ? [millis(row.elapsedMillis), row.slow ? el('div', null, slowFlag()) : null] : none('no call')},
-            row.findings && row.findings.length > 0 ? el('ul', {class: 'plain-list'}, row.findings.map(kind => el('li', null, code(kind)))) : el('span', {class: 'quiet'}, 'none')
+            {class: 'num', node: typeof row.elapsedMillis === 'number'
+                ? [millis(row.elapsedMillis), row.slow ? el('div', null, slowFlag()) : null] : none('no call')},
+            row.findings && row.findings.length > 0
+                ? el('ul', {class: 'plain-list'}, row.findings.map(kind => el('li', null, code(kind)))) : el('span', {class: 'quiet'}, 'none')
         ];
         if (compared) {
             cells.push(row.previousOutcome === undefined && row.previousResult === undefined
@@ -400,7 +405,7 @@ export function createSuites(app) {
         }
         const runs = answer.body.runs || [];
         setOptions(compare.select, [{value: '', label: 'No comparison'}].concat(runs.filter(item => item.state !== 'RUNNING').map(item => ({
-            value: item.suiteRunId, label: item.name + ', ' + new Date(item.startedAt).toLocaleString() + ': ' + item.headline
+            value: item.suiteRunId, label: item.name + ', ' + whenText(item.startedAt) + ': ' + item.headline
         }))));
         if (runs.length === 0) {
             fill(earlier, el('p', {class: 'quiet'}, 'None yet. The tool holds its latest suite runs until it restarts; every case stays in the ledger.'));

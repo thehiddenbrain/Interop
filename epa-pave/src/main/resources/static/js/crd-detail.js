@@ -9,7 +9,7 @@
 // It is never read as markdown or as markup.
 
 import {el, append, code, facts, table, heading, externalLink} from './dom.js';
-import {shown, shownList, presenceMark, hasValue} from './shown.js';
+import {shown, shownList, presenceMark, noneMark, hasValue} from './shown.js';
 import {outcome} from './marks.js';
 import {additionalFieldsTable, issuesTable} from './result.js';
 
@@ -128,8 +128,7 @@ function coverageBlock(item, vocabulary) {
 function codedRow(name, values, repeats) {
     const list = Array.isArray(values) ? values.filter(Boolean) : [];
     if (list.length === 0) {
-        return [code(name), repeats ? el('span', {class: 'presence presence--none', title: 'The response carried none of these.'}, 'none returned')
-            : presenceMark('ABSENT'), null];
+        return [code(name), repeats ? noneMark() : presenceMark('ABSENT'), null];
     }
     const lines = cells => (cells.length === 1 ? cells[0] : el('ul', {class: 'plain-list'}, cells.map(cell => el('li', null, cell))));
     return [code(name),

@@ -408,6 +408,11 @@ main {
 
 /* ---------- controls ---------- */
 
+/*
+ * The button as written here is the quiet one, and the scripts name it button--quiet. The dark
+ * one, button--primary, is kept for the action a screen exists for: sending the request, running
+ * the suite, and taking the next step a result names.
+ */
 .button {
     appearance: none;
     display: inline-flex;
@@ -535,7 +540,25 @@ main {
 .field input[type="file"] {
     font: 400 var(--text-small)/1.3 var(--font-body);
     max-width: 100%;
-    padding: 3px 0;
+    padding: 2px 0;
+    color: var(--ink-strong);
+}
+
+/* The browser draws the button of a file field its own way. Here it is the same button as every other. */
+.field input[type="file"]::file-selector-button {
+    min-height: 26px;
+    margin-right: var(--gap-2);
+    padding: 1px 10px;
+    border: 1px solid var(--ink-strong);
+    border-radius: var(--radius-control);
+    background: var(--white);
+    color: var(--ink-strong);
+    font: 600 var(--text-small)/1.2 var(--font-body);
+    cursor: pointer;
+}
+
+.field input[type="file"]::file-selector-button:hover {
+    background: var(--wash);
 }
 
 /* A detail the tester typed, which a lookup would not give back. Cream is the mark of hand-typed test data. */
@@ -610,13 +633,14 @@ legend, .case-legend {
 
 /* ---------- small marks ---------- */
 
+/* A mark made of words wraps inside a narrow column. It never pokes into the column beside it. */
 .presence {
     display: inline-block;
+    max-width: 100%;
     padding: 0 6px;
     border-radius: 2px;
     font-size: var(--text-small);
     line-height: 1.35;
-    white-space: nowrap;
     font-family: var(--font-body);
 }
 
@@ -643,13 +667,13 @@ legend, .case-legend {
 
 .flag {
     display: inline-block;
+    max-width: 100%;
     padding: 0 6px;
     font-size: var(--text-small);
     font-weight: 600;
     line-height: 1.35;
     color: var(--ink-strong);
     border: 2px solid var(--ink-strong);
-    white-space: nowrap;
 }
 
 .mock-mark {
@@ -1000,15 +1024,24 @@ legend, .case-legend {
 
 .col-5 { width: 5%; }
 .col-8 { width: 8%; }
-.col-11 { width: 11%; }
 .col-12 { width: 12%; }
+.col-13 { width: 13%; }
 .col-14 { width: 14%; }
-.col-16 { width: 16%; }
+.col-17 { width: 17%; }
 .col-18 { width: 18%; }
+.col-19 { width: 19%; }
 .col-22 { width: 22%; }
 .col-25 { width: 25%; }
 .col-30 { width: 30%; }
 .col-45 { width: 45%; }
+
+/*
+ * A stamp and a time cannot wrap. Their columns are sized in pixels to hold the widest of each
+ * ("Unverified", and a time in the thousands with its unit), so they fit however narrow the
+ * table is, and the columns of words share what is left.
+ */
+.col-stamp { width: 128px; }
+.col-time { width: 84px; }
 
 .grid.pairs th:first-child { width: 34%; }
 .grid.thirds th { width: 33.3%; }
@@ -1019,9 +1052,9 @@ legend, .case-legend {
 .grid.card-links th:nth-child(3) { width: 36%; }
 .grid.issues th:nth-child(1) { width: 10%; }
 .grid.issues th:nth-child(2) { width: 15%; }
-.grid.issues th:nth-child(3) { width: 21%; }
-.grid.issues th:nth-child(4) { width: 26%; }
-.grid.issues th:nth-child(5) { width: 14%; }
+.grid.issues th:nth-child(3) { width: 19%; }
+.grid.issues th:nth-child(4) { width: 23%; }
+.grid.issues th:nth-child(5) { width: 17%; }
 .grid.timing__buckets th:nth-child(1) { width: 34%; }
 .grid.timing__buckets th:nth-child(2) { width: 14%; }
 
@@ -1953,23 +1986,30 @@ details.fold > :not(summary) {
     padding-bottom: 48px;
 }
 
-/* The columns are fixed, so the table always fits the window and a long sentence wraps inside its own cell. */
+/*
+ * The columns are fixed, so a long sentence wraps inside its own cell. Nine or ten columns need
+ * room: below the width at which each still has it, the table keeps that width and scrolls
+ * sideways inside its own frame. The page itself never scrolls sideways.
+ */
 .suite-results {
     table-layout: fixed;
+    min-width: 1100px;
 }
 
-.suite-results th:nth-child(1) { width: 3.5%; }
+.suite-results th:nth-child(1) { width: 40px; }
 .suite-results th:nth-child(2) { width: 8%; }
 .suite-results th:nth-child(3) { width: 9%; }
-.suite-results th:nth-child(4) { width: 13.5%; }
+.suite-results th:nth-child(4) { width: 13%; }
 .suite-results th:nth-child(5) { width: 17%; }
-.suite-results th:nth-child(6) { width: 9.5%; }
-.suite-results th:nth-child(7) { width: 7%; }
-.suite-results th:nth-child(8) { width: 11.5%; }
+.suite-results th:nth-child(8) { width: 11%; }
 
-.suite-results--compared th:nth-child(4) { width: 11.5%; }
-.suite-results--compared th:nth-child(5) { width: 14.5%; }
-.suite-results--compared th:nth-child(8) { width: 10.5%; }
+.suite-results--compared {
+    min-width: 1300px;
+}
+
+.suite-results--compared th:nth-child(4) { width: 11%; }
+.suite-results--compared th:nth-child(5) { width: 14%; }
+.suite-results--compared th:nth-child(8) { width: 10%; }
 .suite-results--compared th:nth-child(9) { width: 13%; }
 
 .suite-run-id {
@@ -2086,6 +2126,10 @@ details.fold > :not(summary) {
 .swatch--cream {
     background: var(--cream);
     border: 1px solid var(--line);
+}
+
+.swatch--nothing {
+    border: 1px dashed var(--ink);
 }
 
 .swatch--fault {

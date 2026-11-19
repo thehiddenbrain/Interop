@@ -87,6 +87,8 @@ export function createChain(app, bar) {
         const closed = chainId;
         chainId = null;
         view = null;
+        // What the closed case carried to its next step belongs to that case and goes with it.
+        app.forgetCarried();
         draw();
         app.notice('The chain ' + closed + ' is closed in this page. The ledger keeps it, and History lists it under Chains. '
             + 'The next run from this case starts a new chain.', {plain: true});
@@ -176,15 +178,17 @@ function stageSection(stage) {
 }
 
 /**
- * The runs of a stage. Each run takes two lines: what it produced, then the identifiers that tie
- * it to the ledger, which are long and would squeeze every other column if they had one of their own.
+ * The runs of a stage. Each run takes two lines: what it produced, then what ties it to the
+ * ledger and what was found on it. The identifiers and the kinds of finding are long, and a
+ * column each would squeeze the others out of a pane this narrow.
  */
 function runTable(runs) {
     const none = text => el('span', {class: 'presence presence--none'}, text);
-    const headings = [{text: 'When', class: 'col-16'}, {text: 'Ran', class: 'col-12'}, {text: 'Outcome', class: 'col-22'}, {text: 'Expected', class: 'col-16'},
-        {text: 'Test result', class: 'col-12'}, {text: 'Elapsed', class: 'num col-8'}, 'Findings'];
+    const headings = [{text: 'When', class: 'col-17'}, {text: 'Ran', class: 'col-13'}, 'Outcome', {text: 'Expected', class: 'col-19'},
+        {text: 'Test result', class: 'col-stamp'}, {text: 'Elapsed', class: 'num col-time'}];
     const body = el('tbody');
     for (const run of runs) {
+        const findings = run.findings || [];
         body.append(
             tableRow({class: 'chain-run', cells: [
                 when(run.timestamp),
@@ -192,16 +196,17 @@ function runTable(runs) {
                 outcome(run.outcomeLabel, run.tone),
                 run.expected ? code(run.expected) : none('nothing declared'),
                 stamp(run.result),
-                {class: 'num', node: [millis(run.elapsedMillis), run.slow ? el('div', null, slowFlag()) : null]},
-                run.findings && run.findings.length > 0 ? el('ul', {class: 'plain-list'}, run.findings.map(kind => el('li', null, code(kind))))
-                    : el('span', {class: 'quiet'}, 'none')
+                {class: 'num', node: [millis(run.elapsedMillis), run.slow ? el('div', null, slowFlag()) : null]}
             ]}),
             // Seam: when the Runs view exists, the run id here becomes a link to it.
-            tableRow({class: 'chain-run__more', cells: [{colSpan: 7, node: [
+            tableRow({class: 'chain-run__more', cells: [{colSpan: headings.length, node: [
                 run.latestOfItsKind === false ? [el('span', {class: 'flag'}, 'run again since'), ' '] : null,
                 el('span', {class: 'quiet small'}, 'Run '), code(run.runId, 'literal--id'), ' ', copyButton('Copy', () => run.runId),
                 el('span', {class: 'quiet small'}, typeof run.httpStatus === 'number' ? ' HTTP ' + run.httpStatus : ' no HTTP status',
-                    run.scenarioId ? [', scenario ', code(run.scenarioId)] : null)
+                    run.scenarioId ? [', scenario ', code(run.scenarioId)] : null, '.'),
+                findings.length > 0
+                    ? el('span', {class: 'small'}, ' Findings: ', findings.map((kind, index) => [index > 0 ? ', ' : null, code(kind)]), '.')
+                    : el('span', {class: 'quiet small'}, ' No findings.')
             ]}]}));
     }
     return el('table', {class: 'grid chain-runs'},

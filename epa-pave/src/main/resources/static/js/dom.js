@@ -147,7 +147,7 @@ const BREAK_AFTER = /([_./&=|\]?:,])/;
 export function code(text, extraClass) {
     const node = el('code', {class: 'literal' + (extraClass ? ' ' + extraClass : '')});
     const value = String(text);
-    if (value.length <= 20) {
+    if (value.length <= 10) {
         node.textContent = value;
         return node;
     }
@@ -228,15 +228,23 @@ export function millis(value) {
     return typeof value === 'number' ? value.toLocaleString() + ' ms' : null;
 }
 
+/**
+ * A timestamp from the server as text, in the tester's local time. Every time on the page is
+ * written through here, so a time reads the same in a table, a list and the text of an option.
+ * A value that is not a time is shown as it came.
+ */
+export function whenText(timestamp) {
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? String(timestamp)
+        : date.toLocaleString(undefined, {year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'});
+}
+
 /** A timestamp from the server, shown in the tester's local time with the original kept as a tooltip. */
 export function when(timestamp) {
     if (!timestamp) {
         return null;
     }
-    const date = new Date(timestamp);
-    const text = Number.isNaN(date.getTime()) ? String(timestamp)
-        : date.toLocaleString(undefined, {year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'});
-    return el('time', {title: String(timestamp), attrs: {datetime: String(timestamp)}}, text);
+    return el('time', {title: String(timestamp), attrs: {datetime: String(timestamp)}}, whenText(timestamp));
 }
 
 /** Turns a server value into something safe to use as part of a class name. */

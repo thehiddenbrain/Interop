@@ -26,6 +26,9 @@ import {resultWord} from './marks.js';
  */
 export function createWorkbench(app, panel, spec) {
     let busy = false;
+    // The case as it stood when the latest request left. A result on screen was produced for this
+    // case, whatever the tester has typed into the form since.
+    let sentCase = null;
     const tracked = [];
 
     const caseSlot = el('div', {class: 'case-slot'});
@@ -125,8 +128,17 @@ export function createWorkbench(app, panel, spec) {
             clear(refusal);
             setBusy(true, options.control);
             status.textContent = options.saying;
-            const answer = await send();
-            setBusy(false, options.control);
+            let answer;
+            try {
+                // The request is built first: building it moves a code still being typed into the
+                // list. The case is read after that, so it is the case that went out.
+                const sending = send();
+                sentCase = app.caseContext.summary();
+                answer = await sending;
+            } finally {
+                // Whatever happened, the controls come back: a tester is never left with a dead form.
+                setBusy(false, options.control);
+            }
             if (answer.kind === 'ok' || answer.kind === 'result') {
                 return answer;
             }
@@ -151,7 +163,7 @@ export function createWorkbench(app, panel, spec) {
          * options.detail(envelope) returns the protocol's own part; options.detailTitle is its heading.
          */
         showResult(envelope, options) {
-            fill(result, renderResult(envelope, {...options, nextStepControl: nextStepControl(app)}));
+            fill(result, renderResult(envelope, {...options, nextStepControl: nextStepControl(app, sentCase)}));
             readout.scrollTop = 0;
             status.textContent = 'Result received. ' + envelope.verdict.headline + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
             // A result has arrived under the configuration now in force, so a notice about the change has done its work.
@@ -184,18 +196,23 @@ export function createWorkbench(app, panel, spec) {
     return bench;
 }
 
-/** The button a result offers when its next step is something this tool can do from here. */
-export function nextStepControl(app) {
+/**
+ * The button a result offers when its next step is something this tool can do from here.
+ *
+ * forCase is the case the result was produced for. It goes with the hand-over, so the tab that
+ * receives it can tell when the case on screen is no longer the case the values belong to.
+ */
+export function nextStepControl(app, forCase) {
     return (step, envelope) => {
-        const carryTo = tabId => () => {
-            app.handOver(tabId, {carry: step.carry || {}, fromRunId: envelope.runId, fromProtocol: envelope.protocol, chainId: envelope.chainId});
+        const goTo = tabId => () => {
+            app.carryTo(tabId, {carry: step.carry || {}, fromRunId: envelope.runId, fromProtocol: envelope.protocol, chainId: envelope.chainId, forCase});
             app.navigate(tabId);
         };
         if (step.action === 'START_DTR') {
-            return {label: 'Continue in DTR', run: carryTo('dtr')};
+            return {label: 'Continue in DTR', run: goTo('dtr')};
         }
         if (step.action === 'START_PAS') {
-            return {label: 'Continue in PAS', run: carryTo('pas')};
+            return {label: 'Continue in PAS', run: goTo('pas')};
         }
         if (step.action === 'OPEN_CONFIG' || step.action === 'UNLOCK_OR_SWITCH') {
             return {label: 'Open the Config tab', run: () => app.navigate('config')};

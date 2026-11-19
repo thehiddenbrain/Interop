@@ -119,7 +119,7 @@ function chainsView() {
         }
         fill(list, el('ul', {class: 'chain-rows'}, chains.map(chain => {
             const latest = (chain.stages || []).map(stage => stage.latest).filter(Boolean).pop();
-            return el('li', {class: 'chain-row' + (chain.chainId === openChainId ? ' chain-row--open' : '')},
+            return el('li', {class: 'chain-row', dataset: {chain: chain.chainId}},
                 button(chain.member ? ['Member ', code(chain.member)] : ['Chain ', code(chain.chainId)],
                     () => { open(chain.chainId); app.addressChanged(); }, {class: 'button--text'}),
                 el('div', {class: 'small quiet'}, when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs',
@@ -127,18 +127,34 @@ function chainsView() {
                         ? [', codes ', chain.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null),
                 el('div', {class: 'small'}, latest ? outcome(chain.headline, latest.tone) : chain.headline));
         })));
+        markOpen();
+    }
+
+    /** Marks the row of the chain whose journey is on the right, so the list and the readout are seen to agree. */
+    function markOpen() {
+        for (const row of list.querySelectorAll('.chain-row')) {
+            const isOpen = row.dataset.chain === openChainId;
+            row.classList.toggle('chain-row--open', isOpen);
+            if (isOpen) {
+                row.setAttribute('aria-current', 'true');
+            } else {
+                row.removeAttribute('aria-current');
+            }
+        }
     }
 
     async function open(chainId) {
         openChainId = chainId;
+        markOpen();
         const status = el('p', {class: 'readout__status', role: 'status', aria: {live: 'polite'}}, 'Reading the chain from the ledger.');
         fill(detail, status);
         const answer = await api.get('/api/chains/' + encodeURIComponent(chainId));
+        if (openChainId !== chainId) {
+            // Another chain was opened while this answer was on its way. The later choice stands.
+            return;
+        }
         status.textContent = answer.kind === 'ok' ? 'Chain read from the ledger. ' + answer.body.headline : answer.body.title;
         fill(detail, status, answer.kind === 'ok' ? chainView(answer.body) : errorPanel(answer.body));
-        for (const row of list.querySelectorAll('.chain-row')) {
-            row.classList.remove('chain-row--open');
-        }
     }
 
     function empty() {

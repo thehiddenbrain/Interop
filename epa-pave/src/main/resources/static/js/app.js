@@ -27,7 +27,7 @@ const state = {
     mode: null,           // the last answer of /api/mode that was drawn
     active: null,         // the id of the tab on screen
     tabs: new Map(),      // tab id -> {tab, panel, control, built}
-    handovers: new Map(), // tab id -> what the previous step handed on
+    carried: new Map(),   // tab id -> what the previous step handed on
     pollFailed: false,
     ledger: null          // what the ledger did with the latest run this page knows of
 };
@@ -40,12 +40,16 @@ const app = {
     isMock: () => Boolean(state.mode) && state.mode.mode === 'mock',
     navigate,
     /** Leaves something for a tab to pick up when it is next shown: the hand-over between steps. */
-    handOver(tabId, payload) {
-        state.handovers.set(tabId, payload);
+    carryTo(tabId, payload) {
+        state.carried.set(tabId, payload);
     },
-    /** What was handed to a tab, or null. It stays until the next hand-over replaces it. */
-    handover(tabId) {
-        return state.handovers.get(tabId) || null;
+    /** What was carried to a tab, or null. It stays until the next hand-over replaces it or a new case starts. */
+    carriedTo(tabId) {
+        return state.carried.get(tabId) || null;
+    },
+    /** Forgets every hand-over. What one case carried to the next step is not for the case after it. */
+    forgetCarried() {
+        state.carried.clear();
     },
     notice,
     clearNotices: () => clear(document.getElementById('notices')),
