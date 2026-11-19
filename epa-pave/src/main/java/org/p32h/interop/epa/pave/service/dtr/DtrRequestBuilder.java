@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.dtr;
 
+import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
@@ -41,9 +42,18 @@ public final class DtrRequestBuilder {
      * @param json       the request as pretty JSON
      * @param notes      one plain sentence for each thing left out, worked out or taken from CRD
      * @param canonicals the questionnaires the request asks for by canonical url. Empty when it names none
-     * @param codes      the procedure codes the orders were built from
+     * @param codes      the procedure codes the case is about, which the step after this one starts from
+     * @param sentCodes  the procedure codes of the orders the request carries. Fewer than the
+     *                   case's codes when CRD's answer applied to some of its orders only
      */
-    public record Package(String json, List<String> notes, List<String> canonicals, List<CodeInput> codes) {
+    public record Package(String json, List<String> notes, List<String> canonicals, List<String> codes, List<String> sentCodes) {
+
+        public Package {
+            notes = notes == null ? List.of() : List.copyOf(notes);
+            canonicals = canonicals == null ? List.of() : List.copyOf(canonicals);
+            codes = codes == null ? List.of() : List.copyOf(codes);
+            sentCodes = sentCodes == null ? List.of() : List.copyOf(sentCodes);
+        }
     }
 
     /**
@@ -114,12 +124,18 @@ public final class DtrRequestBuilder {
         } else if (!chosen.isEmpty()) {
             notes.add("The order CRD's answer applied to was sent, under the id CRD sent it with.");
         }
+        List<String> sentCodes = new ArrayList<>();
         for (int position = 1; position <= codes.size(); position++) {
             if (chosen.isEmpty() || chosen.contains(position)) {
                 parameters.addObject().put("name", OnyxDtrConventions.PARAM_ORDER).set("resource",
                         resources.serviceRequest(CaseResources.serviceRequestId(position), codes.get(position - 1), member,
                                 request.dateOfService(), notes));
+                sentCodes.add(codes.get(position - 1).code().strip());
             }
+        }
+        if (codes.isEmpty()) {
+            notes.add("No order was sent, because the request names no procedure code. The service is asked for the questionnaires by "
+                    + "their canonical url alone.");
         }
         // What the orders and the coverage refer to travels with them, so no reference is left pointing at nothing.
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", resources.patient(member, variables, notes));
@@ -154,7 +170,38 @@ public final class DtrRequestBuilder {
             notes.add("CRD handed on a SMART link for DTR. This tool does not launch it and does not read its appContext: it hosts no "
                     + "SMART launch. The questionnaire is asked for through the questionnaire package operation.");
         }
-        return new Package(JsonSafe.pretty(root), List.copyOf(notes), canonicals, codes);
+        return new Package(JsonSafe.pretty(root), notes, canonicals, codes.stream().map(code -> code.code().strip()).toList(), sentCodes);
+    }
+
+    /**
+     * What a package request the tester supplied asks about, read from the body itself: the
+     * questionnaires it names and the procedure codes on its orders. Both are empty when the body
+     * is not JSON or is not a Parameters resource. Nothing is then said to have been asked for, so
+     * nothing can be reported as not returned.
+     */
+    public static Package readPackage(String body) {
+        List<String> canonicals = new ArrayList<>();
+        List<String> codes = new ArrayList<>();
+        JsonSafe.Parsed parsed = JsonSafe.parse(body);
+        if (parsed.ok() && QuestionnaireJson.isType(parsed.node(), "Parameters")) {
+            for (JsonNode parameter : JsonSafe.elements(parsed.node(), "parameter")) {
+                String name = JsonSafe.presentText(parameter, "name");
+                if (OnyxDtrConventions.PARAM_QUESTIONNAIRE.equals(name)) {
+                    String key = QuestionnaireJson.valueKey(parameter, "value");
+                    String canonical = key == null ? null : JsonSafe.presentText(parameter, key);
+                    if (canonical != null && !canonicals.contains(canonical)) {
+                        canonicals.add(canonical);
+                    }
+                } else if (OnyxDtrConventions.PARAM_ORDER.equals(name)) {
+                    for (String code : SentOrder.codes(JsonSafe.child(parameter, "resource"))) {
+                        if (!codes.contains(code)) {
+                            codes.add(code);
+                        }
+                    }
+                }
+            }
+        }
+        return new Package(body, List.of(), canonicals, codes, codes);
     }
 
     /**
