@@ -640,6 +640,23 @@ class JsonlRunLedgerTest {
     }
 
     @Test
+    void startupFailsWhenTheProofByWritingFailsOnAnyMachineAndSaysNothingTheFailureSaid() {
+        // The two tests before this one each need a folder that refuses a file, and not every machine
+        // has one: an administrator is refused almost nowhere, and some systems ignore a read-only
+        // folder. Here the proof itself is made to fail, so the refusal and its wording are checked everywhere.
+        assertThatThrownBy(() -> new JsonlRunLedger(tracking(home, Map.of()), configStore(home), EpaProperties.defaults(), clock) {
+            @Override
+            void proveWritable() throws IOException {
+                throw new java.nio.file.AccessDeniedException("a path and a reason that must not be repeated");
+            }
+        }).isInstanceOf(IllegalStateException.class)
+                .hasMessage("The run history directory " + ledgerDirectory(home) + " cannot be written to (AccessDeniedException). "
+                        + "Set tracking.directory to a folder this tool can write to, or set tracking.enabled to false to run with no ledger.");
+        // Refused before the salt was made: a tool that will not start leaves nothing new behind but the folder it tried.
+        assertThat(Files.exists(saltFile(home))).isFalse();
+    }
+
+    @Test
     void startupFailsWhenTodaysFileCannotBeAppendedTo() throws IOException {
         Files.createDirectories(todayFile());
 
