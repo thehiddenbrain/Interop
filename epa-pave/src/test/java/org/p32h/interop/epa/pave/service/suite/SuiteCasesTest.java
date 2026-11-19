@@ -238,8 +238,20 @@ class SuiteCasesTest {
     @Test
     void anExpectationForAProtocolWhoseOutcomesAreNotRegisteredIsLeftToTheServiceThatRunsIt() {
         assertThat(one("protocol,memberId,expected", "pas,S123456789,APPROVED").problems()).isEmpty();
-        // A chain's expectation is read by the chain, which knows its steps.
-        assertThat(one("protocol,memberId,expected", "chain,S123456789,ANYTHING").problems()).isEmpty();
+    }
+
+    @Test
+    void aChainRowSaysWhichStepEachPartOfItsExpectationIsAbout() {
+        // A chain makes up to three calls, each with outcomes of its own.
+        assertThat(one("protocol,memberId,expected", "chain,S123456789,crd: AUTH_REQUIRED; pas: APPROVED").problems()).isEmpty();
+        assertThat(one("protocol,memberId,expected", "chain,S123456789,CRD: pa-needed=auth-needed").problems()).isEmpty();
+        // With no step named, the tool would have to guess which call the outcome belongs to.
+        assertThat(one("protocol,memberId,expected", "chain,S123456789,AUTH_REQUIRED").problems()).singleElement().asString()
+                .startsWith("\"AUTH_REQUIRED\" does not say which step of the chain it is about. Start it with crd:, dtr: or pas:");
+        // And each part is checked against the outcomes of its own step, before anything is sent.
+        assertThat(one("protocol,memberId,expected", "chain,S123456789,crd: APPROVED").problems()).singleElement().asString()
+                .startsWith("For the CRD step: \"APPROVED\" is not an outcome this operation can produce.");
+        assertThat(one("protocol,memberId,expected", "chain,S123456789,crd:").problems()).hasSize(1);
     }
 
     @Test

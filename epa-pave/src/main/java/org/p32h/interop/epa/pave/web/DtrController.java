@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * The DTR endpoints: the questionnaire package, one step of the adaptive loop, and the
@@ -42,6 +43,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
  * carries no stereotype annotation, so the application context does not try to build it. Its test
  * registers it through a small annotated subclass and drives it with a standalone MockMvc.
  */
+@RestController
 @RequestMapping("/api/dtr")
 public class DtrController {
 

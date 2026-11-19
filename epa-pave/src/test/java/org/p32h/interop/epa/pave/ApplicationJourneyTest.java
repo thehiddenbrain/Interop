@@ -168,6 +168,89 @@ class ApplicationJourneyTest {
         assertThat(json(get("/api/runs").param("suiteRunId", id), 200).get("count").intValue()).isEqualTo(3);
     }
 
+    private JsonNode runSuite(String name, String csv) throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", name, "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+        String id = json(multipart("/api/suites").file(file), 202).get("suiteRunId").stringValue();
+        JsonNode run = null;
+        for (int i = 0; i < 800; i++) {
+            run = json(get("/api/suites/" + id), 200);
+            if (!"RUNNING".equals(run.get("state").stringValue())) {
+                break;
+            }
+            Thread.sleep(25);
+        }
+        assertThat(run.get("state").stringValue()).isEqualTo("COMPLETED");
+        return run;
+    }
+
+    @Test
+    void aChainRunsTheWholeJourneyAsFarAsAToolCanGoAndSaysWhyItStopped() throws Exception {
+        JsonNode run = runSuite("chains.csv", "caseId,protocol,memberId,npi,codes,expected\n"
+                + "CH-1,chain,P32H-NO-AUTH,1234567893,95810,crd: NO_AUTH_REQUIRED\n"
+                + "CH-2,chain,P32H-PA-REQ,1234567893,95810,crd: AUTH_REQUIRED; pas: APPROVED\n"
+                + "CH-3,chain,P32H-DOC-DTR,1234567893,95810,\n"
+                + "CH-4,chain,P32H-NO-AUTH,1234567893,95810,crd: NO_AUTH_REQUIRED; pas: APPROVED\n");
+        JsonNode rows = run.get("results");
+
+        // The payer says no authorization is needed: the journey ends at CRD, which is itself the result.
+        assertThat(rows.get(0).get("runIds")).hasSize(1);
+        assertThat(rows.get(0).get("outcome").stringValue()).isEqualTo("NO_AUTH_REQUIRED");
+        assertThat(rows.get(0).get("result").stringValue()).isEqualTo("pass");
+        assertThat(rows.get(0).get("reason").stringValue()).startsWith("The flow ended at CRD.");
+
+        // Authorization is needed and no documentation: CRD, then the submission, with the codes carried over.
+        assertThat(rows.get(1).get("runIds")).hasSize(2);
+        assertThat(rows.get(1).get("outcome").stringValue()).isEqualTo("APPROVED");
+        assertThat(rows.get(1).get("result").stringValue()).isEqualTo("pass");
+        String chainId = rows.get(1).get("chainId").stringValue();
+        JsonNode chain = json(get("/api/chains/" + chainId), 200);
+        assertThat(chain.get("runCount").intValue()).isEqualTo(2);
+        assertThat(chain.get("ended").booleanValue()).isTrue();
+        assertThat(chain.get("stages").get(0).get("state").stringValue()).isEqualTo("DONE");
+        assertThat(chain.get("stages").get(1).get("state").stringValue()).isEqualTo("NOT_NEEDED");
+        assertThat(chain.get("stages").get(2).get("state").stringValue()).isEqualTo("DONE");
+        // One chain id on both ledger lines, so the journey is one row in history.
+        JsonNode lines = json(get("/api/runs").param("chainId", chainId), 200).get("runs");
+        assertThat(lines).hasSize(2);
+        assertThat(lines.get(0).get("protocol").stringValue()).isEqualTo("PAS");
+        assertThat(lines.get(1).get("protocol").stringValue()).isEqualTo("CRD");
+        assertThat(lines.get(0).get("procedureCodes").get(0).stringValue()).isEqualTo("95810");
+
+        // Documentation is needed: the questionnaire is fetched, and the chain stops where a person has to answer.
+        assertThat(rows.get(2).get("runIds")).hasSize(2);
+        assertThat(rows.get(2).get("reason").stringValue()).startsWith("The chain stopped at DTR: the questionnaire has to be answered by a person.");
+        assertThat(rows.get(2).get("result").stringValue()).isEqualTo("unverified");
+        JsonNode waiting = json(get("/api/chains/" + rows.get(2).get("chainId").stringValue()), 200);
+        assertThat(waiting.get("nextStage").stringValue()).isEqualTo("DTR");
+        assertThat(waiting.get("stages").get(2).get("state").stringValue()).isEqualTo("NOT_REACHED");
+
+        // The case expected an answer from PAS and the journey ended at CRD. That is a failed case, not a passed one
+        // with a step left out.
+        assertThat(rows.get(3).get("runIds")).hasSize(1);
+        assertThat(rows.get(3).get("result").stringValue()).isEqualTo("fail");
+        assertThat(rows.get(3).get("reason").stringValue())
+                .startsWith("The case expected an answer from PAS, and the chain did not get that far. The flow ended at CRD.");
+        assertThat(run.get("headline").stringValue()).isEqualTo("Finished: 4 cases. 2 passed, 1 failed, 1 unverified.");
+    }
+
+    @Test
+    void aSubmissionAndAPackageFetchRunFromASuiteAndAChainRowIsCheckedBeforeAnythingIsSent() throws Exception {
+        JsonNode run = runSuite("single.csv", "caseId,protocol,memberId,npi,codes,expected\n"
+                + "P-1,pas,P32H-PA-REQ,1234567893,95810,APPROVED\n"
+                + "D-1,dtr,P32H-DOC-DTR,1234567893,95810,\n"
+                + "CH-9,chain,P32H-PA-REQ,1234567893,95810,APPROVED\n");
+        JsonNode rows = run.get("results");
+        assertThat(rows.get(0).get("what").stringValue()).isEqualTo("PAS submit");
+        assertThat(rows.get(0).get("outcome").stringValue()).isEqualTo("APPROVED");
+        assertThat(rows.get(0).get("result").stringValue()).isEqualTo("pass");
+        assertThat(rows.get(1).get("what").stringValue()).isEqualTo("DTR questionnaire package");
+        assertThat(rows.get(1).get("outcome").stringValue()).isEqualTo("PACKAGE_LOADED");
+        // An expectation for a chain has to say which step it is about. This one does not, so nothing was sent for the row.
+        assertThat(rows.get(2).get("status").stringValue()).isEqualTo("INVALID");
+        assertThat(rows.get(2).get("reason").stringValue()).contains("does not say which step of the chain it is about");
+        assertThat(rows.get(2).has("runId")).isFalse();
+    }
+
     @Test
     void theLookupsAndTheCodePickerAnswerFromTheSyntheticData() throws Exception {
         assertThat(json(get("/api/members/P32H-NO-AUTH"), 200).get("status").stringValue()).isEqualTo("FOUND");

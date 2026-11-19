@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Service;
 
 /**
  * One PAS submission or one inquiry, end to end, in the order every protocol follows: validate the
@@ -59,6 +60,7 @@ import org.springframework.beans.factory.ObjectProvider;
  * <p>The claim of every submission carries an identifier, and that identifier is written to the
  * ledger line. It is what an inquiry asks about, and what a notification is matched by.
  */
+@Service
 public class PasService {
 
     /** What a claim id may look like. It is written to the ledger as it stands, so it is one token and never free text. */

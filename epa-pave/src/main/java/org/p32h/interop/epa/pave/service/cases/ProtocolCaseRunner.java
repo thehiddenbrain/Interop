@@ -19,6 +19,7 @@ import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.ProviderLookupResult;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
+import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.MemberLookup;
@@ -123,14 +124,22 @@ public class ProtocolCaseRunner implements CaseRunner {
         }
     }
 
-    private static CaseOutcome completed(CaseSpec spec, RunEnvelope<?> envelope, List<String> notes) {
-        // The record comes from the receipt, which carries it whether or not the ledger kept it.
-        List<String> notRecorded = envelope.ledger().recorded() ? List.of() : List.of(envelope.ledger().message());
-        if (RunSupport.isBlocked(envelope)) {
-            return new CaseOutcome(spec, CaseStatus.BLOCKED, envelope.verdict().headline(), List.of(envelope.ledger().record()), notRecorded,
-                    notes);
+    private static CaseOutcome completed(CaseSpec spec, CaseRun run, List<String> notes) {
+        // Each record comes from its receipt, which carries it whether or not the ledger kept it.
+        List<RunRecord> records = new ArrayList<>();
+        List<String> notRecorded = new ArrayList<>();
+        for (RunEnvelope<?> envelope : run.envelopes()) {
+            records.add(envelope.ledger().record());
+            if (!envelope.ledger().recorded()) {
+                notRecorded.add(envelope.ledger().message());
+            }
         }
-        return new CaseOutcome(spec, CaseStatus.COMPLETED, null, List.of(envelope.ledger().record()), notRecorded, notes);
+        RunEnvelope<?> last = run.last();
+        if (RunSupport.isBlocked(last)) {
+            // The steps before it ran and are in the outcome. The case as a whole was stopped by the guardrail.
+            return new CaseOutcome(spec, CaseStatus.BLOCKED, last.verdict().headline(), records, notRecorded, notes);
+        }
+        return new CaseOutcome(spec, CaseStatus.COMPLETED, run.stopped(), records, notRecorded, notes, run.overall());
     }
 
     private static CaseOutcome ended(CaseSpec spec, CaseStatus status, String reason, List<String> notes) {

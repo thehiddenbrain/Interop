@@ -15,6 +15,7 @@ import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.service.cases.ChainExpectation;
 import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
 import org.p32h.interop.epa.pave.service.suite.SuiteColumns.Column;
 import org.p32h.interop.epa.pave.service.suite.SuiteTable.SourceRow;
@@ -157,7 +158,9 @@ public final class SuiteCases {
             problems.add("The row chooses a scenario, which is possible on the mock profile only. On live the answer comes from the service.");
         }
         String expected = Texts.trimToNull(cells.get(Column.EXPECTED));
-        if (expected != null && target.operation() != null && !target.chain()) {
+        if (expected != null && target.chain()) {
+            problems.addAll(ChainExpectation.parse(expected, outcomes).problems());
+        } else if (expected != null && target.operation() != null) {
             problems.addAll(outcomes.expectationProblems(target.operation().protocol(), expected));
         }
         Map<String, String> correlation = new LinkedHashMap<>();

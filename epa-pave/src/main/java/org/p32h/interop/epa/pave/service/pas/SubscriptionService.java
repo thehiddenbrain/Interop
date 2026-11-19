@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import org.springframework.stereotype.Service;
 
 /**
  * One subscription call, end to end, in the order every protocol follows: validate the form, ask
@@ -57,6 +58,7 @@ import java.util.regex.Pattern;
  * gave the subscription, and that is how a notification is later matched to the run that created
  * the subscription it arrived on.
  */
+@Service
 public class SubscriptionService {
 
     private static final Set<EpaOperation> OPERATIONS = Set.of(EpaOperation.SUBSCRIPTION_CREATE, EpaOperation.SUBSCRIPTION_GET,

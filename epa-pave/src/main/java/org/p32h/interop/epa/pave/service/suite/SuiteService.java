@@ -417,7 +417,8 @@ public class SuiteService implements AutoCloseable {
         boolean sent = status == CaseStatus.COMPLETED && last != null;
         String code = last == null ? null : last.outcome();
         Protocol protocol = last == null ? null : last.protocol();
-        TestResult result = sent ? last.result() : null;
+        // For a chain this is the result of the whole journey, which no single record can state.
+        TestResult result = sent ? outcome.result() : null;
         Long elapsed = null;
         boolean slow = false;
         Set<String> findings = new LinkedHashSet<>();
@@ -434,6 +435,7 @@ public class SuiteService implements AutoCloseable {
         Previous earlier = run.previous == null ? null : run.previous.get(entry.caseId.toLowerCase(Locale.ROOT));
         Boolean changed = earlier == null ? null
                 : !Objects.equals(earlier.outcome(), code) || !Objects.equals(earlier.result(), last == null ? null : last.result());
+        // The comparison is between the last record of the case now and then, which is what the ledger holds for both.
         return new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, SuiteRowState.DONE, status,
                 statusLine(status, result, entry.expected), entry.expected, code, outcomes.label(protocol, code), tone, result, elapsed,
                 slow, last == null ? null : last.runId(), runIds, last == null ? null : last.chainId(),

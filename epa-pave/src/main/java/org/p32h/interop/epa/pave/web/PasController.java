@@ -53,6 +53,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * The PAS endpoints: submit and inquire, the five subscription calls, and the notification receiver.
@@ -80,6 +81,7 @@ import org.springframework.web.bind.annotation.RequestParam;
  * depend on arrive with another wave, and the integrator registers it once they are merged. Until
  * then it carries no stereotype annotation, so the application context does not try to build it.
  */
+@RestController
 @RequestMapping("/api/pas")
 public class PasController {
 

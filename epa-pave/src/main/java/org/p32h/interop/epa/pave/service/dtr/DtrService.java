@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
+import org.springframework.stereotype.Service;
 
 /**
  * The three DTR steps, each of them one run with its own ledger line.
@@ -74,6 +75,7 @@ import tools.jackson.databind.JsonNode;
  * {@code carry}. Every line written for one questionnaire is linked to the package fetch it came
  * from, so the history can show the loop as one piece.
  */
+@Service
 public class DtrService {
 
     /**

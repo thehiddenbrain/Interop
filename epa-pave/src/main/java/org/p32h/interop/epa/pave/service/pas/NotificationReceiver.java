@@ -60,6 +60,7 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Service;
 
 /**
  * The notification receiver: what the service calls back when a subscription has something to say.
@@ -77,6 +78,7 @@ import org.springframework.beans.factory.ObjectProvider;
  * <p><b>One instance.</b> The list of what has arrived is the state of this object, so an
  * application has exactly one receiver.
  */
+@Service
 public class NotificationReceiver {
 
     /** The most bytes of one body that are held. A longer body is cut here, and the record says so. */
@@ -203,6 +205,7 @@ public class NotificationReceiver {
      *                  notification's own line is written through {@code support}
      * @param scenarios read for the notification a sample is built from, on the mock profile
      */
+    @org.springframework.beans.factory.annotation.Autowired
     public NotificationReceiver(OperationGateway gateway, RunSupport support, ObjectProvider<RunLedger> ledger, ScenarioRepository scenarios) {
         this(gateway, support, ledger, scenarios, new NotificationReader()::read);
     }

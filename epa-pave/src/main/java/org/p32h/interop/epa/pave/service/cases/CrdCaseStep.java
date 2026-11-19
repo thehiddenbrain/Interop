@@ -2,7 +2,6 @@ package org.p32h.interop.epa.pave.service.cases;
 
 import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.EpaOperation;
-import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.service.crd.CrdRunRequest;
 import org.p32h.interop.epa.pave.service.crd.CrdService;
 
@@ -18,12 +17,17 @@ public final class CrdCaseStep implements CaseStep {
     }
 
     @Override
-    public RunEnvelope<?> run(CaseContext context) {
-        return crd.run(request(context, hook), context.origin(), null);
+    public CaseRun run(CaseContext context) {
+        return CaseRun.of(crd.run(request(context, hook), context.origin(), null));
     }
 
-    /** The CRD request for a case. Shared with the chain, whose first step is this same request. */
+    /** The CRD request for a case, with the expectation and the chain the case itself names. */
     public static CrdRunRequest request(CaseContext context, String hook) {
+        return request(context, hook, context.spec().expected(), context.spec().chainId());
+    }
+
+    /** The same request for a chain, whose first step it is: the chain says what this step expects and which chain it joins. */
+    static CrdRunRequest request(CaseContext context, String hook, String expected, String chainId) {
         CaseSpec spec = context.spec();
         return CrdRunRequest.builder()
                 .hook(hook)
@@ -32,10 +36,10 @@ public final class CrdCaseStep implements CaseStep {
                 .procedureCodes(context.codes())
                 .dateOfService(spec.dateOfService())
                 .scenarioId(spec.scenarioId())
-                .expected(spec.expected())
+                .expected(expected)
                 .testerRef(spec.testerRef())
                 .note(spec.note())
-                .chainId(spec.chainId())
+                .chainId(chainId)
                 .configEpoch(spec.configEpoch())
                 .build();
     }
