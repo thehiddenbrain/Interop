@@ -1,0 +1,26 @@
+# Line endings are decided here and not by the git settings of each machine, so that a checkout
+# on Windows holds the same bytes in these files as a checkout anywhere else.
+
+# Whatever git takes for text is stored with LF. What it takes for binary is left alone.
+* text=auto
+
+# LF in the working tree on every machine. A shell script written with CRLF does not run, and the
+# rest are read by tests and by the application as they lie on disk.
+gradlew text eol=lf
+*.sh    text eol=lf
+*.java  text eol=lf
+*.json  text eol=lf
+*.csv   text eol=lf
+*.yml   text eol=lf
+*.md    text eol=lf
+*.js    text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+
+# CRLF in the working tree on every machine, which is what the Windows command interpreter expects.
+# These are detected as text and not declared as text: gradlew.bat is stored with CRLF already,
+# and declaring it would make git rewrite what is stored.
+*.cmd   text=auto eol=crlf
+*.bat   text=auto eol=crlf
+
+*.jar   binary

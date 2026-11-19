@@ -54,11 +54,34 @@ tracking:
   slow-threshold-ms: 0        # 0: use onyx.read-timeout-ms
 
 codelist:
+  # The path of the P32H code list export. A relative path is taken from the directory the tool is
+  # started in. While this is blank the tool loads the placeholder list that ships with it. Every
+  # row of that list is synthetic: the picker says so, and on the live profile no answer of a
+  # service is compared with it. After pointing this at an export, restart and look at
+  # GET /api/procedure-codes/self-check before anything else.
   file: ""                    # blank: the bundled placeholder list
   format: auto                # auto | csv | json
+  # The one character that separates the cells of a CSV file, or the word tab.
   delimiter: ","
   # Candidate header names per column are listed under codelist.columns. The defaults are in
   # CodelistProperties; override a column here only when an export uses a header none of them match.
+  # A list set here replaces the built-in names for that column, so repeat the ones still wanted.
+  # A header is matched ignoring case, spaces, underscores, hyphens, dots, slashes, question marks
+  # and colons. A bracketed part at the end of a header is ignored too, unless two headers differ
+  # only in that part: then name the one that is meant, exactly as the file writes it.
+  #   columns:
+  #     code: ["Proc Cd", "code"]
+  #     auth-required: ["PA Required (Medicare)"]
+  #
+  # codelist.line-of-business-aliases maps a line of business as the member API names it to the
+  # names the code list uses for it. A name is matched ignoring case, spaces, underscores, hyphens
+  # and dots, so a name that differs from the list's only in those needs no alias. A key that
+  # holds a slash or a bracket has to be written inside square brackets and quotes, as the second
+  # one below is. Written without them, the key loses those characters when this file is read,
+  # and then matches nothing.
+  #   line-of-business-aliases:
+  #     MCR: [Medicare]
+  #     "[Medicaid/CHIP (MassHealth)]": [Medicaid]
 
 app:
   scenario-dir: ""
