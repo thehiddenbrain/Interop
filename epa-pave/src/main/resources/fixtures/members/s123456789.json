@@ -1,7 +1,7 @@
 {
   "memberId": "S123456789",
   "description": "An ordinary placeholder: a Medicaid member with active coverage. Public plan IDs are written with no spaces.",
-  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
   "expect": {
     "status": "FOUND",
     "needsALook": false,

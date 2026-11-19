@@ -26,6 +26,7 @@ import org.p32h.interop.epa.pave.model.MemberLookupResult;
 import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.ProviderLookupResult;
+import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.scenario.Scenario;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import tools.jackson.databind.JsonNode;
@@ -179,6 +180,27 @@ class LookupFixtureAuditTest {
         assertThat(member("P32H-INACTIVE").attention()).containsExactly(
                 "Coverage is not active: the member API returned the coverage status \"Termed\".",
                 "Coverage ended on 2024-12-31, which is before today, 2026-03-10.");
+    }
+
+    @Test
+    void whatASentinelMemberCarriesIsWhatTheRequestBuilderCanSend() {
+        // A sentinel is typed to drive a CRD run. Its gender and its coverage status go into that
+        // request, so each must be one the request builder turns into a code and does not leave out.
+        for (String sentinel : SENTINELS_WITH_A_MEMBER) {
+            MemberLookupResult result = member(sentinel);
+            if (result.member().gender() != null) {
+                assertThat(CaseResources.gender(result.member().gender())).as(sentinel + ": gender").isNotNull();
+            }
+            if (result.member().coverageStatus() != null && result.attention().isEmpty()) {
+                assertThat(CaseResources.coverageStatus(result.member().coverageStatus())).as(sentinel + ": coverage status").isEqualTo("active");
+            }
+        }
+        // Coverage stated as a yes reaches the member as the word, so the request can carry it.
+        assertThat(member("P32H-DOC-DTR").member().coverageStatus()).isEqualTo("active");
+        assertThat(member("P32H-ERR500").member().coverageStatus()).isEqualTo("active");
+        // The one sentinel that returns no gender worth sending and no coverage status says so by carrying none.
+        assertThat(member("P32H-BAD400").member().gender()).isNull();
+        assertThat(member("P32H-BAD400").member().coverageStatus()).isNull();
     }
 
     @Test
@@ -353,7 +375,7 @@ class LookupFixtureAuditTest {
         assertThat(field(nothings, "planName").value().presence()).isEqualTo(Presence.NULL);
         assertThat(field(nothings, "gender").value().presence()).isEqualTo(Presence.EMPTY);
         assertThat(field(nothings, "coverageStatus").value().presence()).isEqualTo(Presence.ABSENT);
-        assertThat(nothings.message()).isEqualTo("Member found, but the member API did not return a coverage status.");
+        assertThat(nothings.message()).isEqualTo("Member found, but the member API returned no coverage status.");
 
         // What the mapping will not do: split a name, or read a date it would have to guess at.
         MemberLookupResult shapes = member("S333333333");

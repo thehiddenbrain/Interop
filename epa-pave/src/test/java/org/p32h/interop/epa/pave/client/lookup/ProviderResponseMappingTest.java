@@ -97,7 +97,7 @@ class ProviderResponseMappingTest {
         DETAIL.put("specialty", ProviderDetail::specialty);
         DETAIL.put("taxonomyCode", ProviderDetail::taxonomyCode);
         DETAIL.put("networkStatus", ProviderDetail::networkStatus);
-        // With no status in words, the yes or no is what the provider carries, as the directory wrote it.
+        // With no status in words, the provider carries the plain words for the yes or no.
         DETAIL.put("inNetwork", ProviderDetail::networkStatus);
         DETAIL.put("phone", ProviderDetail::phone);
         DETAIL.put("addressLine1", provider -> provider.address().line1());
@@ -143,7 +143,8 @@ class ProviderResponseMappingTest {
         assertThat(read.value()).as(name + " at " + path).isEqualTo(Shown.of(SAMPLE.get(name)));
         assertThat(read.sourceField()).as(name + " at " + path).isEqualTo(path);
         if (DETAIL.containsKey(name)) {
-            assertThat(DETAIL.get(name).apply(result.provider())).as(name + " at " + path).isEqualTo(SAMPLE.get(name));
+            assertThat(DETAIL.get(name).apply(result.provider())).as(name + " at " + path)
+                    .isEqualTo(name.equals("inNetwork") ? "in network" : SAMPLE.get(name));
         }
         assertThat(result.attention()).as(name + " at " + path).isEmpty();
     }
@@ -312,7 +313,7 @@ class ProviderResponseMappingTest {
             ProviderLookupResult result = map(200, body);
             assertThat(result.status()).as(body).isEqualTo(LookupStatus.FAULT);
             assertThat(result.message()).as(body)
-                    .isEqualTo("The provider directory answered, but nothing in its answer is a field this tool reads a provider from.");
+                    .isEqualTo("The provider directory answered, but this tool could read nothing about a provider from its answer.");
             assertThat(result.error().action()).as(body).contains("type the provider details by hand");
             assertThat(result.fields()).as(body).isEmpty();
             assertThat(paths(result)).as(body).containsExactlyElementsOf(shown);
@@ -343,7 +344,7 @@ class ProviderResponseMappingTest {
         assertThat(result.provider().networkStatus()).isNull();
         assertThat(result.provider().specialty()).isNull();
         assertThat(result.provider().phone()).isNull();
-        assertThat(result.message()).isEqualTo("Provider found, but the provider directory did not return a network status.");
+        assertThat(result.message()).isEqualTo("Provider found, but the provider directory returned no network status.");
         assertThat(result.attention()).isEmpty();
         assertThat(result.fields()).extracting(LookupField::name).containsExactly("npi", "firstName", "lastName", "organizationName",
                 "name", "specialty", "taxonomyCode", "networkStatus", "inNetwork", "phone", "addressLine1", "addressLine2", "city",
@@ -391,12 +392,17 @@ class ProviderResponseMappingTest {
     void aYesOrNoAboutTheNetworkIsReadAsOne() {
         ProviderLookupResult no = found("{\"lastName\":\"Provider\",\"inNetwork\":false}");
         assertThat(no.attention()).containsExactly("This provider is out of network: the provider directory returned inNetwork as false.");
-        assertThat(no.provider().networkStatus()).isEqualTo("false");
+        // The provider carries the words for the answer. The field keeps what was returned.
+        assertThat(no.provider().networkStatus()).isEqualTo("out of network");
+        assertThat(field(no, "inNetwork").value()).isEqualTo(Shown.of("false"));
         ProviderLookupResult yes = found("{\"lastName\":\"Provider\",\"network\":{\"participating\":\"Yes\"}}");
         assertThat(yes.attention()).isEmpty();
         assertThat(yes.message()).isEqualTo("Provider found, reported as in network.");
+        assertThat(yes.provider().networkStatus()).isEqualTo("in network");
         // A word under a yes-or-no name is still read as the word it is.
-        assertThat(found("{\"lastName\":\"Provider\",\"participating\":\"NON-PAR\"}").attention()).hasSize(1);
+        ProviderLookupResult word = found("{\"lastName\":\"Provider\",\"participating\":\"NON-PAR\"}");
+        assertThat(word.attention()).hasSize(1);
+        assertThat(word.provider().networkStatus()).isEqualTo("NON-PAR");
         ProviderLookupResult unclear = found("{\"lastName\":\"Provider\",\"inNetwork\":\"sometimes\"}");
         assertThat(unclear.attention()).containsExactly("The value \"sometimes\" of inNetwork is not a yes or a no this tool recognises, "
                 + "so it says nothing about whether the provider is in network.");

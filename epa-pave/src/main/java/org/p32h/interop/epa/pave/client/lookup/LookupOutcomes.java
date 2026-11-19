@@ -222,9 +222,10 @@ final class LookupOutcomes {
 
     /** A record came back with values in it, and none of them under a name the mapping knows. */
     static Ending unrecognised(LookupWords words, VendorExchange exchange) {
-        return unreadable(words.api() + " answered, but nothing in its answer is a field this tool reads a " + words.record() + " from.",
-                "Everything it returned is listed under the returned fields. The response contract of this API is not final, and those "
-                        + "fields are the evidence needed to finish the mapping. Until then, " + words.byHand() + ".", exchange);
+        return unreadable(words.api() + " answered, but this tool could read nothing about a " + words.record() + " from its answer.",
+                "Everything it returned is listed under the returned fields. The " + words.identifier() + " on its own is not taken "
+                        + "as a " + words.record() + ". The response contract of this API is not final, and those fields are the evidence "
+                        + "needed to finish the mapping. Until then, " + words.byHand() + ".", exchange);
     }
 
     private static Ending unreadable(String title, String action, VendorExchange exchange) {

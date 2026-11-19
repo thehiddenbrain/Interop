@@ -1,7 +1,7 @@
 {
   "npi": "1234567893",
   "description": "A sleep medicine physician who is in network. The record arrives bare, with camelCase names and an address object.",
-  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule.",
+  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule. The shape of the response is one the mapping tolerates, not one observed from the provider directory, whose contract is not final.",
   "expect": {
     "status": "FOUND",
     "needsALook": false

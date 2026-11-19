@@ -1,7 +1,7 @@
 {
   "memberId": "P32H-DELEG",
   "description": "Sentinel for CRD scenario 10, delegated vendor routing. A Medicare member: the scenario routes to Evolent, which serves Medicare. The record is a list of one inside results, with a count beside it and two fields the mapping does not know.",
-  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
   "expect": {
     "status": "FOUND",
     "needsALook": false,

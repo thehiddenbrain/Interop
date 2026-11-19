@@ -1,7 +1,7 @@
 {
   "npi": "1000000012",
   "description": "An imaging practice that is in network. The record is wrapped in data, with snake_case names. It is an organization, the NPI is written as a number, and the network is stated as a yes or no.",
-  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule.",
+  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule. The shape of the response is one the mapping tolerates, not one observed from the provider directory, whose contract is not final.",
   "expect": {
     "status": "FOUND",
     "needsALook": false

@@ -165,8 +165,8 @@ final class ProviderResponseMapping {
 
         // What needs a look. A found provider stays found: these are reasons to check before using them.
         List<String> attention = new ArrayList<>();
-        Standing byStatus = standing(networkStatus.text(), false);
-        Standing byFlag = standing(inNetwork.text(), true);
+        Standing byStatus = standing(networkStatus, false);
+        Standing byFlag = standing(inNetwork, true);
         if ((byStatus == Standing.IN && byFlag == Standing.OUT) || (byStatus == Standing.OUT && byFlag == Standing.IN)) {
             attention.add("The provider directory contradicts itself about the network: it returned the network status \""
                     + networkStatus.text() + "\" and " + inNetwork.source() + " as " + inNetwork.text()
@@ -205,8 +205,8 @@ final class ProviderResponseMapping {
                 .organizationName(organizationName.text())
                 .specialty(specialty.text())
                 .taxonomyCode(taxonomyCode.text())
-                // Kept as the directory wrote it.
-                .networkStatus(networkStatus.hasText() ? networkStatus.text() : inNetwork.text())
+                // A status in words is kept as the directory wrote it. A yes or a no has no word to keep.
+                .networkStatus(networkStatus.hasText() ? networkStatus.text() : statusFrom(inNetwork))
                 .phone(phone.text())
                 .address(postal)
                 .build();
@@ -235,8 +235,8 @@ final class ProviderResponseMapping {
         } else if (byStatus == Standing.IN || byFlag == Standing.IN) {
             message = "Provider found, reported as in network.";
         } else {
-            // Not returned is said, and is not passed off as in network by saying nothing.
-            message = "Provider found, but the provider directory did not return a network status.";
+            // Nothing returned is said, and is not passed off as in network by saying nothing.
+            message = "Provider found, but the provider directory returned no network status.";
         }
 
         additional.addAll(tracked.unconsumed());
@@ -266,22 +266,34 @@ final class ProviderResponseMapping {
     }
 
     /**
+     * The network status a provider carries when the directory states it only as a yes or a no:
+     * the plain words for the answer. A change of form, not a guess: the name the value sits under
+     * asks whether the provider is in network. The value as it was returned stays in the fields.
+     * Anything that is not a yes or a no is kept as it was written.
+     */
+    private static String statusFrom(LookupReader.Read inNetwork) {
+        Boolean yes = inNetwork.yesOrNo();
+        if (yes == null) {
+            return inNetwork.text();
+        }
+        return yes ? "in network" : "out of network";
+    }
+
+    /**
      * What a returned value says about the network. Nothing returned is NOT_STATED, which is never
      * read as in network.
      *
-     * @param yesOrNo true for a field that asks "is this provider in network", where true and false are answers
+     * @param asksYesOrNo true for a field that asks "is this provider in network", where a yes and a no are answers
      */
-    private static Standing standing(String text, boolean yesOrNo) {
-        if (text == null) {
+    private static Standing standing(LookupReader.Read read, boolean asksYesOrNo) {
+        if (!read.hasText()) {
             return Standing.NOT_STATED;
         }
-        String word = text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
-        if (yesOrNo && Set.of("true", "yes", "y").contains(word)) {
-            return Standing.IN;
+        Boolean yes = asksYesOrNo ? read.yesOrNo() : null;
+        if (yes != null) {
+            return yes ? Standing.IN : Standing.OUT;
         }
-        if (yesOrNo && Set.of("false", "no", "n").contains(word)) {
-            return Standing.OUT;
-        }
+        String word = read.text().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
         if (IN_NETWORK_WORDS.contains(word)) {
             return Standing.IN;
         }

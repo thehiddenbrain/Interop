@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.client.lookup;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.LookupField;
@@ -33,6 +34,21 @@ final class LookupReader {
 
         boolean hasText() {
             return Texts.present(text);
+        }
+
+        /**
+         * The value as a yes or a no, for a field that asks a question: true, false, or null when
+         * the value is neither. A JSON true or false, and the words a service writes for them.
+         */
+        Boolean yesOrNo() {
+            if (!hasText()) {
+                return null;
+            }
+            return switch (text.toLowerCase(Locale.ROOT)) {
+                case "true", "yes", "y" -> Boolean.TRUE;
+                case "false", "no", "n" -> Boolean.FALSE;
+                default -> null;
+            };
         }
 
         LookupField field(String name, String label) {
