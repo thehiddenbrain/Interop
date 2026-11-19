@@ -326,7 +326,8 @@ vendor addresses it by whatever name it was given. Observed: a POST to `/api/pas
 with a foreign `Host` answered 200 with no body and was recorded.
 
 **Opening it to the network.** Start with `--server.address=0.0.0.0` (or one interface address)
-and list the name others will use under `app.allowed-hosts`. Then every machine that can reach that
+and list the name others will use under `app.allowed-hosts`. This was not tried for this README:
+only `app.allowed-hosts` was, on this machine. Then every machine that can reach that
 address can do everything listed above, with nobody signing in. **Do not do this without asking
 whoever owns the installation and whoever owns the environment it points at**, and never with a
 production environment active. If the point is to receive notifications, also set
@@ -407,8 +408,9 @@ verbatim in `config-store/`. So:
 
 - **The upload warns**, naming the variable and the stored file, when a secret variable holds
   literal text.
-- **Secrets are masked everywhere** PAVE shows them; the screen says a secret is set, not what it
-  is. A variable is secret when Postman typed it `secret` or when its name reads as a credential.
+- **Secrets are masked** in every answer that shows configuration: the answer says a secret is
+  set, not what it is. This was not observed for this README with a literal secret; the build's
+  tests cover it. A variable is secret when Postman typed it `secret` or when its name reads as a credential.
   Redaction is by name, never by matching a value. On the wire view, credential headers
   (`Authorization`, `Cookie`, API key headers) show at most their scheme.
 - **Keep the secret out of the file.** Give the variable the value `{{env:PAVE_NAME}}` in Postman,
@@ -441,18 +443,21 @@ collection is reported and not applied.
 
 ### Environment kinds
 
-| Kind | Banner | Writes |
+| Kind | Banner on screen (not checked) | Writes |
 | --- | --- | --- |
 | `sandbox` | none | allowed |
-| `uat` | yes, and the ledger marks the run | allowed |
+| `uat` | yes | allowed |
 | `prod` | yes, persistent | blocked unless unlocked, and never when the floor forbids it |
+
+Every ledger line records the kind of the environment it ran under.
 
 ### The production guardrail
 
 A PAS submit against production creates a real prior authorization request against a real member.
 On a `prod` environment:
 
-- **Reads go through**: inquiry, subscription read and list, discovery, the lookups.
+- **Reads go through**: inquiry, subscription read and list, discovery, the lookups. Observed for
+  the inquiry.
 - **Writes are blocked**: PAS submit and subscription create, update and delete. A blocked write
   answers 403 with a full result saying nothing was sent, and is recorded in the ledger as
   `BLOCKED`.
@@ -469,8 +474,9 @@ On a `prod` environment:
 
   This was checked with an environment of another name, uploaded as `prod`, with the floor set to
   `true` on the command line (`--config-store.allow-prod-writes=true`). A wrong name, even in other
-  capitals, answers 422. The unlock lives in server memory, in that session only. It is never written anywhere, so it
-  does not survive a restart. Another browser or another tester stays locked (observed). Any change
+  capitals, answers 422. The unlock lives in server memory, in that session only. It is never
+  written anywhere, so it does not survive a restart (by design; a restart with an unlock held was
+  not tried). Another browser or another tester stays locked (observed). Any change
   to the configuration, including switching environment, drops it (observed). `{"action":"lock"}`
   locks again.
 - A replay or a suite never carries an unlock, so a write in a replay or a suite against production
@@ -482,7 +488,8 @@ On a `prod` environment:
 
 **Not yet audited.** The independent guardrail audit (V3 in the specification) was running when
 this README was written and had not reported. The behaviour above was observed on mock, where the
-guardrail behaves as it does on live.
+guardrail is designed to behave as it does on live (D-021). Live was not tried with a production
+environment.
 
 ## The test run ledger
 
@@ -504,9 +511,9 @@ hand, values typed for one run, answers carried from an earlier step), so a repl
 it cannot reproduce.
 
 **A line never holds**, under any setting: member first or last name, date of birth, address,
-gender, subscriber ID, or any request or response body. Observed on the running tool: after a CRD,
-DTR and PAS run with a member named `Placeholder-Surname` born `1970-01-01`, neither appeared in the
-ledger file.
+gender, subscriber ID, or any request or response body. Observed on the running tool: after CRD,
+DTR and PAS runs, one of which sent a member named `Placeholder-Surname` born `1970-01-01`, neither
+the name, the date nor any `resourceType` appeared in the ledger file.
 
 **The member ID policy** has two settings:
 
