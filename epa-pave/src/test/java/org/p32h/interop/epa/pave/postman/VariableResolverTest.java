@@ -224,6 +224,28 @@ class VariableResolverTest {
         assertThat(resolveInEnvironment("{{big}}".repeat(3), "big", megabyte).send()).hasSize(3_000_000);
     }
 
+    @Test
+    void valuesThatDoubleThroughNestingStopAtTheSameLimitThoughWhatTheyEndInIsShort() {
+        // Each value holds a megabyte of its own text and refers twice to the next one. Five levels of that
+        // would be thirty-one megabytes, although the value at the end of every chain is three characters long.
+        String megabyte = "x".repeat(1_000_000);
+        List<String> chain = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            chain.add("v" + i);
+            chain.add(i == 5 ? "end" : megabyte + "{{v" + (i + 1) + "}}{{v" + (i + 1) + "}}");
+        }
+
+        Resolution resolution = resolveInEnvironment("{{v0}}", chain.toArray(String[]::new));
+
+        assertThat(resolution.complete()).isFalse();
+        assertThat(resolution.send()).isNull();
+        assertThat(resolution.reasons().values()).contains(
+                "Resolution stopped before reaching it, because the text had already grown larger than this tool resolves.");
+        // Short of the limit the same shape resolves: three levels are seven megabytes and eight ends.
+        Resolution small = resolveInEnvironment("{{v2}}", chain.toArray(String[]::new));
+        assertThat(small.send()).hasSize(7_000_000 + 8 * 3);
+    }
+
     // ------------------------------------------------------------------------------------------
     // Secrets read from the operating system
     // ------------------------------------------------------------------------------------------
