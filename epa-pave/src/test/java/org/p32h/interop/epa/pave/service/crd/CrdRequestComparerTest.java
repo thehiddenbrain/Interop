@@ -314,6 +314,31 @@ class CrdRequestComparerTest {
         assertThat(comparison.notes()).noneMatch(note -> note.contains(OWN_SYSTEM));
     }
 
+    @Test
+    void aCodeReadWithNoSystemIsBuiltAsFromAFormThatStatesNoneAndTheAnswerSaysSoInBothPlaces() {
+        // A pasted order whose coding states its code and nothing else.
+        JsonNode root = JsonSafe.parse(sent(form("order-sign", 1, true).build())).node();
+        tools.jackson.databind.node.ObjectNode stated = (tools.jackson.databind.node.ObjectNode) root.at("/context/draftOrders/entry/0/resource/code/coding/0");
+        stated.remove("system");
+        stated.remove("display");
+        RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(root.toString()).build());
+
+        // No system was read, and no description: both are reported as looked for and not found, with what this tool does then.
+        assertThat(source(comparison, "procedureCodes[0].code").value().value()).isEqualTo("95810");
+        assertThat(comparison.caseSource()).extracting(CaseValue::field).doesNotContain("procedureCodes[0].system", "procedureCodes[0].description");
+        assertThat(notFound(comparison, "procedureCodes[0].system").note()).isEqualTo("The coding states no system. This tool then takes one "
+                + "from its code list, or else from the format of the code, and writes none when neither gives one.");
+        assertThat(notFound(comparison, "procedureCodes[0].description").note()).isEqualTo("The coding states no display. This tool writes a "
+                + "display only when it is given a description.");
+        // The system this tool works out is in its request and not in the pasted one, so it is a difference and is listed as one.
+        String coding = "context.draftOrders.entry[ServiceRequest].resource.code.coding";
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, coding + "[http://www.ama-assn.org/go/cpt] | ONLY_IN_TOOL | BUILD",
+                coding + "[no system] | ONLY_IN_YOURS | BUILD");
+        assertThat(JsonSafe.parse(comparison.toolBody()).node().at("/context/draftOrders/entry/0/resource/code/coding/0/display").isMissingNode()).isTrue();
+        // Nothing was read to be set beside what this tool writes by itself, so there is no note about a system that was taken over.
+        assertThat(comparison.notes()).noneMatch(note -> note.contains(OWN_SYSTEM));
+    }
+
     // ---- this tool's own request, edited by hand ----
 
     private static final String SAME_TEXT = "hold the same reference text";
