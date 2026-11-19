@@ -296,14 +296,16 @@ class SubscriptionServiceTest {
         assertThat(JsonSafe.parse(result.wire().request().body()).node().at("/channel").has("endpoint")).isFalse();
         assertThat(result.detail().callbackUrl()).isNull();
 
-        Finding finding = result.findings().stream().filter(f -> f.kind() == FindingKind.REQUIRED_ELEMENT_MISSING).findFirst().orElseThrow();
+        // Its own kind. Nothing is missing from a response here: it is what was sent that names no receiver.
+        Finding finding = result.findings().stream().filter(f -> f.kind() == FindingKind.NO_CALLBACK_URL).findFirst().orElseThrow();
+        assertThat(result.findings()).extracting(Finding::kind).doesNotContain(FindingKind.REQUIRED_ELEMENT_MISSING);
         assertThat(finding.title()).isEqualTo("The subscription names no url to call back");
         assertThat(finding.detail()).isEqualTo("The service has nowhere to send a notification, so none can arrive at this tool for this "
                 + "subscription. The setting onyx.subscription.callback-url is blank. Set it to the address at which the service can reach "
                 + "this tool's receiver, which ends in /api/pas/notifications, and send again. Until then, follow a request with an "
                 + "inquiry: that path needs no callback.");
         assertThat(finding.subject()).isEqualTo("channel.endpoint");
-        assertThat(ledger.only().findings()).containsExactly("REQUIRED_ELEMENT_MISSING");
+        assertThat(ledger.only().findings()).containsExactly("NO_CALLBACK_URL");
         // And the next step is to set it, not to wait for a notification that cannot come.
         assertThat(result.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
         assertThat(result.nextStep().headline()).isEqualTo("Next: set onyx.subscription.callback-url to an address the service can reach, then "
@@ -317,13 +319,14 @@ class SubscriptionServiceTest {
         // An update that names no receiver says the same, and is not reported as done with nothing left to do.
         RunEnvelope<SubscriptionDetail> updated = service(mockClient, "mock", Map.of()).run(UPDATE, about(ID).build(), RunOrigin.manual(), null);
         assertThat(updated.verdict().outcomeCode()).isEqualTo("UPDATED");
-        assertThat(updated.findings()).extracting(Finding::kind).containsExactly(FindingKind.REQUIRED_ELEMENT_MISSING);
+        assertThat(updated.findings()).extracting(Finding::kind).containsExactly(FindingKind.NO_CALLBACK_URL);
+        assertThat(ledger.last().findings()).containsExactly("NO_CALLBACK_URL");
         assertThat(updated.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
         assertThat(updated.nextStep().reason()).startsWith("The subscription was updated without a url to call back, so no notification can "
                 + "reach this tool.");
-        // With a receiver named, a create leads on to a submission and an update is complete.
+        // With a receiver named, a create leads on to a submission and an update is complete: nothing further, and no journey ended.
         assertThat(run(CREATE, request().build()).nextStep().action()).isEqualTo(NextAction.START_PAS);
-        assertThat(run(UPDATE, about(ID).build()).nextStep().action()).isEqualTo(NextAction.FLOW_ENDS);
+        assertThat(run(UPDATE, about(ID).build()).nextStep().action()).isEqualTo(NextAction.NOTHING_FURTHER);
         // A read sends no subscription, so it has nothing to say about a receiver.
         assertThat(service(mockClient, "mock", Map.of()).run(GET, about(ID).build(), RunOrigin.manual(), null).findings()).isEmpty();
     }
@@ -377,7 +380,15 @@ class SubscriptionServiceTest {
         assertThat(ledger.records()).extracting(RunRecord::operation).containsExactly(GET, GET, UPDATE, DELETE);
         assertThat(ledger.records()).extracting(RunRecord::outcome).containsExactly("READ", "LISTED", "UPDATED", "DELETED");
         assertThat(ledger.records()).extracting(RunRecord::httpStatus).containsExactly(200, 200, 200, 204);
-        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsOnly("FLOW_ENDS");
+        // After each of the four there is nothing to do, and none of them is the end of a case's journey.
+        for (RunEnvelope<SubscriptionDetail> done : List.of(read, list, updated, deleted)) {
+            assertThat(done.nextStep().action()).as(done.verdict().outcomeCode()).isEqualTo(NextAction.NOTHING_FURTHER);
+        }
+        assertThat(read.nextStep().headline()).isEqualTo("Nothing follows from a read. Record this result.");
+        assertThat(list.nextStep().headline()).isEqualTo("Nothing follows from a read. Record this result.");
+        assertThat(updated.nextStep().headline()).isEqualTo("The update is done. Record this result.");
+        assertThat(deleted.nextStep().headline()).isEqualTo("The subscription is gone. Record this result.");
+        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsOnly("NOTHING_FURTHER");
         assertThat(ledger.records()).extracting(RunRecord::unrecordedInputs).containsExactly(List.of(), List.of(), List.of(RunRecord.INPUT_RUN_VALUES),
                 List.of());
         // Each line about one subscription names it. A list names none.
@@ -720,8 +731,10 @@ class SubscriptionServiceTest {
 
         RunEnvelope<SubscriptionDetail> noReceiver = run(CREATE, request().rawBody("{\"resourceType\":\"Subscription\",\"channel\":{\"type\":\"rest-hook\"}}")
                 .build());
-        assertThat(noReceiver.findings()).singleElement().satisfies(finding ->
-                assertThat(finding.detail()).contains("The body you supplied names no channel.endpoint"));
+        assertThat(noReceiver.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.kind()).isEqualTo(FindingKind.NO_CALLBACK_URL);
+            assertThat(finding.detail()).contains("The body you supplied names no channel.endpoint");
+        });
         // The fix is in the body they wrote. The setting this tool reads its receiver from had no part in it.
         assertThat(noReceiver.nextStep().action()).isEqualTo(NextAction.FIX_REQUEST);
         assertThat(noReceiver.nextStep().headline()).isEqualTo("Next: add channel.endpoint to the body you supplied, then update this "

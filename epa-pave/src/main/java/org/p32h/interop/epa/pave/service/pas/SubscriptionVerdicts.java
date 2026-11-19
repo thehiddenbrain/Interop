@@ -131,12 +131,14 @@ public final class SubscriptionVerdicts {
                     : new NextStepView(NextAction.START_PAS, "Next: submit a prior authorization request. The service notifies a "
                     + "subscription's receiver when the status of a request changes.",
                     "The subscription exists. A notification about a request arrives only after a request is submitted.", carry);
-            case READ, LISTED -> new NextStepView(NextAction.FLOW_ENDS, "Nothing follows from a read. Record this result.",
+            // After a read, a list, an update and a delete there is nothing to do. None of them is the end of
+            // a case's journey, which is what FLOW_ENDS says, so none of them says that.
+            case READ, LISTED -> new NextStepView(NextAction.NOTHING_FURTHER, "Nothing follows from a read. Record this result.",
                     "The call read what the service holds and changed nothing.", carry);
             case UPDATED -> Texts.present(callbackProblem) ? noReceiver("updated", callbackProblem, ownBody, carry)
-                    : new NextStepView(NextAction.FLOW_ENDS, "The update is done. Record this result.",
+                    : new NextStepView(NextAction.NOTHING_FURTHER, "The update is done. Record this result.",
                     "The service accepted the new state of the subscription.", carry);
-            case DELETED -> new NextStepView(NextAction.FLOW_ENDS, "The subscription is gone. Record this result.",
+            case DELETED -> new NextStepView(NextAction.NOTHING_FURTHER, "The subscription is gone. Record this result.",
                     "The service accepted the delete, so there is nothing further to do with this subscription.", carry);
             case NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the subscription id. The list shows the ids the service knows.",
                     "The service does not know the id that was asked for. The environment answered normally.", carry);

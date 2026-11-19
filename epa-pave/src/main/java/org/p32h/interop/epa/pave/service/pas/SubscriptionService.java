@@ -224,7 +224,8 @@ public class SubscriptionService {
 
         List<Finding> findings = new ArrayList<>();
         if (sendsBody && callbackProblem != null) {
-            findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING, "The subscription names no url to call back",
+            // Its own kind: this is about what was sent, and no element is missing from the response.
+            findings.add(new Finding(FindingKind.NO_CALLBACK_URL, "The subscription names no url to call back",
                     "The service has nowhere to send a notification, so none can arrive at this tool for this subscription. "
                             + callbackProblem + " Until then, follow a request with an inquiry: that path needs no callback.",
                     "channel.endpoint", null, null));

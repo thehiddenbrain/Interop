@@ -19,6 +19,19 @@ public enum FindingKind {
     CODE_LIST_NOT_COMPARED,
     /** A notification arrived that matches no subscription this tool knows of. It is recorded and shown, never dropped. */
     UNMATCHED_NOTIFICATION,
+    /**
+     * A notification arrived and could not be checked against the ledger, in whole or in part:
+     * the ledger could not be asked which run created the subscription it names, or which
+     * submission it is about. A run it belongs to may exist. Without this, a notification with no
+     * link would read as one that was checked and matched nothing, which is not known.
+     */
+    UNCHECKED_NOTIFICATION,
+    /**
+     * A subscription was sent that names no url to call back, so the service has nowhere to send
+     * a notification and none can arrive at this tool for it. This is about what was sent, not
+     * about an element missing from a response, which is {@link #REQUIRED_ELEMENT_MISSING}.
+     */
+    NO_CALLBACK_URL,
     /** The call completed but took longer than the configured threshold. */
     SLOW_RESPONSE,
     /**
