@@ -37,7 +37,6 @@ export function createRunView(app, context) {
         openId = runId;
         const status = el('p', {class: 'readout__status', role: 'status', aria: {live: 'polite'}}, 'Reading run ' + runId + ' from the ledger.');
         fill(node, backLink(), status);
-        context.health.refresh();
         const [answer] = await Promise.all([api.get('/api/runs/' + encodeURIComponent(runId)), context.ready()]);
         if (openId !== runId) {
             // Another run was opened while this answer was on its way. The later choice stands.
@@ -45,6 +44,7 @@ export function createRunView(app, context) {
         }
         if (answer.kind !== 'ok') {
             status.textContent = answer.body.title;
+            status.classList.add('visually-hidden');
             fill(node, backLink(), status, errorPanel(answer.body),
                 answer.status === 404 ? el('p', null, 'A run that the ledger did not record is not here, though its result showed a run id. '
                     + 'The result said NOT recorded, with the reason, where it was made.') : null);

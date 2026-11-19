@@ -24,6 +24,11 @@ export function chainLink(chainId, label) {
     return el('a', {href: '#history/chains/' + encodeURIComponent(chainId), class: 'history-link'}, label || code(chainId, 'literal--id'));
 }
 
+/** A link to the runs of one chain in the Runs view. */
+export function chainRunsLink(chainId, label) {
+    return el('a', {href: '#history/runs?chainId=' + encodeURIComponent(chainId), class: 'history-link'}, label);
+}
+
 /** A link to the runs of one suite run in the Runs view. It works after a restart, because the ledger keeps them. */
 export function suiteRunsLink(suiteRunId, label) {
     return el('a', {href: '#history/runs?suiteRunId=' + encodeURIComponent(suiteRunId), class: 'history-link'},

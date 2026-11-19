@@ -76,7 +76,7 @@ function whyCell(entry, vocabulary) {
         differences.length > 0 ? differenceTable(differences, entry, vocabulary) : null,
         (entry.notRecorded || []).map(text => el('div', {class: 'ledger--missing small'}, el('strong', null, 'NOT recorded. '), text)),
         !entry.reason && differences.length === 0 && entry.status === 'same'
-            ? el('span', {class: 'quiet'}, 'Everything the ledger compares came back the same.') : null
+            ? el('span', {class: 'quiet small'}, 'Same in everything the ledger compares.') : null
     ];
 }
 

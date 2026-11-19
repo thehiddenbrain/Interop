@@ -56,13 +56,15 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
     gap: var(--gap-2) var(--gap-3);
-    align-items: end;
+    align-items: start;
 }
 
 /* The buttons take the last two cells of the row the filters are on, and wrap under them when there is no room. */
 .history-filters__buttons {
     grid-column: span 2;
     flex-wrap: nowrap;
+    align-self: start;
+    margin-top: 19px;
 }
 
 .history-status {

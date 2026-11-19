@@ -11,6 +11,7 @@ import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButt
 import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {outcome, stamp, slowFlag} from './marks.js';
 import {errorPanel} from './result.js';
+import {runLink, suiteRunsLink} from './history-common.js';
 
 const POLL_MILLIS = 1000;
 
@@ -43,7 +44,7 @@ const COUNT_FILTERS = [
     ['notRecorded', 'Runs NOT recorded', row => (row.notRecorded || []).length > 0]
 ];
 
-export function createSuites(app) {
+export function createSuites(app, health) {
     let run = null;            // the suite run on screen, with its rows
     let filter = null;         // {key, label, test} or null for every row
     let timer = null;
@@ -224,9 +225,9 @@ export function createSuites(app) {
         drawRun();
         if (run.counts.notRecorded > 0) {
             app.ledgerProblem('A suite run has runs the ledger did not keep.');
-        } else if (run.counts.done > 0) {
-            // The suite view carries no count of today's runs, so the indicator says recorded and no more.
-            app.ledgerReceipt({recorded: true});
+        } else if (run.counts.done > 0 && health) {
+            // The suite view carries no count of today's runs. The ledger's own health answer does, and it updates the indicator.
+            health.refresh();
         }
         if (run.state === 'RUNNING') {
             follow();
@@ -274,7 +275,8 @@ export function createSuites(app) {
 
         const about = el('div', {class: 'facts-pair'},
             facts([
-                ['Suite run', [code(run.suiteRunId), ' ', copyButton('Copy suite run id', () => run.suiteRunId)]],
+                ['Suite run', [code(run.suiteRunId), ' ', copyButton('Copy suite run id', () => run.suiteRunId),
+                    el('div', {class: 'small'}, suiteRunsLink(run.suiteRunId, 'List its runs in Runs'), ', where the ledger keeps them after a restart')]],
                 ['File', [run.name, run.format ? ' (' + run.format + ')' : null]],
                 ['Ran against', [environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment',
                     ', ', run.mode, ' profile, target ', run.target]]
@@ -361,13 +363,12 @@ export function createSuites(app) {
         }
         // A row that was not sent says so here in the server's sentence, with the reason. It has no
         // outcome and no test result, so it cannot be read as a failure.
-        // Until the Runs view exists the run id is text to copy. Seam: make it a link to History, Runs, by run id.
         cells.push([
             el('div', {class: row.status && row.status !== 'COMPLETED' ? 'suite-status suite-status--unsent' : 'suite-status'}, row.statusLine),
             row.reason ? el('div', null, row.reason) : null,
             (row.notes || []).map(text => el('div', {class: 'small quiet'}, text)),
             (row.notRecorded || []).map(text => el('div', {class: 'ledger--missing small'}, el('strong', null, 'NOT recorded. '), text)),
-            (row.runIds || []).map(id => el('div', {class: 'suite-run-id'}, code(id, 'literal--id'), ' ', copyButton('Copy', () => id)))
+            (row.runIds || []).map(id => el('div', {class: 'suite-run-id'}, runLink(id), ' ', copyButton('Copy', () => id)))
         ]);
         return tableRow({cells, class: row.changed === true ? 'suite-row suite-row--changed' : 'suite-row'});
     }
@@ -409,12 +410,13 @@ export function createSuites(app) {
             value: item.suiteRunId, label: item.name + ', ' + whenText(item.startedAt) + ': ' + item.headline
         }))));
         if (runs.length === 0) {
-            fill(earlier, el('p', {class: 'quiet'}, 'None yet. The tool holds its latest suite runs until it restarts; every case stays in the ledger.'));
+            fill(earlier, el('p', {class: 'quiet'}, 'None since the tool started. The tool holds its latest ten suite runs only until it restarts. '
+                + 'Every case of an earlier suite run is still in the ledger: on Runs, give its suite run id in the Suite run id filter.'));
             return;
         }
         fill(earlier, el('ul', {class: 'suite-list'}, runs.map(item => el('li', null,
             button(item.name, () => open(item.suiteRunId, false), {class: 'button--text'}),
-            el('div', {class: 'small quiet'}, when(item.startedAt)),
+            el('div', {class: 'small quiet'}, when(item.startedAt), ' ', suiteRunsLink(item.suiteRunId, 'its runs')),
             el('div', {class: 'small'}, item.headline)))));
     }
 

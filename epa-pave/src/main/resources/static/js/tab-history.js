@@ -47,8 +47,8 @@ const context = {
 
 function mount(panel, application) {
     app = application;
-    suites = createSuites(app);
     context.health = createHealth(app);
+    suites = createSuites(app, context.health);
     runs = createRunsList(app, context);
     runView = createRunView(app, context);
     readVocabulary();
@@ -81,6 +81,10 @@ function readVocabulary() {
 
 function showView(view, argument, query) {
     current = view;
+    if (view !== 'runs') {
+        // The Runs view reads the health with its list. Any other view brings the masthead indicator up to date here.
+        context.health.refresh();
+    }
     for (const control of nodes.switcher.children) {
         const selected = control.id === 'view-' + view;
         control.setAttribute('aria-selected', selected ? 'true' : 'false');
@@ -153,7 +157,7 @@ function chainsView() {
         fill(list, el('ul', {class: 'chain-rows'}, chains.map(chain => {
             const latest = (chain.stages || []).map(stage => stage.latest).filter(Boolean).pop();
             return el('li', {class: 'chain-row', dataset: {chain: chain.chainId}},
-                button(chain.member ? ['Member ', code(chain.member)] : ['Chain ', code(chain.chainId)],
+                button(chain.member ? ['Member, as recorded: ', code(chain.member)] : ['Chain ', code(chain.chainId)],
                     () => { open(chain.chainId); app.addressChanged(); }, {class: 'button--text'}),
                 el('div', {class: 'small quiet'}, when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs',
                     chain.procedureCodes && chain.procedureCodes.length > 0
@@ -187,6 +191,8 @@ function chainsView() {
             return;
         }
         status.textContent = answer.kind === 'ok' ? 'Chain read from the ledger. ' + answer.body.headline : answer.body.title;
+        // The headline is drawn beneath. The line is for a screen reader, so it is not shown twice.
+        status.classList.toggle('visually-hidden', answer.kind === 'ok');
         fill(detail, status, answer.kind === 'ok' ? chainView(answer.body) : errorPanel(answer.body));
     }
 

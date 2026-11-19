@@ -49,7 +49,7 @@ export function createHealth(app) {
         if (health.lastError) {
             const recovered = health.lastWriteAt && health.lastErrorAt && Date.parse(health.lastWriteAt) > Date.parse(health.lastErrorAt);
             problems.push([count(health.failedWrites) + (health.failedWrites === 1 ? ' write has' : ' writes have') + ' failed since the tool started.',
-                ['The latest failure was at ', when(health.lastErrorAt), '. The ledger said: ', el('q', null, health.lastError), ' ',
+                ['The latest failure was at ', when(health.lastErrorAt), '. The ledger said:', el('blockquote', null, health.lastError),
                     recovered ? ['A later write, at ', when(health.lastWriteAt), ', succeeded. '] : null,
                     'A run that was not recorded is not in this list. Its result said so, with the message above, where it was made: '
                     + 'note its run id from there if you need it.']]);
@@ -62,9 +62,9 @@ export function createHealth(app) {
             problems.push([count(health.unreadableLines) + (health.unreadableLines === 1 ? ' line' : ' lines') + ' of the ledger could not be read.',
                 'They are left out of this list and out of the export. The files themselves are not changed: look at them in the folder below.']);
         }
-        const where = el('p', {class: 'small quiet'}, 'Writing to ', code(health.directory || 'no folder stated'),
+        const where = el('p', {class: 'small quiet'}, health.enabled ? 'Writing to ' : 'The ledger folder is ', code(health.directory || 'no folder stated'),
             health.currentFile ? [', today in ', code(health.currentFile)] : null, '.',
-            health.lastWriteAt ? [' Last written ', when(health.lastWriteAt), '.'] : ' Nothing written since the tool started.');
+            health.lastWriteAt ? [' Last written ', when(health.lastWriteAt), '.'] : (health.enabled ? ' Nothing written since the tool started.' : null));
         if (problems.length === 0) {
             fill(node, el('div', {class: 'history-health__ok'},
                 el('p', null, el('strong', null, 'Tracking is on.'), ' ',
@@ -80,5 +80,10 @@ export function createHealth(app) {
             where));
     }
 
-    return {node, refresh, current: () => last};
+    /** True when the last answer reported anything that keeps runs out of the list. */
+    function troubled() {
+        return Boolean(last) && (!last.enabled || !last.writable || Boolean(last.lastError) || last.unreadableLines > 0);
+    }
+
+    return {node, refresh, current: () => last, troubled};
 }

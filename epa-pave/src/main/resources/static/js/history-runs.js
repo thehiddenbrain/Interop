@@ -137,7 +137,8 @@ export function createRunsList(app, context) {
         const mine = asked;
         list.setAttribute('aria-busy', 'true');
         status.textContent = 'Reading the ledger.';
-        const [answer] = await Promise.all([api.get('/api/runs?' + sent.toString()), context.ready()]);
+        // The health is read with the list, so an empty list can say whether the ledger itself is in trouble.
+        const [answer] = await Promise.all([api.get('/api/runs?' + sent.toString()), context.ready(), context.health.refresh()]);
         if (mine !== asked) {
             // A later choice of filters was made while this answer was on its way. The later one stands.
             return;
@@ -157,13 +158,17 @@ export function createRunsList(app, context) {
             return;
         }
         drawStatus(answer.body, query);
-        drawActions(query);
+        if (answer.body.count > 0) {
+            drawActions(query);
+        } else {
+            clear(actions);
+        }
         drawList(answer.body.runs || [], query);
     }
 
     function drawStatus(body, query) {
         const active = FILTERS.filter(([name]) => query.get(name));
-        const matched = body.truncated
+        const matched = body.count === 0 ? [el('strong', null, '0'), ' runs match.'] : body.truncated
             ? ['Showing the newest ', el('strong', null, count(body.count)), ' runs. More runs match: the ledger stopped at the limit and did not count the rest. '
                 + 'Choose "Every match" under How many, or narrow the filters, to see them.']
             : [el('strong', null, count(body.count)), body.count === 1 ? ' run matches' : ' runs match',
@@ -258,7 +263,10 @@ export function createRunsList(app, context) {
         if (runs.length === 0) {
             const filtered = FILTERS.some(([name]) => query.get(name));
             fill(list, el('div', {class: 'empty-state'},
-                el('p', {class: 'empty-state__lead'}, filtered ? 'No run matches these filters.' : 'The ledger holds no run yet.'),
+                el('p', {class: 'empty-state__lead'}, filtered ? 'No run matches these filters.'
+                    : context.health.troubled() ? 'The ledger lists no run.' : 'The ledger holds no run yet.'),
+                !filtered && context.health.troubled()
+                    ? el('p', null, 'The ledger reports a problem, above. Runs it could not write, and lines it could not read, are not in this list.') : null,
                 el('p', null, filtered
                     ? 'Remove a filter above, or widen the dates. A run the ledger did not record is not here at all: see the state of the ledger above.'
                     : 'Send a request from the CRD, DTR or PAS tab, or run a suite. Every run is recorded here as it is made.')));
@@ -299,7 +307,6 @@ export function createRunsList(app, context) {
         node,
         /** Shows the list for the filters in the address. */
         show(query) {
-            context.health.refresh();
             load(query || new URLSearchParams());
         },
         /** The filters of the list on screen, for the address. */
