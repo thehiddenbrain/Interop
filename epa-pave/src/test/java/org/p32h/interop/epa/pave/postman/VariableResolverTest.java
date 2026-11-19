@@ -405,6 +405,20 @@ class VariableResolverTest {
     }
 
     @Test
+    void aSecretIsMaskedHoweverItsNameIsWrittenAndALabelIsNot() {
+        Resolution resolution = resolveInEnvironment("{{clientsecret}}|{{ACCESSTOKEN}}|{{token2}}|{{JSESSIONID}}|{{tokenUrl}}|{{keyId}}",
+                "clientsecret", "hunter2-a", "ACCESSTOKEN", "hunter2-b", "token2", "hunter2-c", "JSESSIONID", "hunter2-d",
+                "tokenUrl", "https://auth.example.invalid/token", "keyId", "key-7");
+
+        // No separator, all capitals, a trailing digit: each still reads as a credential. A locator and a label do not.
+        assertThat(resolution.display()).isEqualTo("[secret clientsecret]|[secret ACCESSTOKEN]|[secret token2]|[secret JSESSIONID]"
+                + "|https://auth.example.invalid/token|key-7");
+        assertThat(resolution.send()).isEqualTo("hunter2-a|hunter2-b|hunter2-c|hunter2-d|https://auth.example.invalid/token|key-7");
+        assertThat(resolution.variables()).filteredOn(VariableUse::secret).extracting(VariableUse::name)
+                .containsExactly("clientsecret", "ACCESSTOKEN", "token2", "JSESSIONID");
+    }
+
+    @Test
     void aSecretReachedThroughAnotherVariableIsMaskedThere() {
         Resolution resolution = resolveInEnvironment("{{greeting}}", "greeting", "Bearer {{accessToken}} for {{clientId}}",
                 "accessToken", "hunter2-nested", "clientId", "pave-client");

@@ -685,6 +685,28 @@ class ConfigStoreTest {
         assertThat(restarted.store.snapshot().environments()).hasSize(1);
     }
 
+    @Test
+    void aFileTheStoreDoesNotUseIsReportedAndLeftAlone() throws IOException {
+        ConfigFixture first = ConfigFixture.mock(directory);
+        first.environment(PostmanFiles.SANDBOX_ENVIRONMENT, EnvironmentKind.SANDBOX);
+        assertThat(first.store.problems()).isEmpty();
+        // What a crash between writing an upload and committing it leaves behind: a whole file that nothing names.
+        Path stray = directory.resolve(ConfigStore.COLLECTIONS).resolve("onyx-sandbox-epa-1a2b3c4d-9f8e7d6c.json");
+        Files.write(stray, PostmanFiles.bytes(PostmanFiles.VENDOR_COLLECTION));
+
+        ConfigFixture restarted = ConfigFixture.mock(directory);
+
+        assertThat(restarted.store.problems()).containsExactly("The file " + stray + " is in the configuration store and nothing uses it. "
+                + "It can be left over from an upload that did not finish, and it may hold credentials. Delete it by hand.");
+        assertThat(restarted.service.effective(null).problems()).hasSize(1);
+        // It is not loaded as a collection, and it is not deleted.
+        assertThat(restarted.store.snapshot().collections()).isEmpty();
+        assertThat(Files.exists(stray)).isTrue();
+
+        Files.delete(stray);
+        assertThat(restarted.store.problems()).isEmpty();
+    }
+
     // ------------------------------------------------------------------------------------------
     // config-store.active-environment
     // ------------------------------------------------------------------------------------------

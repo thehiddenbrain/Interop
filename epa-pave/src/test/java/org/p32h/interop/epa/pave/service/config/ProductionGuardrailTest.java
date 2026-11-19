@@ -298,6 +298,39 @@ class ProductionGuardrailTest {
     }
 
     @Test
+    void aReadThatAsksTheFarSideToActWithAnotherMethodIsJudgedByTheMethodItAsksFor() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = production(profile, true);
+            StoredCollection overrides = fixture.collectionOf("Overrides", items(
+                    item("subscription-get with an override", "GET", "{{baseUrl}}/Subscription/{{subscriptionId}}").header("X-HTTP-Method-Override", "DELETE"),
+                    item("subscription-get with a harmless override", "GET", "{{baseUrl}}/Subscription/{{subscriptionId}}").header("x-http-method-override", "get"),
+                    item("inquiry with an override", "POST", "{{baseUrl}}/Claim/$inquire").header("X-Method-Override", "{{overrideMethod}}"),
+                    item("inquiry with its own method", "POST", "{{baseUrl}}/Claim/$inquire").header("X-HTTP-Method", "POST")));
+
+            // Sent as a GET, and a delete to any server that honours the header.
+            ProdWriteBlockedException refusal = blocked(fixture, CallIntent.of(EpaOperation.SUBSCRIPTION_GET)
+                    .withRequest(ref(overrides, "subscription-get with an override")));
+            assertThat(refusal.method()).as(profile).isEqualTo("GET");
+            assertThat(refusal.getMessage()).as(profile).endsWith("It counts as a write because its header X-HTTP-Method-Override asks the "
+                    + "far side to act on it as DELETE.");
+            // An override to a method that cannot change state changes nothing, and neither does one to the operation's own method.
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.SUBSCRIPTION_GET).withRequest(ref(overrides, "subscription-get with a harmless override")))
+                    .method()).as(profile).isEqualTo("GET");
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_INQUIRE).withRequest(ref(overrides, "inquiry with its own method")))
+                    .method()).as(profile).isEqualTo("POST");
+
+            // The method arrives through a placeholder. Until it has a value it is not taken for harmless.
+            CallIntent byPlaceholder = CallIntent.of(EpaOperation.PAS_INQUIRE).withRequest(ref(overrides, "inquiry with an override"));
+            assertThat(blocked(fixture, byPlaceholder).getMessage()).as(profile).endsWith("It counts as a write because its header "
+                    + "X-Method-Override asks the far side to act with another method, and that method has no value yet.");
+            assertThat(blocked(fixture, byPlaceholder.withRunValues(Map.of("overrideMethod", "put"))).getMessage()).as(profile)
+                    .endsWith("asks the far side to act on it as PUT.");
+            assertThat(fixture.gateway.prepare(byPlaceholder.withRunValues(Map.of("overrideMethod", "POST"))).headers().get(0).value())
+                    .as(profile).isEqualTo("POST");
+        }
+    }
+
+    @Test
     void routeTwoACorrectionCanNeverTurnADetectedWriteIntoARead() {
         for (String profile : PROFILES) {
             ConfigFixture fixture = production(profile, true);

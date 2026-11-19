@@ -113,6 +113,8 @@ public class ConfigStore {
     private final ConfigStoreProperties properties;
     private final Clock clock;
     private final Path directory;
+    /** Files that were in the two upload directories at startup and that the state file did not name. */
+    private final List<Path> strays;
     private volatile ConfigSnapshot current;
 
     /**
@@ -133,6 +135,12 @@ public class ConfigStore {
         }
         prepareDirectories();
         ConfigSnapshot loaded = load();
+        this.strays = strays(loaded);
+        if (!strays.isEmpty()) {
+            // A count and the directory. The Config tab names each file.
+            log.warn("The configuration store at {} holds {} file(s) that it does not use. They may hold credentials from an upload "
+                    + "that did not finish. The Config tab lists them.", directory, strays.size());
+        }
 
         String wanted = Texts.trimToNull(properties.activeEnvironment());
         String active = loaded.activeName();
@@ -175,17 +183,62 @@ public class ConfigStore {
     }
 
     /**
-     * What is wrong with the configuration as it stands, in words, for the Config tab. Today there
-     * is one such thing: {@code config-store.active-environment} names an environment that has not
-     * been uploaded.
+     * What is wrong with the configuration as it stands, in words, for the Config tab:
+     * {@code config-store.active-environment} names an environment that has not been uploaded, or
+     * the store directory holds a file the store does not use.
      */
     List<String> problems() {
+        ConfigSnapshot snapshot = current;
+        List<String> problems = new ArrayList<>();
         String wanted = Texts.trimToNull(properties.activeEnvironment());
-        if (wanted != null && current.byName(wanted) == null) {
-            return List.of("config-store.active-environment names \"" + wanted + "\", which is not in the configuration store, so it "
+        if (wanted != null && snapshot.byName(wanted) == null) {
+            problems.add("config-store.active-environment names \"" + wanted + "\", which is not in the configuration store, so it "
                     + "was not activated at startup. Upload an environment with exactly that name and activate it, or clear the property.");
         }
-        return List.of();
+        if (!strays.isEmpty()) {
+            Set<Path> used = used(snapshot);
+            for (Path stray : strays) {
+                // An upload of the same file since startup gives it the same name, and then it is in use.
+                if (!used.contains(stray) && Files.exists(stray)) {
+                    problems.add("The file " + stray + " is in the configuration store and nothing uses it. It can be left over from an "
+                            + "upload that did not finish, and it may hold credentials. Delete it by hand.");
+                }
+            }
+        }
+        return problems;
+    }
+
+    private Set<Path> used(ConfigSnapshot snapshot) {
+        Set<Path> used = new HashSet<>();
+        snapshot.environments().forEach(environment -> used.add(directory.resolve(environment.file()).normalize()));
+        snapshot.collections().forEach(collection -> used.add(directory.resolve(collection.file()).normalize()));
+        return used;
+    }
+
+    /**
+     * The files in the two upload directories that the loaded state does not name. A crash between
+     * writing an uploaded file and committing the state leaves one behind, and so does a file that
+     * could not be deleted when it was replaced. They are reported and left alone: this tool
+     * deletes only what it knows it wrote and no longer needs.
+     */
+    private List<Path> strays(ConfigSnapshot loaded) {
+        Set<Path> used = used(loaded);
+        List<Path> found = new ArrayList<>();
+        for (String each : List.of(ENVIRONMENTS, COLLECTIONS)) {
+            try (DirectoryStream<Path> files = Files.newDirectoryStream(directory.resolve(each))) {
+                for (Path file : files) {
+                    Path normal = file.normalize();
+                    if (Files.isRegularFile(normal) && !used.contains(normal)) {
+                        found.add(normal);
+                    }
+                }
+            } catch (IOException | RuntimeException e) {
+                // The path only.
+                log.warn("The configuration store could not list {}", directory.resolve(each));
+            }
+        }
+        found.sort(null);
+        return List.copyOf(found);
     }
 
     // ------------------------------------------------------------------------------------------
