@@ -28,7 +28,8 @@ export function openLegend(dialog) {
 
             el('div', null,
                 group('Where the tool is pointed', null, [
-                    row(el('span', {class: 'kind kind--prod'}, 'prod'), 'Production. A solid purple banner stays at the top of every tab and says whether writes are locked.'),
+                    row(el('span', {class: 'kind kind--prod'}, 'prod'),
+                        'Production. A solid purple banner stays at the top of every tab and says whether writes are locked.'),
                     row(el('span', {class: 'kind kind--uat'}, 'uat'), 'UAT. A banner in purple outline stays at the top of every tab.'),
                     row(mockMark(), 'The mock profile. A scenario file answered in place of the service, and nothing left this machine.')
                 ]),

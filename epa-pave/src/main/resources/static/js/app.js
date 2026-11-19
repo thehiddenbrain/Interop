@@ -24,13 +24,12 @@ const TAB_KEY = 'pave.tab';
 const POLL_MILLIS = 4000;
 
 const state = {
-    mode: null,          // the last answer of /api/mode that was drawn
-    active: null,        // the id of the tab on screen
-    mounted: new Map(),  // tab id -> {tab, panel, button}
-    handovers: new Map(),// tab id -> what the previous step handed on
-    configListeners: [],
+    mode: null,           // the last answer of /api/mode that was drawn
+    active: null,         // the id of the tab on screen
+    tabs: new Map(),      // tab id -> {tab, panel, control, built}
+    handovers: new Map(), // tab id -> what the previous step handed on
     pollFailed: false,
-    ledger: null
+    ledger: null          // what the ledger did with the latest run this page knows of
 };
 
 const app = {
@@ -63,13 +62,21 @@ const app = {
         state.ledger = {recorded: false, message};
         drawStrip();
     },
+    /** Lets a tab update the address when it changes view, so the back button and a reload return to it. */
+    addressChanged() {
+        const address = '#' + addressOf(state.active);
+        if (window.location.hash !== address) {
+            window.history.replaceState(null, '', address);
+        }
+    },
+    /** The case shared by the protocol tabs, and the chain it is followed under. Set at start-up. */
     caseContext: null,
     chain: null
 };
 
 async function start() {
     document.getElementById('legend-open').addEventListener('click', () => openLegend(document.getElementById('legend')));
-    app.caseContext = createCaseContext(app);
+    app.caseContext = createCaseContext();
     app.chain = createChain(app, document.getElementById('chain-bar'));
 
     const first = await api.get('/api/mode');
@@ -81,7 +88,7 @@ async function start() {
     drawFrame();
     buildTabs();
     const wanted = tabFromAddress() || rememberedTab() || TABS[0].id;
-    showTab(state.mounted.has(wanted.split('/')[0]) ? wanted : TABS[0].id, {replace: true});
+    showTab(state.tabs.has(wanted.split('/')[0]) ? wanted : TABS[0].id, {replace: true});
     if (state.pollFailed) {
         serverSilent(first.body);
     }
@@ -123,10 +130,14 @@ async function poll(announceSame) {
     if (recovered) {
         app.clearNotices();
     }
-    if (changed && before) {
-        notice('The configuration changed. ' + environmentSentence(answer.body) + ' Every tab now shows it.');
-        for (const entry of state.mounted.values()) {
-            if (entry.tab.onConfigChange) {
+    if (changed) {
+        if (before) {
+            notice('The configuration changed. ' + environmentSentence(answer.body) + ' Every tab now shows it.');
+        }
+        // Every tab that has been drawn is redrawn now, whichever one is on screen. A tab that has
+        // not been opened yet draws from the new configuration when it is.
+        for (const entry of state.tabs.values()) {
+            if (entry.built && entry.tab.onConfigChange) {
                 entry.tab.onConfigChange(answer.body, before);
             }
         }
@@ -264,7 +275,7 @@ function buildTabs() {
         const panel = el('section', {id: 'panel-' + tab.id, role: 'tabpanel', hidden: true, aria: {labelledby: 'tab-' + tab.id}});
         list.append(control);
         main.append(panel);
-        state.mounted.set(tab.id, {tab, panel, control, built: false});
+        state.tabs.set(tab.id, {tab, panel, control, built: false});
     }
     list.addEventListener('keydown', event => {
         const ids = TABS.map(tab => tab.id);
@@ -282,18 +293,23 @@ function buildTabs() {
         if (next) {
             event.preventDefault();
             showTab(next);
-            state.mounted.get(next).control.focus();
+            state.tabs.get(next).control.focus();
         }
     });
 }
 
 function tabFromAddress() {
     const hash = window.location.hash.replace(/^#/, '');
-    return hash.length > 0 ? decodeURIComponent(hash) : null;
+    try {
+        return hash.length > 0 ? decodeURIComponent(hash) : null;
+    } catch (malformed) {
+        // An address typed or pasted wrongly is not an error to report. The first tab is shown.
+        return null;
+    }
 }
 
 function addressOf(tabId) {
-    const entry = state.mounted.get(tabId);
+    const entry = state.tabs.get(tabId);
     const view = entry && entry.tab.address ? entry.tab.address() : null;
     return view ? tabId + '/' + view : tabId;
 }
@@ -317,11 +333,11 @@ function rememberTab(tabId) {
 /** Shows a tab. target is a tab id, optionally followed by a slash and a view inside the tab. */
 function showTab(target, options) {
     const [tabId, ...rest] = String(target).split('/');
-    const entry = state.mounted.get(tabId);
+    const entry = state.tabs.get(tabId);
     if (!entry) {
         return;
     }
-    for (const other of state.mounted.values()) {
+    for (const other of state.tabs.values()) {
         const selected = other === entry;
         other.control.setAttribute('aria-selected', selected ? 'true' : 'false');
         other.control.tabIndex = selected ? 0 : -1;
@@ -352,13 +368,5 @@ function navigate(target) {
     document.getElementById('main').focus({preventScroll: true});
     window.scrollTo(0, 0);
 }
-
-/** Lets a tab update the address when it changes view, so the back button and a reload return to it. */
-app.addressChanged = () => {
-    const address = '#' + addressOf(state.active);
-    if (window.location.hash !== address) {
-        window.history.replaceState(null, '', address);
-    }
-};
 
 start();

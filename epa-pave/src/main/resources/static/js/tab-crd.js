@@ -1,32 +1,35 @@
 // The CRD tab: is prior authorization required for this member and this code, and where does it route.
 //
 // On the left, the case and what to send. On the right, the readout: the request before it is
-// sent, what discovery returned, and the result of the latest run. The result is drawn by the
-// shared result view with the CRD part passed in; nothing about a result is decided here.
+// sent, what discovery returned, and the result of the latest run. The panes, the sending and the
+// handling of every kind of answer come from the workbench, and the result is drawn by the shared
+// result view. What is CRD's own is in this file: the hook, the mock scenario, the expectation,
+// discovery, and the words before the first run.
 
 import * as api from './api.js';
-import {el, fill, clear, append, button, code, facts, table, heading, copyButton} from './dom.js';
-import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
-import {renderResult, errorPanel, wireView, additionalFieldsSection} from './result.js';
+import {el, fill, clear, button, code, facts, table, heading} from './dom.js';
+import {textField, selectField, setOptions} from './forms.js';
+import {errorPanel, wireView, additionalFieldsSection} from './result.js';
+import {createWorkbench, requestPreviewPanel} from './workbench.js';
 import {crdDetail} from './crd-detail.js';
 import {shown, presenceMark} from './shown.js';
-import {resultWord} from './marks.js';
 
 let app = null;
-let panel = null;
-let caseSlot = null;
+let bench = null;
+// What the scenarios endpoint serves: the mock scenarios, every outcome with its label and tone,
+// and the element names an expectation may assert on. Nothing of it is kept in this file.
 let vocabulary = {outcomes: new Map(), elements: [], scenarios: null};
-let busy = false;
 
-// The controls of the request itself. The case (member, provider, codes) is shared and sits above them.
 const controls = {};
-// The parts of the readout, top to bottom.
-const readout = {};
+const slots = {};
 
-function mount(target, application) {
+function mount(panel, application) {
     app = application;
-    panel = target;
-    caseSlot = el('div', {class: 'case-slot'});
+    bench = createWorkbench(app, panel, {
+        formLabel: 'The case and the CRD request',
+        readoutLabel: 'The readout: the request, discovery and the result',
+        onSubmit: send
+    });
 
     controls.hookSign = el('input', {type: 'radio', name: 'crd-hook', id: 'crd-hook-sign', value: 'order-sign', checked: true});
     controls.hookSelect = el('input', {type: 'radio', name: 'crd-hook', id: 'crd-hook-select', value: 'order-select'});
@@ -37,71 +40,40 @@ function mount(target, application) {
     controls.expectedText = el('p', {class: 'small', id: 'crd-expected-sent'});
     controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
     controls.note = textField({label: 'Note', field: 'note', wide: true});
-    controls.problem = el('div', {class: 'crd-problem'});
     controls.send = el('button', {type: 'submit', class: 'button button--primary'}, 'Send CRD request');
     controls.preview = button('Show the request', showPreview);
     controls.discover = button('Discover the CDS services this environment offers', discover, {class: 'button--text'});
 
-    const form = el('form', {class: 'case-pane', noValidate: true, attrs: {'aria-label': 'The case and the CRD request'}},
-        el('div', {class: 'case-pane__scroll'},
-            caseSlot,
-            el('div', {class: 'case-group case-pane__own'},
-                el('h2', {class: 'case-legend'}, 'CRD request'),
-                el('div', {class: 'field field--inline', role: 'radiogroup', dataset: {field: 'hook'}, aria: {labelledby: 'crd-hook-label'}},
-                    el('span', {class: 'field__label', id: 'crd-hook-label'}, 'Hook'),
-                    el('div', null,
-                        el('label', {class: 'choice', htmlFor: 'crd-hook-sign'}, controls.hookSign, code('order-sign')),
-                        el('label', {class: 'choice', htmlFor: 'crd-hook-select'}, controls.hookSelect, code('order-select')))),
-                el('div', {class: 'field-grid'},
-                    controls.date.node,
-                    controls.testerRef.node,
-                    controls.scenarioSlot,
-                    controls.note.node),
-                el('p', null, controls.discover))),
-        // What the tester expects is the last thing set before sending, so it sits with the
-        // button and is in view however far the case above it has been scrolled.
-        el('div', {class: 'case-pane__actions'},
-            controls.expected.node,
-            el('details', {class: 'fold'},
-                el('summary', null, 'Assert standard codes as well'),
-                controls.assertions),
-            controls.expectedText,
-            controls.problem,
-            el('div', {class: 'button-row'}, controls.send, controls.preview)));
-    form.addEventListener('submit', event => {
-        event.preventDefault();
-        send();
-    });
-    form.addEventListener('input', event => {
-        // A field that was refused is unmarked as soon as the tester changes it.
-        const field = event.target.closest('.field--invalid');
-        if (field) {
-            field.classList.remove('field--invalid');
-            field.querySelectorAll('.field__error').forEach(message => message.remove());
-            event.target.removeAttribute('aria-invalid');
-        }
-        drawExpectedText();
-    });
-    form.addEventListener('change', drawExpectedText);
+    bench.own.append(
+        el('h2', {class: 'case-legend'}, 'CRD request'),
+        el('div', {class: 'field field--inline', role: 'radiogroup', dataset: {field: 'hook'}, aria: {labelledby: 'crd-hook-label'}},
+            el('span', {class: 'field__label', id: 'crd-hook-label'}, 'Hook'),
+            el('div', null,
+                el('label', {class: 'choice', htmlFor: 'crd-hook-sign'}, controls.hookSign, code('order-sign')),
+                el('label', {class: 'choice', htmlFor: 'crd-hook-select'}, controls.hookSelect, code('order-select')))),
+        el('div', {class: 'field-grid'}, controls.date.node, controls.testerRef.node, controls.scenarioSlot, controls.note.node),
+        el('p', null, controls.discover));
+    // What the tester expects is the last thing set before sending, so it sits with the button
+    // and is in view however far the case above it has been scrolled.
+    bench.actions.append(
+        controls.expected.node,
+        el('details', {class: 'fold'}, el('summary', null, 'Assert standard codes as well'), controls.assertions),
+        controls.expectedText,
+        bench.problem,
+        el('div', {class: 'button-row'}, controls.send, controls.preview));
+    bench.track(controls.send, controls.preview, controls.discover);
+    bench.form.addEventListener('input', drawExpectedText);
+    bench.form.addEventListener('change', drawExpectedText);
 
-    readout.status = el('p', {class: 'readout__status', role: 'status', aria: {live: 'polite'}});
-    readout.refusal = el('div', {class: 'readout__refusal', aria: {live: 'polite'}});
-    readout.preview = el('div', {class: 'readout__preview', aria: {live: 'polite'}});
-    readout.discovery = el('div', {class: 'readout__discovery', aria: {live: 'polite'}});
-    readout.result = el('div', {class: 'readout__result', aria: {busy: 'false'}});
-    const side = el('div', {class: 'readout', role: 'region', tabIndex: 0, aria: {label: 'The readout: the request, discovery and the result'}},
-        readout.status, readout.refusal, readout.preview, readout.discovery, readout.result);
-
-    panel.classList.add('tabpanel--workbench');
-    fill(panel, el('div', {class: 'workbench'}, form, side));
+    slots.preview = bench.slot('preview');
+    slots.discovery = bench.slot('discovery');
     addAssertionRow();
     drawEmptyState();
     loadVocabulary();
 }
 
 function onShow() {
-    // The one case node moves to whichever protocol tab is on screen.
-    caseSlot.append(app.caseContext.node, app.chain.control);
+    bench.showCase();
 }
 
 /* ---------- the vocabulary: scenarios, outcomes and element names, all fetched ---------- */
@@ -109,7 +81,7 @@ function onShow() {
 async function loadVocabulary() {
     const answer = await api.get('/api/crd/scenarios');
     if (answer.kind !== 'ok') {
-        fill(readout.refusal, errorPanel(answer.body));
+        bench.refuse(answer.body);
         return;
     }
     const list = answer.body;
@@ -125,15 +97,15 @@ async function loadVocabulary() {
     }
     drawScenarioSelector(list);
     drawExpectedText();
-    if (!readout.result.querySelector('.result')) {
+    if (!bench.hasResult()) {
         drawEmptyState();
     }
 }
 
 /**
- * The scenario selector exists on the mock profile only. On live the node is not built at all:
- * a control that could force an outcome must not be one stylesheet rule away from a tester who
- * is talking to the real service.
+ * The scenario selector exists on the mock profile only. On live it is not built at all: a
+ * control that could force an outcome must not be one stylesheet rule away from a tester who is
+ * talking to the real service.
  */
 function drawScenarioSelector(list) {
     clear(controls.scenarioSlot);
@@ -216,7 +188,7 @@ function drawExpectedText() {
     fill(controls.expectedText, text === '' ? null : ['Sent as ', code(text)]);
 }
 
-/* ---------- the request ---------- */
+/* ---------- sending ---------- */
 
 function buildRequest() {
     const request = {hook: controls.hookSelect.checked ? 'order-select' : 'order-sign', ...app.caseContext.request()};
@@ -239,175 +211,39 @@ function buildRequest() {
     return request;
 }
 
-function setBusy(state, control) {
-    busy = state;
-    for (const each of [controls.send, controls.preview, controls.discover]) {
-        each.disabled = state;
-    }
-    if (control) {
-        control.setAttribute('aria-busy', state ? 'true' : 'false');
-    }
-    readout.result.setAttribute('aria-busy', state ? 'true' : 'false');
-}
-
-function clearProblems() {
-    clearFieldErrors(panel);
-    clear(controls.problem);
-    clear(readout.refusal);
-}
-
-function refuseForm(error) {
-    const unplaced = markFieldErrors([panel], error.fieldErrors);
-    fill(controls.problem, formProblem(error, unplaced));
-}
-
 async function send() {
-    if (busy) {
-        return;
-    }
-    clearProblems();
-    clear(readout.preview);
-    setBusy(true, controls.send);
-    readout.status.textContent = 'Sending the CRD request.';
-    const answer = await api.postJson('/api/crd', buildRequest());
-    setBusy(false, controls.send);
-    if (answer.kind === 'ok' || answer.kind === 'result') {
-        showResult(answer.body);
-    } else if (answer.kind === 'form') {
-        // A form problem is marked at the fields. The result of the earlier run stays where it is.
-        refuseForm(answer.body);
-        readout.status.textContent = answer.body.title;
-    } else {
-        refused(answer);
+    const answer = await bench.call(() => api.postJson('/api/crd', buildRequest()), {saying: 'Sending the CRD request.', control: controls.send});
+    if (answer) {
+        // The request that went out is in the wire view of the result, so the one shown beforehand is put away.
+        clear(slots.preview);
+        bench.showResult(answer.body, {detailTitle: 'CRD response detail', detail: envelope => crdDetail(envelope, vocabulary)});
     }
 }
-
-/** An answer that is neither a result nor a form problem: the tool would not or could not do it. */
-function refused(answer) {
-    fill(readout.refusal, errorPanel(answer.body));
-    readout.status.textContent = answer.body.title;
-    if (answer.kind === 'conflict') {
-        // The usual cause is that the configuration changed under this screen. Reading the mode
-        // again redraws every tab if it did, and then the tester can send again.
-        app.refreshMode();
-    }
-}
-
-function showResult(envelope) {
-    const node = renderResult(envelope, {
-        detailTitle: 'CRD response detail',
-        detail: result => crdDetail(result, vocabulary),
-        nextStepControl
-    });
-    fill(readout.result, node);
-    readout.result.closest('.readout').scrollTop = 0;
-    readout.status.textContent = 'Result received. ' + envelope.verdict.headline + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
-    // A result has arrived under the configuration now in force, so a notice about the change has done its work.
-    app.clearNotices();
-    app.ledgerReceipt(envelope.ledger);
-    app.chain.onResult(envelope);
-}
-
-/** The button a result offers when its next step is something this tool can do from here. */
-function nextStepControl(step, envelope) {
-    const carryTo = tabId => () => {
-        app.handOver(tabId, {carry: step.carry || {}, fromRunId: envelope.runId, fromProtocol: envelope.protocol, chainId: envelope.chainId});
-        app.navigate(tabId);
-    };
-    if (step.action === 'START_DTR') {
-        return {label: 'Continue in DTR', run: carryTo('dtr')};
-    }
-    if (step.action === 'START_PAS') {
-        return {label: 'Continue in PAS', run: carryTo('pas')};
-    }
-    if (step.action === 'OPEN_CONFIG' || step.action === 'UNLOCK_OR_SWITCH') {
-        return {label: 'Open the Config tab', run: () => app.navigate('config')};
-    }
-    return null;
-}
-
-/* ---------- the request before it is sent ---------- */
 
 async function showPreview() {
-    if (busy) {
-        return;
+    const answer = await bench.call(() => api.postJson('/api/crd/preview', buildRequest()),
+        {saying: 'Building the request. Nothing is sent.', control: controls.preview});
+    if (answer) {
+        fill(slots.preview, requestPreviewPanel(answer.body, () => clear(slots.preview)));
+        bench.say('The request is shown. Nothing was sent.');
     }
-    clearProblems();
-    setBusy(true, controls.preview);
-    readout.status.textContent = 'Building the request. Nothing is sent.';
-    const answer = await api.postJson('/api/crd/preview', buildRequest());
-    setBusy(false, controls.preview);
-    if (answer.kind === 'form') {
-        refuseForm(answer.body);
-        readout.status.textContent = answer.body.title;
-        return;
-    }
-    if (answer.kind !== 'ok') {
-        refused(answer);
-        return;
-    }
-    const preview = answer.body;
-    const url = preview.url || {};
-    const body = preview.body === undefined || preview.body === null ? null
-        : el('pre', {class: 'body-text', tabIndex: 0, aria: {label: 'The request body as it would be sent'}}, preview.body);
-    const node = el('section', {class: 'panel'},
-        el('div', {class: 'panel__head'},
-            heading(2, 'The request as it would be sent'),
-            button('Close', () => clear(readout.preview), {class: 'button--quiet button--small'})),
-        el('p', {class: 'quiet'}, 'Nothing was sent and nothing was recorded.'),
-        preview.blocked ? el('div', {class: 'error-panel error-panel--blocked'}, el('p', {class: 'error-panel__title'}, preview.blocked)) : null,
-        facts([
-            ['Operation', [code(preview.operation), preview.method ? [' with ', code(preview.method)] : null]],
-            ['Url as configured', url.template ? code(url.template) : presenceMark('EMPTY')],
-            ['Url it resolves to', url.display ? code(url.display) : el('span', {class: 'presence presence--none'}, 'none')],
-            ['Where the url comes from', url.source || null],
-            ['Placeholders with no value', url.unresolved && url.unresolved.length > 0
-                ? el('strong', null, url.unresolved.map((name, index) => [index > 0 ? ', ' : null, code('{{' + name + '}}')])) : null],
-            ['Environment', preview.environment && preview.environment.active
-                ? preview.environment.name + ' (' + preview.environment.kind + ')' : 'none active'],
-            ['Collection request', preview.requestName ? [preview.requestName, preview.scripted
-                ? el('div', null, el('span', {class: 'flag'}, 'pre-request script'), ' This request carries a script that this tool does not run.') : null] : null],
-            ['Member ID', preview.memberId ? (preview.memberId.changed
-                ? ['Typed as ', code(preview.memberId.typed), ' and sent as ', code(preview.memberId.sent), '.']
-                : ['Sent as typed: ', code(preview.memberId.sent), '.']) : null]
-        ], 'facts--ruled'),
-        url.variables && url.variables.length > 0
-            ? table(['Placeholder', 'Value shown', 'Comes from'], url.variables.map(variable => [
-                code('{{' + variable.name + '}}'),
-                variable.display === undefined ? presenceMark('ABSENT') : [code(variable.display), variable.secret ? ' (masked: a secret)' : null],
-                code(variable.source)]), {class: 'thirds'})
-            : null,
-        preview.notes && preview.notes.length > 0 ? el('ul', {class: 'note-list'}, preview.notes.map(note => el('li', null, note))) : null,
-        body ? el('div', {class: 'raw-body'},
-            el('div', {class: 'panel__head'}, el('span', {class: 'sub-heading'}, 'Request body'),
-                copyButton('Copy request body', () => body.textContent, body)),
-            body) : null);
-    fill(readout.preview, node);
-    readout.status.textContent = 'The request is shown. Nothing was sent.';
 }
 
 /* ---------- discovery ---------- */
 
 async function discover() {
-    if (busy) {
-        return;
-    }
-    clearProblems();
-    setBusy(true, controls.discover);
-    readout.status.textContent = 'Asking the service which CDS services it offers.';
-    const answer = await api.get('/api/crd/discover');
-    setBusy(false, controls.discover);
-    if (answer.kind !== 'ok') {
-        refused(answer);
+    const answer = await bench.call(() => api.get('/api/crd/discover'),
+        {saying: 'Asking the service which CDS services it offers.', control: controls.discover});
+    if (!answer) {
         return;
     }
     const found = answer.body;
     const services = found.services || [];
     const url = found.url || {};
-    const node = el('section', {class: 'panel'},
+    fill(slots.discovery, el('section', {class: 'panel'},
         el('div', {class: 'panel__head'},
             heading(2, 'CDS Hooks discovery', services.length),
-            button('Close', () => clear(readout.discovery), {class: 'button--quiet button--small'})),
+            button('Close', () => clear(slots.discovery), {class: 'button--quiet button--small'})),
         found.note ? el('p', null, el('strong', null, found.note)) : null,
         facts([
             ['Url as configured', url.template ? code(url.template) : presenceMark('EMPTY')],
@@ -427,9 +263,8 @@ async function discover() {
             ])),
         found.error ? errorPanel(found.error) : null,
         additionalFieldsSection(found.additionalFields || []),
-        el('section', {class: 'result__section'}, wireView(found.wire)));
-    fill(readout.discovery, node);
-    readout.status.textContent = 'Discovery answered with ' + services.length + (services.length === 1 ? ' service.' : ' services.');
+        el('section', {class: 'result__section'}, wireView(found.wire))));
+    bench.say('Discovery answered with ' + services.length + (services.length === 1 ? ' service.' : ' services.'));
 }
 
 /* ---------- before the first run ---------- */
@@ -454,7 +289,7 @@ function drawEmptyState() {
                 : null
         ]), {class: 'sentinels'}));
     }
-    fill(readout.result, el('div', {class: 'empty-state'}, parts));
+    bench.showEmpty(el('div', {class: 'empty-state'}, parts));
 }
 
 /* ---------- when the configuration changes ---------- */
@@ -462,14 +297,8 @@ function drawEmptyState() {
 function onConfigChange() {
     // The request shown was built for the configuration that is gone. A refusal stays: it is
     // usually the very answer that said the configuration had changed, and it says what to do.
-    clear(readout.preview);
-    const result = readout.result.querySelector('.result');
-    if (result && !result.querySelector('.result__stale')) {
-        // The result stays, because the tester may still be reading it. It is marked, so it is
-        // not taken for an answer from the configuration now in force.
-        result.prepend(el('p', {class: 'result__stale'},
-            'This result was produced before the configuration changed. It does not describe the environment now active.'));
-    }
+    clear(slots.preview);
+    bench.markStale();
     loadVocabulary();
 }
 

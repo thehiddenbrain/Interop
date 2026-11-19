@@ -75,33 +75,3 @@ export function shownList(values, options) {
     }
     return el('ul', {class: 'plain-list'}, values.map(value => el('li', null, shown(value, options))));
 }
-
-/**
- * A coded element: the code as returned, then what the tool says it means. The code is the
- * answer QA signs off against, so it leads. A code the tool does not recognise is still shown,
- * and is marked so it cannot be read past.
- */
-export function coded(value) {
-    if (!value || value.presence === undefined || value.presence !== 'VALUE') {
-        return presenceMark(value && value.presence !== undefined ? value.presence : 'ABSENT');
-    }
-    const parts = [code(String(value.code))];
-    if (value.display) {
-        parts.push(' ', el('span', {class: 'coded__display'}, value.display));
-    }
-    if (value.recognised === false) {
-        parts.push(' ', el('span', {class: 'flag flag--unrecognised'}, 'not a code this tool knows'));
-    }
-    return el('span', {class: 'coded' + (value.recognised === false ? ' coded--unrecognised' : '')}, parts);
-}
-
-/** A list of coded elements, or the words for none. */
-export function codedList(values) {
-    if (!Array.isArray(values) || values.length === 0) {
-        return el('span', {class: 'presence presence--none', title: 'The response carried none of these.'}, 'none returned');
-    }
-    if (values.length === 1) {
-        return coded(values[0]);
-    }
-    return el('ul', {class: 'plain-list'}, values.map(value => el('li', null, coded(value))));
-}

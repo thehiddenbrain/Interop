@@ -11,7 +11,8 @@
 //                      is configured for the operation, or something else is running. body says
 //                      which in words, and the caller re-reads /api/mode
 //   kind 'error'       any other answer. body is the shared error shape
-//   kind 'unreachable' no answer at all: the tool is not running, or the network call failed
+//   kind 'unreachable' no answer at all: the tool is not running, or the connection was lost. Whether
+//                      a request reached the server before that is not known
 //
 // body is always an object. When the server did not send the error shape, one is made here that
 // says what the browser saw, so a caller can render body.title and body.action without checking.
@@ -50,8 +51,10 @@ async function send(path, options) {
             kind: 'unreachable',
             status: 0,
             body: {
-                title: 'This page could not reach the PAVE server.',
-                action: 'Check that the tool is still running in its terminal window, then try again. Nothing was sent.',
+                // The page cannot know how far a request got before the connection was lost, so it does not say.
+                title: 'This page could not reach the PAVE server, or lost it before an answer arrived.',
+                action: 'Check that the tool is still running in its terminal window. If a run was on its way, it may or may not '
+                    + 'have been made: look for it in the ledger before sending it again.',
                 fieldErrors: [],
                 issues: []
             }

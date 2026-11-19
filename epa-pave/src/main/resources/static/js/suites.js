@@ -56,9 +56,9 @@ export function createSuites(app) {
     const compare = selectField({label: 'Compare with an earlier run', field: 'compareWith', options: [{value: '', label: 'No comparison'}],
         hint: 'Each case then shows what it produced last time.'});
     const start = button('Run suite', startRun, {class: 'button--primary', disabled: true});
-    const problem = el('div');
+    const problem = el('div', {aria: {live: 'polite'}});
     const previewBox = el('div', {class: 'suite-preview', aria: {live: 'polite'}});
-    const earlier = el('div', {class: 'suite-earlier'});
+    const earlier = el('div', {class: 'suite-earlier', aria: {live: 'polite'}});
     const runBox = el('div', {class: 'suite-run'});
 
     // The results table needs the whole width of the window, so this view is one column: what to

@@ -7,7 +7,7 @@
 // "history/runs/<runId>" wherever one is shown as text to copy (suites.js, chain.js, result.js).
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, heading, when} from './dom.js';
+import {el, fill, clear, button, code, when} from './dom.js';
 import {textField, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {chainView} from './chain.js';
 import {createSuites} from './suites.js';
@@ -123,16 +123,19 @@ function chainsView() {
                 button(chain.member ? ['Member ', code(chain.member)] : ['Chain ', code(chain.chainId)],
                     () => { open(chain.chainId); app.addressChanged(); }, {class: 'button--text'}),
                 el('div', {class: 'small quiet'}, when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs',
-                    chain.procedureCodes && chain.procedureCodes.length > 0 ? [', codes ', chain.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null),
+                    chain.procedureCodes && chain.procedureCodes.length > 0
+                        ? [', codes ', chain.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null),
                 el('div', {class: 'small'}, latest ? outcome(chain.headline, latest.tone) : chain.headline));
         })));
     }
 
     async function open(chainId) {
         openChainId = chainId;
-        fill(detail, el('p', {class: 'readout__status'}, 'Reading the chain from the ledger.'));
+        const status = el('p', {class: 'readout__status', role: 'status', aria: {live: 'polite'}}, 'Reading the chain from the ledger.');
+        fill(detail, status);
         const answer = await api.get('/api/chains/' + encodeURIComponent(chainId));
-        fill(detail, answer.kind === 'ok' ? chainView(answer.body) : errorPanel(answer.body));
+        status.textContent = answer.kind === 'ok' ? 'Chain read from the ledger. ' + answer.body.headline : answer.body.title;
+        fill(detail, status, answer.kind === 'ok' ? chainView(answer.body) : errorPanel(answer.body));
         for (const row of list.querySelectorAll('.chain-row')) {
             row.classList.remove('chain-row--open');
         }
