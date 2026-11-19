@@ -1,1 +1,135 @@
 /* case: the rules of one part of the interface, kept apart from pave.css so that two people can work on two parts at once. */
+
+/*
+ * The case shared by the protocol tabs: the lookups, the procedure code picker, a request of the
+ * tester's own and the values for one run. No colour is introduced here. Cream is the mark
+ * pave.css already gives to test data typed by hand and to a service that does not know the
+ * member, and everything else is ink: a heavy rule for what must be read before sending, a
+ * dashed outline where nothing is there.
+ */
+
+/* ---------- an identifier and the button that looks it up ---------- */
+
+.field__row {
+    display: flex;
+    align-items: stretch;
+    gap: var(--gap-2);
+}
+
+.field__row > input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* The button is as tall as the input beside it, so the two read as one line. */
+.field__row > .button {
+    flex: none;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+/* ---------- how a lookup ended, under the identifier ---------- */
+
+.lookup-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: var(--gap-1);
+    padding: 1px 0 2px var(--gap-3);
+    border-left: 1px solid var(--line);
+}
+
+.lookup-strip__state {
+    color: var(--ink-strong);
+}
+
+.lookup-strip__rest {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-1);
+    font-size: var(--text-small);
+}
+
+.lookup-strip__rest:empty {
+    display: none;
+}
+
+.lookup-strip .error-panel {
+    padding: var(--gap-2) var(--gap-3);
+}
+
+/* What a lookup said that must be read before the case is sent. The heavy rule is the one a refused field wears. */
+.attention-list li, .lookup-strip__before {
+    padding-left: var(--gap-2);
+    border-left: 4px solid var(--ink-strong);
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.before-sending {
+    max-height: 7.5rem;
+    overflow-y: auto;
+    padding-left: var(--gap-2);
+    border-left: 4px solid var(--ink-strong);
+    font-size: var(--text-small);
+    color: var(--ink-strong);
+}
+
+.before-sending__title {
+    font-weight: 600;
+}
+
+/* ---------- where the value of a detail came from ---------- */
+
+.field__origin {
+    font-size: var(--text-small);
+    line-height: 1.25;
+    color: var(--ink-soft);
+}
+
+.field__origin:empty {
+    display: none;
+}
+
+.field--byhand .field__origin {
+    color: var(--ink-strong);
+}
+
+/* ---------- an identifier with its spaces in view ---------- */
+
+.literal--spaced {
+    white-space: pre-wrap;
+}
+
+/*
+ * One space, drawn as an open box on the baseline. The space itself is inside it, so what is
+ * copied from the screen is the identifier as it was typed.
+ */
+.space-mark {
+    display: inline-block;
+    width: 0.62em;
+    height: 0.42em;
+    margin: 0 1px;
+    border: 1px solid var(--ink-soft);
+    border-top: 0;
+    overflow: hidden;
+    vertical-align: baseline;
+}
+
+/* ---------- everything a lookup returned, in the readout ---------- */
+
+.case-detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-5);
+}
+
+.lookup-panel:empty {
+    display: none;
+}
+
+/* The panel takes the focus when it opens, so that it is read. It is not a control, and shows no ring. */
+.case-detail .panel:focus {
+    outline: none;
+}

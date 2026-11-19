@@ -4,15 +4,24 @@
 // There is one case in the page and one node that shows it. The tab on screen takes the node, so
 // what was typed on CRD is what DTR and PAS show and send.
 //
+// A member and a provider are each looked up by their identifier, when the tester leaves the
+// field or asks for it. What the lookup returns fills the details, and every detail says where
+// its value came from: the lookup, or the tester's own hand. A request carries exactly what is
+// on screen, so a detail changed by hand goes out as changed, and is named as an override.
+//
 // Nothing here is written to any browser storage, and nothing is remembered between page loads:
-// no recent members, no history of what was typed. A reload starts with an empty case.
+// no recent members, no history of what was typed, no lookup kept. A reload starts with an empty
+// case.
 
 import {el, button, code} from './dom.js';
-import {textField} from './forms.js';
+import {textField, markFieldErrors, unmark} from './forms.js';
+import {createLookup} from './lookup.js';
 
-// The fields of a member and of a provider that this pass shows and sends. A request carries
+// The fields of a member and of a provider that the form shows and sends. A request carries
 // exactly what is on screen, so a field is sent only if it is listed here and holds something.
-// The first of each is the identifier a lookup works from; the rest are details.
+// The first of each is the identifier a lookup works from; the rest are details, and they are
+// the details the request builders use. What else a lookup returns is shown with the lookup and
+// is not sent, because no request has a place for it.
 const MEMBER_FIELDS = [
     {name: 'memberId', label: 'Member ID', literal: true, wide: true, identifier: true},
     {name: 'firstName', label: 'First name'},
@@ -20,13 +29,16 @@ const MEMBER_FIELDS = [
     {name: 'dateOfBirth', label: 'Date of birth', placeholder: 'YYYY-MM-DD'},
     {name: 'gender', label: 'Gender', suggestions: ['female', 'male', 'other', 'unknown']},
     {name: 'lineOfBusiness', label: 'Line of business'},
-    {name: 'subscriberId', label: 'Subscriber ID', literal: true}
+    {name: 'subscriberId', label: 'Subscriber ID', literal: true},
+    {name: 'planName', label: 'Plan'},
+    {name: 'coverageStatus', label: 'Coverage status'}
 ];
 
 const PROVIDER_FIELDS = [
-    {name: 'npi', label: 'NPI', literal: true, identifier: true, inputMode: 'numeric'},
+    {name: 'npi', label: 'NPI', literal: true, wide: true, identifier: true, inputMode: 'numeric'},
     {name: 'firstName', label: 'First name'},
-    {name: 'lastName', label: 'Last name'}
+    {name: 'lastName', label: 'Last name'},
+    {name: 'organizationName', label: 'Organization'}
 ];
 
 const CODE_SEPARATORS = /[\s,;|]+/;
@@ -34,10 +46,28 @@ const CODE_SEPARATORS = /[\s,;|]+/;
 export function createCaseContext() {
     const listeners = [];
     const changed = () => listeners.forEach(listener => listener());
+    let epochSeen = null;
 
-    const member = group('member', MEMBER_FIELDS, changed);
-    const provider = group('provider', PROVIDER_FIELDS, changed);
+    // Hidden while it shows nothing, so that it takes no room among the things the tab shows.
+    const detail = el('div', {class: 'case-detail', hidden: true});
+    const panelChanged = section => {
+        detail.hidden = detail.querySelector('.panel') === null;
+        if (section) {
+            section.scrollIntoView({block: 'start'});
+            section.focus({preventScroll: true});
+        }
+    };
+
+    const member = group({
+        prefix: 'member', fields: MEMBER_FIELDS, changed, panelChanged,
+        subject: 'member', identifier: 'member ID', address: '/api/members/', record: 'member', refusedAs: 'memberId'
+    });
+    const provider = group({
+        prefix: 'provider', fields: PROVIDER_FIELDS, changed, panelChanged,
+        subject: 'provider', identifier: 'NPI', address: '/api/providers/', record: 'provider', refusedAs: 'npi'
+    });
     const codes = codeList(changed);
+    detail.append(member.lookup.panel, provider.lookup.panel);
 
     const node = el('div', {class: 'case'},
         el('fieldset', {class: 'case-group'}, el('legend', null, 'Member'),
@@ -51,19 +81,26 @@ export function createCaseContext() {
         node,
 
         /**
+         * Everything the latest lookups returned, when a tester asks to see it. There is one such
+         * node in the page, as there is one case. The tab on screen places it where there is room
+         * for a table and a wire view, which the case itself has not.
+         */
+        detail,
+
+        /**
          * What a run request needs from the case, in the names every protocol's request uses:
          * member, memberOverrides, provider, providerOverrides, procedureCodes.
          *
-         * The overrides name the details that were typed by hand. The ledger then records that the
-         * run used details a fresh lookup would not give back, so a replay does not claim to have
-         * sent the same thing.
+         * The overrides name the details that were typed or changed by hand. The ledger then
+         * records that the run used details a fresh lookup would not give back, so a replay does
+         * not claim to have sent the same thing.
          */
         request() {
             return {
                 member: member.values(),
-                memberOverrides: member.typedByHand(),
+                memberOverrides: member.byHand(),
                 provider: provider.values(),
-                providerOverrides: provider.typedByHand(),
+                providerOverrides: provider.byHand(),
                 procedureCodes: codes.values()
             };
         },
@@ -77,32 +114,41 @@ export function createCaseContext() {
             };
         },
 
-        /** Puts a member ID into the case, as when a tester picks a mock scenario's member. */
+        /** Puts a member ID into the case, as when a tester picks a mock scenario's member, and looks it up. */
         setMemberId(value) {
-            member.typed('memberId', value);
+            member.setIdentifier(value);
             changed();
         },
 
         /**
-         * Seam for the member lookup of the next pass: fills the member from what a lookup
-         * returned. Fields filled this way are not marked as typed by hand until the tester
-         * changes them. A field the lookup returned and this table does not list is not sent,
-         * so add it to MEMBER_FIELDS first.
+         * What a tester should look at before sending, in sentences: what a lookup said about a
+         * member or a provider it found, and a lookup that the environment now active did not answer.
+         * Each entry is {about, text}.
          */
-        fillMember(detail) {
-            member.fill(detail);
-            changed();
-        },
-
-        /** Seam for the provider lookup of the next pass. See fillMember. */
-        fillProvider(detail) {
-            provider.fill(detail);
-            changed();
+        attention() {
+            return member.attention().concat(provider.attention());
         },
 
         /**
-         * Seam for the procedure code type ahead of the next pass: adds one code as the picker
-         * returns it, {code, system, description}. Typing a code by hand calls the same function.
+         * Call when the configuration changes. A lookup on screen was answered by the environment
+         * that was active then, and says so from now on. Calling it twice for one epoch does nothing more.
+         */
+        configChanged(epoch) {
+            if (epoch === epochSeen) {
+                return;
+            }
+            const first = epochSeen === null;
+            epochSeen = epoch;
+            if (!first) {
+                member.madeBefore();
+                provider.madeBefore();
+                changed();
+            }
+        },
+
+        /**
+         * Seam for the procedure code type ahead: adds one code as the picker returns it,
+         * {code, system, description}. Typing a code by hand calls the same function.
          */
         addCode(entry) {
             codes.add(entry);
@@ -120,46 +166,160 @@ export function createCaseContext() {
     };
 }
 
-function group(prefix, fields, changed) {
+/**
+ * One identifier with the details that belong to it: the member, or the provider.
+ *
+ * spec: prefix (how the request names the group), fields, changed, and what the lookup needs:
+ * subject, identifier, address, record, refusedAs (the name a refused lookup gives the
+ * identifier) and panelChanged (called when what the lookup returned is shown or put away).
+ */
+function group(spec) {
     const controls = new Map();
     const nodes = [];
-    for (const spec of fields) {
-        const control = textField({...spec, field: prefix + '.' + spec.name});
-        control.spec = spec;
-        control.source = 'none';
-        control.input.addEventListener('input', () => {
-            control.source = control.value() === '' ? 'none' : 'hand';
-            mark(control);
-            changed();
-        });
-        controls.set(spec.name, control);
+    let identifier = null;
+
+    const lookup = createLookup({
+        subject: spec.subject, identifier: spec.identifier, address: spec.address, record: spec.record,
+        read: () => identifier.value(),
+        starting() {
+            unmark(identifier.node);
+            for (const control of details()) {
+                control.touched = false;
+            }
+        },
+        refused(fieldErrors, viaButton) {
+            // The server names the identifier the way its own address does. Here it is a field of the case.
+            markFieldErrors([identifier.node], fieldErrors.map(problem =>
+                (problem.field === spec.refusedAs ? {...problem, field: spec.prefix + '.' + identifier.spec.name} : problem)),
+                {focus: viaButton});
+        },
+        answered(answer) {
+            if (answer && answer.status === 'FOUND' && answer[spec.record]) {
+                fillFrom(answer[spec.record]);
+            } else {
+                release();
+            }
+            spec.changed();
+        },
+        panelChanged: spec.panelChanged
+    });
+
+    for (const field of spec.fields) {
+        const control = textField({...field, field: spec.prefix + '.' + field.name, beside: field.identifier ? lookup.control : null});
+        control.spec = field;
+        controls.set(field.name, control);
         nodes.push(control.node);
+        if (field.identifier) {
+            identifier = control;
+            control.node.append(lookup.strip);
+            control.input.addEventListener('input', () => {
+                unmark(control.node);
+                identifierChanged();
+                spec.changed();
+            });
+            // The lookup is made when the tester leaves the field, never for each key. Leaving it
+            // for the button beside it is left to the button, so the lookup is not made twice.
+            control.input.addEventListener('blur', event => {
+                if (event.relatedTarget !== lookup.control && control.value() !== '' && control.value() !== lookup.id()) {
+                    lookup.lookUp(false);
+                }
+            });
+            continue;
+        }
+        // What the lookup on screen gave for this detail, as text. Null while no lookup answer is in force.
+        control.given = null;
+        control.touched = false;
+        control.origin = el('span', {class: 'field__origin', id: control.input.id + '-origin'});
+        control.node.append(control.origin);
+        control.input.setAttribute('aria-describedby', [control.input.getAttribute('aria-describedby'), control.origin.id].filter(Boolean).join(' '));
+        control.input.addEventListener('input', () => {
+            control.touched = true;
+            mark(control);
+            spec.changed();
+        });
+    }
+    function details() {
+        return Array.from(controls.values()).filter(control => !control.spec.identifier);
     }
 
-    // Cream marks a detail typed by hand. The identifier is what a lookup starts from, so it is never marked.
+    /** Where the value of a detail came from: nowhere (it is empty), the lookup on screen, or the tester's hand. */
+    function sourceOf(control) {
+        const value = control.value();
+        if (control.given !== null) {
+            return value === control.given ? (value === '' ? 'none' : 'lookup') : 'hand';
+        }
+        return value === '' ? 'none' : 'hand';
+    }
+
+    // Cream marks a detail typed or changed by hand, and the words beneath it say which, so the
+    // mark does not rest on colour alone. The identifier is what a lookup starts from, so it is never marked.
     function mark(control) {
-        const byHand = control.source === 'hand' && !control.spec.identifier;
-        control.node.classList.toggle('field--byhand', byHand);
-        control.input.title = byHand ? 'Typed by hand. A lookup would not give this value back, and the ledger notes that.' : '';
+        const source = sourceOf(control);
+        const replaced = control.given !== null && control.given !== '';
+        control.node.classList.toggle('field--byhand', source === 'hand');
+        control.node.classList.toggle('field--fromlookup', source === 'lookup');
+        control.origin.textContent = source === 'lookup' ? 'from the lookup'
+            : source !== 'hand' ? ''
+                : !replaced ? 'typed by hand'
+                    : control.value() === '' ? 'cleared by hand, not sent' : 'changed by hand';
+        control.input.title = source !== 'hand' ? ''
+            : replaced ? 'Changed by hand. The lookup returned another value, and the ledger notes that the run used this one.'
+                : 'Typed by hand. A lookup would not give this value back, and the ledger notes that.';
+    }
+
+    /** Fills the details from the record a lookup found. A detail the tester edited while the answer was on its way keeps what they typed. */
+    function fillFrom(record) {
+        for (const control of details()) {
+            const returned = record[control.spec.name];
+            const text = returned === undefined || returned === null ? '' : String(returned).trim();
+            if (!control.touched) {
+                control.set(text);
+            }
+            control.given = text;
+            control.touched = false;
+            mark(control);
+        }
+    }
+
+    /**
+     * Lets go of what a lookup filled. A detail still holding the lookup's value is emptied: it
+     * described the identifier that was looked up, and that is no longer the answer on screen.
+     * A detail typed or changed by hand is the tester's own and stays.
+     */
+    function release() {
+        for (const control of details()) {
+            if (sourceOf(control) === 'lookup') {
+                control.set('');
+            }
+            control.given = null;
+            control.touched = false;
+            mark(control);
+        }
+    }
+
+    function identifierChanged() {
+        if (identifier.value() !== lookup.id()) {
+            lookup.forget();
+            release();
+        }
     }
 
     return {
         nodes,
+        lookup,
         get: name => controls.get(name).value(),
-        typed(name, value) {
-            const control = controls.get(name);
-            control.set(value);
-            control.source = control.value() === '' ? 'none' : 'hand';
-            mark(control);
-        },
-        fill(detail) {
-            for (const [name, control] of controls) {
-                const value = detail ? detail[name] : undefined;
-                control.set(value);
-                control.source = control.value() === '' ? 'none' : 'lookup';
-                mark(control);
+
+        /** Puts an identifier in the field, as typing it would, and looks it up. */
+        setIdentifier(value) {
+            identifier.set(value);
+            unmark(identifier.node);
+            lookup.forget();
+            release();
+            if (identifier.value() !== '') {
+                lookup.lookUp(false);
             }
         },
+
         /** Only what is on screen and not blank. A blank field is left out, never sent as an empty string. */
         values() {
             const out = {};
@@ -170,14 +330,24 @@ function group(prefix, fields, changed) {
             }
             return out;
         },
-        typedByHand() {
-            const names = [];
-            for (const [name, control] of controls) {
-                if (control.source === 'hand' && !control.spec.identifier && control.value() !== '') {
-                    names.push(name);
-                }
+
+        /** The details typed or changed by hand, by name: every one whose value is not what the lookup on screen gave. */
+        byHand() {
+            return details().filter(control => sourceOf(control) === 'hand').map(control => control.spec.name);
+        },
+
+        attention() {
+            const about = spec.subject.charAt(0).toUpperCase() + spec.subject.slice(1) + ' lookup';
+            const out = lookup.attention().map(text => ({about, text}));
+            if (lookup.outdated()) {
+                out.push({about, text: 'It was made before the configuration changed. The environment now active has not been asked.'});
             }
-            return names;
+            return out;
+        },
+
+        madeBefore() {
+            lookup.madeBefore('This lookup was made before the configuration changed. The environment now active has not been asked: '
+                + 'look the ' + spec.subject + ' up again.');
         }
     };
 }

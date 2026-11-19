@@ -13,10 +13,11 @@
 // The request before it is sent has one shape for every protocol, so its panel is here too.
 
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
-import {clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
+import {clearFieldErrors, markFieldErrors, formProblem, unmark} from './forms.js';
 import {renderResult, errorPanel} from './result.js';
 import {presenceMark} from './shown.js';
 import {resultWord} from './marks.js';
+import {idForms} from './lookup.js';
 
 /**
  * Builds the two panes into a tab panel.
@@ -33,7 +34,10 @@ export function createWorkbench(app, panel, spec) {
 
     const caseSlot = el('div', {class: 'case-slot'});
     const own = el('div', {class: 'case-group case-pane__own'});
-    const actions = el('div', {class: 'case-pane__actions'});
+    // What the lookups said that a tester should see before sending. It sits with the send button,
+    // which stays in view however far the case above it has been scrolled.
+    const beforeSending = el('div', {class: 'before-sending', hidden: true});
+    const actions = el('div', {class: 'case-pane__actions'}, beforeSending);
     const problem = el('div', {class: 'form-problem-slot'});
     const form = el('form', {class: 'case-pane', noValidate: true, attrs: {'aria-label': spec.formLabel}},
         el('div', {class: 'case-pane__scroll'}, caseSlot, own), actions);
@@ -53,14 +57,24 @@ export function createWorkbench(app, panel, spec) {
         // A field that was refused is unmarked as soon as the tester changes it.
         const field = event.target.closest('.field--invalid');
         if (field) {
-            field.classList.remove('field--invalid');
-            field.querySelectorAll('.field__error').forEach(message => message.remove());
-            event.target.removeAttribute('aria-invalid');
+            unmark(field);
         }
     });
 
     panel.classList.add('tabpanel--workbench');
     fill(panel, el('div', {class: 'workbench'}, form, readout));
+
+    function drawBeforeSending() {
+        const items = app.caseContext.attention();
+        beforeSending.hidden = items.length === 0;
+        fill(beforeSending, items.length === 0 ? null : [
+            el('p', {class: 'before-sending__title'}, 'Check before sending'),
+            el('ul', {class: 'plain-list'}, items.map(item => el('li', null, el('span', {class: 'quiet'}, item.about + ': '), item.text)))
+        ]);
+    }
+    app.caseContext.onChange(drawBeforeSending);
+    // The configuration this workbench starts under. A lookup made under it says so once it has changed.
+    app.caseContext.configChanged(app.epoch());
 
     function setBusy(state, control) {
         busy = state;
@@ -83,9 +97,15 @@ export function createWorkbench(app, panel, spec) {
         /** Where the summary of a refused form appears. The tab places it among its actions. */
         problem,
 
-        /** Places the shared case in this tab. Called whenever the tab is shown: there is one case node in the page. */
+        /**
+         * Places the shared case in this tab. Called whenever the tab is shown: there is one case
+         * node in the page. What the lookups returned goes with it, into the readout, where there
+         * is room for a table and a wire view.
+         */
         showCase() {
             caseSlot.append(app.caseContext.node, app.chain.control);
+            refusal.after(app.caseContext.detail);
+            drawBeforeSending();
         },
 
         /** Controls that cannot be used while a request is on its way. */
@@ -191,6 +211,8 @@ export function createWorkbench(app, panel, spec) {
                 shown.prepend(el('p', {class: 'result__stale'},
                     'This result was produced before the configuration changed. It does not describe the environment now active.'));
             }
+            // A lookup on screen was answered under the configuration that is gone, and says so too.
+            app.caseContext.configChanged(app.epoch());
         }
     };
     return bench;
@@ -249,9 +271,7 @@ export function requestPreviewPanel(preview, close) {
                 ? preview.environment.name + ' (' + preview.environment.kind + ')' : 'none active'],
             ['Collection request', preview.requestName ? [preview.requestName, preview.scripted
                 ? el('div', null, el('span', {class: 'flag'}, 'pre-request script'), ' This request carries a script that this tool does not run.') : null] : null],
-            ['Member ID', preview.memberId ? (preview.memberId.changed
-                ? ['Typed as ', code(preview.memberId.typed), ' and sent as ', code(preview.memberId.sent), '.']
-                : ['Sent as typed: ', code(preview.memberId.sent), '.']) : null]
+            ['Member ID', preview.memberId ? idForms(preview.memberId) : null]
         ], 'facts--ruled'),
         url.variables && url.variables.length > 0
             ? table(['Placeholder', 'Value shown', 'Comes from'], url.variables.map(variable => [
