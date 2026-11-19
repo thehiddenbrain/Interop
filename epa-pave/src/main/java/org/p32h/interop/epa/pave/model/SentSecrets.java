@@ -20,8 +20,9 @@ import java.util.Map;
  *
  * <p>A place repeats a secret when it holds the same characters, also where it writes some of them
  * as JSON escapes. A JSON body is where a secret usually comes back, and a JSON writer is free to
- * write a slash as {@code \/} or a plus sign as {@code +}. A secret that comes back changed in
- * any other way, such as percent-encoded or base64-encoded, is not found.
+ * write a slash as {@code \/}, or a plus sign as a backslash followed by {@code u002B}. A secret
+ * that comes back changed in any other way, such as percent-encoded or base64-encoded, is not
+ * found.
  *
  * <p>This holds real secret values. It is never serialised and never printed, and it has no method
  * that hands a value back: all it offers is to mask a text.

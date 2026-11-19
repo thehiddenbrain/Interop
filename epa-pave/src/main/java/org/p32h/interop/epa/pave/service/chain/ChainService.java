@@ -284,7 +284,7 @@ public class ChainService {
         return switch (action) {
             case START_DTR, ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE -> Protocol.DTR;
             case START_PAS, CHECK_STATUS -> Protocol.PAS;
-            // Neither names a stage. One says the journey is over, the other that the call left nothing to do in it.
+            // Neither names a stage. One says the journey is over, the other that nothing follows from the call.
             case FLOW_ENDS, NOTHING_FURTHER -> null;
             case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, REVIEW -> stage;
         };

@@ -20,10 +20,10 @@ public enum FindingKind {
     /** A notification arrived that matches no subscription this tool knows of. It is recorded and shown, never dropped. */
     UNMATCHED_NOTIFICATION,
     /**
-     * A notification arrived and could not be checked against the ledger, in whole or in part:
-     * the ledger could not be asked which run created the subscription it names, or which
-     * submission it is about. A run it belongs to may exist. Without this, a notification with no
-     * link would read as one that was checked and matched nothing, which is not known.
+     * What arrived at the notification receiver could not be checked against the ledger, in whole
+     * or in part: the ledger could not be asked which run created the subscription it names, or
+     * which submission it is about. A run it belongs to may exist. Without this, a notification
+     * with no link would read as one that was checked and matched nothing, which is not known.
      */
     UNCHECKED_NOTIFICATION,
     /**
