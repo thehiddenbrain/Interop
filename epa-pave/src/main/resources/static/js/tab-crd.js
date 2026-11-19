@@ -62,6 +62,8 @@ function mount(panel, application) {
         bench.problem,
         el('div', {class: 'button-row'}, controls.send, controls.preview));
     bench.track(controls.send, controls.preview, controls.discover);
+    bench.useOwnRequest({protocol: 'CRD', sendButton: controls.send, sendLabel: 'Send CRD request'});
+    bench.useRunValues({operation: () => 'crd-' + (controls.hookSelect.checked ? 'order-select' : 'order-sign')});
     bench.form.addEventListener('input', drawExpectedText);
     bench.form.addEventListener('change', drawExpectedText);
 
@@ -202,7 +204,7 @@ function drawExpectedText() {
 /* ---------- sending ---------- */
 
 function buildRequest() {
-    const request = {hook: controls.hookSelect.checked ? 'order-select' : 'order-sign', ...app.caseContext.request()};
+    const request = {hook: controls.hookSelect.checked ? 'order-select' : 'order-sign', ...app.caseContext.request(), ...bench.requestFields()};
     const optional = {
         dateOfService: controls.date.value(),
         scenarioId: controls.scenario ? controls.scenario.value() : '',

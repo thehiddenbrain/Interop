@@ -11,6 +11,16 @@
 //   anything else                                the server's sentence in the error panel
 //
 // The request before it is sent has one shape for every protocol, so its panel is here too.
+//
+// Two parts a tab switches on with one call each, and never copies:
+//
+//   bench.useOwnRequest({protocol, sendButton, sendLabel})   a choice between the body this tool
+//       builds from the form and a request of the tester's own, pasted into a box
+//   bench.useRunValues({operation})   fields for placeholders no environment defines, offered
+//       when the server refuses a run for want of them
+//
+// A tab that uses either merges bench.requestFields() into every request it posts, the preview
+// included.
 
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
 import {clearFieldErrors, markFieldErrors, formProblem, unmark} from './forms.js';
@@ -18,6 +28,8 @@ import {renderResult, errorPanel} from './result.js';
 import {presenceMark} from './shown.js';
 import {resultWord} from './marks.js';
 import {idForms} from './lookup.js';
+import {createOwnRequest} from './own-request.js';
+import {createRunValues} from './run-values.js';
 
 /**
  * Builds the two panes into a tab panel.
@@ -34,13 +46,22 @@ export function createWorkbench(app, panel, spec) {
 
     const caseSlot = el('div', {class: 'case-slot'});
     const own = el('div', {class: 'case-group case-pane__own'});
+    // The places the two optional parts go: the choice of body above the case, which it changes the
+    // meaning of; the values for one run under the tab's own controls, nearest the send button.
+    const modeSlot = el('div', {class: 'mode-slot'});
+    const valuesSlot = el('div', {class: 'values-slot'});
+    // Said above the case while a request of the tester's own is chosen, so nobody reads the case as what is sent.
+    const caseNote = el('p', {class: 'case-note', hidden: true},
+        'A request of your own is chosen: the member, provider and codes below are not used to build the body, and may be left empty.');
+    let ownRequest = null;
+    let runValues = null;
     // What the lookups said that a tester should see before sending. It sits with the send button,
     // which stays in view however far the case above it has been scrolled.
     const beforeSending = el('div', {class: 'before-sending', hidden: true});
     const actions = el('div', {class: 'case-pane__actions'}, beforeSending);
     const problem = el('div', {class: 'form-problem-slot'});
     const form = el('form', {class: 'case-pane', noValidate: true, attrs: {'aria-label': spec.formLabel}},
-        el('div', {class: 'case-pane__scroll'}, caseSlot, own), actions);
+        el('div', {class: 'case-pane__scroll'}, modeSlot, caseNote, caseSlot, own, valuesSlot), actions);
 
     const status = el('p', {class: 'readout__status', role: 'status', aria: {live: 'polite'}});
     const refusal = el('div', {class: 'readout__refusal', aria: {live: 'polite'}});
@@ -85,6 +106,21 @@ export function createWorkbench(app, panel, spec) {
             control.setAttribute('aria-busy', state ? 'true' : 'false');
         }
         result.setAttribute('aria-busy', state ? 'true' : 'false');
+    }
+
+    /** Shows, under the result's top line, that the body sent was the tester's own. Every protocol's detail says it the same way. */
+    function markOwnBody(envelope) {
+        const detail = envelope.detail;
+        if (!detail || detail.bodyBuiltByTool !== false) {
+            return;
+        }
+        const top = result.querySelector('.result__top');
+        if (top) {
+            top.after(el('p', {class: 'result__own-body'},
+                el('strong', null, 'A request body of your own was sent.'),
+                ' This tool did not build it from the form; it went as you wrote it, with its placeholders filled in. '
+                + 'The wire view shows it.'));
+        }
     }
 
     const bench = {
@@ -146,6 +182,17 @@ export function createWorkbench(app, panel, spec) {
             clearFieldErrors(panel);
             clear(problem);
             clear(refusal);
+            if (ownRequest && ownRequest.active() && ownRequest.text().trim() === '') {
+                // An empty box would be sent as no body at all, and the run built from the form:
+                // the opposite of what was chosen. Nothing is asked of the server.
+                const nothing = {title: 'There is no request of your own to send. Nothing was sent.',
+                    action: 'Paste the request into the box, or choose "Built by this tool from the form".', fieldErrors: []};
+                const said = formProblem(nothing, markFieldErrors([ownRequest.field], [{field: 'rawBody', message: 'Paste the request body here.'}]));
+                said.classList.add('form-problem--own');
+                fill(problem, said);
+                status.textContent = nothing.title;
+                return null;
+            }
             setBusy(true, options.control);
             status.textContent = options.saying;
             let answer;
@@ -164,6 +211,10 @@ export function createWorkbench(app, panel, spec) {
             }
             status.textContent = answer.body.title;
             if (answer.kind === 'form') {
+                if (runValues) {
+                    // Placeholders with no value get their fields first, so the server's sentence lands at each.
+                    await runValues.need(answer.body.fieldErrors || []);
+                }
                 // A form problem is marked at the fields. The result of the earlier run stays where it is.
                 fill(problem, formProblem(answer.body, markFieldErrors([panel], answer.body.fieldErrors)));
                 return null;
@@ -187,12 +238,62 @@ export function createWorkbench(app, panel, spec) {
          */
         showResult(envelope, options) {
             fill(result, renderResult(envelope, {...options, nextStepControl: nextStepControl(app, sentCase)}));
+            markOwnBody(envelope);
             readout.scrollTop = 0;
             status.textContent = 'Result received. ' + envelope.verdict.headline + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
             // A result has arrived under the configuration now in force, so a notice about the change has done its work.
             app.clearNotices();
             app.ledgerReceipt(envelope.ledger);
             app.chain.onResult(envelope);
+        },
+
+        /**
+         * Switches on the choice of "A request of my own". spec: protocol ("CRD"), sendButton (the
+         * tab's send button, whose words change while the pasted text is not valid JSON), sendLabel
+         * (its usual words, "Send CRD request").
+         */
+        useOwnRequest(ownSpec) {
+            ownRequest = createOwnRequest({
+                protocol: ownSpec.protocol, sendButton: ownSpec.sendButton, sendLabel: ownSpec.sendLabel,
+                isMock: () => app.isMock(),
+                changed: () => {
+                    caseNote.hidden = !ownRequest.active();
+                    // The refusal of an empty box is out of date as soon as the box or the choice changes.
+                    problem.querySelectorAll('.form-problem--own').forEach(node => node.remove());
+                }
+            });
+            modeSlot.append(ownRequest.node);
+            return ownRequest;
+        },
+
+        /**
+         * Switches on values for one run. spec.operation() names the operation about to be sent, as
+         * /api/config/resolve takes it ("crd-order-sign"), so each field can say where it is used.
+         */
+        useRunValues(valuesSpec) {
+            runValues = createRunValues({
+                operation: valuesSpec.operation,
+                ownText: () => (ownRequest && ownRequest.active() ? ownRequest.text() : null),
+                navigate: id => app.navigate(id),
+                changed: () => {}
+            });
+            valuesSlot.append(runValues.node);
+            return runValues;
+        },
+
+        /**
+         * What the two optional parts add to a run request: rawBody while a request of the
+         * tester's own is chosen, variables while values for this run are typed. Empty otherwise.
+         */
+        requestFields() {
+            const out = {};
+            if (ownRequest) {
+                Object.assign(out, ownRequest.requestFields());
+            }
+            if (runValues && runValues.any()) {
+                out.variables = runValues.values();
+            }
+            return out;
         },
 
         /** True when the result of a run is on screen. */
@@ -216,6 +317,9 @@ export function createWorkbench(app, panel, spec) {
             }
             // A lookup on screen was answered under the configuration that is gone, and says so too.
             app.caseContext.configChanged(app.epoch());
+            if (ownRequest) {
+                ownRequest.refresh();
+            }
         }
     };
     return bench;
