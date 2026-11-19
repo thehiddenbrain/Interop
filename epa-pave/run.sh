@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Starts PAVE on the mock profile, or on the live profile with "./run.sh live".
 # Anything after the profile is passed to the application, for example:
-#   ./run.sh live --server.port=8061
+#   ./run.sh live --server.port=8091
 #
 # The script moves to its own directory first, so it can be started from anywhere, and the
 # runtime folders config-store/ and run-history/ always land beside it, never in whichever
@@ -30,7 +30,7 @@ if [ "$#" -gt 0 ]; then
             echo "Usage: ./run.sh [mock|live] [application arguments]"
             echo "  ./run.sh                          mock profile on port ${PORT}"
             echo "  ./run.sh live                     live profile on port ${PORT}"
-            echo "  ./run.sh mock --server.port=8061  mock profile on another port"
+            echo "  ./run.sh mock --server.port=8091  mock profile on another port"
             exit 0
             ;;
         --*)

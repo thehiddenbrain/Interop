@@ -91,7 +91,7 @@ Started PaveApplication in 18.439 seconds (process running for 20.228)
 ```
 
 If it says `Port 8057 was already in use`, something else is on that port: start with
-`./run.sh mock --server.port=8061` and use 8061 in place of 8057 below.
+`./run.sh mock --server.port=8091` and use 8091 in place of 8057 below.
 
 **5. Ask the tool what it is, from a second terminal.**
 
@@ -172,8 +172,9 @@ nothing). A case you expect to be denied that comes back denied is a denial **an
 - **A pass is only as good as the expectation.** "Unverified" means you declared no expectation; it
   is not a failure and not a pass.
 - **"No determination" is not "not required".** CRD scenario 14 (`P32H-EMPTY`) returns no answer at
-  all and PAVE says "The service returned no determination". Scenario 2 (`P32H-NO-AUTH`) returns
-  `pa-needed=no-auth` and PAVE says "Prior authorization is not required". They are different
+  all and PAVE says "The service answered but returned no determination." Scenario 2
+  (`P32H-NO-AUTH`) returns `pa-needed=no-auth` and PAVE says "Prior authorization is not
+  required." (both observed). They are different
   outcomes, with different codes in the ledger.
 - **A code list finding on the bundled placeholder list is about synthetic rows.** See
   [The procedure code list](#the-procedure-code-list).
@@ -466,7 +467,9 @@ On a `prod` environment:
   curl -s -c pave-cookies -b pave-cookies -X POST -H 'Content-Type: application/json' -d '{"action":"unlock","environment":"Exact Environment Name"}' localhost:8057/api/config/writes
   ```
 
-  The unlock lives in server memory, in that session only. It is never written anywhere, so it
+  This was checked with an environment of another name, uploaded as `prod`, with the floor set to
+  `true` on the command line (`--config-store.allow-prod-writes=true`). A wrong name, even in other
+  capitals, answers 422. The unlock lives in server memory, in that session only. It is never written anywhere, so it
   does not survive a restart. Another browser or another tester stays locked (observed). Any change
   to the configuration, including switching environment, drops it (observed). `{"action":"lock"}`
   locks again.
@@ -561,7 +564,11 @@ against the directory PAVE starts in) and restart:
 ```
 
 `samples/codelist/sample-code-list.csv` is a sample in the shape the real export is expected to
-have, every row marked `SAMPLE ROW`. A test loads it through the real loader.
+have, every row marked `SAMPLE ROW`. A test loads it through the real loader, and the command above
+was run: the self-check then answered `"placeholder":false`, `"rowCount":11`,
+`"statingAuthRequirement":10`, `"namingVendor":7` and `"unrecognisedColumns":[]`, with each column
+found under the sample's own header (`"code":"CPT/HCPCS"`, `"authRequired":"Prior Auth Required"`,
+`"lineOfBusiness":"LOB"` and so on).
 
 - CSV or JSON, chosen from the extension unless `codelist.format` says otherwise.
 - `codelist.delimiter`: one character, or the word `tab`.
@@ -697,7 +704,9 @@ Run them in this order from `epa-pave/`, with the tool started by `./run.sh`. Th
 sample Postman files first, and every identifier in them is a placeholder: `P32H-...` sentinels,
 `S123456789`-style member IDs and the NPI `1234567893`. Where an example says `RUN_ID`,
 `CHAIN_ID` or `SUITE_RUN_ID`, put in the id from an earlier answer (`runId` on any run result,
-`chainId` on the chain example, `suiteRunId` on the suite example). Each was run as written, with
+`chainId` on the chain example, `suiteRunId` on the suite example). Two of them save a CSV file in
+the current directory (`pave-runs.csv`, `suite-results.csv`). Version control does not ignore
+those, so delete them when you are done; on live they hold ledger data. Each was run as written, with
 those three ids put in, against a fresh clone; the status each answered is in the comment above it.
 
 <!-- examples:start -->
@@ -1081,7 +1090,7 @@ account and is kept current.
 - **Comparing a pasted CRD request with the tool's own** (D-119) is not in this revision.
 - **`run.cmd` has not been run.** No Windows machine was available. It was written to do what
   `run.sh` does; on Windows an argument with an equals sign must be quoted
-  (`run.cmd mock "--server.port=8061"`).
+  (`run.cmd mock "--server.port=8091"`).
 - **Two tests are skipped** when the build runs as root, because a read-only folder is not
   read-only for root. The same refusals are covered by tests that do run.
 
@@ -1092,16 +1101,18 @@ account and is kept current.
 - **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0 through the wrapper, behind a TLS-inspecting
   proxy. The Gradle cache already held the dependencies, so how long a first download takes was not
   measured.
-- **Fresh clone:** the branch was cloned into a new directory and `./gradlew clean build` ran there:
-  1,844 tests passed, 2 skipped, 0 failed. The clone was made from a local copy of the branch,
+- **Fresh clone:** the branch was cloned into a new directory, twice, and `./gradlew clean build`
+  ran in each: 1,844 tests passed, 2 skipped, 0 failed, both times. The clone was made from a local copy of the branch,
   because the `epa-pave` branch on GitHub did not yet hold this work; `git clone` from GitHub
   itself was not run.
 - **`run.sh`** was started from another directory with the jar missing: it built the jar, started on
   the mock profile on port 8057, `curl -s localhost:8057/api/mode` answered as shown in step 5, and
   it was stopped. `./run.sh live` was started the same way on another port and stopped. Its refusal
   of Java 8 and of an unknown profile was checked.
-- **Every `curl` example under [Endpoints](#endpoints)** was run against that fresh clone on port
-  8057, in order, and answered the status in its comment.
+- **Every `curl` example under [Endpoints](#endpoints)** was run against the second fresh clone,
+  started with `./run.sh` on port 8057, in order, and answered the status in its comment: 63
+  examples, none different. `./run.sh mock --codelist.file=samples/codelist/sample-code-list.csv`
+  and `./run.sh mock --server.port=8091` were run too.
 - **Observed on the running tool, as quoted above:** the production guardrail (floor, unlock, a
   second session, switching), the host and origin checks, the receiver, the ledger contents, the
   lookups and the code list self-check.

@@ -1,7 +1,7 @@
 @echo off
 rem Starts PAVE on the mock profile, or on the live profile with "run.cmd live".
 rem Anything after the profile is passed to the application, for example:
-rem   run.cmd live "--server.port=8061"
+rem   run.cmd live "--server.port=8091"
 rem The quotes matter: cmd splits an argument at the equals sign when it is not quoted.
 rem
 rem The script moves to its own folder first, so it can be started from anywhere, and the runtime
@@ -94,5 +94,5 @@ exit /b %errorlevel%
 echo Usage: run.cmd [mock^|live] [application arguments]
 echo   run.cmd                          mock profile on port 8057
 echo   run.cmd live                     live profile on port 8057
-echo   run.cmd mock "--server.port=8061"  mock profile on another port, quoted because of the equals sign
+echo   run.cmd mock "--server.port=8091"  mock profile on another port, quoted because of the equals sign
 exit /b 0
