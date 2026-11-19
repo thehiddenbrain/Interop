@@ -92,8 +92,12 @@ final class TrackingPolicy {
      * number in it changes on the next copy and settles after one or two more. Left alone, a line
      * could read back differently from the record the receipt carried, and a replay would report
      * that as a change in the answer. Copying here until nothing changes makes what is written the
-     * same as what is read. Nothing is lost by it: the text was never kept, and once the record
-     * type leaves its own statements alone this does nothing.
+     * same as what is read.
+     *
+     * <p>The cost is the number. Once settled it is the length of the statement, not of the text
+     * that was there, so nothing in this package reads it as a length. It would be lost at the
+     * first read whatever was written, because reading runs the same check. When the record type
+     * leaves its own statements alone, this does nothing and the number is a length again.
      */
     static RunRecord settled(RunRecord record) {
         RunRecord current = record;

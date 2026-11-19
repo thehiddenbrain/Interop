@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.ledger;
 
+import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.CaseOutcome;
 import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.FieldError;
@@ -56,7 +57,8 @@ import org.springframework.stereotype.Component;
  * ledger does not hold is refused too, before anything is sent.
  *
  * <p>A replay never carries a production unlock, so a write against a production environment
- * comes back blocked.
+ * comes back blocked. Against any other environment a write is sent again as a read is, which
+ * submits or changes something a second time, and the report says how many of those there were.
  */
 @Component
 public class RunReplay {
@@ -152,8 +154,40 @@ public class RunReplay {
         } else if (caseRunner == null) {
             notes.add(NO_RUNNER);
         }
+        String writes = writesSentAgain(results);
+        if (writes != null) {
+            notes.add(writes);
+        }
         return ReplayReport.of(startedAt, from == null ? null : from.toString(), to == null ? null : to.toString(), caseRunner != null,
                 caseRunner == null ? null : epoch, notes, results);
+    }
+
+    /**
+     * What there is to say when writes were sent again, or null when none were. A submission that
+     * is replayed is a new submission. Someone asking what changed since Tuesday may not have had
+     * that in mind, so the report says how many there were. On the mock profile nothing leaves the
+     * tool, so there is nothing to say: which profile a run was made on is read from its own record.
+     */
+    private static String writesSentAgain(List<ReplayEntry> results) {
+        Set<String> labels = new LinkedHashSet<>();
+        int writes = 0;
+        for (ReplayEntry entry : results) {
+            boolean completed = entry.status() == ReplayStatus.SAME || entry.status() == ReplayStatus.CHANGED
+                    || entry.status() == ReplayStatus.NOT_COMPARABLE;
+            if (completed && entry.original().operation().write() && EpaProperties.LIVE.equalsIgnoreCase(entry.replayed().profile())) {
+                writes++;
+                labels.add(entry.original().operation().label());
+            }
+        }
+        if (writes == 0) {
+            return null;
+        }
+        String which = " (" + String.join(", ", labels) + "). ";
+        return writes == 1
+                ? "1 of the runs that were sent again is a write" + which + "It went to the service as a real request, so it can have "
+                + "created or changed something there again."
+                : writes + " of the runs that were sent again are writes" + which + "Each went to the service as a real request, so each "
+                + "can have created or changed something there again.";
     }
 
     private static List<String> distinctIds(List<String> runIds) {
@@ -281,7 +315,7 @@ public class RunReplay {
         }
         if (original.procedureCodes().stream().anyMatch(code -> CODE_NOT_KEPT.matcher(code).matches())) {
             return "A procedure code of this run was not recorded, because what was sent did not have the shape of a code. The line "
-                    + "holds only its length, so the same request cannot be sent again.";
+                    + "says only that something was there, so the same request cannot be sent again.";
         }
         return null;
     }

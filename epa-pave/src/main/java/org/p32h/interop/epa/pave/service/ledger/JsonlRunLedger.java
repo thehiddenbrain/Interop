@@ -60,8 +60,8 @@ import org.springframework.stereotype.Component;
  * <p><b>What a line may hold</b> is decided by {@link TrackingPolicy}, which is applied here to
  * every draft, so no caller can get it wrong. The record type itself has no place for a member
  * name, a date of birth, an address or wire JSON, and this class keeps no side file, cache or index
- * that could hold one: what it remembers between calls is a count of lines and the outcome of its
- * last writes.
+ * that could hold one: what it remembers between calls is the salt, counts of lines by file and the
+ * outcome of its last writes.
  *
  * <p>Two instances of the tool pointed at one directory are not coordinated beyond what an append
  * gives them. Counts are checked against the size of the file, so a line another instance wrote is

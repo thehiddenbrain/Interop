@@ -879,6 +879,51 @@ class RunReplayTest {
         assertThat(entry.notRecorded()).containsExactly("This run was NOT recorded: the ledger file could not be written.");
     }
 
+    // ---- writes that were sent again ----
+
+    @Test
+    void aReplayThatSentWritesAgainOnLiveSaysHowManyAndWhich() {
+        RunReplay replay = replay();
+        recorded(draft("submit-1", clock).profile("live").scenarioId(null).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).outcome("APPROVED"));
+        recorded(draft("submit-2", clock).profile("live").scenarioId(null).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).outcome("PENDED"));
+        recorded(draft("create", clock).profile("live").scenarioId(null).protocol(Protocol.SUBSCRIPTION)
+                .operation(EpaOperation.SUBSCRIPTION_CREATE).outcome("CREATED"));
+        // A read, a write the guardrail refused and a write that cannot be sent again are not writes that were sent.
+        recorded(draft("read", clock).profile("live").scenarioId(null));
+        recorded(draft("blocked", clock).profile("live").scenarioId(null).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).outcome("APPROVED"));
+        recorded(draft("hand-edited", clock).profile("live").scenarioId(null).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT)
+                .outcome("APPROVED").unrecordedInputs(List.of(RunRecord.INPUT_BODY)));
+        runner.answer = spec -> switch (spec.replayOfRunId()) {
+            case "blocked" -> new CaseOutcome(spec, CaseStatus.BLOCKED, "Writes to production are locked.", List.of());
+            case "submit-2" -> runner.completed(spec, again -> again.outcome("DENIED"));
+            default -> runner.completed(spec, same -> same);
+        };
+
+        ReplayReport report = replay.replay(TENTH, TENTH, null);
+
+        assertThat(report.results()).extracting(entry -> entry.status().wire())
+                .containsExactly("same", "changed", "same", "same", "blocked", "not-replayable");
+        assertThat(report.notes()).containsExactly("3 of the runs that were sent again are writes (PAS submit, Subscription create). Each went "
+                + "to the service as a real request, so each can have created or changed something there again.");
+
+        // One on its own is worded as one.
+        assertThat(replay.replay(null, null, List.of("create")).notes()).containsExactly("1 of the runs that were sent again is a write "
+                + "(Subscription create). It went to the service as a real request, so it can have created or changed something there again.");
+        assertThat(replay.replay(null, null, List.of("read", "blocked", "hand-edited")).notes()).isEmpty();
+    }
+
+    @Test
+    void onMockNothingLeavesTheToolSoAReplayedWriteIsNotReportedAsOne() {
+        RunReplay replay = replay();
+        recorded(draft("submit-1", clock).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).outcome("APPROVED"));
+
+        ReplayReport report = replay.replay(null, null, List.of("submit-1"));
+
+        assertThat(only(report).status()).isEqualTo(ReplayStatus.SAME);
+        assertThat(only(report).replayed().profile()).isEqualTo("mock");
+        assertThat(report.notes()).isEmpty();
+    }
+
     // ---- the summary ----
 
     @Test
