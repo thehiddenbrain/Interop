@@ -223,6 +223,8 @@ public final class DtrVerdicts {
         // Only a response this tool reports as complete is handed to the prior authorization request.
         String completed = complete && !detail.questionnaireResponses().isEmpty() ? detail.questionnaireResponses().get(0).json() : null;
         Map<String, List<String>> carry = handoff.carry(completed);
+        // A package can hold several questionnaires. PAS is the next step only when each of them has a completed response.
+        List<String> remaining = complete ? handoff.stillToAnswer(completed) : List.of();
         boolean local = operation == EpaOperation.DTR_RESPONSE;
         boolean adaptive = !local || answeredThroughTheLoop(detail);
 
@@ -246,11 +248,11 @@ public final class DtrVerdicts {
                             ? "The service asked nothing more and did not report the response as complete, so the loop can neither continue "
                             + "nor end."
                             : "The status of the response is not one this tool acts on, so it cannot tell whether the loop continues.", carry);
-            case RESPONSE_COMPLETED -> new NextStepView(NextAction.START_PAS,
+            case RESPONSE_COMPLETED -> !remaining.isEmpty() ? anotherRemains(handoff, remaining, carry) : new NextStepView(NextAction.START_PAS,
                     "Next: submit the prior authorization request in PAS. The completed questionnaire response goes with it.",
                     adaptive ? "The service reported the response as completed, and every required question that is enabled has an answer."
                             : "Every required question that is enabled has an answer.", carry);
-            case NOTHING_REQUIRED -> new NextStepView(NextAction.START_PAS,
+            case NOTHING_REQUIRED -> !remaining.isEmpty() ? anotherRemains(handoff, remaining, carry) : new NextStepView(NextAction.START_PAS,
                     "Next: submit the prior authorization request in PAS. The completed questionnaire response goes with it.",
                     "The response is complete without a question having been asked, so there is no documentation to collect first.", carry);
             case RESPONSE_NOT_COMPLETE -> adaptive
@@ -274,6 +276,21 @@ public final class DtrVerdicts {
                     "Next: check the environment, then send again.",
                     "No usable answer came back. This is a finding about the environment, not about the member or the questionnaire.", carry);
         };
+    }
+
+    /**
+     * The step after a response that is complete while another questionnaire of the same package
+     * is not. Each questionnaire is answered its own way and this step does not know which way the
+     * others are, so it names them and leaves the choice of step to the tester. It never offers
+     * PAS: the request would go without part of the documentation the payer asked for.
+     */
+    private static NextStepView anotherRemains(DtrHandoff handoff, List<String> remaining, Map<String, List<String>> carry) {
+        boolean one = remaining.size() == 1;
+        return new NextStepView(NextAction.REVIEW,
+                "Next: answer the other " + (one ? "questionnaire" : "questionnaires") + " of this package before going on to PAS: "
+                        + String.join(", ", remaining) + ".",
+                "This response is complete. The package holds " + handoff.questionnaires().size() + " questionnaires and "
+                        + (one ? "one of them has" : remaining.size() + " of them have") + " no completed response yet.", carry);
     }
 
     /**

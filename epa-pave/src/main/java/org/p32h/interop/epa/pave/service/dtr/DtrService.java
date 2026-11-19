@@ -158,7 +158,7 @@ public class DtrService {
             DtrReading reading = mapper.readPackage(exchange, sent.canonicals());
             List<String> questionnaires = reading.canonicals().isEmpty() ? sent.canonicals() : reading.canonicals();
             // A package fetch is where the questionnaire comes from, so the steps after it are linked to this run.
-            DtrHandoff handoff = new DtrHandoff(runId, sent.codes(), questionnaires, request.carry());
+            DtrHandoff handoff = DtrHandoff.afterPackage(runId, sent.codes(), questionnaires, request.carry());
             read = interpret(operation, request, call, exchange, reading, handoff, correlation(known.get(RunRecord.CORR_RUN_ID), questionnaires));
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
@@ -236,8 +236,8 @@ public class DtrService {
 
         String runId = RunStamps.newRunId();
         String packageRun = DtrHandoff.first(request.carry(), NextStepView.CARRY_RUN_ID);
-        List<String> answering = canonicalOf(sent);
-        Map<String, String> known = correlation(packageRun, answering);
+        String answering = DtrHandoff.answeredBy(sent);
+        Map<String, String> known = correlation(packageRun, listOf(answering));
         // The questionnaire and the answers so far came from earlier steps and are not on the line,
         // so the line alone can never rebuild this request.
         RunRecord.Builder draft = support.fill(support.draft(operation, call, exchange, origin), request).runId(runId)
@@ -245,9 +245,10 @@ public class DtrService {
         Interpreted read;
         try {
             DtrReading reading = mapper.readNextQuestion(exchange, sent);
-            List<String> questionnaires = reading.canonicals().isEmpty() ? answering : reading.canonicals();
-            DtrHandoff handoff = new DtrHandoff(Texts.orElse(packageRun, runId), caseCodes(request), questionnaires, request.carry());
-            read = interpret(operation, request, call, exchange, reading, handoff, correlation(packageRun, questionnaires));
+            // The questionnaire as the service returned it, else the one that was sent.
+            String answered = reading.canonicals().isEmpty() ? answering : reading.canonicals().get(0);
+            DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), answered, request.carry());
+            read = interpret(operation, request, call, exchange, reading, handoff, correlation(packageRun, listOf(answered)));
         } catch (RuntimeException e) {
             return support.toolError(operation, call, exchange, draft, request, e);
         }
@@ -299,8 +300,8 @@ public class DtrService {
         String runId = RunStamps.newRunId();
         String packageRun = DtrHandoff.first(request.carry(), NextStepView.CARRY_RUN_ID);
         String canonical = QuestionnaireJson.canonical(posted.questionnaire());
-        List<String> questionnaires = canonical == null ? List.of() : List.of(canonical);
-        DtrHandoff handoff = new DtrHandoff(Texts.orElse(packageRun, runId), caseCodes(request), questionnaires, request.carry());
+        List<String> questionnaires = listOf(canonical);
+        DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), canonical, request.carry());
 
         List<Finding> findings = DtrFindings.check(reading);
         VerdictView verdict = DtrVerdicts.verdict(operation, reading, null);
@@ -523,11 +524,24 @@ public class DtrService {
         }
     }
 
-    /** The run a step follows from is written to the ledger as it stands, so it cannot be free text. */
+    /**
+     * What was handed on is checked before it is used. The run a step follows from is written to
+     * the ledger as it stands, so it cannot be free text. A completed response is handed on again
+     * for PAS to submit, so it has to be a QuestionnaireResponse.
+     */
     private static void carriedRun(RunInputs inputs, RunRequest request) {
         String runId = DtrHandoff.first(request.carry(), NextStepView.CARRY_RUN_ID);
         inputs.require(runId == null || isRunId(runId), "carry." + NextStepView.CARRY_RUN_ID,
                 "The run this step follows from must be a run id this tool returned.");
+        List<String> responses = request.carry() == null ? null : request.carry().get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
+        if (responses != null) {
+            for (String response : responses) {
+                JsonSafe.Parsed parsed = JsonSafe.parse(response);
+                inputs.require(parsed.ok() && QuestionnaireJson.isType(parsed.node(), "QuestionnaireResponse"),
+                        "carry." + NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, "A completed response handed on from an earlier step is not a "
+                                + "QuestionnaireResponse. Start from the result of the step before this one.");
+            }
+        }
     }
 
     /** True when the text has the shape of a run id this tool mints. */
@@ -590,15 +604,8 @@ public class DtrService {
         return correlation;
     }
 
-    /** The canonical url of the questionnaire a QuestionnaireResponse answers: the one it carries inside itself, else the one it names. */
-    private static List<String> canonicalOf(JsonNode response) {
-        if (response == null) {
-            return List.of();
-        }
-        JsonNode contained = QuestionnaireJson.containedQuestionnaire(response);
-        String canonical = contained != null ? QuestionnaireJson.canonical(contained) : JsonSafe.presentText(response, "questionnaire");
-        // A local reference such as #q1 names something inside the response and is not a canonical url.
-        return canonical == null || canonical.startsWith("#") ? List.of() : List.of(canonical);
+    private static List<String> listOf(String canonical) {
+        return canonical == null ? List.of() : List.of(canonical);
     }
 
     private static List<String> kinds(List<Finding> findings) {

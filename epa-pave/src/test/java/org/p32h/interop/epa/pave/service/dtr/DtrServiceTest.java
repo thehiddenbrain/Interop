@@ -1651,4 +1651,69 @@ class DtrServiceTest {
         assertThat(result.ledger().record().memberId()).isNull();
         assertThat(result.ledger().record().suiteRunId()).isEqualTo("suite-1");
     }
+
+    // ---- a package with several questionnaires: the journey moves on only when each is answered ----
+
+    @Test
+    void pasIsOfferedOnlyWhenEveryQuestionnaireOfThePackageHasACompletedResponse() {
+        String cardiology = "https://example.org/p32h-placeholder/Questionnaire/cardiology-criteria|1.0.0";
+        String musculoskeletal = "https://example.org/p32h-placeholder/Questionnaire/musculoskeletal-criteria|1.0.0";
+        RunEnvelope<DtrDetail> fetched = fetch("P32H-DTR-TWO");
+        assertThat(fetched.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE)).containsExactly(cardiology, musculoskeletal);
+
+        // The first questionnaire is answered in full. The response is complete, and the journey is not.
+        RunEnvelope<DtrDetail> first = service().runResponse(responding(fetched, "P32H-DTR-TWO", DtrAnswerInput.of("card-1", "true"),
+                DtrAnswerInput.of("card-2", "55")).build(), RunOrigin.manual());
+        assertThat(first.verdict().outcomeCode()).isEqualTo("RESPONSE_COMPLETED");
+        assertThat(first.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(first.nextStep().headline()).isEqualTo("Next: answer the other questionnaire of this package before going on to PAS: "
+                + musculoskeletal + ".");
+        assertThat(first.nextStep().reason()).isEqualTo("This response is complete. The package holds 2 questionnaires and one of them has no "
+                + "completed response yet.");
+        // What is complete is still handed on, with the whole list, so the next step can add to it.
+        assertThat(first.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE)).containsExactly(cardiology, musculoskeletal);
+        assertThat(first.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE)).hasSize(1);
+        assertThat(ledger.last().nextAction()).isEqualTo("REVIEW");
+
+        // The second questionnaire, started from the first result. Now both are complete, and both go to PAS.
+        DtrResponseRequest.Builder second = DtrResponseRequest.builder().member(DtrFixtures.member("P32H-DTR-TWO"))
+                .questionnaire(fetched.detail().questionnaires().get(1).json()).carry(first.nextStep().carry());
+        RunEnvelope<DtrDetail> both = service().runResponse(second.answers(List.of(DtrAnswerInput.of("msk-1", "true"),
+                DtrAnswerInput.of("msk-2", "4"))).build(), RunOrigin.manual());
+        assertThat(both.verdict().outcomeCode()).isEqualTo("RESPONSE_COMPLETED");
+        assertThat(both.nextStep().action()).isEqualTo(NextAction.START_PAS);
+        List<String> handedOn = both.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
+        assertThat(handedOn).hasSize(2);
+        assertThat(JsonSafe.parse(handedOn.get(0)).node().get("questionnaire").asString()).isEqualTo(cardiology);
+        assertThat(JsonSafe.parse(handedOn.get(1)).node().get("questionnaire").asString()).isEqualTo(musculoskeletal);
+        assertThat(both.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(fetched.runId());
+
+        // The second is answered again, and this time a required follow-up is left out. Its earlier
+        // completed response is not handed on any more: the tester's current answers replace it.
+        RunEnvelope<DtrDetail> reopened = service().runResponse(second.carry(both.nextStep().carry())
+                .answers(List.of(DtrAnswerInput.of("msk-1", "true"), DtrAnswerInput.of("msk-2", "12"))).build(), RunOrigin.manual());
+        assertThat(reopened.verdict().outcomeCode()).isEqualTo("REQUIRED_UNANSWERED");
+        assertThat(reopened.nextStep().action()).isEqualTo(NextAction.SUBMIT_RESPONSE);
+        assertThat(reopened.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE)).containsExactly(handedOn.get(0));
+
+        // A new package fetch starts over: what was completed against an earlier fetch is not carried past it.
+        RunEnvelope<DtrDetail> again = service().runPackage(DtrFixtures.packageRequest("P32H-DTR-TWO").carry(both.nextStep().carry()).build(),
+                RunOrigin.manual(), null);
+        assertThat(again.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
+        assertThat(again.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(again.runId());
+        // The fetch it followed from is on its line all the same.
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, fetched.runId());
+    }
+
+    @Test
+    void somethingHandedOnAsACompletedResponseThatIsNotOneIsRefused() {
+        RunEnvelope<DtrDetail> fetched = fetch("P32H-DOC-DTR");
+        Map<String, List<String>> carry = new LinkedHashMap<>(fetched.nextStep().carry());
+        carry.put(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of("{\"resourceType\":\"Patient\",\"name\":\"" + DtrFixtures.SURNAME + "\"}"));
+        assertInvalidResponse(service(), DtrResponseRequest.builder().questionnaire(fetched.detail().questionnaires().get(0).json())
+                .carry(carry).build(), "carry.questionnaireResponse");
+        assertInvalidStep(service(), DtrNextQuestionRequest.builder().questionnaire(stubQuestionnaire("")).carry(carry).build(),
+                "carry.questionnaireResponse");
+        assertThat(ledger.records()).hasSize(1);
+    }
 }

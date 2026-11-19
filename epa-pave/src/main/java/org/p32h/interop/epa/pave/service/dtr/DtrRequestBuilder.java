@@ -255,6 +255,10 @@ public final class DtrRequestBuilder {
         } else {
             response.set("item", items);
         }
+        for (String linkId : withNoQuestion(QuestionnaireJson.items(inside), posted.merged())) {
+            notes.add("The response so far holds an answer for " + linkId + ", which is not a question of its questionnaire. It was not "
+                    + "sent: a response is built from the questionnaire it answers.");
+        }
         return new LoopBody(response, JsonSafe.pretty(OnyxDtrConventions.nextQuestionBody(response)), List.copyOf(notes));
     }
 
@@ -296,6 +300,10 @@ public final class DtrRequestBuilder {
         for (QuestionRef left : evaluated.answersLeftOut()) {
             notes.add("The answer given to " + left.linkId() + " was left out of the response, because the answers given disable that question.");
         }
+        for (String linkId : withNoQuestion(evaluated.roots(), posted.merged())) {
+            notes.add("The response to start from holds an answer for " + linkId + ", which is not a question of this questionnaire. It was "
+                    + "left out of the response.");
+        }
         for (Item item : QuestionnaireJson.flatten(evaluated.roots())) {
             if (item.group() && item.repeats()) {
                 notes.add("The group " + Texts.orElse(item.linkId(), item.path()) + " repeats. This tool answers it once: it does not put "
@@ -303,6 +311,16 @@ public final class DtrRequestBuilder {
             }
         }
         return response;
+    }
+
+    /**
+     * The linkIds that have an answer and no question to put it under: an answer is placed by
+     * walking the questionnaire, so one whose linkId the questionnaire does not hold, or holds as a
+     * group or as display text, has nowhere to go. It is named in a note and never dropped in silence.
+     */
+    private static List<String> withNoQuestion(List<Item> roots, Map<String, List<JsonNode>> answers) {
+        List<String> questions = QuestionnaireJson.flatten(roots).stream().filter(Item::question).map(Item::linkId).toList();
+        return answers.keySet().stream().filter(linkId -> !questions.contains(linkId)).toList();
     }
 
     /** Puts a copy of the questionnaire inside the response and points the response at it. */

@@ -267,7 +267,7 @@ class DtrPhiTest {
         DtrRequestBuilder builder = new DtrRequestBuilder(null);
         DtrRequestBuilder.LoopBody loopBody = builder.buildNextQuestion(posted, member("P32H-DTR-ADAPT"), DtrFixtures.CLOCK);
         DtrRequestBuilder.Package built = builder.buildPackage(packageRequest("P32H-DTR-ADAPT"), ResolvedText::plain);
-        DtrHandoff handoff = new DtrHandoff(fetched.runId(), List.of("72148"), List.of(), Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE,
+        DtrHandoff handoff = DtrHandoff.afterAnswering(fetched.runId(), List.of("72148"), null, Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE,
                 List.of("{\"answer\":\"" + ANSWER + "\"}")));
 
         Object[] printed = {packageRequest("P32H-DTR-ADAPT"), stepRequest, responseRequest, responseRequest.answers().get(0), posted, loopBody,
