@@ -1,0 +1,107 @@
+// Rendering a value together with whether it was returned at all.
+//
+// The server sends every view value as {presence, value}. Absent, null and empty are three
+// different findings when chasing a contract mismatch, so each has its own mark and its own
+// words, and none of them is ever a blank cell:
+//
+//   ABSENT  the field was not in the response     "not returned"   dashed outline
+//   NULL    the field was present and null        "null"           filled, literal
+//   EMPTY   the field was present and empty       "empty"          solid outline
+//   VALUE   the field held a value                the value itself
+
+import {el, code, externalLink} from './dom.js';
+
+const WORDS = {ABSENT: 'not returned', NULL: 'null', EMPTY: 'empty'};
+const MEANINGS = {
+    ABSENT: 'The response did not carry this field.',
+    NULL: 'The response carried this field with an explicit null.',
+    EMPTY: 'The response carried this field and it was empty.'
+};
+
+/** The mark for a presence that is not a value. A presence this page does not know is shown as its own name. */
+export function presenceMark(presence) {
+    const name = String(presence);
+    const known = Object.prototype.hasOwnProperty.call(WORDS, name);
+    return el('span', {
+        class: 'presence presence--' + (known ? name.toLowerCase() : 'other'),
+        title: known ? MEANINGS[name] : 'A presence this page does not know: ' + name
+    }, known ? WORDS[name] : name);
+}
+
+/**
+ * One Shown value as a node.
+ *
+ * options.as: 'text' (default), 'literal' for codes, identifiers and JSON text, 'block' for long
+ * text whose line breaks matter, 'link' for an address taken from a response.
+ * A missing Shown (the server left the whole property out) is treated as not returned.
+ */
+export function shown(value, options) {
+    const as = options && options.as ? options.as : 'text';
+    if (!value || typeof value !== 'object' || value.presence === undefined) {
+        return presenceMark('ABSENT');
+    }
+    if (value.presence !== 'VALUE') {
+        return presenceMark(value.presence);
+    }
+    const text = String(value.value);
+    if (as === 'literal') {
+        return code(text);
+    }
+    if (as === 'block') {
+        return el('div', {class: 'vendor-text'}, text);
+    }
+    if (as === 'link') {
+        return externalLink(text, options.label);
+    }
+    return el('span', {class: 'vendor-inline'}, text);
+}
+
+/** True when a Shown holds a value. */
+export function hasValue(value) {
+    return Boolean(value) && value.presence === 'VALUE';
+}
+
+/**
+ * A list of Shown values. An empty list is said in words: for a list the server sends [] both
+ * when the response had no such element and when it had an empty one, and where the difference
+ * matters the view carries a separate presence for the list itself.
+ */
+export function shownList(values, options) {
+    if (!Array.isArray(values) || values.length === 0) {
+        return el('span', {class: 'presence presence--none', title: 'The response carried none of these.'}, 'none returned');
+    }
+    if (values.length === 1) {
+        return shown(values[0], options);
+    }
+    return el('ul', {class: 'plain-list'}, values.map(value => el('li', null, shown(value, options))));
+}
+
+/**
+ * A coded element: the code as returned, then what the tool says it means. The code is the
+ * answer QA signs off against, so it leads. A code the tool does not recognise is still shown,
+ * and is marked so it cannot be read past.
+ */
+export function coded(value) {
+    if (!value || value.presence === undefined || value.presence !== 'VALUE') {
+        return presenceMark(value && value.presence !== undefined ? value.presence : 'ABSENT');
+    }
+    const parts = [code(String(value.code))];
+    if (value.display) {
+        parts.push(' ', el('span', {class: 'coded__display'}, value.display));
+    }
+    if (value.recognised === false) {
+        parts.push(' ', el('span', {class: 'flag flag--unrecognised'}, 'not a code this tool knows'));
+    }
+    return el('span', {class: 'coded' + (value.recognised === false ? ' coded--unrecognised' : '')}, parts);
+}
+
+/** A list of coded elements, or the words for none. */
+export function codedList(values) {
+    if (!Array.isArray(values) || values.length === 0) {
+        return el('span', {class: 'presence presence--none', title: 'The response carried none of these.'}, 'none returned');
+    }
+    if (values.length === 1) {
+        return coded(values[0]);
+    }
+    return el('ul', {class: 'plain-list'}, values.map(value => el('li', null, coded(value))));
+}
