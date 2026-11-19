@@ -322,10 +322,13 @@ class RunReplayTest {
     void anAnswerThatWasNotKeptAsTextIsNeverCalledTheSame() {
         RunReplay replay = replay();
         // A vendor this tool does not know: the line says a name was there and does not hold the name.
-        RunRecord original = recorded(draft("run-1", clock).delegatedVendor("Some New Vendor"));
+        String vendor = "Some New Vendor";
+        String anotherVendor = "Some Old Vendor";
+        // Of the same length, so the two statements read alike whether or not the record keeps the length in them.
+        assertThat(anotherVendor).hasSameSizeAs(vendor).isNotEqualTo(vendor);
+        RunRecord original = recorded(draft("run-1", clock).delegatedVendor(vendor));
         assertThat(original.delegatedVendor()).startsWith("(vendor not on the known list, ");
-        // Another vendor this tool does not know reads exactly the same on the line.
-        runner.answer = spec -> runner.completed(spec, again -> again.delegatedVendor("A Different Vendor"));
+        runner.answer = spec -> runner.completed(spec, again -> again.delegatedVendor(anotherVendor));
 
         ReplayEntry entry = only(replay.replay(null, null, List.of("run-1")));
 
@@ -335,8 +338,11 @@ class RunReplayTest {
         assertThat(entry.reason()).contains("delegatedVendor").contains("cannot be shown to be the same");
 
         // The same holds for a sentence that came back where a code belongs.
-        recorded(draft("run-2", clock).coverageCodes(List.of("covered=covered", "pa-needed=a sentence, not a code")));
-        runner.answer = spec -> runner.completed(spec, again -> again.coverageCodes(List.of("covered=covered", "pa-needed=another sentence")));
+        String sentenceThen = "a sentence, not a code";
+        String sentenceNow = "another sentence, here";
+        assertThat(sentenceNow).hasSameSizeAs(sentenceThen).isNotEqualTo(sentenceThen);
+        recorded(draft("run-2", clock).coverageCodes(List.of("covered=covered", "pa-needed=" + sentenceThen)));
+        runner.answer = spec -> runner.completed(spec, again -> again.coverageCodes(List.of("covered=covered", "pa-needed=" + sentenceNow)));
         ReplayEntry sentence = only(replay.replay(null, null, List.of("run-2")));
         assertThat(sentence.status()).isEqualTo(ReplayStatus.NOT_COMPARABLE);
         assertThat(sentence.reason()).contains("coverageCodes");

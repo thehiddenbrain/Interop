@@ -351,7 +351,7 @@ public class RunReplay {
         }
         if (original.procedureCodes().stream().anyMatch(code -> CODE_NOT_KEPT.matcher(code).matches())) {
             return "A procedure code of this run was not recorded, because what was sent did not have the shape of a code. The line "
-                    + "says only that something was there, so the same request cannot be sent again.";
+                    + "holds a statement that something was there and not the code, so the same request cannot be sent again.";
         }
         return null;
     }
@@ -437,12 +437,12 @@ public class RunReplay {
         compare(differences, "nextAction", original.nextAction(), replayed.nextAction());
 
         ReplayStatus status = !differences.isEmpty() ? ReplayStatus.CHANGED : notKept.isEmpty() ? ReplayStatus.SAME : ReplayStatus.NOT_COMPARABLE;
-        // Two answers that were not kept as text read alike on the line. Calling them the same
+        // Two answers that were not kept as text can read alike on the line. Calling them the same
         // would be a comparison that passed because nothing was compared.
         String reason = status != ReplayStatus.NOT_COMPARABLE ? null : "What the ledger kept is the same for both runs, but part of the "
-                + "answer was not kept as text (" + String.join(", ", notKept) + "): the line says only that something was there. The "
-                + "two cannot be shown to be the same, so they are not reported as the same. The text itself is shown on the result of "
-                + "a run when it is made, and is never kept.";
+                + "answer was not kept as text (" + String.join(", ", notKept) + "): each line holds a statement that something was "
+                + "there and not the text. The two cannot be shown to be the same, so they are not reported as the same. The text is "
+                + "shown on the result of a run when it is made, and is never kept.";
         return new ReplayEntry(original.runId(), status, reason, replayed.runId(), differences, outcome.notRecorded(), original, replayed);
     }
 

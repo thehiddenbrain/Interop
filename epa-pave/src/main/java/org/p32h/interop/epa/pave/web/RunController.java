@@ -101,6 +101,12 @@ public class RunController {
     public record ReplayRequest(String from, String to, List<String> runIds) {
     }
 
+    /**
+     * The history list: the runs that pass every filter given, newest first, each with its latest
+     * note. Answers 200 with the list, which is empty when nothing matches, and 422 naming every
+     * parameter that cannot be read. With no limit, or a limit of zero, every matching run is
+     * returned: the history screen should give one, and the answer says when it cut the list short.
+     */
     @GetMapping
     public RunList query(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
                          @RequestParam(required = false) String protocol, @RequestParam(required = false) String operation,
@@ -136,6 +142,10 @@ public class RunController {
         return new RunList(shown.size(), truncated, limited ? most : null, shown);
     }
 
+    /**
+     * Whether tracking is alive, with the count of runs in today's file. Always 200: a ledger that
+     * cannot write is exactly what this endpoint is there to report, so it is said in the body.
+     */
     @GetMapping("/health")
     public LedgerHealth health() {
         return ledger.health();
@@ -144,7 +154,8 @@ public class RunController {
     /**
      * The runs of a date range as CSV, newest first as the history list shows them. With no dates
      * it is every run in the ledger. See {@link RunCsv} for the columns, the quoting and how a
-     * cell is kept from being run as a formula.
+     * cell is kept from being run as a formula. Answers 200 with the file, and 422 in the shared
+     * JSON error shape, not as CSV, when a date cannot be read.
      */
     @GetMapping("/export.csv")
     public ResponseEntity<byte[]> export(@RequestParam(required = false) String from, @RequestParam(required = false) String to) {
@@ -165,6 +176,12 @@ public class RunController {
                 .body(csv);
     }
 
+    /**
+     * Runs the selected runs again and answers 200 with the report, whatever became of each run: a
+     * run that could not be sent again is an entry in the report, never an error. Answers 422 when
+     * the selection cannot be read, is empty, contradicts itself or would send more runs than one
+     * replay may, and 404 when a run id is not in the ledger. In each of those cases nothing was sent.
+     */
     @PostMapping("/replay")
     public ReplayReport replay(@RequestBody ReplayRequest request) {
         List<FieldError> errors = new ArrayList<>();
@@ -174,11 +191,17 @@ public class RunController {
         return replay.replay(first, last, request.runIds());
     }
 
+    /** One run with its latest note. Answers 404 when the ledger holds no run with that id. */
     @GetMapping("/{runId}")
     public RunRecord one(@PathVariable String runId) {
         return ledger.find(runId).orElseThrow(() -> RunIds.notFound(runId));
     }
 
+    /**
+     * Adds or amends the note on a run. Answers 200 with the receipt and the run, also when the note
+     * could not be written, because the receipt is what says so. Answers 422 when the body cannot
+     * be read, gives neither value or gives one that is too long, and 404 when there is no such run.
+     */
     @PostMapping("/{runId}/note")
     public NoteResult note(@PathVariable String runId, @RequestBody NoteRequest request) {
         List<FieldError> errors = new ArrayList<>();
