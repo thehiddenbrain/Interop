@@ -41,9 +41,9 @@ public class ProcedureCodeController {
      * @param narrowed       true when the codes were narrowed to that line and to the rows that state no line
      * @param notice         a sentence saying why they were not narrowed although a line was given. Left out otherwise
      * @param otherLines     a sentence naming the other lines of business the list has matching
-     *                       rows under, when the code that was typed is listed under another line
-     *                       or narrowing left nothing to offer. Left out otherwise. Without it an
-     *                       empty answer would read as "this code is not in the list"
+     *                       rows under, when the code that was typed is listed under other lines
+     *                       only, or narrowing left nothing to offer. Left out otherwise. Without
+     *                       it an empty answer would read as "this code is not in the list"
      * @param limit          the most codes one answer holds, {@code app.autocomplete-limit}
      * @param matched        how many rows matched in all. More than {@code codes} holds when the limit cut the answer
      * @param codes          the rows, best match first. Each always carries {@code authRequired}:

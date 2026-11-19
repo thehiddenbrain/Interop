@@ -170,8 +170,10 @@ class PlaceholderCodeListTest {
 
     @Test
     void theFileIsPlainTextThatAnyEditorAndAnyCheckoutLeaveAlone() throws IOException {
-        String text = text();
-        assertThat(text.chars().allMatch(c -> c == '\n' || (c >= 0x20 && c < 0x7F))).as("plain ASCII, with LF line ends and no tab").isTrue();
+        // A checkout on Windows may write every line end as CRLF. The reader takes either, and so does this test:
+        // a test that passed only with LF would fail on the workstations this tool is built for.
+        String text = text().replace("\r\n", "\n");
+        assertThat(text.chars().allMatch(c -> c == '\n' || (c >= 0x20 && c < 0x7F))).as("plain ASCII, with no tab and no stray CR").isTrue();
         assertThat(text).endsWith("\n").doesNotContain("\n\n");
         // Every line has the nine cells of the header, so even a reader that got quoting wrong would notice a damaged row.
         CsvContent content = CsvReader.commaSeparated().read(text);

@@ -218,6 +218,11 @@ class ProcedureCodeServiceSearchTest {
         CodeSearch prefix = service.find("958", "Medicare", 25);
         assertThat(rows(prefix.codes())).containsExactly("r1", "r3", "r9");
         assertThat(prefix.otherLines()).isNull();
+        // The usual case: the code is typed in full, the member's own row is offered, and the
+        // Commercial row for the same code is none of this member's business.
+        CodeSearch typed = service.find("95810", "Medicare", 25);
+        assertThat(rows(typed.codes())).containsExactly("r1", "r9");
+        assertThat(typed.otherLines()).isNull();
         assertThat(service.find("", "Medicare", 25).otherLines()).isNull();
         assertThat(service.find("sleep", "Commercial", 25).otherLines()).isNull();
         // Nothing held back, nothing to say. And with no line asked for nothing is held back at all.

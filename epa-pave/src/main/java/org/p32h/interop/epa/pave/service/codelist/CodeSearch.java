@@ -14,9 +14,9 @@ import org.p32h.interop.epa.pave.model.ProcedureCode;
  * @param narrowed   true when only rows for the requested line of business, and rows stating no line, were offered
  * @param notice     why the rows were not narrowed although a line of business was given. Null otherwise
  * @param otherLines a sentence naming the other lines of business the list has matching rows
- *                   under, in the two cases where leaving it unsaid would mislead: narrowing held
- *                   back rows for the very code that was typed, or left nothing to offer at all.
- *                   Null otherwise
+ *                   under, in the two cases where leaving it unsaid would mislead: the code that
+ *                   was typed is in the list under other lines only, or narrowing left nothing to
+ *                   offer at all. Null otherwise
  */
 public record CodeSearch(List<ProcedureCode> codes, int matched, boolean narrowed, String notice, String otherLines) {
 

@@ -85,6 +85,7 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
 
         List<List<ProcedureCode>> ranked = List.of(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         int matched = 0;
+        boolean theCodeIsOffered = false;
         HeldBack heldBack = new HeldBack();
         HeldBack heldBackForTheCode = new HeldBack();
         for (LoadedCodeList.Entry entry : list.entries()) {
@@ -92,14 +93,16 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
             if (rank < 0) {
                 continue;
             }
+            boolean isTheCode = wantedText != null && rank == 0;
             if (narrowed && !entry.statesNoLine() && !entry.names(wantedLines)) {
                 heldBack.add(entry);
-                if (wantedText != null && rank == 0) {
+                if (isTheCode) {
                     heldBackForTheCode.add(entry);
                 }
                 continue;
             }
             matched++;
+            theCodeIsOffered |= isTheCode;
             if (ranked.get(rank).size() < limit) {
                 ranked.get(rank).add(entry.row());
             }
@@ -111,10 +114,10 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
         }
         String line = lineGiven ? CodeListText.show(lineOfBusiness.strip()) : null;
         // Rows for other lines are held back on nearly every narrowed query, and saying so each
-        // time would be noise. It is said in the two cases where silence misleads: the very code
-        // that was typed is in the list under another line, or nothing at all is left to offer.
+        // time would be noise. It is said in the two cases where silence misleads: the code that
+        // was typed is in the list under other lines only, or nothing at all is left to offer.
         String otherLines = null;
-        if (heldBackForTheCode.rows > 0) {
+        if (heldBackForTheCode.rows > 0 && !theCodeIsOffered) {
             otherLines = "The list has " + CodeListText.count(heldBackForTheCode.rows, "row", "rows") + " for "
                     + CodeListText.show(heldBackForTheCode.firstCode) + " under " + heldBackForTheCode.lines() + ". "
                     + (heldBackForTheCode.rows == 1 ? "It is" : "They are") + " not offered for " + line + ".";
