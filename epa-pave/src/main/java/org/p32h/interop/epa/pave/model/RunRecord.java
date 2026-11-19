@@ -30,7 +30,8 @@ import java.util.Map;
  *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token, a line of business
  *       is a short label that does not read like an identifier or a date. Which lines the tool
  *       knows is the ledger's to decide, since the record cannot see the code list</li>
- *   <li>any of the above that holds this run's own member ID is not kept, whatever its shape</li>
+ *   <li>a coverage code, a line of business or a correlation value that holds this run's own
+ *       member ID is not kept, whatever its shape</li>
  *   <li>{@code note}, {@code testerRef} and {@code expected}: kept up to {@link #LONGEST_NOTE},
  *       {@link #LONGEST_TESTER_REF} and {@link #LONGEST_EXPECTED} characters. Every way in refuses
  *       a longer one with a message to the tester; this is the last line of defence behind them</li>
