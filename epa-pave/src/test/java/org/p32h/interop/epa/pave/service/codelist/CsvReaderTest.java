@@ -82,13 +82,13 @@ class CsvReaderTest {
 
     @Test
     void aByteOrderMarkAtTheStartIsNotPartOfTheFirstHeader() {
-        CsvContent content = reader.read("﻿Code,Description\nE0601,CPAP device\n");
+        CsvContent content = reader.read("\uFEFFCode,Description\nE0601,CPAP device\n");
         assertThat(content.header().cells()).containsExactly("Code", "Description");
         assertThat(content.header().cells().get(0)).hasSize(4);
         // Only the mark at the very start is a mark. Anywhere else it is a character someone put in a cell.
-        assertThat(reader.read("a\n\"﻿b\"\n").rows().get(0).cells()).containsExactly("﻿b");
+        assertThat(reader.read("a\n\"\uFEFFb\"\n").rows().get(0).cells()).containsExactly("\uFEFFb");
         // A mark in front of a quoted first cell must not stop the quote from being seen as one.
-        assertThat(reader.read("﻿\"Code, the\",Description\n").header().cells()).containsExactly("Code, the", "Description");
+        assertThat(reader.read("\uFEFF\"Code, the\",Description\n").header().cells()).containsExactly("Code, the", "Description");
     }
 
     @Test
@@ -117,7 +117,7 @@ class CsvReaderTest {
 
     @Test
     void anEmptyFileHasNoHeaderAndNoRows() {
-        for (String text : new String[] {null, "", "﻿"}) {
+        for (String text : new String[] {null, "", "\uFEFF"}) {
             CsvContent content = reader.read(text);
             assertThat(content.records()).isEmpty();
             assertThat(content.header()).isNull();
@@ -351,7 +351,7 @@ class CsvReaderTest {
         for (int file = 0; file < 400; file++) {
             char delimiter = delimiters[random.nextInt(delimiters.length)];
             List<List<String>> written = new java.util.ArrayList<>();
-            StringBuilder text = new StringBuilder(random.nextBoolean() ? "﻿" : "");
+            StringBuilder text = new StringBuilder(random.nextBoolean() ? "\uFEFF" : "");
             int records = random.nextInt(6);
             for (int r = 0; r < records; r++) {
                 List<String> record = new java.util.ArrayList<>();
@@ -380,7 +380,7 @@ class CsvReaderTest {
 
     @Test
     void aRecordSaysWhichLineItStartsOn() {
-        CsvContent content = reader.read("﻿h1,h2\r\n\r\nA,\"x\r\ny\"\r\nB,z");
+        CsvContent content = reader.read("\uFEFFh1,h2\r\n\r\nA,\"x\r\ny\"\r\nB,z");
         assertThat(lines(content.records())).containsExactly(1, 2, 3, 5);
         assertThat(content.records().get(1).blank()).isTrue();
         assertThat(content.records().get(0).blank()).isFalse();

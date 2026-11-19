@@ -1,0 +1,44 @@
+Procedure Code,Description,Code Type,PA Required,Line of Business,Delegated Vendor,Effective Date,End Date,Notes
+95810,"Overnight sleep study in a sleep lab, attended by a technologist, age 6 or older",CPT,Yes,Medicare,eviCore,1/1/2026,,Placeholder row. Not from a P32H export.
+95810,"Overnight sleep study in a sleep lab, attended by a technologist, age 6 or older",CPT,Yes,Medicaid,eviCore,1/1/2026,,Placeholder row. Not from a P32H export.
+95810,"Overnight sleep study in a sleep lab, attended by a technologist, age 6 or older",CPT,No,Commercial,,1/1/2026,,Placeholder row. Not from a P32H export.
+95811,"Overnight sleep study in a sleep lab, with airway pressure therapy started during the study",CPT,Yes,Medicare/Medicaid,eviCore,1/1/2026,,Placeholder row. Not from a P32H export. One row for two lines of business.
+95811,"Overnight sleep study in a sleep lab, with airway pressure therapy started during the study",CPT,,Commercial,,1/1/2026,,Placeholder row. Not from a P32H export. The authorization cell is blank on purpose.
+G0398,"Home sleep study with a type II portable monitor, unattended",HCPCS,Yes,Medicare,eviCore,1/1/2026,,Placeholder row. Not from a P32H export.
+G0399,"Home sleep study with a type III portable monitor, unattended",HCPCS,Yes,Medicare,eviCore,1/1/2025,12/31/2025,Placeholder row. Not from a P32H export. This row has ended.
+G0399,"Home sleep study with a type III portable monitor, unattended",HCPCS,No,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export. This row replaced the one that ended.
+G0400,"Home sleep study with a type IV portable monitor, unattended",HCPCS,Yes,Medicaid,eviCore,1/1/2026,,Placeholder row. Not from a P32H export.
+E0601,Continuous positive airway pressure device,HCPCS,No,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export.
+E0601,Continuous positive airway pressure device,HCPCS,No,Commercial,,1/1/2026,,Placeholder row. Not from a P32H export.
+E0470,"Bi-level airway pressure device without a backup rate, used with a mask",HCPCS,Yes,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export.
+E0562,Heated humidifier used with an airway pressure device,HCPCS,No,,,1/1/2026,,Placeholder row. Not from a P32H export. No line of business is stated.
+A7030,"Full face mask for an airway pressure device, each",HCPCS,,,,,,Placeholder row. Not from a P32H export. Nothing but the code and its description is stated.
+70553,"MRI of the brain, first without contrast and then with it",CPT,Yes,Medicare,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+70553,"MRI of the brain, first without contrast and then with it",CPT,Yes,Commercial,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+C8909,"MR angiography of the chest with contrast, hospital outpatient",HCPCS,Yes,Medicare,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+S8037,MR imaging of the bile ducts and the pancreatic duct,HCPCS,Yes,Commercial,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+A9552,"F-18 FDG tracer for a PET scan, per study dose",HCPCS,,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export. The authorization cell is blank on purpose.
+G0235,"PET imaging of any site, not otherwise specified",HCPCS,Yes,Medicare,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+78452,"Imaging of blood flow in the heart muscle with a nuclear tracer, more than one study",CPT,Yes,Medicare,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+C8929,"Echocardiogram through the chest wall with contrast, complete, with Doppler",HCPCS,No,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export.
+C8929,"Echocardiogram through the chest wall with contrast, complete, with Doppler",HCPCS,Yes,Commercial,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+27447,Total knee replacement,CPT,Yes,Medicare,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+27447,Total knee replacement,CPT,Yes,Commercial,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+G0260,"Injection into the sacroiliac joint with imaging guidance, facility setting",HCPCS,Yes,Medicaid,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.
+L1832,"Knee brace with adjustable joints, prefabricated and fitted to the patient",HCPCS,No,,,1/1/2026,,Placeholder row. Not from a P32H export. No line of business is stated.
+81162,"Testing of the BRCA1 and BRCA2 genes for inherited cancer risk, complete",CPT,Yes,Medicare,Carelon,1/1/2026,,Placeholder row. Not from a P32H export.
+81162,"Testing of the BRCA1 and BRCA2 genes for inherited cancer risk, complete",CPT,Yes,Medicaid,Carelon,1/1/2026,,Placeholder row. Not from a P32H export.
+81162,"Testing of the BRCA1 and BRCA2 genes for inherited cancer risk, complete",CPT,Yes,Commercial,,1/1/2026,,Placeholder row. Not from a P32H export.
+S3870,"Chromosome microarray test for developmental delay, autism or intellectual disability",HCPCS,Yes,Medicaid,Carelon,1/1/2026,,Placeholder row. Not from a P32H export.
+G0452,Physician reading and report of a molecular pathology test,HCPCS,No,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export.
+G0299,"Skilled nursing by a registered nurse in the home, each 15 minutes",HCPCS,Yes,Medicare,Optum Post Acute,1/1/2026,,Placeholder row. Not from a P32H export.
+G0151,"Physical therapy in the home, each 15 minutes",HCPCS,Yes,Medicare,Optum Post Acute,1/1/2026,,Placeholder row. Not from a P32H export.
+G0152,"Occupational therapy in the home, each 15 minutes",HCPCS,Yes,Medicare,Optum Post Acute,1/1/2026,,Placeholder row. Not from a P32H export.
+T1030,"Nursing care in the home by a registered nurse, per day",HCPCS,Yes,Medicaid,,1/1/2026,,Placeholder row. Not from a P32H export.
+S9123,"Nursing care in the home by a registered nurse, per hour",HCPCS,Yes,Commercial,,1/1/2026,,Placeholder row. Not from a P32H export.
+E0260,"Hospital bed, semi-electric, with side rails and a mattress",HCPCS,Yes,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export.
+E1390,"Oxygen concentrator, single delivery port",HCPCS,No,,,1/1/2026,,Placeholder row. Not from a P32H export. No line of business is stated.
+E2601,"Wheelchair seat cushion, general use, under 22"" wide",HCPCS,No,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export.
+J1745,"Infliximab injection, 10 mg",HCPCS,Yes,Commercial,,1/1/2026,,Placeholder row. Not from a P32H export.
+J3490,Drug that has no code of its own,HCPCS,,,,1/1/2026,,Placeholder row. Not from a P32H export. Neither a requirement nor a line of business is stated.
+A0428,"Ambulance transport, basic life support, not an emergency",HCPCS,No,,,1/1/2026,,Placeholder row. Not from a P32H export. No line of business is stated.
