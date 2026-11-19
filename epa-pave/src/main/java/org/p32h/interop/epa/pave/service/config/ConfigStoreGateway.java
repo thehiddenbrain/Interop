@@ -176,7 +176,9 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "whether a target is production. Upload an environment, state its kind and activate it.");
         }
         if (active.kind() != EnvironmentKind.PROD) {
-            return new WriteAccess(false, true, floor, "\"" + active.name() + "\" is a " + active.kind().wire() + " environment, so writes are sent.");
+            // Worded so that it is true on the mock profile too, where nothing is sent at all.
+            return new WriteAccess(false, true, floor, "\"" + active.name() + "\" is a " + active.kind().wire()
+                    + " environment, so writes are not blocked.");
         }
         if (!floor) {
             return new WriteAccess(true, false, false, "\"" + active.name() + "\" is production, and an owner has locked this installation "
