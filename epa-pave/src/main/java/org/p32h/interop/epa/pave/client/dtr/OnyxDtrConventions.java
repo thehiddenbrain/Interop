@@ -137,6 +137,46 @@ public final class OnyxDtrConventions {
         return parameters;
     }
 
+    /**
+     * READ: the extension every answer of a DTR response carries to say where it came from. A
+     * pre-populated answer is {@code auto}. When a person fills in or changes an answer, the client
+     * names that person as the author and sets the source to {@code override} if it was already
+     * auto or override, and to {@code manual} otherwise. This tool is the client here, so it does that.
+     */
+    public static final String EXT_INFORMATION_ORIGIN = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/information-origin";
+    public static final String ORIGIN_AUTO = "auto";
+    public static final String ORIGIN_OVERRIDE = "override";
+    public static final String ORIGIN_MANUAL = "manual";
+
+    /**
+     * READ: the extensions that say which order and which coverage a response is for. The payer
+     * fills them in on the response a package carries. DTR 2.2.0-ballot names the coverage in an
+     * extension of its own, which earlier versions do not define, and also asks for an intended
+     * use, which this tool cannot know and never states.
+     */
+    public static final String EXT_QR_CONTEXT = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context";
+    public static final String EXT_QR_COVERAGE = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-coverage";
+
+    /** The information-origin extension an answer carries, or null when it carries none. */
+    public static JsonNode origin(JsonNode answer) {
+        for (JsonNode extension : JsonSafe.elements(answer, "extension")) {
+            if (EXT_INFORMATION_ORIGIN.equals(JsonSafe.presentText(extension, "url"))) {
+                return extension;
+            }
+        }
+        return null;
+    }
+
+    /** The source an answer's information-origin extension states, or null when it states none. */
+    public static String originSource(JsonNode answer) {
+        for (JsonNode part : JsonSafe.elements(origin(answer), "extension")) {
+            if ("source".equals(JsonSafe.presentText(part, "url"))) {
+                return JsonSafe.presentText(part, "valueCode");
+            }
+        }
+        return null;
+    }
+
     /** READ: the parameter SDC puts the QuestionnaireResponse under when next-question is given a Parameters resource. */
     public static final String WRAP_SDC = "questionnaire-response";
     /** READ: the parameter DTR 2.2.0-ballot puts it under. */

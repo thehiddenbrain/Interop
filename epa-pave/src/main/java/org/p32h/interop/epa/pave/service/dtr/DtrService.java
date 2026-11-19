@@ -42,6 +42,7 @@ import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
+import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunRequest;
@@ -226,7 +227,7 @@ public class DtrService {
                 requestNotes.add("The body you supplied was not put inside a Parameters resource. It was sent exactly as written.");
             }
         } else {
-            DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock(), request.wrapInParameter());
+            DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request), support.clock(), request.wrapInParameter());
             body = ResolvedText.plain(built.json());
             requestNotes.addAll(loopNotes(posted, built, call));
             sent = built.response();
@@ -268,7 +269,7 @@ public class DtrService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request.rawBody(), null);
         }
-        DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock(), request.wrapInParameter());
+        DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request), support.clock(), request.wrapInParameter());
         return RequestPreview.of(operation, call, built.json(), loopNotes(posted, built, call), null);
     }
 
@@ -322,7 +323,7 @@ public class DtrService {
         EpaOperation operation = EpaOperation.DTR_RESPONSE;
         EnvironmentRef environment = gateway.activeEnvironment();
 
-        DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted, request.member(), support.clock(), builder, mapper);
+        DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted, filler(request), support.clock(), builder, mapper);
         DtrReading reading = assembled.reading();
         String runId = RunStamps.newRunId();
         String packageRun = DtrHandoff.first(request.carry(), NextStepView.CARRY_RUN_ID);
@@ -601,6 +602,25 @@ public class DtrService {
     private static List<String> caseCodes(RunRequest request) {
         List<String> typed = RunSupport.codes(request);
         return typed.isEmpty() ? DtrHandoff.values(request.carry(), NextStepView.CARRY_PROCEDURE_CODES) : typed;
+    }
+
+    /**
+     * Who is answering and for which case, for a step that answers a questionnaire. The orders are
+     * the ones the package request for this case carries, chosen by the same rule: the orders CRD's
+     * answer applied to when it handed any on that this tool builds, otherwise one for each code.
+     */
+    private static DtrRequestBuilder.Filler filler(RunRequest request) {
+        List<String> carried = DtrHandoff.values(request.carry(), NextStepView.CARRY_ORDER);
+        List<String> every = new ArrayList<>();
+        List<String> chosen = new ArrayList<>();
+        for (int position = 1; position <= caseCodes(request).size(); position++) {
+            String reference = CaseResources.serviceRequestRef(position);
+            every.add(reference);
+            if (carried.contains(reference) || carried.contains(CaseResources.serviceRequestId(position))) {
+                chosen.add(reference);
+            }
+        }
+        return new DtrRequestBuilder.Filler(request.member(), request.provider(), chosen.isEmpty() ? every : chosen);
     }
 
     /** True when the form names a questionnaire or a coverage assertion id, both of which an earlier answer supplied. */

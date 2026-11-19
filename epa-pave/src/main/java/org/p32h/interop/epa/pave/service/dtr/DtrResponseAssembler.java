@@ -4,7 +4,6 @@ import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions.Progress;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.JsonSafe;
-import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.dtr.QuestionnaireJson;
 import org.p32h.interop.epa.pave.model.dtr.QuestionnaireKind;
 import org.p32h.interop.epa.pave.service.dtr.EnableWhenEvaluator.Form;
@@ -64,7 +63,7 @@ final class DtrResponseAssembler {
     /**
      * @param posted what the request carried, already checked and free of errors
      */
-    static Assembled assemble(DtrAnswers.Posted posted, MemberDetail member, Clock clock, DtrRequestBuilder builder,
+    static Assembled assemble(DtrAnswers.Posted posted, DtrRequestBuilder.Filler filler, Clock clock, DtrRequestBuilder builder,
                               DtrResponseMapper mapper) {
         JsonNode questionnaire = posted.questionnaire();
         QuestionnaireKind kind = OnyxDtrConventions.kind(questionnaire).kind();
@@ -74,7 +73,7 @@ final class DtrResponseAssembler {
             JsonNode response = posted.response();
             boolean builtHere = response == null;
             if (builtHere) {
-                response = builder.buildNextQuestion(posted, member, clock).response();
+                response = builder.buildNextQuestion(posted, filler, clock, null).response();
                 notes.add("No response from the adaptive loop was given, so there is nothing the service has completed. The response shown "
                         + "is the empty one a first next-question step would send.");
             } else {
@@ -91,7 +90,7 @@ final class DtrResponseAssembler {
         }
         Form evaluated = EnableWhenEvaluator.evaluate(questionnaire, posted.merged());
         boolean complete = answeredAs == QuestionnaireKind.STATIC && evaluated.requiredUnanswered().isEmpty();
-        JsonNode response = builder.buildResponse(posted, evaluated, complete, member, clock, notes);
+        JsonNode response = builder.buildResponse(posted, evaluated, complete, filler, clock, notes);
         if (answeredAs == QuestionnaireKind.UNDETERMINED) {
             notes.add("This tool cannot tell whether this questionnaire is adaptive or static, so it does not call its response complete.");
         }

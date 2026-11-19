@@ -85,6 +85,7 @@ class DtrServiceTest {
     private static final String EARLIER_RUN = "run-00000000-0000-4000-8000-000000000009";
     private static final String SLEEP = "https://example.org/p32h-placeholder/Questionnaire/sleep-study-criteria";
     private static final String MRI = "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0";
+    private static final String ORIGIN = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/information-origin";
     private static final String SCOPE_PACKAGE = "This step exercised the $questionnaire-package operation behind a provider-facing SMART "
             + "launch, not the launch itself, which this tool does not host.";
     private static final String SCOPE_NEXT = "This step exercised the next-question operation behind a provider-facing SMART launch, not "
@@ -1159,6 +1160,21 @@ class DtrServiceTest {
         assertThat(secondSent.at("/item/0/answer/0/valueCoding/display").asString()).isEqualTo("Yes");
         assertThat(second.wire().request().note()).contains("step \"therapy-weeks\"");
         assertThat(gateway.lastIntent().operation()).isEqualTo(EpaOperation.DTR_NEXT_QUESTION);
+        // The DTR guide requires a client to say on each answer a person gives who gave it. The provider on the form is named
+        // by the local id of the Practitioner resource, never by the NPI.
+        assertThat(secondSent.at("/item/0/answer/0/extension/0/url").asString()).isEqualTo(ORIGIN);
+        assertThat(secondSent.at("/item/0/answer/0/extension/0/extension/0/valueCode").asString()).isEqualTo("manual");
+        assertThat(secondSent.at("/item/0/answer/0/extension/0/extension/1/extension/0/valueReference/reference").asString())
+                .isEqualTo("Practitioner/practitioner-1");
+        assertThat(second.wire().request().body()).doesNotContain(DtrFixtures.NPI);
+        assertThat(second.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("Each answer added in this step was marked "
+                + "with the information-origin extension").endsWith("by the id this tool gives the Practitioner in every request."));
+        // It comes back with the answer, and the result shows where the answer came from without leaving any of it uninterpreted.
+        assertThat(second.detail().questionnaireResponses().get(0).items().get(0).origins()).singleElement().satisfies(origin -> {
+            assertThat(origin.source().value()).isEqualTo("manual");
+            assertThat(origin.author().value()).isEqualTo("Practitioner/practitioner-1");
+        });
+        assertThat(second.additionalFields()).isEmpty();
     }
 
     @Test
@@ -1314,6 +1330,34 @@ class DtrServiceTest {
         // Its line names the questionnaire of the package, like the line of the fetch it follows.
         assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, canonical)
                 .containsEntry(RunRecord.CORR_RUN_ID, fetched.runId());
+
+        // A response this tool starts from nothing says which coverage and which order it is for, as the payer's own would.
+        assertThat(firstSent.get("extension")).hasSize(2);
+        assertThat(firstSent.at("/extension/0/url").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-coverage");
+        assertThat(firstSent.at("/extension/0/valueReference/reference").asString()).isEqualTo("Coverage/coverage-1");
+        assertThat(firstSent.at("/extension/1/url").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context");
+        assertThat(firstSent.at("/extension/1/valueReference/reference").asString()).isEqualTo("ServiceRequest/service-request-1");
+        assertThat(first.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("No response was given to start from, so this "
+                + "tool built one. It names the coverage of the case, and the order it is for."));
+
+        // With two codes and CRD's answer applying to the second order only, that is the order the response is for:
+        // the same rule by which the package request chose the orders it sent.
+        Map<String, List<String>> handedOn = new LinkedHashMap<>(fetched.nextStep().carry());
+        handedOn.put(NextStepView.CARRY_ORDER, List.of("ServiceRequest/service-request-2"));
+        RunEnvelope<DtrDetail> second = service().runNextQuestion(following(fetched, "P32H-DTR-LOOPERR")
+                .procedureCodes(List.of(CodeInput.of("72148"), CodeInput.of("72149"))).carry(handedOn).build(), RunOrigin.manual(), null);
+        JsonNode secondSent = JsonSafe.parse(second.wire().request().body()).node();
+        assertThat(secondSent.get("extension")).hasSize(2);
+        assertThat(secondSent.at("/extension/1/valueReference/reference").asString()).isEqualTo("ServiceRequest/service-request-2");
+        // An order CRD named that this tool does not build is not referred to: every order of the case is, as in the package request.
+        handedOn.put(NextStepView.CARRY_ORDER, List.of("ServiceRequest/vendor-order-9"));
+        JsonNode every = JsonSafe.parse(service().runNextQuestion(following(fetched, "P32H-DTR-LOOPERR")
+                .procedureCodes(List.of(CodeInput.of("72148"), CodeInput.of("72149"))).carry(handedOn).build(), RunOrigin.manual(), null)
+                .wire().request().body()).node();
+        assertThat(every.get("extension")).hasSize(3);
+        assertThat(every.at("/extension/1/valueReference/reference").asString()).isEqualTo("ServiceRequest/service-request-1");
+        assertThat(every.at("/extension/2/valueReference/reference").asString()).isEqualTo("ServiceRequest/service-request-2");
+        assertThat(every.toString()).doesNotContain("vendor-order-9");
     }
 
     @Test
@@ -1735,6 +1779,17 @@ class DtrServiceTest {
         assertThat(completed.at("/item/2/answer/0/valueInteger").asInt()).isEqualTo(21);
         assertThat(completed.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
         assertThat(completed.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        // Each answer says a person gave it and who, and the response says which coverage and order it is for: what PAS submits
+        // is what the DTR guide asks a client to produce.
+        for (String answer : List.of("/item/0/item/0/answer/0", "/item/0/item/1/answer/0", "/item/0/item/1/answer/1", "/item/1/item/1/answer/0",
+                "/item/2/answer/0")) {
+            assertThat(completed.at(answer + "/extension/0/url").asString()).as(answer).isEqualTo(ORIGIN);
+            assertThat(completed.at(answer + "/extension/0/extension/0/valueCode").asString()).as(answer).isEqualTo("manual");
+            assertThat(completed.at(answer + "/extension/0/extension/1/extension/0/valueReference/reference").asString()).as(answer)
+                    .isEqualTo("Practitioner/practitioner-1");
+        }
+        assertThat(completed.at("/extension/0/valueReference/reference").asString()).isEqualTo("Coverage/coverage-1");
+        assertThat(completed.at("/extension/1/valueReference/reference").asString()).isEqualTo("ServiceRequest/service-request-1");
         assertThat(result.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(fetched.runId());
         assertThat(ledger.last().nextAction()).isEqualTo("START_PAS");
 

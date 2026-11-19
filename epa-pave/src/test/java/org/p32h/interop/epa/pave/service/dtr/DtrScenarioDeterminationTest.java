@@ -333,8 +333,8 @@ class DtrScenarioDeterminationTest {
                 DtrAnswers.Posted posted = DtrAnswers.read(questionnaire.json(), startFrom, DtrFixtures.answers(claim.get("answers")));
                 assertThat(posted.errors()).as(what).isEmpty();
                 assertThat(DtrResponseAssembler.problems(posted)).as(what).isEmpty();
-                DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted, DtrFixtures.member("S123456789"),
-                        DtrFixtures.CLOCK, builder, mapper);
+                DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted,
+                        DtrRequestBuilder.Filler.of(DtrFixtures.member("S123456789")), DtrFixtures.CLOCK, builder, mapper);
                 DtrReading reading = assembled.reading();
 
                 JsonNode expect = claim.get("expect");

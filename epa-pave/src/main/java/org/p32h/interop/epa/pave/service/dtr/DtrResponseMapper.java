@@ -12,6 +12,7 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.dtr.AnswerOptionView;
+import org.p32h.interop.epa.pave.model.dtr.AnswerOriginView;
 import org.p32h.interop.epa.pave.model.dtr.AnswerView;
 import org.p32h.interop.epa.pave.model.dtr.ChangesView;
 import org.p32h.interop.epa.pave.model.dtr.ConditionState;
@@ -600,20 +601,72 @@ public final class DtrResponseMapper {
             String path = prefix + "[" + index + "]";
             if (item.isObject()) {
                 List<Shown> answers = new ArrayList<>();
+                List<AnswerOriginView> origins = new ArrayList<>();
+                List<ExtensionView> answerExtensions = new ArrayList<>();
                 List<ResponseItemView> nested = new ArrayList<>(responseItems(item.child("item"), path + ".item"));
                 int answerIndex = 0;
                 for (TrackedJson.Node answer : item.children("answer")) {
                     if (answer.isObject()) {
                         answers.add(typed(answer, "value"));
+                        origins.add(origin(answer, answerExtensions));
                         nested.addAll(responseItems(answer.child("item"), path + ".answer[" + answerIndex + "].item"));
                     }
                     answerIndex++;
                 }
-                out.add(new ResponseItemView(path, item.shown("linkId"), item.shown("text"), answers, nested));
+                out.add(new ResponseItemView(path, item.shown("linkId"), item.shown("text"), answers, origins, answerExtensions, nested));
             }
             index++;
         }
         return out;
+    }
+
+    /**
+     * Where an answer came from, read from its information-origin extension: the source, the
+     * practitioner named as the author, and each role given. Every other extension the answer
+     * carries is shown by its url and value. A part of the origin this mapper was never told about
+     * is not read here, so it stays among the fields that were returned and not interpreted.
+     *
+     * @param others receives the other extensions of the answer
+     */
+    private static AnswerOriginView origin(TrackedJson.Node answer, List<ExtensionView> others) {
+        AnswerOriginView origin = AnswerOriginView.notStated();
+        for (TrackedJson.Node extension : answer.children("extension")) {
+            if (!extension.isObject()) {
+                continue;
+            }
+            if (!OnyxDtrConventions.EXT_INFORMATION_ORIGIN.equals(JsonSafe.presentText(extension.raw(), "url"))) {
+                Shown url = extension.shown("url");
+                Shown value = FhirViews.extensionValue(extension) != null ? FhirViews.extensionValueShown(extension)
+                        : extension.child("extension").exists() ? extension.shown("extension") : Shown.absent();
+                others.add(new ExtensionView(url, value));
+                continue;
+            }
+            extension.text("url");
+            Shown source = Shown.absent();
+            Shown author = Shown.absent();
+            List<Shown> roles = new ArrayList<>();
+            for (TrackedJson.Node part : extension.children("extension")) {
+                String name = JsonSafe.presentText(part.raw(), "url");
+                if ("source".equals(name)) {
+                    part.text("url");
+                    source = part.shown("valueCode");
+                } else if ("author".equals(name)) {
+                    part.text("url");
+                    for (TrackedJson.Node detail : part.children("extension")) {
+                        String detailName = JsonSafe.presentText(detail.raw(), "url");
+                        if ("practitioner".equals(detailName)) {
+                            detail.text("url");
+                            author = FhirViews.reference(detail.child("valueReference"));
+                        } else if ("role".equals(detailName)) {
+                            detail.text("url");
+                            roles.add(FhirViews.concept(detail.child("valueCodeableConcept")));
+                        }
+                    }
+                }
+            }
+            origin = new AnswerOriginView(source, author, roles);
+        }
+        return origin;
     }
 
     /** A resource that is neither a questionnaire nor a response: its identity, and for a value set or a library what it holds. */

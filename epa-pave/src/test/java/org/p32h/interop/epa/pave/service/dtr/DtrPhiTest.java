@@ -273,7 +273,11 @@ class DtrPhiTest {
         Object[] printed = {packageRequest("P32H-DTR-ADAPT"), stepRequest, responseRequest, responseRequest.answers().get(0), posted, loopBody,
                 built, handoff, second, second.detail(), second.detail().form(), second.detail().form().answers().get(0),
                 second.detail().questionnaires().get(0), second.detail().questionnaireResponses().get(0), second.nextStep(), second.verdict(),
-                new DtrReading(second.detail(), DtrOutcome.NEXT_QUESTION, second.additionalFields())};
+                new DtrReading(second.detail(), DtrOutcome.NEXT_QUESTION, second.additionalFields()),
+                // What says who is answering holds the member and the provider. What a response item shows holds the answers.
+                new DtrRequestBuilder.Filler(member("P32H-DTR-ADAPT"), DtrFixtures.provider(), List.of("ServiceRequest/service-request-1")),
+                second.detail().questionnaireResponses().get(0).items().get(0),
+                second.detail().questionnaireResponses().get(0).items().get(0).origins().get(0)};
         for (Object value : printed) {
             assertThat(value.toString()).as(value.getClass().getSimpleName())
                     .doesNotContain(DtrFixtures.SURNAME).doesNotContain(DtrFixtures.BIRTH).doesNotContain("P32H-DTR-ADAPT").doesNotContain(STREET)
@@ -283,5 +287,6 @@ class DtrPhiTest {
         assertThat(stepRequest.toString()).isEqualTo("DtrNextQuestionRequest[answers=1]");
         assertThat(responseRequest.answers().get(0).toString()).isEqualTo("DtrAnswerInput[mri-2-red-flag, 1 value(s)]");
         assertThat(built.toString()).isEqualTo("Package[questionnaires=0, orders=1]");
+        assertThat(printed[printed.length - 3].toString()).isEqualTo("Filler[orders=1]").doesNotContain(DtrFixtures.NPI);
     }
 }

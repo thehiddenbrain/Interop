@@ -631,6 +631,43 @@ class DtrResponseMapperTest {
     }
 
     @Test
+    void whereEachAnswerCameFromIsInTheDesignedViewAndAPartOfItNobodyAnticipatedIsStillListed() {
+        String origin = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/information-origin";
+        String body = "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"item\":["
+                + "{\"linkId\":\"q1\",\"type\":\"string\"},{\"linkId\":\"q2\",\"type\":\"string\"},{\"linkId\":\"q3\",\"type\":\"string\"}]}],"
+                + "\"questionnaire\":\"#q\",\"status\":\"in-progress\",\"item\":["
+                + "{\"linkId\":\"q1\",\"answer\":[{\"extension\":[{\"url\":\"" + origin + "\",\"extension\":[{\"url\":\"source\","
+                + "\"valueCode\":\"auto\"}]}],\"valueString\":\"pre-populated\"}]},"
+                + "{\"linkId\":\"q2\",\"answer\":[{\"extension\":[{\"url\":\"https://example.org/p32h-placeholder/score\",\"valueInteger\":3},"
+                + "{\"url\":\"" + origin + "\",\"extension\":[{\"url\":\"source\",\"valueCode\":\"override\"},{\"url\":\"author\",\"extension\":["
+                + "{\"url\":\"role\",\"valueCodeableConcept\":{\"coding\":[{\"system\":\"http://terminology.hl7.org/CodeSystem/practitioner-role\","
+                + "\"code\":\"doctor\",\"display\":\"Doctor\"}]}},{\"url\":\"practitioner\",\"valueReference\":{\"reference\":"
+                + "\"Practitioner/practitioner-1\"}}]},{\"url\":\"surprise\",\"valueString\":\"never heard of it\"}]}],"
+                + "\"valueString\":\"changed\"}]},"
+                + "{\"linkId\":\"q3\",\"answer\":[{\"valueString\":\"says nothing\"}]}]}";
+        DtrReading reading = readStep(200, body);
+        List<ResponseItemView> items = reading.detail().questionnaireResponses().get(0).items();
+        // One origin for each answer, in the same order as the answers.
+        assertThat(items).allSatisfy(item -> assertThat(item.origins()).hasSameSizeAs(item.answers()));
+        assertThat(items.get(0).origins().get(0).source().value()).isEqualTo("auto");
+        assertThat(items.get(0).origins().get(0).author().presence()).isEqualTo(Presence.ABSENT);
+        assertThat(items.get(1).origins().get(0).source().value()).isEqualTo("override");
+        assertThat(items.get(1).origins().get(0).author().value()).isEqualTo("Practitioner/practitioner-1");
+        assertThat(values(items.get(1).origins().get(0).roles())).singleElement().satisfies(role -> assertThat(role).contains("Doctor"));
+        // An answer that says nothing about where it came from is shown as saying nothing, which the guide does not allow.
+        assertThat(items.get(2).origins().get(0).source().presence()).isEqualTo(Presence.ABSENT);
+        // Any other extension on an answer is shown by its url and its value.
+        assertThat(items.get(1).answerExtensions()).singleElement().satisfies(extension -> {
+            assertThat(extension.url().value()).isEqualTo("https://example.org/p32h-placeholder/score");
+            assertThat(extension.value().value()).isEqualTo("3");
+        });
+        assertThat(items.get(0).answerExtensions()).isEmpty();
+        // What the origin held that this tool was never told about is not swallowed with the rest of it.
+        assertThat(paths(reading)).containsExactly("item[1].answer[0].extension[1].extension[2].url",
+                "item[1].answer[0].extension[1].extension[2].valueString");
+    }
+
+    @Test
     void whatChangedIsWorkedOutFromTheResponseThatWasSentAndTheOneThatCameBack() {
         String before = "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"item\":["
                 + "{\"linkId\":\"q1\",\"text\":\"First\",\"type\":\"boolean\"},{\"linkId\":\"q2\",\"text\":\"Second\",\"type\":\"string\"}]}],"
