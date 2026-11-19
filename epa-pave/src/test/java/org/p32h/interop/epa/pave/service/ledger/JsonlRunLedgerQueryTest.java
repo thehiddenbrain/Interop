@@ -322,6 +322,12 @@ class JsonlRunLedgerQueryTest {
         assertThat(ledger.find("run-1").orElseThrow().note()).isEqualTo("second");
         assertThat(ledger.addNote("run-1", null, "QA-2").record().note()).isEqualTo("second");
         assertThat(ledger.find("run-1").orElseThrow().testerRef()).isEqualTo("QA-2");
+        // A query reads the same lines by another path, and must apply the last note line too, not the first.
+        assertThat(ledger.query(RunQuery.all())).singleElement().satisfies(run -> {
+            assertThat(run.note()).isEqualTo("second");
+            assertThat(run.testerRef()).isEqualTo("QA-2");
+        });
+        assertThat(ledger.query(RunQuery.all())).containsExactly(ledger.find("run-1").orElseThrow());
 
         RunRecord cleared = ledger.addNote("run-1", " ", null).record();
         assertThat(cleared.note()).isNull();
