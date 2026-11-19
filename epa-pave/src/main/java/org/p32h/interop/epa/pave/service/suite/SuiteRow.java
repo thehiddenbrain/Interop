@@ -29,4 +29,10 @@ public record SuiteRow(int number, String caseId, String what, boolean chain, bo
     public boolean runnable() {
         return problems.isEmpty();
     }
+
+    /** Prints the position only. The case id, the expectation and the case are cells of the file. */
+    @Override
+    public String toString() {
+        return "SuiteRow[" + number + "]";
+    }
 }

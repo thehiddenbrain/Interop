@@ -52,4 +52,10 @@ public record SuiteTable(String format, List<String> columns, List<SourceRow> ro
             return "SourceRow[" + number + "]";
         }
     }
+
+    /** Prints the format and the size. The columns are the first row of the file, which can be a case. */
+    @Override
+    public String toString() {
+        return "SuiteTable[" + format + ", " + rows.size() + " rows]";
+    }
 }

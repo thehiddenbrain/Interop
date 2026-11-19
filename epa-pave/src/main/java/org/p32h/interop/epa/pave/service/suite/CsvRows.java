@@ -24,5 +24,11 @@ public interface CsvRows {
             rows = rows == null ? List.of() : rows.stream().map(List::copyOf).toList();
             problems = problems == null ? List.of() : List.copyOf(problems);
         }
+
+        /** Prints the size only. Every cell, the header included, can be a member's. */
+        @Override
+        public String toString() {
+            return "Table[" + rows.size() + " rows]";
+        }
     }
 }

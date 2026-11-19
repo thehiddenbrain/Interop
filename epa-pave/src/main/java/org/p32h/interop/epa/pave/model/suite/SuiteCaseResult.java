@@ -74,4 +74,10 @@ public record SuiteCaseResult(
         notes = notes == null ? List.of() : List.copyOf(notes);
         notRecorded = notRecorded == null ? List.of() : List.copyOf(notRecorded);
     }
+
+    /** Prints the row and its state. The case id, the expectation and the reason are cells of a suite file or quote them. */
+    @Override
+    public String toString() {
+        return "SuiteCaseResult[" + row + ", " + state + "]";
+    }
 }

@@ -47,4 +47,10 @@ public record PasDecision(String subject, String procedureCode, Integer sequence
     public PasDecision named(String newSubject) {
         return new PasDecision(newSubject, procedureCode, sequence, foundAt, reviewActions, source, outcome, reasonCodes, errorCodes);
     }
+
+    /** Prints where it was found and the outcome. The codes and the subject come from a response. */
+    @Override
+    public String toString() {
+        return "PasDecision[" + foundAt + ", " + outcome + "]";
+    }
 }

@@ -101,4 +101,10 @@ public record ProviderDetail(
             return new ProviderDetail(npi, firstName, lastName, organizationName, specialty, taxonomyCode, networkStatus, phone, address);
         }
     }
+
+    /** Prints the NPI only. The name, the phone and the address come from a response. */
+    @Override
+    public String toString() {
+        return "ProviderDetail[" + npi + "]";
+    }
 }

@@ -28,4 +28,10 @@ public record CodeListSelfCheck(String source, boolean placeholder, String forma
         unrecognisedColumns = unrecognisedColumns == null ? List.of() : List.copyOf(unrecognisedColumns);
         warnings = warnings == null ? List.of() : List.copyOf(warnings);
     }
+
+    /** Prints the format and the size. The headers it holds are whatever file codelist.file points at. */
+    @Override
+    public String toString() {
+        return "CodeListSelfCheck[" + format + ", " + rowCount + " rows]";
+    }
 }

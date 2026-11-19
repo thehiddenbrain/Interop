@@ -38,4 +38,10 @@ public record ReplayEntry(String runId, ReplayStatus status, String reason, Stri
     static ReplayEntry withNoRecord(RunRecord original, ReplayStatus status, String reason) {
         return new ReplayEntry(original.runId(), status, reason, null, List.of(), List.of(), original, null);
     }
+
+    /** Prints the run and how it ended. The reason can quote an expectation a tester typed. */
+    @Override
+    public String toString() {
+        return "ReplayEntry[" + runId + ", " + status + "]";
+    }
 }

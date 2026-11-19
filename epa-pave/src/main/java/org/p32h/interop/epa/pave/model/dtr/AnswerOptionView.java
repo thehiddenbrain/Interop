@@ -15,4 +15,9 @@ import org.p32h.interop.epa.pave.model.Shown;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AnswerOptionView(String label, String answerAs, Shown value, Shown initialSelected) {
+    /** Prints nothing of the label or the value, which come from a response. */
+    @Override
+    public String toString() {
+        return "AnswerOptionView[not shown]";
+    }
 }

@@ -22,4 +22,10 @@ public record SuiteDefinition(String name, String format, List<String> columns, 
     public boolean runnable() {
         return problems.isEmpty() && rows.stream().anyMatch(SuiteRow::runnable);
     }
+
+    /** Prints the format and the size. The name, the columns and the rows come from the file. */
+    @Override
+    public String toString() {
+        return "SuiteDefinition[" + format + ", " + rows.size() + " rows]";
+    }
 }

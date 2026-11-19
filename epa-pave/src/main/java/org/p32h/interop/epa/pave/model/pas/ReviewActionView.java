@@ -30,4 +30,10 @@ public record ReviewActionView(String foundAt, CodedValue code, Shown returned, 
         reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
         otherParts = otherParts == null ? List.of() : List.copyOf(otherParts);
     }
+
+    /** Prints where it was found. Everything else comes from a response. */
+    @Override
+    public String toString() {
+        return "ReviewActionView[" + foundAt + "]";
+    }
 }

@@ -17,4 +17,10 @@ public record ExtensionView(String url, Shown value, List<ExtensionView> parts) 
     public ExtensionView {
         parts = parts == null ? List.of() : List.copyOf(parts);
     }
+
+    /** Prints nothing of the url or the value, which come from a response. */
+    @Override
+    public String toString() {
+        return "ExtensionView[not shown]";
+    }
 }

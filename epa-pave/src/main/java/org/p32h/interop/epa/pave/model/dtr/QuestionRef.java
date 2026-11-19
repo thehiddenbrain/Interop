@@ -19,4 +19,10 @@ public record QuestionRef(String linkId, String text, String note) {
     public String named() {
         return text == null ? linkId : linkId + " \"" + text + "\"";
     }
+
+    /** Prints nothing of the question, which comes from a response. */
+    @Override
+    public String toString() {
+        return "QuestionRef[not shown]";
+    }
 }

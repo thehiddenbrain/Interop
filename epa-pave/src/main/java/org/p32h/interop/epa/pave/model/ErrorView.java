@@ -43,4 +43,10 @@ public record ErrorView(ErrorKind kind, String title, String action, Integer htt
     public ErrorView withReference(String newReference) {
         return new ErrorView(kind, title, action, httpStatus, fieldErrors, issues, newReference);
     }
+
+    /** Prints the kind and the status. The issues are a response's text, and a field error can quote what was typed. */
+    @Override
+    public String toString() {
+        return "ErrorView[" + kind + ", " + httpStatus + "]";
+    }
 }

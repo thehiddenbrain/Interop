@@ -475,6 +475,12 @@ public class SuiteService implements AutoCloseable {
 
     /** What an earlier run made of one case. */
     private record Previous(String caseId, Protocol protocol, String outcome, TestResult result) {
+
+        /** Prints the protocol and the result. The case id is a cell of a suite file. */
+        @Override
+        public String toString() {
+            return "Previous[" + protocol + ", " + result + "]";
+        }
     }
 
     /** One case of a run. Its fields are read and written under the run's monitor. */
