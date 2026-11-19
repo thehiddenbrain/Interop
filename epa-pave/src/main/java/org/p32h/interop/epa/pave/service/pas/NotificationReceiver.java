@@ -591,11 +591,14 @@ public class NotificationReceiver {
         }
     }
 
-    /** The newest run of one operation that carries an identifier, or null. A ledger that fails is reported and never fatal. */
+    /**
+     * The newest run of one operation that carries an identifier and was sent, or null. A run the
+     * guardrail refused names what it was aimed at and sent nothing, so a notification is never
+     * about it. A ledger that fails is reported and never fatal.
+     */
     private static RunRecord find(RunLedger target, EpaOperation operation, String key, String value, boolean[] failed) {
         try {
-            List<RunRecord> runs = target.query(RunQuery.builder().operation(operation).correlation(key, value).limit(1).build());
-            return runs.isEmpty() ? null : runs.get(0);
+            return SentRuns.newest(target, operation, key, value);
         } catch (RuntimeException e) {
             failed[0] = true;
             return null;

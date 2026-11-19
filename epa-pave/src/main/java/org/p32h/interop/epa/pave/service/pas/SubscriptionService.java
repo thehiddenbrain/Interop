@@ -96,11 +96,23 @@ public class SubscriptionService {
         boolean sendsBody = sendsBody(operation);
         boolean ownBody = sendsBody && RunSupport.ownBody(request);
 
+        // What the request itself says the run is about: the subscription it names and the run it
+        // follows from. Settled before the gateway is asked, so that a run the guardrail refuses
+        // names them on its ledger line exactly as a run that was sent does.
+        String carriedRunId = first(request, NextStepView.CARRY_RUN_ID);
+        Map<String, String> known = new LinkedHashMap<>();
+        if (id != null) {
+            known.put(RunRecord.CORR_SUBSCRIPTION_ID, id);
+        }
+        if (carriedRunId != null) {
+            known.put(RunRecord.CORR_RUN_ID, carriedRunId);
+        }
+
         PreparedCall call;
         try {
             call = gateway.prepare(intent(operation, request, id, unlock));
         } catch (ProdWriteBlockedException refusal) {
-            return support.blocked(operation, refusal, request, origin);
+            return support.blocked(operation, refusal, request, origin, known);
         }
 
         ResolvedText body = null;
@@ -139,14 +151,6 @@ public class SubscriptionService {
         // From here on the call has been made, so whatever happens next the run is recorded. A later
         // step is linked to a create by its run id, so the id is settled now.
         String runId = RunStamps.newRunId();
-        String carriedRunId = first(request, NextStepView.CARRY_RUN_ID);
-        Map<String, String> known = new LinkedHashMap<>();
-        if (id != null) {
-            known.put(RunRecord.CORR_SUBSCRIPTION_ID, id);
-        }
-        if (carriedRunId != null) {
-            known.put(RunRecord.CORR_RUN_ID, carriedRunId);
-        }
         RunRecord.Builder draft = support.fill(support.draft(operation, call, exchange, origin), request).runId(runId).correlation(known);
         String followsRunId = operation == EpaOperation.SUBSCRIPTION_CREATE ? runId : carriedRunId;
         Interpreted read;

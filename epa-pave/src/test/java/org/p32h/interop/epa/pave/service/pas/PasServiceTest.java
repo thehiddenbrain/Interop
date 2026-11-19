@@ -483,8 +483,60 @@ class PasServiceTest {
         assertThat(record.httpStatus()).isNull();
         assertThat(record.memberId()).isEqualTo("S1234567801");
         assertThat(record.nextAction()).isEqualTo("UNLOCK_OR_SWITCH");
-        // No claim was sent, so the line names none.
+        // No claim id was given and none was sent, so the line names none. An id is not minted for a request that did not go.
         assertThat(record.correlation()).isEmpty();
+    }
+
+    @Test
+    void aBlockedSubmissionNamesTheClaimAndTheRunItWasAbout() {
+        gateway.failing(blockedWrite());
+        CountingClient client = new CountingClient();
+        PasService live = service(client, "live", Map.of(), Map.of());
+        String earlier = "run-00000000-0000-4000-8000-000000000001";
+
+        // The claim id typed on the form.
+        live.runSubmit(submission("S123456789").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().outcome()).isEqualTo("BLOCKED");
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, CLAIM));
+
+        // The claim and the run an earlier step handed on, as a resubmission with documentation carries them.
+        live.runSubmit(submission("S123456789").carry(Map.of(NextStepView.CARRY_CLAIM_ID, List.of(CLAIM), NextStepView.CARRY_RUN_ID,
+                List.of(earlier))).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, CLAIM),
+                Map.entry(RunRecord.CORR_RUN_ID, earlier));
+
+        // The claim a body of the tester's own names. The claim id on the form is not part of that body, so it is not the one.
+        live.runSubmit(PasSubmitRequest.builder().rawBody(PasJson.request("claim-in-the-body", "95810")).claimId(CLAIM).build(),
+                RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, "claim-in-the-body"));
+        // A body whose claim id is still a placeholder names no claim: nothing is resolved for a request that does not go.
+        live.runSubmit(PasSubmitRequest.builder().rawBody(PasJson.request("{{claimIdentifier}}", "95810")).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).isEmpty();
+
+        // A refused inquiry names the claim it asked about in the same way.
+        live.runInquire(inquiry("S123456789").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().operation()).isEqualTo(EpaOperation.PAS_INQUIRE);
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, CLAIM));
+
+        assertThat(ledger.records()).hasSize(5).allSatisfy(record -> assertThat(record.outcome()).isEqualTo("BLOCKED"));
+        assertThat(client.calls.get()).isZero();
+    }
+
+    @Test
+    void anInquiryIsLinkedToTheSubmissionThatWasSentAndNeverToALaterAttemptTheGuardrailRefused() {
+        RunEnvelope<PasDetail> submitted = service().runSubmit(submission("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        // The same claim is submitted again and refused. Its line names the claim, and it sent nothing.
+        gateway.failing(blockedWrite());
+        RunEnvelope<PasDetail> refused = service().runSubmit(submission("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        assertThat(RunSupport.isBlocked(refused)).isTrue();
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, CLAIM);
+        gateway.failing(null);
+
+        RunEnvelope<PasDetail> inquired = service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+
+        // The newest line for that claim is the refused one. The inquiry is about the request the payer holds.
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, submitted.runId());
+        assertThat(inquired.nextStep().first(NextStepView.CARRY_RUN_ID)).isEqualTo(submitted.runId());
     }
 
     @Test

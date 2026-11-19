@@ -31,6 +31,7 @@ import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
+import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.Finding;
@@ -54,6 +55,7 @@ import org.p32h.interop.epa.pave.model.pas.PasOutcome;
 import org.p32h.interop.epa.pave.model.pas.SubscriptionDetail;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
+import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.p32h.interop.epa.pave.service.scenario.Scenario;
@@ -222,6 +224,32 @@ class NotificationReceiverTest {
                 claimResponse(claimResponseIdOf(submitted), submitted.detail().claimId(), "A4")));
         assertThat(pended.nextStep().action()).isEqualTo(NextAction.CHECK_STATUS);
         assertThat(pended.verdict().supporting()).anySatisfy(line -> assertThat(line).contains("the authorization is pended"));
+    }
+
+    @Test
+    void aNotificationIsAboutTheSubmissionThatWasSentAndNeverAboutALaterAttemptTheGuardrailRefused() {
+        createSubscription();
+        RunEnvelope<PasDetail> submitted = submit("P32H-PAS-NOTIFY");
+        String claimId = submitted.detail().claimId();
+        // The same claim is submitted again and the guardrail refuses it. Nothing is sent, and the line names the claim.
+        gateway.failing(new ProdWriteBlockedException(EpaOperation.PAS_SUBMIT, new EnvironmentRef("Onyx Production", EnvironmentKind.PROD),
+                "Writes to the production environment Onyx Production are blocked.", "Unlock writes on the Config tab, or switch environment.",
+                null, "POST", null));
+        RunEnvelope<PasDetail> refused = pas.runSubmit(PasSubmitRequest.builder().claimId(claimId).member(MemberDetail.builder()
+                        .memberId("P32H-PAS-NOTIFY").firstName("Given").lastName(SURNAME).dateOfBirth("1970-01-31").build())
+                .provider(ProviderDetail.builder().npi("1234567893").build()).procedureCodes(List.of(CodeInput.of("95810"))).build(),
+                RunOrigin.manual(), null);
+        assertThat(RunSupport.isBlocked(refused)).isTrue();
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, claimId));
+        gateway.failing(null);
+
+        NotificationView view = receive(bundle(status(SUBSCRIPTION, "event-notification"),
+                claimResponse(claimResponseIdOf(submitted), claimId, "A1")));
+
+        // The newest line for that claim is the refused one. The notification is about the request the payer holds.
+        assertThat(view.correlatedRunId()).isEqualTo(submitted.runId());
+        assertThat(view.correlationNotes()).contains("It is about the submission " + submitted.runId() + ", matched by the claim id it carries.");
+        assertThat(view.correlationNotes()).noneMatch(note -> note.contains(refused.runId()));
     }
 
     @Test

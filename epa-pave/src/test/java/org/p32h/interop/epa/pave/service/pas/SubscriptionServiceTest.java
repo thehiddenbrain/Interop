@@ -461,9 +461,23 @@ class SubscriptionServiceTest {
             assertThat(record.errorType()).isEqualTo(RunRecord.ERROR_BLOCKED);
             assertThat(record.environmentKind()).isEqualTo(EnvironmentKind.PROD);
             assertThat(record.httpStatus()).isNull();
+            // The line of a refused update or delete names the subscription it was aimed at. A create is aimed at none.
+            if (operation == CREATE) {
+                assertThat(record.correlation()).isEmpty();
+            } else {
+                assertThat(record.correlation()).as(operation.name()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, ID));
+            }
         }
         assertThat(client.calls.get()).isZero();
         assertThat(ledger.records()).hasSize(3);
+
+        // A refused step that follows from an earlier run says which, as the same step would have had it gone through.
+        String earlier = "run-00000000-0000-4000-8000-000000000001";
+        gateway.failing(blocked(DELETE));
+        service.run(DELETE, about(ID).carry(Map.of(NextStepView.CARRY_RUN_ID, List.of(earlier))).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, ID),
+                Map.entry(RunRecord.CORR_RUN_ID, earlier));
+        assertThat(client.calls.get()).isZero();
     }
 
     @Test

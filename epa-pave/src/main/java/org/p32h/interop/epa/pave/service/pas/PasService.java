@@ -18,7 +18,6 @@ import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
-import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
@@ -103,7 +102,7 @@ public class PasService {
         try {
             call = gateway.prepare(intent(operation, request, unlock));
         } catch (ProdWriteBlockedException refusal) {
-            return support.blocked(operation, refusal, request, origin);
+            return support.blocked(operation, refusal, request, origin, aboutRefused(request, first(request, NextStepView.CARRY_RUN_ID)));
         }
 
         ResolvedText body;
@@ -151,7 +150,9 @@ public class PasService {
         try {
             call = gateway.prepare(intent(operation, request, unlock));
         } catch (ProdWriteBlockedException refusal) {
-            return support.blocked(operation, refusal, request, origin);
+            // Linked as an inquiry that was sent would be: to the run the carry names, otherwise to the submission of that claim.
+            return support.blocked(operation, refusal, request, origin, aboutRefused(request,
+                    Texts.firstPresent(first(request, NextStepView.CARRY_RUN_ID), submissionOf(namedClaimId(request)))));
         }
 
         ResolvedText body;
@@ -350,6 +351,40 @@ public class PasService {
         return given != null || !mint ? given : "claim-" + UUID.randomUUID();
     }
 
+    /**
+     * What a run the guardrail refused was about, for its ledger line: the claim the request names
+     * and the run it follows from. Nothing was sent, so nothing is resolved and no claim id is
+     * minted: a line that named an id this tool made up for a request that never went would point
+     * at a claim that does not exist.
+     *
+     * @param followsRunId the earlier run the refused one follows from, or null
+     */
+    private static Map<String, String> aboutRefused(RunRequest request, String followsRunId) {
+        Map<String, String> about = new LinkedHashMap<>();
+        String claimId = namedClaimId(request);
+        if (claimId != null) {
+            about.put(RunRecord.CORR_CLAIM_ID, claimId);
+        }
+        if (Texts.present(followsRunId)) {
+            about.put(RunRecord.CORR_RUN_ID, followsRunId);
+        }
+        return about;
+    }
+
+    /**
+     * The claim id a request names before anything is resolved or built: the one on the form or
+     * carried from an earlier step, or, for a body of the tester's own, the one written in that
+     * body. One that is still a placeholder, or is not the single word a claim id is, names no
+     * claim. Null when the request names none.
+     */
+    private static String namedClaimId(RunRequest request) {
+        if (!RunSupport.ownBody(request)) {
+            return claimId(request, false);
+        }
+        String written = Texts.trimToNull(SentClaim.fromBody(request.rawBody()).claimId());
+        return written != null && CLAIM_ID.matcher(written).matches() ? written : null;
+    }
+
     /** The first present value an earlier step handed on under a key, or null. */
     private static String first(RunRequest request, String key) {
         List<String> values = request.carry() == null ? null : request.carry().get(key);
@@ -358,8 +393,10 @@ public class PasService {
 
     /**
      * The run that submitted a claim, as the ledger holds it, or null. Looked up through the
-     * ledger's own correlation filter, never by comparing stored values here. A ledger that is not
-     * there, or that fails, leaves the inquiry unlinked. It never costs the tester their result.
+     * ledger's own correlation filter, never by comparing stored values here. A submission the
+     * guardrail refused names its claim too and sent nothing, so it is never the one. A ledger
+     * that is not there, or that fails, leaves the inquiry unlinked. It never costs the tester
+     * their result.
      */
     private String submissionOf(String claimId) {
         if (Texts.blank(claimId)) {
@@ -370,9 +407,8 @@ public class PasService {
             if (target == null) {
                 return null;
             }
-            List<RunRecord> runs = target.query(RunQuery.builder().operation(EpaOperation.PAS_SUBMIT)
-                    .correlation(RunRecord.CORR_CLAIM_ID, claimId).limit(1).build());
-            return runs.isEmpty() ? null : runs.get(0).runId();
+            RunRecord submitted = SentRuns.newest(target, EpaOperation.PAS_SUBMIT, RunRecord.CORR_CLAIM_ID, claimId);
+            return submitted == null ? null : submitted.runId();
         } catch (RuntimeException e) {
             return null;
         }

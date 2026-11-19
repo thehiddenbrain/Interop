@@ -246,7 +246,28 @@ public class RunSupport {
      */
     public <D> RunEnvelope<D> blocked(EpaOperation operation, ProdWriteBlockedException refusal, RunRequest request,
                                       RunOrigin origin) {
-        RunRecord record = fill(blockedDraft(operation, refusal, origin), request).nextAction(NextAction.UNLOCK_OR_SWITCH).build();
+        return blocked(operation, refusal, request, origin, Map.of());
+    }
+
+    /**
+     * As {@link #blocked(EpaOperation, ProdWriteBlockedException, RunRequest, RunOrigin)}, for a
+     * run that names what it was aimed at: the subscription an update or a delete was for, the
+     * claim a submission carried, the run it follows from. An owner who reads the ledger for
+     * refused production writes can then see what each one would have changed.
+     *
+     * <p>Only what the request itself names belongs here. Nothing was sent, so nothing a service
+     * would have assigned exists, and an identifier this tool would have minted on sending is not
+     * minted for a request that did not go.
+     *
+     * @param correlation what the refused run was about, keyed by the CORR constants of
+     *                    {@link RunRecord}. The record checks the keys and the values itself, as it
+     *                    does for every line. Null or empty for a run that names nothing
+     * @param <D>         the protocol's detail type. A blocked result has no detail
+     */
+    public <D> RunEnvelope<D> blocked(EpaOperation operation, ProdWriteBlockedException refusal, RunRequest request,
+                                      RunOrigin origin, Map<String, String> correlation) {
+        RunRecord record = fill(blockedDraft(operation, refusal, origin), request).correlation(correlation == null ? Map.of() : correlation)
+                .nextAction(NextAction.UNLOCK_OR_SWITCH).build();
         LedgerReceipt receipt = record(record);
         ResolvedUrl target = refusal.target();
         MemberIdForms memberId = memberId(request);
