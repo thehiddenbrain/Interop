@@ -162,7 +162,7 @@ public class ConfigService {
         }
         PostmanRequest request = mapped.request();
         List<HeaderView> headers = new ArrayList<>();
-        request.headers().forEach(header -> headers.add(new HeaderView(header.name(), shownTemplate(header.name(), header.value()), header.disabled())));
+        request.headers().forEach(header -> headers.add(new HeaderView(header.name(), HeaderMasking.shownTemplate(header.name(), header.value()), header.disabled())));
         List<PathVariableView> pathVariables = new ArrayList<>();
         request.pathVariables().forEach(variable -> pathVariables.add(new PathVariableView(variable.name(), variable.value())));
         return new RequestDetail(collection.id(), collection.name(), summary(snapshot, collection, mapped), headers, request.bodyMode(),
@@ -404,7 +404,7 @@ public class ConfigService {
         new TreeMap<>(endpoint.headers()).forEach((name, value) -> {
             String property = prefix + ".headers." + name;
             if (Secrets.credentialHeader(name) || pointsAtOperatingSystem(value)) {
-                String shown = shownTemplate(name, value);
+                String shown = HeaderMasking.shownTemplate(name, value);
                 // A header that reads its value from the operating system is a secret whatever it is called.
                 rows.add(new SettingRow(property, Texts.blank(value) ? null : Placeholders.referencesOnly(value) ? value
                         : Secrets.credentialHeader(name) ? shown : Secrets.mask(property), Texts.present(value), true));
@@ -458,7 +458,7 @@ public class ConfigService {
             String name = header.header().name();
             collect(rows, header.how().variables(), header.how().explanations(), "the header " + name);
             // The display form the call itself carries, so the preview shows what the wire view will.
-            headers.add(new ResolvedHeaderView(name, shownTemplate(name, header.template()), header.header().display(),
+            headers.add(new ResolvedHeaderView(name, HeaderMasking.shownTemplate(name, header.template()), header.header().display(),
                     header.header().resolved(), header.header().unresolved()));
         }
         String bodyTemplate = source == null ? null : source.body();
@@ -567,26 +567,6 @@ public class ConfigService {
     private static boolean pointsAtOperatingSystem(String value) {
         String pointer = Placeholders.sole(value);
         return pointer != null && pointer.startsWith(VariableResolver.OS_REFERENCE);
-    }
-
-    /**
-     * The value of a header as written, in the form that may be shown. A header that is a
-     * credential by its own name is shown as written only when nothing in it was typed literally:
-     * it is all placeholders, or a well known scheme word followed by placeholders. Anything else
-     * could be a credential someone typed into the collection, and is redacted.
-     */
-    static String shownTemplate(String headerName, String template) {
-        if (template == null || !Secrets.credentialHeader(headerName) || Placeholders.referencesOnly(template)) {
-            return template;
-        }
-        String redacted = Secrets.redactCredential(headerName, template);
-        String text = template.strip();
-        int space = text.indexOf(' ');
-        // The redaction keeps the first word only when it is a well known scheme, which is how one is recognised here.
-        if (!redacted.equals(Secrets.REDACTED) && space > 0 && Placeholders.referencesOnly(text.substring(space + 1))) {
-            return template;
-        }
-        return redacted;
     }
 
     /** Notes where the requests and the variables of one collection refer to placeholders. */

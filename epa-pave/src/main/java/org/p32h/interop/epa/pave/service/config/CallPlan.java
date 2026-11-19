@@ -102,6 +102,12 @@ record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, Strin
      * @param how      how the value resolved, with the reason for anything that did not
      */
     record Header(ResolvedHeader header, String template, Resolution how) {
+
+        /** Prints the name only. The template can be a credential typed literally into a collection. */
+        @Override
+        public String toString() {
+            return "Header[" + header.name() + "]";
+        }
     }
 
     /**

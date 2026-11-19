@@ -250,6 +250,19 @@ public final class ConfigFixture {
         throw new IllegalArgumentException("No request named " + requestName);
     }
 
+    /**
+     * A reference to a request by the position of its collection among the uploaded ones and by
+     * its name. For tests outside this package, which cannot see the stored types.
+     */
+    public RequestRef ref(int collectionIndex, String requestName) {
+        return ref(store.snapshot().collections().get(collectionIndex), requestName);
+    }
+
+    /** The id the store gave the environment of this name. For tests outside this package. */
+    public String environmentId(String name) {
+        return store.snapshot().byName(name).id();
+    }
+
     /** Corrects the mapping of the named request and returns the collection as it is afterwards. */
     public StoredCollection remap(StoredCollection collection, String requestName, EpaOperation operation) {
         return store.correctMapping(collection.id(), ref(collection, requestName).requestId(), operation).collection();

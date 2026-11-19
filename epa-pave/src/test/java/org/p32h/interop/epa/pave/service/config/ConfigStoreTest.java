@@ -516,6 +516,31 @@ class ConfigStoreTest {
         assertThat(upload.warnings().get(1)).isEqualTo("1 entry is neither a folder nor a request and is not listed.");
     }
 
+    @Test
+    void aCredentialTypedIntoAHeaderOfACollectionIsWarnedAboutByTheNameOfTheHeader() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+
+        ConfigStore.CollectionUpload upload = fixture.store.uploadCollection("typed.json", ("{\"info\": {\"name\": \"Typed\", \"schema\": "
+                + "\"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\"}, \"item\": [{\"name\": \"PAS\", \"item\": " + ConfigFixture.items(
+                ConfigFixture.item("submit Happy Path", "POST", "{{baseUrl}}/Claim/$submit").header("Authorization", "Bearer literal-token-typed-in")
+                        .header("X-Api-Key", "{{apiKey}}"),
+                ConfigFixture.item("inquiry Happy Path", "POST", "{{baseUrl}}/Claim/$inquire").header("authorization", "Basic bGl0ZXJhbA==")
+                        .header("Cookie", "session=literal-session").header("Proxy-Authorization", "Bearer {{proxyToken}}")
+                        .header("X-Trace", "not-a-credential")) + "}]}").getBytes(StandardCharsets.UTF_8));
+
+        String file = directory.resolve(upload.collection().file()).toString();
+        // One warning for each header name, however many requests carry it. A placeholder is no credential and is not warned about.
+        assertThat(upload.warnings()).containsExactly(
+                "The header \"Authorization\" holds a credential typed into the collection in 2 requests, the first being \"PAS / submit Happy "
+                        + "Path\", and it now sits in the file " + file + " in plain text. This tool redacts it wherever it shows the header. To "
+                        + "keep it out of that file, replace it in Postman with a {{placeholder}} and export again.",
+                "The header \"Cookie\" holds a credential typed into the collection in 1 request, the first being \"PAS / inquiry Happy "
+                        + "Path\", and it now sits in the file " + file + " in plain text. This tool redacts it wherever it shows the header. To "
+                        + "keep it out of that file, replace it in Postman with a {{placeholder}} and export again.");
+        assertThat(String.join(" ", upload.warnings())).doesNotContain("literal-token-typed-in").doesNotContain("bGl0ZXJhbA")
+                .doesNotContain("literal-session");
+    }
+
     // ------------------------------------------------------------------------------------------
     // Files that are refused change nothing
     // ------------------------------------------------------------------------------------------
@@ -683,6 +708,28 @@ class ConfigStoreTest {
         assertThat(Files.exists(leftover)).isFalse();
         assertThat(Files.exists(leftoverState)).isFalse();
         assertThat(restarted.store.snapshot().environments()).hasSize(1);
+    }
+
+    @Test
+    void aFileTheStoreDoesNotUseIsReportedAndLeftAlone() throws IOException {
+        ConfigFixture first = ConfigFixture.mock(directory);
+        first.environment(PostmanFiles.SANDBOX_ENVIRONMENT, EnvironmentKind.SANDBOX);
+        assertThat(first.store.problems()).isEmpty();
+        // What a crash between writing an upload and committing it leaves behind: a whole file that nothing names.
+        Path stray = directory.resolve(ConfigStore.COLLECTIONS).resolve("onyx-sandbox-epa-1a2b3c4d-9f8e7d6c.json");
+        Files.write(stray, PostmanFiles.bytes(PostmanFiles.VENDOR_COLLECTION));
+
+        ConfigFixture restarted = ConfigFixture.mock(directory);
+
+        assertThat(restarted.store.problems()).containsExactly("The file " + stray + " is in the configuration store and nothing uses it. "
+                + "It can be left over from an upload that did not finish, and it may hold credentials. Delete it by hand.");
+        assertThat(restarted.service.effective(null).problems()).hasSize(1);
+        // It is not loaded as a collection, and it is not deleted.
+        assertThat(restarted.store.snapshot().collections()).isEmpty();
+        assertThat(Files.exists(stray)).isTrue();
+
+        Files.delete(stray);
+        assertThat(restarted.store.problems()).isEmpty();
     }
 
     // ------------------------------------------------------------------------------------------

@@ -79,6 +79,9 @@ public class ConfigStoreGateway implements OperationGateway {
     private static final Set<EpaOperation> SUBSCRIPTION_BY_ID = EnumSet.of(EpaOperation.SUBSCRIPTION_GET,
             EpaOperation.SUBSCRIPTION_UPDATE, EpaOperation.SUBSCRIPTION_DELETE);
 
+    /** Headers by which a request asks the far side to act with a method other than the one it is sent with. */
+    private static final Set<String> METHOD_OVERRIDES = Set.of("x-http-method-override", "x-http-method", "x-method-override");
+
     private static final String ID = "id";
     private static final String ID_TOKEN = "/{" + ID + "}";
     private static final String DISCOVERY_MARKER = "/cds-services";
@@ -410,7 +413,7 @@ public class ConfigStoreGateway implements OperationGateway {
                     : ResolvedHeader.unresolved(header.name(), how.unresolved()), template, how));
         }
 
-        String because = writeBecause(intent, target, method, url, filled);
+        String because = writeBecause(intent, target, method, url, filled, headers);
         boolean write = operation.write() || because != null;
         Refusal refusal = write ? guard(snapshot, intent, target, because) : null;
         return new CallPlan(snapshot, intent, target, method, url, filled, tokens, missingPlaceholders, urlVariables, reasons, headers, write,
@@ -684,11 +687,38 @@ public class ConfigStoreGateway implements OperationGateway {
      * Why the call counts as a write although the operation the caller named is not one, or null
      * when nothing makes it one. Every route by which a write could be dressed as a read ends here.
      */
-    private static String writeBecause(CallIntent intent, Target target, String method, ResolvedUrl url, UrlForms.Filled filled) {
-        EpaOperation operation = intent.operation();
-        if (operation.write()) {
+    private static String writeBecause(CallIntent intent, Target target, String method, ResolvedUrl url, UrlForms.Filled filled,
+                                       List<CallPlan.Header> headers) {
+        if (intent.operation().write()) {
             return null;
         }
+        String because = judgedByMethod(intent, target, method, url, filled);
+        if (because != null) {
+            return because;
+        }
+        // A header that asks the far side to act with another method is part of what is sent, so
+        // the call is judged again with the method it asks for. A GET that says "treat me as a
+        // DELETE" is a delete to a server that honours the header.
+        for (CallPlan.Header header : headers) {
+            String name = header.header().name() == null ? "" : header.header().name().strip();
+            if (!METHOD_OVERRIDES.contains(name.toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            if (!header.header().resolved()) {
+                return "its header " + name + " asks the far side to act with another method, and that method has no value yet";
+            }
+            String asked = header.header().value().strip().toUpperCase(Locale.ROOT);
+            if (!asked.isEmpty() && judgedByMethod(intent, target, asked, url, filled) != null) {
+                // The header's value is quoted only when it is a plain method name.
+                return "its header " + name + " asks the far side to act on it as " + (asked.matches("[A-Z]{1,12}") ? asked : "another method");
+            }
+        }
+        return null;
+    }
+
+    /** The judgement for one method: the one that would be sent, or one a header asks the far side to use in its place. */
+    private static String judgedByMethod(CallIntent intent, Target target, String method, ResolvedUrl url, UrlForms.Filled filled) {
+        EpaOperation operation = intent.operation();
         if (operation.writesWith(method)) {
             return operation == EpaOperation.UNMAPPED
                     ? "a request this tool cannot map may change something when it is sent with " + method
