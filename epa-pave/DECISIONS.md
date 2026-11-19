@@ -733,3 +733,26 @@ case id, an expectation, a file name). A cell that starts with =, +, - or @, or 
 carriage return before one, is written with a leading apostrophe, which a spreadsheet shows as
 text.
 
+**D-111. A chain is started by a run and read back from the ledger.**
+There is no "create chain" call. A run sent with the chain id "new" starts a chain and returns
+its id, and a later run sent with that id joins it. `GET /api/chains/{chainId}` reads the chain
+back from the ledger alone, so the journey looks the same after a restart and History can expand
+a chain into its steps. The view arranges the runs under three stages, CRD, DTR and PAS, and
+states where each stands.
+
+**D-112. A stage's state comes from what each run said should happen next, never from an outcome code.**
+Every run records the next action it stated. The chain view places the later stages from that:
+"next" when the earlier stage handed on to it, "not needed" when the earlier stage ended the
+journey or went straight past it, "not reached" when the earlier stage has not finished, and "not
+run" when the chain was started further along. A stage that did not run always says which of
+these it is, in words, because a blank would hide whether a step was skipped or is still to come.
+A record that names no next action is shown as saying nothing about what comes next, and the
+journey is not taken to have ended on the strength of its outcome.
+
+**D-113. The most recent run says where the journey stands, and nothing is removed.**
+A step can be run again without the steps before it. Both runs stay in the chain. The later one
+states where its stage stands, and the earlier one is marked as having been run again since. If
+an early step is run again after a late one, the chain's next step follows that latest run. Two
+members under one chain id are reported as a note on the chain, since a chain follows one member
+and one order.
+

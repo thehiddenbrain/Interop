@@ -25,6 +25,9 @@ Wave A:
   guardrail
 - the case runner (D-101): one case run from its inputs alone, the path a suite row and a replay
   take, with the CRD step registered
+- the chain view (D-111 to D-113, section 28.1): a chain read back from the ledger with where
+  each of CRD, DTR and PAS stands, why a stage did not run, and the stated next step. Carrying
+  context between the steps and running a chain as one suite case wait for Wave B
 - suite runs (D-103 to D-110, section 28.2 and 28.4): the suite file reader and its row rules, the
   sequential runner with a progress count, the results table, the comparison with an earlier run,
   the response time distribution, the CSV export and the controller. The CSV text itself is read
@@ -38,7 +41,7 @@ Wave A:
 | Spine 2: integrate Wave A. V2 PHI audit | not started |
 | Spine 3: CRD reference vertical | built and tested against fakes. To do after Wave A: wire as beans, `/api/mode` |
 | Wave B: B1 PAS and subscriptions, B2 DTR | building |
-| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | case runner and suites built and tested against fakes. Chain and cross-protocol tests not started |
+| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | case runner, suites and the chain view built and tested against fakes. Chain as a suite case and cross-protocol tests not started |
 | Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | briefs written, not started |
 | Spine 5: clean build twice, fresh-clone build, push, pull request | not started |
 
@@ -75,7 +78,7 @@ Wave A:
 - No PAS, no DTR on this branch: those are Wave B, still building. No chain, no suites, no
   frontend.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The build runs 503 tests.
+- The build runs 523 tests.
 
 ## The plan, written before any feature code
 
