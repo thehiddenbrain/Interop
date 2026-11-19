@@ -828,15 +828,40 @@ open item under D-130 and has three consequences.
   raised as a finding against a service that follows 2.0.1.
 - PAS is compared with 2.0.1 from the guide's own source repository, which this session could
   read, and with the 2.2.0 ballot for what changes.
-- CRD and DTR have not been compared with 2.0.1. Their 2.0.1 sources are in two public
-  repositories of the standards body. This session's permission check refused attaching them,
-  before and again after the operator's answer, and they were not fetched another way. Until
-  that access is given, or the two 2.0.1 packages are supplied as files, CRD and DTR are
-  compared with the 2.2.0 ballot only, every finding from that comparison says which version it
-  rests on, and none of them is treated as settled where the ballot may differ from 2.0.1. The
-  DTR owner read the narrative of DTR 2.0.1 earlier in the build and recorded the differences
-  it found in `OnyxDtrConventions`; that is the author's reading and has not been checked by
-  anyone else.
+- CRD and DTR could not be compared with 2.0.1 at first: their sources are in two public
+  repositories of the standards body, and this session's permission check refused attaching
+  them. The operator then supplied the two 2.0.1 packages as files. All three protocols are now
+  being compared with 2.0.1 by auditors who wrote none of the code. An earlier comparison of CRD
+  with the 2.2.0 ballot alone had finished by then; its 26 findings are an input to the 2.0.1
+  comparison, which says for each whether it holds in 2.0.1, and none of them is acted on
+  before that.
+
+**D-137. The build prompt's CRD tables and CRD 2.0.1 disagree, and 2.0.1 decides.**
+The build prompt names "Da Vinci CRD v2.2.1" in three places and gives the value sets of the
+coverage-information extension in section 11. D-008 made that table the authority while no
+guide could be read. Read from the 2.0.1 package the operator supplied, the value sets are:
+
+| Part | 2.0.1 package | Build prompt, section 11 |
+| --- | --- | --- |
+| `covered` (required, once) | `not-covered`, `covered`, `conditional` | the same |
+| `pa-needed` (at most once) | `no-auth`, `auth-needed`, `satisfied`, `performpa`, `conditional` | the same |
+| `doc-needed` (at most once) | `clinical`, `admin`, `both`, `conditional` | adds `no-doc` |
+| `doc-purpose` (any number) | `withpa`, `withclaim`, `withorder`, `retain-doc`, `OTH` | `retain` and `oth` |
+| `info-needed` (any number) | `performer`, `location`, `timeframe`, `contract-window`, `OTH` | no `contract-window`, and `oth` |
+
+In 2.0.1 the extension also requires `coverage`, `date` and `coverage-assertion-id`, and a
+`detail` has the parts `code`, `value` and `qualification`. In 2.0.1 "no documentation is
+needed" is said by leaving `doc-needed` out; `no-doc` is in neither the 2.0.1 nor the 2.2.0
+ballot package, and which version it belongs to cannot be checked here.
+
+Resolution, on the operator's word that the version is 2.0.1 (D-136): the tool judges a response
+by 2.0.1. Because nobody has confirmed which version the vendor sandbox follows, the tool still
+reads a code of another version it knows, and says which version the code belongs to instead of
+calling it wrong. A tester repeats what the tool says to the vendor, so "this code is not in the
+2.0.1 value set; it is a 2.2.0 ballot code" is a sentence the tool may say, and "non-conformant"
+with the wrong list beside it is not. The code and the mock scenarios do not do this yet: they
+follow the build prompt's table. The change is made once the 2.0.1 comparison has reported, so
+that it is made once.
 
 ## Decisions made while integrating the first wave
 

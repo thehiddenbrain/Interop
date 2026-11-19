@@ -30,11 +30,17 @@ response travels inside the request sent to PAS (D-135). Follow-ups from the cod
 and the PAS report are being worked on branches of their own and are not in this revision. There
 is no frontend in this revision: the first pass is being built and reviewed on its own branch.
 
-**Three kinds of independent check are running and none has reported.** The member data audit of
-section 27 (V2) and two reviews of code the integrator wrote alone, on the first wave as
-integrated. And a comparison of what the tool sends, reads and judges for each protocol with the
-published guides, which became possible late (D-130). Until those report, treat every message
-shape in CRD and PAS as written from memory and unverified.
+**Independent checks are running and none has been acted on.** The member data audit (V2), the
+guardrail audit (V3) and the fixture audit (V4) of section 27; reviews of the code the integrator
+wrote alone (the HTTP edge, suites, the chain as a case and the wiring of the second wave); and
+a comparison of what the tool sends, reads and judges for each protocol with version 2.0.1 of
+the guides (D-130, D-136). Until those report and their findings are resolved, treat every
+message shape as unverified, and CRD's value sets as known to be wrong (D-137).
+
+The separate browser review of the first frontend pass was not completed. Its parts are
+reviewed with the parts built on them instead: suites and chains with the History tab, the CRD
+tab when it is finished, and the frame and the result view by every part's reviewer and by the
+walkthrough of the whole tool at the end.
 
 **The waves were interrupted once.** About an hour into Wave A and Wave B every background agent
 was stopped at the same moment by a usage limit, part-way through its package. What each had
@@ -92,9 +98,12 @@ next frontend pass and do not exist on screen yet.
 - No frontend. `http://localhost:8057/` answers 404 on this revision.
 - CRD and PAS message shapes have not been compared with the published guides. DTR was compared
   by its own author only. An independent comparison of all three is running (D-130).
-- The operator named 2.0.1 as the version of the guides to hold the tool to (D-136). PAS is
-  being compared with 2.0.1. CRD and DTR cannot be yet: this session was refused the two public
-  repositories that hold their 2.0.1 sources, so they are compared with the 2.2.0 ballot only.
+- The operator named 2.0.1 as the version of the guides to hold the tool to (D-136) and supplied
+  the CRD and DTR 2.0.1 packages. The comparison of all three protocols with 2.0.1 is running.
+  **CRD is known to be wrong against 2.0.1 already** (D-137): its value sets for `doc-needed`,
+  `doc-purpose` and `info-needed` follow the build prompt's table, which differs from 2.0.1, so
+  its conformance findings can call a conformant answer non-conformant, and its mock scenarios
+  answer with a code 2.0.1 does not have. Not fixed in this revision.
 - The order a DTR response refers to is not in the PAS bundle, so that one reference does not
   resolve there (D-135).
 - Comparing a pasted CRD request with the tool's own is not in this revision.
