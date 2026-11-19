@@ -299,4 +299,97 @@ class ApiExceptionHandlerTest {
         assertThat(ThrowingController.class.getMethod("raise", String.class).getParameters()[0].isNamePresent()).isTrue();
         assertThat(Map.of("checked", true)).isNotEmpty();
     }
+
+    @RestController
+    static class EdgeController {
+
+        @GetMapping("/upload/{limit}")
+        public String upload(@PathVariable String limit) {
+            Throwable cause = switch (limit) {
+                case "file" -> new org.apache.tomcat.util.http.fileupload.impl.FileSizeLimitExceededException("x", 26, 25);
+                case "request" -> new org.apache.tomcat.util.http.fileupload.impl.SizeLimitExceededException("x", 31L << 20, 30L << 20);
+                case "header" -> new org.apache.tomcat.util.http.fileupload.impl.SizeLimitExceededException("x", 513, 512);
+                case "parts" -> new org.apache.tomcat.util.http.fileupload.impl.FileCountLimitExceededException("x", 50);
+                default -> new IllegalStateException("x");
+            };
+            throw new org.springframework.web.multipart.MaxUploadSizeExceededException(-1, new IllegalStateException(cause));
+        }
+
+        @GetMapping("/query")
+        public String query() {
+            throw new org.apache.tomcat.util.http.InvalidParameterException("bad escape in S123456789");
+        }
+
+        @GetMapping("/body")
+        public String body() {
+            throw new org.springframework.http.converter.HttpMessageNotReadableException("I/O error",
+                    new RequestShapeFilter.BodyTooLargeException(), null);
+        }
+
+        @GetMapping("/gone")
+        public String gone() throws Exception {
+            throw new org.springframework.web.context.request.async.AsyncRequestNotUsableException("gone");
+        }
+    }
+
+    private final MockMvc edge = TestMvc.standalone(new EdgeController());
+
+    @Test
+    void aMethodTheRequestMadeUpIsNotRepeatedAndTheMethodsThatWorkAreNamed() throws Exception {
+        mvc.perform(post("/typed")).andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.title").value("This endpoint does not accept POST."))
+                .andExpect(jsonPath("$.action").value("Use GET."));
+        String body = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request(
+                        org.springframework.http.HttpMethod.valueOf("S123456789"), "/typed"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.title").value("This endpoint does not accept that method."))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("S123456789");
+    }
+
+    @Test
+    void eachUploadLimitIsNamedWithWhatWouldHelp() throws Exception {
+        edge.perform(get("/upload/file")).andExpect(status().is(413))
+                .andExpect(jsonPath("$.title").value("The uploaded file is larger than this tool accepts, which is 25MB for one file."))
+                .andExpect(jsonPath("$.action").value("Upload a smaller export, or raise spring.servlet.multipart.max-file-size in application.yml."));
+        edge.perform(get("/upload/request")).andExpect(status().is(413))
+                .andExpect(jsonPath("$.title").value("The request is larger than this tool accepts, which is 30MB in all. Nothing was done."))
+                .andExpect(jsonPath("$.action").value("Upload one file at a time, or raise spring.servlet.multipart.max-request-size in application.yml."));
+        edge.perform(get("/upload/parts")).andExpect(status().is(413))
+                .andExpect(jsonPath("$.title").value("The upload has more parts than this tool accepts."))
+                .andExpect(jsonPath("$.action").value("Send the file with only the fields this upload takes. The limit is server.tomcat.max-part-count."));
+        edge.perform(get("/upload/header")).andExpect(status().is(413))
+                .andExpect(jsonPath("$.title").value("A part of the upload has a header larger than this tool accepts, which is usually a very "
+                        + "long file name."))
+                .andExpect(jsonPath("$.action").value("Rename the file to a shorter name and upload it again. The limit is "
+                        + "server.tomcat.max-part-header-size."));
+        edge.perform(get("/upload/other")).andExpect(status().is(413))
+                .andExpect(jsonPath("$.title").value("The fields sent with the upload are larger than this tool accepts."))
+                .andExpect(jsonPath("$.action").value("Send the file with only the fields this upload takes. The limit is "
+                        + "server.tomcat.max-http-form-post-size."));
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aQueryTheServerCannotReadIsA400AndNotAFaultOfThisTool(CapturedOutput output) throws Exception {
+        String body = edge.perform(get("/query")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.kind").value("VALIDATION"))
+                .andExpect(jsonPath("$.reference").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("S123456789");
+        assertThat(output.getAll()).doesNotContain("Unhandled").doesNotContain("S123456789");
+    }
+
+    @Test
+    void aBodyPastTheLimitWhileItWasReadIsA413() throws Exception {
+        edge.perform(get("/body")).andExpect(status().is(413))
+                .andExpect(jsonPath("$.title").value("The request is larger than this tool accepts, which is 30MB in all. Nothing was done."));
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aBrowserThatWentAwayIsNotLoggedAsAFault(CapturedOutput output) throws Exception {
+        edge.perform(get("/gone")).andExpect(content().string(""));
+        assertThat(output.getAll()).doesNotContain("Unhandled");
+    }
 }

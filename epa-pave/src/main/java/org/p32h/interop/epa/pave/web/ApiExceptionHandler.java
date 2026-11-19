@@ -17,14 +17,22 @@ import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.apache.tomcat.util.http.InvalidParameterException;
+import org.apache.tomcat.util.http.fileupload.impl.FileCountLimitExceededException;
+import org.apache.tomcat.util.http.fileupload.impl.FileSizeLimitExceededException;
+import org.apache.tomcat.util.http.fileupload.impl.SizeException;
+import org.apache.tomcat.util.http.fileupload.impl.SizeLimitExceededException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -32,6 +40,9 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.context.support.WebApplicationContextUtils;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -51,6 +62,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    private static final Set<String> KNOWN_METHODS = Set.of("GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "TRACE", "CONNECT");
 
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ErrorView> validation(ValidationException e) {
@@ -122,7 +135,11 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorView> unreadable(HttpMessageNotReadableException e) {
+    public ResponseEntity<ErrorView> unreadable(HttpMessageNotReadableException e, HttpServletRequest request) {
+        if (causedBy(e, RequestShapeFilter.BodyTooLargeException.class)) {
+            return respond(HttpStatus.CONTENT_TOO_LARGE, ErrorView.of(ErrorKind.VALIDATION,
+                    RequestShapeFilter.tooLargeTitle(maxRequestSize(request)), RequestShapeFilter.tooLargeAction()));
+        }
         // The exception message can quote the request body, which may hold member data, so it is
         // never used. What is taken from the cause is the name of a property or its place in the
         // body, which the sender wrote themselves and which holds no value.
@@ -179,10 +196,80 @@ public class ApiExceptionHandler {
                 List.of(new FieldError(name, "The part " + name + " is required."))));
     }
 
+    /**
+     * An upload past one of the limits the server holds it to. Each limit is named with what would
+     * help, since raising the file size does nothing for an upload with too many parts. The limit
+     * is told by the type of the server's exception and the limit it carries, never by its message.
+     */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ErrorView> tooLarge(MaxUploadSizeExceededException e) {
-        return respond(HttpStatus.CONTENT_TOO_LARGE, ErrorView.of(ErrorKind.VALIDATION, "The uploaded file is larger than this tool accepts.",
-                "Raise spring.servlet.multipart.max-file-size in application.yml, or upload a smaller export."));
+    public ResponseEntity<ErrorView> tooLarge(MaxUploadSizeExceededException e, HttpServletRequest request) {
+        SizeException size = cause(e, SizeException.class);
+        String requestLimit = maxRequestSize(request);
+        ErrorView body;
+        if (size instanceof FileSizeLimitExceededException) {
+            body = ErrorView.of(ErrorKind.VALIDATION, "The uploaded file is larger than this tool accepts, which is "
+                    + property(request, "spring.servlet.multipart.max-file-size", "25MB") + " for one file.",
+                    "Upload a smaller export, or raise spring.servlet.multipart.max-file-size in application.yml.");
+        } else if (size instanceof SizeLimitExceededException && size.getPermittedSize() == DataSize.parse(requestLimit).toBytes()) {
+            body = ErrorView.of(ErrorKind.VALIDATION, RequestShapeFilter.tooLargeTitle(requestLimit),
+                    "Upload one file at a time, or raise " + RequestShapeFilter.MAX_REQUEST_SIZE + " in application.yml.");
+        } else if (size != null) {
+            // The server holds the header of each part to a limit of its own and reports it as a size of the request.
+            body = ErrorView.of(ErrorKind.VALIDATION, "A part of the upload has a header larger than this tool accepts, which is "
+                    + "usually a very long file name.", "Rename the file to a shorter name and upload it again. The limit is "
+                    + "server.tomcat.max-part-header-size.");
+        } else if (cause(e, FileCountLimitExceededException.class) != null) {
+            body = ErrorView.of(ErrorKind.VALIDATION, "The upload has more parts than this tool accepts.",
+                    "Send the file with only the fields this upload takes. The limit is server.tomcat.max-part-count.");
+        } else {
+            body = ErrorView.of(ErrorKind.VALIDATION, "The fields sent with the upload are larger than this tool accepts.",
+                    "Send the file with only the fields this upload takes. The limit is server.tomcat.max-http-form-post-size.");
+        }
+        return respond(HttpStatus.CONTENT_TOO_LARGE, body);
+    }
+
+    private static <T extends Throwable> T cause(Throwable error, Class<T> type) {
+        for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (type.isInstance(t)) {
+                return type.cast(t);
+            }
+        }
+        return null;
+    }
+
+    private static boolean causedBy(Throwable error, Class<? extends Throwable> type) {
+        return cause(error, type) != null;
+    }
+
+    private static String maxRequestSize(HttpServletRequest request) {
+        return property(request, RequestShapeFilter.MAX_REQUEST_SIZE, "30MB");
+    }
+
+    /** A limit as the operator wrote it, read from the running application, so the sentence names the value in force. */
+    private static String property(HttpServletRequest request, String name, String fallback) {
+        WebApplicationContext context = request == null ? null
+                : WebApplicationContextUtils.getWebApplicationContext(request.getServletContext());
+        String value = context == null ? null : Texts.trimToNull(context.getEnvironment().getProperty(name));
+        return value == null ? fallback : value;
+    }
+
+    /**
+     * A query the server cannot read: a value that is not properly percent-encoded, a parameter
+     * with no name, or more parameters than it takes. The request is at fault, not the tool, so
+     * this is a 400 and not a 500, and nothing is logged.
+     */
+    @ExceptionHandler(InvalidParameterException.class)
+    public ResponseEntity<ErrorView> unreadableQuery(InvalidParameterException e) {
+        return respond(HttpStatus.BAD_REQUEST, ErrorView.of(ErrorKind.VALIDATION,
+                "The query of the address cannot be read: a value is not properly percent-encoded, a parameter has no name, "
+                        + "or there are more parameters than this tool takes. Nothing was done.",
+                "Percent-encode a percent sign that is part of a value, as %25, and send the request again."));
+    }
+
+    /** The browser went away while the answer was being written. There is nobody left to answer and nothing to log. */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void clientWentAway(AsyncRequestNotUsableException e) {
+        // Nothing to do: the connection is closed.
     }
 
     @ExceptionHandler(MultipartException.class)
@@ -194,7 +281,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorView> methodNotAllowed(HttpRequestMethodNotSupportedException e) {
         return respond(HttpStatus.METHOD_NOT_ALLOWED, ErrorView.of(ErrorKind.VALIDATION,
-                "This endpoint does not accept " + e.getMethod() + ".", "Use one of the methods the endpoint table lists for this path."));
+                // A method is repeated only when it is one of the methods HTTP defines. A request line
+                // can hold any word there, and an error answer repeats nothing a request made up.
+                "This endpoint does not accept " + (KNOWN_METHODS.contains(e.getMethod()) ? e.getMethod() : "that method") + ".",
+                e.getSupportedHttpMethods() == null || e.getSupportedHttpMethods().isEmpty()
+                        ? "Use one of the methods the endpoint table lists for this path."
+                        : "Use " + String.join(" or ", e.getSupportedHttpMethods().stream().map(Object::toString).sorted().toList()) + "."));
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
