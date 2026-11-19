@@ -118,6 +118,48 @@ the fix:
   a word and shown unmasked in the configuration views and the wire view.
 - Several rules of the edge have no test that would notice their removal.
 
+The review of suites, the case runner and the chain view has also reported, on the code as it
+stood before PAS and DTR were wired in: three findings where the screen tells a tester something
+false, five majors, eleven minors. Not fixed in this revision. They are fixed together with
+whatever the review of the chain as a case finds, since both change the same files.
+
+- A case that was never sent can carry the note "The request was sent with the member ID alone",
+  because the lookups add their notes before the case is checked.
+- The chain view says "Not reached: CRD has to finish first" about PAS when CRD is done and DTR
+  is what comes next.
+- The preview of a suite counts rows as runnable that the run then refuses (no procedure code,
+  no NPI, an unknown scenario).
+- A suite stops on any change to the configuration store, including one that changes nothing a
+  row uses, and says the remaining cases "would have gone to a different target".
+- An expectation that can never hold (a code outside its value set, two outcomes that exclude
+  each other) is accepted, sent, and comes back looking like a disagreement with the service.
+- A failure inside the tool during a case is shown as "Not sent: this case cannot be run from a
+  suite", when neither half is known.
+
+**The comparison with version 2.0.1 of the guides has reported, and the tool does not conform.**
+CRD: 3 blockers, 14 majors, 9 minors. PAS: 9 blockers, 11 majors, 6 minors. DTR: 8 majors, 6
+minors. Not fixed in this revision. In short:
+
+- CRD calls codes that 2.0.1 defines (`contract-window`, `OTH`, `retain-doc`) non-conformant,
+  accepts codes that no version here defines, sends a documentation answer on to PAS instead of
+  DTR unless a questionnaire or a SMART link happens to be present, and builds orders and a
+  Patient without elements the 2.0.1 profiles require. Its checker applies almost none of the
+  rules of the 2.0.1 extension and names no version.
+- PAS builds bundles a validating 2.0.1 service would refuse: no `fullUrl` unless a variable is
+  set, no item category, a HCPCS system and a supporting information code system the bindings
+  do not accept, no insurer unless variables are set, an inquiry with no item. The subscription
+  goes out with a placeholder topic although the guide defines the topic. The authorization
+  number of an item is not read from where 2.0.1 puts it, and a missing review action is called
+  a missing required element although it is optional.
+- DTR names the coverage of a response in an extension only the 2.2.0 ballot defines, never
+  sends the intended use 2.0.1 requires, and reports questions as unanswered that are governed
+  by expressions the tool does not evaluate.
+- The mock scenarios of all three were written in the same shapes, which is why the tests never
+  noticed.
+
+Each protocol is being brought in line by its own task, on the rules in D-136 and D-137, and
+checked against the guide by an agent that did not write the change.
+
 The full reports, with the request that shows each finding, were kept outside the repository
 during the build; their substance is recorded in `DECISIONS.md` when each fix is merged.
 
