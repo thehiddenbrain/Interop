@@ -21,8 +21,9 @@ import java.util.List;
  * unevaluated, and a status it does not know cannot end the adaptive loop. A finding is not a
  * failure of the call, and it never changes the outcome or the test result.
  *
- * <p>The value sets are the FHIR R4 ones as the builder knows them. The published guides could not
- * be consulted when this was written, so each finding states the value set it was checked against.
+ * <p>The value sets are the FHIR R4 ones held in {@link DtrCodes}, which says what they were
+ * compared with. Each finding states the value set it was checked against, so a reader can see what
+ * the tool took the specification to say.
  */
 final class DtrFindings {
 

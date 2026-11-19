@@ -14,9 +14,15 @@ import java.util.Set;
  * language meaning for each code, and the names under which a DTR result offers its facts to a
  * declared expectation.
  *
- * <p>The codes are the ones the FHIR R4 specification defines for these elements, as the builder
- * knows them. A code outside its value set is never hidden and never mapped to the nearest known
- * one: it is shown as "Unrecognised code: X" and reported as a finding.
+ * <p>The codes are the ones FHIR R4 binds these elements to. They were compared with the R4 type
+ * definitions published as the type library @types/fhir, which is generated from the
+ * specification, and they agree but for one code: that list also holds {@code question} as an
+ * item type. The builder understands it to be an abstract heading for the answer types and not a
+ * type an item may state, so it is not among the codes here. The FHIR specification itself could
+ * not be consulted.
+ *
+ * <p>A code outside its value set is never hidden and never mapped to the nearest known one: it is
+ * shown as "Unrecognised code: X" and reported as a finding.
  */
 public final class DtrCodes {
 

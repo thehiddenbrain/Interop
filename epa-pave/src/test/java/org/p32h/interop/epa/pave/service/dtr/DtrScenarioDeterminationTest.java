@@ -379,7 +379,7 @@ class DtrScenarioDeterminationTest {
         assertThat(noQuestionnaire.outcome().tone()).isEqualTo(Tone.NO_ANSWER);
         assertThat(nothingRequired.outcome().tone()).isEqualTo(Tone.CLEAR);
 
-        // One said nothing. The other said the response is complete, with a status to show for it.
+        // One is an empty package. The other is the service saying the response is complete, with a status to show for it.
         assertThat(noQuestionnaire.answers()).isEmpty();
         assertThat(noQuestionnaire.ledgerCodes()).isEmpty();
         assertThat(noQuestionnaire.detail().questionnaires()).isEmpty();

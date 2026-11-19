@@ -438,6 +438,28 @@ class DtrControllerTest {
                 .andExpect(status().isUnprocessableContent());
     }
 
+    @Test
+    void aStepOfTheLoopCanAskForTheResponseToGoInsideAParametersResource() throws Exception {
+        JsonNode fetched = send(mvc("mock"), "/api/dtr/package", packageBody("P32H-DTR-ADAPT", ""), 200);
+        // The property is read from the body like any other, and the body sent and the body previewed are the same.
+        String wrapped = stepAfter(fetched, "P32H-DTR-ADAPT", Map.of("wrapInParameter", "questionnaire-response"));
+        JsonNode preview = send(mvc("mock"), "/api/dtr/next-question/preview", wrapped, 200);
+        JsonNode step = send(mvc("mock"), "/api/dtr/next-question", wrapped, 200);
+        JsonNode sent = JsonSafe.parse(step.at("/wire/request/body").asString()).node();
+        assertThat(sent).isEqualTo(JsonSafe.parse(preview.get("body").asString()).node());
+        assertThat(sent.get("resourceType").asString()).isEqualTo("Parameters");
+        assertThat(sent.at("/parameter/0/name").asString()).isEqualTo("questionnaire-response");
+        assertThat(sent.at("/parameter/0/resource/resourceType").asString()).isEqualTo("QuestionnaireResponse");
+        assertThat(step.at("/verdict/outcomeCode").asString()).isEqualTo("NEXT_QUESTION");
+        // A name that is not a parameter name is a 422 that names the field, and nothing more is recorded.
+        int recorded = ledger.records().size();
+        mvc("mock").perform(post("/api/dtr/next-question").contentType(MediaType.APPLICATION_JSON)
+                        .content(stepAfter(fetched, "P32H-DTR-ADAPT", Map.of("wrapInParameter", "two words"))))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("wrapInParameter"));
+        assertThat(ledger.records()).hasSize(recorded);
+    }
+
     // ---- POST /api/dtr/response ----
 
     @Test

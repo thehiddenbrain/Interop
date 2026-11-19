@@ -587,8 +587,9 @@ public final class DtrResponseMapper {
         Shown authored = node.shown("authored");
         Shown subject = node.child("subject").exists() ? FhirViews.reference(node.child("subject")) : Shown.absent();
         Shown author = node.child("author").exists() ? FhirViews.reference(node.child("author")) : Shown.absent();
+        List<Shown> profiles = each(node.child("meta").children("profile"));
         List<ResponseItemView> items = responseItems(node.child("item"), "item");
-        return new QuestionnaireResponseView(foundAt, id, questionnaire, status, authored, subject, author, items, extensions(node),
+        return new QuestionnaireResponseView(foundAt, id, questionnaire, status, authored, subject, author, profiles, items, extensions(node),
                 QuestionnaireJson.answers(raw).size(), JsonSafe.compact(raw));
     }
 

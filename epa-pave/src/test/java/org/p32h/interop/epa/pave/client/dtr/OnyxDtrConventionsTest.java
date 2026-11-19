@@ -14,9 +14,10 @@ import org.p32h.interop.epa.pave.testsupport.TestExchanges;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The assumptions this tool makes about how the vendor behaves in DTR, each pinned: how a
- * questionnaire is told to be adaptive or static, what ends the adaptive loop, and how an unknown
- * member or provider is recognised. When the real behaviour is known, these are the tests that change.
+ * What this tool takes the vendor to do in DTR, each rule pinned: how a questionnaire is told to
+ * be adaptive or static, which questionnaire a response answers, what next-question is sent and
+ * where the guide says it goes, what ends the adaptive loop, and how an unknown member or provider
+ * is recognised. When the real behaviour is known, these are the tests that change.
  */
 class OnyxDtrConventionsTest {
 
@@ -122,9 +123,66 @@ class OnyxDtrConventionsTest {
         assertThat(OnyxDtrConventions.fromTheLoop(json("{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":"
                 + "\"Questionnaire\",\"id\":\"other\"}],\"questionnaire\":\"#q\"}"))).isFalse();
         assertThat(OnyxDtrConventions.fromTheLoop(null)).isFalse();
-        // The body that is sent is the response itself, which is the assumption the conventions state.
-        assertThat(OnyxDtrConventions.nextQuestionBody(fromTheLoop)).isSameAs(fromTheLoop);
         assertThat(OnyxDtrConventions.FHIR_JSON).isEqualTo("application/fhir+json");
+    }
+
+    @Test
+    void theBodyOfNextQuestionIsTheResponseItselfUnlessAParameterToSendItUnderIsNamed() {
+        JsonNode response = json("{\"resourceType\":\"QuestionnaireResponse\",\"status\":\"in-progress\"}");
+        // By itself, which FHIR allows for an operation whose one input is a resource. That is the assumption the conventions state.
+        assertThat(OnyxDtrConventions.nextQuestionBody(response, null)).isSameAs(response);
+        assertThat(OnyxDtrConventions.nextQuestionBody(response, " ")).isSameAs(response);
+        // Inside a Parameters resource, under the name the request gave. Both published names are offered.
+        for (String name : new String[] {OnyxDtrConventions.WRAP_SDC, OnyxDtrConventions.WRAP_DTR_BALLOT}) {
+            JsonNode wrapped = OnyxDtrConventions.nextQuestionBody(response, " " + name + " ");
+            assertThat(wrapped.get("resourceType").asString()).isEqualTo("Parameters");
+            assertThat(wrapped.get("parameter")).hasSize(1);
+            assertThat(wrapped.at("/parameter/0/name").asString()).isEqualTo(name);
+            assertThat(wrapped.at("/parameter/0/resource")).isEqualTo(response);
+        }
+        assertThat(OnyxDtrConventions.WRAP_SDC).isEqualTo("questionnaire-response");
+        assertThat(OnyxDtrConventions.WRAP_DTR_BALLOT).isEqualTo("questionnaire-response-in");
+    }
+
+    @Test
+    void theQuestionnaireAResponseAnswersIsNamedByWhatTheOneInsideItIsDerivedFromBeforeItsOwnUrl() {
+        String inside = "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"q\"%s}],"
+                + "\"questionnaire\":\"#q\"}";
+        String package1 = "https://example.org/p32h-placeholder/Questionnaire/in-the-package|1.0";
+        String base = "https://example.org/p32h-placeholder/Questionnaire/a-base";
+        // The shape both guides publish: no url of its own, derived from the questionnaire being completed.
+        assertThat(OnyxDtrConventions.completes(json(inside.formatted(",\"derivedFrom\":[\"" + package1 + "\"]")))).containsExactly(package1);
+        // A url of its own comes second, with its version, and is not listed twice when it says the same.
+        assertThat(OnyxDtrConventions.completes(json(inside.formatted(",\"url\":\"" + base + "\",\"version\":\"3\",\"derivedFrom\":[\""
+                + package1 + "\",\"" + base + "|3\"]")))).containsExactly(package1, base + "|3");
+        assertThat(OnyxDtrConventions.completes(json(inside.formatted(",\"url\":\"" + base + "\"")))).containsExactly(base);
+        // Blank or repeated entries say nothing more.
+        assertThat(OnyxDtrConventions.completes(json(inside.formatted(",\"derivedFrom\":[\"\",null,\"" + package1 + "\",\"" + package1
+                + "\"]")))).containsExactly(package1);
+        // A response to a conventional form names its questionnaire by canonical url.
+        assertThat(OnyxDtrConventions.completes(json("{\"resourceType\":\"QuestionnaireResponse\",\"questionnaire\":\"" + package1 + "\"}")))
+                .containsExactly(package1);
+        // Nothing is named by a questionnaire inside that says neither, by a local reference that leads nowhere, or by something
+        // that is not a response.
+        assertThat(OnyxDtrConventions.completes(json(inside.formatted("")))).isEmpty();
+        assertThat(OnyxDtrConventions.completes(json("{\"resourceType\":\"QuestionnaireResponse\",\"questionnaire\":\"#gone\"}"))).isEmpty();
+        assertThat(OnyxDtrConventions.completes(json("{\"resourceType\":\"Questionnaire\",\"url\":\"" + base + "\"}"))).isEmpty();
+        assertThat(OnyxDtrConventions.completes(null)).isEmpty();
+    }
+
+    @Test
+    void theUrlAnAdaptiveMarkerHoldsIsKeptAndTheGuideDerivesTwoAddressesFromIt() {
+        assertThat(kind(extension("\"valueUrl\":\"https://example.org/p32h-placeholder/fhir\"")).nextQuestionBase())
+                .isEqualTo("https://example.org/p32h-placeholder/fhir");
+        assertThat(kind(extension("\"valueUri\":\"https://example.org/p32h-placeholder/fhir\"")).nextQuestionBase())
+                .isEqualTo("https://example.org/p32h-placeholder/fhir");
+        // A marker that is only true names no address, and neither does a profile or a conventional form.
+        assertThat(kind(extension("\"valueBoolean\":true")).nextQuestionBase()).isNull();
+        assertThat(kind(profile("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt-search")).nextQuestionBase()).isNull();
+        assertThat(kind(ITEM).nextQuestionBase()).isNull();
+        // STU 2.1.0 and later put the resource type in the address, STU 2.0.1 does not. A slash at the end of the base changes nothing.
+        assertThat(OnyxDtrConventions.nextQuestionAddresses("https://example.org/p32h-placeholder/fhir/")).containsExactly(
+                "https://example.org/p32h-placeholder/fhir/Questionnaire/$next-question", "https://example.org/p32h-placeholder/fhir/$next-question");
     }
 
     // ---- not found ----

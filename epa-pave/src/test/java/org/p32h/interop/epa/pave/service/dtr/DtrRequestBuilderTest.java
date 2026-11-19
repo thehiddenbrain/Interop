@@ -212,6 +212,27 @@ class DtrRequestBuilderTest {
     }
 
     @Test
+    void theResponseGoesOutInsideAParametersResourceOnlyWhenAParameterToPutItUnderIsNamed() {
+        String questionnaire = "{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"url\":\"https://example.org/p32h-placeholder/Questionnaire/q\"}";
+        DtrRequestBuilder.LoopBody wrapped = builder.buildNextQuestion(DtrAnswers.read(questionnaire, null, List.of()), null, DtrFixtures.CLOCK,
+                " questionnaire-response-in ");
+        JsonNode body = json(wrapped.json());
+        assertThat(body.get("resourceType").asString()).isEqualTo("Parameters");
+        assertThat(body.at("/parameter/0/name").asString()).isEqualTo("questionnaire-response-in");
+        // The response itself is kept apart from the body, because what changed is worked out from the response.
+        assertThat(body.at("/parameter/0/resource")).isEqualTo(wrapped.response());
+        assertThat(wrapped.response().get("resourceType").asString()).isEqualTo("QuestionnaireResponse");
+        assertThat(wrapped.notes()).contains("The QuestionnaireResponse was put inside a Parameters resource, under the parameter "
+                + "questionnaire-response-in, as the request asked.");
+        // With no name given the body is the response, and nothing is said about a wrapper.
+        for (String none : new String[] {null, "", "  "}) {
+            DtrRequestBuilder.LoopBody bare = builder.buildNextQuestion(DtrAnswers.read(questionnaire, null, List.of()), null, DtrFixtures.CLOCK, none);
+            assertThat(json(bare.json())).isEqualTo(bare.response());
+            assertThat(bare.notes()).noneMatch(note -> note.contains("Parameters"));
+        }
+    }
+
+    @Test
     void theCopyInsideAFirstResponseNamesTheQuestionnaireBeingCompletedBeforeAnythingItWasItselfDerivedFrom() {
         String base = "https://example.org/p32h-placeholder/Questionnaire/base";
         String canonical = "https://example.org/p32h-placeholder/Questionnaire/derived|2.0";

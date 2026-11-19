@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * EVERYTHING THIS TOOL TAKES THE VENDOR TO DO IN DTR, ALL IN ONE FILE.
@@ -116,15 +118,33 @@ public final class OnyxDtrConventions {
      * {@code questionnaire-response-in} going out and {@code questionnaire-response-out} coming
      * back.
      *
-     * <p>ASSUMPTION: the live service takes the QuestionnaireResponse by itself. Which shape it
-     * takes is not confirmed. Any of these shapes is read when it comes back.
+     * <p>ASSUMPTION: the live service takes the QuestionnaireResponse by itself, so that is what is
+     * sent unless the request names a parameter to send it under. Which shape the service takes is
+     * not confirmed. Any of these shapes is read when it comes back.
      *
      * @param questionnaireResponse the QuestionnaireResponse so far
+     * @param wrapInParameter       the name of the parameter to send it under, inside a Parameters
+     *                              resource. Blank to send the QuestionnaireResponse by itself
      * @return the body to send
      */
-    public static JsonNode nextQuestionBody(JsonNode questionnaireResponse) {
-        return questionnaireResponse;
+    public static JsonNode nextQuestionBody(JsonNode questionnaireResponse, String wrapInParameter) {
+        if (Texts.blank(wrapInParameter)) {
+            return questionnaireResponse;
+        }
+        ObjectNode parameters = JsonNodeFactory.instance.objectNode();
+        parameters.put("resourceType", "Parameters");
+        parameters.putArray("parameter").addObject().put("name", wrapInParameter.strip()).set("resource", questionnaireResponse);
+        return parameters;
     }
+
+    /** READ: the parameter SDC puts the QuestionnaireResponse under when next-question is given a Parameters resource. */
+    public static final String WRAP_SDC = "questionnaire-response";
+    /** READ: the parameter DTR 2.2.0-ballot puts it under. */
+    public static final String WRAP_DTR_BALLOT = "questionnaire-response-in";
+    /** READ: the parameter SDC returns the QuestionnaireResponse under, when the answer is a Parameters resource. */
+    public static final String RETURN_SDC = "return";
+    /** READ: the parameter DTR 2.2.0-ballot returns it under. */
+    public static final String RETURN_DTR_BALLOT = "questionnaire-response-out";
 
     /**
      * READ: an adaptive questionnaire lives inside its QuestionnaireResponse and nowhere else, and
@@ -150,13 +170,14 @@ public final class OnyxDtrConventions {
     }
 
     /**
-     * READ: the address the guide gives next-question for a questionnaire whose adaptive marker
-     * holds a url, as STU 2.1.0 and later write it. STU 2.0.1 writes it without the resource type,
-     * and for a marker that is only true it gives the payer's own base address, which this tool
-     * cannot know from the questionnaire.
+     * READ: the addresses the guide derives for next-question from the url an adaptive marker
+     * holds. STU 2.1.0 and later write it with the resource type, STU 2.0.1 without. For a marker
+     * that is only true, 2.0.1 gives the payer's own base address, which this tool cannot know
+     * from the questionnaire.
      */
-    public static String nextQuestionAddress(String base) {
-        return base.replaceAll("/+$", "") + "/Questionnaire/$next-question";
+    public static List<String> nextQuestionAddresses(String base) {
+        String trimmed = base.strip().replaceAll("/+$", "");
+        return List.of(trimmed + "/Questionnaire/$next-question", trimmed + "/$next-question");
     }
 
     /**

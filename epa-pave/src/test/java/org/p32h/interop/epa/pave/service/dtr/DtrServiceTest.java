@@ -521,9 +521,47 @@ class DtrServiceTest {
         RunEnvelope<DtrDetail> result = service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR").procedureCodes(List.of())
                 .questionnaires(List.of(SLEEP)).build(), RunOrigin.manual(), null);
         assertThat(result.wire().request().body()).doesNotContain("ServiceRequest");
-        assertThat(result.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("No order was sent"));
+        assertThat(result.detail().requestNotes()).contains("No order was sent, because the request names no procedure code. The service is "
+                + "asked for the questionnaires by their canonical url alone.");
         assertThat(result.verdict().outcomeCode()).isEqualTo("PACKAGE_LOADED");
         assertThat(ledger.only().procedureCodes()).isEmpty();
+    }
+
+    @Test
+    void aPackageCanBeAskedForByTheContextAloneWhichIsAllThereIsToAskByAfterAPasResponse() {
+        // Typed on the form: the coverage, what it refers to and the context, and nothing else.
+        RunEnvelope<DtrDetail> typed = service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR").procedureCodes(List.of())
+                .coverageAssertionId("assertion-placeholder-1").build(), RunOrigin.manual(), null);
+        JsonNode sent = JsonSafe.parse(typed.wire().request().body()).node();
+        List<String> names = new ArrayList<>();
+        sent.get("parameter").forEach(parameter -> names.add(parameter.get("name").asString()));
+        assertThat(names).containsExactly("coverage", "referenced", "referenced", "referenced", "context");
+        assertThat(sent.at("/parameter/4/valueString").asString()).isEqualTo("assertion-placeholder-1");
+        assertThat(typed.detail().requestNotes()).contains("No order was sent, because the request names no procedure code. The service is "
+                + "asked by the context alone.", "The request names no questionnaire, so the service chooses from the coverage and the context.",
+                "The coverage assertion id given on the form was sent as the context.");
+        assertThat(typed.verdict().outcomeCode()).isEqualTo("PACKAGE_LOADED");
+        // The line is marked: the context came from an earlier answer, so the line alone cannot send this request again.
+        assertThat(ledger.last().unrecordedInputs()).contains(RunRecord.INPUT_PRIOR_STEP);
+
+        // Handed on by an earlier step, it is enough as well. With a questionnaire named too, the note says both are sent.
+        RunEnvelope<DtrDetail> carried = service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR").procedureCodes(List.of())
+                .carry(Map.of(NextStepView.CARRY_COVERAGE_ASSERTION_ID, List.of("assertion-placeholder-2"),
+                        NextStepView.CARRY_QUESTIONNAIRE, List.of(SLEEP))).build(), RunOrigin.manual(), null);
+        assertThat(carried.detail().requestNotes()).contains("No order was sent, because the request names no procedure code. The service is "
+                + "asked for the questionnaires by their canonical url, with the context.");
+        assertThat(carried.wire().request().body()).contains("assertion-placeholder-2").doesNotContain("ServiceRequest");
+
+        // With nothing at all to ask by, the request is refused before anything is sent, and the message says what would do.
+        int recorded = ledger.records().size();
+        assertThatThrownBy(() -> service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR").procedureCodes(List.of()).build(),
+                RunOrigin.manual(), null)).isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).singleElement()
+                .satisfies(error -> {
+                    assertThat(error.field()).isEqualTo("procedureCodes");
+                    assertThat(error.message()).isEqualTo("Choose at least one procedure code, or give a questionnaire or a coverage "
+                            + "assertion id to ask by.");
+                }));
+        assertThat(ledger.records()).hasSize(recorded);
     }
 
     // ---- not found, faults ----
@@ -1091,6 +1129,8 @@ class DtrServiceTest {
         QuestionnaireResponseView carried = fetched.detail().questionnaireResponses().get(0);
         assertThat(fetched.detail().questionnaires().get(0).arrivedWith()).isEqualTo(carried.foundAt())
                 .isEqualTo("parameter[0].resource.entry[1].resource");
+        assertThat(carried.profiles()).extracting(profile -> profile.value())
+                .containsExactly("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse-adapt");
 
         RunEnvelope<DtrDetail> first = next(fetched);
         // The first request is the response the package carried for the questionnaire, exactly as it arrived, with no answer.
@@ -1152,6 +1192,100 @@ class DtrServiceTest {
                 + "The package holds: " + MRI + ".");
         // The response that was sent named the questionnaire, so the line still does.
         assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, MRI);
+    }
+
+    @Test
+    void theAddressTheQuestionnaireGivesForNextQuestionIsComparedWithWhereTheRequestGoesAndNeverUsed() {
+        String names = "The questionnaire names https://example.org/p32h-placeholder/fhir as the base address for next-question. ";
+        RunEnvelope<DtrDetail> fetched = fetchAdaptive();
+        // No address is configured, as on the mock profile out of the box: the note says where the tool would send.
+        assertThat(next(fetched).detail().requestNotes()).contains(names + "This tool sends to the address configured for the environment, "
+                + "and never takes one from a response.");
+
+        // Configured to the address the guide derives from it, in either of the two forms it has been published in.
+        for (String derived : List.of("https://example.org/p32h-placeholder/fhir/Questionnaire/$next-question",
+                "https://example.org/p32h-placeholder/fhir/$next-question")) {
+            gateway.environment("Onyx Sandbox", EnvironmentKind.SANDBOX).url(EpaOperation.DTR_NEXT_QUESTION, derived);
+            RunEnvelope<DtrDetail> same = next(fetched);
+            assertThat(same.detail().requestNotes()).as(derived).contains(names + "This request goes to an address the DTR guide derives from it.");
+            assertThat(same.wire().request().url()).isEqualTo(derived);
+        }
+
+        // Configured somewhere else: the request still goes where the configuration says, and the tester is told the two differ.
+        gateway.url(EpaOperation.DTR_NEXT_QUESTION, "https://onyx.example.invalid/fhir/Questionnaire/$next-question");
+        RunEnvelope<DtrDetail> elsewhere = next(fetched);
+        assertThat(elsewhere.wire().request().url()).isEqualTo("https://onyx.example.invalid/fhir/Questionnaire/$next-question");
+        assertThat(elsewhere.detail().requestNotes()).contains(names + "This request goes to the address configured for the environment, "
+                + "https://onyx.example.invalid/fhir/Questionnaire/$next-question, which is not one the DTR guide derives from it. This tool "
+                + "never takes an address from a response.");
+        assertThat(service().previewNextQuestion(following(fetched, "P32H-DTR-ADAPT").build(), null).notes())
+                .anySatisfy(note -> assertThat(note).startsWith(names + "This request goes to the address configured"));
+
+        // A marker that is only true names no address, so there is nothing to compare and nothing is said.
+        RunEnvelope<DtrDetail> marked = service().runNextQuestion(following(fetch("P32H-DTR-LOOPERR"), "P32H-DTR-LOOPERR").build(),
+                RunOrigin.manual(), null);
+        assertThat(marked.detail().requestNotes()).noneMatch(note -> note.contains("base address"));
+    }
+
+    @Test
+    void theResponseCanBeSentInsideAParametersResourceForAServiceThatTakesNextQuestionThatWay() {
+        RunEnvelope<DtrDetail> fetched = fetchAdaptive();
+        RunEnvelope<DtrDetail> first = service().runNextQuestion(following(fetched, "P32H-DTR-ADAPT")
+                .wrapInParameter("questionnaire-response-in").build(), RunOrigin.manual(), null);
+        JsonNode sent = JsonSafe.parse(first.wire().request().body()).node();
+        assertThat(sent.get("resourceType").asString()).isEqualTo("Parameters");
+        assertThat(sent.get("parameter")).hasSize(1);
+        assertThat(sent.at("/parameter/0/name").asString()).isEqualTo("questionnaire-response-in");
+        // What is inside is the same response that goes out by itself otherwise.
+        assertThat(sent.at("/parameter/0/resource")).isEqualTo(JsonSafe.parse(fetched.detail().questionnaireResponses().get(0).json()).node());
+        assertThat(first.detail().requestNotes()).contains("The QuestionnaireResponse was put inside a Parameters resource, under the "
+                + "parameter questionnaire-response-in, as the request asked.");
+        // A service that takes it that way answers that way, under the name its guide gives the answer. The mock does the same.
+        assertThat(first.detail().responseKind()).isEqualTo(DtrResponseKind.PARAMETERS);
+        assertThat(first.detail().responseNote()).isEqualTo("The QuestionnaireResponse arrived inside a Parameters resource.");
+        assertThat(JsonSafe.parse(first.wire().response().body()).node().at("/parameter/0/name").asString()).isEqualTo("questionnaire-response-out");
+        assertThat(first.verdict().supporting().get(0)).startsWith("Mock scenario dtr-02-adaptive-branching answered")
+                .contains("The response came back inside a Parameters resource, under questionnaire-response-out, because the request was "
+                        + "sent inside one");
+        assertThat(first.additionalFields()).isEmpty();
+        // The step is read as before: the answer, what is asked, what changed, and the line with its questionnaire.
+        assertThat(first.verdict().outcomeCode()).isEqualTo("NEXT_QUESTION");
+        assertThat(first.detail().form().asked()).extracting(QuestionRef::linkId).containsExactly("mri-1-therapy");
+        assertThat(first.detail().form().changes().compared()).isTrue();
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, MRI);
+
+        // The next step carries the answer inside the same wrapper.
+        RunEnvelope<DtrDetail> second = service().runNextQuestion(following(first, "P32H-DTR-ADAPT", DtrAnswerInput.of("mri-1-therapy", "yes"))
+                .wrapInParameter("questionnaire-response").build(), RunOrigin.manual(), null);
+        JsonNode secondSent = JsonSafe.parse(second.wire().request().body()).node();
+        assertThat(secondSent.at("/parameter/0/name").asString()).isEqualTo("questionnaire-response");
+        assertThat(secondSent.at("/parameter/0/resource/item/0/answer/0/valueCoding/code").asString()).isEqualTo("yes");
+        assertThat(JsonSafe.parse(second.wire().response().body()).node().at("/parameter/0/name").asString()).isEqualTo("return");
+        assertThat(second.detail().form().asked()).extracting(QuestionRef::linkId).containsExactly("mri-2-weeks");
+        // A preview shows the same body that would be sent.
+        assertThat(JsonSafe.parse(service().previewNextQuestion(following(fetched, "P32H-DTR-ADAPT").wrapInParameter("questionnaire-response")
+                .build(), null).body()).node().at("/parameter/0/name").asString()).isEqualTo("questionnaire-response");
+
+        // The name is a parameter name and nothing else: text that could be content is refused before anything is sent.
+        int recorded = ledger.records().size();
+        for (String notAName : List.of("questionnaire response", "{\"resourceType\":\"Patient\"}", "-leading", "a".repeat(65))) {
+            assertThatThrownBy(() -> service().runNextQuestion(following(fetched, "P32H-DTR-ADAPT").wrapInParameter(notAName).build(),
+                    RunOrigin.manual(), null)).as(notAName).isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors())
+                    .singleElement().satisfies(error -> {
+                        assertThat(error.field()).isEqualTo("wrapInParameter");
+                        assertThat(error.message()).contains("questionnaire-response as SDC defines it")
+                                .contains("questionnaire-response-in as DTR 2.2.0-ballot defines it").doesNotContain("Patient");
+                    }));
+        }
+        assertThat(ledger.records()).hasSize(recorded);
+
+        // A body the tester supplies is never wrapped. It goes exactly as written, and the result says so.
+        String own = fetched.detail().questionnaireResponses().get(0).json();
+        RunEnvelope<DtrDetail> ownBody = service().runNextQuestion(DtrNextQuestionRequest.builder().member(DtrFixtures.member("P32H-DTR-ADAPT"))
+                .rawBody(own).wrapInParameter("questionnaire-response").carry(fetched.nextStep().carry()).build(), RunOrigin.manual(), null);
+        assertThat(ownBody.wire().request().body()).isEqualTo(own);
+        assertThat(ownBody.detail().requestNotes()).contains("The body you supplied was not put inside a Parameters resource. It was sent "
+                + "exactly as written.");
     }
 
     @Test

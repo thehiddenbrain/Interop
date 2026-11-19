@@ -82,6 +82,9 @@ public class DtrService {
      */
     private static final Pattern CANONICAL = Pattern.compile("(?i)(?:https?://|urn:)[^\\s\"{}<>\\\\]{1,300}");
 
+    /** The name of a FHIR operation parameter: a short token, so nothing typed here can be mistaken for content. */
+    private static final Pattern PARAMETER_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9-]{0,63}");
+
     private final EpaProperties epa;
     private final OperationGateway gateway;
     private final OnyxDtrClient client;
@@ -219,10 +222,13 @@ public class DtrService {
                 requestNotes.add("The questionnaire, the response so far and the answers on the form were not added to the body you "
                         + "supplied. Only what the body itself holds was sent.");
             }
+            if (Texts.present(request.wrapInParameter())) {
+                requestNotes.add("The body you supplied was not put inside a Parameters resource. It was sent exactly as written.");
+            }
         } else {
-            DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock());
+            DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock(), request.wrapInParameter());
             body = ResolvedText.plain(built.json());
-            requestNotes.addAll(loopNotes(posted, built));
+            requestNotes.addAll(loopNotes(posted, built, call));
             sent = built.response();
         }
 
@@ -262,8 +268,8 @@ public class DtrService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request.rawBody(), null);
         }
-        DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock());
-        return RequestPreview.of(operation, call, built.json(), loopNotes(posted, built), null);
+        DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock(), request.wrapInParameter());
+        return RequestPreview.of(operation, call, built.json(), loopNotes(posted, built, call), null);
     }
 
     /**
@@ -272,11 +278,24 @@ public class DtrService {
      * questionnaire that is not marked adaptive is sent all the same, because what the service
      * makes of it is a test a tester is entitled to run.
      */
-    private static List<String> loopNotes(DtrAnswers.Posted posted, DtrRequestBuilder.LoopBody built) {
+    private static List<String> loopNotes(DtrAnswers.Posted posted, DtrRequestBuilder.LoopBody built, PreparedCall call) {
         List<String> notes = new ArrayList<>(built.notes());
         OnyxDtrConventions.Kind kind = OnyxDtrConventions.kind(posted.questionnaire());
         if (kind.kind() != QuestionnaireKind.ADAPTIVE) {
             notes.add("The questionnaire is not marked as adaptive. " + kind.basis() + " The next-question request is sent all the same.");
+        }
+        if (kind.nextQuestionBase() != null) {
+            // The guide has the questionnaire say where next-question is called for it. A url is never taken from a response:
+            // the gateway is the one source of where a call goes. So the two are compared, and the tester is told.
+            String names = "The questionnaire names " + kind.nextQuestionBase() + " as the base address for next-question. ";
+            if (!call.url().resolved()) {
+                notes.add(names + "This tool sends to the address configured for the environment, and never takes one from a response.");
+            } else if (OnyxDtrConventions.nextQuestionAddresses(kind.nextQuestionBase()).contains(call.url().value().replaceAll("/+$", ""))) {
+                notes.add(names + "This request goes to an address the DTR guide derives from it.");
+            } else {
+                notes.add(names + "This request goes to the address configured for the environment, " + call.url().display()
+                        + ", which is not one the DTR guide derives from it. This tool never takes an address from a response.");
+            }
         }
         return notes;
     }
@@ -464,10 +483,13 @@ public class DtrService {
             if (!request.procedureCodes().isEmpty()) {
                 inputs.codes(request.procedureCodes());
             } else {
-                // A step that follows CRD takes the codes CRD was asked about. A questionnaire can
-                // also be asked for by its canonical url alone, with no order at all.
-                inputs.require(!DtrRequestBuilder.codes(request).isEmpty() || !DtrRequestBuilder.canonicals(request).isEmpty(),
-                        "procedureCodes", "Choose at least one procedure code, or name a questionnaire to ask for.");
+                // A step that follows CRD takes the codes CRD was asked about. The guide also lets a
+                // package be asked for with no order at all: by canonical url, or by the context alone,
+                // which is all there is to ask by after a PAS response.
+                boolean context = Texts.present(request.coverageAssertionId())
+                        || !DtrHandoff.values(request.carry(), NextStepView.CARRY_COVERAGE_ASSERTION_ID).isEmpty();
+                inputs.require(!DtrRequestBuilder.codes(request).isEmpty() || !DtrRequestBuilder.canonicals(request).isEmpty() || context,
+                        "procedureCodes", "Choose at least one procedure code, or give a questionnaire or a coverage assertion id to ask by.");
             }
         }
         for (int i = 0; i < request.questionnaires().size(); i++) {
@@ -491,6 +513,10 @@ public class DtrService {
             posted = DtrAnswers.read(request.questionnaire(), request.questionnaireResponse(), request.answers());
             posted.errors().forEach(error -> inputs.require(false, error.field(), error.message()));
         }
+        inputs.require(Texts.blank(request.wrapInParameter()) || PARAMETER_NAME.matcher(request.wrapInParameter().strip()).matches(),
+                "wrapInParameter", "Leave this empty to send the QuestionnaireResponse by itself. To send it inside a Parameters resource, "
+                        + "give the name of the parameter to put it under: " + OnyxDtrConventions.WRAP_SDC + " as SDC defines it, or "
+                        + OnyxDtrConventions.WRAP_DTR_BALLOT + " as DTR 2.2.0-ballot defines it.");
         optionalCase(inputs, request);
         carriedRun(inputs, request);
         inputs.date("dateOfService", request.dateOfService())

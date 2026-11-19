@@ -145,30 +145,34 @@ public final class DtrRequestBuilder {
                 sentCodes.add(codes.get(position - 1).code().strip());
             }
         }
+        List<String> typed = clean(request.questionnaires());
+        List<String> canonicals = canonicals(request);
+        String typedAssertion = Texts.trimToNull(request.coverageAssertionId());
+        List<String> carriedAssertions = carried(carry, NextStepView.CARRY_COVERAGE_ASSERTION_ID);
+        String assertion = typedAssertion != null ? typedAssertion : carriedAssertions.isEmpty() ? null : carriedAssertions.get(0);
         if (codes.isEmpty()) {
-            notes.add("No order was sent, because the request names no procedure code. The service is asked for the questionnaires by "
-                    + "their canonical url alone.");
+            String askedBy = !canonicals.isEmpty()
+                    ? "The service is asked for the questionnaires by their canonical url" + (assertion == null ? " alone." : ", with the context.")
+                    : assertion != null ? "The service is asked by the context alone."
+                    : "The request gives the service nothing but the coverage to choose a questionnaire by.";
+            notes.add("No order was sent, because the request names no procedure code. " + askedBy);
         }
         // What the orders and the coverage refer to travels with them, so no reference is left pointing at nothing.
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", resources.patient(member, variables, notes));
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitionerRole());
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitioner(request.provider()));
 
-        List<String> typed = clean(request.questionnaires());
-        List<String> canonicals = canonicals(request);
         for (String canonical : canonicals) {
             parameters.addObject().put("name", OnyxDtrConventions.PARAM_QUESTIONNAIRE).put("valueCanonical", canonical);
         }
         if (canonicals.isEmpty()) {
-            notes.add("The request names no questionnaire, so the service chooses from the coverage and the order.");
+            notes.add("The request names no questionnaire, so the service chooses from the coverage"
+                    + (!codes.isEmpty() ? " and the order." : assertion != null ? " and the context." : "."));
         } else {
             notes.add("The request asks for the " + (canonicals.size() == 1 ? "questionnaire" : "questionnaires") + " "
                     + (typed.isEmpty() ? "CRD named" : "given on the form") + ": " + String.join(", ", canonicals) + ".");
         }
 
-        String typedAssertion = Texts.trimToNull(request.coverageAssertionId());
-        List<String> carriedAssertions = carried(carry, NextStepView.CARRY_COVERAGE_ASSERTION_ID);
-        String assertion = typedAssertion != null ? typedAssertion : carriedAssertions.isEmpty() ? null : carriedAssertions.get(0);
         if (assertion == null) {
             notes.add("No context was sent: no coverage assertion id was handed on by CRD or given on the form.");
         } else {
@@ -224,6 +228,14 @@ public final class DtrRequestBuilder {
      * @param posted what the request carried, already checked and free of errors
      */
     public LoopBody buildNextQuestion(DtrAnswers.Posted posted, MemberDetail member, Clock clock) {
+        return buildNextQuestion(posted, member, clock, null);
+    }
+
+    /**
+     * @param wrapInParameter blank to send the QuestionnaireResponse by itself, otherwise the name
+     *                        of the parameter to send it under inside a Parameters resource
+     */
+    public LoopBody buildNextQuestion(DtrAnswers.Posted posted, MemberDetail member, Clock clock, String wrapInParameter) {
         List<String> notes = new ArrayList<>();
         ObjectNode response;
         if (posted.response() != null) {
@@ -259,7 +271,11 @@ public final class DtrRequestBuilder {
             notes.add("The response so far holds an answer for " + linkId + ", which is not a question of its questionnaire. It was not "
                     + "sent: a response is built from the questionnaire it answers.");
         }
-        return new LoopBody(response, JsonSafe.pretty(OnyxDtrConventions.nextQuestionBody(response)), List.copyOf(notes));
+        if (Texts.present(wrapInParameter)) {
+            notes.add("The QuestionnaireResponse was put inside a Parameters resource, under the parameter " + wrapInParameter.strip()
+                    + ", as the request asked.");
+        }
+        return new LoopBody(response, JsonSafe.pretty(OnyxDtrConventions.nextQuestionBody(response, wrapInParameter)), List.copyOf(notes));
     }
 
     /**

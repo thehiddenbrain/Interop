@@ -24,6 +24,9 @@ import java.util.Map;
  *                              text. Blank for the first step
  * @param answers               the answers to add. An answer to a question already answered
  *                              replaces the earlier one, which is how an earlier answer is changed
+ * @param wrapInParameter       blank to send the QuestionnaireResponse by itself. Otherwise the name
+ *                              of the parameter to send it under, inside a Parameters resource, for
+ *                              a service that takes next-question that way
  */
 public record DtrNextQuestionRequest(
         MemberDetail member,
@@ -35,6 +38,7 @@ public record DtrNextQuestionRequest(
         String questionnaire,
         String questionnaireResponse,
         List<DtrAnswerInput> answers,
+        String wrapInParameter,
         String scenarioId,
         String expected,
         String testerRef,
@@ -77,6 +81,7 @@ public record DtrNextQuestionRequest(
         private String questionnaire;
         private String questionnaireResponse;
         private List<DtrAnswerInput> answers = List.of();
+        private String wrapInParameter;
         private String scenarioId;
         private String expected;
         private String testerRef;
@@ -136,6 +141,11 @@ public record DtrNextQuestionRequest(
             return this;
         }
 
+        public Builder wrapInParameter(String value) {
+            this.wrapInParameter = value;
+            return this;
+        }
+
         public Builder scenarioId(String value) {
             this.scenarioId = value;
             return this;
@@ -188,8 +198,8 @@ public record DtrNextQuestionRequest(
 
         public DtrNextQuestionRequest build() {
             return new DtrNextQuestionRequest(member, memberOverrides, provider, providerOverrides, procedureCodes, dateOfService,
-                    questionnaire, questionnaireResponse, answers, scenarioId, expected, testerRef, note, chainId, request, rawBody,
-                    variables, carry, configEpoch, Map.of());
+                    questionnaire, questionnaireResponse, answers, wrapInParameter, scenarioId, expected, testerRef, note, chainId, request,
+                    rawBody, variables, carry, configEpoch, Map.of());
         }
     }
 }
