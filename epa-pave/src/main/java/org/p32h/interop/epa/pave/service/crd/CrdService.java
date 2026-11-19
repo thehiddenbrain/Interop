@@ -84,7 +84,7 @@ public class CrdService {
         this.client = client;
         this.support = support;
         this.builder = new CrdRequestBuilder(codeList);
-        this.conformance = new CrdConformanceChecker(codeList);
+        this.conformance = new CrdConformanceChecker(codeList, epa);
     }
 
     /**

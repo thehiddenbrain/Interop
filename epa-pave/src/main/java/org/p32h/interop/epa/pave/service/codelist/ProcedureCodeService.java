@@ -86,6 +86,10 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
      * state no line are offered. When the list does not name it anywhere, nothing is narrowed and
      * the notice says so: holding back every named row would leave a tester with an empty picker
      * and no reason for it.
+     *
+     * <p>The answer also says when the rows are the placeholder's. They are offered all the same,
+     * with what they state, so the picker works on a fresh checkout. Saying which list they come
+     * from is what keeps a made up "PA" tag from being read as P32H's.
      */
     public CodeSearch find(String query, String lineOfBusiness, int limit) {
         String cleaned = CodeListText.clean(query);
@@ -136,7 +140,8 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
             otherLines = "Nothing is offered for " + line + ". " + CodeListText.count(heldBack.rows, "row matches", "rows match")
                     + " under " + heldBack.lines() + ".";
         }
-        return new CodeSearch(cleaned, codes, matched, narrowed, lineGiven && !narrowed ? notNarrowed(line) : null, otherLines);
+        return new CodeSearch(cleaned, codes, matched, narrowed, lineGiven && !narrowed ? notNarrowed(line) : null, otherLines,
+                list.selfCheck().placeholder());
     }
 
     /** The rows a line of business filter kept out of one answer, and the lines they are for. */

@@ -95,6 +95,26 @@ class ProcedureCodeServiceSearchTest {
     }
 
     @Test
+    void anAnswerSaysWhetherItsRowsComeFromThePlaceholder() {
+        // A file somebody configured: whatever is in it, it is not the list that ships with the tool.
+        assertThat(service.find("958", "Medicare", 25).placeholder()).isFalse();
+        assertThat(service.find("zzz", null, 25).placeholder()).isFalse();
+        assertThat(service.find(null, null, 0).placeholder()).isFalse();
+
+        ProcedureCodeService bundled = new ProcedureCodeService(org.p32h.interop.epa.pave.config.CodelistProperties.defaults());
+        CodeSearch offered = bundled.find("95810", "Medicare", 25);
+        assertThat(offered.placeholder()).isTrue();
+        // The rows are offered with everything they state. Saying which list they are from is not a reason to hold them back.
+        assertThat(offered.codes()).singleElement().satisfies(row -> {
+            assertThat(row.authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+            assertThat(row.delegatedVendor()).isEqualTo("eviCore");
+        });
+        // Said on an empty answer as well, where there is no row to carry it.
+        assertThat(bundled.find("zzz", null, 25).placeholder()).isTrue();
+        assertThat(bundled.find("zzz", null, 25).codes()).isEmpty();
+    }
+
+    @Test
     void theLimitCutsTheAnswerAndTheCountSaysHowManyMatchedInAll() {
         CodeSearch cut = service.find("9581", null, 2);
         // The best matches survive the cut: the exact code, then the first code that starts with the query.

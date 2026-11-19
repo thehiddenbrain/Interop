@@ -8,6 +8,7 @@ import org.p32h.interop.epa.pave.client.crd.MockOnyxCrdClient;
 import org.p32h.interop.epa.pave.client.crd.OnyxCrdClient;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
 import org.p32h.interop.epa.pave.config.AppProperties;
+import org.p32h.interop.epa.pave.config.CodelistProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
@@ -37,8 +38,10 @@ import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
+import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
+import org.p32h.interop.epa.pave.service.codelist.ProcedureCodeService;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.config.RequestRef;
@@ -83,12 +86,16 @@ class CrdServiceTest {
     private final OnyxCrdClient mockClient = new MockOnyxCrdClient(scenarios, new MockExchanges(APP));
 
     private CrdService service(OnyxCrdClient client, String mode, Map<String, String> tracking) {
+        return service(client, mode, tracking, codeList);
+    }
+
+    private CrdService service(OnyxCrdClient client, String mode, Map<String, String> tracking, ProcedureCodeDirectory directory) {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("ledger", ledger);
         EpaProperties epa = EpaProperties.of(Map.of("mode", mode));
         RunSupport support = new RunSupport(epa, TrackingProperties.of(tracking), OnyxProperties.defaults(),
                 beans.getBeanProvider(RunLedger.class), CLOCK);
-        return new CrdService(epa, gateway, client, codeList, support);
+        return new CrdService(epa, gateway, client, directory, support);
     }
 
     private CrdService service() {
@@ -882,6 +889,90 @@ class CrdServiceTest {
         assertThat(result.verdict().outcomeCode()).isEqualTo("NO_AUTH_REQUIRED");
         assertThat(result.error()).isNull();
         assertThat(ledger.only().findings()).contains("CODE_LIST_DISAGREES_ON_AUTH");
+    }
+
+    // ---- the placeholder code list, which must never read as the P32H list ----
+
+    private static final String PLACEHOLDER_NOTE = "The code list here is the synthetic placeholder that ships with the tool and not a P32H list.";
+
+    /** The list as it loads on a fresh checkout, with codelist.file blank: the synthetic rows bundled with the tool. */
+    private static ProcedureCodeService bundledPlaceholder() {
+        ProcedureCodeService bundled = new ProcedureCodeService(CodelistProperties.defaults());
+        assertThat(bundled.selfCheck().placeholder()).isTrue();
+        return bundled;
+    }
+
+    private static String noAuthFor(int order) {
+        return "{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-" + order + "\","
+                + "\"extension\":[{\"url\":\"http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information\",\"extension\":["
+                + "{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"}]}]}}";
+    }
+
+    private static List<Finding> aboutTheCodeList(RunEnvelope<CrdDetail> result) {
+        return result.findings().stream().filter(f -> f.kind().name().startsWith("CODE_LIST_")).toList();
+    }
+
+    @Test
+    void onLiveThePlaceholderCodeListIsNeverComparedWithTheServiceAndTheResultSaysSoOnce() {
+        // The placeholder says 95810 and E0470 need authorization for Medicare. The service, which
+        // on live is a real one, answers no-auth for both. Compared, that would be two findings
+        // that the code list and the service disagree, and a tester would take them to the vendor.
+        // They would be statements about rows somebody made up.
+        String noAuthForBoth = "{\"systemActions\":[" + noAuthFor(1) + "," + noAuthFor(2) + "]}";
+        RunEnvelope<CrdDetail> result = service(stub(TestExchanges.crd(200, noAuthForBoth)), "live", Map.of(), bundledPlaceholder())
+                .run(request("S123456789").procedureCodes(List.of(CodeInput.of("95810"), CodeInput.of("E0470"))).build(), RunOrigin.manual(), null);
+
+        assertThat(result.profile()).isEqualTo("live");
+        assertThat(result.verdict().outcomeCode()).isEqualTo("NO_AUTH_REQUIRED");
+        // One finding for the run, not one for each code, and it says what to do.
+        assertThat(aboutTheCodeList(result)).singleElement().satisfies(f -> {
+            assertThat(f.kind()).isEqualTo(FindingKind.CODE_LIST_NOT_COMPARED);
+            assertThat(f.title()).isEqualTo("The code list was not compared with the service: no P32H code list is loaded");
+            assertThat(f.detail()).isEqualTo("No P32H code list is loaded. The tool is using the synthetic placeholder list that ships "
+                    + "with it, which says nothing about real codes, so nothing was compared with the service's answer. Set codelist.file "
+                    + "to the P32H export and restart the tool.");
+            // It is about the run, not about one code, and it states no position for either side.
+            assertThat(f.subject()).isNull();
+            assertThat(f.codeListSays()).isNull();
+            assertThat(f.serviceSays()).isNull();
+        });
+        assertThat(result.findings()).extracting(Finding::kind)
+                .doesNotContain(FindingKind.CODE_LIST_DISAGREES_ON_AUTH, FindingKind.CODE_LIST_DISAGREES_ON_VENDOR);
+        // The ledger line says the same, so a history row or a suite count cannot report a disagreement either.
+        assertThat(ledger.only().profile()).isEqualTo("live");
+        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_NOT_COMPARED");
+    }
+
+    @Test
+    void onMockThePlaceholderIsComparedAndEveryFindingThatRestsOnItSaysWhatItIs() {
+        // On mock both sides are synthetic and showing a disagreement is the point. The mock answers
+        // no-auth for both orders. The placeholder says 95810 needs authorization and has no row for 99999.
+        RunEnvelope<CrdDetail> result = service(mockClient, "mock", Map.of(), bundledPlaceholder())
+                .run(request("P32H-NO-AUTH").procedureCodes(List.of(CodeInput.of("95810"), CodeInput.of("99999"))).build(), RunOrigin.manual(), null);
+
+        assertThat(result.profile()).isEqualTo("mock");
+        assertThat(aboutTheCodeList(result)).extracting(Finding::kind, Finding::subject).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(FindingKind.CODE_LIST_DISAGREES_ON_AUTH, "95810"),
+                org.assertj.core.groups.Tuple.tuple(FindingKind.CODE_LIST_NOT_COMPARED, "99999"));
+        assertThat(aboutTheCodeList(result).get(0).detail()).isEqualTo("One of them is wrong, and this tool cannot tell which. " + PLACEHOLDER_NOTE);
+        assertThat(aboutTheCodeList(result).get(0).codeListSays()).isEqualTo("The code list says prior authorization is required (rows for Medicare).");
+        assertThat(aboutTheCodeList(result).get(1).detail()).isEqualTo("The code list has no row for 99999 on 2026-03-20. " + PLACEHOLDER_NOTE);
+        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH", "CODE_LIST_NOT_COMPARED");
+    }
+
+    @Test
+    void aRealCodeListIsComparedTheSameWayOnBothProfilesAndNothingIsSaidAboutAPlaceholder() {
+        // The in-memory list stands for a real export. The same answer, the same row, each profile.
+        codeList.row("95810", AuthRequirement.REQUIRED, "Medicare", null);
+        String noAuth = "{\"systemActions\":[" + noAuthFor(1) + "]}";
+        for (String mode : List.of("mock", "live")) {
+            RunEnvelope<CrdDetail> result = service(stub(TestExchanges.crd(200, noAuth)), mode, Map.of()).run(request("S123456789").build(),
+                    RunOrigin.manual(), null);
+            assertThat(aboutTheCodeList(result)).as(mode).singleElement().satisfies(f -> {
+                assertThat(f.kind()).isEqualTo(FindingKind.CODE_LIST_DISAGREES_ON_AUTH);
+                assertThat(f.detail()).isEqualTo("One of them is wrong, and this tool cannot tell which.");
+            });
+        }
     }
 
     // ---- preview and discovery ----

@@ -12,6 +12,10 @@ import java.util.Map;
 /**
  * A code list held in memory, for tests of the code that consults one.
  *
+ * <p>It stands for a real export: its self-check says it is not the placeholder, unless a test
+ * marks it as one with {@link #asPlaceholder()}. A fake that called itself the placeholder would
+ * make every test of a comparison a test of the one state in which the tool may refuse to compare.
+ *
  * <p>Lines of business are compared ignoring case only, and dates are not filtered. The real
  * matching and date rules are tested against the real code list service.
  */
@@ -19,6 +23,8 @@ public final class FakeCodeList implements ProcedureCodeDirectory {
 
     private final List<ProcedureCode> rows = new ArrayList<>();
     private RuntimeException failure;
+    private boolean placeholder;
+    private int selfChecks;
 
     public FakeCodeList row(String code, AuthRequirement auth, String lineOfBusiness, String vendor) {
         rows.add(ProcedureCode.builder().code(code).authRequired(auth).lineOfBusiness(lineOfBusiness).delegatedVendor(vendor).build());
@@ -33,6 +39,17 @@ public final class FakeCodeList implements ProcedureCodeDirectory {
     public FakeCodeList failing(RuntimeException exception) {
         this.failure = exception;
         return this;
+    }
+
+    /** Makes this list say it is the synthetic placeholder that ships with the tool, as the real one does when no export is configured. */
+    public FakeCodeList asPlaceholder() {
+        this.placeholder = true;
+        return this;
+    }
+
+    /** How many times the self-check has been asked for, so a test can show it is asked once for a check and not once for a code. */
+    public int selfChecks() {
+        return selfChecks;
     }
 
     @Override
@@ -62,6 +79,7 @@ public final class FakeCodeList implements ProcedureCodeDirectory {
 
     @Override
     public CodeListSelfCheck selfCheck() {
-        return new CodeListSelfCheck("memory", true, "csv", rows.size(), 0, 0, Map.of(), Map.of(), List.of(), List.of());
+        selfChecks++;
+        return new CodeListSelfCheck("memory", placeholder, "csv", rows.size(), 0, 0, Map.of(), Map.of(), List.of(), List.of());
     }
 }
