@@ -1,7 +1,7 @@
 {
   "npi": "1000000020",
   "description": "A cardiologist who is out of network. The provider is found, and being out of network is a reason to look before using them. The record is wrapped in provider, with the name, the specialty, the network and the contact details as groups.",
-  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule.",
+  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule. The shape of the response is one the mapping tolerates, not one observed from the provider directory, whose contract is not final.",
   "expect": {
     "status": "FOUND",
     "needsALook": true

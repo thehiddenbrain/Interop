@@ -36,6 +36,8 @@ class LookupFixturesTest {
         assertThat(respond.httpStatus()).isEqualTo(200);
         assertThat(respond.body()).contains("\"memberId\"").contains("P32H-TEST");
         assertThat(respond.json()).isTrue();
+        // Printed, it names its file and holds neither the ID nor the body.
+        assertThat(respond).hasToString("Fixture[test.json]");
 
         LookupFixtures.Fixture text = provider("{\"npi\":\"1234567893\",\"behavior\":\"respond\",\"httpStatus\":502,\"responseText\":\"<html>\"}");
         assertThat(text.body()).isEqualTo("<html>");

@@ -34,6 +34,16 @@ server:
     whitelabel:
       enabled: false
 
+logging:
+  level:
+    # No member data in the log includes what the server and the framework write themselves. An
+    # address can hold a member ID, and with their default levels each writes a refused address to
+    # the log: the server for a request with a character an address may not hold, the framework
+    # for a path that climbs with "../". Neither request reaches a lookup. These two levels keep
+    # the address out of the log; nothing else these loggers say at the lower levels is needed.
+    org.apache.coyote.http11.Http11Processor: WARN
+    org.springframework.web.servlet.resource.ResourceHandlerUtils: ERROR
+
 epa:
   name: "PAVE"              # shown in the tab title, the masthead and /api/mode
   version: "1.0.0"

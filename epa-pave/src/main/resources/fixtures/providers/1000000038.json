@@ -1,7 +1,7 @@
 {
   "npi": "1000000038",
   "description": "An orthopaedic surgeon whose network status the directory does not return, so the result says it was not returned and does not call the provider in network. The record has the shape of the public NPI registry: a list of one inside results, with the name in basic and lists of one for the address and the taxonomy.",
-  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule.",
+  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule. The shape of the response is one the mapping tolerates, not one observed from the provider directory, whose contract is not final.",
   "expect": {
     "status": "FOUND",
     "needsALook": false

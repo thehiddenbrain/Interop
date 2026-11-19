@@ -116,7 +116,7 @@ class MemberResponseMappingTest {
         DETAIL.put("lineOfBusiness", MemberDetail::lineOfBusiness);
         DETAIL.put("planName", MemberDetail::planName);
         DETAIL.put("coverageStatus", MemberDetail::coverageStatus);
-        // With no status in words, the yes or no is what the member carries, as the API wrote it.
+        // With no status in words, the member carries the plain word for the yes or no.
         DETAIL.put("coverageActive", MemberDetail::coverageStatus);
         DETAIL.put("coverageStart", MemberDetail::coverageStart);
         DETAIL.put("coverageEnd", MemberDetail::coverageEnd);
@@ -160,7 +160,8 @@ class MemberResponseMappingTest {
         assertThat(read.value()).as(name + " at " + path).isEqualTo(Shown.of(SAMPLE.get(name)));
         assertThat(read.sourceField()).as(name + " at " + path).isEqualTo(path);
         if (DETAIL.containsKey(name)) {
-            assertThat(DETAIL.get(name).apply(result.member())).as(name + " at " + path).isEqualTo(SAMPLE.get(name));
+            assertThat(DETAIL.get(name).apply(result.member())).as(name + " at " + path)
+                    .isEqualTo(name.equals("coverageActive") ? "active" : SAMPLE.get(name));
         }
         // The sample values are a member with nothing wrong, so no spelling may raise a reason to look.
         assertThat(result.attention()).as(name + " at " + path).isEmpty();
@@ -313,11 +314,25 @@ class MemberResponseMappingTest {
         assertThat(member.planName()).isNull();
         assertThat(member.address()).isNull();
         // Not returned is said in the strip. It is not passed off as active by saying nothing.
-        assertThat(result.message()).isEqualTo("Member found, but the member API did not return a coverage status.");
+        assertThat(result.message()).isEqualTo("Member found, but the member API returned no coverage status.");
         assertThat(result.attention()).isEmpty();
         assertThat(result.fields()).hasSize(18).extracting(LookupField::name).containsExactly("memberId", "firstName", "lastName",
                 "fullName", "dateOfBirth", "gender", "lineOfBusiness", "planName", "coverageStatus", "coverageActive", "coverageStart",
                 "coverageEnd", "subscriberId", "addressLine1", "addressLine2", "city", "state", "postalCode");
+    }
+
+    @Test
+    void aCoverageStatusReturnedAsNullOrEmptyIsNoStatusAndIsNeverReadAsActive() {
+        for (String nothing : List.of("null", "\"\"", "\"   \"")) {
+            MemberLookupResult result = found("{\"firstName\":\"Avery\",\"coverageStatus\":" + nothing + ",\"coverageActive\":" + nothing + "}");
+            assertThat(result.member().coverageStatus()).as(nothing).isNull();
+            assertThat(result.attention()).as(nothing).isEmpty();
+            assertThat(result.message()).as(nothing).isEqualTo("Member found, but the member API returned no coverage status.");
+            // The field is in the designed view as what it was, and is not listed a second time.
+            assertThat(field(result, "coverageStatus").sourceField()).as(nothing).isEqualTo("coverageStatus");
+            assertThat(field(result, "coverageStatus").value().presence()).as(nothing).isNotEqualTo(Presence.ABSENT);
+            assertThat(result.additionalFields()).as(nothing).isEmpty();
+        }
     }
 
     @Test
@@ -510,6 +525,8 @@ class MemberResponseMappingTest {
         answers.put("{\"message\":\"No member matches\",\"code\":\"E404\"}", List.of("message", "code"));
         // The ID handed back beside a field this tool does not know. It cannot be called found, and is not called not found either.
         answers.put("{\"memberId\":\"S123456789\",\"found\":false}", List.of("memberId", "found"));
+        // Another ID and nothing else. An ID on its own, whoever's it is, says nothing about a member.
+        answers.put("{\"memberId\":\"S999999999\"}", List.of("memberId"));
         answers.put("{\"name\":\"NotFoundError\",\"state\":\"failed\"}", List.of("name", "state"));
         // An empty page of results, as one common framework writes it. Its first and last are not a name.
         answers.put("{\"content\":[],\"first\":true,\"last\":true,\"totalElements\":0}", List.of("content", "first", "last", "totalElements"));
@@ -519,9 +536,10 @@ class MemberResponseMappingTest {
             MemberLookupResult result = map(200, body);
             assertThat(result.status()).as(body).isEqualTo(LookupStatus.FAULT);
             assertThat(result.message()).as(body)
-                    .isEqualTo("The member API answered, but nothing in its answer is a field this tool reads a member from.");
+                    .isEqualTo("The member API answered, but this tool could read nothing about a member from its answer.");
             assertThat(result.error().kind()).as(body).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
-            assertThat(result.error().action()).as(body).contains("not final").contains("type the member details by hand");
+            assertThat(result.error().action()).as(body).contains("not final").contains("type the member details by hand")
+                    .contains("The member ID on its own is not taken as a member.");
             assertThat(result.member()).as(body).isNull();
             assertThat(result.fields()).as(body).isEmpty();
             assertThat(paths(result)).as(body).containsExactlyElementsOf(shown);
@@ -672,13 +690,22 @@ class MemberResponseMappingTest {
     void aYesOrNoAboutCoverageIsReadAsOne() {
         MemberLookupResult no = found("{\"firstName\":\"Avery\",\"coverageActive\":false}");
         assertThat(no.attention()).containsExactly("Coverage is not active: the member API returned coverageActive as false.");
-        assertThat(no.member().coverageStatus()).isEqualTo("false");
+        // The member carries the word for the answer. The field keeps what was returned.
+        assertThat(no.member().coverageStatus()).isEqualTo("inactive");
+        assertThat(field(no, "coverageActive").value()).isEqualTo(Shown.of("false"));
         MemberLookupResult yes = found("{\"firstName\":\"Avery\",\"coverage\":{\"isActive\":\"Y\"}}");
         assertThat(yes.attention()).isEmpty();
         assertThat(yes.message()).isEqualTo("Member found, with coverage reported as active.");
+        assertThat(yes.member().coverageStatus()).isEqualTo("active");
+        assertThat(field(yes, "coverageActive").value()).isEqualTo(Shown.of("Y"));
         MemberLookupResult unclear = found("{\"firstName\":\"Avery\",\"coverageActive\":\"maybe\"}");
         assertThat(unclear.attention()).containsExactly("The value \"maybe\" of coverageActive is not a yes or a no this tool recognises, "
                 + "so it says nothing about whether coverage is active.");
+        // Not a yes or a no, so it is kept as written and not turned into either word.
+        assertThat(unclear.member().coverageStatus()).isEqualTo("maybe");
+        // A status in words beside a yes or no is the one the member carries.
+        assertThat(found("{\"firstName\":\"Avery\",\"coverageStatus\":\"Active\",\"coverageActive\":true}").member().coverageStatus())
+                .isEqualTo("Active");
     }
 
     @Test
@@ -816,7 +843,16 @@ class MemberResponseMappingTest {
                     + " with an empty body, so there is nothing to read a member from.");
             assertThat(empty.error().kind()).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
             assertThat(empty.error().action()).contains("not reported as not found");
+            assertThat(empty.additionalFields()).isEmpty();
         }
+
+        // A body of nothing but white space holds no record either. It is called blank, not empty, and is still on screen as received.
+        MemberLookupResult blank = map(200, " \n ");
+        assertThat(blank.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(blank.message()).isEqualTo("The member API answered HTTP 200 with a blank body, so there is nothing to read a member from.");
+        assertThat(blank.error().kind()).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
+        assertThat(blank.error().action()).contains("not reported as not found");
+        assertThat(blank.additionalFields()).containsExactly(AdditionalField.unparsedBody(" \n "));
     }
 
     @Test

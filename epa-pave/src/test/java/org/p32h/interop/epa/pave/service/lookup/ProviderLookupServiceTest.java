@@ -65,7 +65,8 @@ class ProviderLookupServiceTest {
                             + "is probably a typing mistake. The directory was not asked.")));
         }
         // Two digits swapped, the commonest slip of all.
-        assertThatThrownBy(() -> service.lookup("1234567983")).isInstanceOf(ValidationException.class);
+        assertThatThrownBy(() -> service.lookup("1234567983")).isInstanceOf(ValidationException.class)
+                .hasMessage("This is not an NPI that can be looked up. Nothing was sent.");
         assertThat(client.asked).isEmpty();
     }
 

@@ -14,13 +14,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Headers every response carries, set in one place.
  *
  * <ul>
- *   <li>An API response is never stored by the browser. It can hold a member's name and date of
- *       birth, and "no member data is persisted" has to include the browser's disk cache.</li>
+ *   <li>Nothing this tool serves is stored by the browser. An answer can hold a member's name and
+ *       date of birth, and "no member data is persisted" has to include the browser's disk cache.
+ *       This is said of every response and not of "the API responses", because telling the two
+ *       apart by address is where such a rule goes wrong: the framework also finds an API
+ *       controller for spellings such as {@code /%61pi/...}, which a test on the address as
+ *       written does not take for one. The pages and scripts are small and come from this
+ *       machine, so fetching them again on every load costs nothing a tester would notice, and an
+ *       edit to one shows on refresh.</li>
  *   <li>A page of this tool loads scripts, styles and data from this tool only, and cannot be
  *       framed by another page. A vendor response is untrusted text; if a piece of it ever
  *       reached the page as markup, this is what stops it running or calling out.</li>
- *   <li>The static files are revalidated on every load, so a tester who edits one sees the edit
- *       on refresh.</li>
  * </ul>
  */
 @Component
@@ -37,12 +41,7 @@ public class ResponseHeadersFilter extends OncePerRequestFilter {
         response.setHeader("Referrer-Policy", "no-referrer");
         response.setHeader("X-Frame-Options", "DENY");
         response.setHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
-        String path = request.getRequestURI();
-        if (path != null && path.startsWith("/api/")) {
-            response.setHeader("Cache-Control", "no-store");
-        } else {
-            response.setHeader("Cache-Control", "no-cache");
-        }
+        response.setHeader("Cache-Control", "no-store");
         chain.doFilter(request, response);
     }
 }

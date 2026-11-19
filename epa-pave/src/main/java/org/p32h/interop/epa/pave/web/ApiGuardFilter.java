@@ -23,15 +23,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Keeps other web pages away from this tool's API.
+ * Keeps other web pages away from this tool.
  *
  * <p>The tool has no sign-in. It runs on a tester's machine and, on the live profile, holds the
  * credentials that look up real UAT members. The tester's browser has other pages open. Without
  * this filter, any of them could send requests to this tool, and with a host name pointed at this
  * machine could read the answers as well. Two checks stop that:
  * <ul>
- *   <li><b>The host a request names.</b> An API request must be addressed to localhost, a
- *       loopback address, the address the server is bound to, or a name listed in
+ *   <li><b>The host a request names.</b> A request must be addressed to localhost, a loopback
+ *       address, the address the server is bound to, or a name listed in
  *       {@code app.allowed-hosts}. A page served from another name that resolves to this machine
  *       is refused, because the browser sends that other name.</li>
  *   <li><b>Where a change comes from.</b> A request that changes something must come from this
@@ -40,10 +40,20 @@ import tools.jackson.databind.json.JsonMapper;
  *       server, is not a web page and is let through.</li>
  * </ul>
  *
+ * <p><b>Both checks apply to every request, whatever its address.</b> An earlier version applied
+ * them to addresses that start with {@code /api/} and let pages and static files through. That
+ * was a hole: the server, the framework and a filter each read an address in their own way, and
+ * the framework also finds an API controller for {@code /%61pi/...} and {@code /api;x=1/...},
+ * which do not start with {@code /api/} as written. A check that first has to decide which
+ * addresses are the API can be got round by anyone who finds a spelling it decides wrongly, so
+ * this filter decides nothing of the kind. A page asked for under a name the tool does not answer
+ * to is refused like anything else, with the same sentence saying what to do.
+ *
  * <p>A delivery to the notification receiver is exempt from the first check: a vendor reaches it
  * under whatever name the network gives this machine, which the tool cannot know. It records what
  * arrives and gives nothing back, so the name it is reached under exposes nothing. Reading what
- * was received is an ordinary API read and is not exempt.
+ * was received is an ordinary read and is not exempt. The exemption is for that one address
+ * written exactly: any other spelling of it is held to the check like everything else.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -78,25 +88,19 @@ public class ApiGuardFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return path == null || !path.startsWith("/api/");
-    }
-
-    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        // Only the delivery itself. Reading what was received is an ordinary API read.
+        // Only the delivery itself, at its address written exactly. Reading what was received is an ordinary read.
         boolean receiver = "POST".equals(request.getMethod()) && RECEIVER_PATH.equals(request.getRequestURI());
         String host = hostOf(request.getHeader("Host"));
         if (!anyHost && !receiver && (host == null || !allowedHosts.contains(host))) {
-            refuse(response, "This request was addressed to a host name this tool does not answer to.",
+            refuse(request, response, "This request was addressed to a host name this tool does not answer to.",
                     "Open the tool as http://localhost and its port. To use another name for this machine, list the name under "
                             + "app.allowed-hosts and start the tool again.");
             return;
         }
         if (!READS.contains(request.getMethod()) && fromAnotherSite(request)) {
-            refuse(response, "This request came from a page that is not part of this tool, so it was not carried out.",
+            refuse(request, response, "This request came from a page that is not part of this tool, so it was not carried out.",
                     "Make the change from this tool's own screen.");
             return;
         }
@@ -161,11 +165,21 @@ public class ApiGuardFilter extends OncePerRequestFilter {
         return value.startsWith("[") && value.endsWith("]") ? value.substring(1, value.length() - 1) : value;
     }
 
-    private void refuse(HttpServletResponse response, String title, String action) throws IOException {
+    /**
+     * Refuses in the shared error shape. A browser that is opening a page gets the same two
+     * sentences as plain text, since nothing of this tool is there yet to show the other form.
+     */
+    private void refuse(HttpServletRequest request, HttpServletResponse response, String title, String action) throws IOException {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setHeader("Cache-Control", "no-store");
+        String accepts = request.getHeader("Accept");
+        if (accepts != null && accepts.toLowerCase(Locale.ROOT).contains(MediaType.TEXT_HTML_VALUE)) {
+            response.setContentType(MediaType.TEXT_PLAIN_VALUE);
+            response.getWriter().write(title + "\n" + action + "\n");
+            return;
+        }
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write(mapper.writeValueAsString(ErrorView.of(ErrorKind.VALIDATION, title, action)));
     }
 }

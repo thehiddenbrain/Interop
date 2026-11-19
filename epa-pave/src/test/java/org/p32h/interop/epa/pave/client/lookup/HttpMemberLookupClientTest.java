@@ -44,6 +44,7 @@ import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.config.WriteAccess;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
+import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
@@ -504,5 +505,14 @@ class HttpMemberLookupClientTest {
             assertThat(result.wire().request().note()).isEqualTo("Not sent. The configuration changed after this request was prepared.");
             assertThat(result.wire().response()).isNull();
         }
+
+        // The same answer when the gateway itself finds the configuration has moved on, before there is a request to show.
+        FakeGateway refusing = new FakeGateway().failing(ConfigurationChangedException.sinceTheScreenWasDrawn());
+        MemberLookupResult early = client(Map.of(), Map.of(), refusing, new ExchangeExecutor()).lookup(FORMS);
+        server.verify();
+        assertThat(early.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(early.message()).isEqualTo("Member lookup was not sent, because the configuration changed while it was being prepared.");
+        assertThat(early.error().kind()).isEqualTo(ErrorKind.CONFIGURATION);
+        assertThat(early.wire()).isNull();
     }
 }

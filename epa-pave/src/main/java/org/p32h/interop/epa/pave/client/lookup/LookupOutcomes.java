@@ -16,18 +16,21 @@ import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.WireHeader;
 
 /**
- * Says how a lookup ended whenever it did not end with a record: not found, or one of the faults.
+ * Says how a lookup ended whenever it did not end with a record: not found, disabled, or one of
+ * the faults.
  *
- * <p>The two are never given the same words. An identifier the far side does not recognise is a
- * finding about the test data, and has no error panel. A far side that is down, refuses the call
- * or answers with something that cannot be read is a finding about the environment or about the
- * mapping, and says which.
+ * <p>The three are never given the same words. An identifier the far side does not recognise is a
+ * finding about the test data, and has no error panel. A lookup that is switched off or not
+ * configured is not an error either: the tester types the details by hand. A far side that is
+ * down, refuses the call or answers with something that cannot be read is a finding about the
+ * environment or about the mapping, and says which.
  */
 final class LookupOutcomes {
 
     /**
      * @param message one sentence for the confirmation strip
-     * @param error   the error panel for a fault. Null for not found, which is an answer and not a fault
+     * @param error   the error panel for a fault. Null for not found, which is an answer, and for
+     *                disabled, which is a setting: neither is a fault
      */
     record Ending(LookupStatus status, String message, ErrorView error) {
     }
@@ -70,12 +73,14 @@ final class LookupOutcomes {
                                 + words.byHand() + ".", null, List.of(), List.of(), null);
                 yield new Ending(LookupStatus.FAULT, message, error);
             }
-            case MALFORMED_RESPONSE -> exchange.responseBody() == null
-                    ? fault(ErrorKind.MALFORMED_RESPONSE, words.api() + " answered HTTP " + status + " with an empty body, so there is "
-                            + "nothing to read a " + words.record() + " from.",
-                    "An empty answer does not say whether the " + words.identifier() + " is unknown, so this is not reported as not "
-                            + "found. If this API answers an unknown " + words.identifier() + " this way, the mapping has to be told so. "
-                            + "Until then, " + words.byHand() + ".", exchange, tracked)
+            // No body at all and a body of nothing but white space are told apart in the words only. Neither holds a record.
+            case MALFORMED_RESPONSE -> Texts.blank(exchange.responseBody())
+                    ? fault(ErrorKind.MALFORMED_RESPONSE, words.api() + " answered HTTP " + status + " with "
+                            + (exchange.responseBody() == null ? "an empty body" : "a blank body") + ", so there is nothing to read a "
+                            + words.record() + " from.",
+                    "An answer with nothing in it does not say whether the " + words.identifier() + " is unknown, so this is not "
+                            + "reported as not found. If this API answers an unknown " + words.identifier() + " this way, the mapping "
+                            + "has to be told so. Until then, " + words.byHand() + ".", exchange, tracked)
                     : fault(ErrorKind.MALFORMED_RESPONSE, words.api() + " answered HTTP " + status + " with a body that is not JSON.",
                     "The body is shown exactly as received under the returned fields. " + words.byHandSentence()
                             + " Report it as a defect in the service.", exchange, tracked);
@@ -219,9 +224,10 @@ final class LookupOutcomes {
 
     /** A record came back with values in it, and none of them under a name the mapping knows. */
     static Ending unrecognised(LookupWords words, VendorExchange exchange) {
-        return unreadable(words.api() + " answered, but nothing in its answer is a field this tool reads a " + words.record() + " from.",
-                "Everything it returned is listed under the returned fields. The response contract of this API is not final, and those "
-                        + "fields are the evidence needed to finish the mapping. Until then, " + words.byHand() + ".", exchange);
+        return unreadable(words.api() + " answered, but this tool could read nothing about a " + words.record() + " from its answer.",
+                "Everything it returned is listed under the returned fields. The " + words.identifier() + " on its own is not taken "
+                        + "as a " + words.record() + ". The response contract of this API is not final, and those fields are the evidence "
+                        + "needed to finish the mapping. Until then, " + words.byHand() + ".", exchange);
     }
 
     private static Ending unreadable(String title, String action, VendorExchange exchange) {

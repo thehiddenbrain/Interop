@@ -19,18 +19,24 @@ import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.model.WireView;
 
 /**
- * EVERYTHING THIS TOOL ASSUMES ABOUT THE MEMBER API, IN ONE FILE.
+ * WHAT THIS TOOL ASSUMES ABOUT THE MEMBER API'S RESPONSE, AND THE ONE METHOD THAT APPLIES IT.
  *
  * <p>The response contract of the member API is not final. What a record may be wrapped in, what
- * each field may be called and which words mean coverage is active are all assumptions, listed in
- * the tables below and applied in {@link #map}. The mock client and the live client both read a
- * response through that one method, so what a tester sees on mock is produced by the code the live
- * profile runs.
+ * each field may be called and which words mean coverage is active are all assumptions. They are
+ * the tables below, and {@link #map} is the one place they are applied. The mock client and the
+ * live client both read a response through that method, so what a tester sees on mock is produced
+ * by the code the live profile runs.
  *
  * <p>The mapping is tolerant on purpose and is meant to be narrowed: when the contract is known,
  * delete the spellings and wrapper names the service does not use. Whatever the mapping does not
  * read is never dropped. It stays in the returned fields, which is where the evidence for
  * finishing this file comes from.
+ *
+ * <p>Four rules are shared with the provider lookup and live beside this file, because they are
+ * about how any such response is read and not about the member API in particular:
+ * {@link LookupEnvelope} decides what counts as a wrapper, {@link LookupReader} how a spelling is
+ * matched and what is left alone, {@link LookupDates} which date shapes are read, and
+ * {@link LookupOutcomes} which ending of a call is not found and which is a fault.
  */
 final class MemberResponseMapping {
 
@@ -180,8 +186,8 @@ final class MemberResponseMapping {
 
         // What needs a look. A found member stays found: these are reasons to check before using them.
         List<String> attention = new ArrayList<>();
-        Standing byStatus = standing(coverageStatus.text(), false);
-        Standing byFlag = standing(coverageActive.text(), true);
+        Standing byStatus = standing(coverageStatus, false);
+        Standing byFlag = standing(coverageActive, true);
         if ((byStatus == Standing.ACTIVE && byFlag == Standing.NOT_ACTIVE) || (byStatus == Standing.NOT_ACTIVE && byFlag == Standing.ACTIVE)) {
             attention.add("The member API contradicts itself about coverage: it returned the coverage status \"" + coverageStatus.text()
                     + "\" and " + coverageActive.source() + " as " + coverageActive.text() + ". Coverage is not taken to be active.");
@@ -232,8 +238,9 @@ final class MemberResponseMapping {
                 .gender(gender.text())
                 .lineOfBusiness(lineOfBusiness.text())
                 .planName(planName.text())
-                // Kept as the API wrote it. Which standard code a source system's own word corresponds to is not this file's call.
-                .coverageStatus(coverageStatus.hasText() ? coverageStatus.text() : coverageActive.text())
+                // A status in words is kept as the API wrote it: which standard code a source system's
+                // own word corresponds to is not this file's call. A yes or a no has no word to keep.
+                .coverageStatus(coverageStatus.hasText() ? coverageStatus.text() : statusFrom(coverageActive))
                 .coverageStart(coverageStartText)
                 .coverageEnd(coverageEndText)
                 .subscriberId(subscriberId.text())
@@ -267,8 +274,8 @@ final class MemberResponseMapping {
         } else if (byStatus == Standing.ACTIVE || byFlag == Standing.ACTIVE) {
             message = "Member found, with coverage reported as active.";
         } else {
-            // Not returned is said, and is not passed off as active by saying nothing.
-            message = "Member found, but the member API did not return a coverage status.";
+            // Nothing returned is said, and is not passed off as active by saying nothing.
+            message = "Member found, but the member API returned no coverage status.";
         }
 
         additional.addAll(tracked.unconsumed());
@@ -298,23 +305,35 @@ final class MemberResponseMapping {
      * What a returned value says about coverage. Nothing returned is NOT_STATED, which is never
      * read as active.
      *
-     * @param yesOrNo true for a field that asks "is coverage active", where true and false are answers
+     * @param asksYesOrNo true for a field that asks "is coverage active", where a yes and a no are answers
      */
-    private static Standing standing(String text, boolean yesOrNo) {
-        if (text == null) {
+    private static Standing standing(LookupReader.Read read, boolean asksYesOrNo) {
+        if (!read.hasText()) {
             return Standing.NOT_STATED;
         }
-        String word = text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
-        if (yesOrNo && Set.of("true", "yes", "y").contains(word)) {
-            return Standing.ACTIVE;
+        Boolean yes = asksYesOrNo ? read.yesOrNo() : null;
+        if (yes != null) {
+            return yes ? Standing.ACTIVE : Standing.NOT_ACTIVE;
         }
-        if (yesOrNo && Set.of("false", "no", "n").contains(word)) {
-            return Standing.NOT_ACTIVE;
-        }
+        String word = read.text().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
         if (ACTIVE_WORDS.contains(word)) {
             return Standing.ACTIVE;
         }
         return NOT_ACTIVE_WORDS.contains(word) ? Standing.NOT_ACTIVE : Standing.UNRECOGNISED;
+    }
+
+    /**
+     * The coverage status a member carries when the API states coverage only as a yes or a no:
+     * the plain word for the answer. That is a change of form, like a date given in ISO form, and
+     * not a guess: the name the value sits under asks whether coverage is active. The value as it
+     * was returned stays in the fields. Anything that is not a yes or a no is kept as it was written.
+     */
+    private static String statusFrom(LookupReader.Read coverageActive) {
+        Boolean yes = coverageActive.yesOrNo();
+        if (yes == null) {
+            return coverageActive.text();
+        }
+        return yes ? "active" : "inactive";
     }
 
     /**

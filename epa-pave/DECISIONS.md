@@ -880,3 +880,66 @@ a url written `{id}` or `:id` that has no value is reported as it is written in 
 longer as a placeholder `{{id}}` to define in an environment, where it cannot be defined. The
 gateway's contract text now states the stricter rules its implementation applies.
 
+
+**D-127. The request guard and the rule that nothing is stored hold for every request, not for addresses that start with `/api/`.**
+Found by the owner of the lookups, not by the integrator who wrote the guard (D-116, D-117). Both
+filters decided what an API request is from the address as written. The framework matches on the
+decoded path with path parameters removed, so `/%61pi/members/...` and `/api;x=1/members/...`
+reached an API controller that neither filter took for one: the host check and the origin check
+were skipped, and the answer was marked as one a browser may keep. Seen on the built jar with a
+host name the tool does not answer to: 200 with the member, where the plain spelling answered 403.
+
+The fix removes the decision instead of making it cleverer. A check that first has to sort
+addresses into API and not API can be got round by anyone who finds a spelling it sorts wrongly,
+and the server, the framework and a filter each read an address in their own way.
+- The host check and the origin check now apply to every request. A page or a static file asked
+  for under a name the tool does not answer to is refused like anything else. A browser opening a
+  page gets the two sentences as plain text; a script gets the shared error shape.
+- Every response is marked `no-store`. The pages and scripts were `no-cache` before. They are
+  small and come from this machine, so fetching them on every load costs nothing a tester would
+  notice, and an edit to one still shows on refresh.
+- The one exemption, a delivery to the notification receiver, is for that address written
+  exactly. Any other spelling of it is held to the host check.
+- The lookups carried a stand-in for the missing check, refusing an address not written as
+  `/api/`. With the guard in front of every request it has no purpose and is removed. The lookups
+  still refuse a semicolon that is not percent-encoded, because the framework would cut the
+  identifier there and report the shorter one as typed.
+
+Tested through the running server over a socket, with each request line written by hand, in
+`ServerErrorPagesTest` and `LookupOverTheServerTest`, and at the filters. The independent review
+of the integrator's code, which should have found this, is still owed.
+
+**D-128. Two log levels are raised so that the server and the framework do not write a refused address to the log.**
+Also from the lookups' report, and seen on the built jar. An address can hold a member ID. With
+their default levels the embedded server writes the request target of a request that holds a
+character an address may not hold, with a stack trace, and the framework writes a path that
+climbs with `../`. Neither request reaches a lookup. `application.yml` now sets
+`org.apache.coyote.http11.Http11Processor` to WARN and
+`org.springframework.web.servlet.resource.ResourceHandlerUtils` to ERROR. A test asserts both
+levels and that such requests leave no identifier in the output. A browser sends neither form;
+a hand-typed address can.
+
+**D-129. From the lookups' report: how a lookup answer is read while both response contracts are open.**
+Neither the member API nor the provider directory has a published response contract (section 26
+of the build prompt), so the mapping is written to be narrowed, not guessed once:
+- A field is found under any of a list of spellings, compared ignoring case, underscores, hyphens
+  and spaces. What a name means is never loosened: a subscriber ID is not a member ID.
+- A record may be bare, wrapped, or a list of one. Several records are a fault that says how many
+  came back, never a choice among them. A record with values of which none is recognised is a
+  fault listing every field, since those fields are the evidence for finishing the mapping.
+- Not returned, null and empty stay apart for every field, as everywhere in the tool.
+- The member ID on the result is always the form that was sent and the NPI the one asked for, so
+  a lookup cannot change which identifier the next request carries.
+- Coverage and network words outside a short list are said to be unrecognised and are sorted
+  into neither active nor inactive. No status returned is neither active nor a reason to look.
+- HTTP 404 and a success with an empty envelope are "not found". A success with no body is a
+  fault, because an answer with nothing in it does not say the identifier is unknown.
+- Disabled is never an error and sends nothing. It also covers a url with no place for the
+  identifier and a refusal by the production guardrail, each with a sentence saying what to
+  correct.
+- Each live lookup logs one line: how it ended and the HTTP status. Nothing else.
+- The tables to narrow are at the top of `MemberResponseMapping` and `ProviderResponseMapping`.
+  Deleting what the real service does not use is the whole change.
+- Mock sentinels for the states of a lookup itself: `P32H-LOOKUP-FAULT`, `P32H-LOOKUP-TIMEOUT`,
+  `P32H-LOOKUP-MULTI`, `P32H-LOOKUP-NONE`, and NPIs `9999999987` (directory fault) and
+  `1000000020` (out of network). Every fixture has to look invented, and a test enforces it.
