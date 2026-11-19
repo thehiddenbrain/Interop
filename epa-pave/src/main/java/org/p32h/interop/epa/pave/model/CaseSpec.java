@@ -60,6 +60,34 @@ public record CaseSpec(
         return new Builder();
     }
 
+    /**
+     * A builder holding this case, for a copy that differs in a component or two. A key the case
+     * did not recognise is not carried over, so a copy is only ever made of a case that had none.
+     */
+    public Builder toBuilder() {
+        if (!unrecognised.isEmpty()) {
+            throw new IllegalStateException("A case with keys this tool does not know is not copied. It is reported as invalid.");
+        }
+        Builder b = new Builder();
+        b.caseId = caseId;
+        b.chain = chain;
+        b.operation = operation;
+        b.memberId = memberId;
+        b.npi = npi;
+        b.procedureCodes = procedureCodes;
+        b.dateOfService = dateOfService;
+        b.scenarioId = scenarioId;
+        b.expected = expected;
+        b.testerRef = testerRef;
+        b.note = note;
+        b.chainId = chainId;
+        b.suiteRunId = suiteRunId;
+        b.replayOfRunId = replayOfRunId;
+        b.correlation = correlation;
+        b.configEpoch = configEpoch;
+        return b;
+    }
+
     /** Redacted, because it carries a member ID. */
     @Override
     public String toString() {

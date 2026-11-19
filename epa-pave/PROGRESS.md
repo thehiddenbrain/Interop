@@ -25,6 +25,10 @@ Wave A:
   guardrail
 - the case runner (D-101): one case run from its inputs alone, the path a suite row and a replay
   take, with the CRD step registered
+- suite runs (D-103 to D-110, section 28.2 and 28.4): the suite file reader and its row rules, the
+  sequential runner with a progress count, the results table, the comparison with an earlier run,
+  the response time distribution, the CSV export and the controller. The CSV text itself is read
+  through a small interface that the code list agent's reader will sit behind when Wave A is merged
 
 | Step | State |
 | --- | --- |
@@ -34,7 +38,7 @@ Wave A:
 | Spine 2: integrate Wave A. V2 PHI audit | not started |
 | Spine 3: CRD reference vertical | built and tested against fakes. To do after Wave A: wire as beans, `/api/mode` |
 | Wave B: B1 PAS and subscriptions, B2 DTR | building |
-| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | case runner done, the rest not started |
+| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | case runner and suites built and tested against fakes. Chain and cross-protocol tests not started |
 | Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | briefs written, not started |
 | Spine 5: clean build twice, fresh-clone build, push, pull request | not started |
 
@@ -59,15 +63,19 @@ Wave A:
 
 ### Not done at this commit
 
-- Nothing runs end to end in the application yet. `CrdService`, `CrdController`, `RawService` and
-  `RawController` are not Spring beans, so `POST /api/crd` and `POST /api/raw` do not exist in the
-  running application. `GET /api/mode` does not exist yet either.
+- Nothing runs end to end in the application yet. The CRD, raw and suite services and
+  controllers are not Spring beans, so `POST /api/crd`, `POST /api/raw` and `/api/suites` do not
+  exist in the running application. `GET /api/mode` does not exist yet either.
+- A suite can run CRD cases only. PAS, DTR and chain rows are reported as not runnable until
+  their steps are registered in Spine 4.
+- No real CSV text has been read as a suite yet: the suite tests use a stand-in that splits on
+  commas.
 - No ledger, no code list, no lookup, no Postman configuration layer on this branch: those are
   Wave A, still building on its own branches.
 - No PAS, no DTR on this branch: those are Wave B, still building. No chain, no suites, no
   frontend.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The build runs 426 tests.
+- The build runs 503 tests.
 
 ## The plan, written before any feature code
 

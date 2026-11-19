@@ -671,3 +671,65 @@ is the safer reading: refusing the case would make "member not found at the paye
 a suite, and inventing a name or a date of birth would test something nobody asked for. The same
 holds for the provider lookup and the NPI.
 
+**D-103. The suite file: columns, alternatives, and what happens to a column the tool does not know.**
+A suite file is CSV or JSON. Each row is one case with these columns: caseId, protocol, hook,
+operation, chain, memberId, npi, procedureCodes, dateOfService, expected, scenarioId, testerRef,
+note, claimId, subscriptionId. Letter case, spaces, hyphens and underscores in a column name are
+ignored and a few plain alternatives are accepted, so "Member ID" and "memberId" are one column.
+A CSV column the tool does not know stops the whole file, and a JSON key it does not know makes
+that case invalid: a misspelt "expected" that is quietly dropped would turn every row into an
+unverified one. A column whose name starts with # is the tester's own and is never read, so a
+requirement number or an owner can stay in the file.
+
+**D-104. A row the tool cannot read exactly is reported and not run.**
+A row must say what to run: a protocol (crd, dtr, pas or chain) or an operation. There is no
+default, because a default would run something the tester did not ask for. A date not written as
+YYYY-MM-DD is refused and never guessed, since a spreadsheet may have rewritten it and day and
+month cannot be told apart. An NPI with a wrong check digit, a row with a different number of
+cells than the header, a case id used twice and an expectation that names no outcome of the
+protocol are all found before anything is sent. Such a row is reported as not valid with the
+reason, and the rows around it still run.
+
+**D-105. One suite at a time, in the background, pinned to one configuration.**
+`POST /api/suites` answers 202 with the run as it stands and the cases run one after another on a
+single background thread. The screen asks for the run by id until it is no longer running. A
+second suite started meanwhile is refused with 409. The run is pinned to the configuration it
+started under. If the configuration changes while it runs, the run stops and says so: the cases
+left would have gone to a different target than the cases before them, and one results table
+must describe one target. The rows not reached are marked as not run, which is a different thing
+from failed.
+
+**D-106. What a suite holds in memory.**
+The uploaded file is not stored. A case holds its member ID until the case has run or the run has
+ended, and is then dropped. A result row never holds a member ID: it points to its ledger records
+by run id, and the ledger shows the member the way the tracking policy allows. The last ten suite
+runs are kept in memory until the tool restarts. The ledger is where results last, with every
+case filed under its suite run id.
+
+**D-107. A suite file must be UTF-8.**
+A file that is not valid UTF-8 is refused with the instruction to save it as CSV UTF-8. Reading it
+under a guessed encoding could turn a cell into something the tester never wrote. A plain CSV
+saved by a spreadsheet is byte for byte the same as UTF-8 unless it holds an accented letter or a
+typographic quote, so most files are unaffected.
+
+**D-108. A suite can be compared with an earlier run of the same cases.**
+Starting a suite with the id of an earlier suite run adds to each row what that case produced
+last time and whether it changed. The earlier results are read from the ledger, so the
+comparison works across a restart and across builds of the service. Cases are matched by case id,
+which is why a case with no id is named by its position in the file. A case the earlier run did
+not have is not marked as changed, since there is nothing to compare it with, and cases of the
+earlier run that are missing from the file are listed.
+
+**D-109. Response times describe the calls the service answered.**
+The distribution across a suite (fastest, median, 90th and 95th percentile, slowest, mean, and
+counts by range) is taken over calls that got an HTTP answer, an error status included. A call
+that timed out has no response time to describe, only the timeout, so it is counted on its own. A
+percentile is the nearest rank: always a time that was measured, never a value between two. A
+call that completed but took longer than the threshold is counted as slow and flagged on its row.
+
+**D-110. The suite results export cannot run as a formula.**
+The export for sign-off opens in a spreadsheet, and free text from the suite file reaches it (a
+case id, an expectation, a file name). A cell that starts with =, +, - or @, or with a tab or a
+carriage return before one, is written with a leading apostrophe, which a spreadsheet shows as
+text.
+

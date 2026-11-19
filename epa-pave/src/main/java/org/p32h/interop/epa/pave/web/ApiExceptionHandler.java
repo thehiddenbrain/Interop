@@ -8,6 +8,7 @@ import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.model.ErrorView;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
+import org.p32h.interop.epa.pave.service.error.BusyException;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
@@ -92,6 +93,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ProdWriteBlockedException.class)
     public ResponseEntity<ErrorView> blocked(ProdWriteBlockedException e) {
         return respond(HttpStatus.FORBIDDEN, ErrorView.of(ErrorKind.BLOCKED, e.getMessage() + " Nothing was sent.", e.action()));
+    }
+
+    @ExceptionHandler(BusyException.class)
+    public ResponseEntity<ErrorView> busy(BusyException e) {
+        return respond(HttpStatus.CONFLICT, ErrorView.of(ErrorKind.VALIDATION, e.getMessage(), e.action()));
     }
 
     @ExceptionHandler(NotFoundException.class)

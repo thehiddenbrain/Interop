@@ -1,0 +1,302 @@
+package org.p32h.interop.epa.pave.service.suite;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
+import org.p32h.interop.epa.pave.model.CaseSpec;
+import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.IsoDates;
+import org.p32h.interop.epa.pave.model.Npi;
+import org.p32h.interop.epa.pave.model.Protocol;
+import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
+import org.p32h.interop.epa.pave.service.suite.SuiteColumns.Column;
+import org.p32h.interop.epa.pave.service.suite.SuiteTable.SourceRow;
+
+/**
+ * Turns the rows of a suite file into cases, and says what is wrong with any row that cannot be
+ * one. Nothing is sent and nothing is looked up.
+ *
+ * <p>The rule throughout: a row this tool cannot read exactly is reported and not run. It is never
+ * run with a guess in place of what was written, because a suite that passes on a guess has
+ * tested something nobody asked for.
+ *
+ * <p>No message here quotes a member ID.
+ */
+public final class SuiteCases {
+
+    /** More than the programme's test package by a wide margin, and few enough to hold in memory. */
+    public static final int MAX_CASES = 5000;
+
+    private static final Pattern CASE_ID = Pattern.compile("[A-Za-z0-9 ._:/#()\\-]{1,64}");
+    private static final Pattern CODE_SEPARATOR = Pattern.compile("[|;,\\s]+");
+    private static final Pattern CORRELATION_ID = Pattern.compile("[A-Za-z0-9\\-._:/|]{1,128}");
+
+    private SuiteCases() {
+    }
+
+    /**
+     * @param name     the name the file was uploaded under
+     * @param mock     true on the mock profile, where a row may choose a scenario
+     * @param outcomes used to check a declared expectation before anything is sent
+     */
+    public static SuiteDefinition define(String name, SuiteTable table, boolean mock, OutcomeCatalogue outcomes) {
+        List<String> problems = new ArrayList<>(table.problems());
+        if (!problems.isEmpty()) {
+            return new SuiteDefinition(name, table.format(), table.columns(), List.of(), problems);
+        }
+        boolean csv = SuiteTable.CSV.equals(table.format());
+        if (csv) {
+            // A CSV column applies to every row, so a column this tool does not know is one problem
+            // with the file and not the same problem repeated on every row.
+            problems.addAll(columnProblems(table.columns()));
+        }
+        if (table.rows().isEmpty()) {
+            problems.add("The file has no cases." + (csv ? " The first row names the columns and each row after it is one case." : ""));
+        }
+        if (table.rows().size() > MAX_CASES) {
+            problems.add("The file has " + table.rows().size() + " cases and this tool runs at most " + MAX_CASES
+                    + " in one suite. Split the file.");
+        }
+        if (!problems.isEmpty()) {
+            return new SuiteDefinition(name, table.format(), table.columns(), List.of(), problems);
+        }
+        Map<String, Integer> seen = new LinkedHashMap<>();
+        List<SuiteRow> rows = new ArrayList<>();
+        for (SourceRow source : table.rows()) {
+            rows.add(row(source, csv, mock, outcomes, seen));
+        }
+        return new SuiteDefinition(name, table.format(), table.columns(), rows, List.of());
+    }
+
+    private static List<String> columnProblems(List<String> columns) {
+        List<String> problems = new ArrayList<>();
+        Map<Column, String> used = new EnumMap<>(Column.class);
+        for (String written : columns) {
+            if (SuiteColumns.ignored(written)) {
+                continue;
+            }
+            Column column = SuiteColumns.find(written);
+            if (column == null) {
+                problems.add("This tool does not know the column \"" + written + "\". Its columns are: " + SuiteColumns.known()
+                        + ". A column the tool should not read can stay if its name starts with " + SuiteColumns.IGNORED_PREFIX
+                        + ". Nothing was run, because a misspelt column that is quietly dropped can change what every row means.");
+            } else if (used.containsKey(column)) {
+                problems.add("The columns \"" + used.get(column) + "\" and \"" + written + "\" both mean " + column.canonical()
+                        + ". Keep one.");
+            } else {
+                used.put(column, written);
+            }
+        }
+        if (problems.isEmpty() && !used.containsKey(Column.MEMBER_ID)) {
+            problems.add("The file has no " + Column.MEMBER_ID.canonical() + " column. Every case needs a member ID.");
+        }
+        return problems;
+    }
+
+    private static SuiteRow row(SourceRow source, boolean csv, boolean mock, OutcomeCatalogue outcomes, Map<String, Integer> seen) {
+        List<String> problems = new ArrayList<>(source.problems());
+        Map<Column, String> cells = new EnumMap<>(Column.class);
+        Map<Column, String> writtenAs = new EnumMap<>(Column.class);
+        for (Map.Entry<String, String> cell : source.cells().entrySet()) {
+            String written = cell.getKey();
+            if (SuiteColumns.ignored(written)) {
+                continue;
+            }
+            Column column = SuiteColumns.find(written);
+            if (column == null) {
+                // For a CSV file this was already reported once for the whole file.
+                if (!csv) {
+                    problems.add("This tool does not know the key \"" + written + "\". Its keys are: " + SuiteColumns.known()
+                            + ". A key the tool should not read can stay if its name starts with " + SuiteColumns.IGNORED_PREFIX + ".");
+                }
+            } else if (cells.containsKey(column)) {
+                problems.add("\"" + writtenAs.get(column) + "\" and \"" + written + "\" both mean " + column.canonical() + ". Keep one.");
+            } else {
+                cells.put(column, cell.getValue());
+                writtenAs.put(column, written);
+            }
+        }
+
+        String caseId = Texts.trimToNull(cells.get(Column.CASE_ID));
+        if (caseId == null) {
+            // Made from the position, so the same file gives the same ids on every run and two runs can be compared.
+            caseId = "row-" + source.number();
+        } else if (!CASE_ID.matcher(caseId).matches()) {
+            problems.add("The case id may hold letters, digits, spaces and . _ : / # ( ) - and at most 64 characters.");
+            caseId = "row-" + source.number();
+        }
+        Integer first = seen.putIfAbsent(caseId.toLowerCase(Locale.ROOT), source.number());
+        if (first != null) {
+            problems.add("The case id \"" + caseId + "\" is already used by case " + first + " of the file. Each case needs its own id, "
+                    + "because results are matched to cases by it.");
+        }
+
+        Target target = target(cells, problems);
+
+        if (Texts.blank(cells.get(Column.MEMBER_ID))) {
+            problems.add("The row has no member ID.");
+        }
+        String npi = Texts.trimToNull(cells.get(Column.NPI));
+        if (npi != null && !Npi.isValid(npi)) {
+            problems.add("The NPI is not valid: it must be ten digits and its check digit must match. Check for a typing mistake, "
+                    + "and that a spreadsheet has not dropped a digit.");
+        }
+        String date = Texts.trimToNull(cells.get(Column.DATE_OF_SERVICE));
+        if (date != null && !IsoDates.valid(date)) {
+            problems.add("The date of service must be written as YYYY-MM-DD, for example 2026-01-31. A spreadsheet may have rewritten it.");
+        }
+        String scenario = Texts.trimToNull(cells.get(Column.SCENARIO_ID));
+        if (scenario != null && !mock) {
+            problems.add("The row chooses a scenario, which is possible on the mock profile only. On live the answer comes from the service.");
+        }
+        String expected = Texts.trimToNull(cells.get(Column.EXPECTED));
+        if (expected != null && target.operation() != null && !target.chain()) {
+            problems.addAll(outcomes.expectationProblems(target.operation().protocol(), expected));
+        }
+        Map<String, String> correlation = new LinkedHashMap<>();
+        correlation(cells, Column.CLAIM_ID, RunRecord.CORR_CLAIM_ID, correlation, problems);
+        correlation(cells, Column.SUBSCRIPTION_ID, RunRecord.CORR_SUBSCRIPTION_ID, correlation, problems);
+
+        List<String> codes = Texts.blank(cells.get(Column.PROCEDURE_CODES)) ? List.of()
+                : Arrays.stream(CODE_SEPARATOR.split(cells.get(Column.PROCEDURE_CODES).strip())).filter(Texts::present).toList();
+
+        CaseSpec spec = null;
+        if (problems.isEmpty()) {
+            spec = CaseSpec.builder()
+                    .caseId(caseId)
+                    .chain(target.chain())
+                    .operation(target.operation())
+                    .memberId(cells.get(Column.MEMBER_ID).strip())
+                    .npi(npi)
+                    .procedureCodes(codes)
+                    .dateOfService(date)
+                    .scenarioId(scenario)
+                    .expected(expected)
+                    .testerRef(Texts.trimToNull(cells.get(Column.TESTER_REF)))
+                    .note(Texts.trimToNull(cells.get(Column.NOTE)))
+                    .correlation(correlation)
+                    .build();
+        }
+        return new SuiteRow(source.number(), caseId, target.what(), target.chain(), target.write(), expected, spec, problems);
+    }
+
+    private static void correlation(Map<Column, String> cells, Column column, String key, Map<String, String> into, List<String> problems) {
+        String value = Texts.trimToNull(cells.get(column));
+        if (value == null) {
+            return;
+        }
+        if (!CORRELATION_ID.matcher(value).matches()) {
+            problems.add("The " + column.canonical() + " may hold letters, digits and - . _ : / | and at most 128 characters.");
+        } else {
+            into.put(key, value);
+        }
+    }
+
+    /** What a row runs. The operation is null when the row does not say, or for a chain that names no hook. */
+    private record Target(boolean chain, EpaOperation operation, String what, boolean write) {
+    }
+
+    private static Target target(Map<Column, String> cells, List<String> problems) {
+        String protocolText = Texts.trimToNull(cells.get(Column.PROTOCOL));
+        String hookText = Texts.trimToNull(cells.get(Column.HOOK));
+        String operationText = Texts.trimToNull(cells.get(Column.OPERATION));
+        String chainText = Texts.trimToNull(cells.get(Column.CHAIN));
+        int before = problems.size();
+
+        boolean chain = false;
+        if (chainText != null) {
+            Boolean flag = yesNo(chainText);
+            if (flag == null) {
+                problems.add("\"chain\" must be yes or no.");
+            } else {
+                chain = flag;
+            }
+        }
+        EpaOperation hook = null;
+        if (hookText != null) {
+            hook = switch (SuiteColumns.normalise(hookText)) {
+                case "ordersign" -> EpaOperation.CRD_ORDER_SIGN;
+                case "orderselect" -> EpaOperation.CRD_ORDER_SELECT;
+                default -> null;
+            };
+            if (hook == null) {
+                problems.add("The hook must be order-sign or order-select.");
+            }
+        }
+        EpaOperation named = null;
+        if (operationText != null) {
+            try {
+                named = EpaOperation.parse(operationText);
+            } catch (IllegalArgumentException e) {
+                problems.add("The operation is not one this tool knows. " + e.getMessage());
+            }
+        }
+        EpaOperation fromProtocol = null;
+        boolean protocolIsCrd = false;
+        if (protocolText != null) {
+            switch (protocolText.toLowerCase(Locale.ROOT)) {
+                case "crd" -> protocolIsCrd = true;
+                case "dtr" -> fromProtocol = EpaOperation.DTR_QUESTIONNAIRE_PACKAGE;
+                case "pas" -> fromProtocol = EpaOperation.PAS_SUBMIT;
+                case "chain" -> chain = true;
+                default -> problems.add("The protocol must be crd, dtr, pas or chain.");
+            }
+        }
+        if (problems.size() > before) {
+            return new Target(chain, null, null, false);
+        }
+
+        if (chain) {
+            EpaOperation start = named != null ? named : hook;
+            if (named != null && hook != null && named != hook) {
+                problems.add("The hook and the operation of this row disagree.");
+            } else if (start != null && start != EpaOperation.CRD_ORDER_SIGN && start != EpaOperation.CRD_ORDER_SELECT) {
+                problems.add("A chain starts with a CRD hook, order-sign or order-select. This row names " + start.label() + ".");
+            } else if (fromProtocol != null) {
+                problems.add("The row is marked as a chain and its protocol names a single step. Set the protocol to chain, or remove the chain mark.");
+            }
+            EpaOperation first = start == null ? EpaOperation.CRD_ORDER_SIGN : start;
+            // A chain can end in a PAS submission, so it counts as a write.
+            return new Target(true, start, "Chain, starting with " + first.label(), true);
+        }
+
+        EpaOperation operation = named;
+        if (protocolIsCrd || (protocolText == null && named == null && hook != null)) {
+            fromProtocol = hook == null ? EpaOperation.CRD_ORDER_SIGN : hook;
+        }
+        if (operation == null) {
+            operation = fromProtocol;
+        } else if (fromProtocol != null && fromProtocol.protocol() != operation.protocol()
+                || protocolIsCrd && operation.protocol() != Protocol.CRD) {
+            problems.add("The protocol and the operation of this row disagree.");
+        }
+        if (operation == null) {
+            problems.add("The row does not say what to run. Give a protocol (crd, dtr, pas or chain), or an operation.");
+            return new Target(false, null, null, false);
+        }
+        if (hook != null && operation != hook) {
+            problems.add(operation.protocol() == Protocol.CRD ? "The hook and the operation of this row disagree."
+                    : "A hook applies to a CRD row or a chain. This row runs " + operation.label() + ".");
+        }
+        if (!operation.outbound()) {
+            problems.add(operation.label() + " is not something a suite can run: it records something that arrived, or a step "
+                    + "completed inside this tool, so there is nothing to send.");
+        }
+        return new Target(false, operation, operation.label(), operation.write());
+    }
+
+    private static Boolean yesNo(String text) {
+        return switch (text.strip().toLowerCase(Locale.ROOT)) {
+            case "yes", "y", "true", "1" -> Boolean.TRUE;
+            case "no", "n", "false", "0" -> Boolean.FALSE;
+            default -> null;
+        };
+    }
+}
