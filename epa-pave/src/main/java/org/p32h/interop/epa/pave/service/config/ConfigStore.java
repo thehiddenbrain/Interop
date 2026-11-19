@@ -77,12 +77,25 @@ public class ConfigStore {
     private static final int STATE_VERSION = 1;
     private static final String TEMP_MARK = ".tmp-";
 
-    /** What an environment upload did. */
-    record EnvironmentUpload(StoredEnvironment environment, boolean replaced, List<String> warnings, long epoch) {
+    /**
+     * What an environment upload did.
+     *
+     * @param after the configuration as the upload left it. Whatever describes the upload is built
+     *              from this, so it cannot be mixed with a change another request made a moment later
+     */
+    record EnvironmentUpload(StoredEnvironment environment, boolean replaced, List<String> warnings, ConfigSnapshot after) {
+
+        long epoch() {
+            return after.epoch();
+        }
     }
 
     /** What a collection upload did. */
-    record CollectionUpload(StoredCollection collection, boolean replaced, List<String> warnings, long epoch) {
+    record CollectionUpload(StoredCollection collection, boolean replaced, List<String> warnings, ConfigSnapshot after) {
+
+        long epoch() {
+            return after.epoch();
+        }
     }
 
     /** What removing an environment or a collection did. */
@@ -90,7 +103,11 @@ public class ConfigStore {
     }
 
     /** What a mapping correction did. */
-    record MappingChange(StoredCollection collection, StoredCollection.Mapped request, boolean changed, long epoch) {
+    record MappingChange(StoredCollection collection, StoredCollection.Mapped request, boolean changed, ConfigSnapshot after) {
+
+        long epoch() {
+            return after.epoch();
+        }
     }
 
     private final ConfigStoreProperties properties;
@@ -228,7 +245,7 @@ public class ConfigStore {
         // The name, the kind and a count. Never a variable value.
         log.info("Environment \"{}\" uploaded as {} with {} variable(s){}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
-        return new EnvironmentUpload(stored, previous != null, warnings, current.epoch());
+        return new EnvironmentUpload(stored, previous != null, warnings, current);
     }
 
     /** Makes an uploaded environment the active one, with no restart. */
@@ -303,7 +320,7 @@ public class ConfigStore {
         // The name and counts only. Never a url, a header or a body.
         log.info("Collection \"{}\" uploaded with {} request(s){}", oneLine(parsed.name()), parsed.requests().size(),
                 previous == null ? "" : ", replacing the one of the same name");
-        return new CollectionUpload(stored, previous != null, warnings, current.epoch());
+        return new CollectionUpload(stored, previous != null, warnings, current);
     }
 
     /**
@@ -326,7 +343,7 @@ public class ConfigStore {
         }
         EpaOperation correction = operation == request.detection().operation() ? null : operation;
         if (correction == request.correction()) {
-            return new MappingChange(collection, request, false, before.epoch());
+            return new MappingChange(collection, request, false, before);
         }
         List<StoredCollection.Mapped> requests = new ArrayList<>();
         for (StoredCollection.Mapped each : collection.requests()) {
@@ -339,7 +356,7 @@ public class ConfigStore {
         commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections), null, null);
         // The operations only.
         log.info("Mapping of one request corrected to {}", correction == null ? "what detection proposed" : correction.name());
-        return new MappingChange(changed, changed.request(requestId), true, current.epoch());
+        return new MappingChange(changed, changed.request(requestId), true, current);
     }
 
     synchronized Removal removeCollection(String collectionId) {

@@ -300,15 +300,28 @@ public class ConfigStoreGateway implements OperationGateway {
     // ------------------------------------------------------------------------------------------
 
     /**
-     * Works out one intended call against the current configuration without sending or minting
-     * anything. For the Config tab. It fails only for what is wrong with the request itself: a
-     * request that does not exist, one mapped to another operation, a url value with nowhere to go.
+     * Works out one intended call against a snapshot of the configuration without sending or
+     * minting anything. For the Config tab, which describes many calls against one snapshot. It
+     * fails only for what is wrong with the request itself: a request that does not exist, one
+     * mapped to another operation, a url value with nowhere to go.
      */
-    CallPlan describe(CallIntent intent) {
+    CallPlan describe(ConfigSnapshot snapshot, CallIntent intent) {
         if (!intent.operation().outbound()) {
             throw new IllegalArgumentException(intent.operation().name() + " never leaves the tool, so there is nothing to describe for it.");
         }
-        return plan(store.snapshot(), intent);
+        return plan(snapshot, intent);
+    }
+
+    /**
+     * Whether sending this collection request as the operation it stands for would count as a
+     * write under the given snapshot. It is the judgement {@link #prepare} would make, not a second
+     * opinion: the list of requests on the Config tab must not call something a read that a send
+     * would block. A request that stands for an operation which never leaves the tool can only be
+     * sent raw, so it is judged as a raw send.
+     */
+    boolean countsAsWrite(ConfigSnapshot snapshot, StoredCollection collection, StoredCollection.Mapped request) {
+        EpaOperation sentAs = request.effective().outbound() ? request.effective() : EpaOperation.UNMAPPED;
+        return plan(snapshot, CallIntent.of(sentAs).withRequest(new RequestRef(collection.id(), request.request().id()))).write();
     }
 
     private CallPlan plan(ConfigSnapshot snapshot, CallIntent intent) {
@@ -318,6 +331,7 @@ public class ConfigStoreGateway implements OperationGateway {
         Resolution urlVariables = null;
         UrlForms.Filled filled = null;
         Set<String> tokens = Set.of();
+        List<String> missingPlaceholders = List.of();
         Map<String, String> reasons = new LinkedHashMap<>();
         Map<String, String> bound = Map.of();
         ResolvedUrl url = null;
@@ -366,6 +380,7 @@ public class ConfigStoreGateway implements OperationGateway {
                 if (!nothingMissing) {
                     reasons.putAll(urlVariables.reasons());
                 }
+                missingPlaceholders = List.copyOf(unresolved);
                 for (String token : filled.missingTokens()) {
                     if (!unresolved.contains(token)) {
                         unresolved.add(token);
@@ -398,8 +413,8 @@ public class ConfigStoreGateway implements OperationGateway {
         String because = writeBecause(intent, target, method, url, filled);
         boolean write = operation.write() || because != null;
         Refusal refusal = write ? guard(snapshot, intent, target, because) : null;
-        return new CallPlan(snapshot, intent, target, method, url, filled, tokens, urlVariables, reasons, headers, write, because, refusal,
-                callResolver);
+        return new CallPlan(snapshot, intent, target, method, url, filled, tokens, missingPlaceholders, urlVariables, reasons, headers, write,
+                because, refusal, callResolver);
     }
 
     // ------------------------------------------------------------------------------------------

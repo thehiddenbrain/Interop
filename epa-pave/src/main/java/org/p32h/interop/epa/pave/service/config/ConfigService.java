@@ -17,7 +17,6 @@ import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VariableSource;
 import org.p32h.interop.epa.pave.model.VariableUse;
-import org.p32h.interop.epa.pave.postman.OperationDetector;
 import org.p32h.interop.epa.pave.postman.Placeholders;
 import org.p32h.interop.epa.pave.postman.PostmanAuth;
 import org.p32h.interop.epa.pave.postman.PostmanExample;
@@ -95,8 +94,8 @@ public class ConfigService {
 
     public EnvironmentUploaded uploadEnvironment(String fileName, byte[] content, EnvironmentKind kind, boolean acknowledgeNotProd) {
         ConfigStore.EnvironmentUpload upload = store.uploadEnvironment(fileName, content, kind, acknowledgeNotProd);
-        ConfigSnapshot snapshot = store.snapshot();
-        return new EnvironmentUploaded(environmentView(upload.environment(), snapshot), upload.replaced(), upload.warnings(), upload.epoch());
+        return new EnvironmentUploaded(environmentView(upload.environment(), upload.after()), upload.replaced(), upload.warnings(),
+                upload.epoch());
     }
 
     public EnvironmentList environments() {
@@ -136,7 +135,7 @@ public class ConfigService {
 
     public CollectionUploaded uploadCollection(String fileName, byte[] content) {
         ConfigStore.CollectionUpload upload = store.uploadCollection(fileName, content);
-        return new CollectionUploaded(collectionView(upload.collection(), store.snapshot()), upload.replaced(), upload.warnings(), upload.epoch());
+        return new CollectionUploaded(collectionView(upload.collection(), upload.after()), upload.replaced(), upload.warnings(), upload.epoch());
     }
 
     public CollectionList collections() {
@@ -148,7 +147,8 @@ public class ConfigService {
 
     /** One request in full: its headers, its raw body exactly as the collection holds it, and its saved examples with their bodies. */
     public RequestDetail request(String collectionId, String requestId) {
-        StoredCollection collection = requireCollection(store.snapshot(), collectionId);
+        ConfigSnapshot snapshot = store.snapshot();
+        StoredCollection collection = requireCollection(snapshot, collectionId);
         StoredCollection.Mapped mapped = collection.request(requestId);
         if (mapped == null) {
             throw new NotFoundException("The collection \"" + collection.name() + "\" has no request with that id.");
@@ -158,14 +158,15 @@ public class ConfigService {
         request.headers().forEach(header -> headers.add(new HeaderView(header.name(), shownTemplate(header.name(), header.value()), header.disabled())));
         List<PathVariableView> pathVariables = new ArrayList<>();
         request.pathVariables().forEach(variable -> pathVariables.add(new PathVariableView(variable.name(), variable.value())));
-        return new RequestDetail(collection.id(), collection.name(), summary(mapped), headers, request.bodyMode(), request.bodyLanguage(),
+        return new RequestDetail(collection.id(), collection.name(), summary(snapshot, collection, mapped), headers, request.bodyMode(),
+                request.bodyLanguage(),
                 request.body(), pathVariables, scripts(request), auth(request.auth()), examples(request), request.description());
     }
 
     public MappingChanged correctMapping(String collectionId, String requestId, EpaOperation operation) {
         ConfigStore.MappingChange change = store.correctMapping(collectionId, requestId, operation);
         StoredCollection.Mapped mapped = change.request();
-        RequestSummary summary = summary(mapped);
+        RequestSummary summary = summary(change.after(), change.collection(), mapped);
         List<String> notes = new ArrayList<>();
         if (!change.changed()) {
             notes.add("The mapping already was " + mapped.effective().label() + ". Nothing changed.");
@@ -193,20 +194,17 @@ public class ConfigService {
         List<VariableView> variables = new ArrayList<>();
         collection.content().variables().forEach(variable -> variables.add(variableView(variable, usage)));
         List<RequestSummary> requests = new ArrayList<>();
-        collection.requests().forEach(mapped -> requests.add(summary(mapped)));
+        collection.requests().forEach(mapped -> requests.add(summary(snapshot, collection, mapped)));
         return new CollectionView(collection.id(), collection.name(), collection.content().schema(), collection.uploadedAt(),
                 collection.originalFileName(), store.directory().resolve(collection.file()).toString(), variables, requests,
                 collection.content().notes());
     }
 
-    private static RequestSummary summary(StoredCollection.Mapped mapped) {
+    private RequestSummary summary(ConfigSnapshot snapshot, StoredCollection collection, StoredCollection.Mapped mapped) {
         PostmanRequest request = mapped.request();
-        // Judged on the request alone: its mapping, its name, its url as written and its method.
-        // A call is judged again when it is prepared, with the url as it resolved.
-        Set<EpaOperation> signals = OperationDetector.signals(request.name(), request.method(), request.url());
-        boolean guarded = mapped.effective().writesWith(request.method())
-                || signals.stream().anyMatch(signal -> signal.writesWith(request.method()))
-                || (signals.isEmpty() && EpaOperation.UNMAPPED.writesWith(request.method()));
+        // The gateway's own judgement, under the environment that is active now. A value typed for
+        // one run can still change it, and a call is judged again when it is prepared.
+        boolean guarded = gateway.countsAsWrite(snapshot, collection, mapped);
         PostmanAuth auth = request.auth();
         return RequestSummary.builder()
                 .id(request.id())
@@ -308,7 +306,7 @@ public class ConfigService {
             return row.requests(mappedTo(operation, snapshot, null)).note("A request this tool could not map has no target of its "
                     + "own. Each one is listed here and is sent raw, by naming it.").build();
         }
-        CallPlan plan = gateway.describe(CallIntent.of(operation).withUnlock(unlock));
+        CallPlan plan = gateway.describe(snapshot, CallIntent.of(operation).withUnlock(unlock));
         row.method(plan.method())
                 .requests(mappedTo(operation, snapshot, plan.target().source() == Source.REQUEST ? plan.target().request() : null));
         if (plan.refusal() != null) {
@@ -338,8 +336,9 @@ public class ConfigService {
     }
 
     private static TargetView target(CallPlan plan) {
-        List<String> tokens = plan.filled().missingTokens();
-        List<String> unresolved = plan.url().unresolved().stream().filter(name -> !tokens.contains(name)).toList();
+        // A token such as {id} is filled when a call is made, so here it is listed, not counted as missing.
+        List<String> tokens = List.copyOf(plan.tokens());
+        List<String> unresolved = plan.missingPlaceholders();
         boolean fromRequest = plan.target().source() == Source.REQUEST;
         return new TargetView(plan.url().template(), plan.filled().shown(), unresolved.isEmpty(), unresolved, tokens, plan.url().source(),
                 plan.target().requestName(), fromRequest ? new RequestRef(plan.target().collection().id(),
@@ -347,12 +346,13 @@ public class ConfigService {
     }
 
     /** Every request mapped to the operation, in collection order, with the one a call uses by default marked. */
-    private static List<AvailableRequest> mappedTo(EpaOperation operation, ConfigSnapshot snapshot, StoredCollection.Mapped usedByDefault) {
+    private List<AvailableRequest> mappedTo(EpaOperation operation, ConfigSnapshot snapshot, StoredCollection.Mapped usedByDefault) {
         List<AvailableRequest> requests = new ArrayList<>();
         for (StoredCollection collection : snapshot.collections()) {
             for (StoredCollection.Mapped mapped : collection.requests()) {
                 if (mapped.effective() == operation) {
-                    requests.add(new AvailableRequest(collection.id(), collection.name(), summary(mapped), mapped == usedByDefault));
+                    requests.add(new AvailableRequest(collection.id(), collection.name(), summary(snapshot, collection, mapped),
+                            mapped == usedByDefault));
                 }
             }
         }
@@ -435,7 +435,7 @@ public class ConfigService {
         if (!operation.outbound()) {
             throw ValidationException.of("operation", operation.label() + " never leaves the tool, so there is no request to resolve for it.");
         }
-        CallPlan plan = gateway.describe(CallIntent.of(operation).withRequest(request).withRunValues(present(variables))
+        CallPlan plan = gateway.describe(store.snapshot(), CallIntent.of(operation).withRequest(request).withRunValues(present(variables))
                 .withUrlValues(present(urlValues)).withUnlock(unlock));
         PostmanRequest source = plan.target().source() == Source.REQUEST ? plan.target().request().request() : null;
 
@@ -447,9 +447,8 @@ public class ConfigService {
         for (CallPlan.Header header : plan.headers()) {
             String name = header.header().name();
             collect(rows, header.how().variables(), header.how().explanations(), "the header " + name);
-            String display = header.how().display();
-            headers.add(new ResolvedHeaderView(name, shownTemplate(name, header.template()),
-                    display != null && Secrets.credentialHeader(name) ? Secrets.redactCredential(name, display) : display,
+            // The display form the call itself carries, so the preview shows what the wire view will.
+            headers.add(new ResolvedHeaderView(name, shownTemplate(name, header.template()), header.header().display(),
                     header.header().resolved(), header.header().unresolved()));
         }
         String bodyTemplate = source == null ? null : source.body();

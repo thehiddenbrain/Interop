@@ -30,6 +30,9 @@ import org.p32h.interop.epa.pave.postman.UrlForms;
  *                     Null when there is no url
  * @param tokens       the names of the {@code {name}} and {@code :name} parts of the url, whether
  *                     or not a value was supplied for them
+ * @param missingPlaceholders the {@code {{placeholders}}} the url needs that have no value. The
+ *                     url's own list of what is unresolved holds these and the tokens that were
+ *                     given no value; a screen that draws the two differently needs them apart
  * @param urlVariables how each placeholder of the url resolved. Null when there is no url
  * @param reasons      why an unresolved name has no value, for the names where there is more to
  *                     say than "it is not defined"
@@ -41,8 +44,8 @@ import org.p32h.interop.epa.pave.postman.UrlForms;
  *                     snapshot and the variables of the same collection
  */
 record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, String method, ResolvedUrl url, UrlForms.Filled filled,
-                Set<String> tokens, Resolution urlVariables, Map<String, String> reasons, List<Header> headers, boolean write,
-                String writeBecause, Refusal refusal, Function<String, Resolution> resolver) {
+                Set<String> tokens, List<String> missingPlaceholders, Resolution urlVariables, Map<String, String> reasons,
+                List<Header> headers, boolean write, String writeBecause, Refusal refusal, Function<String, Resolution> resolver) {
 
     /** Where a target came from. */
     enum Source {
