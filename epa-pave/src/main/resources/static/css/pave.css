@@ -1,0 +1,2338 @@
+/*
+ * PAVE. One stylesheet, hand written: tokens first, then the frame, then the parts.
+ *
+ * The rule this file is built on: the page itself has no colour. Text, rules and controls are
+ * ink on white. Wherever a colour appears it states a fact a tester can name, and each colour
+ * states one fact only. The colour key in the page (js/legend.js) publishes the same list.
+ *
+ *   cyan      the service's answer leaves nothing further to do            (tone CLEAR)
+ *   orange    the provider has something to do                             (tone ACTION; outlined: PENDING)
+ *   grey      the payer said no                                            (tone STOP, a solid ink band)
+ *   cream     about the test data: the service does not know the member or
+ *             the provider (tone DATA), or a detail was typed by hand
+ *   purple    production and its guardrail: the production banner, the UAT
+ *             banner in outline, and a write the guardrail refused         (tone BLOCKED)
+ *   green     the test passed                                              (the stamp only)
+ *   magenta   the test failed                                              (the stamp only)
+ *
+ * Three forms carry meaning without colour:
+ *   a dashed outline   nothing is there: no answer, unverified, not returned
+ *   a heavy ink frame  a fault to report: the environment failed, a run was not recorded
+ *   a hatch            mock: the answer came from a scenario file, nothing left this machine
+ *
+ * Weight follows a second rule: what a tester reads is square, what a tester operates has a
+ * small radius. Nothing has a shadow.
+ */
+
+/* ---------- tokens ---------- */
+
+:root {
+    /* The brand palette. */
+    --purple: #4F05A8;
+    --magenta: #9B26B6;
+    --orange: #FF9800;
+    --grey: #414041;
+    --green: #8CC63F;
+    --cyan: #01B7E6;
+    --cream: #FFEACC;
+    --white: #FFFFFF;
+
+    /* Ink. Shades and tints of the brand grey, chosen for contrast on white. */
+    --ink: #414041;          /* body text, 10.3 to 1 on white */
+    --ink-strong: #1F1E1F;   /* text set on a colour, and the heaviest rules */
+    --ink-soft: #636263;     /* labels and secondary text, 6.1 to 1 on white */
+    --line: #8A898A;         /* the edge of a control, 3.5 to 1 on white */
+    --rule: #D9D8D9;         /* hairlines between rows */
+    --wash: #F1F0F1;         /* the fill behind a literal that is not a value: null */
+
+    /* Type. The Aptos faces are on the workstations this runs on and are not shipped. */
+    --font-display: "Aptos Display", "Aptos", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-body: "Aptos", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "Aptos Mono", "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", "Liberation Mono", monospace;
+
+    /* Nothing is set under about 10pt, so that a shared screen stays readable. 1rem is 12pt. */
+    --text: 0.9375rem;        /* 15px, body */
+    --text-small: 0.84375rem; /* 13.5px, the smallest size used */
+    --text-large: 1.0625rem;  /* 17px */
+    --text-verdict: 1.875rem; /* 30px, the verdict strip only */
+
+    --gap-1: 4px;
+    --gap-2: 8px;
+    --gap-3: 12px;
+    --gap-4: 16px;
+    --gap-5: 24px;
+    --gap-6: 32px;
+
+    --radius-control: 3px;
+
+    /* The mock mark: hard-edged stripes, never a soft blend. It is a sign, not a wash. */
+    --hatch: repeating-linear-gradient(135deg, var(--hatch-ink, var(--ink-strong)) 0 2px, transparent 2px 6px);
+
+    --page-width: 1760px;
+    --case-width: 404px;
+}
+
+/* ---------- base ---------- */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--white);
+    color: var(--ink);
+    font: 400 var(--text)/1.45 var(--font-body);
+    font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3, h4, p, ul, ol, dl, figure, pre, blockquote {
+    margin: 0;
+}
+
+h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    color: var(--ink-strong);
+}
+
+a {
+    color: var(--ink-strong);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+
+a:hover {
+    text-decoration-thickness: 2px;
+}
+
+strong {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+/* Focus is always visible, on every control, and never depends on colour. */
+:focus-visible {
+    outline: 3px solid var(--ink-strong);
+    outline-offset: 2px;
+}
+
+main:focus {
+    outline: none;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+code, pre, .literal {
+    font-family: var(--font-mono);
+    /* A little smaller than the text around it, since the mono face runs wide, and never under the smallest size. */
+    font-size: max(0.9em, var(--text-small));
+}
+
+.literal {
+    color: var(--ink-strong);
+    overflow-wrap: break-word;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.skip-link {
+    position: absolute;
+    left: var(--gap-2);
+    top: -60px;
+    z-index: 10;
+    background: var(--white);
+    padding: var(--gap-2) var(--gap-3);
+    border: 2px solid var(--ink-strong);
+}
+
+.skip-link:focus {
+    top: var(--gap-2);
+}
+
+.plain-list {
+    list-style: none;
+    padding: 0;
+}
+
+.plain-statement {
+    max-width: 70ch;
+    font-size: var(--text-large);
+    color: var(--ink-strong);
+}
+
+.quiet {
+    color: var(--ink-soft);
+}
+
+.small {
+    font-size: var(--text-small);
+}
+
+/* ---------- the frame: masthead, banners, tabs ---------- */
+
+/* Every row of the frame runs the full width of the window, and its content sits in one column. */
+.masthead, .tab-row, .banner__inner, #notices, .chain-bar, main {
+    padding-left: max(var(--gap-5), calc((100% - var(--page-width)) / 2));
+    padding-right: max(var(--gap-5), calc((100% - var(--page-width)) / 2));
+}
+
+.masthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-5);
+    padding-top: 10px;
+    padding-bottom: 7px;
+}
+
+.masthead__identity {
+    white-space: nowrap;
+}
+
+.masthead__name {
+    font: 700 1.5rem/1 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.masthead__version {
+    margin-left: var(--gap-2);
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
+.masthead__strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: baseline;
+    column-gap: var(--gap-5);
+    row-gap: 2px;
+    font-size: var(--text-small);
+}
+
+.strip-item {
+    white-space: nowrap;
+}
+
+.strip-item__label {
+    color: var(--ink-soft);
+    margin-right: 6px;
+}
+
+.strip-item__value {
+    color: var(--ink-strong);
+    font-weight: 600;
+}
+
+/* The kind of the active environment, drawn the way its banner is drawn. */
+.kind {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    font-weight: 600;
+    border: 2px solid var(--line);
+}
+
+.kind--prod {
+    background: var(--purple);
+    border-color: var(--purple);
+    color: var(--white);
+}
+
+.kind--uat {
+    border-color: var(--purple);
+    color: var(--purple);
+}
+
+.hatch {
+    display: inline-block;
+    width: 20px;
+    height: 10px;
+    margin-right: 6px;
+    background: var(--hatch);
+}
+
+/* Something about the tool itself that must not be missed: the server is silent, a run was not recorded. */
+.strip-item--alarm .strip-item__value {
+    padding: 0 6px;
+    border: 3px solid var(--ink-strong);
+}
+
+.banner {
+    border-top: 1px solid var(--rule);
+}
+
+.banner__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: var(--gap-4);
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.banner__kind {
+    font: 700 var(--text-large)/1.2 var(--font-display);
+}
+
+.banner__name {
+    font-weight: 600;
+}
+
+/* Production is a solid band across the whole width. It is the only solid purple on the page. */
+.banner--prod {
+    background: var(--purple);
+    color: var(--white);
+    border-top-color: var(--purple);
+}
+
+.banner--prod .banner__inner {
+    padding-top: 9px;
+    padding-bottom: 9px;
+    font-size: var(--text-large);
+}
+
+.banner--prod .banner__kind {
+    font-size: 1.375rem;
+}
+
+.banner--uat {
+    color: var(--purple);
+    border-top: 4px solid var(--purple);
+    border-bottom: 4px solid var(--purple);
+}
+
+.banner--uat .banner__inner {
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+.banner--mock .banner__inner {
+    align-items: center;
+    font-size: var(--text-small);
+    color: var(--ink-strong);
+}
+
+.banner--mock .hatch {
+    width: 56px;
+    height: 12px;
+    margin-right: 0;
+}
+
+.tab-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--gap-4);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--ink-strong);
+    padding-top: 6px;
+}
+
+.tabs {
+    display: flex;
+    gap: var(--gap-1);
+}
+
+.tab {
+    appearance: none;
+    border: 0;
+    background: none;
+    padding: 5px 14px 6px;
+    margin-bottom: -1px;
+    font: 600 1rem/1.3 var(--font-display);
+    color: var(--ink-soft);
+    border-bottom: 4px solid transparent;
+    cursor: pointer;
+}
+
+.tab:first-child {
+    margin-left: -14px;
+}
+
+.tab:hover {
+    color: var(--ink-strong);
+    border-bottom-color: var(--rule);
+}
+
+.tab[aria-selected="true"] {
+    color: var(--ink-strong);
+    border-bottom-color: var(--ink-strong);
+}
+
+#legend-open {
+    margin-bottom: 5px;
+}
+
+#notices:empty {
+    display: none;
+}
+
+.notice {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-4);
+    margin-top: var(--gap-2);
+    padding: 6px var(--gap-3);
+    border: 3px solid var(--ink-strong);
+    color: var(--ink-strong);
+    font-weight: 600;
+}
+
+.notice--plain {
+    border: 1px solid var(--line);
+    font-weight: 400;
+}
+
+main {
+    padding-top: var(--gap-4);
+    padding-bottom: 48px;
+}
+
+/* ---------- controls ---------- */
+
+/*
+ * The button as written here is the quiet one, and the scripts name it button--quiet. The dark
+ * one, button--primary, is kept for the action a screen exists for: sending the request, running
+ * the suite, and taking the next step a result names.
+ */
+.button {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 4px 14px;
+    border: 1px solid var(--ink-strong);
+    border-radius: var(--radius-control);
+    background: var(--white);
+    color: var(--ink-strong);
+    font: 600 var(--text)/1.2 var(--font-body);
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.button:hover {
+    background: var(--wash);
+}
+
+.button--primary {
+    background: var(--ink-strong);
+    color: var(--white);
+}
+
+.button--primary:hover {
+    background: var(--ink);
+}
+
+.button--small {
+    min-height: 26px;
+    padding: 1px 10px;
+    font-size: var(--text-small);
+}
+
+.button--text {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    font-weight: 400;
+    white-space: normal;
+    text-align: left;
+}
+
+.button--text:hover {
+    background: none;
+    text-decoration-thickness: 2px;
+}
+
+/* A control that cannot be used yet stays readable: soft ink on a pale fill, never grey on grey. */
+.button:disabled, .button[aria-disabled="true"] {
+    border-color: var(--line);
+    background: var(--wash);
+    color: var(--ink-soft);
+    cursor: not-allowed;
+}
+
+.button[aria-busy="true"] {
+    cursor: progress;
+}
+
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-2);
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+/* The ring of a focused field sits close to it, so it does not run into the label above. */
+.field input:focus-visible, .field select:focus-visible, .code-entry input:focus-visible {
+    outline-offset: 0;
+}
+
+.field > label, .field__label {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
+.field__hint {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
+.field input[type="text"], .field select, .code-entry input, .assertion select, .assertion input[type="text"] {
+    width: 100%;
+    height: 30px;
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--white);
+    color: var(--ink-strong);
+    font: 400 var(--text)/1.3 var(--font-body);
+}
+
+.field select, .assertion select {
+    padding-left: 5px;
+}
+
+.field input.literal-input, .code-entry input.literal-input {
+    font-family: var(--font-mono);
+    font-size: var(--text-small);
+}
+
+.field input::placeholder, .code-entry input::placeholder, .assertion input::placeholder {
+    color: var(--ink-soft);
+    opacity: 1;
+    font-family: var(--font-body);
+    font-size: var(--text-small);
+}
+
+.field input[type="file"] {
+    font: 400 var(--text-small)/1.3 var(--font-body);
+    max-width: 100%;
+    padding: 2px 0;
+    color: var(--ink-strong);
+}
+
+/* The browser draws the button of a file field its own way. Here it is the same button as every other. */
+.field input[type="file"]::file-selector-button {
+    min-height: 26px;
+    margin-right: var(--gap-2);
+    padding: 1px 10px;
+    border: 1px solid var(--ink-strong);
+    border-radius: var(--radius-control);
+    background: var(--white);
+    color: var(--ink-strong);
+    font: 600 var(--text-small)/1.2 var(--font-body);
+    cursor: pointer;
+}
+
+.field input[type="file"]::file-selector-button:hover {
+    background: var(--wash);
+}
+
+/* A detail the tester typed, which a lookup would not give back. Cream is the mark of hand-typed test data. */
+.field--byhand input[type="text"] {
+    background: var(--cream);
+}
+
+/* A field the server refused. A heavy ink edge and the server's own sentence beneath it. */
+.field--invalid input[type="text"], .field--invalid select, .field--invalid .code-entry input {
+    border: 3px solid var(--ink-strong);
+}
+
+.field--invalid input[type="file"], fieldset.field--invalid > div {
+    outline: 3px solid var(--ink-strong);
+    outline-offset: 2px;
+}
+
+.field-grid .field--invalid {
+    grid-column: 1 / -1;
+}
+
+.field__error {
+    margin-top: 3px;
+    font-size: var(--text-small);
+    font-weight: 600;
+    color: var(--ink-strong);
+    padding-left: var(--gap-2);
+    border-left: 4px solid var(--ink-strong);
+}
+
+.choice {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-right: var(--gap-4);
+    color: var(--ink-strong);
+}
+
+.choice input {
+    margin: 0;
+    accent-color: var(--ink-strong);
+    transform: translateY(1px);
+}
+
+fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+legend, .case-legend {
+    padding: 0;
+    font: 600 var(--text)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.field > label.case-legend {
+    font-size: var(--text);
+    color: var(--ink-strong);
+}
+
+.form-problem {
+    padding: 6px var(--gap-3);
+    border: 3px solid var(--ink-strong);
+}
+
+.form-problem__title {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+/* ---------- small marks ---------- */
+
+/* A mark made of words wraps inside a narrow column. It never pokes into the column beside it. */
+.presence {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0 6px;
+    font-size: var(--text-small);
+    line-height: 1.35;
+    font-family: var(--font-body);
+}
+
+/* Not returned: a dashed outline, the mark of something that is not there. */
+.presence--absent, .presence--none {
+    border: 1px dashed var(--line);
+    color: var(--ink-soft);
+    font-style: italic;
+}
+
+/* Null: filled, and set as the literal it is. */
+.presence--null {
+    background: var(--wash);
+    border: 1px solid var(--line);
+    color: var(--ink-strong);
+    font-family: var(--font-mono);
+}
+
+/* Empty: a solid outline around nothing. */
+.presence--empty, .presence--other {
+    border: 1px solid var(--ink);
+    color: var(--ink-strong);
+}
+
+.flag {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0 6px;
+    font-size: var(--text-small);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--ink-strong);
+    border: 2px solid var(--ink-strong);
+}
+
+.mock-mark {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--text-small);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--ink-strong);
+    padding: 0 6px;
+    background: var(--white);
+    border: 1px solid var(--ink-strong);
+}
+
+.mock-mark .hatch {
+    width: 14px;
+    height: 9px;
+}
+
+/* ---------- tones: what the service said ---------- */
+
+.tone-mark {
+    display: inline-block;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--line);
+    background: var(--white);
+    vertical-align: -1px;
+}
+
+.tone-mark.tone--CLEAR {
+    background: var(--cyan);
+    border-color: var(--cyan);
+}
+
+.tone-mark.tone--ACTION {
+    background: var(--orange);
+    border-color: var(--orange);
+}
+
+.tone-mark.tone--PENDING {
+    border-color: var(--orange);
+}
+
+.tone-mark.tone--STOP {
+    background: var(--grey);
+    border-color: var(--grey);
+}
+
+.tone-mark.tone--NO_ANSWER {
+    border: 1px dashed var(--ink);
+}
+
+.tone-mark.tone--DATA {
+    background: var(--cream);
+    border: 1px solid var(--ink);
+}
+
+.tone-mark.tone--FAULT {
+    border: 3px solid var(--ink-strong);
+}
+
+.tone-mark.tone--BLOCKED {
+    border-color: var(--purple);
+}
+
+.tone-mark.tone--NEUTRAL {
+    border: 1px solid var(--line);
+}
+
+.outcome {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+}
+
+/*
+ * The verdict strip. The single loud element on the page: the plain language answer, set large,
+ * in the colour or the form of its tone. A solid band is an answer from the payer. A hollow
+ * frame is no answer from the payer, and the kind of frame says why.
+ */
+.verdict {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 20px 12px;
+    /* A tone this page does not know gets this: a strip with no colour, which claims nothing. */
+    border: 3px solid var(--rule);
+    color: var(--ink-strong);
+    min-width: 0;
+}
+
+.verdict__headline {
+    font: 700 var(--text-verdict)/1.15 var(--font-display);
+    color: inherit;
+    overflow-wrap: anywhere;
+}
+
+.verdict__supporting {
+    margin-top: 8px;
+    list-style: none;
+    padding: 0;
+    max-width: 82ch;
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+}
+
+.verdict__supporting li + li {
+    margin-top: 2px;
+}
+
+.verdict__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-2) var(--gap-4);
+    /* The strip is as tall as the test result beside it. The foot keeps to the bottom edge. */
+    margin-top: auto;
+    padding-top: 10px;
+    font-size: var(--text-small);
+}
+
+.verdict .literal {
+    color: inherit;
+}
+
+.verdict.tone--CLEAR {
+    background: var(--cyan);
+    border-color: var(--cyan);
+}
+
+.verdict.tone--ACTION {
+    background: var(--orange);
+    border-color: var(--orange);
+}
+
+.verdict.tone--PENDING {
+    border-color: var(--orange);
+}
+
+.verdict.tone--STOP {
+    background: var(--grey);
+    border-color: var(--grey);
+    color: var(--white);
+    --hatch-ink: var(--white);
+}
+
+.verdict.tone--NO_ANSWER {
+    border: 2px dashed var(--ink);
+}
+
+.verdict.tone--DATA {
+    background: var(--cream);
+    border-color: var(--cream);
+}
+
+.verdict.tone--FAULT {
+    border: 4px solid var(--ink-strong);
+}
+
+.verdict.tone--BLOCKED {
+    border-color: var(--purple);
+}
+
+.verdict.tone--BLOCKED .verdict__headline {
+    color: var(--purple);
+}
+
+.verdict.tone--NEUTRAL {
+    border-color: var(--rule);
+}
+
+/* On the mock profile every verdict carries the hatch down its leading edge. */
+.verdict--mock {
+    padding-left: 44px;
+}
+
+.verdict--mock::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 24px;
+    background: var(--hatch);
+}
+
+.verdict.tone--STOP .mock-mark {
+    --hatch-ink: var(--ink-strong);
+}
+
+/* ---------- the test result: its own element, its own colours ---------- */
+
+.stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 9px 0 7px;
+    border: 2px solid var(--ink);
+    font: 700 var(--text-small)/1.45 var(--font-display);
+    color: var(--ink-strong);
+    background: var(--white);
+    white-space: nowrap;
+}
+
+.stamp--large {
+    padding: 6px 18px 6px 14px;
+    gap: 11px;
+    font-size: 1.375rem;
+    line-height: 1.2;
+}
+
+.stamp__glyph {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    width: 0.8em;
+    height: 0.8em;
+}
+
+.stamp--pass {
+    background: var(--green);
+    border-color: var(--green);
+}
+
+/* A tick, drawn from two edges of a box. */
+.stamp--pass .stamp__glyph::before {
+    content: "";
+    position: absolute;
+    left: 0.22em;
+    top: -0.05em;
+    width: 0.32em;
+    height: 0.68em;
+    border: solid currentColor;
+    border-width: 0 0.17em 0.17em 0;
+    transform: rotate(45deg);
+}
+
+.stamp--fail {
+    background: var(--magenta);
+    border-color: var(--magenta);
+    color: var(--white);
+}
+
+/* A cross, drawn from two bars. */
+.stamp--fail .stamp__glyph::before, .stamp--fail .stamp__glyph::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -8%;
+    width: 0.17em;
+    height: 116%;
+    margin-left: -0.085em;
+    background: currentColor;
+}
+
+.stamp--fail .stamp__glyph::before {
+    transform: rotate(45deg);
+}
+
+.stamp--fail .stamp__glyph::after {
+    transform: rotate(-45deg);
+}
+
+/* Unverified is neither. A dashed outline around an open ring: nothing was compared. */
+.stamp--unverified {
+    border: 2px dashed var(--ink);
+}
+
+.stamp--unverified .stamp__glyph::before {
+    content: "";
+    position: absolute;
+    inset: 0.08em;
+    border: 0.14em solid currentColor;
+    border-radius: 50%;
+}
+
+.stamp--other .stamp__glyph {
+    display: none;
+}
+
+.testresult {
+    padding-left: var(--gap-4);
+    border-left: 1px solid var(--ink-strong);
+    min-width: 0;
+}
+
+.testresult__title {
+    font: 600 var(--text)/1.3 var(--font-display);
+    color: var(--ink-strong);
+    margin-bottom: 6px;
+}
+
+.testresult .facts {
+    margin-top: 10px;
+}
+
+.testresult__explanation {
+    margin-top: 6px;
+    overflow-wrap: anywhere;
+}
+
+/* ---------- facts and tables ---------- */
+
+.facts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: var(--gap-4);
+}
+
+.facts > dt {
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    padding: 5px 0 4px;
+    border-top: 1px solid var(--rule);
+}
+
+.facts > dd {
+    margin: 0;
+    padding: 4px 0;
+    border-top: 1px solid var(--rule);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.facts > dt:first-of-type, .facts > dd:first-of-type {
+    border-top: 0;
+}
+
+.facts--ruled > dt:first-of-type, .facts--ruled > dd:first-of-type {
+    border-top: 1px solid var(--rule);
+}
+
+.facts--ruled > dt:last-of-type, .facts--ruled > dd:last-of-type {
+    border-bottom: 1px solid var(--rule);
+}
+
+/*
+ * Every table has fixed columns. A cell of vendor text can hold a token of any length, and with
+ * fixed columns it breaks inside its own cell instead of pushing the table out of the window.
+ */
+.grid {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.col-5 { width: 5%; }
+.col-8 { width: 8%; }
+.col-12 { width: 12%; }
+.col-13 { width: 13%; }
+.col-14 { width: 14%; }
+.col-17 { width: 17%; }
+.col-18 { width: 18%; }
+.col-19 { width: 19%; }
+.col-22 { width: 22%; }
+.col-25 { width: 25%; }
+.col-30 { width: 30%; }
+.col-45 { width: 45%; }
+
+/*
+ * A stamp and a time cannot wrap. Their columns are sized in pixels to hold the widest of each
+ * ("Unverified", and a time in the thousands with its unit), so they fit however narrow the
+ * table is, and the columns of words share what is left.
+ */
+.col-stamp { width: 128px; }
+.col-time { width: 84px; }
+
+.grid.pairs th:first-child { width: 34%; }
+.grid.thirds th { width: 33.3%; }
+.grid.detail-list th:nth-child(1) { width: 48%; }
+.grid.detail-list th:nth-child(2) { width: 30%; }
+.grid.card-links th:nth-child(1) { width: 26%; }
+.grid.card-links th:nth-child(2) { width: 12%; }
+.grid.card-links th:nth-child(3) { width: 36%; }
+.grid.issues th:nth-child(1) { width: 10%; }
+.grid.issues th:nth-child(2) { width: 15%; }
+.grid.issues th:nth-child(3) { width: 19%; }
+.grid.issues th:nth-child(4) { width: 23%; }
+.grid.issues th:nth-child(5) { width: 17%; }
+.grid.timing__buckets th:nth-child(1) { width: 34%; }
+.grid.timing__buckets th:nth-child(2) { width: 14%; }
+
+.grid th {
+    text-align: left;
+    vertical-align: bottom;
+    font-size: var(--text-small);
+    font-weight: 600;
+    color: var(--ink-soft);
+    padding: 4px 12px 4px 0;
+    border-bottom: 1px solid var(--ink-strong);
+}
+
+.grid td {
+    vertical-align: top;
+    padding: 5px 12px 5px 0;
+    border-bottom: 1px solid var(--rule);
+    overflow-wrap: break-word;
+}
+
+
+.wire__headers th:first-child {
+    width: 34%;
+}
+
+.literal--id {
+    font-size: var(--text-small);
+}
+
+.grid th:last-child, .grid td:last-child {
+    padding-right: 0;
+}
+
+.grid .num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.grid tr.group th {
+    padding-top: var(--gap-3);
+    color: var(--ink-strong);
+    font-size: var(--text);
+    border-bottom: 1px solid var(--ink-strong);
+}
+
+/*
+ * A table wider than its place scrolls sideways inside this frame. The frame clips, so it keeps
+ * a little room at the right and the bottom for the focus ring of a control in the last column
+ * or the last row, and reaches the same distance outwards so the table still ends on the margin.
+ */
+.table-scroll {
+    overflow-x: auto;
+    margin-right: -6px;
+    padding: 0 6px 6px 0;
+}
+
+/* The frame reaches the edge of its pane, so its own ring is drawn just inside it. */
+.table-scroll:focus-visible {
+    outline-offset: -3px;
+}
+
+.section-heading {
+    font: 600 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.section-heading__count {
+    font-weight: 400;
+    color: var(--ink-soft);
+}
+
+.sub-heading {
+    font: 600 var(--text)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.vendor-text {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+.vendor-inline {
+    overflow-wrap: break-word;
+}
+
+.external a {
+    font-weight: 600;
+}
+
+.note-list {
+    list-style: none;
+    padding: 0;
+}
+
+.note-list li {
+    padding: 2px 0 2px var(--gap-3);
+    border-left: 1px solid var(--line);
+}
+
+.note-list li + li {
+    margin-top: 5px;
+}
+
+.copy {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--gap-2);
+}
+
+.copy__status {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
+.copy__status:empty {
+    display: none;
+}
+
+/* ---------- the workbench: the case on the left, the readout on the right ---------- */
+
+.workbench {
+    display: grid;
+    grid-template-columns: var(--case-width) minmax(0, 1fr);
+    align-items: start;
+}
+
+.case-pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-right: 1px solid var(--rule);
+}
+
+.case-pane__scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 0 var(--gap-5) var(--gap-4) 0;
+    min-height: 0;
+}
+
+.case-pane__actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    padding: 8px var(--gap-5) 12px 0;
+    border-top: 1px solid var(--ink-strong);
+    background: var(--white);
+}
+
+.case-pane__actions > :empty {
+    display: none;
+}
+
+.case, .case-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.case-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* The line between the case, which every protocol tab shares, and what this tab adds to it. */
+.case-pane__own {
+    padding-top: var(--gap-3);
+    border-top: 1px solid var(--rule);
+}
+
+.field-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px var(--gap-3);
+}
+
+.field-grid--three {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.field-grid .field--wide {
+    grid-column: 1 / -1;
+}
+
+.field--inline {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--gap-4);
+}
+
+.code-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    list-style: none;
+    padding: 0;
+}
+
+.code-list:empty {
+    display: none;
+}
+
+.code-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 0 0 8px;
+    border: 1px solid var(--ink);
+    border-radius: var(--radius-control);
+    background: var(--white);
+}
+
+.code-chip__remove {
+    appearance: none;
+    border: 0;
+    background: none;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-control);
+    font: 600 var(--text)/1 var(--font-body);
+    color: var(--ink-strong);
+    cursor: pointer;
+}
+
+.code-chip__remove:hover {
+    background: var(--wash);
+}
+
+/* The ring sits inside the button, so it does not cover the code beside it. */
+.code-chip__remove:focus-visible {
+    outline-offset: -3px;
+}
+
+.code-entry {
+    display: flex;
+    gap: var(--gap-2);
+}
+
+.code-entry input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.assertions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 6px;
+}
+
+.assertion {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+}
+
+.readout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-5);
+    min-width: 0;
+    padding-left: var(--gap-6);
+}
+
+.readout > :empty {
+    display: none;
+}
+
+.readout__status {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+    margin-bottom: -12px;
+}
+
+.empty-state {
+    max-width: 80ch;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+}
+
+.empty-state__lead {
+    font: 600 1.25rem/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+    padding-top: var(--gap-3);
+    border-top: 1px solid var(--ink-strong);
+}
+
+.panel__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-4);
+}
+
+/* A tab that is not built yet: one statement, and what it was handed. */
+.placeholder {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-4);
+    max-width: 1000px;
+    padding-bottom: 48px;
+}
+
+/* ---------- the result ---------- */
+
+.result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-5);
+    min-width: 0;
+}
+
+.result__stale {
+    padding: 6px var(--gap-3);
+    border: 3px solid var(--ink-strong);
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.result__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 340px);
+    gap: var(--gap-5);
+    align-items: stretch;
+}
+
+.runfacts {
+    margin-top: -8px;
+}
+
+.runfacts > dt {
+    padding-right: var(--gap-3);
+}
+
+.nextstep__headline {
+    font: 600 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.nextstep__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-2) var(--gap-4);
+}
+
+/* A run that is not in the ledger. A fault to report, so it wears the heavy frame, and it is set large. */
+.ledger--missing {
+    padding: var(--gap-2) var(--gap-4) var(--gap-3);
+    border: 4px solid var(--ink-strong);
+    color: var(--ink-strong);
+}
+
+.ledger--missing .ledger__state {
+    font: 700 1.5rem/1.25 var(--font-display);
+}
+
+.ledger--missing blockquote {
+    margin-top: 4px;
+    font-weight: 600;
+}
+
+.ledger--missing.small {
+    padding: 2px 6px;
+    border-width: 3px;
+    margin-top: 3px;
+}
+
+.result__section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--ink-strong);
+    min-width: 0;
+}
+
+.result__section > .section-heading + .quiet {
+    margin-top: -6px;
+}
+
+.finding {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 0 var(--gap-3);
+}
+
+.finding + .finding {
+    padding-top: var(--gap-3);
+    border-top: 1px solid var(--rule);
+}
+
+.finding:last-child {
+    padding-bottom: 0;
+}
+
+.finding__title {
+    font: 600 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.finding__meta {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
+/* Two positions, side by side and equal. Neither is drawn as the wrong one. */
+.positions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--ink-strong);
+    border-bottom: 1px solid var(--ink-strong);
+    max-width: 110ch;
+}
+
+.position {
+    padding: 6px var(--gap-4) 7px 0;
+}
+
+.position + .position {
+    padding-left: var(--gap-4);
+    border-left: 1px solid var(--ink-strong);
+}
+
+.positions--one {
+    grid-template-columns: 1fr;
+}
+
+.position__who {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
+.position__says {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.determination th:nth-child(1) {
+    width: 24%;
+}
+
+.determination th:nth-child(2) {
+    width: 20%;
+}
+
+.determination th:nth-child(4) {
+    width: 16%;
+}
+
+.additional th:first-child {
+    width: 42%;
+}
+
+.additional th:nth-child(2) {
+    width: 12%;
+}
+
+
+.raw-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ---------- the protocol's part of a result ---------- */
+
+.detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-4);
+}
+
+.detail > p {
+    max-width: 100ch;
+}
+
+.detail__part {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
+}
+
+.detail__part > .section-heading {
+    font-size: var(--text);
+}
+
+.detail__item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.detail__item + .detail__item {
+    margin-top: var(--gap-3);
+    padding-top: var(--gap-3);
+    border-top: 1px solid var(--rule);
+}
+
+.detail__item-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px var(--gap-5);
+}
+
+.detail__item > .sub-heading {
+    margin-top: 6px;
+}
+
+/* Every table of names and values in the detail shares one first column, so the eye runs down a single edge. */
+.detail .facts {
+    grid-template-columns: 12.5rem minmax(0, 1fr);
+}
+
+.detail .elements th:first-child {
+    width: 12.5rem;
+}
+
+.detail .elements th:nth-child(2) {
+    width: 14rem;
+}
+
+.detail__nested {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-left: var(--gap-2);
+    padding-left: var(--gap-4);
+    border-left: 1px solid var(--line);
+}
+
+.card-summary {
+    font: 600 var(--text-large)/1.35 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.vendor-callout {
+    font-size: var(--text-large);
+    color: var(--ink-strong);
+}
+
+.vendor-callout .quiet {
+    font-size: var(--text);
+}
+
+/* The wire view. Collapsed until asked for. The text inside is exactly what was sent and received. */
+.wire > summary, details.fold > summary {
+    cursor: pointer;
+    font: 600 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+    padding: 2px 0;
+}
+
+details.fold > summary {
+    font-size: var(--text);
+}
+
+.wire > summary .quiet, details.fold > summary .quiet {
+    font: 400 var(--text-small)/1.3 var(--font-body);
+    margin-left: var(--gap-2);
+}
+
+details.fold > :not(summary) {
+    margin-top: 6px;
+}
+
+.wire__sides {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--gap-5);
+    margin-top: var(--gap-3);
+}
+
+.wire__side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    min-width: 0;
+}
+
+.wire__memberid {
+    margin-top: var(--gap-3);
+}
+
+.body-text {
+    max-height: 26rem;
+    overflow: auto;
+    padding: var(--gap-2) var(--gap-3);
+    border: 1px solid var(--line);
+    background: var(--white);
+    color: var(--ink-strong);
+    font-size: var(--text-small);
+    line-height: 1.45;
+    white-space: pre;
+    tab-size: 2;
+}
+
+.body-text--wrap {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.wire__notsent {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+/* The error panel. Every kind says what happened and what to do; the frame says whose fault it is. */
+.error-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px var(--gap-4) var(--gap-3);
+    border: 1px solid var(--ink-strong);
+    min-width: 0;
+}
+
+.error-panel--fault {
+    border-width: 4px;
+}
+
+.error-panel--blocked {
+    border: 3px solid var(--purple);
+}
+
+.error-panel__kind {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
+.error-panel--blocked .error-panel__kind {
+    color: var(--purple);
+    font-weight: 600;
+}
+
+.error-panel__title {
+    font: 600 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+    overflow-wrap: anywhere;
+}
+
+.error-panel__reference {
+    font-weight: 600;
+}
+
+/* ---------- the chain ---------- */
+
+.chain-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(250px, 1fr);
+    align-items: start;
+    gap: var(--gap-5);
+    padding-top: 6px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--ink-strong);
+    font-size: var(--text-small);
+}
+
+.chain-bar__lead {
+    grid-column: 1 / -1;
+    font-size: var(--text);
+}
+
+.chain-stages {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--gap-4);
+    list-style: none;
+    padding: 0;
+}
+
+.chain-stage {
+    min-width: 0;
+    padding-left: var(--gap-2);
+    border-left: 1px solid var(--line);
+}
+
+.chain-stage__name {
+    display: block;
+    font: 600 var(--text-small)/1.4 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.chain-bar__side {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* The stage the journey calls for now is the one drawn heavy. */
+.chain-stage--NEXT, .chain-stage--NEEDS_ATTENTION, .chain-stage--IN_PROGRESS {
+    border-left: 4px solid var(--ink-strong);
+}
+
+.chain-stage--NOT_NEEDED, .chain-stage--NOT_REACHED, .chain-stage--NOT_RUN {
+    color: var(--ink-soft);
+}
+
+.chain-stage--NOT_NEEDED .chain-stage__name, .chain-stage--NOT_REACHED .chain-stage__name, .chain-stage--NOT_RUN .chain-stage__name {
+    color: var(--ink-soft);
+}
+
+.chain-bar__next-label {
+    color: var(--ink-soft);
+}
+
+.chain-bar__next-headline {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+/* The first line of a run carries no rule beneath it: the second line belongs to the same run. */
+.chain-runs .chain-run > td {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.chain-runs .chain-run__more > td {
+    padding-top: 2px;
+}
+
+.chain-view {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-4);
+}
+
+.chain-view__headline {
+    font: 700 1.5rem/1.2 var(--font-display);
+}
+
+.chain-view__stage {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 0 0 var(--gap-4);
+    border-top: 1px solid var(--ink-strong);
+    border-left: 1px solid var(--line);
+}
+
+.chain-view__stage.chain-stage--NEXT, .chain-view__stage.chain-stage--NEEDS_ATTENTION, .chain-view__stage.chain-stage--IN_PROGRESS {
+    border-left: 4px solid var(--ink-strong);
+}
+
+.chain-view__stage-name {
+    font: 600 var(--text-large)/1.3 var(--font-display);
+}
+
+.chain-rows, .suite-list {
+    list-style: none;
+    padding: 0;
+}
+
+.chain-row, .suite-list li {
+    padding: 7px 0 8px;
+    border-top: 1px solid var(--rule);
+}
+
+.chain-row--open {
+    padding-left: var(--gap-3);
+    border-left: 4px solid var(--ink-strong);
+}
+
+/* ---------- history: the views, and suite runs ---------- */
+
+.views {
+    display: flex;
+    gap: var(--gap-4);
+    margin-bottom: var(--gap-4);
+}
+
+.view {
+    appearance: none;
+    border: 0;
+    background: none;
+    padding: 0 0 2px;
+    font: 400 var(--text)/1.3 var(--font-body);
+    color: var(--ink-soft);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+}
+
+.view:hover {
+    color: var(--ink-strong);
+}
+
+.view[aria-selected="true"] {
+    color: var(--ink-strong);
+    font-weight: 600;
+    border-bottom-color: var(--ink-strong);
+}
+
+.suite-preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+}
+
+.suite-preview:empty {
+    display: none;
+}
+
+.suite-preview__headline {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.suite-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+}
+
+.suite-head__headline {
+    font: 700 1.5rem/1.2 var(--font-display);
+}
+
+.suite-head__stop {
+    font-weight: 600;
+    color: var(--ink-strong);
+    padding-left: var(--gap-3);
+    border-left: 4px solid var(--ink-strong);
+}
+
+.facts-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 0 var(--gap-6);
+    align-items: start;
+}
+
+.suite-preview .grid td:nth-child(2) {
+    white-space: nowrap;
+}
+
+.suite-progress {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-4);
+}
+
+.suite-progress progress {
+    appearance: none;
+    width: min(420px, 100%);
+    height: 10px;
+    border: 1px solid var(--ink-strong);
+    background: var(--white);
+}
+
+.suite-progress progress::-webkit-progress-bar {
+    background: var(--white);
+}
+
+.suite-progress progress::-webkit-progress-value {
+    background: var(--ink-strong);
+}
+
+.suite-progress progress::-moz-progress-bar {
+    background: var(--ink-strong);
+}
+
+.suite-progress__count {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.filter {
+    font-weight: 400;
+}
+
+.filter[aria-pressed="true"] {
+    background: var(--ink-strong);
+    color: var(--white);
+}
+
+.filter[aria-pressed="true"] strong, .filter[aria-pressed="true"] .literal {
+    color: var(--white);
+}
+
+.suites {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-4);
+    padding-top: var(--gap-3);
+}
+
+.suites__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: var(--gap-6);
+    padding-bottom: var(--gap-4);
+    border-bottom: 1px solid var(--ink-strong);
+}
+
+.suites__start, .suites__held {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    min-width: 0;
+}
+
+.suites__held {
+    padding-left: var(--gap-5);
+    border-left: 1px solid var(--rule);
+}
+
+.suites__controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.4fr);
+    gap: var(--gap-2) var(--gap-4);
+    align-items: start;
+}
+
+.suite-run {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-5);
+    padding-bottom: 48px;
+}
+
+/*
+ * The columns are fixed, so a long sentence wraps inside its own cell. Nine or ten columns need
+ * room: below the width at which each still has it, the table keeps that width and scrolls
+ * sideways inside its own frame. The page itself never scrolls sideways.
+ */
+.suite-results {
+    table-layout: fixed;
+    min-width: 1100px;
+}
+
+.suite-results th:nth-child(1) { width: 40px; }
+.suite-results th:nth-child(2) { width: 8%; }
+.suite-results th:nth-child(3) { width: 9%; }
+.suite-results th:nth-child(4) { width: 13%; }
+.suite-results th:nth-child(5) { width: 17%; }
+.suite-results th:nth-child(8) { width: 11%; }
+
+.suite-results--compared {
+    min-width: 1300px;
+}
+
+.suite-results--compared th:nth-child(4) { width: 11%; }
+.suite-results--compared th:nth-child(5) { width: 14%; }
+.suite-results--compared th:nth-child(8) { width: 10%; }
+.suite-results--compared th:nth-child(9) { width: 13%; }
+
+.suite-run-id {
+    margin-top: 2px;
+}
+
+/* A case whose outcome or result differs from the run it is compared with. */
+.suite-row--changed > td:first-child {
+    border-left: 4px solid var(--ink-strong);
+}
+
+.suite-status--unsent {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.timing {
+    display: grid;
+    grid-template-columns: minmax(240px, 320px) minmax(0, 560px);
+    gap: var(--gap-6);
+    align-items: start;
+}
+
+.timing__bar-cell {
+    width: 55%;
+}
+
+.timing__bar {
+    appearance: none;
+    display: block;
+    width: 100%;
+    height: 12px;
+    background: none;
+    border: 0;
+}
+
+.timing__bar::-webkit-meter-bar {
+    height: 12px;
+    background: none;
+    border: 0;
+    border-radius: 0;
+}
+
+.timing__bar::-webkit-meter-optimum-value {
+    background: var(--ink);
+    border-radius: 0;
+}
+
+.timing__bar::-moz-meter-bar {
+    background: var(--ink);
+}
+
+/* ---------- the colour key ---------- */
+
+.legend {
+    width: min(1120px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    padding: var(--gap-4) var(--gap-5) var(--gap-5);
+    border: 1px solid var(--ink-strong);
+    border-radius: 0;
+    color: var(--ink);
+}
+
+.legend::backdrop {
+    background: rgba(31, 30, 31, 0.45);
+}
+
+.legend__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-4);
+}
+
+.legend__lead {
+    margin-top: 4px;
+}
+
+.legend__columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 var(--gap-6);
+}
+
+.legend__group {
+    margin-top: var(--gap-3);
+    padding-top: var(--gap-2);
+    border-top: 1px solid var(--ink-strong);
+}
+
+.legend__rows .kind {
+    margin-left: 0;
+}
+
+.legend__rows {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 5px var(--gap-4);
+    margin-top: 6px;
+    align-items: baseline;
+}
+
+.legend__rows dd {
+    margin: 0;
+}
+
+.swatch {
+    display: inline-block;
+    width: 34px;
+    height: 14px;
+    vertical-align: -2px;
+}
+
+.swatch--cream {
+    background: var(--cream);
+    border: 1px solid var(--line);
+}
+
+.swatch--nothing {
+    border: 1px dashed var(--ink);
+}
+
+.swatch--fault {
+    border: 4px solid var(--ink-strong);
+}
+
+.swatch--blocked {
+    border: 3px solid var(--purple);
+}
+
+/* ---------- the working area keeps the frame in view ---------- */
+
+/*
+ * On a screen with room for it the window does not scroll. The frame stays where it is, so the
+ * environment and the production banner are in view however far down a result the tester has
+ * read, and the case and the readout scroll each on their own.
+ */
+@media (min-width: 1181px) and (min-height: 600px) {
+    html, body {
+        height: 100%;
+    }
+
+    body {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    main {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+
+    main > [role="tabpanel"] {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding-top: var(--gap-4);
+    }
+
+    /* A panel that is a workbench does not scroll itself. Its two panes do. */
+    main > .tabpanel--workbench {
+        overflow: hidden;
+        padding-top: 0;
+    }
+
+    /* A panel with a row of views above a workbench: the row stays, the view takes the rest. */
+    main > .tabpanel--stacked {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        padding-top: var(--gap-3);
+    }
+
+    .tabpanel--stacked > .views {
+        flex: none;
+        margin-bottom: 0;
+        padding-bottom: var(--gap-2);
+        border-bottom: 1px solid var(--rule);
+    }
+
+    .tabpanel--stacked > [role="tabpanel"] {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    .workbench {
+        height: 100%;
+        align-items: stretch;
+    }
+
+    .case-pane {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .case-pane__scroll {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding-top: var(--gap-4);
+    }
+
+    .readout {
+        height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+        padding-top: var(--gap-4);
+        padding-bottom: 48px;
+        padding-right: 6px;
+    }
+
+    /*
+     * A focus ring is drawn outside its control, and a pane that clips would cut the ring of a
+     * control that sits at its edge. So each pane reaches six pixels into the page margin and
+     * pads the same six back: the content stays on the margin and the ring is whole.
+     */
+    main > [role="tabpanel"], .tabpanel--stacked > [role="tabpanel"] {
+        margin-left: -6px;
+        margin-right: -6px;
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+
+    .case-pane__scroll {
+        margin-left: -6px;
+        padding-left: 6px;
+    }
+
+    /* The readout fills its pane to the edge, so its own ring is drawn just inside it. */
+    .readout:focus-visible {
+        outline-offset: -3px;
+    }
+
+    /*
+     * A pane that scrolls is the containing block of what is placed absolutely inside it, such as
+     * the text kept for screen readers. Otherwise that text escapes the pane, lies below the
+     * window, and lets the window itself be scrolled out from under the frame.
+     */
+    main > [role="tabpanel"], .tabpanel--stacked > [role="tabpanel"], .case-pane__scroll, .readout {
+        position: relative;
+    }
+}
+
+/* ---------- narrower than a laptop: one column, and the window scrolls ---------- */
+
+@media (max-width: 1180px) {
+    .workbench {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: var(--gap-5);
+    }
+
+    .case-pane {
+        border-right: 0;
+    }
+
+    .case-pane__scroll, .case-pane__actions {
+        padding-right: 0;
+    }
+
+    .readout {
+        padding-left: 0;
+    }
+
+    .chain-bar {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--gap-2);
+    }
+}
+
+@media (max-width: 860px) {
+    .result__top, .wire__sides, .positions, .timing, .chain-stages, .legend__columns, .suites__top, .suites__controls, .facts-pair {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .suites__held {
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .testresult {
+        padding-left: 0;
+        border-left: 0;
+        padding-top: var(--gap-3);
+        border-top: 1px solid var(--ink-strong);
+    }
+
+    .position + .position {
+        padding-left: 0;
+        border-left: 0;
+        border-top: 1px solid var(--ink-strong);
+    }
+
+    .masthead {
+        flex-direction: column;
+        gap: var(--gap-1);
+    }
+
+    .masthead__strip {
+        justify-content: flex-start;
+    }
+}
+
+/* Motion answers an action and nothing else. This tool has none, and this keeps it that way for anyone who asks. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        transition: none !important;
+        animation: none !important;
+        scroll-behavior: auto !important;
+    }
+}
