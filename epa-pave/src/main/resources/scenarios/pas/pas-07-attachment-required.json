@@ -1,0 +1,234 @@
+{
+  "id": "pas-07-attachment-required",
+  "number": 7,
+  "label": "Attachment required",
+  "description": "The payer pends the request and asks for supporting documentation before it will decide.",
+  "sentinelMemberId": "P32H-PAS-ATTACH-REQ",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 200,
+  "expect": {
+    "outcome": "ATTACHMENT_REQUIRED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "review-action": "A4",
+      "claim-outcome": "queued"
+    }
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "assumption": "How the live service asks for supporting documentation is not known. This file models a pended ClaimResponse that refers to a CommunicationRequest carried in the same bundle with the status active.",
+  "response": {
+    "resourceType": "Bundle",
+    "id": "pas-response-bundle",
+    "type": "collection",
+    "timestamp": "2026-01-15T10:00:00Z",
+    "entry": [
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/fhir/ClaimResponse/claimresponse-{{claimId}}",
+        "resource": {
+          "resourceType": "ClaimResponse",
+          "id": "claimresponse-{{claimId}}",
+          "status": "active",
+          "type": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+                "code": "professional"
+              }
+            ]
+          },
+          "use": "preauthorization",
+          "patient": {
+            "reference": "Patient/patient-1"
+          },
+          "created": "2026-01-15T10:00:00Z",
+          "insurer": {
+            "reference": "Organization/organization-insurer-1"
+          },
+          "requestor": {
+            "reference": "PractitionerRole/practitioner-role-1"
+          },
+          "request": {
+            "identifier": {
+              "value": "{{claimId}}"
+            }
+          },
+          "outcome": "queued",
+          "disposition": "Pended. Supporting documentation is needed.",
+          "item": [
+            {
+              "itemSequence": 1,
+              "adjudication": [
+                {
+                  "extension": [
+                    {
+                      "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-reviewAction",
+                      "extension": [
+                        {
+                          "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-reviewActionCode",
+                          "valueCodeableConcept": {
+                            "coding": [
+                              {
+                                "system": "https://codesystem.x12.org/005010/306",
+                                "code": "A4",
+                                "display": "Pended"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "category": {
+                    "coding": [
+                      {
+                        "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                        "code": "submitted"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "communicationRequest": [
+            {
+              "reference": "CommunicationRequest/communication-request-1"
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/fhir/CommunicationRequest/communication-request-1",
+        "resource": {
+          "resourceType": "CommunicationRequest",
+          "id": "communication-request-1",
+          "status": "active",
+          "subject": {
+            "reference": "Patient/patient-1"
+          },
+          "payload": [
+            {
+              "contentString": "Send the report of the attended sleep study."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": {
+    "inquire": {
+      "httpStatus": 200,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "ATTACHMENT_REQUIRED",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "review-action": "A4",
+          "claim-outcome": "queued"
+        }
+      },
+      "response": {
+        "resourceType": "Bundle",
+        "id": "pas-response-bundle",
+        "type": "collection",
+        "timestamp": "2026-01-15T10:00:00Z",
+        "entry": [
+          {
+            "fullUrl": "https://example.org/p32h-placeholder/fhir/ClaimResponse/claimresponse-{{claimId}}",
+            "resource": {
+              "resourceType": "ClaimResponse",
+              "id": "claimresponse-{{claimId}}",
+              "status": "active",
+              "type": {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+                    "code": "professional"
+                  }
+                ]
+              },
+              "use": "preauthorization",
+              "patient": {
+                "reference": "Patient/patient-1"
+              },
+              "created": "2026-01-15T10:00:00Z",
+              "insurer": {
+                "reference": "Organization/organization-insurer-1"
+              },
+              "requestor": {
+                "reference": "PractitionerRole/practitioner-role-1"
+              },
+              "request": {
+                "identifier": {
+                  "value": "{{claimId}}"
+                }
+              },
+              "outcome": "queued",
+              "disposition": "Pended. Supporting documentation is needed.",
+              "item": [
+                {
+                  "itemSequence": 1,
+                  "adjudication": [
+                    {
+                      "extension": [
+                        {
+                          "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-reviewAction",
+                          "extension": [
+                            {
+                              "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-reviewActionCode",
+                              "valueCodeableConcept": {
+                                "coding": [
+                                  {
+                                    "system": "https://codesystem.x12.org/005010/306",
+                                    "code": "A4",
+                                    "display": "Pended"
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "category": {
+                        "coding": [
+                          {
+                            "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                            "code": "submitted"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "communicationRequest": [
+                {
+                  "reference": "CommunicationRequest/communication-request-1"
+                }
+              ]
+            }
+          },
+          {
+            "fullUrl": "https://example.org/p32h-placeholder/fhir/CommunicationRequest/communication-request-1",
+            "resource": {
+              "resourceType": "CommunicationRequest",
+              "id": "communication-request-1",
+              "status": "active",
+              "subject": {
+                "reference": "Patient/patient-1"
+              },
+              "payload": [
+                {
+                  "contentString": "Send the report of the attended sleep study."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

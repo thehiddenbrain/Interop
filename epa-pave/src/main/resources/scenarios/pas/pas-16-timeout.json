@@ -1,0 +1,14 @@
+{
+  "id": "pas-16-timeout",
+  "number": 16,
+  "label": "No response inside the read timeout",
+  "description": "The service accepts the submission and does not answer inside the read timeout. The submission may still have been received. The mock reports the timeout after this file's delay and does not wait for the full configured timeout.",
+  "sentinelMemberId": "P32H-PAS-TIMEOUT",
+  "behavior": "timeout",
+  "delayMillis": 400,
+  "expect": {
+    "outcome": "TIMEOUT",
+    "errorType": "TIMEOUT"
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service."
+}

@@ -1,0 +1,151 @@
+{
+  "id": "pas-14-no-decision",
+  "number": 14,
+  "label": "A ClaimResponse that carries no decision",
+  "description": "The service answers HTTP 200 with a ClaimResponse that carries no review action, on the response or on any item. Its disposition wording says approved. The tool reads codes and never wording, so this is no decision: not approved, not pended and not denied.",
+  "sentinelMemberId": "P32H-PAS-NO-DECISION",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 200,
+  "expect": {
+    "outcome": "NO_DECISION",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "claim-outcome": "complete"
+    }
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "Bundle",
+    "id": "pas-response-bundle",
+    "type": "collection",
+    "timestamp": "2026-01-15T10:00:00Z",
+    "entry": [
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/fhir/ClaimResponse/claimresponse-{{claimId}}",
+        "resource": {
+          "resourceType": "ClaimResponse",
+          "id": "claimresponse-{{claimId}}",
+          "status": "active",
+          "type": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+                "code": "professional"
+              }
+            ]
+          },
+          "use": "preauthorization",
+          "patient": {
+            "reference": "Patient/patient-1"
+          },
+          "created": "2026-01-15T10:00:00Z",
+          "insurer": {
+            "reference": "Organization/organization-insurer-1"
+          },
+          "requestor": {
+            "reference": "PractitionerRole/practitioner-role-1"
+          },
+          "request": {
+            "identifier": {
+              "value": "{{claimId}}"
+            }
+          },
+          "outcome": "complete",
+          "disposition": "Approved.",
+          "item": [
+            {
+              "itemSequence": 1,
+              "adjudication": [
+                {
+                  "category": {
+                    "coding": [
+                      {
+                        "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                        "code": "submitted"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": {
+    "inquire": {
+      "httpStatus": 200,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "NO_DECISION",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "claim-outcome": "complete"
+        }
+      },
+      "response": {
+        "resourceType": "Bundle",
+        "id": "pas-response-bundle",
+        "type": "collection",
+        "timestamp": "2026-01-15T10:00:00Z",
+        "entry": [
+          {
+            "fullUrl": "https://example.org/p32h-placeholder/fhir/ClaimResponse/claimresponse-{{claimId}}",
+            "resource": {
+              "resourceType": "ClaimResponse",
+              "id": "claimresponse-{{claimId}}",
+              "status": "active",
+              "type": {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+                    "code": "professional"
+                  }
+                ]
+              },
+              "use": "preauthorization",
+              "patient": {
+                "reference": "Patient/patient-1"
+              },
+              "created": "2026-01-15T10:00:00Z",
+              "insurer": {
+                "reference": "Organization/organization-insurer-1"
+              },
+              "requestor": {
+                "reference": "PractitionerRole/practitioner-role-1"
+              },
+              "request": {
+                "identifier": {
+                  "value": "{{claimId}}"
+                }
+              },
+              "outcome": "complete",
+              "disposition": "Approved.",
+              "item": [
+                {
+                  "itemSequence": 1,
+                  "adjudication": [
+                    {
+                      "category": {
+                        "coding": [
+                          {
+                            "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                            "code": "submitted"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
