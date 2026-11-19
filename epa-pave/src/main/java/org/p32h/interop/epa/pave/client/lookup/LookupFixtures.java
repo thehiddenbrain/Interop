@@ -37,6 +37,22 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>These files are the whole of what the mock knows. Nothing that is looked up is added to it,
  * and nothing about a lookup is remembered.
+ *
+ * <h4>What a file holds</h4>
+ * <ul>
+ *   <li>{@code memberId} or {@code npi}: the identifier the file answers for. A member ID is
+ *       written in its no-space form, and is found whatever letter case it is typed in</li>
+ *   <li>{@code behavior}: {@code respond}, {@code timeout} or {@code unavailable}. Left out, it is
+ *       {@code respond}</li>
+ *   <li>{@code httpStatus}: the status to answer with, when the behavior is respond</li>
+ *   <li>{@code response}: the body as JSON, in whatever shape the API might send. It goes through
+ *       the same mapping as a live response. Or {@code responseText}: a body that is deliberately
+ *       not JSON, as text</li>
+ *   <li>{@code description} and {@code basis}: what the file is for, and that it is synthetic</li>
+ *   <li>{@code expect}: what the file claims to produce. A test drives every file through the
+ *       mock client and fails when a file stops producing its claim</li>
+ * </ul>
+ * A key outside this list is refused by name, so a misspelt one cannot be dropped in silence.
  */
 @Component
 @Profile("mock")

@@ -16,18 +16,21 @@ import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.WireHeader;
 
 /**
- * Says how a lookup ended whenever it did not end with a record: not found, or one of the faults.
+ * Says how a lookup ended whenever it did not end with a record: not found, disabled, or one of
+ * the faults.
  *
- * <p>The two are never given the same words. An identifier the far side does not recognise is a
- * finding about the test data, and has no error panel. A far side that is down, refuses the call
- * or answers with something that cannot be read is a finding about the environment or about the
- * mapping, and says which.
+ * <p>The three are never given the same words. An identifier the far side does not recognise is a
+ * finding about the test data, and has no error panel. A lookup that is switched off or not
+ * configured is not an error either: the tester types the details by hand. A far side that is
+ * down, refuses the call or answers with something that cannot be read is a finding about the
+ * environment or about the mapping, and says which.
  */
 final class LookupOutcomes {
 
     /**
      * @param message one sentence for the confirmation strip
-     * @param error   the error panel for a fault. Null for not found, which is an answer and not a fault
+     * @param error   the error panel for a fault. Null for not found, which is an answer, and for
+     *                disabled, which is a setting: neither is a fault
      */
     record Ending(LookupStatus status, String message, ErrorView error) {
     }

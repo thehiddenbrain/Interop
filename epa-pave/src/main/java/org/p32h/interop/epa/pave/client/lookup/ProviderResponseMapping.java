@@ -16,13 +16,16 @@ import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.model.WireView;
 
 /**
- * EVERYTHING THIS TOOL ASSUMES ABOUT THE PROVIDER DIRECTORY, IN ONE FILE.
+ * WHAT THIS TOOL ASSUMES ABOUT THE PROVIDER DIRECTORY'S RESPONSE, AND THE ONE METHOD THAT APPLIES IT.
  *
  * <p>As with the member API, the response contract of the directory is not final. The wrapper
  * names, the field spellings and the words that mean a provider is in or out of network are all
- * assumptions, listed in the tables below and applied in {@link #map}, which the mock client and
- * the live client both call. The tables are kept apart from the member tables on purpose: they
- * describe two different services, and narrowing one must not change how the other is read.
+ * assumptions. They are the tables below, and {@link #map} is the one place they are applied. The
+ * mock client and the live client both call it.
+ *
+ * <p>The tables are kept apart from the member tables on purpose: they describe two different
+ * services, and narrowing one must not change how the other is read. The rules the two lookups do
+ * share are named on {@link MemberResponseMapping}.
  */
 final class ProviderResponseMapping {
 

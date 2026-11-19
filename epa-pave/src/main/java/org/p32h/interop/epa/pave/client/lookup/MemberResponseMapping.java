@@ -19,18 +19,24 @@ import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.model.WireView;
 
 /**
- * EVERYTHING THIS TOOL ASSUMES ABOUT THE MEMBER API, IN ONE FILE.
+ * WHAT THIS TOOL ASSUMES ABOUT THE MEMBER API'S RESPONSE, AND THE ONE METHOD THAT APPLIES IT.
  *
  * <p>The response contract of the member API is not final. What a record may be wrapped in, what
- * each field may be called and which words mean coverage is active are all assumptions, listed in
- * the tables below and applied in {@link #map}. The mock client and the live client both read a
- * response through that one method, so what a tester sees on mock is produced by the code the live
- * profile runs.
+ * each field may be called and which words mean coverage is active are all assumptions. They are
+ * the tables below, and {@link #map} is the one place they are applied. The mock client and the
+ * live client both read a response through that method, so what a tester sees on mock is produced
+ * by the code the live profile runs.
  *
  * <p>The mapping is tolerant on purpose and is meant to be narrowed: when the contract is known,
  * delete the spellings and wrapper names the service does not use. Whatever the mapping does not
  * read is never dropped. It stays in the returned fields, which is where the evidence for
  * finishing this file comes from.
+ *
+ * <p>Four rules are shared with the provider lookup and live beside this file, because they are
+ * about how any such response is read and not about the member API in particular:
+ * {@link LookupEnvelope} decides what counts as a wrapper, {@link LookupReader} how a spelling is
+ * matched and what is left alone, {@link LookupDates} which date shapes are read, and
+ * {@link LookupOutcomes} which ending of a call is not found and which is a fault.
  */
 final class MemberResponseMapping {
 

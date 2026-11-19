@@ -51,23 +51,6 @@ record Spelling(String written, List<Step> steps) {
         return List.copyOf(out);
     }
 
-    /** Every part under every container, container by container: {@code address.city}, {@code address.town}, and so on. */
-    static List<Spelling> under(List<String> containers, String... parts) {
-        List<Spelling> out = new ArrayList<>();
-        for (String container : containers) {
-            for (String part : parts) {
-                out.add(of(container + "." + part));
-            }
-        }
-        return List.copyOf(out);
-    }
-
-    static List<Spelling> join(List<Spelling> first, List<Spelling> second) {
-        List<Spelling> out = new ArrayList<>(first);
-        out.addAll(second);
-        return List.copyOf(out);
-    }
-
     /**
      * True for a path of more than one name. Such a path is specific enough to be looked for beside
      * the record as well as inside it. A single name such as {@code id} or {@code state} is not: in
