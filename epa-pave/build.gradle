@@ -70,6 +70,11 @@ tasks.named('jar') {
 
 test {
     useJUnitPlatform()
+    // gradle.properties switches the build cache on. With it, a second "clean build" of unchanged
+    // sources would restore this task's result from the cache and run no test, and a gate that
+    // says "build twice from clean" would be reporting the first run twice. So the result of the
+    // tests is never taken from the cache: after a clean they run.
+    outputs.cacheIf { false }
     testLogging { events 'passed', 'skipped', 'failed'; exceptionFormat = 'full' }
 }
 

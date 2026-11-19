@@ -8,7 +8,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * @param enabled         false when tracking is switched off in configuration
  * @param writable        false when the directory cannot be written to
- * @param runsToday       runs in today's file
+ * @param runsToday       runs in today's file. Null when the file cannot be read, so that "cannot say" is not shown as
+ *                        none
  * @param unreadableLines lines in the files read so far that could not be parsed
  * @param lastWriteAt     when a run was last written successfully, or null when none has been
  * @param lastError       the most recent write failure, or null when there has been none since
@@ -18,6 +19,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param failedWrites    how many writes have failed since startup
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record LedgerHealth(boolean enabled, String directory, boolean writable, String currentFile, int runsToday,
+public record LedgerHealth(boolean enabled, String directory, boolean writable, String currentFile, Integer runsToday,
                            int unreadableLines, String lastWriteAt, String lastError, String lastErrorAt, int failedWrites) {
 }

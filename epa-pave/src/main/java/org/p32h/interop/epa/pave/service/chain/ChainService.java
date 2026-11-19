@@ -327,7 +327,10 @@ public class ChainService {
             return record.memberId();
         }
         if (Texts.present(record.memberToken())) {
-            return "token " + record.memberToken() + (Texts.present(record.memberIdLast4()) ? ", ending " + record.memberIdLast4() : "");
+            // The start of the token is enough to tell two members apart on a screen. The whole token is on the ledger line.
+            String token = record.memberToken();
+            return "token " + (token.length() > 12 ? token.substring(0, 12) : token)
+                    + (Texts.present(record.memberIdLast4()) ? ", ending " + record.memberIdLast4() : "");
         }
         return null;
     }

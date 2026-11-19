@@ -332,8 +332,9 @@ class ChainServiceTest {
         String other = RunStamps.newChainId();
         ledger.record(RunRecord.builder().runId(RunStamps.newRunId()).timestamp("2026-03-10T11:00:00.000-05:00").protocol(Protocol.CRD)
                 .operation(EpaOperation.CRD_ORDER_SIGN).outcome("NO_AUTH_REQUIRED").result(TestResult.UNVERIFIED).chainId(other)
-                .memberToken("m-4f2a9c").memberIdLast4("6789").nextAction(NextAction.FLOW_ENDS).build());
-        assertThat(chains().view(other).member()).isEqualTo("token m-4f2a9c, ending 6789");
+                .memberToken("4f2a9c0d1e7b".repeat(5) + "abcd").memberIdLast4("6789").nextAction(NextAction.FLOW_ENDS).build());
+        // The token is long, and its first characters are enough to tell two members apart on a screen.
+        assertThat(chains().view(other).member()).isEqualTo("token 4f2a9c0d1e7b, ending 6789");
     }
 
     @Test

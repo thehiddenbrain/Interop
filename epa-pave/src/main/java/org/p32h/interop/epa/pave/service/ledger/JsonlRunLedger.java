@@ -630,7 +630,7 @@ public class JsonlRunLedger implements RunLedger {
     public LedgerHealth health() {
         String fileName = DayFiles.nameFor(LocalDate.now(clock));
         synchronized (lock) {
-            int runsToday = 0;
+            Integer runsToday = 0;
             boolean usable = false;
             if (directory != null) {
                 Path file = directory.resolve(fileName);
@@ -638,8 +638,8 @@ public class JsonlRunLedger implements RunLedger {
                 try {
                     runsToday = dayCount(file).runs();
                 } catch (IOException e) {
-                    // The record has no way to say "unknown" here. The file is counted as unreadable, which the same answer shows.
-                    runsToday = 0;
+                    // Not none: unknown. The file is also counted as unreadable, which the same answer shows.
+                    runsToday = null;
                 }
             }
             // Writable means: the write check at startup passed, no write has failed since the last

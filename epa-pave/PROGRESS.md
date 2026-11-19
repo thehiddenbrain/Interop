@@ -4,47 +4,41 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**Spine 1 is frozen and both waves are building, for the second time.** Six reviewers read the
-shared types before the freeze, each from the seat of one downstream owner, and every finding was
-checked against the code and applied. What changed and why is in the four "Changes made after"
-sections of `DECISIONS.md` (D-039 to D-096). From here on a wave agent may not edit a shared type:
-it reports the change it needs and the integrator makes it.
+**The application runs.** On the integration of the first wave it starts on the mock profile with
+no file edited and answers on every endpoint that wave and the CRD vertical provide. Observed on
+the built jar, on mock, on this revision's parent:
+
+```
+$ curl -s localhost:8057/api/mode
+{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795122465000,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."}}
+```
+
+Also called over HTTP on that jar, each answering as designed: the config endpoints, member and
+provider lookup (found, not found, a malformed NPI as 422), the code picker and its self-check,
+CRD (two runs, discovery, scenarios), the ledger (query, one run, a note, health, the CSV export,
+a replay that came back "same"), a chain, and a suite of six cases read from a CSV with CRLF line
+endings and a quoted cell holding a comma.
+
+**What this revision is and is not.** Wave A is merged from the branches as they stood: the ledger
+(A2) is its agent's final commit; the configuration layer (A1), the code list (A3) and the
+lookups (A4) are checkpoints that build green and whose agents are still finishing. Their final
+commits are merged when they report. Wave B (PAS, DTR) is not merged: the PAS and DTR endpoints do
+not exist in this revision. There is no frontend in this revision: the first pass is being built
+on its own branch against a stand-in, and has not been reviewed.
 
 **The waves were interrupted once.** About an hour into Wave A and Wave B every background agent
 was stopped at the same moment by a usage limit, part-way through its package. What each had
-written survived in its git worktree: A1 (configuration layer) about half built and not
-committed, A2 (ledger) two checkpoint commits and nearly complete, B1 (PAS) four commits and
-about half built, B2 (DTR) everything except the service and the controller. A3 (code list), A4
-(lookups) and the frontend had not begun. Each half-built package was handed to a new agent that
+written survived in its git worktree, and each half-built package was handed to a new agent that
 continues in the same worktree, with the brief, the code that is there and a digest of the notes
 its predecessor left. Every agent now commits a checkpoint after each slice that builds green.
 
 Because of the interruption the plan changed in one respect: the verifier that was to follow each
-wave package was dropped. The integrator reads each package while merging it, and the
-verification agents of section 27 audit the integrated code, V2 (member data) straight after
-Spine 2 and V3 (the production guardrail) as soon as the guardrail is merged. An independent
-review of the code the integrator wrote alone (suites, chain view, the HTTP guard) was started,
-stopped by the same limit before it read anything, and is still owed.
+wave package was dropped. The integrator merges and exercises each package, and the verification
+agents of section 27 audit the integrated code. An independent review of the code the integrator
+wrote alone (the case runner, suites, the chain view, the HTTP guard) was started, stopped by the
+same limit before it read anything, and is still owed.
 
-The integrator built the following against fakes while the waves ran. All of it is tested, none
-of it is wired as Spring beans yet, because the gateway, the ledger and the code list arrive with
-Wave A:
-
-- the CRD vertical: scenarios, mock and live clients, request builder, response mapper, outcome
-  rules, verdicts, conformance checker, service, controller and controller tests
-- raw send (D-097, D-098): one collection request sent as written through the same gateway and
-  guardrail
-- the case runner (D-101): one case run from its inputs alone, the path a suite row and a replay
-  take, with the CRD step registered
-- the chain view (D-111 to D-113, section 28.1): a chain read back from the ledger with where
-  each of CRD, DTR and PAS stands, why a stage did not run, and the stated next step. Carrying
-  context between the steps and running a chain as one suite case wait for Wave B
-- `GET /api/mode` (the controller, not yet a bean) and a dev harness in the test sources (D-114)
-  that serves CRD, raw, suites, chains and mode with stand-ins, for the frontend's first pass
-- suite runs (D-103 to D-110, section 28.2 and 28.4): the suite file reader and its row rules, the
-  sequential runner with a progress count, the results table, the comparison with an earlier run,
-  the response time distribution, the CSV export and the controller. The CSV text itself is read
-  through a small interface that the code list agent's reader will sit behind when Wave A is merged
+Nothing has been run against Onyx. Every result above is on mock.
 
 **Added by the operator during the build (D-118, D-119):** paste a request of your own and send
 it, and compare a pasted CRD request with the one the tool builds, with each difference
@@ -56,8 +50,8 @@ next frontend pass and do not exist on screen yet.
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
 | Spine 1: shared contracts | done, reviewed by six seats, frozen |
-| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | building again after the interruption. A1 and A2 taken over, A3 and A4 started fresh |
-| Spine 2: integrate Wave A. V2 PHI audit | not started |
+| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | A2 done. A1, A3 and A4 merged at a green checkpoint, their agents still finishing |
+| Spine 2: integrate Wave A. V2 PHI audit | merged and wired, application starts, endpoints exercised over HTTP. Final merge of A1, A3, A4 and the V2 audit still to do |
 | Spine 3: CRD reference vertical | built and tested against fakes. To do after Wave A: wire as beans, `/api/mode` |
 | Wave B: B1 PAS and subscriptions, B2 DTR | building again after the interruption, both taken over |
 | Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | case runner, suites and the chain view built and tested against fakes. Chain as a suite case and cross-protocol tests not started |
@@ -85,19 +79,18 @@ next frontend pass and do not exist on screen yet.
 
 ### Not done at this commit
 
-- Nothing runs end to end in the application yet. The CRD, raw and suite services and
-  controllers are not Spring beans, so `POST /api/crd`, `POST /api/raw` and `/api/suites` do not
-  exist in the running application. `GET /api/mode` does not exist yet either.
-- A suite can run CRD cases only. PAS, DTR and chain rows are reported as not runnable until
-  their steps are registered in Spine 4.
-- No real CSV text has been read as a suite yet: the suite tests use a stand-in that splits on
-  commas.
-- No ledger, no code list, no lookup, no Postman configuration layer on this branch: those are
-  Wave A, still building on its own branches.
-- No PAS, no DTR on this branch: those are Wave B, still building. No chain, no suites, no
-  frontend.
+- No frontend. `http://localhost:8057/` answers 404 on this revision.
+- No PAS and no DTR: Wave B is not merged. A suite can run CRD cases only; PAS, DTR and chain rows
+  are reported as not runnable. The chain view shows DTR and PAS stages but nothing can run them.
+- Comparing a pasted CRD request with the tool's own is not in this revision.
+- A1, A3 and A4 are merged as checkpoints, not as finished packages. What their agents report as
+  not done is not known yet.
+- The section 27 verification agents have not run. No independent review of the integrator's own
+  code has run.
+- README, `run.sh`, `run.cmd` and the sample files do not exist yet.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The build runs 542 tests.
+- The build runs 1299 tests, 2 of them skipped because the build ran as root, for which a
+  read-only folder is not read-only. The same refusals are covered by tests that did run.
 
 ## The plan, written before any feature code
 

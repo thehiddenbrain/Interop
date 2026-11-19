@@ -114,7 +114,7 @@ class RunRecordTest {
                 .httpStatus(200).elapsedMillis(7).errorType(OnyxFailureType.TIMEOUT).expected("x").note("n").testerRef("t")
                 .chainId("c").suiteRunId("su").caseId("ca").replayOfRunId("r").hook("order-sign").attachmentMode("x12-275").nextAction(NextAction.FLOW_ENDS)
                 .targetSource("order-sign Happy Path").memberId("S123456789")
-                .memberToken("tok").memberIdLast4("6789").npi("1234567893").dateOfService("2026-02-01")
+                .memberToken("0f".repeat(32)).memberIdLast4("6789").npi("1234567893").dateOfService("2026-02-01")
                 .correlation(Map.of(RunRecord.CORR_CLAIM_ID, "claim-1")).findings(List.of("SLOW_RESPONSE"))
                 .unrecordedInputs(List.of(RunRecord.INPUT_RUN_VALUES)).slow(true).build();
         assertThat(record.toBuilder().build()).isEqualTo(record);
@@ -127,5 +127,49 @@ class RunRecordTest {
             }
         }).count();
         assertThat(nonNull).isEqualTo(RunRecord.class.getRecordComponents().length);
+    }
+
+    @Test
+    void checkingARecordAgainGivesTheSameRecord() {
+        // A record is checked when it is built, when it is copied and when a line is read back. If
+        // the check rewrote its own statements, the number in "N characters" would stop being a
+        // length, and a line would read back differently from the record the receipt carried.
+        RunRecord first = RunRecord.builder().runId("run-1").timestamp("2026-03-10T10:00:00.000-05:00").protocol(Protocol.CRD)
+                .operation(EpaOperation.CRD_ORDER_SIGN).outcome("AUTH_REQUIRED").result(TestResult.UNVERIFIED)
+                .procedureCodes(List.of("95810", "a code that is really a sentence"))
+                .coverageCodes(List.of("pa-needed=auth-needed", "pa-needed=free text that is not a code", "no shape at all here"))
+                .delegatedVendor("Acme Benefit Managers; Evolent")
+                .lineOfBusiness("a line of business that is far too long to be one, and holds a colon: and more words still")
+                .build();
+        RunRecord copied = first.toBuilder().build();
+        RunRecord copiedAgain = copied.toBuilder().build();
+        RunRecord readBack = JsonSafe.mapper().readValue(JsonSafe.mapper().writeValueAsString(first), RunRecord.class);
+        assertThat(copied).isEqualTo(first);
+        assertThat(copiedAgain).isEqualTo(first);
+        assertThat(readBack).isEqualTo(first);
+        // And the numbers are the lengths of what was there, on the first check and on every later one.
+        assertThat(first.procedureCodes()).containsExactly("95810", "(not a code, 32 characters)");
+        assertThat(first.coverageCodes()).containsExactly("pa-needed=auth-needed", "pa-needed=(not a code, 28 characters)",
+                "(not a code entry, 20 characters)");
+        assertThat(first.delegatedVendor()).isEqualTo("(vendor not on the known list, 21 characters); Evolent");
+    }
+
+    @Test
+    void theTwoMemberFieldsWrittenUnderEveryConfigurationHoldOnlyWhatTheLedgerPutsThere() {
+        RunRecord.Builder draft = RunRecord.builder().runId("run-1").timestamp("2026-03-10T10:00:00.000-05:00").protocol(Protocol.CRD)
+                .operation(EpaOperation.CRD_ORDER_SIGN).outcome("AUTH_REQUIRED").result(TestResult.UNVERIFIED);
+        String token = "0f".repeat(32);
+        RunRecord kept = draft.memberToken(token).memberIdLast4("6789").build();
+        assertThat(kept.memberToken()).isEqualTo(token);
+        assertThat(kept.memberIdLast4()).isEqualTo("6789");
+        // A member ID put in either by mistake is dropped. These two are written when the ID itself is not.
+        RunRecord mistaken = draft.memberToken("S123456789").memberIdLast4("S123456789").build();
+        assertThat(mistaken.memberToken()).isNull();
+        assertThat(mistaken.memberIdLast4()).isNull();
+        assertThat(draft.memberToken(token.toUpperCase()).build().memberToken()).isNull();
+        assertThat(draft.memberToken(token + "0").build().memberToken()).isNull();
+        assertThat(draft.memberIdLast4("67 9").build().memberIdLast4()).isNull();
+        assertThat(draft.memberIdLast4("").build().memberIdLast4()).isNull();
+        assertThat(draft.memberIdLast4("89").build().memberIdLast4()).isEqualTo("89");
     }
 }

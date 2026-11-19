@@ -163,6 +163,8 @@ public record RunRecord(
             java.util.regex.Pattern.compile("(?:(" + SUBJECT + "): )?(" + NAME + ")=(.*)", java.util.regex.Pattern.DOTALL);
     private static final java.util.regex.Pattern PROCEDURE_CODE = java.util.regex.Pattern.compile("[A-Za-z0-9][A-Za-z0-9.\\-]{0,19}");
     private static final java.util.regex.Pattern SHORT_LABEL = java.util.regex.Pattern.compile("[A-Za-z0-9 &/.,()'+\\-]{1,60}");
+    private static final java.util.regex.Pattern MEMBER_TOKEN = java.util.regex.Pattern.compile("[0-9a-f]{64}");
+    private static final java.util.regex.Pattern LAST_FOUR = java.util.regex.Pattern.compile("\\S{1,4}");
     private static final java.util.regex.Pattern CORRELATION_VALUE =
             java.util.regex.Pattern.compile("[A-Za-z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%| ]{1,512}");
 
@@ -185,12 +187,27 @@ public record RunRecord(
         delegatedVendor = knownVendors(delegatedVendor);
         lineOfBusiness = lineOfBusiness == null ? null : kept(SHORT_LABEL, lineOfBusiness, "not a line of business");
         correlation = checkedCorrelation(correlation);
+        // These two are written under every configuration, when the member ID itself is not. So
+        // neither may hold anything but what the ledger puts there: a keyed hash in hex, and at
+        // most four characters. Anything else is dropped, never written.
+        memberToken = memberToken != null && MEMBER_TOKEN.matcher(memberToken).matches() ? memberToken : null;
+        memberIdLast4 = memberIdLast4 != null && LAST_FOUR.matcher(memberIdLast4).matches() ? memberIdLast4 : null;
         findings = findings == null ? List.of() : List.copyOf(findings);
         unrecordedInputs = unrecordedInputs == null ? List.of() : List.copyOf(unrecordedInputs);
     }
 
     private static String kept(java.util.regex.Pattern shape, String value, String what) {
-        return value != null && shape.matcher(value).matches() ? value : "(" + what + ", " + (value == null ? 0 : value.length()) + " characters)";
+        return value != null && (shape.matcher(value).matches() || statement(what, value)) ? value
+                : "(" + what + ", " + (value == null ? 0 : value.length()) + " characters)";
+    }
+
+    /**
+     * True when a value already is the statement this record writes in place of text it did not
+     * keep. Such a value is left as it is, so checking a record again when it is copied or read
+     * gives the same record, and the number in the statement stays the length of what was there.
+     */
+    private static boolean statement(String what, String value) {
+        return value != null && value.matches("\\(" + java.util.regex.Pattern.quote(what) + ", \\d{1,9} characters\\)");
     }
 
     /** One coverage code entry, kept when it has the shape of one, otherwise replaced by what can safely be said about it. */
@@ -198,10 +215,13 @@ public record RunRecord(
         if (entry == null) {
             return "(not a code entry, 0 characters)";
         }
-        if (CODE_ENTRY.matcher(entry).matches() || NO_ANSWER_ENTRY.matcher(entry).matches()) {
+        if (CODE_ENTRY.matcher(entry).matches() || NO_ANSWER_ENTRY.matcher(entry).matches() || statement("not a code entry", entry)) {
             return entry;
         }
         java.util.regex.Matcher named = NAMED_ENTRY.matcher(entry);
+        if (named.matches() && statement("not a code", named.group(3))) {
+            return entry;
+        }
         if (named.matches()) {
             // The element name is the tool's own. What followed it was not a code, so only its length is kept.
             return (named.group(1) == null ? "" : named.group(1) + ": ") + named.group(2) + "=(not a code, " + named.group(3).length()
@@ -225,6 +245,7 @@ public record RunRecord(
                 continue;
             }
             out.add(DelegatedVendors.known(part) ? DelegatedVendors.canonical(part)
+                    : statement("vendor not on the known list", part.strip()) ? part.strip()
                     : "(vendor not on the known list, " + part.strip().length() + " characters)");
         }
         return out.isEmpty() ? null : String.join("; ", out);

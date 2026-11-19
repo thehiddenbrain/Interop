@@ -817,3 +817,37 @@ reached (D-008), which is exactly why the operator asked. And an element the too
 with confidence is listed as not classified, since a tester would repeat a wrong description to
 the vendor. The comparison covers CRD. Nothing equivalent exists for DTR or PAS.
 
+## Decisions made while integrating the first wave
+
+**D-120. A ledger record that is checked again stays the same record.**
+Found by the ledger's owner, not by the six contract reviews: the record replaced text that was
+not a code, a known vendor or a code entry with a statement of its length, and on the next copy
+replaced that statement again, so "(vendor not on the known list, 4 characters)" became 44 and
+then 45. The number stopped being a length and a line read back differently from the record the
+receipt carried, which a replay would have reported as a change. The check now recognises its own
+statements and leaves them alone. A test builds a record, copies it twice and reads it back from
+JSON, and all four are equal.
+
+**D-121. The member token and the last four characters are checked like everything else on the line.**
+These two are written under every configuration, including when the member ID is not. The record
+now keeps a token only when it is 64 hexadecimal characters, which is what the ledger's keyed
+hash produces, and the last-four field only when it is one to four characters with no space.
+Anything else is dropped. A member ID put in either by a mistake in a caller is therefore not
+written.
+
+**D-122. Ledger health can say that it cannot say.**
+The count of runs in today's file is now absent when the file cannot be read. Before, it was 0,
+which reads as "no runs today".
+
+**D-123. After a clean, the tests run.**
+The specification asks for the Gradle build cache. With it, a second `./gradlew clean build` of
+unchanged sources restored the test task from the cache and ran no test, so "build twice from
+clean" would have reported one run twice. The test task's result is no longer taken from the
+cache.
+
+**D-124. Considered and not done: a ledger line does not say that an NPI was sent and not kept.**
+The ledger's owner suggested marking such a line so that replay refuses it up front. As it
+stands, replay sends the case without the NPI, the service refuses it before sending because
+CRD, DTR and PAS all need one, and the replay report adds that the NPI may not have been
+recorded. That is true and sends nothing, so the extra marker was left out.
+

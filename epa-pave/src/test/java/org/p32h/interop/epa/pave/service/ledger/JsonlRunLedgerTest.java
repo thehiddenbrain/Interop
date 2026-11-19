@@ -187,9 +187,9 @@ class JsonlRunLedgerTest {
         assertThat(none.memberToken()).isNull();
         assertThat(none.memberIdLast4()).isNull();
         // The policy replaces a member ID. Where a draft has none, it has nothing to replace.
-        RunRecord carried = ledger.record(draft("run-2", clock).memberId(" ").memberToken("carried-token").memberIdLast4("6789").build()).record();
+        RunRecord carried = ledger.record(draft("run-2", clock).memberId(" ").memberToken("0f".repeat(32)).memberIdLast4("6789").build()).record();
         assertThat(carried.memberId()).isNull();
-        assertThat(carried.memberToken()).isEqualTo("carried-token");
+        assertThat(carried.memberToken()).isEqualTo("0f".repeat(32));
         // The date of service goes whenever member IDs are not recorded, whether or not this run had one.
         assertThat(none.dateOfService()).isNull();
     }
