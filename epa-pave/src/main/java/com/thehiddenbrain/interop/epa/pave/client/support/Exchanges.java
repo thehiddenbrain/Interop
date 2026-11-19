@@ -145,7 +145,7 @@ public final class Exchanges {
             failure = OnyxFailureType.NONE;
         }
         return new VendorExchange(request, status, responseHeaders, text, parsed != null && parsed.ok() ? parsed.node() : null,
-                parseError, elapsedMillis, failure, detail, Set.of());
+                parseError, elapsedMillis, failure, detail, Set.of(), null);
     }
 
     /** Describes a call that got no response inside the read timeout. */
@@ -159,7 +159,7 @@ public final class Exchanges {
     }
 
     static VendorExchange failed(WireRequest request, long elapsedMillis, OnyxFailureType type, String detail) {
-        return new VendorExchange(request, null, List.of(), null, null, null, elapsedMillis, type, detail, Set.of());
+        return new VendorExchange(request, null, List.of(), null, null, null, elapsedMillis, type, detail, Set.of(), null);
     }
 
     private static String redactCredential(String value) {

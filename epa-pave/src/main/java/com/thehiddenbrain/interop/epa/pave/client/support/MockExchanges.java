@@ -62,7 +62,7 @@ public class MockExchanges {
         pause(step.delayMillis());
         long elapsed = (System.nanoTime() - started) / 1_000_000L;
 
-        return switch (step.behavior()) {
+        VendorExchange exchange = switch (step.behavior()) {
             case RESPOND -> Exchanges.fromResponse(request, step.httpStatus(),
                     step.body() == null ? List.of() : List.of(new WireHeader("Content-Type", "application/json")), step.body(),
                     elapsed, options != null && options.bodyRequired());
@@ -71,6 +71,7 @@ public class MockExchanges {
             case TIMEOUT -> Exchanges.timeout(request, elapsed);
             case UNAVAILABLE -> Exchanges.unavailable(request, elapsed, "The connection was refused or could not be opened.");
         };
+        return exchange.withScenarioId(selection.scenario().id());
     }
 
     private void pause(long millis) {

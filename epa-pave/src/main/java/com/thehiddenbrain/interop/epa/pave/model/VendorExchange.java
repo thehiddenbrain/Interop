@@ -20,6 +20,7 @@ import tools.jackson.databind.JsonNode;
  * @param failureType     NONE unless the call failed at the transport or HTTP level
  * @param failureDetail   a short description of a transport failure. Never contains request data
  * @param signals         vendor-specific findings recognised by the client layer
+ * @param scenarioId      the mock scenario that answered, or null when the answer came from a real service
  */
 public record VendorExchange(
         WireRequest request,
@@ -31,7 +32,8 @@ public record VendorExchange(
         long elapsedMillis,
         OnyxFailureType failureType,
         String failureDetail,
-        Set<VendorSignal> signals) {
+        Set<VendorSignal> signals,
+        String scenarioId) {
 
     public VendorExchange {
         responseHeaders = responseHeaders == null ? List.of() : List.copyOf(responseHeaders);
@@ -55,13 +57,19 @@ public record VendorExchange(
             merged.addAll(newSignals);
         }
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, json, parseError, elapsedMillis,
-                failureType, failureDetail, merged);
+                failureType, failureDetail, merged, scenarioId);
+    }
+
+    /** The same exchange marked with the mock scenario that produced it. */
+    public VendorExchange withScenarioId(String id) {
+        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, json, parseError, elapsedMillis,
+                failureType, failureDetail, signals, id);
     }
 
     /** The same exchange with the parsed body replaced, for a client that normalises a vendor shape. */
     public VendorExchange withJson(JsonNode newJson) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, newJson, parseError, elapsedMillis,
-                failureType, failureDetail, signals);
+                failureType, failureDetail, signals, scenarioId);
     }
 
     /** The response half of the wire view. */

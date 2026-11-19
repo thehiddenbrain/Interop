@@ -1,11 +1,9 @@
 package com.thehiddenbrain.interop.epa.pave.web;
 
+import com.thehiddenbrain.interop.epa.pave.model.IsoDates;
 import com.thehiddenbrain.interop.epa.pave.model.Texts;
 import com.thehiddenbrain.interop.epa.pave.service.error.ValidationException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
 import java.util.function.Function;
 
 /**
@@ -18,9 +16,6 @@ import java.util.function.Function;
  * parameter.
  */
 public final class Params {
-
-    // Strict, so 2026-02-30 is rejected instead of being rolled forward to a date nobody typed.
-    private static final DateTimeFormatter ISO_DATE = DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT);
 
     private Params() {
     }
@@ -50,23 +45,10 @@ public final class Params {
         if (Texts.blank(value)) {
             return null;
         }
-        try {
-            return LocalDate.parse(value.strip(), ISO_DATE);
-        } catch (DateTimeParseException e) {
+        LocalDate date = IsoDates.parse(value);
+        if (date == null) {
             throw ValidationException.of(name, "Enter the date as YYYY-MM-DD, for example 2026-01-31.");
         }
-    }
-
-    /** True when the text is a real calendar date written as YYYY-MM-DD. */
-    public static boolean isIsoDate(String value) {
-        if (Texts.blank(value)) {
-            return false;
-        }
-        try {
-            LocalDate.parse(value.strip(), ISO_DATE);
-            return true;
-        } catch (DateTimeParseException e) {
-            return false;
-        }
+        return date;
     }
 }

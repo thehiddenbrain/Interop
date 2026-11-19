@@ -87,6 +87,15 @@ public class ScenarioRepository {
      * @throws ValidationException when an explicitly chosen scenario id does not exist
      */
     public ScenarioSelection select(String protocolDirectory, MockSelection selection) {
+        return select(protocolDirectory, selection, null);
+    }
+
+    /**
+     * As {@link #select(String, MockSelection)}, and when neither an explicit choice nor the form's
+     * member ID or NPI selects a scenario, a sentinel member ID that appears in the request body
+     * does. That serves a tester who loaded a sample body and typed the sentinel into the JSON.
+     */
+    public ScenarioSelection select(String protocolDirectory, MockSelection selection, String requestBody) {
         List<Scenario> scenarios = list(protocolDirectory);
         if (scenarios.isEmpty()) {
             throw new IllegalStateException("There are no usable mock scenarios for " + protocolDirectory + ".");
@@ -112,6 +121,14 @@ public class ScenarioRepository {
             for (Scenario scenario : scenarios) {
                 if (Texts.present(scenario.sentinelNpi()) && scenario.sentinelNpi().strip().equals(npi)) {
                     return new ScenarioSelection(scenario, "selected by the sentinel NPI " + scenario.sentinelNpi());
+                }
+            }
+        }
+        if (Texts.present(requestBody)) {
+            for (Scenario scenario : scenarios) {
+                if (Texts.present(scenario.sentinelMemberId()) && requestBody.contains("\"" + scenario.sentinelMemberId() + "\"")) {
+                    return new ScenarioSelection(scenario, "selected by the sentinel member ID " + scenario.sentinelMemberId()
+                            + " found in the request body");
                 }
             }
         }

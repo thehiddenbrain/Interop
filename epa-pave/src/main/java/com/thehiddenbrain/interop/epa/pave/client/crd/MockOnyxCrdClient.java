@@ -38,7 +38,7 @@ public class MockOnyxCrdClient implements OnyxCrdClient {
 
     @Override
     public VendorExchange hook(PreparedCall call, ResolvedText body, MockSelection selection) {
-        ScenarioSelection chosen = scenarios.select(SCENARIOS, selection);
+        ScenarioSelection chosen = scenarios.select(SCENARIOS, selection, body == null ? null : body.value());
         VendorExchange exchange = exchanges.answer(call, body, HttpOnyxCrdClient.HOOK_OPTIONS, chosen, null);
         // The same recognition rules the live client applies, so mock cannot disagree with live about them.
         return exchange.withSignals(OnyxCrdConventions.signals(exchange));

@@ -117,7 +117,8 @@ public final class CrdResponseMapper {
                 add(codes, CrdCodes.DELEGATED_VENDOR, view.delegatedVendor());
             }
         }
-        CrdDetail detail = new CrdDetail(kind, note, cardsPresence, cards, actionsPresence, systemActions, coverage, issues);
+        CrdDetail detail = new CrdDetail(kind, note, cardsPresence, cards, actionsPresence, systemActions, coverage, issues,
+                List.of(), true);
         return new CrdReading(detail, CrdOutcomeRules.overall(exchange, outcomes), codes,
                 vendors.isEmpty() ? null : String.join("; ", vendors), additional);
     }

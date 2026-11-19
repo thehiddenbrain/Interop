@@ -37,7 +37,7 @@ class RedactionTest {
         WireResponse response = new WireResponse(200, List.of(), BODY, 10L, true, null);
         WireView wire = new WireView(request, response, MemberIds.forms(MEMBER_ID));
         VendorExchange exchange = new VendorExchange(request, 200, List.of(), BODY, JsonSafe.parse(BODY).node(), null, 5,
-                OnyxFailureType.NONE, null, Set.of());
+                OnyxFailureType.NONE, null, Set.of(), null);
         for (Object value : new Object[] {request, response, wire, exchange}) {
             assertThat(value.toString()).as(value.getClass().getSimpleName()).doesNotContain(SURNAME).doesNotContain(MEMBER_ID);
         }
