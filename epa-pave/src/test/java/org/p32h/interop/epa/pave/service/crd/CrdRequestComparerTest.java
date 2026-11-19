@@ -688,6 +688,8 @@ class CrdRequestComparerTest {
         assertThat(comparison.differences()).isEmpty();
         // Nothing was counted, so no count of zero is offered that could be read as "no differences".
         assertThat(comparison.counts()).isEmpty();
+        // And nothing was looked for in a text that could not be read, so nothing is reported as looked for and not found.
+        assertThat(comparison.notFound()).isEmpty();
 
         // With a case on the form, the tool's request is still built and shown beside it.
         RequestComparison withForm = compare(form("order-select", 1, true).rawBody(pasted).build());

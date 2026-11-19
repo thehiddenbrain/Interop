@@ -69,8 +69,8 @@ final class Wording {
     }
 
     /**
-     * @param name          what the list is matched on: url or system
-     * @param keyed         false for an element that has no url or system at all
+     * @param name          what the list is matched on: url, system or type
+     * @param keyed         false for an element that has none of its own
      * @param otherHasExtra true when the other list also holds an element without a partner
      */
     static String onlyKeyed(boolean tool, String name, boolean keyed, boolean otherHasExtra) {

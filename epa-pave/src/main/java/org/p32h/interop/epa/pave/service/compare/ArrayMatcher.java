@@ -190,7 +190,13 @@ final class ArrayMatcher {
         static Held of(JsonNode entry) {
             JsonNode resource = JsonSafe.child(entry, "resource");
             String type = ResourceIndex.resourceType(resource);
-            return new Held(type, type == null ? null : JsonSafe.presentText(JsonSafe.child(resource, "id")));
+            return new Held(type, type == null ? null : ResourceIndex.exact(JsonSafe.child(resource, "id")));
+        }
+
+        /** Prints the type and never the id: an id is a label, and a sender can put anything in one. */
+        @Override
+        public String toString() {
+            return "Held[" + type + "]";
         }
     }
 

@@ -206,6 +206,12 @@ public final class JsonComparer {
 
     /** One reference that differs only because it follows a matched pair of resources. */
     private record Follower(Slot slot, Place at, JsonNode tool, JsonNode yours) {
+
+        /** Prints the place and never the two texts, which are part of the documents. */
+        @Override
+        public String toString() {
+            return "Follower[" + at.shownPath() + "]";
+        }
     }
 
     /**

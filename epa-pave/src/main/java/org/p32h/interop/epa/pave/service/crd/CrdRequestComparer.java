@@ -102,8 +102,13 @@ public final class CrdRequestComparer {
                     + "and was compared.");
         }
 
-        Reading reading = CrdRequestReader.read(yours != null && yours.isObject() ? yours : JsonNodeFactory.instance.objectNode());
+        boolean readable = yours != null && yours.isObject() && !yours.isEmpty();
+        Reading reading = CrdRequestReader.read(readable ? yours : JsonNodeFactory.instance.objectNode());
         Case built = merge(form, reading);
+        if (!readable) {
+            // Nothing was looked for in a text that is not a request, so nothing is reported as looked for and not found.
+            built.notFound.clear();
+        }
         notes.addAll(built.notes);
         // What the reader could not use is said whether or not the two end up compared: it is often the reason they are not.
         notes.addAll(reading.notes());

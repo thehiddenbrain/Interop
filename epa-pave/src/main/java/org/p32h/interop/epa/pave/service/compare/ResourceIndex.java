@@ -117,7 +117,7 @@ public final class ResourceIndex {
     }
 
     /** A label exactly as written, or null when the node is not text or is blank. Never trimmed: a label with a space in it is another label. */
-    private static String exact(JsonNode node) {
+    static String exact(JsonNode node) {
         return node.isString() && !node.stringValue().isBlank() ? node.stringValue() : null;
     }
 
