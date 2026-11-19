@@ -20,8 +20,10 @@ a replay that came back "same"), a chain, and a suite of six cases read from a C
 endings and a quoted cell holding a comma.
 
 **What this revision is and is not.** Wave A is merged from the branches as they stood: the ledger
-(A2) is its agent's final commit; the configuration layer (A1), the code list (A3) and the
-lookups (A4) are checkpoints that build green and whose agents are still finishing. Their final
+(A2) and the configuration layer with the production guardrail (A1) are their agents' final
+commits, with the change requests from both reports applied and two routes to production that
+A1 reported as open now closed (D-125). The code list (A3) and the lookups (A4) are checkpoints
+that build green and whose agents are still finishing. Their final
 commits are merged when they report. Wave B (PAS, DTR) is not merged: the PAS and DTR endpoints do
 not exist in this revision. There is no frontend in this revision: the first pass is being built
 on its own branch against a stand-in, and has not been reviewed.
@@ -50,7 +52,7 @@ next frontend pass and do not exist on screen yet.
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
 | Spine 1: shared contracts | done, reviewed by six seats, frozen |
-| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | A2 done. A1, A3 and A4 merged at a green checkpoint, their agents still finishing |
+| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | A1 and A2 done and merged. A3 and A4 merged at a green checkpoint, their agents still finishing |
 | Spine 2: integrate Wave A. V2 PHI audit | merged and wired, application starts, endpoints exercised over HTTP. Final merge of A1, A3, A4 and the V2 audit still to do |
 | Spine 3: CRD reference vertical | built and tested against fakes. To do after Wave A: wire as beans, `/api/mode` |
 | Wave B: B1 PAS and subscriptions, B2 DTR | building again after the interruption, both taken over |
@@ -83,13 +85,21 @@ next frontend pass and do not exist on screen yet.
 - No PAS and no DTR: Wave B is not merged. A suite can run CRD cases only; PAS, DTR and chain rows
   are reported as not runnable. The chain view shows DTR and PAS stages but nothing can run them.
 - Comparing a pasted CRD request with the tool's own is not in this revision.
-- A1, A3 and A4 are merged as checkpoints, not as finished packages. What their agents report as
-  not done is not known yet.
+- A3 and A4 are merged as checkpoints, not as finished packages. What their agents report as not
+  done is not known yet.
+- From A1's report: no real vendor Postman export was available, so every Postman file the tests
+  use is hand-written to the shape the specification describes, and detection by url is verified
+  only for the standard FHIR operation paths and `/cds-services`. Concurrency in the store is
+  reasoned about and not tested. A credential typed literally into a url is shown as written.
+- From A2's report: everything ran on Linux only. Flush and sync to disk are checked by reading
+  the code, since a test cannot observe a sync. Two instances pointed at one ledger directory are
+  not coordinated. A note written after the clock was set back across midnight is on disk and is
+  not applied when the run is read.
 - The section 27 verification agents have not run. No independent review of the integrator's own
   code has run.
 - README, `run.sh`, `run.cmd` and the sample files do not exist yet.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The build runs 1304 tests, 2 of them skipped because the build ran as root, for which a
+- The build runs 1311 tests, 2 of them skipped because the build ran as root, for which a
   read-only folder is not read-only. The same refusals are covered by tests that did run.
 
 ## The plan, written before any feature code

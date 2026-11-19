@@ -145,7 +145,7 @@ public class ConfigStoreGateway implements OperationGateway {
             }
             if (!plan.url().resolved()) {
                 throw new UnresolvedVariablesException(intent.operation(), plan.url().unresolved(), plan.environment().name(),
-                        plan.url().template(), plan.reasons());
+                        plan.url().template(), plan.reasons(), plan.filled() == null ? List.of() : plan.filled().missingTokens());
             }
         }
         Function<String, Resolution> resolve = plan.resolver();
@@ -415,7 +415,7 @@ public class ConfigStoreGateway implements OperationGateway {
 
         String because = writeBecause(intent, target, method, url, filled, headers);
         boolean write = operation.write() || because != null;
-        Refusal refusal = write ? guard(snapshot, intent, target, because) : null;
+        Refusal refusal = write ? guard(snapshot, intent, target, because, filled) : null;
         return new CallPlan(snapshot, intent, target, method, url, filled, tokens, missingPlaceholders, urlVariables, reasons, headers, write,
                 because, refusal, callResolver);
     }
@@ -751,10 +751,22 @@ public class ConfigStoreGateway implements OperationGateway {
         if (target.source() == Source.REQUEST && signals.isEmpty() && EpaOperation.UNMAPPED.writesWith(method)) {
             return "nothing in " + subject + " says what it does, and it would be sent with " + method;
         }
+        // A name is something its author typed, and says nothing about where the request goes. A
+        // request called an inquiry and addressed to the base of a FHIR server is a transaction to
+        // that server, whatever it is called. So when the method can change something, the url as
+        // it will be sent has to read as the read it is named for. This is asked only of a url
+        // that is complete: one with a placeholder still in it is never sent, and saying "blocked"
+        // there would hide the real problem, which is the missing value.
+        if (target.source() == Source.REQUEST && filled != null && filled.complete() && EpaOperation.UNMAPPED.writesWith(method)
+                && OperationDetector.signals(null, method, url.template()).isEmpty()
+                && OperationDetector.signals(null, method, filled.probe()).isEmpty()) {
+            return "only the name of the request \"" + name + "\" says what it does, its url says nothing, and it would be sent with "
+                    + method;
+        }
         return null;
     }
 
-    private Refusal guard(ConfigSnapshot snapshot, CallIntent intent, Target target, String because) {
+    private Refusal guard(ConfigSnapshot snapshot, CallIntent intent, Target target, String because, UrlForms.Filled filled) {
         StoredEnvironment active = snapshot.active();
         String what = intent.operation().label() + (target.requestName() == null ? "" : " with the request \"" + target.requestName() + "\"");
         String why = because == null ? "" : " It counts as a write because " + because + ".";
@@ -767,6 +779,19 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "activate it. A write is sent only to an environment whose kind is known.");
         }
         if (active.kind() != EnvironmentKind.PROD) {
+            // The kind belongs to the environment, and the url can come from somewhere else: a
+            // value typed for this one run, or a literal in application.yml. The upload asks about
+            // an environment that reads as production. This asks the same about the url a write
+            // is about to go to, so that a production url cannot ride in under a sandbox's name.
+            if (!active.acknowledgedNotProd() && filled != null && filled.complete() && ProductionSigns.saysProd(filled.send())) {
+                return new Refusal(what + " is blocked: the url it would go to contains \"prod\", and the active environment \""
+                        + active.name() + "\" is declared as " + active.kind().wire() + " and has not been confirmed as not production. "
+                        + "This tool cannot tell whether that url is production." + why,
+                        "If the target is production, upload its environment with the kind prod, activate it and unlock writes "
+                                + "there. If it is not, upload the environment \"" + active.name() + "\" again with the confirmation "
+                                + "that it is not production, then send again. A url typed for one run, or set in application.yml, is "
+                                + "not enough to send a write to something that reads as production.");
+            }
             return null;
         }
         if (!store.allowProdWrites()) {

@@ -7,6 +7,7 @@ import tools.jackson.core.JacksonException;
 import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.model.ErrorView;
 import org.p32h.interop.epa.pave.model.FieldError;
+import org.p32h.interop.epa.pave.service.config.ConfigStoreException;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.BusyException;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
@@ -65,16 +66,24 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorView> unresolved(UnresolvedVariablesException e) {
         String environment = e.environmentName() == null ? "no environment is active" : "the active environment is \"" + e.environmentName() + "\"";
         String what = e.operation() == null ? "The request" : e.operation().label();
-        String title = what + " cannot be sent: " + (e.variables().size() == 1 ? "the placeholder " : "the placeholders ")
-                + String.join(", ", e.variables().stream().map(v -> "{{" + v + "}}").toList())
+        // A part of the url written {id} or :id is filled from the identifier the call is for.
+        // It is written here as it is in the url, so nobody goes looking for a placeholder {{id}}
+        // to define in an environment, where it cannot be defined.
+        java.util.function.Function<String, String> written = v -> e.urlTokens().contains(v) ? "{" + v + "}" : "{{" + v + "}}";
+        boolean anyPlaceholder = e.variables().stream().anyMatch(v -> !e.urlTokens().contains(v));
+        boolean anyToken = e.variables().stream().anyMatch(v -> e.urlTokens().contains(v));
+        boolean one = e.variables().size() == 1;
+        String kind = !anyToken ? (one ? "the placeholder " : "the placeholders ") : !anyPlaceholder ? (one ? "the url part " : "the url parts ") : "";
+        String title = what + " cannot be sent: " + kind + String.join(", ", e.variables().stream().map(written).toList())
                 + (e.variables().size() == 1 ? " has" : " have") + " no value, and " + environment + ". Nothing was sent.";
         List<FieldError> fields = e.variables().stream()
                 .map(v -> new FieldError("variables." + v, e.reasons().containsKey(v)
-                        ? "No value for {{" + v + "}}: " + e.reasons().get(v)
-                        : "No value for {{" + v + "}}. Type one here, or add it to the environment on the Config tab."))
+                        ? "No value for " + written.apply(v) + ": " + e.reasons().get(v)
+                        : "No value for " + written.apply(v) + ". Type one here, or add it to the environment on the Config tab."))
                 .toList();
-        return respond(HttpStatus.UNPROCESSABLE_CONTENT, new ErrorView(ErrorKind.CONFIGURATION, title,
-                "Type a value for each marked variable, or define it in the active environment on the Config tab.", null, fields, List.of(), null));
+        return respond(HttpStatus.UNPROCESSABLE_CONTENT, new ErrorView(ErrorKind.CONFIGURATION, title, anyPlaceholder
+                ? "Type a value for each marked variable, or define it in the active environment on the Config tab."
+                : "Give the identifier the url is waiting for, then send again.", null, fields, List.of(), null));
     }
 
     @ExceptionHandler(EndpointNotConfiguredException.class)
@@ -93,6 +102,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ProdWriteBlockedException.class)
     public ResponseEntity<ErrorView> blocked(ProdWriteBlockedException e) {
         return respond(HttpStatus.FORBIDDEN, ErrorView.of(ErrorKind.BLOCKED, e.getMessage() + " Nothing was sent.", e.action()));
+    }
+
+    @ExceptionHandler(ConfigStoreException.class)
+    public ResponseEntity<ErrorView> storeNotWritten(ConfigStoreException e) {
+        // The message names the file the store could not write and says nothing was changed. It holds no content.
+        return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorView.of(ErrorKind.INTERNAL, e.getMessage(),
+                "Check the configuration store directory and its free space, then try again."));
     }
 
     @ExceptionHandler(BusyException.class)

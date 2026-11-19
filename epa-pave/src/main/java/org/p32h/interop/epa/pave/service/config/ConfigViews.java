@@ -62,8 +62,9 @@ public final class ConfigViews {
      * @param id                  the id that is safe in a url path. The endpoints that take an
      *                            environment name take this too
      * @param file                where the uploaded file sits on disk
-     * @param acknowledgedNotProd true when the upload read as production, was declared as
-     *                            something else, and the uploader confirmed that
+     * @param acknowledgedNotProd true when the uploader confirmed that this environment is not
+     *                            production. Without it, a write to a url that reads as
+     *                            production is refused under this environment
      * @param productionSigns     what about it reads as production, in words
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)

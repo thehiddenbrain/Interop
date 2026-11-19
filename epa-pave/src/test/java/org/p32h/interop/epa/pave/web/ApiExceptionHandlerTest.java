@@ -55,6 +55,13 @@ class ApiExceptionHandlerTest {
                         "Onyx Sandbox", "{{baseUrl}}/cds-services/{{crdServiceId}}");
                 case "unresolved-with-reason" -> throw new UnresolvedVariablesException(EpaOperation.PAS_SUBMIT, List.of("clientSecret"),
                         "Onyx Sandbox", "{{clientSecret}}", Map.of("clientSecret", "it points at the operating system variable PAVE_ONYX_SECRET, which is not set."));
+                case "unresolved-token" -> throw new UnresolvedVariablesException(EpaOperation.SUBSCRIPTION_GET, List.of("id"), "Onyx Sandbox",
+                        "{{baseUrl}}/Subscription/{id}", Map.of("id", "The url has a {id} part, which is filled from the identifier the "
+                                + "call is for, and no identifier was given."), List.of("id"));
+                case "unresolved-both" -> throw new UnresolvedVariablesException(EpaOperation.SUBSCRIPTION_GET, List.of("baseUrl", "id"),
+                        "Onyx Sandbox", "{{baseUrl}}/Subscription/{id}", Map.of(), List.of("id"));
+                case "store" -> throw new org.p32h.interop.epa.pave.service.config.ConfigStoreException(
+                        "The configuration store could not write store.json. Nothing was changed.", new java.io.IOException("No space left on device: /srv/secret-path"));
                 case "changed" -> throw new ConfigurationChangedException();
                 case "unresolved-no-env" -> throw new UnresolvedVariablesException(EpaOperation.PAS_INQUIRE, List.of("baseUrl"), null, "{{baseUrl}}/Claim/$inquire");
                 case "not-configured" -> throw new EndpointNotConfiguredException(EpaOperation.PAS_SUBMIT, "There is no url for PAS submit.");
@@ -116,6 +123,35 @@ class ApiExceptionHandlerTest {
         mvc.perform(get("/throw/unresolved-no-env")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title").value("PAS inquire cannot be sent: the placeholder {{baseUrl}} has no value, "
                         + "and no environment is active. Nothing was sent."));
+    }
+
+    @Test
+    void aPartOfTheUrlFilledFromAnIdentifierIsNotCalledAPlaceholderToDefine() throws Exception {
+        // Written {{id}}, it would send the tester to the environment to define something that cannot be defined there.
+        mvc.perform(get("/throw/unresolved-token")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.title").value("Subscription get cannot be sent: the url part {id} has no value, and the active "
+                        + "environment is \"Onyx Sandbox\". Nothing was sent."))
+                .andExpect(jsonPath("$.action").value("Give the identifier the url is waiting for, then send again."))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("variables.id"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("No value for {id}: The url has a {id} part, which is filled from "
+                        + "the identifier the call is for, and no identifier was given."));
+        // One of each: each is written the way it is written in the url.
+        mvc.perform(get("/throw/unresolved-both")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.title").value("Subscription get cannot be sent: {{baseUrl}}, {id} have no value, and the active "
+                        + "environment is \"Onyx Sandbox\". Nothing was sent."))
+                .andExpect(jsonPath("$.action").value("Type a value for each marked variable, or define it in the active environment on "
+                        + "the Config tab."));
+    }
+
+    @Test
+    void aConfigurationStoreThatCouldNotBeWrittenSaysWhichFileAndThatNothingChanged() throws Exception {
+        String body = mvc.perform(get("/throw/store")).andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.kind").value("INTERNAL"))
+                .andExpect(jsonPath("$.title").value("The configuration store could not write store.json. Nothing was changed."))
+                .andExpect(jsonPath("$.action").value("Check the configuration store directory and its free space, then try again."))
+                .andReturn().getResponse().getContentAsString();
+        // The cause is not shown: its message is the operating system's and can name anything.
+        assertThat(body).doesNotContain("secret-path").doesNotContain("No space left");
     }
 
     @Test

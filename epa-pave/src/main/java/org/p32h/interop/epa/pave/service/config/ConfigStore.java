@@ -254,8 +254,10 @@ public class ConfigStore {
      * which environment is active.
      *
      * @param kind                required, and never inferred from the file
-     * @param acknowledgedNotProd the uploader's confirmation that an environment which reads as
-     *                            production is not production
+     * @param acknowledgedNotProd the uploader's confirmation that this environment is not
+     *                            production. Required when the file reads as production. Kept
+     *                            whenever it is given, because a write under this environment to
+     *                            a url that reads as production is sent only when it was
      */
     synchronized EnvironmentUpload uploadEnvironment(String originalFileName, byte[] content, EnvironmentKind kind,
                                                      boolean acknowledgedNotProd) {
@@ -285,7 +287,7 @@ public class ConfigStore {
         String file = ENVIRONMENTS + "/" + id + "-" + Ids.hash(content, 8) + ".json";
         writeAtomically(directory.resolve(file), content);
         StoredEnvironment stored = new StoredEnvironment(id, parsed.name(), kind, parsed, file, displayName(originalFileName),
-                clock.instant().toString(), needsConfirmation, signs);
+                clock.instant().toString(), kind != EnvironmentKind.PROD && (needsConfirmation || acknowledgedNotProd), signs);
 
         List<StoredEnvironment> environments = new ArrayList<>(before.environments());
         if (previous == null) {

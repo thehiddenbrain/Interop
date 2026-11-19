@@ -76,11 +76,29 @@ public interface OperationGateway {
      * {@link org.p32h.interop.epa.pave.model.EpaOperation#writesWith(String)}: the
      * intent's operation, the operation the request is mapped to, and the operation that detection
      * reads from the request's own name and from its url, both as a template and as resolved. An
-     * operator correction can therefore never turn a detected write into a read.
+     * operator correction can therefore never turn a detected write into a read. Three further rules
+     * make it stricter still:
+     * <ul>
+     *   <li>A collection request about which neither its name nor its url says anything is judged
+     *       as an unmapped request, whatever it is mapped to.</li>
+     *   <li>A collection request that reads as a read by its name only, with a url that says
+     *       nothing and a method that can change something, is judged the same way. A name is
+     *       something its author typed; a POST to the base of a FHIR server is a transaction
+     *       whatever it is called. This is asked only of a url that is complete.</li>
+     *   <li>A header that asks the far side to act with another method is judged by the method it
+     *       asks for.</li>
+     * </ul>
+     * A call that is a write is then held to these:
      * <ul>
      *   <li>A write to an environment of kind {@code prod} is refused unless the configuration
      *       floor allows production writes and {@code intent.unlock()} is an unlock this gateway
      *       minted for that environment and still holds.</li>
+     *   <li>A write whose complete url contains "prod" is refused under an environment that is not
+     *       declared production, unless the uploader confirmed that environment as not production.
+     *       The kind belongs to the environment and the url can come from elsewhere, a value typed
+     *       for one run or a literal in application.yml, so without this a production url could
+     *       ride in under a sandbox's name. There is nothing to unlock in this case: the way
+     *       through is to declare the environment for what it is.</li>
      *   <li>On the live profile a write with no active environment is refused, because the tool
      *       cannot tell whether a fallback url is production. Reads still go to the fallback url.
      *       On the mock profile nothing is sent, so a write with no environment is allowed.</li>

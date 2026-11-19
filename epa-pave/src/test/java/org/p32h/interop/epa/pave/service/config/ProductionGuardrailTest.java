@@ -884,4 +884,136 @@ class ProductionGuardrailTest {
             blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT));
         }
     }
+
+    // ------------------------------------------------------------------------------------------
+    // Two routes the first version of the guardrail left open, closed by the integrator
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * The placeholders a call is missing, whether the gateway says so by refusing to prepare it or
+     * on the call it prepares. Either way the answer is about the missing value and is not the
+     * guardrail's refusal, which is what these tests care about.
+     */
+    private static List<String> missingValue(ConfigFixture fixture, CallIntent intent) {
+        try {
+            return fixture.gateway.prepare(intent).url().unresolved();
+        } catch (org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException e) {
+            return e.variables();
+        }
+    }
+
+    private static byte[] environmentJson(String name, String baseUrl) {
+        return ("{\"name\": \"" + name + "\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + baseUrl + "\", \"enabled\": true}]}")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    @Test
+    void aProductionUrlCannotRideInUnderASandboxThroughAValueTypedForTheRun() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = on(profile).build();
+            // Declared a sandbox, reads as one, and so was stored without anyone being asked anything.
+            fixture.store.uploadEnvironment("team.json", environmentJson("Team Sandbox", "https://sandbox.payer.example.invalid/fhir"),
+                    EnvironmentKind.SANDBOX, false);
+            fixture.store.activate("Team Sandbox");
+            fixture.collection(PostmanFiles.VENDOR_COLLECTION);
+            assertThat(fixture.store.snapshot().active().acknowledgedNotProd()).isFalse();
+            // As it stands, a write goes where the environment says.
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT)).url().value()).as(profile)
+                    .isEqualTo("https://sandbox.payer.example.invalid/fhir/Claim/$submit");
+
+            // The same write with the base url typed for this one run, pointing somewhere that reads as production.
+            for (String typed : List.of("https://api.prod.payer.example.invalid/fhir", "https://API.PRODUCTION.example.invalid/fhir",
+                    "https://payer.example.invalid/prod/fhir")) {
+                ProdWriteBlockedException refusal = blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT).withRunValues(Map.of("baseUrl", typed)));
+                assertThat(refusal.getMessage()).as(profile + " " + typed).isEqualTo("PAS submit with the request \"submit Happy Path\" is "
+                        + "blocked: the url it would go to contains \"prod\", and the active environment \"Team Sandbox\" is declared as "
+                        + "sandbox and has not been confirmed as not production. This tool cannot tell whether that url is production.");
+                assertThat(refusal.action()).as(profile).contains("upload its environment with the kind prod")
+                        .contains("upload the environment \"Team Sandbox\" again with the confirmation").contains("A url typed for one run");
+                assertThat(refusal.target().value()).as(profile).isEqualTo(typed + "/Claim/$submit");
+            }
+            // Every write, not only the claim.
+            for (EpaOperation operation : writes()) {
+                blocked(fixture, intentFor(operation).withRunValues(Map.of("baseUrl", "https://api.prod.payer.example.invalid/fhir")));
+            }
+            // A read is not a write wherever it goes, and is not stopped.
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_INQUIRE)
+                    .withRunValues(Map.of("baseUrl", "https://api.prod.payer.example.invalid/fhir"))).url().value()).as(profile)
+                    .isEqualTo("https://api.prod.payer.example.invalid/fhir/Claim/$inquire");
+            // There is nothing to unlock: the unlock belongs to a production environment, and this is not one.
+            assertThatThrownBy(() -> fixture.gateway.unlock("Team Sandbox")).as(profile).isInstanceOf(BadInputException.class);
+
+            // The way through is the uploader saying so, for the environment, where it is kept and shown.
+            fixture.store.uploadEnvironment("team.json", environmentJson("Team Sandbox", "https://sandbox.payer.example.invalid/fhir"),
+                    EnvironmentKind.SANDBOX, true);
+            assertThat(fixture.store.snapshot().active().acknowledgedNotProd()).isTrue();
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT)
+                    .withRunValues(Map.of("baseUrl", "https://api.preprod.payer.example.invalid/fhir"))).url().value()).as(profile)
+                    .isEqualTo("https://api.preprod.payer.example.invalid/fhir/Claim/$submit");
+        }
+    }
+
+    @Test
+    void aProductionUrlCannotRideInUnderASandboxThroughApplicationYml() {
+        for (String profile : PROFILES) {
+            // No collection, so the write falls back to the url written in application.yml.
+            ConfigFixture fixture = on(profile).onyx("pas.url", "https://prod.payer.example.invalid/fhir").build();
+            fixture.store.uploadEnvironment("team.json", environmentJson("Team Sandbox", "https://sandbox.payer.example.invalid/fhir"),
+                    EnvironmentKind.UAT, false);
+            fixture.store.activate("Team Sandbox");
+
+            ProdWriteBlockedException refusal = blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT));
+            assertThat(refusal.getMessage()).as(profile).startsWith("PAS submit is blocked: the url it would go to contains \"prod\", and "
+                    + "the active environment \"Team Sandbox\" is declared as uat");
+            assertThat(refusal.target().value()).as(profile).isEqualTo("https://prod.payer.example.invalid/fhir/Claim/$submit");
+        }
+    }
+
+    @Test
+    void aUrlWithAPlaceholderStillInItIsNotCalledProductionForTheNameOfThePlaceholder() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = on(profile).build();
+            fixture.store.uploadEnvironment("team.json", environmentJson("Team Sandbox", "https://sandbox.payer.example.invalid/fhir"),
+                    EnvironmentKind.SANDBOX, false);
+            fixture.store.activate("Team Sandbox");
+            StoredCollection collection = fixture.collectionOf("Unfinished", items(item("submit a claim", "POST", "{{productionBase}}/Claim/$submit")));
+            // Nothing can be sent to a url with no value in it, so the refusal that would hide the missing value is not given.
+            assertThat(missingValue(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT).withRequest(ref(collection, "submit a claim"))))
+                    .as(profile).containsExactly("productionBase");
+        }
+    }
+
+    @Test
+    void aRequestThatIsAReadByNameOnlyIsNotTakenAtItsName() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = production(profile, true);
+            // Called an inquiry and addressed to the base of the FHIR server, where a POST is a transaction.
+            StoredCollection collection = fixture.collectionOf("By name only", items(
+                    item("status inquiry", "POST", "{{baseUrl}}"),
+                    item("status inquiry at its own address", "POST", "{{baseUrl}}/Claim/$inquire"),
+                    item("status inquiry by GET", "GET", "{{baseUrl}}"),
+                    item("status inquiry unfinished", "POST", "{{baseUrl}}/{{somewhere}}")));
+            assertThat(collection.request(ref(collection, "status inquiry").requestId()).effective()).isEqualTo(EpaOperation.PAS_INQUIRE);
+
+            ProdWriteBlockedException refusal = blocked(fixture, CallIntent.of(EpaOperation.PAS_INQUIRE).withRequest(ref(collection, "status inquiry")));
+            assertThat(refusal.getMessage()).as(profile).isEqualTo("PAS inquire with the request \"status inquiry\" is blocked: " + LOCKED
+                    + " It counts as a write because only the name of the request \"status inquiry\" says what it does, its url says "
+                    + "nothing, and it would be sent with POST.");
+            assertThat(refusal.target().value()).as(profile).isEqualTo(PRODUCTION_FHIR);
+
+            // The same name on a url that reads as the inquiry is the read it says it is.
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_INQUIRE)
+                    .withRequest(ref(collection, "status inquiry at its own address"))).url().value()).as(profile)
+                    .isEqualTo(PRODUCTION_FHIR + "/Claim/$inquire");
+            // A method that cannot change anything is not held to this.
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_INQUIRE).withRequest(ref(collection, "status inquiry by GET"))
+                    .withMethod("GET")).method()).as(profile).isEqualTo("GET");
+            // With a placeholder still in the url nothing can be sent, and the answer is about the missing value.
+            assertThat(missingValue(fixture, CallIntent.of(EpaOperation.PAS_INQUIRE)
+                    .withRequest(ref(collection, "status inquiry unfinished")))).as(profile).containsExactly("somewhere");
+            // With an unlock it is sent, like any write.
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_INQUIRE).withRequest(ref(collection, "status inquiry"))
+                    .withUnlock(fixture.gateway.unlock(PRODUCTION))).url().value()).as(profile).isEqualTo(PRODUCTION_FHIR);
+        }
+    }
 }

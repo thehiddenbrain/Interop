@@ -42,7 +42,7 @@ final class ProductionSigns {
         return signs;
     }
 
-    private static boolean saysProd(String text) {
+    static boolean saysProd(String text) {
         return text != null && text.toLowerCase(Locale.ROOT).contains("prod");
     }
 

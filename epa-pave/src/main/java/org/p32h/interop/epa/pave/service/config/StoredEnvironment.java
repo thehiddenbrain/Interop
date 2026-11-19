@@ -17,8 +17,11 @@ import org.p32h.interop.epa.pave.postman.PostmanEnvironment;
  * @param file                where the uploaded file sits, relative to the store directory
  * @param originalFileName    the name the file was uploaded under, for display only
  * @param uploadedAt          when it was uploaded, as an ISO instant
- * @param acknowledgedNotProd true when the upload looked like production, was declared as
- *                            something else, and the uploader confirmed that
+ * @param acknowledgedNotProd true when the uploader confirmed that this environment, declared as
+ *                            something other than production, is not production. Required when
+ *                            the upload reads as production, and kept whenever it is given. A
+ *                            write to a url that reads as production is sent under this
+ *                            environment only when this is true
  * @param productionSigns     what about the upload looked like production, in words. Empty when
  *                            nothing did
  */

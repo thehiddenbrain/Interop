@@ -851,3 +851,32 @@ stands, replay sends the case without the NPI, the service refuses it before sen
 CRD, DTR and PAS all need one, and the replay report adds that the NPI may not have been
 recorded. That is true and sends nothing, so the extra marker was left out.
 
+**D-125. Two routes to production that the first guardrail left open are closed.**
+Both were found and reported by the configuration layer's owner, who did not close them because
+they went beyond the contract as written. The integrator closed them, on the rule the tool
+already follows: wrongly blocking a read costs a click, wrongly allowing a write costs a real
+authorization.
+1. The kind belongs to the active environment, and a url can come from somewhere else: a value
+   typed for one run, or a literal in `application.yml`. A write whose complete url contains
+   "prod" is now refused under an environment that is not declared production, unless the uploader
+   confirmed that environment as not production. There is nothing to unlock in that case: the way
+   through is to declare the environment for what it is. So that there is always a way through
+   for a sandbox whose address happens to contain "prod", the confirmation is now kept whenever
+   the uploader gives it, not only when the upload itself read as production.
+2. A collection request named like a read, such as an inquiry, whose url says nothing and whose
+   method can change something, was taken at its name. A POST to the base of a FHIR server is a
+   transaction whatever it is called. Such a request is now judged as an unmapped request, which
+   on production means blocked unless unlocked. This is asked only of a complete url: one with a
+   placeholder still in it is never sent, and calling it "blocked" would hide the missing value.
+Both hold on mock and on live, and each has tests in `ProductionGuardrailTest`. What "reads as
+production" means is unchanged and is deliberately crude: the text "prod" anywhere in the url.
+A production address that does not say so is still judged by the kind its environment declares
+(D-024). The guardrail auditor of section 27 has not yet examined any of this.
+
+**D-126. From the configuration layer's report, applied to the shared types.**
+A configuration store that cannot be written while the tool runs now answers 500 with the name
+of the file and the statement that nothing was changed, in place of a bare reference. A part of
+a url written `{id}` or `:id` that has no value is reported as it is written in the url, and no
+longer as a placeholder `{{id}}` to define in an environment, where it cannot be defined. The
+gateway's contract text now states the stricter rules its implementation applies.
+
