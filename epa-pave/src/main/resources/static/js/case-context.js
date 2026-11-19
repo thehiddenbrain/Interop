@@ -205,7 +205,8 @@ function group(spec) {
     });
 
     for (const field of spec.fields) {
-        const control = textField({...field, field: spec.prefix + '.' + field.name, beside: field.identifier ? lookup.control : null});
+        const control = textField({...field, field: spec.prefix + '.' + field.name, beside: field.identifier ? lookup.control : null,
+            origin: !field.identifier});
         control.spec = field;
         controls.set(field.name, control);
         nodes.push(control.node);
@@ -217,10 +218,16 @@ function group(spec) {
                 identifierChanged();
                 spec.changed();
             });
-            // The lookup is made when the tester leaves the field, never for each key. Leaving it
-            // for the button beside it is left to the button, so the lookup is not made twice.
+            // The lookup is made when the tester leaves the field, never for each key. Tab moves the
+            // focus onto the button beside the field, and that is leaving the field too. Only a
+            // press of that button is left to the button, so one lookup is not made twice.
+            let pressing = false;
+            lookup.control.addEventListener('pointerdown', () => { pressing = true; });
+            lookup.control.addEventListener('click', () => { pressing = false; });
             control.input.addEventListener('blur', event => {
-                if (event.relatedTarget !== lookup.control && control.value() !== '' && control.value() !== lookup.id()) {
+                const pressed = pressing && event.relatedTarget === lookup.control;
+                pressing = false;
+                if (!pressed && control.value() !== '' && control.value() !== lookup.id()) {
                     lookup.lookUp(false);
                 }
             });
@@ -229,9 +236,6 @@ function group(spec) {
         // What the lookup on screen gave for this detail, as text. Null while no lookup answer is in force.
         control.given = null;
         control.touched = false;
-        control.origin = el('span', {class: 'field__origin', id: control.input.id + '-origin'});
-        control.node.append(control.origin);
-        control.input.setAttribute('aria-describedby', [control.input.getAttribute('aria-describedby'), control.origin.id].filter(Boolean).join(' '));
         control.input.addEventListener('input', () => {
             control.touched = true;
             mark(control);
@@ -258,10 +262,10 @@ function group(spec) {
         const replaced = control.given !== null && control.given !== '';
         control.node.classList.toggle('field--byhand', source === 'hand');
         control.node.classList.toggle('field--fromlookup', source === 'lookup');
-        control.origin.textContent = source === 'lookup' ? 'from the lookup'
+        control.origin.textContent = source === 'lookup' ? 'from lookup'
             : source !== 'hand' ? ''
-                : !replaced ? 'typed by hand'
-                    : control.value() === '' ? 'cleared by hand, not sent' : 'changed by hand';
+                : !replaced ? 'by hand'
+                    : control.value() === '' ? 'cleared, not sent' : 'changed by hand';
         control.input.title = source !== 'hand' ? ''
             : replaced ? 'Changed by hand. The lookup returned another value, and the ledger notes that the run used this one.'
                 : 'Typed by hand. A lookup would not give this value back, and the ledger notes that.';

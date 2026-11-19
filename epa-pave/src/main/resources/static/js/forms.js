@@ -22,7 +22,9 @@ function nextId(prefix) {
  * identifier or a code, which is set in the monospace face), suggestions (plain values offered
  * while typing; anything else can still be typed), wide (true to span the grid), beside (a
  * control that belongs on the same line as the input, such as the button that looks the
- * identifier up), secret (true for a value that must not be readable on a shared screen).
+ * identifier up), secret (true for a value that must not be readable on a shared screen),
+ * origin (true to give the field a short note on its label's line, saying where its value came
+ * from; the control then has an origin node to write it in).
  */
 export function textField(spec) {
     const id = nextId('field');
@@ -30,20 +32,31 @@ export function textField(spec) {
         type: 'text', id, name: spec.field, placeholder: spec.placeholder, autocomplete: 'off', spellcheck: false,
         class: spec.literal ? 'literal-input' : null, inputMode: spec.inputMode
     });
-    const parts = [el('label', {htmlFor: id}, spec.label), spec.beside ? el('div', {class: 'field__row'}, input, spec.beside) : input];
+    const label = el('label', {htmlFor: id}, spec.label);
+    // The note shares the label's line, so a grid of details does not grow a line per field.
+    const origin = spec.origin ? el('span', {class: 'field__origin', id: id + '-origin'}) : null;
+    const parts = [origin ? el('div', {class: 'field__head'}, label, origin) : label,
+        spec.beside ? el('div', {class: 'field__row'}, input, spec.beside) : input];
     if (spec.suggestions && spec.suggestions.length > 0) {
         const listId = nextId('suggestions');
         parts.push(el('datalist', {id: listId}, spec.suggestions.map(value => el('option', {value}))));
         input.setAttribute('list', listId);
     }
+    const describedBy = [];
     if (spec.hint) {
         const hintId = nextId('hint');
         parts.push(el('span', {class: 'field__hint', id: hintId}, spec.hint));
-        input.setAttribute('aria-describedby', hintId);
+        describedBy.push(hintId);
+    }
+    if (origin) {
+        describedBy.push(origin.id);
+    }
+    if (describedBy.length > 0) {
+        input.setAttribute('aria-describedby', describedBy.join(' '));
     }
     const node = el('div', {class: 'field' + (spec.wide ? ' field--wide' : ''), dataset: {field: spec.field}}, parts);
     const control = {
-        node, input,
+        node, input, origin,
         value: () => input.value.trim(),
         set: value => { input.value = value === undefined || value === null ? '' : String(value); },
         /**
@@ -183,7 +196,8 @@ function findField(roots, name) {
     const candidates = [name, name.replace(/\[\d+\].*$/, '')];
     for (const candidate of candidates) {
         for (const root of roots) {
-            for (const field of root.querySelectorAll('[data-field]')) {
+            // A root may be the field itself, as when one lookup marks the one field it was made from.
+            for (const field of [root, ...root.querySelectorAll('[data-field]')]) {
                 if (field.dataset.field === candidate) {
                     return field;
                 }

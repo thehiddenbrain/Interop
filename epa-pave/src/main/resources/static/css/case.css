@@ -82,6 +82,20 @@
 
 /* ---------- where the value of a detail came from ---------- */
 
+/* The label and the note on where the value came from share one line, and wrap when the column is narrow. */
+.field__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    column-gap: var(--gap-2);
+}
+
+.field__head > label {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
 .field__origin {
     font-size: var(--text-small);
     line-height: 1.25;
