@@ -348,7 +348,7 @@ class RunControllerTest {
         // A range with no runs is a file with a header and nothing else.
         MvcResult none = mvc.perform(get("/api/runs/export.csv").param("to", "2026-01-31")).andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition", "attachment; filename=\"pave-runs-to-2026-01-31.csv\"")).andReturn();
-        assertThat(none.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo("﻿" + String.join(",", RunCsv.header()) + "\r\n");
+        assertThat(none.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo("\uFEFF" + String.join(",", RunCsv.header()) + "\r\n");
         mvc.perform(get("/api/runs/export.csv").param("from", "2026-03-11"))
                 .andExpect(header().string("Content-Disposition", "attachment; filename=\"pave-runs-from-2026-03-11.csv\""));
     }

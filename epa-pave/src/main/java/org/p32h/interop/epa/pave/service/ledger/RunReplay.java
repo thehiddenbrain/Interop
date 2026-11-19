@@ -64,9 +64,10 @@ public class RunReplay {
     private static final Logger log = LoggerFactory.getLogger(RunReplay.class);
 
     /**
-     * The most runs one request may select. A replay sends a real request for each run and answers
-     * only when the last one is back, so a range chosen by mistake could otherwise send thousands
-     * of requests at a test environment before anyone saw a result.
+     * The most runs one request may send again. A replay sends a real request for each of them and
+     * answers only when the last one is back, so a range chosen by mistake could otherwise send
+     * thousands of requests at a test environment before anyone saw a result. Runs that are
+     * selected and cannot be sent again are reported and do not count towards it.
      */
     public static final int MOST_RUNS = 1000;
 
@@ -110,7 +111,7 @@ public class RunReplay {
      *
      * @throws ValidationException when neither a range nor an id is given, when the range is the
      *                             wrong way round, when an id is outside the range given with it,
-     *                             or when more than {@link #MOST_RUNS} runs are selected
+     *                             or when more than {@link #MOST_RUNS} runs would be sent again
      * @throws NotFoundException   when an id is not in the ledger
      */
     public ReplayReport replay(LocalDate from, LocalDate to, List<String> runIds) {
@@ -125,13 +126,17 @@ public class RunReplay {
         }
         List<String> notes = new ArrayList<>();
         List<RunRecord> selected = ids.isEmpty() ? oldestFirst(from, to, notes) : byId(ids, ranged, from, to);
-        if (selected.size() > MOST_RUNS) {
-            throw new ValidationException("That selects " + selected.size() + " runs, and one replay runs at most " + MOST_RUNS
-                    + ". Nothing was sent.", List.of(new FieldError(ids.isEmpty() ? "from" : "runIds",
-                    "Choose a shorter date range or fewer runs, and replay the rest in a second request.")));
-        }
 
         CaseRunner caseRunner = runner.getIfAvailable();
+        // The limit is on what would be sent, not on what was selected. A day of chained runs holds
+        // several lines for each request that can be sent again, and a line that is only reported
+        // as not replayable costs the service nothing.
+        long toSend = caseRunner == null ? 0 : selected.stream().filter(run -> whyNotReplayable(run) == null).count();
+        if (toSend > MOST_RUNS) {
+            throw new ValidationException("That would send " + toSend + " runs again, and one replay sends at most " + MOST_RUNS
+                    + ". Nothing was sent.", List.of(new FieldError(ids.isEmpty() ? "from" : "runIds",
+                    "Choose a shorter date range or name fewer runs, and replay the rest in a second request.")));
+        }
         OperationGateway configuration = gateway.getIfAvailable();
         // Every run of this replay is held to the configuration it started under. A switch of
         // environment part way through would otherwise put the answers of two environments in one report.
@@ -237,10 +242,17 @@ public class RunReplay {
             return ReplayEntry.notSent(original, ReplayStatus.ERROR, "This tool failed while running this again, so nothing can be said "
                     + "about the answer. A request may have been sent. Report the reference " + reference + ".");
         }
-        if (outcome == null || outcome.status() == null) {
-            return ReplayEntry.notSent(original, ReplayStatus.ERROR, "The runner gave no answer for this run, so nothing can be said about it.");
+        if (outcome == null) {
+            return ReplayEntry.notSent(original, ReplayStatus.ERROR, "The runner gave no answer for this run, so nothing can be said about "
+                    + "it. A request may have been sent.");
         }
         RunRecord replayed = outcome.finalRun();
+        if (outcome.status() == null) {
+            // Whatever the runner did hand back is still shown: the record of a run that was made, and the ledger's word on it.
+            return new ReplayEntry(original.runId(), ReplayStatus.ERROR, "The runner did not say how this run ended, so nothing can be said "
+                    + "about the answer. A request may have been sent.", replayed == null ? null : replayed.runId(), List.of(),
+                    outcome.notRecorded(), original, replayed);
+        }
         return switch (outcome.status()) {
             case COMPLETED -> compared(original, replayed, outcome);
             case BLOCKED -> notCompleted(original, ReplayStatus.BLOCKED, outcome, "The production guardrail refused to send this run again.");

@@ -497,7 +497,7 @@ class JsonlRunLedgerQueryTest {
     void aFileSavedWithAByteOrderMarkStillGivesUpItsFirstLine() throws IOException {
         Files.createDirectories(ledgerDirectory(home));
         String line = JsonSafe.mapper().writeValueAsString(draft("run-1", clock).memberId(null).build());
-        Files.writeString(dayFile(home, TENTH), "﻿" + line + "\n" + line.replace("run-1", "run-2"), StandardCharsets.UTF_8);
+        Files.writeString(dayFile(home, TENTH), "\uFEFF" + line + "\n" + line.replace("run-1", "run-2"), StandardCharsets.UTF_8);
 
         JsonlRunLedger ledger = ledger(home, clock);
 

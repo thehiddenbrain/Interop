@@ -130,6 +130,14 @@ class RunEndpointsInTheApplicationTest {
         mvc.perform(get("/api/runs/export.csv")).andExpect(status().isOk())
                 .andExpect(content().contentType("text/csv;charset=UTF-8"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("run,run-wired-2,")));
+        // A refused export is the shared JSON error and not a CSV, though the address ends in .csv
+        // and a browser following a download link asks for no JSON.
+        mvc.perform(get("/api/runs/export.csv").param("from", "March").accept(MediaType.TEXT_HTML, MediaType.ALL))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.kind").value("VALIDATION")).andExpect(jsonPath("$.fieldErrors[0].field").value("from"));
+        mvc.perform(get("/api/runs/export.csv").accept(MediaType.TEXT_HTML, MediaType.ALL)).andExpect(status().isOk())
+                .andExpect(content().contentType("text/csv;charset=UTF-8"));
     }
 
     @Test

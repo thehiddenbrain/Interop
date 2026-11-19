@@ -266,12 +266,12 @@ class RunCsvTest {
 
     @Test
     void theFileStartsWithAByteOrderMarkIsUtf8AndEveryRowEndsInCrLf() {
-        byte[] file = RunCsv.bytes(List.of(minimal("run-1").note("café, naïve").build(), minimal("run-2").build()));
+        byte[] file = RunCsv.bytes(List.of(minimal("run-1").note("caf\u00e9, na\u00efve").build(), minimal("run-2").build()));
 
         assertThat(Arrays.copyOf(file, 3)).containsExactly(0xEF, 0xBB, 0xBF);
         String text = new String(file, 3, file.length - 3, StandardCharsets.UTF_8);
-        assertThat(text).isEqualTo(RunCsv.text(List.of(minimal("run-1").note("café, naïve").build(), minimal("run-2").build())));
-        assertThat(text).endsWith("\r\n").contains("\"café, naïve\"");
+        assertThat(text).isEqualTo(RunCsv.text(List.of(minimal("run-1").note("caf\u00e9, na\u00efve").build(), minimal("run-2").build())));
+        assertThat(text).endsWith("\r\n").contains("\"caf\u00e9, na\u00efve\"");
         // One header row and two runs, in the order given.
         List<List<String>> rows = read(text);
         assertThat(rows).hasSize(3);

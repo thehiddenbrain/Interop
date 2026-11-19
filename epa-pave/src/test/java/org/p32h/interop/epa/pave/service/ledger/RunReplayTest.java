@@ -708,16 +708,61 @@ class RunReplayTest {
     }
 
     @Test
-    void moreRunsThanOneReplayTakesIsRefusedBeforeAnythingIsSent() {
+    void moreRunsThanOneReplaySendsIsRefusedBeforeAnythingIsSent() {
         InMemoryLedger many = new InMemoryLedger();
         for (int i = 0; i <= RunReplay.MOST_RUNS; i++) {
             many.record(draft("run-" + i, clock).build());
         }
         FakeRunner unused = new FakeRunner(many);
 
-        assertThatThrownBy(() -> replayOver(many, unused, null).replay(TENTH, TENTH, null)).isInstanceOf(ValidationException.class)
-                .hasMessage("That selects 1001 runs, and one replay runs at most 1000. Nothing was sent.");
+        assertThatThrownBy(() -> replayOver(many, unused, null).replay(TENTH, TENTH, null)).isInstanceOfSatisfying(ValidationException.class,
+                refused -> {
+                    assertThat(refused).hasMessage("That would send 1001 runs again, and one replay sends at most 1000. Nothing was sent.");
+                    assertThat(refused.fieldErrors()).extracting(FieldError::field).containsExactly("from");
+                });
         assertThat(unused.asked).isEmpty();
+    }
+
+    @Test
+    void theLimitIsOnWhatWouldBeSentAndNotOnWhatIsSelected() {
+        // A day of chained runs: for each request that can be sent again there are lines that cannot,
+        // such as a step that used what an earlier one handed on. Those are reported and cost the service nothing.
+        InMemoryLedger many = new InMemoryLedger();
+        for (int i = 0; i < RunReplay.MOST_RUNS; i++) {
+            many.record(draft("run-" + i, clock).build());
+            many.record(draft("step-" + i, clock).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).outcome("APPROVED")
+                    .unrecordedInputs(List.of(RunRecord.INPUT_PRIOR_STEP)).build());
+        }
+        runner = new FakeRunner(many);
+        // The runner answers without writing, so the selection stays as it is while it is run.
+        runner.answer = spec -> new CaseOutcome(spec, CaseStatus.COMPLETED, null,
+                List.of(draft("replay-of-" + spec.replayOfRunId(), clock).replayOfRunId(spec.replayOfRunId()).build()));
+
+        ReplayReport report = replayOver(many, runner, null).replay(TENTH, TENTH, null);
+
+        assertThat(report.selected()).isEqualTo(2 * RunReplay.MOST_RUNS);
+        assertThat(report.summary()).containsEntry("same", RunReplay.MOST_RUNS).containsEntry("not-replayable", RunReplay.MOST_RUNS);
+        assertThat(runner.asked).hasSize(RunReplay.MOST_RUNS);
+        // One more that can be sent, and the whole request is refused.
+        many.record(draft("one-too-many", clock).build());
+        runner.asked.clear();
+        assertThatThrownBy(() -> replayOver(many, runner, null).replay(TENTH, TENTH, null)).isInstanceOf(ValidationException.class)
+                .hasMessage("That would send 1001 runs again, and one replay sends at most 1000. Nothing was sent.");
+        assertThat(runner.asked).isEmpty();
+    }
+
+    @Test
+    void withNoRunnerNothingWouldBeSentSoNoSelectionIsTooLarge() {
+        InMemoryLedger many = new InMemoryLedger();
+        for (int i = 0; i <= RunReplay.MOST_RUNS; i++) {
+            many.record(draft("run-" + i, clock).build());
+        }
+
+        ReplayReport report = replayOver(many, null, null).replay(TENTH, TENTH, null);
+
+        assertThat(report.selected()).isEqualTo(RunReplay.MOST_RUNS + 1);
+        assertThat(report.summary()).containsEntry("not-replayable", RunReplay.MOST_RUNS + 1);
+        assertThat(report.runnerAvailable()).isFalse();
     }
 
     // ---- a replay the ledger did not keep, and a runner that fails ----
@@ -803,11 +848,35 @@ class RunReplayTest {
         assertThat(otherOperation.status()).isEqualTo(ReplayStatus.ERROR);
         assertThat(otherOperation.reason()).contains("CRD order-select").contains("cannot be compared");
 
-        // No answer at all.
+        // No answer at all. Whether a request went out is not known, and the entry says so.
         runner.answer = spec -> null;
-        assertThat(only(replay.replay(null, null, List.of("run-1"))).status()).isEqualTo(ReplayStatus.ERROR);
+        ReplayEntry noAnswer = only(replay.replay(null, null, List.of("run-1")));
+        assertThat(noAnswer.status()).isEqualTo(ReplayStatus.ERROR);
+        assertThat(noAnswer.reason()).startsWith("The runner gave no answer for this run").endsWith("A request may have been sent.");
         runner.answer = spec -> new CaseOutcome(spec, null, null, List.of());
-        assertThat(only(replay.replay(null, null, List.of("run-1"))).status()).isEqualTo(ReplayStatus.ERROR);
+        ReplayEntry noStatus = only(replay.replay(null, null, List.of("run-1")));
+        assertThat(noStatus.status()).isEqualTo(ReplayStatus.ERROR);
+        assertThat(noStatus.reason()).startsWith("The runner did not say how this run ended").endsWith("A request may have been sent.");
+        assertThat(noStatus.replayed()).isNull();
+    }
+
+    @Test
+    void anAnswerWithNoStatusStillShowsTheRunThatWasMadeAndTheLedgersWordOnIt() {
+        RunReplay replay = replay();
+        recorded(draft("run-1", clock));
+        // The runner ran the case, the ledger did not keep it, and the runner then failed to say how the attempt ended.
+        runner.answer = spec -> new CaseOutcome(spec, null, null,
+                List.of(draft("replay-1", clock).replayOfRunId("run-1").outcome("AUTH_REQUIRED").build()),
+                List.of("This run was NOT recorded: the ledger file could not be written."));
+
+        ReplayEntry entry = only(replay.replay(null, null, List.of("run-1")));
+
+        // Not compared, because the runner did not say the run completed. Not hidden either.
+        assertThat(entry.status()).isEqualTo(ReplayStatus.ERROR);
+        assertThat(entry.differences()).isEmpty();
+        assertThat(entry.replayRunId()).isEqualTo("replay-1");
+        assertThat(entry.replayed().outcome()).isEqualTo("AUTH_REQUIRED");
+        assertThat(entry.notRecorded()).containsExactly("This run was NOT recorded: the ledger file could not be written.");
     }
 
     // ---- the summary ----

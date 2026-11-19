@@ -505,8 +505,31 @@ class JsonlRunLedgerTest {
     }
 
     @Test
-    void aDraftThatIsMissingIsTheOneThingThatIsThrown() {
-        assertThatThrownBy(() -> ledger(home, clock).record(null)).isInstanceOf(NullPointerException.class);
+    void aDraftThatIsMissingOrIsNotARunIsTheOneThingThatIsThrown() {
+        JsonlRunLedger ledger = ledger(home, clock);
+        assertThatThrownBy(() -> ledger.record(null)).isInstanceOf(NullPointerException.class);
+
+        // A note line as the ledger reads one back. It is a record of another kind, with a run id and nothing else of a run.
+        ledger.record(draft("run-1", clock).build());
+        ledger.addNote("run-1", "a note", "QA-17");
+        RunRecord note = JsonSafe.mapper().readValue(lines(todayFile()).get(1), RunRecord.class);
+        assertThat(note.recordType()).isEqualTo("note");
+        byte[] before = bytes(todayFile());
+
+        assertThatThrownBy(() -> ledger.record(note)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Only a run can be recorded, and this record is not one.");
+        // A line of another kind that holds everything a run has. It could be copied into a run, and must not be written as one.
+        RunRecord dressedAsARun = JsonSafe.mapper().readValue(
+                JsonSafe.mapper().writeValueAsString(draft("run-2", clock).build()).replace("\"recordType\":\"run\"", "\"recordType\":\"audit\""),
+                RunRecord.class);
+        assertThat(dressedAsARun.recordType()).isEqualTo("audit");
+        assertThat(dressedAsARun.runId()).isEqualTo("run-2");
+        assertThatThrownBy(() -> ledger.record(dressedAsARun)).isInstanceOf(IllegalArgumentException.class);
+
+        // Nothing was written and nothing is counted as a failed write: no run went unrecorded.
+        assertThat(bytes(todayFile())).isEqualTo(before);
+        assertThat(ledger.find("run-2")).isEmpty();
+        assertThat(ledger.health().failedWrites()).isZero();
     }
 
     // ---- tracking switched off ----

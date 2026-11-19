@@ -52,7 +52,10 @@ import org.springframework.stereotype.Component;
  * <p><b>A day's file does not change after that day.</b> Everything written on a day goes into that
  * day's file, a note on an older run included. A note is its own line and is applied when the run
  * is read. Reading therefore goes from the newest file backwards, so the notes for a run have been
- * seen by the time the run is reached.
+ * seen by the time the run is reached. That holds while the clock's date does not go backwards. If
+ * it is set back across midnight, or the tool is restarted in a time zone that is still on the day
+ * before, a note written then lands in an older file than its run and is not applied. The note is
+ * still on disk, and adding it again once the date has caught up applies it.
  *
  * <p><b>What a line may hold</b> is decided by {@link TrackingPolicy}, which is applied here to
  * every draft, so no caller can get it wrong. The record type itself has no place for a member
@@ -264,8 +267,14 @@ public class JsonlRunLedger implements RunLedger {
 
     @Override
     public LedgerReceipt record(RunRecord draft) {
-        // A receipt cannot be made without a record, so this is the one thing that is thrown.
+        // A receipt cannot be made without the record of a run, so a draft that is missing or is not
+        // a run is the one thing that is thrown. Neither is a failed write: both are a defect in the
+        // caller. A run the builder made always passes, and a line of another kind, such as a note
+        // read back from a file, would otherwise be copied into a run line or fail half way through.
         Objects.requireNonNull(draft, "draft");
+        if (!LedgerLines.isRun(draft)) {
+            throw new IllegalArgumentException("Only a run can be recorded, and this record is not one.");
+        }
         RunRecord record;
         try {
             record = policyApplied(draft);
