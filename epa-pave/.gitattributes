@@ -1,5 +1,5 @@
 # Line endings are decided here and not by the git settings of each machine, so that a checkout
-# on Windows holds the same bytes in these files as a checkout anywhere else.
+# on Windows holds the same bytes in the files named below as a checkout anywhere else.
 
 # Whatever git takes for text is stored with LF. What it takes for binary is left alone.
 * text=auto

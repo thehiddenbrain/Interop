@@ -15,12 +15,13 @@ public enum AuthRequirement {
     NOT_REQUIRED,
     UNKNOWN;
 
-    // The spellings are kept in pairs. Where a way of saying yes is read, the same words with "no"
-    // before them or "not" inside them are read as no, and the other way round. A list written
-    // "Prior Auth" and "No Prior Auth" would otherwise have only one of its two answers read, and
-    // the half that was read would look like the whole list. The "requires" forms and "none" stand
-    // alone: how a list would write their opposite is not known, and a cell this reader does not
-    // know is served as not stated and listed by the self-check, so nothing is lost by waiting.
+    // The spellings are kept in pairs: beside each way of saying yes stands what a list that writes
+    // it would write for no. "Prior Auth" goes with "No Prior Auth", "PA Required" with both
+    // "PA Not Required" and "No PA Required", "Auth Needed" with "Auth Not Needed". A list would
+    // otherwise have only one of its two answers read, and the half that was read would look like
+    // the whole list. The "requires" forms and "none" stand alone: how a list would write their
+    // opposite is not known, and a cell this reader does not know is served as not stated and
+    // listed by the self-check, so nothing is lost by waiting to see one.
     private static final Set<String> YES = Set.of("required", "yes", "y", "true", "t", "1", "needed",
             "pa", "auth", "authorization", "prior auth", "prior authorization",
             "pa required", "auth required", "authorization required", "prior auth required", "prior authorization required",
