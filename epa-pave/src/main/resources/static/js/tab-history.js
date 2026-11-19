@@ -1,10 +1,10 @@
-// The History tab. Three views of what has been run: single runs, chains and suite runs.
+// The History tab: what has been run. Three views: single runs, chains and suite runs.
 //
-// This pass builds Chains and Suite runs. The Runs view needs the ledger endpoints under
-// /api/runs, which arrive in a later pass; until then it says so in one sentence.
-//
-// Seam for the Runs view: add its content where runsView() is, and make a run id a link to
-// "history/runs/<runId>" wherever one is shown as text to copy (suites.js, chain.js, result.js).
+// Runs is the default view: every run in the ledger with its filters, one run in full, its note,
+// replay and the export. A run id shown anywhere in the tool opens that run here through the
+// address #history/runs/<runId> (history-common.js, runAddress), so a link to a run is a plain
+// anchor and works from any tab. The views and the filters of the list are kept in the address,
+// so the back button and a reload return to what was on screen.
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, when} from './dom.js';
@@ -13,6 +13,10 @@ import {chainView} from './chain.js';
 import {createSuites} from './suites.js';
 import {errorPanel} from './result.js';
 import {outcome} from './marks.js';
+import {loadVocabulary} from './history-vocabulary.js';
+import {createHealth} from './history-health.js';
+import {createRunsList} from './history-runs.js';
+import {createRunView} from './history-run.js';
 
 const VIEWS = [
     {id: 'runs', label: 'Runs'},
@@ -21,21 +25,39 @@ const VIEWS = [
 ];
 
 let app = null;
-let current = 'suites';
+let current = 'runs';
 let openChainId = null;
+let openRunId = null;     // the run open in the Runs view, or null for the list
 let suites = null;
+let runs = null;
+let runView = null;
+let vocabulary = null;
+let vocabularyRead = Promise.resolve(null);
 const nodes = {};
+
+/** What the runs views share: the words for codes, the health panel, and a way to change the view. */
+const context = {
+    vocabulary: () => vocabulary,
+    /** Resolves when the words for codes have been read, so a list is never drawn with codes it could have worded. */
+    ready: () => vocabularyRead,
+    health: null,
+    listQuery: () => (runs ? runs.query() : null),
+    go: path => app.navigate('history/' + path)
+};
 
 function mount(panel, application) {
     app = application;
     suites = createSuites(app);
+    context.health = createHealth(app);
+    runs = createRunsList(app, context);
+    runView = createRunView(app, context);
+    readVocabulary();
     nodes.switcher = el('div', {class: 'views', role: 'tablist', aria: {label: 'Views of the history'}},
         VIEWS.map(view => el('button', {
             type: 'button', class: 'view', role: 'tab', id: 'view-' + view.id, aria: {selected: 'false', controls: 'history-view'},
             on: {click: () => { showView(view.id, null); app.addressChanged(); }}
         }, view.label)));
     nodes.view = el('div', {id: 'history-view', role: 'tabpanel'});
-    nodes.runs = runsView();
     nodes.chains = chainsView();
     panel.classList.add('tabpanel--stacked');
     fill(panel, nodes.switcher, nodes.view);
@@ -43,10 +65,21 @@ function mount(panel, application) {
 
 function onShow(path) {
     const [view, ...rest] = (path || current).split('/');
-    showView(VIEWS.some(candidate => candidate.id === view) ? view : current, rest.length > 0 ? rest.join('/') : null);
+    // A view can carry a query, as the list of runs carries its filters: runs?protocol=crd.
+    const [name, query] = view.split('?');
+    const known = VIEWS.some(candidate => candidate.id === name);
+    showView(known ? name : current, rest.length > 0 ? rest.join('/') : null, known && query !== undefined ? query : null);
 }
 
-function showView(view, argument) {
+function readVocabulary() {
+    vocabularyRead = loadVocabulary().then(read => {
+        vocabulary = read;
+        runs.redrawChoices();
+        return read;
+    });
+}
+
+function showView(view, argument, query) {
     current = view;
     for (const control of nodes.switcher.children) {
         const selected = control.id === 'view-' + view;
@@ -59,15 +92,15 @@ function showView(view, argument) {
     } else if (view === 'chains') {
         fill(nodes.view, nodes.chains.node);
         nodes.chains.show(argument);
+    } else if (argument) {
+        openRunId = argument;
+        fill(nodes.view, runView.node);
+        runView.open(argument);
     } else {
-        fill(nodes.view, nodes.runs);
+        openRunId = null;
+        fill(nodes.view, runs.node);
+        runs.show(query !== null && query !== undefined ? new URLSearchParams(query) : runs.query());
     }
-}
-
-function runsView() {
-    return el('p', {class: 'plain-statement'},
-        'The Runs view arrives in a later pass of the build: every recorded run, with filters, the full record, replay and the export for sign-off. '
-        + 'Chains and suite runs are on the two views beside this one.');
 }
 
 /* ---------- chains ---------- */
@@ -178,12 +211,26 @@ function chainsView() {
 }
 
 function address() {
-    return current === 'chains' && openChainId ? 'chains/' + openChainId : current;
+    if (current === 'chains' && openChainId) {
+        return 'chains/' + openChainId;
+    }
+    if (current === 'runs') {
+        if (openRunId) {
+            return 'runs/' + openRunId;
+        }
+        const query = runs ? runs.query().toString() : '';
+        return query ? 'runs?' + query : 'runs';
+    }
+    return current;
 }
 
 function onConfigChange() {
     if (suites) {
         suites.onConfigChange();
+    }
+    // The operations the configuration maps can change with it, and their words with them.
+    if (runs) {
+        readVocabulary();
     }
 }
 
