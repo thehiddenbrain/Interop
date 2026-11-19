@@ -1,0 +1,24 @@
+{
+  "memberId": "S333333333",
+  "description": "A placeholder for what the mapping deliberately does not do: a Medicaid member whose name and address each come back in one piece, which are shown and never split, and whose date of birth is in a form this tool does not read as a date, which is kept as received and said to be so.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": true,
+    "lineOfBusiness": "Medicaid"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "S333333333",
+    "name": "Placeholder-Shapes, Sage",
+    "dateOfBirth": "31-Jan-1970",
+    "gender": "female",
+    "lineOfBusiness": "Medicaid",
+    "planName": "Synthetic Medicaid Plan",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "S333333333",
+    "address": "19 Placeholder Street, Sampletown, MA 00000"
+  }
+}

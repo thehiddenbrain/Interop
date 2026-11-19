@@ -1,0 +1,44 @@
+{
+  "memberId": "P32H-DOC-DTR",
+  "description": "Sentinel for CRD scenario 4, documentation required with a DTR link. A Medicare member. The record is wrapped in member, the name and the address follow the FHIR shapes, and coverage sits beside the wrapper and is stated as a yes or no.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "member": {
+      "memberId": "P32H-DOC-DTR",
+      "name": {
+        "given": [
+          "Devon"
+        ],
+        "family": "Placeholder-DocDtr"
+      },
+      "birthDate": "1947-07-04",
+      "gender": "male",
+      "address": {
+        "line": [
+          "4 Placeholder Street",
+          "Unit 4"
+        ],
+        "city": "Sampletown",
+        "state": "MA",
+        "postalCode": "00000"
+      }
+    },
+    "coverage": {
+      "active": true,
+      "lineOfBusiness": "Medicare",
+      "plan": {
+        "name": "Synthetic Medicare Plan B"
+      },
+      "period": {
+        "start": "2025-01-01"
+      }
+    }
+  }
+}

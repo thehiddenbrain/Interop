@@ -1,0 +1,9 @@
+{
+  "memberId": "P32H-LOOKUP-TIMEOUT",
+  "description": "Sentinel for a member API that does not answer inside the read timeout. The mock reports the timeout at once and does not hold the tester for the configured timeout.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FAULT"
+  },
+  "behavior": "timeout"
+}

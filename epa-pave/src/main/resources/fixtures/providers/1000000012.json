@@ -1,0 +1,29 @@
+{
+  "npi": "1000000012",
+  "description": "An imaging practice that is in network. The record is wrapped in data, with snake_case names. It is an organization, the NPI is written as a number, and the network is stated as a yes or no.",
+  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "request_id": "mock-request-0102",
+    "data": {
+      "npi": 1000000012,
+      "organization_name": "Placeholder Imaging Associates",
+      "specialty": "Diagnostic Radiology",
+      "taxonomy_code": "2085R0202X",
+      "in_network": true,
+      "phone_number": "617-555-0102",
+      "practice_address": {
+        "address_line_1": "2 Placeholder Avenue",
+        "address_line_2": "Suite 200",
+        "city": "Sampletown",
+        "state": "MA",
+        "zip": "00000"
+      }
+    }
+  }
+}

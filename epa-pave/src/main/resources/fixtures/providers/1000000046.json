@@ -1,0 +1,27 @@
+{
+  "npi": "1000000046",
+  "description": "A post-acute care facility that is out of network, stated as a yes or no. The record is wrapped in result, with PascalCase names.",
+  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": true
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "result": {
+      "Npi": "1000000046",
+      "OrganizationName": "Placeholder Post-Acute Care Center",
+      "Specialty": "Skilled Nursing Facility",
+      "TaxonomyCode": "314000000X",
+      "InNetwork": false,
+      "Phone": "617-555-0105",
+      "Address": {
+        "AddressLine1": "5 Placeholder Avenue",
+        "City": "Sampletown",
+        "State": "MA",
+        "ZipCode": "00000"
+      }
+    }
+  }
+}

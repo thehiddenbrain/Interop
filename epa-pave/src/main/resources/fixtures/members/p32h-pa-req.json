@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-PA-REQ",
+  "description": "Sentinel for CRD scenario 1, prior authorization required. A Medicare member with active coverage. The record arrives bare, with camelCase names and an address object.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-PA-REQ",
+    "firstName": "Avery",
+    "lastName": "Placeholder-PaRequired",
+    "dateOfBirth": "1950-01-31",
+    "gender": "female",
+    "lineOfBusiness": "Medicare",
+    "planName": "Synthetic Medicare Plan A",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-PA-REQ",
+    "address": {
+      "line1": "1 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

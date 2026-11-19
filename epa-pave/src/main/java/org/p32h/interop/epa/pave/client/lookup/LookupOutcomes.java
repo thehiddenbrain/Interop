@@ -106,6 +106,15 @@ final class LookupOutcomes {
                         + words.property() + ".url has the form this API expects. Until then, " + words.byHand() + ".", exchange, tracked);
     }
 
+    /**
+     * The lookup is switched off in the configuration. Not an error: the tester types the details
+     * by hand. The same on both profiles, so the state can be seen on mock.
+     */
+    static Ending switchedOff(LookupWords words) {
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is switched off (" + words.property() + ".enabled is false): "
+                + words.byHand() + ".", null);
+    }
+
     /** The response holds no record: an empty object, an empty list, or a wrapper holding nothing. */
     static Ending noRecord(LookupWords words) {
         return new Ending(LookupStatus.NOT_FOUND, words.api() + " answered, and its answer holds no " + words.record() + " for this "

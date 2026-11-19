@@ -1,0 +1,28 @@
+{
+  "memberId": "P32H-BAD400",
+  "description": "Sentinel for CRD scenario 11, the service rejects the request with HTTP 400. A Commercial member. The record shows the three kinds of nothing: the plan name is null, the gender is an empty string, and no coverage status is returned at all, so the result says it was not returned and does not call the coverage active.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-BAD400",
+    "firstName": "Jules",
+    "lastName": "Placeholder-Bad400",
+    "dateOfBirth": "1995-05-05",
+    "gender": "",
+    "lineOfBusiness": "Commercial",
+    "planName": null,
+    "subscriberId": "P32H-BAD400",
+    "address": {
+      "line1": "10 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

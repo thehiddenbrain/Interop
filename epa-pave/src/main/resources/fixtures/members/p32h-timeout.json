@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-TIMEOUT",
+  "description": "Sentinel for CRD scenario 13, no response inside the read timeout. A Medicaid member. The lookup itself answers at once: it is the CRD call that times out. The record arrives bare, with hyphenated names.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicaid"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "member-id": "P32H-TIMEOUT",
+    "first-name": "Lane",
+    "last-name": "Placeholder-Timeout",
+    "date-of-birth": "2001-01-01",
+    "gender": "female",
+    "line-of-business": "Medicaid",
+    "plan-name": "Synthetic Medicaid Plan",
+    "coverage-status": "Active",
+    "coverage-start": "2025-01-01",
+    "subscriber-id": "P32H-TIMEOUT",
+    "mailing-address": {
+      "line1": "12 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "postal-code": "00000"
+    }
+  }
+}

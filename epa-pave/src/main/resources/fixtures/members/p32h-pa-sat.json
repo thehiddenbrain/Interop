@@ -1,0 +1,36 @@
+{
+  "memberId": "P32H-PA-SAT",
+  "description": "Sentinel for CRD scenario 3, prior authorization already satisfied. A Medicaid member. The record is wrapped in result, the name is an object with first and last, the date of birth is a date and time, and coverage is a group inside the record.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicaid"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "result": {
+      "id": "P32H-PA-SAT",
+      "name": {
+        "first": "Casey",
+        "last": "Placeholder-PaSatisfied"
+      },
+      "birthDate": "1978-03-15T00:00:00Z",
+      "gender": "other",
+      "coverage": {
+        "status": "active",
+        "lineOfBusiness": "Medicaid",
+        "planName": "Synthetic Medicaid Plan",
+        "startDate": "2025-01-01",
+        "subscriberId": "P32H-PA-SAT"
+      },
+      "address": {
+        "line1": "3 Placeholder Street",
+        "city": "Sampletown",
+        "state": "MA",
+        "postalCode": "00000"
+      }
+    }
+  }
+}
