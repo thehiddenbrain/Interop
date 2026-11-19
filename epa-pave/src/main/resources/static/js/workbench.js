@@ -148,7 +148,10 @@ export function createWorkbench(app, panel, spec) {
                 fill(problem, formProblem(answer.body, markFieldErrors([panel], answer.body.fieldErrors)));
                 return null;
             }
-            fill(refusal, errorPanel(answer.body));
+            fill(refusal, errorPanel(answer.body),
+                // The answer to a problem with the configuration is on the Config tab, so the way there is offered with it.
+                answer.body.kind === 'CONFIGURATION'
+                    ? el('p', {class: 'readout__way'}, button('Open the Config tab', () => app.navigate('config'))) : null);
             if (answer.kind === 'conflict') {
                 // The usual cause is that the configuration changed under this screen. Reading the mode
                 // again redraws every tab if it did, and then the tester can send again.
