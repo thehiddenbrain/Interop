@@ -4,16 +4,27 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**Spine 1 is frozen and both waves are building.** Six reviewers read the shared types before the
-freeze, each from the seat of one downstream owner, and every finding was checked against the code
-and applied. What changed and why is in the four "Changes made after" sections of `DECISIONS.md`
-(D-039 to D-096). From here on a wave agent may not edit a shared type: it reports the change it
-needs and the integrator makes it.
+**Spine 1 is frozen and both waves are building, for the second time.** Six reviewers read the
+shared types before the freeze, each from the seat of one downstream owner, and every finding was
+checked against the code and applied. What changed and why is in the four "Changes made after"
+sections of `DECISIONS.md` (D-039 to D-096). From here on a wave agent may not edit a shared type:
+it reports the change it needs and the integrator makes it.
 
-Wave A (four agents) and Wave B (two agents) run at the same time, each agent in its own git
-worktree and each followed by a verifier that did not write the code it reads. Wave B does not
-wait for Wave A because it builds against the frozen interfaces and the test fakes, with the CRD
-vertical as its worked example.
+**The waves were interrupted once.** About an hour into Wave A and Wave B every background agent
+was stopped at the same moment by a usage limit, part-way through its package. What each had
+written survived in its git worktree: A1 (configuration layer) about half built and not
+committed, A2 (ledger) two checkpoint commits and nearly complete, B1 (PAS) four commits and
+about half built, B2 (DTR) everything except the service and the controller. A3 (code list), A4
+(lookups) and the frontend had not begun. Each half-built package was handed to a new agent that
+continues in the same worktree, with the brief, the code that is there and a digest of the notes
+its predecessor left. Every agent now commits a checkpoint after each slice that builds green.
+
+Because of the interruption the plan changed in one respect: the verifier that was to follow each
+wave package was dropped. The integrator reads each package while merging it, and the
+verification agents of section 27 audit the integrated code, V2 (member data) straight after
+Spine 2 and V3 (the production guardrail) as soon as the guardrail is merged. An independent
+review of the code the integrator wrote alone (suites, chain view, the HTTP guard) was started,
+stopped by the same limit before it read anything, and is still owed.
 
 The integrator built the following against fakes while the waves ran. All of it is tested, none
 of it is wired as Spring beans yet, because the gateway, the ledger and the code list arrive with
@@ -39,12 +50,12 @@ Wave A:
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
 | Spine 1: shared contracts | done, reviewed by six seats, frozen |
-| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | building |
+| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | building again after the interruption. A1 and A2 taken over, A3 and A4 started fresh |
 | Spine 2: integrate Wave A. V2 PHI audit | not started |
 | Spine 3: CRD reference vertical | built and tested against fakes. To do after Wave A: wire as beans, `/api/mode` |
-| Wave B: B1 PAS and subscriptions, B2 DTR | building |
+| Wave B: B1 PAS and subscriptions, B2 DTR | building again after the interruption, both taken over |
 | Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | case runner, suites and the chain view built and tested against fakes. Chain as a suite case and cross-protocol tests not started |
-| Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | briefs written, not started |
+| Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | C1 pass 0 (frame, result view, CRD, suites, chain) building against the dev harness. The rest not started |
 | Spine 5: clean build twice, fresh-clone build, push, pull request | not started |
 
 ### What Spine 1 contains
