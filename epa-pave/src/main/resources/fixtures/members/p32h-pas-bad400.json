@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-PAS-BAD400",
+  "description": "Sentinel for PAS scenario 9, an invalid bundle rejected with an OperationOutcome. A Commercial member with active coverage, so a tester who looks the sentinel up before the run is shown a member and not a finding about test data. The lookup itself succeeds: the fault this scenario is for is in the PAS call.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-PAS-BAD400",
+    "firstName": "Winter",
+    "lastName": "Placeholder-PasBad400",
+    "dateOfBirth": "1972-08-03",
+    "gender": "female",
+    "lineOfBusiness": "Commercial",
+    "planName": "Synthetic Commercial PPO",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-PAS-BAD400",
+    "address": {
+      "line1": "41 Placeholder Avenue",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-DTR-NOPROV",
+  "description": "Sentinel for DTR scenario 10, provider not found. A Medicaid member with active coverage, so a tester who looks the sentinel up before the run is shown a member and not a finding about test data.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicaid"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-DTR-NOPROV",
+    "firstName": "Jordan",
+    "lastName": "Placeholder-DtrNoprov",
+    "dateOfBirth": "1984-03-08",
+    "gender": "female",
+    "lineOfBusiness": "Medicaid",
+    "planName": "Synthetic Medicaid Plan",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-DTR-NOPROV",
+    "address": {
+      "line1": "27 Placeholder Avenue",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}
