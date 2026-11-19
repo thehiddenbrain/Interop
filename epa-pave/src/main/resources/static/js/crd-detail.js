@@ -109,12 +109,13 @@ function coverageBlock(item, vocabulary) {
     block.append(el('p', {class: 'sub-heading'}, 'Detail list (' + details.length + ')'));
     block.append(details.length === 0
         ? el('p', {class: 'quiet'}, 'The extension carried no detail entries.')
-        : table(['Code', 'Value', 'Qualifier'], details.map(entry => [shown(entry.code), shown(entry.value), shown(entry.qualifier)])));
+        : table(['Code', 'Value', 'Qualifier'], details.map(entry => [shown(entry.code), shown(entry.value), shown(entry.qualifier)]),
+            {class: 'detail-list'}));
 
     const others = item.otherSubExtensions || [];
     if (others.length > 0) {
         block.append(el('p', {class: 'sub-heading'}, 'Other sub-extensions (' + others.length + ')'),
-            table(['Url', 'Value'], others.map(entry => [code(entry.url), shown(entry.value, {as: 'literal'})])));
+            table(['Url', 'Value'], others.map(entry => [code(entry.url), shown(entry.value, {as: 'literal'})]), {class: 'pairs'}));
     }
     return block;
 }
@@ -167,7 +168,7 @@ function cardBlock(card, total) {
     block.append(el('p', {class: 'sub-heading'}, 'Links (' + links.length + ')'));
     block.append(links.length === 0
         ? el('p', {class: 'quiet'}, 'The card carried no links.')
-        : table(['Label', 'Type', 'Address', 'App context'], links.map(linkRow)));
+        : table(['Label', 'Type', 'Address', 'App context'], links.map(linkRow), {class: 'card-links'}));
 
     block.append(el('p', {class: 'sub-heading'}, 'Suggestions (' + suggestions.length + ')'));
     if (suggestions.length === 0) {
@@ -215,7 +216,7 @@ function actionBlock(action) {
             ['Id of the resource carried', shown(action.resourceLogicalId, {as: 'literal'})]
         ], 'facts--ruled'),
         el('p', {class: 'sub-heading'}, 'The rest of the resource (' + rest.length + ')'),
-        rest.length === 0 ? el('p', {class: 'quiet'}, 'The resource carried nothing beyond what is shown above and under coverage information.')
+        rest.length === 0 ? el('p', {class: 'quiet'}, 'Nothing further was returned with this action.')
             : additionalFieldsTable(rest));
 }
 

@@ -74,7 +74,7 @@ function carryTable(carry) {
     if (entries.length === 0) {
         return el('p', {class: 'quiet'}, 'Nothing: the previous step carried no values.');
     }
-    return table(['Carried as', 'Value'], entries.map(([key, values]) => [
+    return table([{text: 'Carried as', class: 'col-30'}, 'Value'], entries.map(([key, values]) => [
         code(key),
         el('ul', {class: 'plain-list'}, (Array.isArray(values) ? values : [values]).map(value => el('li', null, code(String(value)))))
     ]));

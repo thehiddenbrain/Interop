@@ -162,7 +162,8 @@ function stageSection(stage) {
 function runTable(runs) {
     const none = text => el('span', {class: 'presence presence--none'}, text);
     return el('div', {class: 'table-scroll'}, table(
-        ['When', 'Ran', 'Outcome', 'Expected', 'Test result', {text: 'Elapsed', class: 'num'}, 'Findings', 'Run'], runs.map(run => [
+        [{text: 'When', class: 'col-14'}, {text: 'Ran', class: 'col-12'}, {text: 'Outcome', class: 'col-18'}, {text: 'Expected', class: 'col-14'},
+            {text: 'Test result', class: 'col-11'}, {text: 'Elapsed', class: 'num col-8'}, {text: 'Findings', class: 'col-11'}, 'Run'], runs.map(run => [
             [when(run.timestamp), run.latestOfItsKind === false ? el('div', {class: 'small'}, el('span', {class: 'flag'}, 'run again since')) : null],
             [run.what, run.scenarioId ? el('div', {class: 'small quiet'}, 'scenario ', code(run.scenarioId)) : null],
             [outcome(run.outcomeLabel, run.tone),

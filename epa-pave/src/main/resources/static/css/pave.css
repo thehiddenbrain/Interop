@@ -736,6 +736,8 @@ legend, .case-legend {
  */
 .verdict {
     position: relative;
+    display: flex;
+    flex-direction: column;
     padding: 14px 20px 12px;
     border: 3px solid transparent;
     color: var(--ink-strong);
@@ -753,6 +755,7 @@ legend, .case-legend {
     list-style: none;
     padding: 0;
     max-width: 82ch;
+    font-size: 1rem;
     overflow-wrap: anywhere;
 }
 
@@ -765,7 +768,9 @@ legend, .case-legend {
     flex-wrap: wrap;
     align-items: center;
     gap: var(--gap-2) var(--gap-4);
-    margin-top: 10px;
+    /* The strip is as tall as the test result beside it. The foot keeps to the bottom edge. */
+    margin-top: auto;
+    padding-top: 10px;
     font-size: var(--text-small);
 }
 
@@ -984,10 +989,41 @@ legend, .case-legend {
     border-bottom: 1px solid var(--rule);
 }
 
+/*
+ * Every table has fixed columns. A cell of vendor text can hold a token of any length, and with
+ * fixed columns it breaks inside its own cell instead of pushing the table out of the window.
+ */
 .grid {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
 }
+
+.col-5 { width: 5%; }
+.col-8 { width: 8%; }
+.col-11 { width: 11%; }
+.col-12 { width: 12%; }
+.col-14 { width: 14%; }
+.col-18 { width: 18%; }
+.col-22 { width: 22%; }
+.col-25 { width: 25%; }
+.col-30 { width: 30%; }
+.col-45 { width: 45%; }
+
+.grid.pairs th:first-child { width: 34%; }
+.grid.thirds th { width: 33.3%; }
+.grid.detail-list th:nth-child(1) { width: 48%; }
+.grid.detail-list th:nth-child(2) { width: 30%; }
+.grid.card-links th:nth-child(1) { width: 26%; }
+.grid.card-links th:nth-child(2) { width: 12%; }
+.grid.card-links th:nth-child(3) { width: 36%; }
+.grid.issues th:nth-child(1) { width: 10%; }
+.grid.issues th:nth-child(2) { width: 15%; }
+.grid.issues th:nth-child(3) { width: 21%; }
+.grid.issues th:nth-child(4) { width: 26%; }
+.grid.issues th:nth-child(5) { width: 14%; }
+.grid.timing__buckets th:nth-child(1) { width: 34%; }
+.grid.timing__buckets th:nth-child(2) { width: 14%; }
 
 .grid th {
     text-align: left;
@@ -1006,14 +1042,6 @@ legend, .case-legend {
     overflow-wrap: break-word;
 }
 
-/* Where a cell can hold text of any length with nowhere to break, the columns are fixed and the text breaks inside them. */
-.grid.additional, .grid.wire__headers {
-    table-layout: fixed;
-}
-
-.grid.additional td, .grid.wire__headers td, .grid.additional .literal, .grid.wire__headers .literal {
-    overflow-wrap: anywhere;
-}
 
 .wire__headers th:first-child {
     width: 34%;
@@ -1060,11 +1088,11 @@ legend, .case-legend {
 
 .vendor-text {
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
 }
 
 .vendor-inline {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
 }
 
 .external a {
@@ -1212,6 +1240,11 @@ legend, .case-legend {
     background: var(--wash);
 }
 
+/* The ring sits inside the button, so it does not cover the code beside it. */
+.code-chip__remove:focus-visible {
+    outline-offset: -3px;
+}
+
 .code-entry {
     display: flex;
     gap: var(--gap-2);
@@ -1301,7 +1334,7 @@ legend, .case-legend {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(250px, 340px);
     gap: var(--gap-5);
-    align-items: start;
+    align-items: stretch;
 }
 
 .runfacts {
@@ -1404,6 +1437,10 @@ legend, .case-legend {
     border-left: 1px solid var(--ink-strong);
 }
 
+.positions--one {
+    grid-template-columns: 1fr;
+}
+
 .position__who {
     font-size: var(--text-small);
     color: var(--ink-soft);
@@ -1414,15 +1451,15 @@ legend, .case-legend {
     color: var(--ink-strong);
 }
 
-.determination td.determination__label {
+.determination th:nth-child(1) {
     width: 24%;
 }
 
-.determination td.determination__code {
+.determination th:nth-child(2) {
     width: 20%;
 }
 
-.determination td:last-child {
+.determination th:nth-child(4) {
     width: 16%;
 }
 
@@ -1434,15 +1471,6 @@ legend, .case-legend {
     width: 12%;
 }
 
-/* A severity or an issue code is one word. It is never broken across two lines. */
-.issues td:nth-child(1), .issues td:nth-child(2) {
-    white-space: nowrap;
-    overflow-wrap: normal;
-}
-
-.issues td:nth-child(1) .literal, .issues td:nth-child(2) .literal {
-    overflow-wrap: normal;
-}
 
 .raw-body {
     display: flex;
@@ -1502,12 +1530,11 @@ legend, .case-legend {
     grid-template-columns: 12.5rem minmax(0, 1fr);
 }
 
-.detail .elements td:first-child, .detail .elements th:first-child {
+.detail .elements th:first-child {
     width: 12.5rem;
-    padding-right: var(--gap-4);
 }
 
-.detail .elements td:nth-child(2) {
+.detail .elements th:nth-child(2) {
     width: 14rem;
 }
 
@@ -1701,7 +1728,7 @@ details.fold > :not(summary) {
 }
 
 .chain-runs {
-    min-width: 860px;
+    min-width: 820px;
 }
 
 .chain-view {
@@ -1983,7 +2010,7 @@ details.fold > :not(summary) {
 /* ---------- the colour key ---------- */
 
 .legend {
-    width: min(760px, calc(100vw - 32px));
+    width: min(1120px, calc(100vw - 32px));
     max-height: calc(100vh - 48px);
     padding: var(--gap-4) var(--gap-5) var(--gap-5);
     border: 1px solid var(--ink-strong);
@@ -2006,10 +2033,20 @@ details.fold > :not(summary) {
     margin-top: 4px;
 }
 
+.legend__columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 var(--gap-6);
+}
+
 .legend__group {
-    margin-top: var(--gap-4);
+    margin-top: var(--gap-3);
     padding-top: var(--gap-2);
     border-top: 1px solid var(--ink-strong);
+}
+
+.legend__rows .kind {
+    margin-left: 0;
 }
 
 .legend__rows {
@@ -2158,8 +2195,13 @@ details.fold > :not(summary) {
 }
 
 @media (max-width: 860px) {
-    .result__top, .wire__sides, .positions, .timing, .chain-stages {
+    .result__top, .wire__sides, .positions, .timing, .chain-stages, .legend__columns, .suites__top, .suites__controls, .facts-pair {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .suites__held {
+        padding-left: 0;
+        border-left: 0;
     }
 
     .testresult {

@@ -375,7 +375,7 @@ async function showPreview() {
             ? table(['Placeholder', 'Value shown', 'Comes from'], url.variables.map(variable => [
                 code('{{' + variable.name + '}}'),
                 variable.display === undefined ? presenceMark('ABSENT') : [code(variable.display), variable.secret ? ' (masked: a secret)' : null],
-                code(variable.source)]))
+                code(variable.source)]), {class: 'thirds'})
             : null,
         preview.notes && preview.notes.length > 0 ? el('ul', {class: 'note-list'}, preview.notes.map(note => el('li', null, note))) : null,
         body ? el('div', {class: 'raw-body'},
@@ -415,7 +415,8 @@ async function discover() {
             ['Where the url comes from', url.source || null]
         ], 'facts--ruled'),
         services.length === 0 ? el('p', null, 'The answer listed no services.')
-            : table(['Service id', 'Hook', 'Title', 'Description', 'Prefetch'], services.map(service => [
+            : table([{text: 'Service id', class: 'col-22'}, {text: 'Hook', class: 'col-12'}, {text: 'Title', class: 'col-22'},
+                {text: 'Description', class: 'col-30'}, {text: 'Prefetch', class: 'col-14'}], services.map(service => [
                 shown(service.id, {as: 'literal'}),
                 shown(service.hook, {as: 'literal'}),
                 shown(service.title),
@@ -442,7 +443,8 @@ function drawEmptyState() {
     const list = vocabulary.scenarios;
     if (app.isMock() && list && list.available && list.scenarios.length > 0) {
         parts.push(el('p', null, 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
-        parts.push(table(['', 'Scenario', 'Member ID', ''], list.scenarios.map(scenario => [
+        parts.push(table([{text: '', class: 'col-5'}, {text: 'Scenario', class: 'col-45'}, {text: 'Member ID', class: 'col-25'},
+            {text: '', class: 'col-25'}], list.scenarios.map(scenario => [
             {class: 'num', node: String(scenario.number)},
             scenario.label,
             scenario.sentinelMemberId ? code(scenario.sentinelMemberId) : el('span', {class: 'presence presence--none'}, 'none'),

@@ -132,7 +132,7 @@ export function createSuites(app) {
             seen.rowProblems.length > 0 ? el('div', null,
                 el('p', {class: 'sub-heading'}, 'Rows that will be reported as not valid ('
                     + count(seen.rowProblemCount) + (seen.rowProblemCount > seen.rowProblems.length ? ', the first ' + seen.rowProblems.length + ' listed' : '') + ')'),
-                table(['Row', 'Case', 'Why'], seen.rowProblems.map(row => [
+                table([{text: 'Row', class: 'num col-8'}, {text: 'Case', class: 'col-18'}, 'Why'], seen.rowProblems.map(row => [
                     {class: 'num', node: String(row.row)}, code(row.caseId),
                     el('ul', {class: 'plain-list'}, row.problems.map(text => el('li', null, text)))]))) : null);
     }
@@ -335,16 +335,16 @@ export function createSuites(app) {
             {class: 'num', node: String(row.row)},
             code(row.caseId),
             row.what || none('not stated'),
-            row.expected ? breakable(row.expected) : none('none declared'),
+            row.expected ? code(row.expected) : none('none declared'),
             sent ? outcome(row.outcomeLabel || row.outcome, row.tone) : none('no outcome'),
             row.result ? stamp(row.result) : none('not compared'),
             {class: 'num', node: typeof row.elapsedMillis === 'number' ? [millis(row.elapsedMillis), row.slow ? el('div', null, slowFlag()) : null] : none('no call')},
-            row.findings && row.findings.length > 0 ? el('ul', {class: 'plain-list'}, row.findings.map(kind => el('li', null, breakable(kind)))) : el('span', {class: 'quiet'}, 'none')
+            row.findings && row.findings.length > 0 ? el('ul', {class: 'plain-list'}, row.findings.map(kind => el('li', null, code(kind)))) : el('span', {class: 'quiet'}, 'none')
         ];
         if (compared) {
             cells.push(row.previousOutcome === undefined && row.previousResult === undefined
                 ? none('not in the earlier run')
-                : [row.previousOutcomeLabel || (row.previousOutcome ? breakable(row.previousOutcome) : none('no outcome')),
+                : [row.previousOutcomeLabel || (row.previousOutcome ? code(row.previousOutcome) : none('no outcome')),
                     row.previousResult ? el('div', null, stamp(row.previousResult)) : null,
                     row.changed === true ? el('div', null, el('span', {class: 'flag'}, 'changed')) : null]);
         }
@@ -359,18 +359,6 @@ export function createSuites(app) {
             (row.runIds || []).map(id => el('div', {class: 'suite-run-id'}, code(id, 'literal--id'), ' ', copyButton('Copy', () => id)))
         ]);
         return tableRow({cells, class: row.changed === true ? 'suite-row suite-row--changed' : 'suite-row'});
-    }
-
-    /** A code that may be broken after an underscore when its column is narrow. The text itself is unchanged. */
-    function breakable(text) {
-        const node = code('');
-        String(text).split('_').forEach((part, index, parts) => {
-            node.append(part + (index < parts.length - 1 ? '_' : ''));
-            if (index < parts.length - 1) {
-                node.append(el('wbr'));
-            }
-        });
-        return node;
     }
 
     /** The response times of the calls the service answered: the figures, and the ranges as plain bars. */

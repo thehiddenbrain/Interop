@@ -165,12 +165,16 @@ function finding(item) {
     const node = el('div', {class: 'finding'},
         el('p', {class: 'finding__title'}, item.title),
         item.detail ? el('p', null, item.detail) : null);
-    if (item.codeListSays || item.serviceSays) {
+    if (item.codeListSays && item.serviceSays) {
         // A disagreement is two positions. Either side can be the one that is wrong, so the two
         // are set side by side with the same weight and neither is marked.
         node.append(el('div', {class: 'positions'},
             position('The code list', item.codeListSays),
             position('The service', item.serviceSays)));
+    } else if (item.codeListSays || item.serviceSays) {
+        // One position only: the finding is about what one side said, not a comparison of the two.
+        node.append(el('div', {class: 'positions positions--one'},
+            item.codeListSays ? position('The code list', item.codeListSays) : position('The service', item.serviceSays)));
     }
     node.append(el('p', {class: 'finding__meta'}, 'Kind ', code(item.kind), item.subject ? [', about ', code(item.subject)] : null));
     return node;
@@ -179,7 +183,7 @@ function finding(item) {
 function position(who, says) {
     return el('div', {class: 'position'},
         el('p', {class: 'position__who'}, who),
-        says ? el('p', {class: 'position__says'}, says) : presenceMark('ABSENT'));
+        el('p', {class: 'position__says'}, says));
 }
 
 /* ---------- 6. the determination grid ---------- */
@@ -205,14 +209,19 @@ function determinationSection(rows) {
 }
 
 function determinationRow(row) {
-    const returned = row.presence === 'VALUE';
-    return el('tr', {class: row.recognised === false ? 'determination--unrecognised' : null},
-        el('td', {class: 'determination__label'}, row.label),
-        el('td', {class: 'determination__code'}, returned && row.code !== undefined ? code(row.code) : presenceMark(row.presence || 'ABSENT')),
-        el('td', null, returned
-            ? [row.display || null, row.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a code this tool knows')] : null]
-            : null),
-        el('td', null, row.system ? code(row.system) : null));
+    const returned = row.presence === 'VALUE' && row.code !== undefined;
+    const cells = [el('td', null, row.label)];
+    if (returned) {
+        cells.push(el('td', null, code(row.code)));
+        // A row can hold an identifier, such as an authorization number, which has no meaning to state.
+        cells.push(el('td', null, row.display || el('span', {class: 'quiet small'}, 'no meaning to state'),
+            row.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a code this tool knows')] : null));
+    } else {
+        // Nothing was returned for this element, and that is said across both columns: never a blank cell.
+        cells.push(el('td', {colSpan: 2}, presenceMark(row.presence || 'ABSENT')));
+    }
+    cells.push(el('td', null, row.system ? code(row.system) : el('span', {class: 'quiet small'}, 'not stated')));
+    return el('tr', {class: row.recognised === false ? 'determination--unrecognised' : null}, cells);
 }
 
 /* ---------- 8. the additional fields ---------- */
@@ -248,7 +257,9 @@ export function additionalFieldsTable(fields) {
     return table(['Path', 'Presence', 'Value as returned'], fields.map(field => [
         code(field.path),
         field.presence === 'VALUE' ? el('span', {class: 'quiet small'}, 'value') : presenceMark(field.presence),
-        field.value !== undefined && field.value !== null ? code(field.value) : null
+        field.value !== undefined && field.value !== null ? code(field.value)
+            // An explicit null has no text beyond the word itself, and the word is the literal that was returned.
+            : field.presence === 'NULL' ? code('null') : el('span', {class: 'quiet small'}, 'no text given')
     ]), {class: 'additional'});
 }
 
@@ -373,7 +384,7 @@ export function errorPanel(error) {
             copyButton('Copy reference', () => error.reference)));
     }
     if (error.fieldErrors && error.fieldErrors.length > 0) {
-        panel.append(table(['Field', 'Problem'], error.fieldErrors.map(problem => [code(problem.field), problem.message])));
+        panel.append(table(['Field', 'Problem'], error.fieldErrors.map(problem => [code(problem.field), problem.message]), {class: 'pairs'}));
     }
     if (error.issues && error.issues.length > 0) {
         panel.append(el('p', {class: 'sub-heading'}, 'Issues the service returned (' + error.issues.length + ')'), issuesTable(error.issues));

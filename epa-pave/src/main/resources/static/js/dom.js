@@ -138,9 +138,29 @@ export function tableRow(row) {
     return tr;
 }
 
+// Where a long literal may be broken across lines: after an underscore, a dot, a slash and the
+// like. A path or an enum name then wraps at a joint instead of in the middle of a word. Only
+// break opportunities are added; the text itself, and what is copied from it, is unchanged.
+const BREAK_AFTER = /([_./&=|\]?:,])/;
+
 /** Literal data: a code, an identifier, a path. The one place the monospace face is asked for. */
 export function code(text, extraClass) {
-    return el('code', {class: 'literal' + (extraClass ? ' ' + extraClass : '')}, text);
+    const node = el('code', {class: 'literal' + (extraClass ? ' ' + extraClass : '')});
+    const value = String(text);
+    if (value.length <= 20) {
+        node.textContent = value;
+        return node;
+    }
+    for (const part of value.split(BREAK_AFTER)) {
+        if (part === '') {
+            continue;
+        }
+        node.append(part);
+        if (part.length === 1 && BREAK_AFTER.test(part)) {
+            node.append(document.createElement('wbr'));
+        }
+    }
+    return node;
 }
 
 /** A heading for a section of a result or a page, with an optional count after it. */
@@ -191,7 +211,8 @@ export function externalLink(address, labelText) {
     const isWeb = /^https?:\/\//i.test(text);
     const shownAddress = code(text, 'literal--address');
     if (!isWeb) {
-        return labelText ? el('span', null, labelText, ' ', shownAddress) : shownAddress;
+        // Not a web address, so there is nothing to open. No label is put beside it that would suggest otherwise.
+        return el('span', null, shownAddress, ' ', el('span', {class: 'quiet small'}, 'not a web address, shown as text'));
     }
     const anchor = el('a', {href: text, rel: 'noopener noreferrer', target: '_blank'}, labelText || 'Open in a new tab');
     return el('span', {class: 'external'}, anchor, ' ', shownAddress);
