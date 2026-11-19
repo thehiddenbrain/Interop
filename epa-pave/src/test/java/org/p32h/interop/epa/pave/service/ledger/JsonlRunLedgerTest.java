@@ -345,6 +345,23 @@ class JsonlRunLedgerTest {
     }
 
     @Test
+    void aNoteOrATesterReferenceOverItsLimitIsRefusedByTheLedgerItselfAndNothingIsAppended() {
+        // Found by the member data audit (M5). The endpoint checks first; the ledger holds the same limit for any other caller.
+        JsonlRunLedger ledger = ledger(home, clock);
+        ledger.record(draft("run-1", clock).build());
+        byte[] before = bytes(todayFile());
+
+        assertThatThrownBy(() -> ledger.addNote("run-1", "n".repeat(RunRecord.LONGEST_NOTE + 1), null))
+                .isInstanceOf(org.p32h.interop.epa.pave.service.error.ValidationException.class);
+        assertThatThrownBy(() -> ledger.addNote("run-1", null, "r".repeat(RunRecord.LONGEST_TESTER_REF + 1)))
+                .isInstanceOf(org.p32h.interop.epa.pave.service.error.ValidationException.class);
+        assertThat(bytes(todayFile())).isEqualTo(before);
+
+        assertThat(ledger.addNote("run-1", "n".repeat(RunRecord.LONGEST_NOTE), "r".repeat(RunRecord.LONGEST_TESTER_REF)).recorded()).isTrue();
+        assertThat(ledger.find("run-1").orElseThrow().note()).hasSize(RunRecord.LONGEST_NOTE);
+    }
+
+    @Test
     void aTornLastLineIsLeftBehindAndTheNextRunStartsOnItsOwnLine() throws IOException {
         JsonlRunLedger ledger = ledger(home, clock);
         ledger.record(draft("run-1", clock).build());

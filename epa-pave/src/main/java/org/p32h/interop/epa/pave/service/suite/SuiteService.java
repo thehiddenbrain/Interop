@@ -42,6 +42,7 @@ import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -188,6 +189,11 @@ public class SuiteService implements AutoCloseable {
         CaseRunner runner = caseRunner.getIfAvailable();
         if (runner == null) {
             throw new BadInputException("This build cannot run a suite.", "Run the cases one at a time from their tabs.");
+        }
+        // Recorded on every case that gives none of its own, so it is held to the limit a run's is.
+        String refProblem = RunInputs.textForTheLedger(null, testerRef, null).get("testerRef");
+        if (refProblem != null) {
+            throw new ValidationException("The suite was not started. Nothing was sent.", List.of(new FieldError("testerRef", refProblem)));
         }
         SuiteDefinition definition = define(fileName, text);
         if (!definition.problems().isEmpty()) {

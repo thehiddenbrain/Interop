@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.ledger;
 import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
+import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.IsoDates;
 import org.p32h.interop.epa.pave.model.LedgerHealth;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
@@ -13,6 +14,7 @@ import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.ledger.DayFiles.DayFile;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -616,6 +618,13 @@ public class JsonlRunLedger implements RunLedger {
         RunRecord known = find(runId).orElseThrow(() -> RunIds.notFound(runId));
         if (note == null && testerRef == null) {
             throw ValidationException.of("note", "Give a note, a tester reference or both. Nothing was changed.");
+        }
+        // The endpoint checks the same limits first. Checked here too, so no caller can append more
+        // than a run line may hold: a note line is not a record and the record's own check never sees it.
+        Map<String, String> tooLong = RunInputs.textForTheLedger(note, testerRef, null);
+        if (!tooLong.isEmpty()) {
+            throw new ValidationException("The note was not added. Nothing was changed.",
+                    tooLong.entrySet().stream().map(e -> new FieldError(e.getKey(), e.getValue())).toList());
         }
         if (!enabled) {
             return new LedgerReceipt(false, known, "The note was NOT recorded: " + SWITCHED_OFF + ".", null);

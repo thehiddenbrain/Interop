@@ -87,6 +87,12 @@ public final class SuiteFileReader {
         List<String> problems = new ArrayList<>();
         if (header.stream().allMatch(String::isEmpty)) {
             problems.add("The first row of the file must name the columns, and it is blank.");
+        } else if (header.stream().noneMatch(h -> SuiteColumns.find(h) != null || SuiteColumns.ignored(h))) {
+            // A first row that names no column this tool knows is a case, not a header. Its cells
+            // would otherwise be quoted back as unknown columns, and a case holds a member ID.
+            return new SuiteTable(SuiteTable.CSV, List.of(), List.of(), List.of("The file has no header row: its first row names no "
+                    + "column this tool knows, so it looks like a case. Add a first row that names the columns, for example "
+                    + "caseId,protocol,memberId,npi,procedureCodes,expected. The columns this tool knows are: " + SuiteColumns.known() + "."));
         } else if (header.contains("")) {
             problems.add("Column " + (header.indexOf("") + 1) + " has no name in the first row. Every column needs one.");
         }

@@ -319,4 +319,52 @@ class SuiteCasesTest {
         // A row and a table print without their cells.
         assertThat(reader.read("cases.csv", "protocol,memberId\ncrd,S123456789").rows().toString()).doesNotContain("S123456789");
     }
+
+    @Test
+    void aFileWithNoHeaderRowIsSaidToHaveNoneAndNoCellOfItsFirstRowIsRepeated() {
+        // Found by the member data audit (m3): the first case was read as the header and its cells quoted back as columns.
+        String file = "S123456789,1234567893,95810,Zzlastname-Placeholder,1961-07-23\nS222222222,1234567893,95810,Zzother-Placeholder,1970-01-01";
+        SuiteDefinition definition = csv(file);
+
+        assertThat(definition.runnable()).isFalse();
+        assertThat(definition.columns()).isEmpty();
+        assertThat(definition.problems()).hasSize(1);
+        assertThat(definition.problems().get(0)).startsWith("The file has no header row: its first row names no column this tool knows");
+        String all = definition.problems() + " " + definition.columns() + " " + definition.rows();
+        assertThat(all).doesNotContain("S123456789").doesNotContain("Zzlastname").doesNotContain("1961-07-23").doesNotContain("95810");
+        // A header whose every column is the tester's own is still a header, and a misspelt column is still named.
+        assertThat(csv("#owner,#requirement\nQA,R-1").problems()).noneMatch(p -> p.startsWith("The file has no header row"));
+        assertThat(csv("protocol,memberID,expectd\ncrd,S123456789,NO_AUTH_REQUIRED").problems()).anyMatch(p -> p.contains("\"expectd\""));
+    }
+
+    @Test
+    void aRowWhoseNoteTesterReferenceOrExpectationIsTooLongIsNotRunAndSaysWhichAndNeverQuotesIt() {
+        // Found by the member data audit (M5): a suite row wrote its note and tester reference with no limit.
+        String pasted = "{\"\"resourceType\"\":\"\"Patient\"\",\"\"family\"\":\"\"Zzlastname\"\"}";
+        String note = "x".repeat(4000) + pasted;
+        String testerRef = "Zzlastname " + "r".repeat(200);
+        String expected = "Zzlastname Zzfirstname 1961-07-23: pa-needed=auth-needed";
+        SuiteDefinition definition = csv("caseId,protocol,memberId,note,testerRef,expected\n"
+                + "TC-1,crd,S123456789,\"" + note + "\",,\n"
+                + "TC-2,crd,S123456789,,\"" + testerRef + "\",\n"
+                + "TC-3,crd,S123456789,,,\"" + expected + "\"\n"
+                + "TC-4,crd,S123456789,\"" + "x".repeat(4000) + "\",\"" + "r".repeat(200) + "\",95810: pa-needed=auth-needed");
+
+        assertThat(definition.problems()).isEmpty();
+        List<SuiteRow> rows = definition.rows();
+        assertThat(rows.get(0).problems()).containsExactly("A note can be at most 4000 characters, and this one has 4048. A note is kept "
+                + "as written, so do not paste a request or a response into it.");
+        assertThat(rows.get(1).problems()).containsExactly("A tester reference can be at most 200 characters, and this one has 211. It names "
+                + "a ticket or a test step, and is kept as written.");
+        assertThat(rows.get(2).problems()).containsExactly("Term 1 of the expectation names what it is about with a space in it. That part, "
+                + "before the colon, is a procedure code that was asked about or a place in the response, such as 95810 or "
+                + "ServiceRequest/sr-1, and never holds a space.");
+        for (SuiteRow row : rows.subList(0, 3)) {
+            assertThat(row.runnable()).isFalse();
+            assertThat(row.problems().toString()).doesNotContain("Zzlastname").doesNotContain("1961-07-23");
+        }
+        // At the limits the row runs.
+        assertThat(rows.get(3).problems()).isEmpty();
+        assertThat(rows.get(3).spec().note()).hasSize(4000);
+    }
 }

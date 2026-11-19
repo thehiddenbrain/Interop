@@ -17,6 +17,7 @@ import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.cases.ChainExpectation;
 import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
+import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.suite.SuiteColumns.Column;
 import org.p32h.interop.epa.pave.service.suite.SuiteTable.SourceRow;
 
@@ -163,6 +164,10 @@ public final class SuiteCases {
         } else if (expected != null && target.operation() != null) {
             problems.addAll(outcomes.expectationProblems(target.operation().protocol(), expected));
         }
+        // The same limits a run form is held to, so a row is refused here, with its number, and not
+        // found too long by each service in turn. The cell is never quoted: it can name a member.
+        RunInputs.textForTheLedger(Texts.trimToNull(cells.get(Column.NOTE)), Texts.trimToNull(cells.get(Column.TESTER_REF)), expected,
+                !target.chain()).values().forEach(problems::add);
         Map<String, String> correlation = new LinkedHashMap<>();
         correlation(cells, Column.CLAIM_ID, RunRecord.CORR_CLAIM_ID, correlation, problems);
         correlation(cells, Column.SUBSCRIPTION_ID, RunRecord.CORR_SUBSCRIPTION_ID, correlation, problems);
