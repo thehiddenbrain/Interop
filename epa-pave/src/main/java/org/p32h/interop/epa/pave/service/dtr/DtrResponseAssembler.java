@@ -37,6 +37,12 @@ final class DtrResponseAssembler {
      * @param answeredAs how the questionnaire was taken to be answered
      */
     record Assembled(DtrReading reading, JsonNode response, QuestionnaireKind answeredAs) {
+
+        /** Redacted, because the response holds the tester's answers, which can be clinical. */
+        @Override
+        public String toString() {
+            return "Assembled[" + answeredAs + "]";
+        }
     }
 
     /** How the questionnaire a step was posted is answered: as its kind says, or as adaptive when its response came from the loop. */

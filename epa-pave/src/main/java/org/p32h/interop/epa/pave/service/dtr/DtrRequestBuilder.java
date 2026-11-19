@@ -54,6 +54,12 @@ public final class DtrRequestBuilder {
             codes = codes == null ? List.of() : List.copyOf(codes);
             sentCodes = sentCodes == null ? List.of() : List.copyOf(sentCodes);
         }
+
+        /** Redacted, because the body carries member data. */
+        @Override
+        public String toString() {
+            return "Package[questionnaires=" + canonicals.size() + ", orders=" + sentCodes.size() + "]";
+        }
     }
 
     /**
@@ -63,6 +69,12 @@ public final class DtrRequestBuilder {
      * @param json     the request body as pretty JSON
      */
     public record LoopBody(JsonNode response, String json, List<String> notes) {
+
+        /** Redacted, because the response carries the tester's answers, which can be clinical. */
+        @Override
+        public String toString() {
+            return "LoopBody[notes=" + (notes == null ? 0 : notes.size()) + "]";
+        }
     }
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;

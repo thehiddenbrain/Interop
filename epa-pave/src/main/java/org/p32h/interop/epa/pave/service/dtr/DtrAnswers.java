@@ -66,6 +66,12 @@ final class DtrAnswers {
             });
             return out;
         }
+
+        /** Redacted, because the response and the answers being added can be clinical. */
+        @Override
+        public String toString() {
+            return "Posted[answers=" + given.size() + ", errors=" + errors.size() + "]";
+        }
     }
 
     static Posted read(String questionnaireText, String responseText, List<DtrAnswerInput> answers) {
