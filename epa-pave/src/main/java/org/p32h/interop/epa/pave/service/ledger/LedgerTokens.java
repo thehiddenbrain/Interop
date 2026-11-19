@@ -5,13 +5,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.EnumSet;
@@ -90,7 +86,7 @@ final class LedgerTokens {
             Files.createDirectories(parent);
         }
         Set<StandardOpenOption> options = EnumSet.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-        try (FileChannel channel = FileChannel.open(file, options, ownerOnly())) {
+        try (FileChannel channel = FileChannel.open(file, options, OwnerOnly.file())) {
             ByteBuffer buffer = ByteBuffer.wrap(randomSalt());
             while (buffer.hasRemaining()) {
                 channel.write(buffer);
@@ -99,15 +95,6 @@ final class LedgerTokens {
         } catch (FileAlreadyExistsException e) {
             // Another instance created it between the check and the write. Its salt is the one to use.
         }
-    }
-
-    /** Where the file system knows about owners, only the owner may read the salt. */
-    private static FileAttribute<?>[] ownerOnly() {
-        if (!FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
-            return new FileAttribute<?>[0];
-        }
-        return new FileAttribute<?>[] {PosixFilePermissions.asFileAttribute(
-                EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE))};
     }
 
     private static byte[] randomSalt() {

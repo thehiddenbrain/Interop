@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -12,7 +13,14 @@ import java.util.regex.Pattern;
  *
  * <p>The ledger applies this to every draft it is given, so no caller can get it wrong. It rewrites
  * exactly the parts of a draft that {@code RunLedger.record} lists and nothing else: the member ID,
- * the date of service, the NPI and the authorization number among the correlation entries.
+ * the date of service, the NPI and the authorization number among the correlation entries. It also
+ * decides the one thing the record cannot decide for itself: whether the line of business is one
+ * the tool knows, which needs the code list.
+ *
+ * <p>On the mock profile member IDs are recorded because every ID there is synthetic. That holds for
+ * the IDs the tool itself provides, its {@code P32H-} sentinels and the {@code S123456789} style of
+ * its fixtures, and for nothing a tester types. Any other ID typed on mock is tokenised exactly as
+ * on live, so a real ID typed into the default checkout does not land in the file in the clear.
  *
  * <p>A member-linked identifier has two stored forms. When member IDs are recorded it is stored
  * with its whitespace removed. Otherwise it is stored as a token. The policy can change between
@@ -29,14 +37,41 @@ final class TrackingPolicy {
      */
     private static final Pattern NOT_RECORDED = Pattern.compile("\\(not recorded, \\d+ characters\\)");
 
+    /** A statement the record wrote in place of a line of business. It is not a line and is left as it is. */
+    private static final Pattern STATEMENT = Pattern.compile("\\([a-z :]+, \\d{1,9} characters\\)");
+
+    /**
+     * The member IDs that are synthetic by construction: the tool's sentinels and the placeholder
+     * style its fixtures use. The same two shapes the lookup fixtures are held to.
+     */
+    private static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]+(?:-[A-Z0-9]+)*");
+    private static final Pattern PLACEHOLDER = Pattern.compile("S\\d{9,10}");
+
     private final boolean recordMemberId;
+    private final boolean placeholdersOnly;
     private final boolean recordNpi;
     private final Supplier<LedgerTokens> tokens;
+    private final Predicate<String> knownLine;
 
-    TrackingPolicy(boolean recordMemberId, boolean recordNpi, Supplier<LedgerTokens> tokens) {
+    /**
+     * @param recordMemberId   {@code tracking.record-member-id}
+     * @param placeholdersOnly true on the mock profile: an ID is kept in the clear only when it is a
+     *                         sentinel or a placeholder, whatever {@code recordMemberId} says
+     * @param knownLine        true for a line of business the tool knows: one the code list names,
+     *                         directly or through {@code codelist.line-of-business-aliases}
+     */
+    TrackingPolicy(boolean recordMemberId, boolean placeholdersOnly, boolean recordNpi, Supplier<LedgerTokens> tokens,
+                   Predicate<String> knownLine) {
         this.recordMemberId = recordMemberId;
+        this.placeholdersOnly = placeholdersOnly;
         this.recordNpi = recordNpi;
         this.tokens = tokens;
+        this.knownLine = knownLine;
+    }
+
+    /** True when an ID in its no-space form is one the tool provides, never one a person holds. */
+    static boolean synthetic(String memberId) {
+        return SENTINEL.matcher(memberId).matches() || PLACEHOLDER.matcher(memberId).matches();
     }
 
     /** The draft as it may be written. */
@@ -45,7 +80,8 @@ final class TrackingPolicy {
         // Whitespace goes first, so a spaced and an unspaced spelling of one ID give the same
         // stored value, the same token and the same last four characters.
         String memberId = MemberIds.noSpace(draft.memberId());
-        if (recordMemberId) {
+        boolean inTheClear = inTheClear(memberId);
+        if (inTheClear) {
             out.memberId(memberId.isEmpty() ? null : memberId);
         } else {
             out.memberId(null).dateOfService(null);
@@ -56,11 +92,17 @@ final class TrackingPolicy {
         if (!recordNpi) {
             out.npi(null);
         }
+        String line = draft.lineOfBusiness();
+        if (line != null && !STATEMENT.matcher(line).matches()) {
+            // Only a line the tool knows is written. A name in the place of one cannot be told from
+            // a line by its shape, so anything else is written as its length and shown on screen.
+            out.lineOfBusiness(knownLine.test(line) ? line.strip() : "(" + RunRecord.LINE_NOT_KNOWN + ", " + line.length() + " characters)");
+        }
         String authorization = draft.correlation().get(RunRecord.CORR_AUTHORIZATION_REF);
         if (authorization != null && !NOT_RECORDED.matcher(authorization).matches()) {
             // An authorization number identifies one member's request, so it follows the member ID.
             Map<String, String> correlation = new LinkedHashMap<>(draft.correlation());
-            String stored = stored(authorization);
+            String stored = stored(authorization, inTheClear);
             if (stored == null) {
                 correlation.remove(RunRecord.CORR_AUTHORIZATION_REF);
             } else {
@@ -111,13 +153,25 @@ final class TrackingPolicy {
         return current;
     }
 
+    /**
+     * True when a member ID, in its no-space form, is written as it is. With no member ID on the
+     * draft only the setting decides, and an authorization number on such a line follows it.
+     */
+    private boolean inTheClear(String memberId) {
+        return recordMemberId && (!placeholdersOnly || memberId.isEmpty() || synthetic(memberId));
+    }
+
     /** The form written for a member-linked identifier under this policy, or null when there is nothing to write. */
     String stored(String identifier) {
+        return stored(identifier, recordMemberId);
+    }
+
+    private String stored(String identifier, boolean inTheClear) {
         String id = MemberIds.noSpace(identifier);
         if (id.isEmpty()) {
             return null;
         }
-        return recordMemberId ? id : tokens.get().token(id);
+        return inTheClear ? id : tokens.get().token(id);
     }
 
     /**
