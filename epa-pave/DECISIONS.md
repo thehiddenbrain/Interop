@@ -625,3 +625,32 @@ Two reviewers asked for the result to be returned and disagreed on the status. 5
 browser can tell it from a completed call without reading the body, and the body still carries the
 run id, the wire view and the ledger receipt.
 
+## Decisions made while the waves were building
+
+**D-097. Sending a request raw (amends D-051).**
+`POST /api/raw` sends one collection request as written, through the same gateway and the same
+guardrail as everything else: the gateway judges an unmapped request by its method and by what its
+name and url look like, and a write to production is refused unless the session unlocked it. The
+tool does not interpret the answer. It reports what came back (answered, answered with a body that
+is not JSON, answered with no body, or a fault), lists every field of it, reads an
+OperationOutcome issue by issue, and records the run. A tester can declare the outcome or the HTTP
+status they expect (`http-status=200`). On mock every raw request gets the same fixed answer,
+which says the mock does not model it.
+
+**D-098. The Onyx token goes only to an Onyx host.**
+A vendor collection can hold a request to another service. The Onyx access token is attached to a
+raw request only when its host is one that an Onyx operation resolves to in the configuration in
+force, and only when the request carries no Authorization header of its own. Otherwise no token
+is requested at all.
+
+**D-099. The embedded server's own errors use the shared error shape.**
+A request the server refuses before it reaches the application, such as one with characters a url
+may not hold, was answered with an HTML page naming the server. A custom error valve now answers
+it as JSON in the shared shape. A direct request to the error path answers 404.
+
+**D-100. A controller is not a bean until its dependencies exist.**
+While the first wave builds the gateway, the ledger and the code list, the CRD and raw
+controllers and services carry no stereotype annotation, so the application context does not try
+to build them. Their tests register them through a small annotated subclass. The integrator adds
+the annotations when the wave is merged.
+

@@ -17,4 +17,9 @@ public final class OnyxAccessTestFactory {
     public static OnyxAccess create(ExchangeExecutor executor, OnyxProperties onyx, OperationGateway gateway, RestClient client, Clock clock) {
         return new OnyxAccess(executor, new OnyxTokenService(onyx, gateway, client, clock), gateway, client);
     }
+
+    /** The token service alone, on the same bound client, for a live client that decides for itself when to ask for a token. */
+    public static OnyxTokenService tokens(OnyxProperties onyx, OperationGateway gateway, RestClient client, Clock clock) {
+        return new OnyxTokenService(onyx, gateway, client, clock);
+    }
 }

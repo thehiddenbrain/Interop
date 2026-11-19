@@ -42,6 +42,9 @@ public final class Exchanges {
     private static final Set<String> TRANSPORT_HEADERS = Set.of("content-length", "host", "connection", "transfer-encoding",
             "expect", "upgrade", "keep-alive", "te", "trailer", "proxy-connection");
 
+    /** The parse error of a response whose body did not arrive in full. */
+    public static final String INCOMPLETE_BODY = "The body is incomplete.";
+
     /** The characters an HTTP method or header name may be made of. */
     private static final java.util.regex.Pattern TOKEN = java.util.regex.Pattern.compile("[!#$%&'*+.^_`|~0-9A-Za-z-]+");
 
@@ -221,7 +224,7 @@ public final class Exchanges {
         List<String> notes = new ArrayList<>(decoded.notes());
         notes.add("The body is incomplete: " + detail);
         return new VendorExchange(request, status, responseHeaders, Texts.present(decoded.text()) ? decoded.text() : null, count, null,
-                "The body is incomplete.", elapsedMillis, failure, detail, Set.of(), null, null, notes);
+                INCOMPLETE_BODY, elapsedMillis, failure, detail, Set.of(), null, null, notes);
     }
 
     private record Decoded(String text, List<String> notes) {
