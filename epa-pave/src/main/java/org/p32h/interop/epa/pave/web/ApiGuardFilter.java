@@ -59,11 +59,13 @@ import tools.jackson.databind.json.JsonMapper;
  * refuses it whenever the framework hands it to a controller method, so such a link opens a page
  * of the tool and never an answer of the API. No address is sorted here into page and API.
  *
- * <p>What this leaves open: a browser that sends neither {@code Sec-Fetch-Site} nor
- * {@code Origin} on a request another page makes. Current browsers send {@code Sec-Fetch-Site}
- * on every request to a site served over http from localhost; an older browser that does not
- * would let another page's image or link reach a read, as before this check. Nothing in a
- * request can tell such a browser from curl.
+ * <p>What this leaves open: a request another page makes that carries neither
+ * {@code Sec-Fetch-Site} nor {@code Origin}. Browsers send {@code Sec-Fetch-Site} only to an
+ * origin they hold to be secure, which includes http://localhost and the loopback addresses but
+ * not another name served over plain http, and an older browser does not send it at all. Under a
+ * name listed in {@code app.allowed-hosts}, or in such a browser, another page's image or link
+ * still reaches a read, as before this check; a change for which the browser states the other
+ * origin is still refused. Nothing in such a request can tell it from curl.
  *
  * <p><b>Both checks apply to every request, whatever its address.</b> An earlier version applied
  * them to addresses that start with {@code /api/} and let pages and static files through. That

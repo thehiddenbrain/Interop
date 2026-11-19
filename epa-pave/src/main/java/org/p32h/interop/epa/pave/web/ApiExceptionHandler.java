@@ -55,8 +55,11 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  *
  * <p>Status discipline: 422 when what was submitted cannot be used, 403 when the production
  * guardrail refused, 409 when the tool is not configured to send, 404 when the thing asked for
- * does not exist. A vendor fault is not an exception at all; it is a completed call answered with
- * 200 and described in the body.
+ * does not exist. A request that is badly formed as a request, such as a query that is not
+ * properly percent-encoded, is a 400, and one larger than the tool accepts is a 413: the request
+ * is at fault there, not the tool, so neither is answered or logged as an internal error. A
+ * vendor fault is not an exception at all; it is a completed call answered with 200 and described
+ * in the body.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
