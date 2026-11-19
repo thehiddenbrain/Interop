@@ -186,6 +186,19 @@ class LabelsAndReferencesTest {
     }
 
     @Test
+    void aReferenceIsOnlySaidToFollowTheLabelItUses() {
+        // The ids differ, and the reference does not use the id: it uses the full url, which is the same in both.
+        String bundle = "{'resourceType':'Bundle','entry':[{'fullUrl':'urn:uuid:0000000a-0000-4000-8000-000000000001',"
+                + "'resource':{'resourceType':'Patient','id':'%s'}},{'resource':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'%s'}}}]}";
+        List<Difference> all = differences(bundle.formatted("a", "urn:uuid:0000000a-0000-4000-8000-000000000001"),
+                bundle.formatted("b", "urn:uuid:0000000A-0000-4000-8000-000000000001"));
+        assertThat(lines(all)).containsExactly("entry[Patient].resource.id | DIFFERENT_VALUE | LABELS",
+                "entry[ServiceRequest].resource.subject.reference | DIFFERENT_VALUE | NOT_CLASSIFIED");
+        assertThat(all.get(0).referencesFollowing()).isZero();
+        assertThat(all.get(1).explanation()).startsWith("The two requests hold different text here. They differ only in letter case.");
+    }
+
+    @Test
     void theFullUrlOfABundleEntryFollowsTheIdOfTheResourceItHolds() {
         String tool = "{'resourceType':'Bundle','entry':[{'fullUrl':'https://ehr.example.invalid/fhir/Patient/patient-1',"
                 + "'resource':{'resourceType':'Patient','id':'patient-1'}}]}";

@@ -196,11 +196,20 @@ public final class JsonComparer {
     private record Pair(ResourceIndex.Resource tool, ResourceIndex.Resource yours) {
 
         /**
-         * True when the two documents really label the resource differently: by its id, or by the
-         * full url of its entry. Only then can a reference differ because it follows the label.
+         * True when the two documents really give the resource a different label of the kind a
+         * reference in this form uses: its id, or the full url of its entry. Only then can such a
+         * reference differ because it follows the label. A urn that differs only in letter case
+         * from another names the same entry, whatever the ids of the two resources are.
          */
-        boolean labelledDifferently() {
-            return !java.util.Objects.equals(tool.id(), yours.id()) || !ResourceIndex.sameUrl(tool.fullUrl(), yours.fullUrl());
+        boolean labelledDifferently(ReferenceText.Form form) {
+            boolean ids = !java.util.Objects.equals(tool.id(), yours.id());
+            boolean fullUrls = !ResourceIndex.sameUrl(tool.fullUrl(), yours.fullUrl());
+            return switch (form) {
+                case RELATIVE, BARE -> ids;
+                case URN -> fullUrls;
+                case ABSOLUTE -> ids || fullUrls;
+                default -> false;
+            };
         }
     }
 
@@ -681,7 +690,7 @@ public final class JsonComparer {
             List<ResourceIndex.Resource> yourTargets = slot.fullUrl ? own(slot.yourOwner, yourIndex) : yourIndex.resolve(yourText);
             Pair pair = pair(toolTargets, yourTargets);
             boolean sameForm = toolText.sameFormAs(yourText);
-            if (pair != null && sameForm && pair.labelledDifferently()) {
+            if (pair != null && sameForm && pair.labelledDifferently(toolText.form())) {
                 followers.add(pair.tool().node(), new Follower(slot, slot.at, slot.tool, slot.yours));
             } else if (pair != null && !sameForm) {
                 slot.ready.add(difference(slot.at, DifferenceKind.WRITTEN_DIFFERENTLY, slot.tool, slot.yours, Grouping.ROLE, DifferenceGroup.BUILD,
@@ -750,7 +759,7 @@ public final class JsonComparer {
                         partner[i] = found;
                         taken[found] = true;
                         Place element = slot.at.element(String.valueOf(i), i, found);
-                        if (new Pair(target, yourResources.get(counterpart)).labelledDifferently()) {
+                        if (new Pair(target, yourResources.get(counterpart)).labelledDifferently(toolText.form())) {
                             followers.add(target.node(), new Follower(slot, element, tool.get(i), yours.get(found)));
                         } else {
                             // The same resource under the same labels, so the two texts differ in something that is not a label.
