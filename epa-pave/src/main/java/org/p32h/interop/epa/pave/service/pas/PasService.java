@@ -397,10 +397,6 @@ public class PasService {
         for (int i = 0; i < request.attachments().size(); i++) {
             PasAttachment attachment = request.attachments().get(i);
             String field = "attachments[" + i + "]";
-            if (attachment == null) {
-                inputs.require(false, field, "This attachment is empty.");
-                continue;
-            }
             inputs.require(Texts.present(attachment.title()), field + ".title", "Give the attachment a title.");
             inputs.require(Texts.present(attachment.contentType()), field + ".contentType",
                     "State the content type of the attachment, for example text/plain or application/pdf.");
