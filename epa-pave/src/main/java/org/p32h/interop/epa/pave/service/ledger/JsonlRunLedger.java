@@ -223,8 +223,11 @@ public class JsonlRunLedger implements RunLedger {
      * Proves the directory can be written to by writing to it. Asking the file system is not
      * enough: what it says about a folder and what happens when a file is made in it are two
      * things, and they differ for an administrator and on some network shares.
+     *
+     * <p>Not private, so that a test can make the proof itself fail. A folder that really refuses
+     * a file is not to be had on every machine: an administrator is refused almost nowhere.
      */
-    private void proveWritable() throws IOException {
+    void proveWritable() throws IOException {
         Path probe = directory.resolve(".write-check-" + UUID.randomUUID() + ".tmp");
         try (FileChannel channel = FileChannel.open(probe, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
             writeFully(channel, "PAVE startup write check. Safe to delete.\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
