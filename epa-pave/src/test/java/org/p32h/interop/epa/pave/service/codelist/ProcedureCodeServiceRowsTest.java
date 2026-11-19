@@ -391,8 +391,36 @@ class ProcedureCodeServiceRowsTest {
         assertThat(only(service, "A3").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
         assertThat(only(service, "A4").description()).isEqualTo("quoted, again");
         assertThat(only(service, "A2").description()).isEqualTo("\"never closed");
-        assertThat(service.selfCheck().warnings()).singleElement().asString()
-                .startsWith("The double quote that opens a cell on line 3 has no closing quote that ends the cell.");
+        assertThat(service.selfCheck().warnings()).containsExactly("1 double quote opens a cell and has no closing quote that ends it: "
+                + "line 3. It was read as an ordinary character, so that row may not be what the file meant. A cell that starts with a "
+                + "double quote must end with one, and a double quote inside it is written twice.");
+    }
+
+    @Test
+    void theSameMistakeOnManyLinesIsOneWarningThatListsTheLines() {
+        // An export written by joining strings gets its quoting wrong on every row that needs any.
+        // Seven thousand warnings would bury everything else the self-check has to say.
+        StringBuilder csv = new StringBuilder("Code,Description,PA\n");
+        for (int i = 1; i <= 15; i++) {
+            csv.append("U").append(i).append(",\"never closed,Y\n");
+        }
+        for (int i = 1; i <= 12; i++) {
+            csv.append("S").append(i).append(",\"a \"marked\" word\",N\n");
+        }
+        ProcedureCodeService service = TestCodeLists.csv(directory, csv.toString());
+
+        assertThat(service.selfCheck().rowCount()).isEqualTo(27);
+        assertThat(service.selfCheck().warnings()).containsExactly(
+                "15 double quotes open a cell and have no closing quote that ends it: lines 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 and 5 more. "
+                        + "Each was read as an ordinary character, so those rows may not be what the file meant. A cell that starts "
+                        + "with a double quote must end with one, and a double quote inside it is written twice.",
+                "On 12 lines text follows the closing double quote of a cell: lines 17, 18, 19, 20, 21, 22, 23, 24, 25, 26 and 2 more. "
+                        + "The cells were kept as written, but the rows may not be what the file meant. Inside a quoted cell a double "
+                        + "quote is written twice.");
+        // Every row is still its own row, with its own flag.
+        assertThat(only(service, "U15").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(only(service, "S1").authRequired()).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        assertThat(only(service, "S12").description()).isEqualTo("a \"marked\" word\"");
     }
 
     @Test
@@ -401,8 +429,9 @@ class ProcedureCodeServiceRowsTest {
         assertThat(only(service, "E2601").description()).isEqualTo("Cushion, 22\" wide\"");
         assertThat(only(service, "E2601").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
         assertThat(service.selfCheck().rowCount()).isEqualTo(2);
-        assertThat(service.selfCheck().warnings()).singleElement().asString()
-                .startsWith("On line 2 text follows the closing double quote of a cell.");
+        assertThat(service.selfCheck().warnings()).containsExactly("On 1 line text follows the closing double quote of a cell: line 2. "
+                + "The cell was kept as written, but the row may not be what the file meant. Inside a quoted cell a double quote is "
+                + "written twice.");
     }
 
     @Test
