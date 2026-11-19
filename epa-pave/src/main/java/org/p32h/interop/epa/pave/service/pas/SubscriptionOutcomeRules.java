@@ -15,7 +15,8 @@ import org.p32h.interop.epa.pave.model.pas.SubscriptionResponseKind;
  * it, can answer 200 with a body that is not what was asked for, and reporting that as "created"
  * would be a claim this tool cannot back. So the body has to be what the call returns, or be
  * absent where the call may answer without one. Anything else is
- * {@link SubscriptionOutcome#UNRECOGNISED_RESPONSE}, shown in full.
+ * {@link SubscriptionOutcome#UNRECOGNISED_RESPONSE}, shown in full. That includes a success status
+ * that arrives with an OperationOutcome whose severity code says the call failed.
  */
 public final class SubscriptionOutcomeRules {
 
@@ -23,11 +24,14 @@ public final class SubscriptionOutcomeRules {
     }
 
     /**
-     * @param kind     what kind of thing the response body was
-     * @param aboutOne true when the call named one subscription by id. Only then can "not found"
-     *                 be a finding about an id: a list that answers 404 was sent to the wrong address
+     * @param kind         what kind of thing the response body was
+     * @param aboutOne     true when the call named one subscription by id. Only then can "not found"
+     *                     be a finding about an id: a list that answers 404 was sent to the wrong address
+     * @param reportsError true when the body is an OperationOutcome with an issue whose severity
+     *                     code is error or fatal
      */
-    public static SubscriptionOutcome overall(EpaOperation operation, VendorExchange exchange, SubscriptionResponseKind kind, boolean aboutOne) {
+    public static SubscriptionOutcome overall(EpaOperation operation, VendorExchange exchange, SubscriptionResponseKind kind, boolean aboutOne,
+                                              boolean reportsError) {
         OnyxFailureType failure = exchange.failureType();
         if (failure == OnyxFailureType.TIMEOUT) {
             return SubscriptionOutcome.TIMEOUT;
@@ -50,8 +54,11 @@ public final class SubscriptionOutcomeRules {
             return SubscriptionOutcome.REJECTED;
         }
         boolean resource = kind == SubscriptionResponseKind.SUBSCRIPTION;
-        // A write may answer with the resource, with an OperationOutcome that reports on it, or with nothing.
-        boolean acknowledged = resource || kind == SubscriptionResponseKind.NO_BODY || kind == SubscriptionResponseKind.OPERATION_OUTCOME;
+        // A write may answer with the resource, with nothing, or with an OperationOutcome that
+        // reports on it. One whose severity code says the call failed contradicts the success
+        // status it came with, and this tool does not choose which of the two to believe.
+        boolean acknowledged = resource || kind == SubscriptionResponseKind.NO_BODY
+                || (kind == SubscriptionResponseKind.OPERATION_OUTCOME && !reportsError);
         return switch (operation) {
             case SUBSCRIPTION_CREATE -> acknowledged ? SubscriptionOutcome.CREATED : SubscriptionOutcome.UNRECOGNISED_RESPONSE;
             case SUBSCRIPTION_UPDATE -> acknowledged ? SubscriptionOutcome.UPDATED : SubscriptionOutcome.UNRECOGNISED_RESPONSE;

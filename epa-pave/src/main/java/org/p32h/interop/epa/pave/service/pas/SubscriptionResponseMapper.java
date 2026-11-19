@@ -36,6 +36,10 @@ import tools.jackson.databind.JsonNode;
  */
 public final class SubscriptionResponseMapper {
 
+    /** The two codes of the FHIR issue severity value set that say an operation did not succeed. */
+    private static final String SEVERITY_ERROR = "error";
+    private static final String SEVERITY_FATAL = "fatal";
+
     /**
      * @param operation the call that was made, which decides what a success means
      * @param askedId   the id of the subscription the call was about, or null for a create and a list
@@ -111,13 +115,23 @@ public final class SubscriptionResponseMapper {
         }
 
         boolean aboutOne = Texts.present(askedId);
-        SubscriptionOutcome outcome = SubscriptionOutcomeRules.overall(operation, exchange, kind, aboutOne);
+        boolean reportsError = kind == SubscriptionResponseKind.OPERATION_OUTCOME && issues.stream().anyMatch(SubscriptionResponseMapper::failed);
+        SubscriptionOutcome outcome = SubscriptionOutcomeRules.overall(operation, exchange, kind, aboutOne, reportsError);
+        if (note == null && reportsError && outcome == SubscriptionOutcome.UNRECOGNISED_RESPONSE && operation.write()) {
+            note = "The service answered with a success status and with an OperationOutcome whose severity says the call failed. The two "
+                    + "contradict each other, so whether the call was applied is not known.";
+        }
         if (note == null) {
             note = mismatch(operation, askedId, kind, subscriptions);
         }
         SubscriptionDetail detail = new SubscriptionDetail(kind, note, subscriptions, bundleType, bundleId, total, others, issues, null, null,
                 null, List.of(), true);
         return new SubscriptionReading(detail, outcome, additional);
+    }
+
+    /** True when the severity code of an issue says the call failed. The code decides, never the wording beside it. */
+    private static boolean failed(IssueView issue) {
+        return issue.severity().hasValue() && (SEVERITY_ERROR.equals(issue.severity().value()) || SEVERITY_FATAL.equals(issue.severity().value()));
     }
 
     /**

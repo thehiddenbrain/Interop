@@ -272,11 +272,41 @@ class PasControllerTest {
     }
 
     @Test
-    void aTargetThatIsNotConfiguredIs409FromTheSharedErrorShape() throws Exception {
-        gateway.failing(new EndpointNotConfiguredException(EpaOperation.PAS_SUBMIT, "There is no url for PAS submit."));
-        mvc("live").perform(json(post("/api/pas/submit"), submission("S123456789", ""))).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.kind").value("CONFIGURATION"));
-        mvc("live").perform(get("/api/pas/subscriptions")).andExpect(status().isConflict()).andExpect(jsonPath("$.kind").value("CONFIGURATION"));
+    void aTargetThatIsNotConfiguredIs409FromTheSharedErrorShapeAtEveryEndpointThatMakesACall() throws Exception {
+        gateway.failing(new EndpointNotConfiguredException(EpaOperation.PAS_SUBMIT, "There is no url for this call."));
+        MockMvc mvc = mvc("live");
+        String submit = submission("S123456789", "");
+        String inquire = inquiry("S123456789", ",\"claimId\":\"claim-test-0001\"");
+        List<MockHttpServletRequestBuilder> calls = List.of(json(post("/api/pas/submit"), submit), json(post("/api/pas/submit/preview"), submit),
+                json(post("/api/pas/inquire"), inquire), json(post("/api/pas/inquire/preview"), inquire),
+                json(post("/api/pas/subscriptions"), "{}"), json(post("/api/pas/subscriptions/preview"), "{}"),
+                get("/api/pas/subscriptions"), get("/api/pas/subscriptions/{id}", ID), json(put("/api/pas/subscriptions/{id}", ID), "{}"),
+                json(post("/api/pas/subscriptions/{id}/preview", ID), "{}"), delete("/api/pas/subscriptions/{id}", ID));
+        for (MockHttpServletRequestBuilder call : calls) {
+            mvc.perform(call).andExpect(status().isConflict()).andExpect(jsonPath("$.kind").value("CONFIGURATION"));
+        }
+        // Each reached the gateway and stopped there: nothing was sent, so nothing is recorded.
+        assertThat(gateway.intents()).hasSize(calls.size());
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
+    void aMisspeltPropertyIsRefusedByNameAtEveryEndpointThatReadsABody() throws Exception {
+        MockMvc mvc = mvc("mock");
+        String submit = submission("P32H-PAS-APPROVED", ",\"expectd\":\"APPROVED\"");
+        String inquire = inquiry("P32H-PAS-APPROVED", ",\"claimId\":\"claim-test-0001\",\"expectd\":\"APPROVED\"");
+        String subscription = "{\"expectd\":\"CREATED\"}";
+        List<MockHttpServletRequestBuilder> calls = List.of(json(post("/api/pas/submit"), submit), json(post("/api/pas/submit/preview"), submit),
+                json(post("/api/pas/inquire"), inquire), json(post("/api/pas/inquire/preview"), inquire),
+                json(post("/api/pas/subscriptions"), subscription), json(post("/api/pas/subscriptions/preview"), subscription),
+                json(put("/api/pas/subscriptions/{id}", ID), subscription), json(post("/api/pas/subscriptions/{id}/preview", ID), subscription),
+                json(post("/api/pas/notifications/sample"), "{\"scenarioId\":\"pas-20-heartbeat\",\"expectd\":\"HEARTBEAT_RECEIVED\"}"));
+        for (MockHttpServletRequestBuilder call : calls) {
+            mvc.perform(call).andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.kind").value("VALIDATION"))
+                    .andExpect(jsonPath("$.fieldErrors[*].field").value(org.hamcrest.Matchers.hasItem("expectd")));
+        }
+        // Refused before anything was prepared, sent or recorded.
+        assertThat(gateway.intents()).isEmpty();
         assertThat(ledger.records()).isEmpty();
     }
 

@@ -38,8 +38,9 @@ import java.util.List;
  * @param claimResponses     each ClaimResponse it carried, read exactly as a PAS response is read
  * @param otherResources     every other resource it carried
  * @param issues             the issues of an OperationOutcome it carried
- * @param subscriptionRunId  the run that created the subscription, or null when no run of this
- *                           tool did. Null is the unmatched state
+ * @param subscriptionRunId  the run that created the subscription, or null when none was found.
+ *                           Null alone does not say why: the outcome tells a subscription no run
+ *                           of this tool created from a ledger that could not be asked
  * @param correlatedRunId    the submission the notification is about, or null when it could not be
  *                           established
  * @param claimId            the identifier of the claim it is about, when that could be established

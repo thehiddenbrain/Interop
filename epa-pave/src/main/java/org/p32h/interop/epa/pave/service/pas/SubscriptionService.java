@@ -236,7 +236,7 @@ public class SubscriptionService {
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, List.of(), reading.answers(),
                 SubscriptionOutcome.values(), PasCodes.SUBSCRIPTION_ELEMENTS);
         NextStepView nextStep = SubscriptionVerdicts.nextStep(reading, exchange, operation, subscriptionId, followsRunId,
-                !sendsBody || callbackProblem == null);
+                sendsBody ? callbackProblem : null, ownBody);
         // The error panel is for a fault. An id the service does not know is a finding about the
         // id and is presented as an answer, even though it arrived with an error status.
         ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;

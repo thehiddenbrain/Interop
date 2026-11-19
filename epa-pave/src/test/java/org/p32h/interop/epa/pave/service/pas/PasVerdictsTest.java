@@ -265,12 +265,40 @@ class PasVerdictsTest {
                 .noneMatch(line -> line.contains("was sent"));
         assertThat(PasVerdicts.nextStep(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT, RUN).headline())
                 .isEqualTo("Next: check the environment, then send again.");
-        // A service that was never reached received nothing.
-        VendorExchange unreachable = TestExchanges.unavailable(EpaOperation.PAS_SUBMIT);
-        NextStepView down = PasVerdicts.nextStep(mapper.read(unreachable), unreachable, EpaOperation.PAS_SUBMIT, RUN);
-        assertThat(down.reason()).startsWith("The service was not reached, so it received nothing.");
-        assertThat(PasVerdicts.verdict(mapper.read(unreachable), unreachable, EpaOperation.PAS_SUBMIT).supporting())
-                .containsExactly("The connection was refused or could not be opened.");
+    }
+
+    @Test
+    void anUnreachableServiceIsNeverSaidToHaveReceivedNothingBecauseTheConnectionMayHaveFailedAfterItOpened() {
+        // A live submission. "Unreachable" covers a connection that never opened and one that failed
+        // after it opened, and only the first delivered nothing. This tool cannot tell which, so the
+        // tester is told both and is shown how it failed.
+        WireRequest attempted = TestExchanges.unavailable(EpaOperation.PAS_SUBMIT).request();
+        assertThat(attempted.sent()).isTrue();
+        for (String how : List.of("The connection was refused or could not be opened.", "The request could not be completed (IOException).")) {
+            VendorExchange unreachable = Exchanges.unavailable(attempted, 12L, how);
+            PasReading reading = mapper.read(unreachable, sent("95810"));
+            assertThat(reading.outcome()).isEqualTo(PasOutcome.UNREACHABLE);
+            NextStepView careful = PasVerdicts.nextStep(reading, unreachable, EpaOperation.PAS_SUBMIT, RUN);
+            assertThat(careful.action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
+            assertThat(careful.headline()).isEqualTo("Next: check the environment. Send again only when the connection never opened.");
+            assertThat(careful.reason()).isEqualTo("No answer came back, and the verdict says how the connection failed. A connection that "
+                    + "never opened delivered nothing. One that failed after it opened may have delivered the submission, so ask for its "
+                    + "status before sending again.");
+            // The claim id is carried so the status can be asked for.
+            assertThat(careful.carry()).containsEntry(NextStepView.CARRY_CLAIM_ID, List.of("claim-test-1"));
+            // The verdict carries how it failed, and says neither that the submission was sent nor that it was received.
+            assertThat(PasVerdicts.verdict(reading, unreachable, EpaOperation.PAS_SUBMIT).supporting()).containsExactly(how);
+            // An inquiry changes nothing, so it is sent again however the connection failed.
+            NextStepView inquiry = PasVerdicts.nextStep(reading, unreachable, EpaOperation.PAS_INQUIRE, RUN);
+            assertThat(inquiry.headline()).isEqualTo("Next: check the environment, then send again.");
+            assertThat(careful.reason() + inquiry.reason()).doesNotContain("received nothing");
+        }
+        // On the mock profile nothing was attempted, so there is nothing to be careful about.
+        VendorExchange mock = Exchanges.unavailable(new WireRequest("POST", null, "", List.of(), "{}", false, "Mock profile."), 5L,
+                "The connection was refused or could not be opened.");
+        NextStepView down = PasVerdicts.nextStep(mapper.read(mock), mock, EpaOperation.PAS_SUBMIT, RUN);
+        assertThat(down.headline()).isEqualTo("Next: check the environment, then send again.");
+        assertThat(down.reason()).isEqualTo("No answer came back. This is a finding about the environment, not about the member or the code.");
     }
 
     @Test

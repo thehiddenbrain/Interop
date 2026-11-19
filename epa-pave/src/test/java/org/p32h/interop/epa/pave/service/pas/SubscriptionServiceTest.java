@@ -296,13 +296,24 @@ class SubscriptionServiceTest {
         assertThat(ledger.only().findings()).containsExactly("REQUIRED_ELEMENT_MISSING");
         // And the next step is to set it, not to wait for a notification that cannot come.
         assertThat(result.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
-        assertThat(result.nextStep().headline()).contains("onyx.subscription.callback-url");
+        assertThat(result.nextStep().headline()).isEqualTo("Next: set onyx.subscription.callback-url to an address the service can reach, then "
+                + "update this subscription or create another. Until then, follow a request with an inquiry.");
+        assertThat(result.nextStep().reason()).isEqualTo("The subscription was created without a url to call back, so no notification can "
+                + "reach this tool. The setting onyx.subscription.callback-url is blank. Set it to the address at which the service can reach "
+                + "this tool's receiver, which ends in /api/pas/notifications, and send again.");
         assertThat(result.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("No endpoint was sent, so the service has "
                 + "nowhere to call back."));
 
-        // An update that names no receiver says the same.
+        // An update that names no receiver says the same, and is not reported as done with nothing left to do.
         RunEnvelope<SubscriptionDetail> updated = service(mockClient, "mock", Map.of()).run(UPDATE, about(ID).build(), RunOrigin.manual(), null);
+        assertThat(updated.verdict().outcomeCode()).isEqualTo("UPDATED");
         assertThat(updated.findings()).extracting(Finding::kind).containsExactly(FindingKind.REQUIRED_ELEMENT_MISSING);
+        assertThat(updated.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
+        assertThat(updated.nextStep().reason()).startsWith("The subscription was updated without a url to call back, so no notification can "
+                + "reach this tool.");
+        // With a receiver named, a create leads on to a submission and an update is complete.
+        assertThat(run(CREATE, request().build()).nextStep().action()).isEqualTo(NextAction.START_PAS);
+        assertThat(run(UPDATE, about(ID).build()).nextStep().action()).isEqualTo(NextAction.FLOW_ENDS);
         // A read sends no subscription, so it has nothing to say about a receiver.
         assertThat(service(mockClient, "mock", Map.of()).run(GET, about(ID).build(), RunOrigin.manual(), null).findings()).isEmpty();
     }
@@ -523,6 +534,27 @@ class SubscriptionServiceTest {
     // ---- faults, each rendered in full ----
 
     @Test
+    void aWriteThatCouldNotBeCompletedIsNeverSaidToHaveDeliveredNothing() {
+        // As a live client reports it. A connection that never opened and one that failed after it
+        // opened are both "unreachable", and this tool cannot tell which.
+        RunEnvelope<SubscriptionDetail> create = service(stub(TestExchanges.unavailable(CREATE)), "live", WITH_RECEIVER)
+                .run(CREATE, request().build(), RunOrigin.manual(), null);
+        assertThat(create.verdict().outcomeCode()).isEqualTo("UNREACHABLE");
+        assertThat(create.verdict().supporting()).containsExactly("The connection was refused or could not be opened.");
+        assertThat(create.nextStep().action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
+        assertThat(create.nextStep().headline()).isEqualTo("Next: check the environment. Send again only when the connection never opened.");
+        assertThat(create.nextStep().reason()).isEqualTo("No answer came back, and the verdict says how the connection failed. A connection "
+                + "that never opened delivered nothing. One that failed after it opened may have delivered the request, so list the "
+                + "subscriptions before sending again.");
+        // A read changes nothing, so it is sent again however the connection failed.
+        RunEnvelope<SubscriptionDetail> read = service(stub(TestExchanges.unavailable(GET)), "live", WITH_RECEIVER)
+                .run(GET, about(ID).build(), RunOrigin.manual(), null);
+        assertThat(read.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+        assertThat(read.nextStep().reason()).isEqualTo("No answer came back. This is a finding about the environment, not about the "
+                + "subscription.");
+    }
+
+    @Test
     void aRejectionAServerErrorATimeoutAMalformedBodyAndAnEmptyBodyAreEachRenderedInFull() {
         String invalid = "{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"error\",\"code\":\"invalid\",\"diagnostics\":"
                 + "\"Subscription.criteria is not a known topic.\"}],\"vendorRequestId\":\"req-7\"}";
@@ -630,14 +662,29 @@ class SubscriptionServiceTest {
                 .build());
         assertThat(noReceiver.findings()).singleElement().satisfies(finding ->
                 assertThat(finding.detail()).contains("The body you supplied names no channel.endpoint"));
+        // The fix is in the body they wrote. The setting this tool reads its receiver from had no part in it.
+        assertThat(noReceiver.nextStep().action()).isEqualTo(NextAction.FIX_REQUEST);
+        assertThat(noReceiver.nextStep().headline()).isEqualTo("Next: add channel.endpoint to the body you supplied, then update this "
+                + "subscription or create another. Until then, follow a request with an inquiry.");
+        assertThat(noReceiver.nextStep().headline() + noReceiver.nextStep().reason()).doesNotContain("onyx.subscription.callback-url");
+        assertThat(noReceiver.nextStep().reason()).isEqualTo("The subscription was created without a url to call back, so no notification can "
+                + "reach this tool. The body you supplied names no channel.endpoint. Add the address at which the service can reach this "
+                + "tool's receiver, which ends in /api/pas/notifications, and send again.");
 
         RunEnvelope<SubscriptionDetail> notJson = run(UPDATE, about(ID).rawBody("{\"resourceType\": ").build());
         assertThat(notJson.wire().request().body()).isEqualTo("{\"resourceType\": ");
         assertThat(notJson.detail().requestNotes()).singleElement().satisfies(note -> assertThat(note).contains("not valid JSON"));
+        // Whether a body that cannot be read names a receiver is not known, so nothing is claimed either way.
+        assertThat(notJson.findings()).isEmpty();
+        assertThat(notJson.detail().callbackUrl()).isNull();
+        RunEnvelope<SubscriptionDetail> createdFromUnreadable = run(CREATE, request().rawBody("{\"resourceType\": ").build());
+        assertThat(createdFromUnreadable.findings()).isEmpty();
+        assertThat(createdFromUnreadable.nextStep().headline()).isEqualTo("Next: submit a prior authorization request. The service notifies a "
+                + "subscription's receiver when the status of a request changes.");
 
         assertThatThrownBy(() -> run(CREATE, request().rawBody(body).build())).isInstanceOfSatisfying(UnresolvedVariablesException.class,
                 e -> assertThat(e.variables()).containsExactly("receiver"));
-        assertThat(ledger.records()).hasSize(3);
+        assertThat(ledger.records()).hasSize(4);
     }
 
     // ---- the hand-off, a failure of the tool, the log ----
