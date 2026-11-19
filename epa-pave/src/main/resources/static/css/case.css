@@ -318,6 +318,13 @@
 
 /* ---------- a request of the tester's own ---------- */
 
+/* The label sits above the two choices: beside them, in this narrow pane, it would wrap word by word. */
+.field--inline.own__choice {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+}
+
 .own__choice > div {
     display: flex;
     flex-wrap: wrap;
