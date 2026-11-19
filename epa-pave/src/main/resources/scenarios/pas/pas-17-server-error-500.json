@@ -1,0 +1,29 @@
+{
+  "id": "pas-17-server-error-500",
+  "number": 17,
+  "label": "The service fails with HTTP 500",
+  "description": "The service fails while handling the submission and answers HTTP 500 with an OperationOutcome.",
+  "sentinelMemberId": "P32H-PAS-ERR500",
+  "behavior": "respond",
+  "httpStatus": 500,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "SERVICE_ERROR",
+    "errorType": "SERVER_ERROR",
+    "httpStatus": 500
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "fatal",
+        "code": "exception",
+        "details": {
+          "text": "The service failed while processing the request."
+        },
+        "diagnostics": "An unexpected condition prevented the request from being processed."
+      }
+    ]
+  }
+}

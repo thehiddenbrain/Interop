@@ -1,0 +1,76 @@
+{
+  "id": "pas-19-subscription-not-found",
+  "number": 19,
+  "label": "A subscription the service does not know",
+  "description": "A read, an update and a delete of a subscription id the service does not know. This is a finding about the id, not about the environment.",
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "assumption": "How the live service answers for an unknown subscription id is not known. This file models an HTTP 404 carrying a FHIR OperationOutcome whose issue code is not-found.",
+  "steps": {
+    "subscription-read": {
+      "httpStatus": 404,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "NOT_FOUND",
+        "errorType": "BAD_REQUEST",
+        "httpStatus": 404
+      },
+      "response": {
+        "resourceType": "OperationOutcome",
+        "issue": [
+          {
+            "severity": "error",
+            "code": "not-found",
+            "details": {
+              "text": "No subscription has this id."
+            },
+            "diagnostics": "Subscription/subscription-placeholder-0001 is not known."
+          }
+        ]
+      }
+    },
+    "subscription-update": {
+      "httpStatus": 404,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "NOT_FOUND",
+        "errorType": "BAD_REQUEST",
+        "httpStatus": 404
+      },
+      "response": {
+        "resourceType": "OperationOutcome",
+        "issue": [
+          {
+            "severity": "error",
+            "code": "not-found",
+            "details": {
+              "text": "No subscription has this id."
+            },
+            "diagnostics": "Subscription/subscription-placeholder-0001 is not known."
+          }
+        ]
+      }
+    },
+    "subscription-delete": {
+      "httpStatus": 404,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "NOT_FOUND",
+        "errorType": "BAD_REQUEST",
+        "httpStatus": 404
+      },
+      "response": {
+        "resourceType": "OperationOutcome",
+        "issue": [
+          {
+            "severity": "error",
+            "code": "not-found",
+            "details": {
+              "text": "No subscription has this id."
+            },
+            "diagnostics": "Subscription/subscription-placeholder-0001 is not known."
+          }
+        ]
+      }
+    }
+  }
+}

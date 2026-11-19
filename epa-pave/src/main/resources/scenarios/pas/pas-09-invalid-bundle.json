@@ -1,0 +1,32 @@
+{
+  "id": "pas-09-invalid-bundle",
+  "number": 9,
+  "label": "Invalid bundle rejected with an OperationOutcome",
+  "description": "The service refuses the bundle as not valid and answers HTTP 400 with an OperationOutcome that names the element at fault.",
+  "sentinelMemberId": "P32H-PAS-BAD400",
+  "behavior": "respond",
+  "httpStatus": 400,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "REJECTED",
+    "errorType": "BAD_REQUEST",
+    "httpStatus": 400
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "invalid",
+        "details": {
+          "text": "The bundle is not a valid prior authorization request."
+        },
+        "diagnostics": "Claim.insurance: at least one is required, and none was found.",
+        "expression": [
+          "Bundle.entry[0].resource.insurance"
+        ]
+      }
+    ]
+  }
+}
