@@ -1,0 +1,29 @@
+{
+  "id": "dtr-05-package-error-500",
+  "number": 5,
+  "label": "Package fails to load, HTTP 500",
+  "description": "The service fails while putting the questionnaire package together and says so in an OperationOutcome. This is a finding about the environment, not about the member or the order.",
+  "sentinelMemberId": "P32H-DTR-ERR500",
+  "behavior": "respond",
+  "httpStatus": 500,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "SERVICE_ERROR",
+    "errorType": "SERVER_ERROR",
+    "httpStatus": 500
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "exception",
+        "details": {
+          "text": "The questionnaire package could not be assembled."
+        },
+        "diagnostics": "The questionnaire package could not be assembled."
+      }
+    ]
+  }
+}

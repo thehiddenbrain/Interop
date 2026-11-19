@@ -1,0 +1,182 @@
+{
+  "id": "dtr-13-two-questionnaires",
+  "number": 13,
+  "label": "Package with two questionnaires, as a Bundle",
+  "description": "The package arrives as a Bundle, not as Parameters, and holds two conventional questionnaires. Both are listed and each is answered by itself. The second has a question that is enabled only when two conditions both hold.",
+  "sentinelMemberId": "P32H-DTR-TWO",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "PACKAGE_LOADED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "questionnaires": "2",
+      "questionnaire-kind": "static"
+    }
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
+  "assumption": "Whether the live service returns a package as Parameters or as a Bundle is not confirmed. The other scenario files model Parameters. This one models a Bundle of type collection that holds the questionnaires directly.",
+  "responses": [
+    {
+      "name": "the first questionnaire answered in full",
+      "questionnaire": 1,
+      "answers": [
+        {
+          "linkId": "card-1",
+          "values": [
+            "true"
+          ]
+        },
+        {
+          "linkId": "card-2",
+          "values": [
+            "55"
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "RESPONSE_COMPLETED",
+        "codes": {
+          "response-status": "completed",
+          "questions": "2",
+          "answered": "2",
+          "required-unanswered": "0"
+        }
+      }
+    },
+    {
+      "name": "the second questionnaire with both conditions met and the follow-up left unanswered",
+      "questionnaire": 2,
+      "answers": [
+        {
+          "linkId": "msk-1",
+          "values": [
+            "true"
+          ]
+        },
+        {
+          "linkId": "msk-2",
+          "values": [
+            "12"
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "REQUIRED_UNANSWERED",
+        "unanswered": [
+          "msk-3"
+        ],
+        "codes": {
+          "response-status": "in-progress",
+          "questions": "3",
+          "answered": "2",
+          "required-unanswered": "1"
+        }
+      }
+    },
+    {
+      "name": "the second questionnaire with only one of the two conditions met",
+      "questionnaire": 2,
+      "answers": [
+        {
+          "linkId": "msk-1",
+          "values": [
+            "true"
+          ]
+        },
+        {
+          "linkId": "msk-2",
+          "values": [
+            "4"
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "RESPONSE_COMPLETED",
+        "codes": {
+          "response-status": "completed",
+          "questions": "3",
+          "answered": "2",
+          "required-unanswered": "0"
+        }
+      }
+    }
+  ],
+  "response": {
+    "resourceType": "Bundle",
+    "type": "collection",
+    "entry": [
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/cardiology-criteria",
+        "resource": {
+          "resourceType": "Questionnaire",
+          "id": "cardiology-criteria",
+          "url": "https://example.org/p32h-placeholder/Questionnaire/cardiology-criteria",
+          "version": "1.0.0",
+          "title": "Cardiology criteria (placeholder)",
+          "status": "active",
+          "item": [
+            {
+              "linkId": "card-1",
+              "text": "Has the member had an echocardiogram in the past 6 months?",
+              "type": "boolean",
+              "required": true
+            },
+            {
+              "linkId": "card-2",
+              "text": "Most recent ejection fraction, in percent",
+              "type": "decimal",
+              "required": true
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/musculoskeletal-criteria",
+        "resource": {
+          "resourceType": "Questionnaire",
+          "id": "musculoskeletal-criteria",
+          "url": "https://example.org/p32h-placeholder/Questionnaire/musculoskeletal-criteria",
+          "version": "1.0.0",
+          "title": "Musculoskeletal criteria (placeholder)",
+          "status": "draft",
+          "item": [
+            {
+              "linkId": "msk-1",
+              "text": "Has the member completed physical therapy?",
+              "type": "boolean",
+              "required": true
+            },
+            {
+              "linkId": "msk-2",
+              "text": "Weeks of physical therapy completed",
+              "type": "integer",
+              "required": true
+            },
+            {
+              "linkId": "msk-3",
+              "text": "Describe the response to physical therapy",
+              "type": "text",
+              "required": true,
+              "enableBehavior": "all",
+              "enableWhen": [
+                {
+                  "question": "msk-1",
+                  "operator": "=",
+                  "answerBoolean": true
+                },
+                {
+                  "question": "msk-2",
+                  "operator": ">=",
+                  "answerInteger": 6
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

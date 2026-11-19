@@ -1,0 +1,14 @@
+{
+  "id": "dtr-12-timeout",
+  "number": 12,
+  "label": "No response inside the read timeout",
+  "description": "The service accepts the request and does not answer inside the read timeout. The mock reports the timeout after this file's delay and does not wait for the full configured timeout.",
+  "sentinelMemberId": "P32H-DTR-TIMEOUT",
+  "behavior": "timeout",
+  "delayMillis": 400,
+  "expect": {
+    "outcome": "TIMEOUT",
+    "errorType": "TIMEOUT"
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service."
+}

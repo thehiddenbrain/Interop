@@ -1,0 +1,43 @@
+{
+  "id": "dtr-07-no-questionnaire",
+  "number": 7,
+  "label": "Package returns with no questionnaire in it",
+  "description": "The service answers successfully and the package holds a library but no questionnaire. It has said nothing about what documentation is wanted: this is not the same as answering that none is.",
+  "sentinelMemberId": "P32H-DTR-EMPTY",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "NO_QUESTIONNAIRE",
+    "errorType": "NONE",
+    "httpStatus": 200
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
+  "assumption": "How the live service answers when it has no questionnaire for an order is not known. This file models a successful answer whose package bundle holds a library and no questionnaire.",
+  "response": {
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "PackageBundle",
+        "resource": {
+          "resourceType": "Bundle",
+          "type": "collection",
+          "entry": [
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/Library/shared-prepopulation",
+              "resource": {
+                "resourceType": "Library",
+                "id": "shared-prepopulation",
+                "url": "https://example.org/p32h-placeholder/Library/shared-prepopulation",
+                "version": "1.0.0",
+                "name": "SharedPrepopulation",
+                "title": "Shared pre-population logic (placeholder)",
+                "status": "active"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

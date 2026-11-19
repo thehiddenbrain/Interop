@@ -1,0 +1,32 @@
+{
+  "id": "dtr-11-bad-request-400",
+  "number": 11,
+  "label": "Onyx rejects with HTTP 400",
+  "description": "The service rejects the request as invalid and says why in an OperationOutcome.",
+  "sentinelMemberId": "P32H-DTR-BAD400",
+  "behavior": "respond",
+  "httpStatus": 400,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "REJECTED",
+    "errorType": "BAD_REQUEST",
+    "httpStatus": 400
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "invalid",
+        "details": {
+          "text": "The request names no order this service can find a questionnaire for."
+        },
+        "diagnostics": "The request names no order this service can find a questionnaire for.",
+        "expression": [
+          "Parameters.parameter[1]"
+        ]
+      }
+    ]
+  }
+}

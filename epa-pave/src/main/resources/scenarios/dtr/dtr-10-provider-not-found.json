@@ -1,0 +1,34 @@
+{
+  "id": "dtr-10-provider-not-found",
+  "number": 10,
+  "label": "Provider not found",
+  "description": "The service does not recognise the ordering provider. Selected by the sentinel NPI as well as by the sentinel member ID, so the provider CRD scenario 9 uses gets the same answer here.",
+  "sentinelMemberId": "P32H-DTR-NOPROV",
+  "sentinelNpi": "9999999995",
+  "behavior": "respond",
+  "httpStatus": 404,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "PROVIDER_NOT_FOUND",
+    "errorType": "BAD_REQUEST",
+    "httpStatus": 404
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
+  "assumption": "How the live service signals an unknown provider is not known. This file models an HTTP 404 carrying a FHIR OperationOutcome whose issue code is not-found and whose expression names the PractitionerRole.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "not-found",
+        "details": {
+          "text": "No provider matches the NPI supplied."
+        },
+        "diagnostics": "No provider matches the NPI supplied.",
+        "expression": [
+          "PractitionerRole.practitioner"
+        ]
+      }
+    ]
+  }
+}

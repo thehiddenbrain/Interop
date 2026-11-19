@@ -1,0 +1,33 @@
+{
+  "id": "dtr-09-member-not-found",
+  "number": 9,
+  "label": "Member not found",
+  "description": "The service does not recognise the member the coverage names. This is a finding about the test data, not about the environment.",
+  "sentinelMemberId": "P32H-DTR-NOMEM",
+  "behavior": "respond",
+  "httpStatus": 404,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "MEMBER_NOT_FOUND",
+    "errorType": "BAD_REQUEST",
+    "httpStatus": 404
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
+  "assumption": "How the live service signals an unknown member is not known. This file models an HTTP 404 carrying a FHIR OperationOutcome whose issue code is not-found and whose expression names the beneficiary of the coverage.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "not-found",
+        "details": {
+          "text": "No member matches the coverage supplied."
+        },
+        "diagnostics": "No member matches the coverage supplied.",
+        "expression": [
+          "Coverage.beneficiary"
+        ]
+      }
+    ]
+  }
+}

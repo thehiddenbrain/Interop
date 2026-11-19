@@ -1,0 +1,58 @@
+{
+  "id": "dtr-06-malformed-package",
+  "number": 6,
+  "label": "Package returns but is malformed",
+  "description": "The service answers successfully with a package whose questionnaire cannot be used: one question has no linkId and two questions share one, so an answer could not be tied to its question. The body is valid JSON and is shown in full.",
+  "sentinelMemberId": "P32H-DTR-MALFORMED",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "MALFORMED_QUESTIONNAIRE",
+    "errorType": "NONE",
+    "httpStatus": 200
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "PackageBundle",
+        "resource": {
+          "resourceType": "Bundle",
+          "type": "collection",
+          "entry": [
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/malformed-criteria",
+              "resource": {
+                "resourceType": "Questionnaire",
+                "id": "malformed-criteria",
+                "url": "https://example.org/p32h-placeholder/Questionnaire/malformed-criteria",
+                "version": "0.1.0",
+                "title": "Malformed criteria (placeholder)",
+                "status": "active",
+                "item": [
+                  {
+                    "text": "A question that carries no linkId",
+                    "type": "boolean",
+                    "required": true
+                  },
+                  {
+                    "linkId": "dup-1",
+                    "text": "The first of two questions that share a linkId",
+                    "type": "string"
+                  },
+                  {
+                    "linkId": "dup-1",
+                    "text": "The second of two questions that share a linkId",
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
