@@ -1117,6 +1117,8 @@ class DtrServiceTest {
         assertThat(firstRecord.memberId()).isNull();
         assertThat(firstRecord.procedureCodes()).isEmpty();
         assertThat(firstRecord.correlation()).containsOnly(Map.entry(RunRecord.CORR_QUESTIONNAIRE, MRI));
+        // Nothing was handed on, and the line still cannot rebuild the request: the questionnaire it sent is not on it.
+        assertThat(firstRecord.unrecordedInputs()).containsExactly(RunRecord.INPUT_PRIOR_STEP);
         // It was handed no run, so it hands on its own, and the step after it is linked to that.
         assertThat(first.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(first.runId());
 
@@ -1541,6 +1543,8 @@ class DtrServiceTest {
         assertThat(result.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(result.runId());
         assertThat(ledger.only().correlation()).doesNotContainKey(RunRecord.CORR_RUN_ID);
         assertThat(ledger.only().memberId()).isNull();
+        // The questionnaire and the answers are not on the line, whether or not anything was handed on.
+        assertThat(ledger.only().unrecordedInputs()).containsExactly(RunRecord.INPUT_PRIOR_STEP);
     }
 
     @Test
