@@ -35,7 +35,7 @@ import {createRunValues} from './run-values.js';
  * Builds the two panes into a tab panel.
  *
  * spec: formLabel and readoutLabel (for assistive technology), onSubmit (called when the form is
- * submitted, by its button or by Enter in a field).
+ * submitted by its send button; Enter in a field does not submit it).
  */
 export function createWorkbench(app, panel, spec) {
     let busy = false;
@@ -73,6 +73,16 @@ export function createWorkbench(app, panel, spec) {
     form.addEventListener('submit', event => {
         event.preventDefault();
         spec.onSubmit();
+    });
+    // Enter in a field of the form never sends the run. A browser submits a form when Enter is
+    // pressed in one of its inputs, and a tester who presses it after typing a member ID or a date
+    // expects that field to be done with, not a request sent and recorded. The send button is the
+    // one way to send. A field that gives Enter a meaning of its own (an identifier looks itself
+    // up, the code picker adds a code) handles the key before it reaches the form.
+    form.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
+            event.preventDefault();
+        }
     });
     form.addEventListener('input', event => {
         // A field that was refused is unmarked as soon as the tester changes it.

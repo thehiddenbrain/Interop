@@ -143,9 +143,18 @@
     display: none;
 }
 
-/* The panel takes the focus when it opens, so that it is read. It is not a control, and shows no ring. */
+/*
+ * The panel takes the focus when it opens, so that it is read. Opened from the keyboard it wears
+ * the ring every focused thing wears, a little outside its edge so it does not touch the text; a
+ * click opens it without one.
+ */
 .case-detail .panel:focus {
     outline: none;
+}
+
+.case-detail .panel:focus-visible {
+    outline: 3px solid var(--ink-strong);
+    outline-offset: 6px;
 }
 
 /* ---------- the procedure code picker ---------- */

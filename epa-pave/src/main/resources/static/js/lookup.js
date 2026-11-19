@@ -70,12 +70,15 @@ export function idForms(forms) {
  *                   null when it gave none (the lookup was refused, or the tool did not answer)
  * spec.panelChanged(section)   called when the panel is opened, with what it now shows, and
  *                   with null when it is put away, so the page can bring it into view or close the gap
+ * spec.ended(strip) called when a lookup has ended and the strip says how, so the page can bring
+ *                   the strip into view without moving the focus
  */
 export function createLookup(spec) {
     let latest = 0;        // counts lookups, so an answer that arrives after a newer question is dropped
     let held = null;       // {id, answer}: the lookup on screen, or null
     let pending = null;    // the identifier being looked up now, or null
     let before = null;     // a sentence saying the lookup on screen was made under an earlier configuration, or null
+    let opener = null;     // the control that opened the panel, which takes the focus back when the panel is closed
 
     const control = button('Look up ' + spec.subject, () => lookUp(true), {class: 'button--quiet lookup-action'});
     // The first line is the live region: it says how the lookup ended and nothing else, so a
@@ -100,6 +103,18 @@ export function createLookup(spec) {
     function setPanel(section) {
         fill(panel, section);
         spec.panelChanged(section || null);
+    }
+
+    /**
+     * Closes the panel at the tester's request. The focus goes back to the button that opened it,
+     * or, when the strip has been drawn again since, to the button that looks the identifier up,
+     * so a keyboard user is not sent back to the top of the page.
+     */
+    function closePanel() {
+        const back = opener && opener.isConnected ? opener : control;
+        opener = null;
+        setPanel(null);
+        back.focus();
     }
 
     function forget() {
@@ -139,17 +154,20 @@ export function createLookup(spec) {
             show(null, answer.body.title);
             spec.refused(answer.body.fieldErrors || [], viaButton);
             spec.answered(null);
+            spec.ended(strip);
             return;
         }
         if (answer.kind !== 'ok') {
             // This tool could not answer. That says nothing about the member or the provider.
             show(null, 'The ' + spec.subject + ' lookup could not be made.', errorPanel(answer.body));
             spec.answered(null);
+            spec.ended(strip);
             return;
         }
         held = {id, answer: answer.body};
         draw();
         spec.answered(answer.body);
+        spec.ended(strip);
     }
 
     function draw() {
@@ -201,7 +219,10 @@ export function createLookup(spec) {
         }
         return el('p', {class: 'lookup-strip__returned'},
             counts.length > 0 ? el('span', {class: 'quiet'}, counts.join(', ') + '. ') : null,
-            button('Show what the lookup returned', openPanel, {class: 'button--text'}));
+            button('Show what the lookup returned', event => {
+                opener = event.currentTarget;
+                openPanel();
+            }, {class: 'button--text'}));
     }
 
     function attentionList(sentences) {
@@ -218,7 +239,7 @@ export function createLookup(spec) {
         const section = el('section', {class: 'panel', tabIndex: -1, aria: {label: 'What the ' + spec.subject + ' lookup returned'}},
             el('div', {class: 'panel__head'},
                 heading(2, 'What the ' + spec.subject + ' lookup returned'),
-                button('Close', () => setPanel(null), {class: 'button--quiet button--small'})),
+                button('Close', closePanel, {class: 'button--quiet button--small'})),
             el('p', null, answer.message),
             before ? el('p', {class: 'lookup-strip__before'}, before) : null,
             facts([
@@ -250,6 +271,13 @@ export function createLookup(spec) {
         forget,
         /** The identifier the lookup on screen was made for, or the one being looked up now, or null. */
         id: () => (held ? held.id : pending),
+        /**
+         * The identifier that needs no new lookup when the tester leaves the field: the one being
+         * looked up now, or the one the answer on screen was given for, unless that answer was a
+         * fault. A fault says nothing about the identifier, and its sentence asks the tester to try
+         * again by leaving the field, so leaving it does.
+         */
+        settledId: () => (pending !== null ? pending : held && held.answer.status !== 'FAULT' ? held.id : null),
         /** The answer on screen, or null. */
         answer: () => (held ? held.answer : null),
         /** The sentences a found record still needs a look for. Empty when there are none or nothing was found. */

@@ -174,6 +174,32 @@ export function createCaseContext() {
 }
 
 /**
+ * Brings a node into view inside the pane that scrolls the case, without moving the focus. A
+ * lookup answers after the tester has left the field, often with a sentence below what the pane
+ * shows; it is moved up just far enough to be read, and its top is kept in view when it is taller
+ * than the pane. Only the pane is scrolled: the frame around it stays where it is. Where the case
+ * does not scroll in a pane of its own, on a narrow window, the window is scrolled as little as it can be.
+ */
+export function bringIntoPane(node) {
+    if (!node || node.hidden || !node.isConnected) {
+        return;
+    }
+    const pane = node.closest('.case-pane__scroll');
+    if (!pane || pane.scrollHeight <= pane.clientHeight) {
+        node.scrollIntoView({block: 'nearest'});
+        return;
+    }
+    const box = pane.getBoundingClientRect();
+    const at = node.getBoundingClientRect();
+    const margin = 8;
+    if (at.top < box.top + margin || at.height > box.height - 2 * margin) {
+        pane.scrollTop += at.top - box.top - margin;
+    } else if (at.bottom > box.bottom - margin) {
+        pane.scrollTop += at.bottom - box.bottom + margin;
+    }
+}
+
+/**
  * One identifier with the details that belong to it: the member, or the provider.
  *
  * spec: prefix (how the request names the group), fields, changed, and what the lookup needs:
@@ -208,7 +234,9 @@ function group(spec) {
             }
             spec.changed();
         },
-        panelChanged: spec.panelChanged
+        panelChanged: spec.panelChanged,
+        // The whole field is brought into view: under the strip, a refusal puts its sentence at the field too.
+        ended: strip => bringIntoPane(strip.closest('.field') || strip)
     });
 
     for (const field of spec.fields) {
@@ -234,8 +262,16 @@ function group(spec) {
             control.input.addEventListener('blur', event => {
                 const pressed = pressing && event.relatedTarget === lookup.control;
                 pressing = false;
-                if (!pressed && control.value() !== '' && control.value() !== lookup.id()) {
+                if (!pressed && control.value() !== '' && control.value() !== lookup.settledId()) {
                     lookup.lookUp(false);
+                }
+            });
+            // Enter in the identifier looks it up, as the button beside it does. It never sends the
+            // run: a tester who presses Enter here expects the lookup, and the send button is the one way to send.
+            control.input.addEventListener('keydown', event => {
+                if (event.key === 'Enter' && !event.isComposing) {
+                    event.preventDefault();
+                    lookup.lookUp(true);
                 }
             });
             continue;
