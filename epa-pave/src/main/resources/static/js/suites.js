@@ -130,7 +130,8 @@ export function createSuites(app) {
                 ['What they run', kinds.length > 0
                     ? el('ul', {class: 'plain-list'}, kinds.map(kind => el('li', null, count(kind.count) + ' x ' + kind.what))) : null],
                 ['Declare an expected outcome', count(seen.withExpectation) + ' of ' + count(seen.total)],
-                ['Writes', seen.writeNote ? seen.writeNote : count(seen.writes)],
+                // The server says in a sentence what happens to writes when there are any. With none it sends the count alone.
+                ['Writes', seen.writeNote ? seen.writeNote : count(seen.writes) + (seen.writes === 1 ? ' case' : ' cases')],
                 ['Columns read', columns.length > 0 ? columns.map((name, index) => [index > 0 ? ', ' : null, code(name)]) : null]
             ], 'facts--ruled'),
             rowProblems.length > 0 ? el('div', null,

@@ -76,18 +76,31 @@ function verdictStrip(envelope) {
 /* ---------- 2. the test result ---------- */
 
 function testResult(expectation) {
-    const declared = expectation.expectedLabel || expectation.expected;
-    const typedDiffers = expectation.expected && expectation.expected !== expectation.expectedLabel;
     return el('div', {class: 'testresult'},
         el('h3', {class: 'testresult__title'}, 'Test result'),
         stamp(expectation.result, 'large'),
         facts([
-            ['Expected', declared
-                ? [declared, typedDiffers ? el('div', {class: 'small'}, code(expectation.expected)) : null]
-                : el('span', {class: 'presence presence--none', title: 'No expectation was sent with this run.'}, 'nothing declared')],
+            ['Expected', expected(expectation)],
             ['Happened', [expectation.actualLabel, el('div', {class: 'small'}, code(expectation.actual))]]
         ]),
         el('p', {class: 'testresult__explanation'}, expectation.explanation));
+}
+
+/**
+ * What the tester declared. The server words it when it compared it. When nothing was compared,
+ * or the text could not be read as an expectation, the server sends the typed text back as the
+ * label too: that is literal text, and it is set as literal text, not as a sentence.
+ */
+function expected(expectation) {
+    const typed = expectation.expected;
+    const label = expectation.expectedLabel;
+    if (!typed && !label) {
+        return el('span', {class: 'presence presence--none', title: 'No expectation was sent with this run.'}, 'nothing declared');
+    }
+    if (typed && label && label !== typed) {
+        return [label, el('div', {class: 'small'}, code(typed))];
+    }
+    return typed ? code(typed) : label;
 }
 
 /* ---------- 3 and 4. the next step, the ledger line, and the facts of the run ---------- */
