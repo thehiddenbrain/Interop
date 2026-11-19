@@ -14,13 +14,14 @@ import java.util.List;
  * still a response with no decision.
  *
  * @param foundAt           where in the response the ClaimResponse sat
+ * @param fullUrl           the full url of the bundle entry it came in, when it came in one
  * @param outcome           the ClaimResponse outcome code (queued, complete, error, partial) with
  *                          what the tool knows of it. It says how far processing got, not what was decided
  * @param disposition       the payer's wording, shown and never interpreted
  * @param preAuthRef        the authorization number
  * @param request           the claim this answers, as the response refers to it
  * @param requestIdentifier the identifier of that claim, when the response echoes it
- * @param reviewAction      a review action stated for the response as a whole, or null
+ * @param reviewActions     each review action stated for the response as a whole. Normally none or one
  * @param decision          what this ClaimResponse establishes across all its decisions
  * @param decisions         one decision for each requested item, or one for the whole request
  *                          when its items are not known
@@ -30,10 +31,15 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ClaimResponseView(
         String foundAt,
+        Shown fullUrl,
         Shown id,
         Shown status,
+        Shown type,
         Shown use,
+        Shown patient,
         Shown created,
+        Shown insurer,
+        Shown requestor,
         CodedValue outcome,
         Shown disposition,
         Shown preAuthRef,
@@ -42,7 +48,7 @@ public record ClaimResponseView(
         Shown request,
         Shown requestIdentifier,
         List<Shown> identifiers,
-        ReviewActionView reviewAction,
+        List<ReviewActionView> reviewActions,
         PasOutcome decision,
         List<PasDecision> decisions,
         List<PasItemView> items,
@@ -53,6 +59,7 @@ public record ClaimResponseView(
 
     public ClaimResponseView {
         identifiers = identifiers == null ? List.of() : List.copyOf(identifiers);
+        reviewActions = reviewActions == null ? List.of() : List.copyOf(reviewActions);
         decisions = decisions == null ? List.of() : List.copyOf(decisions);
         items = items == null ? List.of() : List.copyOf(items);
         errors = errors == null ? List.of() : List.copyOf(errors);
@@ -69,6 +76,11 @@ public record ClaimResponseView(
     /** True when the response refers to a request for documentation that is not shown to be closed. */
     public boolean documentationWanted() {
         return attachments.stream().anyMatch(AttachmentRefView::open);
+    }
+
+    /** True when the response reports errors, by listing them or by its outcome code. */
+    public boolean errorsReported() {
+        return !errors.isEmpty() || outcome.is("error");
     }
 
     /** Prints where it sat and what it decided. It holds an authorization number and the payer's wording. */

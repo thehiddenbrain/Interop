@@ -20,6 +20,7 @@ import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VendorSignal;
 import org.p32h.interop.epa.pave.service.config.TestPreparedCalls;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.pas.PasJson;
 import org.p32h.interop.epa.pave.service.scenario.Scenario;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import tools.jackson.databind.JsonNode;
@@ -36,16 +37,8 @@ class PasScenarioFilesTest {
     private final MockOnyxPasClient pas = new MockOnyxPasClient(scenarios, new MockExchanges(APP));
     private final MockSubscriptionClient subscriptions = new MockSubscriptionClient(scenarios, new MockExchanges(APP));
 
-    /** A request bundle carrying a claim with the given identifier and one item for each code. */
-    static String request(String claimId, String... procedureCodes) {
-        StringBuilder items = new StringBuilder();
-        for (int i = 0; i < procedureCodes.length; i++) {
-            items.append(i == 0 ? "" : ",").append("{\"sequence\":").append(i + 1)
-                    .append(",\"productOrService\":{\"coding\":[{\"code\":\"").append(procedureCodes[i]).append("\"}]}}");
-        }
-        String identifier = claimId == null ? "" : "\"identifier\":[{\"value\":\"" + claimId + "\"}],";
-        return "{\"resourceType\":\"Bundle\",\"type\":\"collection\",\"entry\":[{\"resource\":{\"resourceType\":\"Claim\",\"id\":\"claim-1\","
-                + identifier + "\"use\":\"preauthorization\",\"item\":[" + items + "]}}]}";
+    private static String request(String claimId, String... procedureCodes) {
+        return PasJson.request(claimId, procedureCodes);
     }
 
     private VendorExchange submit(String scenarioId, String memberId, String body) {

@@ -1,0 +1,359 @@
+package org.p32h.interop.epa.pave.service.pas;
+
+import org.p32h.interop.epa.pave.model.DeterminationRow;
+import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.NextAction;
+import org.p32h.interop.epa.pave.model.NextStepView;
+import org.p32h.interop.epa.pave.model.Presence;
+import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.VerdictView;
+import org.p32h.interop.epa.pave.model.crd.CodedValue;
+import org.p32h.interop.epa.pave.model.pas.AttachmentRefView;
+import org.p32h.interop.epa.pave.model.pas.ClaimResponseView;
+import org.p32h.interop.epa.pave.model.pas.DecisionSource;
+import org.p32h.interop.epa.pave.model.pas.PasDecision;
+import org.p32h.interop.epa.pave.model.pas.PasOutcome;
+import org.p32h.interop.epa.pave.model.pas.PasResponseKind;
+import org.p32h.interop.epa.pave.service.run.RunSupport;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Says what a PAS result means in plain language, what the tester should do next, and lays out
+ * the determination grid.
+ *
+ * <p>The sentences are built from the outcome and the review action codes. The payer's own
+ * wording, the disposition above all, is shown elsewhere on the result and is never quoted or
+ * interpreted here, so the answer at the top of the screen cannot change because a payer reworded
+ * a sentence.
+ */
+public final class PasVerdicts {
+
+    private PasVerdicts() {
+    }
+
+    public static VerdictView verdict(PasReading reading, VendorExchange exchange, EpaOperation operation) {
+        PasOutcome outcome = reading.outcome();
+        List<ClaimResponseView> responses = reading.detail().claimResponses();
+        List<PasDecision> decisions = reading.decisions();
+        List<String> supporting = new ArrayList<>();
+        // First, so a canned answer is never mistaken for an answer about the member and code on the form.
+        String scenario = RunSupport.scenarioLine(exchange);
+        if (scenario != null) {
+            supporting.add(scenario);
+        }
+        // A switch expression with no default: adding an outcome without wording it here does not compile.
+        String headline = switch (outcome) {
+            case APPROVED -> "The prior authorization is approved.";
+            case APPROVED_WITH_CHANGES -> {
+                supporting.add("The payer approved the request and changed part of what was asked for. Read each item below.");
+                yield "The prior authorization is approved with changes.";
+            }
+            case PARTIALLY_APPROVED -> {
+                supporting.addAll(each(decisions));
+                yield "The prior authorization is partially approved.";
+            }
+            case DENIED -> "The prior authorization is denied.";
+            case PENDED -> {
+                supporting.add("There is no final decision yet. This is not an approval and not a denial.");
+                yield "The prior authorization is pended.";
+            }
+            case ATTACHMENT_REQUIRED -> {
+                long open = responses.stream().flatMap(r -> r.attachments().stream()).filter(AttachmentRefView::open).count();
+                supporting.add("The response refers to " + open + (open == 1 ? " request" : " requests") + " for documentation. What is "
+                        + "asked for is shown below, in the payer's own words.");
+                yield "The payer needs more documentation before it will decide.";
+            }
+            case CONTACT_PAYER -> "The payer asks to be contacted about this request.";
+            case CANCELLED -> "The authorization request is cancelled.";
+            case NO_ACTION_REQUIRED -> "The payer answered that no action is required for this request.";
+            case MIXED -> {
+                supporting.addAll(each(decisions));
+                yield "The items in this request did not all receive the same decision.";
+            }
+            case UNRECOGNISED_CODE -> {
+                for (PasDecision decision : decisions) {
+                    for (CodedValue code : decision.reviewActions()) {
+                        if (code.code() != null && !code.recognised()) {
+                            supporting.add(prefix(decision, reading.several()) + code.display() + ".");
+                        }
+                    }
+                }
+                yield "The service returned a decision code this tool does not recognise.";
+            }
+            case REQUEST_ERRORS -> {
+                long errors = responses.stream().mapToLong(r -> r.errors().size()).sum();
+                supporting.add(errors == 0 ? "The response has the outcome code error and lists no error."
+                        : "The response reports " + errors + (errors == 1 ? " error" : " errors") + ". Each is listed below with its code "
+                        + "and the element it points at.");
+                yield "The payer returned errors and no decision.";
+            }
+            case NO_DECISION -> {
+                supporting.add("This is not an approval, and it is not a denial or a pended request either. "
+                        + (responses.isEmpty() ? "The response carries no ClaimResponse at all."
+                        : "The response carries no review action, so the payer has stated no decision."));
+                if (responses.stream().anyMatch(r -> r.disposition().hasValue())) {
+                    supporting.add("The response does carry wording from the payer. This tool reads codes and never wording: it is "
+                            + "shown below as it came.");
+                }
+                yield responses.isEmpty() ? "The service answered without a ClaimResponse, so there is no decision."
+                        : "The service answered but returned no decision.";
+            }
+            case MEMBER_NOT_FOUND -> {
+                supporting.add("This is a finding about the test data, not about the environment.");
+                yield "The service does not recognise this member.";
+            }
+            case PROVIDER_NOT_FOUND -> {
+                supporting.add("This is a finding about the test data, not about the environment.");
+                yield "The service does not recognise this provider.";
+            }
+            case AUTHORIZATION_NOT_FOUND -> {
+                supporting.add("This is a finding about the claim id that was asked about, not about the environment.");
+                yield "The service does not recognise this authorization request.";
+            }
+            case REJECTED -> "The service did not accept the request as sent" + status(exchange) + ".";
+            case SERVICE_ERROR -> "The service failed" + status(exchange) + ".";
+            case TIMEOUT -> "The service did not answer in time.";
+            case UNREACHABLE -> "The service could not be reached.";
+            case MALFORMED_RESPONSE -> reading.detail().responseKind() == PasResponseKind.NO_BODY
+                    ? "The service answered with no body" + status(exchange) + "."
+                    : "The service answered with a body that could not be read" + status(exchange) + ".";
+        };
+        if (outcome.fault()) {
+            if (Texts.present(exchange.failureDetail())) {
+                supporting.add(exchange.failureDetail());
+            }
+            if (mayHaveBeenReceived(outcome, exchange, operation)) {
+                supporting.add("The submission was sent. Whether the payer received and kept it is not known.");
+            }
+        } else {
+            supporting.addAll(facets(reading));
+        }
+        return VerdictView.of(outcome, headline, List.copyOf(new LinkedHashSet<>(supporting)));
+    }
+
+    /** What the response says beyond the headline: who the decision covers, the authorization number and its period. */
+    private static List<String> facets(PasReading reading) {
+        List<String> out = new ArrayList<>();
+        PasOutcome outcome = reading.outcome();
+        List<PasDecision> decisions = reading.decisions();
+        boolean listed = outcome == PasOutcome.PARTIALLY_APPROVED || outcome == PasOutcome.MIXED;
+        if (reading.several() && !listed && decisions.stream().allMatch(d -> d.outcome() == outcome)) {
+            out.add("This is the decision for each of: " + String.join(", ", decisions.stream().map(PasDecision::subject).distinct().toList()) + ".");
+        }
+        // Worth saying only where the result names items: a decision each of them shows was not stated for it alone.
+        if (decisions.stream().anyMatch(d -> d.subject() != null) && decisions.stream().allMatch(d -> d.source() == DecisionSource.RESPONSE)) {
+            out.add("The decision is stated once for the response as a whole, not item by item.");
+        }
+        for (ClaimResponseView response : reading.detail().claimResponses()) {
+            String name = reading.detail().claimResponses().size() > 1 ? response.label() + ": " : "";
+            if (response.preAuthRef().hasValue()) {
+                out.add(name + "Authorization number: " + response.preAuthRef().value() + ".");
+            }
+            if (response.preAuthPeriodStart().hasValue() && response.preAuthPeriodEnd().hasValue()) {
+                out.add(name + "Authorized from " + response.preAuthPeriodStart().value() + " to " + response.preAuthPeriodEnd().value() + ".");
+            } else if (response.preAuthPeriodStart().hasValue()) {
+                out.add(name + "Authorized from " + response.preAuthPeriodStart().value() + ".");
+            } else if (response.preAuthPeriodEnd().hasValue()) {
+                out.add(name + "Authorized until " + response.preAuthPeriodEnd().value() + ".");
+            }
+            if (response.documentationWanted() && outcome != PasOutcome.ATTACHMENT_REQUIRED) {
+                out.add(name + "The response also refers to a request for documentation that is not shown as closed.");
+            }
+            if (outcome != PasOutcome.REQUEST_ERRORS && !response.errors().isEmpty()) {
+                out.add(name + "The response also reports " + response.errors().size() + (response.errors().size() == 1 ? " error" : " errors")
+                        + ", listed below.");
+            }
+        }
+        return out;
+    }
+
+    /** One line for each decision, so no item's decision is read as another's. */
+    private static List<String> each(List<PasDecision> decisions) {
+        List<String> out = new ArrayList<>();
+        for (PasDecision decision : decisions) {
+            String codes = decision.codes().isEmpty() ? "" : " (review action " + String.join(", ", decision.codes()) + ")";
+            out.add((decision.subject() == null ? "The request" : decision.subject()) + ": " + itemPhrase(decision.outcome()) + codes + ".");
+        }
+        return out;
+    }
+
+    /** What one item's decision is called in a line about that item. No default, so a new outcome must be worded. */
+    private static String itemPhrase(PasOutcome outcome) {
+        return switch (outcome) {
+            case APPROVED -> "approved";
+            case APPROVED_WITH_CHANGES -> "approved with changes";
+            case PARTIALLY_APPROVED -> "partially approved";
+            case DENIED -> "denied";
+            case PENDED -> "pended, with no final decision yet";
+            case CONTACT_PAYER -> "the payer asks to be contacted";
+            case CANCELLED -> "cancelled";
+            case NO_ACTION_REQUIRED -> "no action required";
+            case UNRECOGNISED_CODE -> "a decision code this tool does not recognise";
+            case MIXED -> "review actions that disagree with each other";
+            case NO_DECISION -> "no decision was returned for this item. That is not an approval";
+            case ATTACHMENT_REQUIRED, REQUEST_ERRORS, MEMBER_NOT_FOUND, PROVIDER_NOT_FOUND, AUTHORIZATION_NOT_FOUND, REJECTED,
+                    SERVICE_ERROR, TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> lower(outcome.label());
+        };
+    }
+
+    /**
+     * What the tester should do next, tied to what the response said.
+     *
+     * @param followsRunId the run a later step should be linked to: this run for a submission, the
+     *                     submission it asked about for an inquiry. Null when that is not known
+     */
+    public static NextStepView nextStep(PasReading reading, VendorExchange exchange, EpaOperation operation, String followsRunId) {
+        PasOutcome outcome = reading.outcome();
+        // What a status check or a resubmission starts from. Carried whatever the outcome, so a
+        // tester can ask for the status of any submission that has a claim id.
+        Map<String, List<String>> carry = new LinkedHashMap<>();
+        carry.put(NextStepView.CARRY_CLAIM_ID, Texts.present(reading.sent().claimId()) ? List.of(reading.sent().claimId()) : List.of());
+        carry.put(NextStepView.CARRY_RUN_ID, Texts.present(followsRunId) ? List.of(followsRunId) : List.of());
+        carry.put(NextStepView.CARRY_PROCEDURE_CODES, reading.sent().codes());
+
+        return switch (outcome) {
+            case APPROVED, APPROVED_WITH_CHANGES -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+                    "The payer approved the request, so there is nothing further to send.", carry);
+            case PARTIALLY_APPROVED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+                    "The payer gave a final decision on every item: part of the request is approved and part is not.", carry);
+            case DENIED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+                    "The payer denied the request. That is a final decision, and a result to record whether or not it was expected.", carry);
+            case CANCELLED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+                    "The request is cancelled, so there is no decision to wait for.", carry);
+            case NO_ACTION_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+                    "The payer answered that no action is required for this request.", carry);
+            case PENDED -> new NextStepView(NextAction.CHECK_STATUS, "Next: ask for the status with an inquiry, or wait for a notification.",
+                    "The request is pended: the payer has not decided yet.", carry);
+            case ATTACHMENT_REQUIRED -> new NextStepView(NextAction.START_PAS,
+                    "Next: submit the request again with the documentation the payer asked for.",
+                    "The payer will not decide until it has the documentation it refers to.", carry);
+            case CONTACT_PAYER -> new NextStepView(NextAction.REVIEW, "Next: contact the payer about this request. Nothing more can be done "
+                    + "from this tool.", "The payer answered with the review action that asks to be contacted.", carry);
+            case MIXED -> reading.decisions().stream().anyMatch(d -> d.outcome() == PasOutcome.PENDED)
+                    ? new NextStepView(NextAction.CHECK_STATUS, "Next: ask for the status of the items that are still open.",
+                    "At least one item is pended, so the request is not finished.", carry)
+                    : new NextStepView(NextAction.REVIEW, "Next: read the decision for each item below. This tool cannot say what should "
+                    + "happen next.", "The items did not all receive the same decision, so each needs its own next step.", carry);
+            case UNRECOGNISED_CODE -> new NextStepView(NextAction.REVIEW, "Next: read the response detail below. This tool cannot say what "
+                    + "should happen next.", "The response carries a decision code this tool does not know the meaning of.", carry);
+            case NO_DECISION -> new NextStepView(NextAction.REVIEW, "Next: read the response detail below. This tool cannot say what should "
+                    + "happen next.", "The response carries no review action, so it does not say whether the request is approved, pended "
+                    + "or denied.", carry);
+            case REQUEST_ERRORS -> new NextStepView(NextAction.FIX_REQUEST, "Next: read the errors below, correct the request and submit it again.",
+                    "The payer could not process the request as it was sent.", carry);
+            case MEMBER_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the member ID against the test data.",
+                    "The service does not recognise the member. The environment answered normally.", carry);
+            case PROVIDER_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the NPI against the test data.",
+                    "The service does not recognise the provider. The environment answered normally.", carry);
+            case AUTHORIZATION_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA,
+                    "Next: check the claim id against the submission it should belong to.",
+                    "The service does not recognise the request that was asked about. The environment answered normally.", carry);
+            case REJECTED -> notAccepted(exchange, carry);
+            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE -> mayHaveBeenReceived(outcome, exchange, operation)
+                    ? new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then ask for the status before sending again.",
+                    "No usable answer came back, but the submission was sent and may have been received. Sending it again without "
+                            + "checking could create a second request.", carry)
+                    : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                    "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
+            case UNREACHABLE -> new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                    "The service was not reached, so it received nothing. This is a finding about the environment, not about the member "
+                            + "or the code.", carry);
+        };
+    }
+
+    /**
+     * True when a submission really left this machine and no usable answer came back. The payer
+     * may hold the request all the same, which a tester must know before sending it a second time.
+     * Never true on the mock profile, where nothing is sent, nor when the service was not reached.
+     */
+    private static boolean mayHaveBeenReceived(PasOutcome outcome, VendorExchange exchange, EpaOperation operation) {
+        boolean noUsableAnswer = outcome == PasOutcome.TIMEOUT || outcome == PasOutcome.SERVICE_ERROR || outcome == PasOutcome.MALFORMED_RESPONSE;
+        return operation == EpaOperation.PAS_SUBMIT && noUsableAnswer && exchange.request() != null && exchange.request().sent();
+    }
+
+    /**
+     * The next step when the service answered with a 4xx status. The body is not always at fault:
+     * the same outcome covers credentials that were not accepted and an address that does not exist.
+     */
+    private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry) {
+        int status = exchange.httpStatus() == null ? 0 : exchange.httpStatus();
+        if (status == 401 || status == 403) {
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials on the Config tab.",
+                    "The service answered HTTP " + status + ", which means it did not accept the credentials this tool sent, or none "
+                            + "were sent. The request itself may be fine.", carry);
+        }
+        if (status == 404) {
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the PAS url on the Config tab.",
+                    "The service answered HTTP 404 and did not say that the member, the provider or the request is unknown, so the "
+                            + "address is the likely cause.", carry);
+        }
+        return new NextStepView(NextAction.FIX_REQUEST, "Next: read the issues below and correct the request.",
+                "The service did not accept the request as it was sent.", carry);
+    }
+
+    /**
+     * The determination grid: the decision codes and what they mean, one group of rows for each
+     * item. When the response carried no ClaimResponse the two elements that would have answered
+     * are still listed, as not returned, so an empty answer looks different from a decision at a
+     * glance. The same is done for each item that was asked about and has no review action.
+     */
+    public static List<DeterminationRow> determination(PasReading reading) {
+        List<DeterminationRow> rows = new ArrayList<>();
+        List<ClaimResponseView> responses = reading.detail().claimResponses();
+        if (responses.isEmpty()) {
+            rows.add(DeterminationRow.notReturned(null, "Decision", PasCodes.REVIEW_ACTION));
+            rows.add(DeterminationRow.notReturned(null, "Processing status", PasCodes.CLAIM_OUTCOME));
+            return rows;
+        }
+        boolean named = reading.several();
+        for (ClaimResponseView response : responses) {
+            String whole = responses.size() > 1 ? response.label() : null;
+            for (PasDecision decision : response.decisions()) {
+                String subject = named ? decision.subject() : null;
+                if (decision.reviewActions().isEmpty()) {
+                    rows.add(DeterminationRow.notReturned(subject, "Decision", PasCodes.REVIEW_ACTION));
+                }
+                for (CodedValue code : decision.reviewActions()) {
+                    // A decision the item took from the response as a whole says so, so it is not shown as the item's own.
+                    String display = code.display() == null || decision.source() != DecisionSource.RESPONSE || !named ? code.display()
+                            : code.display() + " (stated for the whole response)";
+                    rows.add(new DeterminationRow(subject, "Decision", code.code(), display, PasCodes.REVIEW_ACTION, code.recognised(),
+                            code.presence()));
+                }
+                decision.reasonCodes().forEach(code -> rows.add(new DeterminationRow(subject, "Decision reason", code, null,
+                        PasCodes.REVIEW_REASON, true, Presence.VALUE)));
+                decision.errorCodes().forEach(code -> rows.add(new DeterminationRow(subject, "Error", code, null, PasCodes.ERROR_CODE, true,
+                        Presence.VALUE)));
+            }
+            CodedValue status = response.outcome();
+            rows.add(new DeterminationRow(whole, "Processing status", status.code(), status.display(), PasCodes.CLAIM_OUTCOME,
+                    status.recognised(), status.presence()));
+            if (response.preAuthRef().presence() != Presence.ABSENT) {
+                rows.add(new DeterminationRow(whole, "Authorization number", response.preAuthRef().orNull(), null, "preAuthRef", true,
+                        response.preAuthRef().presence()));
+            }
+            for (AttachmentRefView attachment : response.attachments()) {
+                rows.add(new DeterminationRow(whole, "Documentation request", attachment.status().orNull(),
+                        attachment.open() ? "Not shown as closed" : "Closed", "communicationRequest", true, attachment.status().presence()));
+            }
+        }
+        return rows;
+    }
+
+    private static String prefix(PasDecision decision, boolean named) {
+        return named && decision.subject() != null ? decision.subject() + ": " : "";
+    }
+
+    private static String status(VendorExchange exchange) {
+        return exchange.httpStatus() == null ? "" : " (HTTP " + exchange.httpStatus() + ")";
+    }
+
+    private static String lower(String text) {
+        return text == null || text.isEmpty() ? "" : Character.toLowerCase(text.charAt(0)) + text.substring(1);
+    }
+}

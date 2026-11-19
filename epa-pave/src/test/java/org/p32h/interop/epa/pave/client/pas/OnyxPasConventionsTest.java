@@ -10,6 +10,7 @@ import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VendorSignal;
 import org.p32h.interop.epa.pave.model.WireHeader;
+import org.p32h.interop.epa.pave.service.pas.PasJson;
 import org.p32h.interop.epa.pave.testsupport.TestExchanges;
 
 /**
@@ -199,7 +200,7 @@ class OnyxPasConventionsTest {
 
     @Test
     void theClaimOfARequestBodyIsReadWithItsItemsAndABodyThatHoldsNoneIsUnknown() {
-        SentClaim sent = SentClaim.fromBody(PasScenarioFilesTest.request("claim-test-1", "95810", "E0601"));
+        SentClaim sent = SentClaim.fromBody(PasJson.request("claim-test-1", "95810", "E0601"));
         assertThat(sent.claimId()).isEqualTo("claim-test-1");
         assertThat(sent.items()).containsExactly(new SentClaim.Item(1, "95810"), new SentClaim.Item(2, "E0601"));
         assertThat(sent.codes()).containsExactly("95810", "E0601");

@@ -12,14 +12,18 @@ import java.util.List;
  *
  * @param foundAt     where in the response the review action sat
  * @param code        the review action code with what the tool knows about it. An unknown code is
- *                    kept and shown as "Unrecognised code: X"
+ *                    kept and shown as "Unrecognised code: X". A review action that carries no
+ *                    code at all has the presence EMPTY here, never ABSENT: the review action was
+ *                    sent, it just decides nothing
+ * @param returned    the code element exactly as the payer wrote it, with its code system and its
+ *                    own display
  * @param number      the authorization number the review action carries, when it carries one
  * @param reason      the coded reason for the decision, for display
  * @param reasonCodes the reason code values, for a declared expectation to assert on
  * @param otherParts  every part of the review action without a slot above
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record ReviewActionView(String foundAt, CodedValue code, Shown number, Shown reason, List<String> reasonCodes,
+public record ReviewActionView(String foundAt, CodedValue code, Shown returned, Shown number, Shown reason, List<String> reasonCodes,
                                Shown secondSurgicalOpinionNeeded, List<ExtensionView> otherParts) {
 
     public ReviewActionView {
