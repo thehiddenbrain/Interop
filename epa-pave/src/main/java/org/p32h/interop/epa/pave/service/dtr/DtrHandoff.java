@@ -120,8 +120,18 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
      * done. Empty when every one has, which is when the journey can move on.
      */
     public List<String> stillToAnswer(String completedResponse) {
-        List<String> answered = completedResponses(completedResponse).stream().map(DtrHandoff::answeredBy).toList();
-        return questionnaires.stream().filter(wanted -> answered.stream().noneMatch(canonical -> same(wanted, canonical))).toList();
+        List<String> answered = new ArrayList<>(completedResponses(completedResponse).stream().map(DtrHandoff::answeredBy).toList());
+        List<String> remaining = new ArrayList<>();
+        for (String wanted : questionnaires) {
+            // One response answers one questionnaire. A response that names no version cannot stand for two versions of one url.
+            String by = answered.stream().filter(canonical -> same(wanted, canonical)).findFirst().orElse(null);
+            if (by == null) {
+                remaining.add(wanted);
+            } else {
+                answered.remove(by);
+            }
+        }
+        return remaining;
     }
 
     /**

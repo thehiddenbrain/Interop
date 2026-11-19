@@ -222,14 +222,8 @@ public class DtrService {
         } else {
             DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock());
             body = ResolvedText.plain(built.json());
-            requestNotes.addAll(built.notes());
+            requestNotes.addAll(loopNotes(posted, built));
             sent = built.response();
-            OnyxDtrConventions.Kind kind = OnyxDtrConventions.kind(posted.questionnaire());
-            if (kind.kind() != QuestionnaireKind.ADAPTIVE) {
-                // Sent all the same: what the service makes of it is a test a tester is entitled to run.
-                requestNotes.add("The questionnaire is not marked as adaptive. " + kind.basis() + " The next-question request was sent "
-                        + "all the same.");
-            }
         }
 
         VendorExchange exchange = client.nextQuestion(call, body, selection(request));
@@ -259,18 +253,32 @@ public class DtrService {
     public RequestPreview previewNextQuestion(DtrNextQuestionRequest request, ProdUnlock unlock) {
         DtrAnswers.Posted posted = validateNextQuestion(request);
         EpaOperation operation = EpaOperation.DTR_NEXT_QUESTION;
-        MemberIdForms shown = shownMemberId(request);
         PreparedCall call;
         try {
             call = gateway.prepare(intent(operation, request, unlock));
         } catch (ProdWriteBlockedException refusal) {
-            return RequestPreview.blocked(operation, refusal, shown);
+            return RequestPreview.blocked(operation, refusal, null);
         }
         if (RunSupport.ownBody(request)) {
-            return ownBodyPreview(operation, call, request.rawBody(), shown);
+            return ownBodyPreview(operation, call, request.rawBody(), null);
         }
         DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock());
-        return RequestPreview.of(operation, call, built.json(), built.notes(), shown);
+        return RequestPreview.of(operation, call, built.json(), loopNotes(posted, built), null);
+    }
+
+    /**
+     * What a tester should know about a next-question request this tool built: what the builder
+     * left out or worked out, and whether the questionnaire is one the loop is meant for. A
+     * questionnaire that is not marked adaptive is sent all the same, because what the service
+     * makes of it is a test a tester is entitled to run.
+     */
+    private static List<String> loopNotes(DtrAnswers.Posted posted, DtrRequestBuilder.LoopBody built) {
+        List<String> notes = new ArrayList<>(built.notes());
+        OnyxDtrConventions.Kind kind = OnyxDtrConventions.kind(posted.questionnaire());
+        if (kind.kind() != QuestionnaireKind.ADAPTIVE) {
+            notes.add("The questionnaire is not marked as adaptive. " + kind.basis() + " The next-question request is sent all the same.");
+        }
+        return notes;
     }
 
     // ---- the response, put together inside the tool ----
@@ -381,7 +389,9 @@ public class DtrService {
                 .detail(read.reading().detail().withRequest(requestNotes, bodyBuiltByTool))
                 .findings(read.findings())
                 .additionalFields(read.reading().additionalFields())
-                .wire(exchange.wire(shownMemberId(request)))
+                // A next-question request names the member by a local reference and carries no member ID,
+                // so its wire view does not show one as sent.
+                .wire(exchange.wire(operation == EpaOperation.DTR_QUESTIONNAIRE_PACKAGE ? shownMemberId(request) : null))
                 .error(read.error())
                 .ledger(receipt)
                 .timing(read.timing())

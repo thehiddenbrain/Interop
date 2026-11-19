@@ -1047,6 +1047,10 @@ class DtrServiceTest {
         assertThat(first.wire().request().headers()).extracting(h -> h.name() + ": " + h.value()).contains("Content-Type: application/fhir+json");
         assertThat(first.wire().request().note()).contains("step \"first-question\"");
         assertThat(first.detail().bodyBuiltByTool()).isTrue();
+        // The member is named by the local id of the Patient resource. The member ID is not in the request, and is not shown as sent.
+        assertThat(firstSent.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
+        assertThat(first.wire().request().body()).doesNotContain("P32H-DTR-ADAPT");
+        assertThat(first.wire().memberId()).isNull();
 
         RunEnvelope<DtrDetail> second = next(first, DtrAnswerInput.of("mri-1-therapy", "yes"));
         JsonNode secondSent = JsonSafe.parse(second.wire().request().body()).node();
@@ -1307,8 +1311,10 @@ class DtrServiceTest {
                 .runNextQuestion(following(staticPackage, "P32H-DOC-DTR").build(), RunOrigin.manual(), null);
         assertThat(sent.verdict().outcomeCode()).isEqualTo("REJECTED");
         assertThat(sent.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("The questionnaire is not marked as "
-                + "adaptive. Static, because it declares the standard questionnaire profile").endsWith("The next-question request was sent "
+                + "adaptive. Static, because it declares the standard questionnaire profile").endsWith("The next-question request is sent "
                 + "all the same."));
+        assertThat(service().previewNextQuestion(following(staticPackage, "P32H-DOC-DTR").build(), null).notes())
+                .anySatisfy(note -> assertThat(note).startsWith("The questionnaire is not marked as adaptive."));
     }
 
     @Test
@@ -1351,7 +1357,9 @@ class DtrServiceTest {
         JsonNode body = JsonSafe.parse(preview.body()).node();
         assertThat(body.get("resourceType").asString()).isEqualTo("QuestionnaireResponse");
         assertThat(body.get("status").asString()).isEqualTo("in-progress");
-        assertThat(preview.memberId().sent()).isEqualTo("P32H-DTR-ADAPT");
+        // The request names the member by a local reference and carries no member ID, so none is shown as sent.
+        assertThat(preview.memberId()).isNull();
+        assertThat(preview.body()).doesNotContain("P32H-DTR-ADAPT");
         assertThat(ledger.records()).hasSize(1);
         assertThatThrownBy(() -> service().previewNextQuestion(DtrNextQuestionRequest.builder().build(), null))
                 .isInstanceOf(ValidationException.class);
