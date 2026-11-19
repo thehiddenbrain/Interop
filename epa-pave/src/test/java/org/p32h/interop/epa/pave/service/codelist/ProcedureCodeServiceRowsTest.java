@@ -144,7 +144,7 @@ class ProcedureCodeServiceRowsTest {
         assertThat(service.selfCheck().unrecognisedColumns()).containsExactly("Requires Authorization?");
         assertThat(service.selfCheck().warnings()).containsExactly("No column was recognised as the prior authorization flag, so no row says "
                 + "whether prior authorization is required and nothing can be compared with the service on that point. If the file has "
-                + "such a column, add its header to codelist.columns.auth-required.");
+                + "such a column, name its header under codelist.columns.auth-required.");
     }
 
     // ---- the vendor ----
@@ -169,7 +169,7 @@ class ProcedureCodeServiceRowsTest {
         assertThat(service.selfCheck().namingVendor()).isEqualTo(6);
         assertThat(service.selfCheck().warnings()).containsExactly(
                 "No column was recognised as the prior authorization flag, so no row says whether prior authorization is required and "
-                        + "nothing can be compared with the service on that point. If the file has such a column, add its header to "
+                        + "nothing can be compared with the service on that point. If the file has such a column, name its header under "
                         + "codelist.columns.auth-required.",
                 "The delegated vendor column holds cells that name no vendor: \"-\" (1 row), \"--\" (1 row) and \"?\" (1 row). "
                         + "Those rows are served as naming no vendor.",

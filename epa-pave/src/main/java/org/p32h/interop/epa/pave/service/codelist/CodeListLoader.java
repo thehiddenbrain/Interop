@@ -77,7 +77,8 @@ final class CodeListLoader {
                     + (source.json() ? "Keys" : "Headers") + " found: " + String.join(", ", table.headers().stream().map(CodeListLoader::header).toList())
                     + ". " + (source.json() ? "" : otherDelimiter(table.headers(), source.delimiter())
                     + "The first row of the file that is not blank must be the header row. ")
-                    + "If one of these holds the code, add it to " + CodeListColumn.CODE.setting() + " in application.yml.");
+                    + "If one of these holds the code, name it under " + CodeListColumn.CODE.setting() + " in application.yml. A list set there replaces "
+                    + "the built-in names for the column.");
         }
 
         Rows rows = new Rows(table, columns);
@@ -399,8 +400,8 @@ final class CodeListLoader {
             }
             if (!columns.has(CodeListColumn.AUTH_REQUIRED)) {
                 out.add("No column was recognised as the prior authorization flag, so no row says whether prior authorization is "
-                        + "required and nothing can be compared with the service on that point. If the file has such a column, add "
-                        + "its header to " + CodeListColumn.AUTH_REQUIRED.setting() + ".");
+                        + "required and nothing can be compared with the service on that point. If the file has such a column, name "
+                        + "its header under " + CodeListColumn.AUTH_REQUIRED.setting() + ".");
             }
             if (!noCode.isEmpty()) {
                 out.add(CodeListText.count(noCode.size(), "row has", "rows have") + " no code and " + (noCode.size() == 1 ? "was" : "were")

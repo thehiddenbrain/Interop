@@ -90,6 +90,43 @@ class ProcedureCodeServiceLoadingTest {
     }
 
     @Test
+    void anExportAsASpreadsheetSavesItLoadsWithNothingToReport() {
+        // "CSV UTF-8" from a spreadsheet: a byte order mark, CRLF between rows, quotes only where a
+        // cell needs them, dates as the spreadsheet shows them, empty columns to the right of the
+        // data, and empty rows below it.
+        String export = "\uFEFFProcedure Code,Code Description,Code Type,Prior Auth Required,LOB,Delegated Entity,Eff Date,Term Date,Comments,,\r\n"
+                + "95810,\"Sleep study, attended\",CPT,Y,Medicare,eviCore,1/1/2026,12/31/9999,,,\r\n"
+                + "E2601,\"Cushion, under 22\"\" wide\",HCPCS,N,Commercial,,1/1/2026,,\"general use\r\nsee the policy\",,\r\n"
+                + "J3490,Drug with no code of its own,HCPCS,,,,,,,,\r\n"
+                + ",,,,,,,,,,\r\n"
+                + ",,,,,,,,,,\r\n";
+        ProcedureCodeService service = TestCodeLists.csv(directory, export);
+
+        CodeListSelfCheck check = service.selfCheck();
+        assertThat(check.rowCount()).isEqualTo(3);
+        assertThat(check.statingAuthRequirement()).isEqualTo(2);
+        assertThat(check.namingVendor()).isEqualTo(1);
+        assertThat(check.linesOfBusiness()).containsExactly(Map.entry("Medicare", 1), Map.entry("Commercial", 1));
+        assertThat(check.recognisedColumns()).containsExactly(Map.entry("code", "Procedure Code"), Map.entry("description", "Code Description"),
+                Map.entry("codeType", "Code Type"), Map.entry("authRequired", "Prior Auth Required"), Map.entry("lineOfBusiness", "LOB"),
+                Map.entry("delegatedVendor", "Delegated Entity"), Map.entry("effectiveDate", "Eff Date"), Map.entry("endDate", "Term Date"),
+                Map.entry("notes", "Comments"));
+        assertThat(check.unrecognisedColumns()).isEmpty();
+        // The one thing said is the cell with a line break in it, which was meant here and is named in case it was not.
+        assertThat(check.warnings()).containsExactly("1 row has a cell that holds a line break: line 3. If that was not meant, a double "
+                + "quote on that line is not closed and the lines after it were read into the cell.");
+
+        ProcedureCode sleep = service.rowsFor("95810", "Medicare", java.time.LocalDate.of(2026, 3, 20)).get(0);
+        assertThat(sleep.description()).isEqualTo("Sleep study, attended");
+        assertThat(sleep.authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(sleep.endDate()).isEqualTo("9999-12-31");
+        ProcedureCode cushion = service.rowsFor("E2601", null, null).get(0);
+        assertThat(cushion.description()).isEqualTo("Cushion, under 22\" wide");
+        assertThat(cushion.notes()).isEqualTo("general use\r\nsee the policy");
+        assertThat(service.rowsFor("J3490", null, null).get(0).authRequired()).isEqualTo(AuthRequirement.UNKNOWN);
+    }
+
+    @Test
     void whiteSpaceAroundTheConfiguredPathIsNotPartOfIt() {
         Path file = TestCodeLists.write(directory, "export.csv", CSV);
         assertThat(withSettings(Map.of("file", "  " + file + "  ")).selfCheck().rowCount()).isEqualTo(2);
@@ -334,7 +371,7 @@ class ProcedureCodeServiceLoadingTest {
                 .hasMessage("The code list file " + file + " has no column this tool recognises as the procedure code. "
                         + "Headers found: \"Proc\", \"Short Description\", \"Needs Auth\", (blank). "
                         + "The first row of the file that is not blank must be the header row. "
-                        + "If one of these holds the code, add it to codelist.columns.code in application.yml.");
+                        + "If one of these holds the code, name it under codelist.columns.code in application.yml. A list set there replaces the built-in names for the column.");
     }
 
     @Test
@@ -347,7 +384,7 @@ class ProcedureCodeServiceLoadingTest {
                         + "The header row was read as one cell, and it holds a semicolon. If that is what separates the cells of this "
                         + "file, set codelist.delimiter to \";\". "
                         + "The first row of the file that is not blank must be the header row. "
-                        + "If one of these holds the code, add it to codelist.columns.code in application.yml.");
+                        + "If one of these holds the code, name it under codelist.columns.code in application.yml. A list set there replaces the built-in names for the column.");
         // Doing what the message says is what makes the file load.
         assertThat(codes(TestCodeLists.load(semicolons, Map.of("delimiter", ";")))).containsExactly("E0601");
 
