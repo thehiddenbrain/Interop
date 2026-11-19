@@ -8,9 +8,10 @@ import org.p32h.interop.epa.pave.model.CaseSpec;
  * so a replayed run and a suite case take exactly the path a manual run takes and write the same
  * kind of ledger record.
  *
- * <p>The implementation arrives after the protocol verticals. Until then no bean of this type
- * exists, so anything that needs one injects {@code ObjectProvider<CaseRunner>} and reports the
- * feature as unavailable when there is none.
+ * <p>The one implementation is assembled in {@code config/CaseWiring}, which registers a step for
+ * each operation a case can run. Anything that needs a runner still injects
+ * {@code ObjectProvider<CaseRunner>}, so a build without one reports the feature as unavailable
+ * and does not fail to start.
  */
 public interface CaseRunner {
 

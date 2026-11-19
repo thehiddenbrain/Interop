@@ -89,7 +89,7 @@ next frontend pass and do not exist on screen yet.
   code has run.
 - README, `run.sh`, `run.cmd` and the sample files do not exist yet.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The build runs 1299 tests, 2 of them skipped because the build ran as root, for which a
+- The build runs 1304 tests, 2 of them skipped because the build ran as root, for which a
   read-only folder is not read-only. The same refusals are covered by tests that did run.
 
 ## The plan, written before any feature code
