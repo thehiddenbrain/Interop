@@ -37,7 +37,10 @@ import tools.jackson.databind.JsonNode;
  *   <li>The same number written with a different precision is reported as written differently:
  *       neither as equal nor as a different value.</li>
  *   <li>Lists are matched as {@link ArrayMatcher} describes.</li>
- *   <li>Two resources of different types are not compared beneath: they are one difference.</li>
+ *   <li>Two resources of different types are not compared beneath: they are one difference. The
+ *       one exception is a resource against a Bundle that holds exactly one resource of that
+ *       type, which is how the answer to a FHIR search carries it: the wrapping is one
+ *       difference, and the two resources are then compared with each other.</li>
  *   <li>When two matched resources have different ids, that is one difference, a label. A
  *       reference that differs only because it follows such a pair is counted on that difference
  *       and not listed. A reference that differs for any other reason is listed.</li>
@@ -80,6 +83,8 @@ public final class JsonComparer {
         /** A difference in shape, which is part of how a request is built whatever the element is. */
         STRUCTURE
     }
+
+    private static final String BUNDLE = "Bundle";
 
     private final CompareRules rules;
     private final Glossary glossary;
@@ -131,6 +136,16 @@ public final class JsonComparer {
         /** The same place, known to be a resource of this type: the glossary then sees the type alone. */
         Place resource(String resourceType) {
             return new Place(path, toolPointer, yourPointer, document, resourceType, depth);
+        }
+
+        /**
+         * The same place, where one document holds its resource inside an entry of a Bundle. The
+         * path stays the one of the bare resource, and the pointer on the wrapped side goes into
+         * the entry, so a screen marks the resource itself in both texts.
+         */
+        Place insideEntry(boolean yoursIsWrapped, int entry) {
+            String wrapped = Paths.member(Paths.element(Paths.member(yoursIsWrapped ? yourPointer : toolPointer, "entry"), entry), "resource");
+            return new Place(path, yoursIsWrapped ? toolPointer : wrapped, yoursIsWrapped ? wrapped : yourPointer, document, fhir, depth);
         }
 
         Place onlyInTool() {
@@ -257,6 +272,17 @@ public final class JsonComparer {
             String toolType = ResourceIndex.resourceType(tool);
             String yourType = ResourceIndex.resourceType(yours);
             if (toolType != null && yourType != null && !toolType.equals(yourType)) {
+                int inYours = BUNDLE.equals(yourType) ? onlyEntryOf(yours, toolType) : -1;
+                int inTool = BUNDLE.equals(toolType) ? onlyEntryOf(tool, yourType) : -1;
+                if (inYours >= 0 || inTool >= 0) {
+                    boolean yoursIsWrapped = inYours >= 0;
+                    add(here, DifferenceKind.DIFFERENT_VALUE, tool, yours, Grouping.STRUCTURE, null,
+                            Wording.wrappedInBundle(yoursIsWrapped, yoursIsWrapped ? toolType : yourType), null);
+                    walk(here.insideEntry(yoursIsWrapped, yoursIsWrapped ? inYours : inTool),
+                            yoursIsWrapped ? tool : tool.get("entry").get(inTool).get("resource"),
+                            yoursIsWrapped ? yours.get("entry").get(inYours).get("resource") : yours, null, null, null);
+                    return;
+                }
                 add(here, DifferenceKind.DIFFERENT_VALUE, tool, yours, Grouping.STRUCTURE, null, Wording.differentResources(toolType, yourType), null);
                 return;
             }
@@ -294,6 +320,21 @@ public final class JsonComparer {
                     only(false, at.key(member.getKey(), false), member.getValue(), Grouping.STRUCTURE, Wording.onlyMember(false, member.getValue()));
                 }
             }
+        }
+
+        /** The position of the only entry of a Bundle that holds a resource of this type, or -1 when there is none or more than one. */
+        private int onlyEntryOf(JsonNode bundle, String resourceType) {
+            int found = -1;
+            JsonNode entries = bundle.get("entry");
+            for (int i = 0; entries != null && entries.isArray() && i < entries.size(); i++) {
+                if (resourceType.equals(ResourceIndex.resourceType(entries.get(i).get("resource")))) {
+                    if (found >= 0) {
+                        return -1;
+                    }
+                    found = i;
+                }
+            }
+            return found;
         }
 
         /**
@@ -367,8 +408,8 @@ public final class JsonComparer {
                 slots.add(slot);
                 return;
             }
-            boolean bundle = "entry".equals(key) && "Bundle".equals(ResourceIndex.resourceType(toolParent))
-                    && "Bundle".equals(ResourceIndex.resourceType(yourParent));
+            boolean bundle = "entry".equals(key) && BUNDLE.equals(ResourceIndex.resourceType(toolParent))
+                    && BUNDLE.equals(ResourceIndex.resourceType(yourParent));
             ArrayMatcher.Plan plan = ArrayMatcher.plan(bundle, tool, yours);
             if (plan.rule() == ArrayMatcher.Rule.SCALARS) {
                 scalars(at, tool, yours);

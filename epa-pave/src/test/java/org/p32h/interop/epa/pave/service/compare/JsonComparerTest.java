@@ -276,8 +276,8 @@ class JsonComparerTest {
                 "entry[Patient] | ONLY_IN_YOURS");
         Difference patient = differences(tool, yours).get(2);
         assertThat(patient.yourPointer()).isEqualTo("/entry/0");
-        assertThat(patient.explanation()).startsWith("Your request has this Patient in the Bundle and the tool's request has no Patient to "
-                + "compare it with.");
+        assertThat(patient.explanation()).startsWith("Your request has this Patient in the Bundle and the tool's request has no Patient left "
+                + "to compare it with.");
     }
 
     @Test
@@ -319,8 +319,8 @@ class JsonComparerTest {
                 "extension[http://example.org/c] | ONLY_IN_YOURS");
         assertThat(all.get(0).toolPointer()).isEqualTo("/extension/1/valueString");
         assertThat(all.get(0).yourPointer()).isEqualTo("/extension/0/valueString");
-        assertThat(all.get(1).explanation()).startsWith("The elements of this list are matched by their url. Your request has one with this url "
-                + "and the tool's request does not.");
+        assertThat(all.get(1).explanation()).startsWith("This list is matched by url. Your request has an element with this url that the "
+                + "tool's request has no counterpart for.");
     }
 
     @Test
@@ -361,11 +361,11 @@ class JsonComparerTest {
     void anElementWithNoSystemIsNeverMatchedWithOneThatHasASystem() {
         List<Difference> all = differences("{'identifier':[{'value':'S123456789'}]}", "{'identifier':[{'system':'http://example.org/ids','value':'S123456789'}]}");
         assertThat(lines(all)).containsExactly("identifier[no system] | ONLY_IN_TOOL", "identifier[http://example.org/ids] | ONLY_IN_YOURS");
-        assertThat(all.get(0).explanation()).startsWith("The elements of this list are matched by their system. The tool's request has one "
-                + "with no system, and your request has no such element to compare it with. The other list also holds an element with no "
-                + "partner: the two were not compared with each other, because they do not share a system.");
-        assertThat(all.get(1).explanation()).startsWith("The elements of this list are matched by their system. Your request has one with "
-                + "this system and the tool's request does not. The other list also holds an element with no partner");
+        assertThat(all.get(0).explanation()).startsWith("This list is matched by system. The tool's request has an element with no system "
+                + "that your request has no counterpart for. The other request has an unmatched element here too: the two were not "
+                + "compared with each other, because they do not share a system.");
+        assertThat(all.get(1).explanation()).startsWith("This list is matched by system. Your request has an element with this system that "
+                + "the tool's request has no counterpart for. The other request has an unmatched element here too");
     }
 
     @Test
@@ -467,13 +467,62 @@ class JsonComparerTest {
     @Test
     void twoResourcesOfDifferentTypesAreOneDifferenceAndAreNotComparedBeneath() {
         Difference difference = only("{'x':{'resourceType':'Coverage','id':'c1','status':'active'}}",
-                "{'x':{'resourceType':'Bundle','type':'searchset','entry':[{'resource':{'resourceType':'Coverage','id':'c1'}}]}}");
+                "{'x':{'resourceType':'Organization','id':'c1','name':'Placeholder Payer'}}");
         assertThat(difference.path()).isEqualTo("x");
         assertThat(difference.kind()).isEqualTo(DifferenceKind.DIFFERENT_VALUE);
         assertThat(difference.toolValue().value()).startsWith("{\"resourceType\":\"Coverage\"");
-        assertThat(difference.yourValue().value()).startsWith("{\"resourceType\":\"Bundle\"");
-        assertThat(difference.explanation()).startsWith("The tool's request holds a Coverage resource here and your request holds a Bundle "
-                + "resource. Resources of different types are not compared element by element, so each is given whole.");
+        assertThat(difference.yourValue().value()).startsWith("{\"resourceType\":\"Organization\"");
+        assertThat(difference.explanation()).startsWith("The tool's request holds a Coverage resource here and your request holds an "
+                + "Organization resource. Resources of different types are not compared element by element, so each is given whole.");
+    }
+
+    private static final String BARE = "{'x':{'resourceType':'Coverage','id':'coverage-1','status':'active'},"
+            + "'order':{'resourceType':'ServiceRequest','id':'sr','insurance':[{'reference':'Coverage/coverage-1'}]}}";
+    private static final String WRAPPED = "{'x':{'resourceType':'Bundle','type':'searchset','total':1,'entry':[%s"
+            + "{'fullUrl':'https://ehr.example.invalid/fhir/Coverage/cov-9','resource':{'resourceType':'Coverage','id':'cov-9','status':'draft'}}]},"
+            + "'order':{'resourceType':'ServiceRequest','id':'sr','insurance':[{'reference':'Coverage/cov-9'}]}}";
+
+    @Test
+    void aResourceAgainstABundleThatHoldsOneOfItsTypeIsOneDifferenceAndTheTwoResourcesAreThenCompared() {
+        List<Difference> all = differences(BARE, WRAPPED.formatted(""));
+        assertThat(lines(all)).containsExactly("x | DIFFERENT_VALUE", "x.id | DIFFERENT_VALUE", "x.status | DIFFERENT_VALUE");
+        Difference wrapping = all.get(0);
+        assertThat(wrapping.explanation()).startsWith("The tool's request holds a Coverage resource here and your request holds a Bundle with "
+                + "one Coverage in it. The two Coverage resources are compared with each other in the differences that follow, and the rest "
+                + "of the Bundle is given whole here.");
+        // The whole Bundle is the value, so its type, its total and the full url of its entry are not passed over.
+        assertThat(wrapping.yourValue().value()).contains("searchset", "total", "fullUrl");
+        assertThat(wrapping.toolPointer()).isEqualTo("/x");
+        assertThat(wrapping.yourPointer()).isEqualTo("/x");
+        // What is compared beneath is pointed at where it really sits in each document.
+        assertThat(all.get(2).toolPointer()).isEqualTo("/x/status");
+        assertThat(all.get(2).yourPointer()).isEqualTo("/x/entry/0/resource/status");
+        // The two resources are a matched pair, so the reference that follows their ids is counted and not listed.
+        assertThat(all.get(1).group()).isEqualTo(DifferenceGroup.LABELS);
+        assertThat(all.get(1).referencesFollowing()).isEqualTo(1);
+    }
+
+    @Test
+    void theSameHoldsWhenItIsTheToolsDocumentThatWrapsTheResource() {
+        List<Difference> all = differences(WRAPPED.formatted(""), BARE);
+        assertThat(lines(all)).containsExactly("x | DIFFERENT_VALUE", "x.id | DIFFERENT_VALUE", "x.status | DIFFERENT_VALUE");
+        assertThat(all.get(0).explanation()).startsWith("Your request holds a Coverage resource here and the tool's request holds a Bundle with "
+                + "one Coverage in it.");
+        assertThat(all.get(2).toolPointer()).isEqualTo("/x/entry/0/resource/status");
+        assertThat(all.get(2).yourPointer()).isEqualTo("/x/status");
+    }
+
+    @Test
+    void aBundleThatHoldsNoneOrSeveralOfTheTypeIsNotOpenedBecauseWhichOneIsMeantWouldBeAGuess() {
+        String second = "{'resource':{'resourceType':'Coverage','id':'cov-8','status':'active'}},";
+        assertThat(lines(differences(BARE, WRAPPED.formatted(second)))).containsExactly("x | DIFFERENT_VALUE",
+                "order.insurance[0].reference | DIFFERENT_VALUE");
+        String none = "{'x':{'resourceType':'Bundle','entry':[{'resource':{'resourceType':'Patient','id':'p'}}]},"
+                + "'order':{'resourceType':'ServiceRequest','id':'sr','insurance':[{'reference':'Coverage/coverage-1'}]}}";
+        List<Difference> all = differences(BARE, none);
+        assertThat(lines(all)).containsExactly("x | DIFFERENT_VALUE");
+        assertThat(all.get(0).explanation()).startsWith("The tool's request holds a Coverage resource here and your request holds a Bundle "
+                + "resource. Resources of different types are not compared element by element");
     }
 
     // ---- the depth limit ----

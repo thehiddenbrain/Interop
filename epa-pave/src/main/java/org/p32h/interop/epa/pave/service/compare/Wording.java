@@ -62,9 +62,10 @@ final class Wording {
 
     static String onlyEntry(boolean tool, JsonNode entry) {
         String type = ResourceIndex.resourceType(JsonSafe.child(entry, "resource"));
+        // "Left": the other Bundle may hold entries of this kind that were already matched with others.
         return type == null
-                ? side(tool) + " has an entry here that holds no resource, and " + other(tool) + " has no such entry to compare it with."
-                : side(tool) + " has this " + type + " in the Bundle and " + other(tool) + " has no " + type + " to compare it with.";
+                ? side(tool) + " has an entry here that holds no resource, and " + other(tool) + " has no such entry left to compare it with."
+                : side(tool) + " has this " + type + " in the Bundle and " + other(tool) + " has no " + type + " left to compare it with.";
     }
 
     /**
@@ -73,11 +74,11 @@ final class Wording {
      * @param otherHasExtra true when the other list also holds an element without a partner
      */
     static String onlyKeyed(boolean tool, String name, boolean keyed, boolean otherHasExtra) {
-        String sentence = "The elements of this list are matched by their " + name + ". " + (keyed
-                ? side(tool) + " has one with this " + name + " and " + other(tool) + " does not."
-                : side(tool) + " has one with no " + name + ", and " + other(tool) + " has no such element to compare it with.");
-        return otherHasExtra ? sentence + " The other list also holds an element with no partner: the two were not compared with "
-                + "each other, because they do not share a " + name + "." : sentence;
+        // "No counterpart" and not "does not have one": the other list may hold such elements that were matched already.
+        String sentence = "This list is matched by " + name + ". " + side(tool) + " has an element with " + (keyed ? "this " : "no ") + name
+                + " that " + other(tool) + " has no counterpart for.";
+        return otherHasExtra ? sentence + " The other request has an unmatched element here too: the two were not compared with each "
+                + "other, because they do not share a " + name + "." : sentence;
     }
 
     static String onlyPosition(boolean tool) {
@@ -192,6 +193,16 @@ final class Wording {
     static String differentResources(String toolType, String yourType) {
         return "The tool's request holds " + a(toolType) + " resource here and your request holds " + a(yourType)
                 + " resource. Resources of different types are not compared element by element, so each is given whole.";
+    }
+
+    /**
+     * @param yoursIsWrapped true when it is the other request that holds its resource inside a Bundle
+     */
+    static String wrappedInBundle(boolean yoursIsWrapped, String resourceType) {
+        // When the other request is the wrapped one, the bare resource is the tool's, so the sentence starts with the tool.
+        return side(yoursIsWrapped) + " holds " + a(resourceType) + " resource here and " + other(yoursIsWrapped) + " holds a Bundle with one "
+                + resourceType + " in it. The two " + resourceType + " resources are compared with each other in the differences that "
+                + "follow, and the rest of the Bundle is given whole here.";
     }
 
     static String differentKey(String resourceType, String toolKey, String yourKey) {
