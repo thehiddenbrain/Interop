@@ -53,6 +53,9 @@ public final class CaseResources {
     public static final String CPT = "http://www.ama-assn.org/go/cpt";
     public static final String HCPCS = "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets";
 
+    public static final String NPI_SYSTEM = "http://hl7.org/fhir/sid/us-npi";
+    public static final String IDENTIFIER_TYPES = "http://terminology.hl7.org/CodeSystem/v2-0203";
+
     /**
      * The labels a code list may hold where a coding system belongs, in the form
      * {@link #labelKey} gives them, each with the uri this tool uses for that system. A list that
@@ -71,9 +74,8 @@ public final class CaseResources {
      */
     private static final Pattern URI_SHAPE = Pattern.compile("[A-Za-z][A-Za-z0-9+.-]+:/*[^\\s/]\\S*");
 
+    /** The most characters of a code list cell a request note quotes. */
     private static final int QUOTED_LENGTH = 60;
-    public static final String NPI_SYSTEM = "http://hl7.org/fhir/sid/us-npi";
-    public static final String IDENTIFIER_TYPES = "http://terminology.hl7.org/CodeSystem/v2-0203";
 
     /** Placeholder names the built resources read. Each is optional; an unset one leaves its element out. */
     public static final String VAR_FHIR_SERVER = "fhirServer";

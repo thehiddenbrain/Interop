@@ -35,12 +35,14 @@ public enum AuthRequirement {
             "pa not needed", "auth not needed");
 
     /**
-     * What stands between two words of a cell: white space, an underscore or a hyphen, and the
-     * three spaces a spreadsheet writes that the usual white space test does not count, the
-     * no-break space, the figure space and the narrow no-break space. A cell holding one of those
+     * The three spaces a spreadsheet writes that the usual white space test does not count: the
+     * no-break space, the figure space and the narrow no-break space. A cell holding one of them
      * reads "Not Required" on screen, and has to be read as that here.
      */
-    private static final Pattern BETWEEN_WORDS = Pattern.compile("[\\s\\u00A0\\u2007\\u202F_-]+");
+    private static final Pattern SPREADSHEET_SPACE = Pattern.compile("[\\u00A0\\u2007\\u202F]");
+
+    /** What stands between two words of a cell: white space, an underscore or a hyphen. */
+    private static final Pattern BETWEEN_WORDS = Pattern.compile("[\\s_-]+");
 
     /**
      * Reads the flag from the text of a list cell or a JSON value: the common spellings of yes and
@@ -77,11 +79,13 @@ public enum AuthRequirement {
     }
 
     /**
-     * The form a cell is looked up in: lower case, one plain space between its words and none
-     * around it. The gaps are replaced before the ends are trimmed, because the usual trim does
-     * not take a no-break space off the end of a cell.
+     * The form a cell is looked up in: without the white space around it, in lower case, with one
+     * plain space where its words are apart. The spreadsheet's spaces are made plain ones first,
+     * so that the trim takes them off the ends of a cell as it takes any other space. Nothing else
+     * is taken off the ends: a cell that starts or ends with a hyphen is not one of the spellings.
      */
     private static String key(String text) {
-        return BETWEEN_WORDS.matcher(text.toLowerCase(Locale.ROOT)).replaceAll(" ").strip();
+        String spaced = SPREADSHEET_SPACE.matcher(text).replaceAll(" ");
+        return BETWEEN_WORDS.matcher(spaced.strip().toLowerCase(Locale.ROOT)).replaceAll(" ");
     }
 }

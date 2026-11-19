@@ -354,14 +354,16 @@ class CrdConformanceCheckerTest {
         }
         assertThat(notCompared(checkOn(LIVE, 200, response(action(7, code("pa-needed", "no-auth"))), "Medicare", "95810")).title())
                 .endsWith("no P32H code list is loaded");
-        // Still one finding when the request named no code this tool could read.
+        // Still said when the request named no code this tool could read. A determination came
+        // back, and a result that says nothing about the code list reads as one that agrees with it.
         assertThat(notCompared(checkOn(LIVE, 200, oneAnswer, "Medicare")).title()).endsWith("no P32H code list is loaded");
     }
 
     @Test
-    void onLiveThePlaceholderIsNotMentionedWhereNothingWouldHaveBeenComparedAnyway() {
+    void onLiveThePlaceholderIsNotMentionedWhenTheServiceGaveNoDeterminationToCompare() {
         codeList.asPlaceholder().row("95810", AuthRequirement.REQUIRED, null, null);
         // A fault is the headline, and a response with no coverage information has its own finding.
+        // That is the rule for a real list too: the code list is spoken of only beside a determination.
         assertThat(checkOn(LIVE, 500, "{\"resourceType\":\"OperationOutcome\",\"issue\":[]}", null, "95810")).isEmpty();
         assertThat(kinds(checkOn(LIVE, 200, "{\"cards\":[]}", null, "95810"))).containsExactly(FindingKind.REQUIRED_ELEMENT_MISSING);
         VendorExchange timeout = TestExchanges.timeout(EpaOperation.CRD_ORDER_SIGN);

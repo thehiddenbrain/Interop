@@ -150,7 +150,10 @@ class CodeListTextTest {
                 // The day first: 31/1/2026 cannot be month 31, and it is not turned round into January.
                 "31/1/2026",
                 // Other ways of writing a date, a spreadsheet serial number, and words.
-                "2026/01/05", "05-Jan-2026", "Jan 5, 2026", "1-5-2026", "2026-1-5", "46027", "2026", "202601", "TBD", "n/a", "-"}) {
+                "2026/01/05", "05-Jan-2026", "Jan 5, 2026", "1-5-2026", "2026-1-5", "46027", "2026", "202601", "TBD", "n/a", "-",
+                // A sign before the year. A dash left in front of a date is not the year 2027 BC,
+                // which as an end date would have kept the row out of every comparison.
+                "-2026-01-05", "+2026-01-05", "+12026-01-05"}) {
             assertThat(CodeListDates.read(written)).as(written).isNull();
         }
         assertThat(CodeListDates.read(null)).isNull();

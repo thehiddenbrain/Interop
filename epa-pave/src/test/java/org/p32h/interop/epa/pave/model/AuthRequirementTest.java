@@ -126,6 +126,14 @@ class AuthRequirementTest {
     }
 
     @Test
+    void onlySpacesAreTakenOffTheEndsOfACellSoWhatWasNotReadBeforeIsNotReadNow() {
+        // An underscore or a hyphen stands for a space between two words. At either end of a cell
+        // it is not a space, and such a cell was not read before the spellings grew. Taking the
+        // spreadsheet's spaces off the ends must not start reading these as a side effect.
+        assertNotRead("-yes-", "_no_", "- yes", "no -", "yes_", "-required", "not required-", "\u00A0-yes-\u00A0");
+    }
+
+    @Test
     void aCharacterThatIsNotASpaceStillKeepsACellFromBeingRead() {
         // A zero width space and a byte order mark are not spaces. Nothing is guessed about a cell
         // that holds one inside it: it stays unknown and the self-check shows the character.
