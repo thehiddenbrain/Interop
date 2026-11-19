@@ -142,15 +142,26 @@ function elementOptions() {
     return [{value: '', label: 'element'}].concat(vocabulary.elements.map(name => ({value: name, label: name})));
 }
 
+let assertionCount = 0;
+
+/**
+ * One code assertion: an element, the code expected in it, and on a second line the procedure
+ * code it is limited to. The second line is there because the three do not fit side by side in
+ * this pane without cutting off what is typed into them.
+ */
 function addAssertionRow() {
-    const subject = el('input', {type: 'text', class: 'literal-input', placeholder: 'every answer', autocomplete: 'off', spellcheck: false,
-        aria: {label: 'The procedure code this assertion is about. Leave empty for every answer.'}});
+    assertionCount += 1;
+    const subjectId = 'crd-assertion-for-' + assertionCount;
+    const subject = el('input', {type: 'text', id: subjectId, class: 'literal-input', placeholder: 'every answer', autocomplete: 'off', spellcheck: false});
     const element = el('select', {aria: {label: 'Element'}});
     setOptions(element, elementOptions());
     const value = el('input', {type: 'text', class: 'literal-input', placeholder: 'code', autocomplete: 'off', spellcheck: false,
         aria: {label: 'The code expected in that element'}});
-    const row = el('div', {class: 'assertion field'}, subject, element, el('span', {aria: {hidden: 'true'}}, '='), value,
-        button('Remove', () => { row.remove(); drawExpectedText(); }, {class: 'button--text', aria: {label: 'Remove this assertion'}}));
+    const row = el('div', {class: 'assertion field'},
+        el('div', {class: 'assertion__what'}, element, el('span', {aria: {hidden: 'true'}}, '='), value),
+        el('div', {class: 'assertion__for'},
+            el('label', {htmlFor: subjectId}, 'Only in the answer for code'), subject,
+            button('Remove', () => { row.remove(); drawExpectedText(); }, {class: 'button--text', aria: {label: 'Remove this assertion'}})));
     row.assertion = () => {
         if (element.value === '' && value.value.trim() === '' && subject.value.trim() === '') {
             return null;
@@ -162,7 +173,7 @@ function addAssertionRow() {
         adder.before(row);
     } else {
         controls.assertions.append(
-            el('p', {class: 'field__hint'}, 'Each line asserts one standard code, such as pa-needed = no-auth. Every line must hold for the run to pass.'),
+            el('p', {class: 'field__hint'}, 'Each asserts one standard code, such as pa-needed = no-auth. Every one must hold for the run to pass.'),
             row,
             el('div', {class: 'assertions__add'}, button('Add an assertion', () => addAssertionRow(), {class: 'button--text'})));
     }

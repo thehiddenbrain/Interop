@@ -1306,11 +1306,49 @@ legend, .case-legend {
     padding-top: 6px;
 }
 
+/*
+ * An assertion takes two lines: the element and its code, then the procedure code it is limited
+ * to. Side by side the three boxes were too narrow in this pane for what is typed into them.
+ */
 .assertion {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.assertion + .assertion {
+    padding-top: 6px;
+    border-top: 1px solid var(--rule);
+}
+
+.assertion__what {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1.15fr) auto minmax(0, 1fr);
     align-items: center;
     gap: 6px;
+}
+
+.assertion__for {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-2);
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
+.assertion__for input[type="text"] {
+    flex: 0 1 9.5em;
+    width: auto;
+    min-width: 0;
+}
+
+.assertion__for .button {
+    margin-left: auto;
+    color: var(--ink-strong);
+}
+
+.readout__way {
+    margin-top: var(--gap-2);
 }
 
 .readout {
@@ -2252,6 +2290,44 @@ details.fold > :not(summary) {
     .case-pane__scroll {
         margin-left: -6px;
         padding-left: 6px;
+    }
+
+    /*
+     * What belongs with the send button stays in view however far the case is scrolled, but it
+     * may not take the pane. Past three quarters of the pane it scrolls within itself, and the
+     * row with the button stays at its foot, so the button is always in reach. The rule above it
+     * is drawn inside the box, which reaches into the margin like the panes do.
+     */
+    .case-pane__actions {
+        flex: none;
+        max-height: 75%;
+        overflow-y: auto;
+        /* A control brought into view by the keyboard stops above the row that stays at the foot. */
+        scroll-padding-bottom: 56px;
+        position: relative;
+        margin-left: -6px;
+        padding: 0 var(--gap-5) 0 6px;
+        border-top: 0;
+    }
+
+    .case-pane__actions::before {
+        content: "";
+        flex: none;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        margin-right: calc(-1 * var(--gap-5));
+        border-top: 1px solid var(--ink-strong);
+    }
+
+    /* The row covers the whole width of the box, so nothing that scrolls beneath it shows at its sides. */
+    .case-pane__actions > .button-row {
+        position: sticky;
+        bottom: 0;
+        z-index: 1;
+        margin: 0 calc(-1 * var(--gap-5)) 0 -6px;
+        padding: 6px var(--gap-5) 12px 6px;
+        background: var(--white);
     }
 
     /* The readout fills its pane to the edge, so its own ring is drawn just inside it. */
