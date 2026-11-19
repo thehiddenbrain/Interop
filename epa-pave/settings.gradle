@@ -1,0 +1,25 @@
+// Plugin resolution follows the same switch as dependency resolution in build.gradle. Setting
+// internalRepoUrl in gradle.properties or ~/.gradle/gradle.properties points both at an internal
+// mirror, which is what a workstation that cannot reach Maven Central or the plugin portal needs.
+pluginManagement {
+    repositories {
+        def internalRepoUrl = providers.gradleProperty('internalRepoUrl')
+        if (internalRepoUrl.isPresent()) {
+            maven {
+                url = internalRepoUrl.get()
+                def internalRepoUser = providers.gradleProperty('internalRepoUser')
+                if (internalRepoUser.isPresent()) {
+                    credentials {
+                        username = internalRepoUser.get()
+                        password = providers.gradleProperty('internalRepoPassword').getOrElse('')
+                    }
+                }
+            }
+        } else {
+            mavenCentral()
+            gradlePluginPortal()
+        }
+    }
+}
+
+rootProject.name = 'epa-pave'

@@ -1,0 +1,182 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version "${springBootVersion}"
+}
+
+group = 'com.thehiddenbrain.interop.epa'
+version = '1.0.0'
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+// One property points dependency resolution at an internal mirror. settings.gradle applies the same
+// switch to plugin resolution, so a workstation that cannot reach Maven Central changes one line
+// in gradle.properties instead of editing this file.
+repositories {
+    if (project.hasProperty('internalRepoUrl')) {
+        maven {
+            url = project.property('internalRepoUrl')
+            if (project.hasProperty('internalRepoUser')) {
+                credentials {
+                    username = project.property('internalRepoUser')
+                    password = project.findProperty('internalRepoPassword')
+                }
+            }
+        }
+    } else {
+        mavenCentral()
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+}
+
+// There is deliberately no io.spring.dependency-management plugin. Spring Boot 4 versions are
+// imported with platform(...) below, and the old plugin beside it causes resolution conflicts.
+dependencies {
+    implementation platform("org.springframework.boot:spring-boot-dependencies:${springBootVersion}")
+
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-restclient'
+    implementation 'org.springframework.boot:spring-boot-starter-jackson'
+    implementation 'tools.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+
+    // The annotationProcessor configuration does not extend implementation, so it needs its own
+    // import of the platform. Without this line the processor has no version and the build fails
+    // with "Could not find org.springframework.boot:spring-boot-configuration-processor:".
+    annotationProcessor platform("org.springframework.boot:spring-boot-dependencies:${springBootVersion}")
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Writes META-INF/build-info.properties so a test can assert that epa.version in application.yml
+// has not drifted from the version above. The build time is left out to keep the jar reproducible.
+springBoot {
+    buildInfo {
+        excludes = ['time']
+    }
+}
+
+// Only the executable jar is produced, so there is exactly one epa-pave-1.0.0.jar to hand over.
+tasks.named('jar') {
+    enabled = false
+}
+
+test {
+    useJUnitPlatform()
+    testLogging { events 'passed', 'skipped', 'failed'; exceptionFormat = 'full' }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Gate: the -parameters compiler flag.
+//
+// What follows was observed by experiment on this exact stack (Spring Boot 4.0.7, Spring
+// Framework 7.0.8, JDK 21). It is not the usual shorthand that "Spring needs -parameters".
+//
+//  * Without the flag the project still compiles and the application context still starts.
+//  * @ConfigurationProperties records still bind and Jackson still reads records, because javac
+//    stores the canonical constructor parameter names of a record whether or not the flag is set.
+//  * What breaks is every controller argument that relies on its Java name, such as
+//    "@PathVariable String memberId" or "@RequestParam String q". The first request to such an
+//    endpoint fails with IllegalArgumentException "Name for argument of type [java.lang.String]
+//    not specified, and parameter name information not available via reflection". Nothing fails
+//    at compile time or at startup, which is why this needs a gate and not a code review.
+//  * The Spring Boot Gradle plugin adds the flag on its own, so the explicit line above is
+//    redundant while that plugin is applied. It is kept so the flag survives a change to the
+//    plugin. This task therefore checks the effective arguments of every JavaCompile task and
+//    not the text of this file.
+// ---------------------------------------------------------------------------------------------
+def javaCompileTasks = tasks.withType(JavaCompile)
+def verifyParametersFlag = tasks.register('verifyParametersFlag') {
+    group = 'verification'
+    description = 'Fails when any JavaCompile task is configured without the -parameters flag.'
+    doLast {
+        def missing = []
+        javaCompileTasks.each { compile ->
+            def args = compile.options.compilerArgs.collect { arg -> arg.toString() }
+            if (!args.contains('-parameters')) {
+                missing << compile.name
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new GradleException("The -parameters compiler flag is missing from: ${missing.join(', ')}. " +
+                    'Controller arguments that rely on their Java name would fail on the first request. ' +
+                    'See the comment above the verifyParametersFlag task in build.gradle.')
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Gate: house style, build prompt section 23.
+//
+// Every pattern is assembled from fragments or character codes so that this file does not contain
+// the text it forbids. If it did, the check would fail on its own source.
+// ---------------------------------------------------------------------------------------------
+def houseStyleCheck = tasks.register('houseStyleCheck') {
+    group = 'verification'
+    description = 'Fails when a file in the tree breaks the house style rules.'
+
+    def rootDir = layout.projectDirectory.asFile
+    def scanned = fileTree(rootDir) {
+        exclude '.gradle/**', 'build/**', 'bin/**', 'out/**', '.idea/**', '.settings/**'
+        // Runtime data. Never committed, and may hold vendor text this project did not write.
+        exclude 'config-store/**', 'run-history/**'
+        // Binary files cannot be read as text.
+        exclude '**/*.jar', '**/*.png', '**/*.jpg', '**/*.gif', '**/*.ico', '**/*.zip', '**/*.class',
+                '**/*.woff', '**/*.woff2', '**/*.ttf', '**/*.pdf'
+    }
+    def reportFile = layout.buildDirectory.file('reports/house-style/violations.txt')
+    // No inputs or outputs are declared, so the scan runs on every build. It reads a few hundred
+    // small files, and a gate that can be skipped as up to date is a gate that can be wrong.
+
+    def chars = { List<Integer> codes -> codes.collect { String.valueOf((char) it.intValue()) }.join('') }
+    def rules = [
+            [label: 'dash other than a plain hyphen', regex: '[' + chars([0x2012, 0x2013, 0x2014, 0x2015]) + ']'],
+            [label: 'curly quote', regex: '[' + chars([0x2018, 0x2019, 0x201A, 0x201B, 0x201C, 0x201D, 0x201E, 0x201F]) + ']'],
+            [label: 'banned filler word', regex: '(?i)\\b(?:' + [
+                    'seam' + 'less\\w*',
+                    'ro' + 'bust\\w*',
+                    'lever' + 'ag\\w*',
+                    'del' + 'v(?:e[sd]?|ing)\\b',
+                    'sle' + 'ek\\w*',
+                    'cutting' + '[ -]' + 'edge',
+                    'best' + '[ -]in[ -]' + 'class'
+            ].join('|') + ')'],
+            [label: 'CSS tracking property', regex: '(?i)' + 'letter' + '-' + 'spacing'],
+            [label: 'programme abbreviation without its trailing H', regex: '(?i)(?<![a-z0-9])' + 'p' + '32' + '(?!h)'],
+            [label: 'banned product name, say EDI', regex: '(?i)' + 'x' + 'engine']
+    ]
+
+    doLast {
+        def compiled = rules.collect { [label: it.label, pattern: java.util.regex.Pattern.compile(it.regex)] }
+        def violations = []
+        scanned.files.sort().each { File file ->
+            def relative = rootDir.toPath().relativize(file.toPath()).toString()
+            def lineNumber = 0
+            file.eachLine('UTF-8') { String line ->
+                lineNumber++
+                compiled.each { rule ->
+                    if (rule.pattern.matcher(line).find()) {
+                        violations << "${relative}:${lineNumber}: ${rule.label}"
+                    }
+                }
+            }
+        }
+        def report = reportFile.get().asFile
+        report.parentFile.mkdirs()
+        report.text = violations.isEmpty() ? 'No house style violations.\n' : violations.join('\n') + '\n'
+        if (!violations.isEmpty()) {
+            throw new GradleException("House style violations (${violations.size()}):\n" + violations.join('\n'))
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn verifyParametersFlag, houseStyleCheck
+}

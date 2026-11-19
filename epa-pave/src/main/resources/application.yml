@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: epa-pave
+  profiles:
+    # Mock is the default and needs no configuration, no credentials and no network.
+    # Start with --spring.profiles.active=live to call the real services.
+    default: mock
+
+server:
+  # Deliberately not 8080. The existing tools on this programme use 8080 and this one is meant to
+  # run beside them. 8057 is the regulation number, so it is easy to remember and unlikely to clash.
+  port: 8057
+
+epa:
+  name: "PAVE"              # shown in the tab title, the masthead and /api/mode
+  version: "1.0.0"
+  target: onyx              # onyx | nehen
+  mode: mock                # mock | live, drives the UI badge
+
+config-store:
+  directory: "./config-store"
+  active-environment: ""
+  allow-prod-writes: false
+
+tracking:
+  enabled: true
+  directory: "./run-history"
+  record-member-id: false
+  record-npi: true
+
+codelist:
+  file: ""
+  format: auto
+  delimiter: ","
+
+app:
+  scenario-dir: ""
+  autocomplete-limit: 25
+  mock-latency-enabled: true
+
+# Fallback layer only, used when no uploaded environment supplies a url.
+onyx:
+  crd: { url: "" }
+  dtr: { url: "" }
+  pas: { url: "" }
+  subscription: { url: "", callback-url: "" }
+  connect-timeout-ms: 5000
+  read-timeout-ms: 15000
+  auth: { enabled: false, token-url: "", client-id: "", client-secret: "", scopes: "" }
+
+lookup:
+  member:   { url: "", enabled: true, connect-timeout-ms: 3000, read-timeout-ms: 5000 }
+  provider: { url: "", enabled: true, connect-timeout-ms: 3000, read-timeout-ms: 5000 }
