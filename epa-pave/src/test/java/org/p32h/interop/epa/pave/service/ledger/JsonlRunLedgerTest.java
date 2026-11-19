@@ -698,6 +698,45 @@ class JsonlRunLedgerTest {
         assertThatThrownBy(() -> ledger(home, clock, Map.of("salt-file", link.resolve("salt").toString())))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("is inside the run history directory");
         assertThat(Files.exists(directory.resolve("salt"))).isFalse();
+        // The same through a folder beneath the link that does not exist yet: creating the salt would create it inside the ledger directory.
+        assertThatThrownBy(() -> ledger(home, clock, Map.of("salt-file", link.resolve("keys").resolve("deeper").resolve("salt").toString())))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("is inside the run history directory");
+        assertThat(Files.exists(directory.resolve("keys"))).isFalse();
+        // A link that leads somewhere else is an ordinary place for a salt.
+        Path elsewhere = Files.createDirectories(home.resolve("secrets"));
+        Path harmless = home.resolve("alias-to-secrets");
+        Files.createSymbolicLink(harmless, elsewhere);
+        ledger(home, clock, Map.of("salt-file", harmless.resolve("keys").resolve("salt").toString())).record(draft("run-1", clock).build());
+        assertThat(Files.size(elsewhere.resolve("keys").resolve("salt"))).isEqualTo(32);
+    }
+
+    @Test
+    void whenTheDirectoryVanishesWhileTheToolRunsEveryRunSaysItWasNotRecordedAndNothingIsPutBackInSilence() throws IOException {
+        JsonlRunLedger ledger = ledger(home, clock);
+        assertThat(ledger.record(draft("run-1", clock).build()).recorded()).isTrue();
+        // What an unmounted share or a tidy-up script leaves: no file and no folder.
+        Files.delete(todayFile());
+        Files.delete(ledgerDirectory(home));
+
+        assertThat(ledger.health().writable()).isFalse();
+        LedgerReceipt receipt = ledger.record(draft("run-2", clock).build());
+
+        assertThat(receipt.recorded()).isFalse();
+        assertThat(receipt.message()).startsWith("This run was NOT recorded: the ledger file " + todayFile() + " could not be written")
+                .contains("Check that the folder exists");
+        assertThat(receipt.runsToday()).isNull();
+        assertThat(receipt.record().runId()).isEqualTo("run-2");
+        // The folder is not made again behind the tester's back: it may be a share that is coming back, and a run
+        // written beneath its mount point would vanish when it did.
+        assertThat(Files.exists(ledgerDirectory(home))).isFalse();
+        assertThat(ledger.query(RunQuery.all())).isEmpty();
+        assertThat(ledger.health().failedWrites()).isEqualTo(1);
+
+        // Once the folder is back, the next run is kept. No restart is needed.
+        Files.createDirectories(ledgerDirectory(home));
+        assertThat(ledger.record(draft("run-3", clock).build()).recorded()).isTrue();
+        assertThat(ledger.health().writable()).isTrue();
+        assertThat(ledger.query(RunQuery.all())).extracting(RunRecord::runId).containsExactly("run-3");
     }
 
     @Test

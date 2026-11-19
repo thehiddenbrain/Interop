@@ -191,17 +191,25 @@ public class JsonlRunLedger implements RunLedger {
                 + "tracking.salt-file to a file outside that directory.";
     }
 
-    /** The same refusal for a salt file that only reaches the ledger directory through a link. */
+    /**
+     * The same refusal for a salt file that only reaches the ledger directory through a link. The
+     * file may not exist yet, and neither may the folders above it, so the part of its path that
+     * does exist is followed through its links, and the rest is what creating the file would add
+     * beneath that.
+     */
     private void refuseSaltReachedThroughALink() {
-        Path parent = saltFile.getParent();
-        if (parent == null || !Files.exists(parent)) {
-            return;
-        }
         Path realSalt;
         Path realDirectory;
         try {
             realDirectory = directory.toRealPath();
-            realSalt = Files.exists(saltFile) ? saltFile.toRealPath() : parent.toRealPath().resolve(saltFile.getFileName());
+            Path existing = saltFile;
+            while (existing != null && !Files.exists(existing)) {
+                existing = existing.getParent();
+            }
+            if (existing == null) {
+                return;
+            }
+            realSalt = existing.toRealPath().resolve(existing.relativize(saltFile)).normalize();
         } catch (IOException e) {
             // The paths cannot be resolved, so the comparison of the paths as written is the one that applies.
             return;
