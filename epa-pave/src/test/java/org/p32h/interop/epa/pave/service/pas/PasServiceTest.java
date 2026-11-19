@@ -738,21 +738,26 @@ class PasServiceTest {
 
     @Test
     void aLedgerThatCannotBeAskedLeavesTheInquiryUnlinkedAndStillAnswersIt() {
-        InMemoryLedger backing = new InMemoryLedger();
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("ledger", new QueryFailingLedger(backing));
-        EpaProperties epa = EpaProperties.of(Map.of("mode", "mock"));
-        RunSupport support = new RunSupport(epa, TrackingProperties.defaults(), OnyxProperties.defaults(), beans.getBeanProvider(RunLedger.class), CLOCK);
-        PasService service = new PasService(OnyxProperties.defaults(), gateway, mockClient, codeList, support, beans.getBeanProvider(RunLedger.class));
-
         // The submission is in the ledger. Only the question "which run submitted this claim" fails.
-        service.runSubmit(submission("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
-        RunEnvelope<PasDetail> inquired = service.runInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        RunEnvelope<PasDetail> submitted = service().runSubmit(submission("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        // The message names a member on purpose: a caller that copied it into a result would be caught below.
+        ledger.throwingOnRead(new IllegalStateException("the ledger directory is gone for " + SURNAME));
+
+        RunEnvelope<PasDetail> inquired = service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+
         assertThat(inquired.verdict().outcomeCode()).isEqualTo("APPROVED");
+        // Writing is another matter than asking: the inquiry still has its line.
         assertThat(inquired.ledger().recorded()).isTrue();
-        assertThat(backing.last().correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, CLAIM).doesNotContainKey(RunRecord.CORR_RUN_ID);
+        assertThat(ledger.last().runId()).isEqualTo(inquired.runId());
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, CLAIM).doesNotContainKey(RunRecord.CORR_RUN_ID);
+        assertThat(inquired.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_RUN_ID);
         // What the ledger said when it failed is nowhere in the result.
         assertThat(JsonSafe.mapper().writeValueAsString(inquired)).doesNotContain("ledger directory").doesNotContain("is gone for");
+
+        // Once the ledger answers again, the same inquiry is linked.
+        ledger.throwingOnRead(null);
+        service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, submitted.runId());
     }
 
     // ---- not found, faults: every one rendered in full ----

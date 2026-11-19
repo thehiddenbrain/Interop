@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.service.pas;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -77,6 +78,15 @@ class SentRunsTest {
             record(EpaOperation.PAS_SUBMIT, "BLOCKED", CLAIM);
         }
         assertThat(newest(ledger)).isNull();
+    }
+
+    @Test
+    void aLedgerThatCannotBeAskedIsLeftToTheCallerAndIsNeverReadAsNoRun() {
+        record(EpaOperation.PAS_SUBMIT, "PENDED", CLAIM);
+        IllegalStateException gone = new IllegalStateException("the ledger directory is gone");
+        ledger.throwingOnRead(gone);
+        // "Could not be asked" and "nothing was found" are different answers, and only the caller knows what each means to it.
+        assertThatThrownBy(() -> newest(ledger)).isSameAs(gone);
     }
 
     @Test

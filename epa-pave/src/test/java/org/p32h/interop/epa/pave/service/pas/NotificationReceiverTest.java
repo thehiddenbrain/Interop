@@ -304,13 +304,10 @@ class NotificationReceiverTest {
         // The subscription and the submission are both in the ledger. Only asking about them fails.
         createSubscription();
         RunEnvelope<PasDetail> submitted = submit("P32H-PAS-NOTIFY");
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("ledger", new QueryFailingLedger(ledger));
-        ObjectProvider<RunLedger> failing = beans.getBeanProvider(RunLedger.class);
-        NotificationReceiver unanswered = new NotificationReceiver(gateway,
-                new RunSupport(EpaProperties.of(Map.of("mode", "mock")), TrackingProperties.defaults(), ONYX, failing, CLOCK), failing, scenarios);
+        // The message names a member on purpose: a caller that copied it into a result or a line would be caught below.
+        ledger.throwingOnRead(new IllegalStateException("the ledger directory is gone for " + SURNAME));
 
-        NotificationView view = unanswered.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, claimResponseIdOf(submitted))));
+        NotificationView view = receiver.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, claimResponseIdOf(submitted))));
 
         // Not "unmatched": that would say nobody here created the subscription, and this tool did.
         assertThat(view.verdict().outcomeCode()).isEqualTo("UNCHECKED_NOTIFICATION");
@@ -337,16 +334,16 @@ class NotificationReceiverTest {
         assertThat(record.findings()).isEmpty();
         assertThat(record.correlation()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, SUBSCRIPTION),
                 Map.entry(RunRecord.CORR_CLAIM_RESPONSE_ID, claimResponseIdOf(submitted)));
-        assertThat(unanswered.list(null).notifications()).singleElement().satisfies(held -> assertThat(held.id()).isEqualTo(view.id()));
+        assertThat(receiver.list(null).notifications()).singleElement().satisfies(held -> assertThat(held.id()).isEqualTo(view.id()));
         // What the ledger said when it failed is in neither the result nor its line.
         assertThat(JsonSafe.mapper().writeValueAsString(List.of(view, record))).doesNotContain("ledger directory").doesNotContain("is gone for");
 
         // A notification that names no subscription is unmatched whatever the ledger can do: there was nothing to ask.
-        assertThat(unanswered.receive(NotificationReceiver.Inbound.of(bundle(status(null, "heartbeat")))).verdict().outcomeCode())
+        assertThat(receiver.receive(NotificationReceiver.Inbound.of(bundle(status(null, "heartbeat")))).verdict().outcomeCode())
                 .isEqualTo("UNMATCHED_NOTIFICATION");
 
         // On mock, a sample that has to ask which subscription was created last says that it could not.
-        NotificationView sample = unanswered.deliverSample(new NotificationSampleRequest("pas-20-heartbeat", null, null));
+        NotificationView sample = receiver.deliverSample(new NotificationSampleRequest("pas-20-heartbeat", null, null));
         assertThat(sample.verdict().outcomeCode()).isEqualTo("UNCHECKED_NOTIFICATION");
         assertThat(sample.payloadNotes()).containsExactly("The ledger could not be asked which subscription this tool created last, so this "
                 + "sample names one nobody created.");
@@ -414,6 +411,36 @@ class NotificationReceiverTest {
         assertThat(view.correlationNotes()).noneMatch(note -> note.startsWith("The authorization number it carries is not"));
         assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, approved.runId())
                 .containsEntry(RunRecord.CORR_CLAIM_ID, approved.detail().claimId());
+    }
+
+    @Test
+    void anAuthorizationNumberTheLedgerHoldsAsATokenIsStillMatchedByTheNumberTheNotificationCarries() {
+        // As the real ledger writes it where member IDs are not recorded: a token, and never the number.
+        ledger.tokenisingAuthorizationRefs();
+        createSubscription();
+        RunEnvelope<PasDetail> approved = submit("P32H-PAS-APPROVED");
+        String stored = ledger.last().correlation().get(RunRecord.CORR_AUTHORIZATION_REF);
+        assertThat(stored).matches("[0-9a-f]{64}");
+
+        NotificationView view = receive(bundle(status(SUBSCRIPTION, "event-notification"),
+                claimResponse("claimresponse-reissued", null, "A1", "\"preAuthRef\":\"PA-PLACEHOLDER-0001\"")));
+
+        // The stored text and the number have nothing in common. Only the ledger's own comparison finds the run.
+        assertThat(view.correlatedRunId()).isEqualTo(approved.runId());
+        assertThat(view.correlationNotes()).contains("It is about the submission " + approved.runId() + ", matched by the authorization number it carries.");
+        // And the number is not said to differ from the one the submission recorded, which a comparison of the two texts would say.
+        assertThat(view.correlationNotes()).noneMatch(note -> note.startsWith("The authorization number it carries is not"));
+        // The line of the notification holds the token too.
+        assertThat(ledger.last().operation()).isEqualTo(EpaOperation.SUBSCRIPTION_NOTIFICATION);
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_AUTHORIZATION_REF, stored)
+                .containsEntry(RunRecord.CORR_RUN_ID, approved.runId());
+
+        // Another number is another request, and is tied to nothing.
+        NotificationView other = receive(bundle(status(SUBSCRIPTION, "event-notification"),
+                claimResponse("claimresponse-other", null, "A1", "\"preAuthRef\":\"PA-PLACEHOLDER-0002\"")));
+        assertThat(other.correlatedRunId()).isNull();
+        assertThat(other.correlationNotes()).contains("No submission in the ledger carries the ClaimResponse id or the authorization number this "
+                + "notification carries.");
     }
 
     @Test
