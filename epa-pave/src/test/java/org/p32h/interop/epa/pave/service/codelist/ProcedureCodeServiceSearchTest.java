@@ -58,13 +58,18 @@ class ProcedureCodeServiceSearchTest {
         // A code is matched from its start only. "0601" is inside E0601 and is not a match for it.
         assertThat(service.search("0601", null, 25)).isEmpty();
         assertThat(service.search("no such thing", null, 25)).isEmpty();
-        // White space around what was typed is not part of the query.
+        // White space around what was typed is not part of the query, and the answer says what was searched.
         assertThat(rows(service.search("  e06 ", null, 25))).containsExactly("r4");
+        assertThat(service.find("  e06 ", null, 25).query()).isEqualTo("e06");
+        assertThat(service.find("\u00A0E06\u00A0", null, 25).query()).isEqualTo("E06");
+        assertThat(service.find("Face  Mask", null, 25).query()).isEqualTo("Face  Mask");
+        assertThat(service.find("  ", null, 25).query()).isNull();
+        assertThat(service.find(null, null, 25).query()).isNull();
     }
 
     @Test
     void codeMatchesComeBeforeDescriptionMatchesAndAnExactCodeComesFirst() {
-        // r10 holds "95810" in its description only, so it comes last although it stands in the file before nothing else.
+        // r10 holds "95810" in its description only, so it comes after every row matched by its code.
         assertThat(rows(service.search("95810", null, 25))).containsExactly("r1", "r2", "r9", "r10");
         // The whole code first, then codes that start with the query, then descriptions, each in the order of the file.
         assertThat(rows(service.search("9581", null, 25))).containsExactly("r8", "r1", "r2", "r3", "r9", "r10");

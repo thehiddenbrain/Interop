@@ -90,6 +90,43 @@ class ProcedureCodeServiceLoadingTest {
     }
 
     @Test
+    void anExportAsASpreadsheetSavesItLoadsWithNothingToReport() {
+        // "CSV UTF-8" from a spreadsheet: a byte order mark, CRLF between rows, quotes only where a
+        // cell needs them, dates as the spreadsheet shows them, empty columns to the right of the
+        // data, and empty rows below it.
+        String export = "\uFEFFProcedure Code,Code Description,Code Type,Prior Auth Required,LOB,Delegated Entity,Eff Date,Term Date,Comments,,\r\n"
+                + "95810,\"Sleep study, attended\",CPT,Y,Medicare,eviCore,1/1/2026,12/31/9999,,,\r\n"
+                + "E2601,\"Cushion, under 22\"\" wide\",HCPCS,N,Commercial,,1/1/2026,,\"general use\r\nsee the policy\",,\r\n"
+                + "J3490,Drug with no code of its own,HCPCS,,,,,,,,\r\n"
+                + ",,,,,,,,,,\r\n"
+                + ",,,,,,,,,,\r\n";
+        ProcedureCodeService service = TestCodeLists.csv(directory, export);
+
+        CodeListSelfCheck check = service.selfCheck();
+        assertThat(check.rowCount()).isEqualTo(3);
+        assertThat(check.statingAuthRequirement()).isEqualTo(2);
+        assertThat(check.namingVendor()).isEqualTo(1);
+        assertThat(check.linesOfBusiness()).containsExactly(Map.entry("Medicare", 1), Map.entry("Commercial", 1));
+        assertThat(check.recognisedColumns()).containsExactly(Map.entry("code", "Procedure Code"), Map.entry("description", "Code Description"),
+                Map.entry("codeType", "Code Type"), Map.entry("authRequired", "Prior Auth Required"), Map.entry("lineOfBusiness", "LOB"),
+                Map.entry("delegatedVendor", "Delegated Entity"), Map.entry("effectiveDate", "Eff Date"), Map.entry("endDate", "Term Date"),
+                Map.entry("notes", "Comments"));
+        assertThat(check.unrecognisedColumns()).isEmpty();
+        // The one thing said is the cell with a line break in it, which was meant here and is named in case it was not.
+        assertThat(check.warnings()).containsExactly("1 row has a cell that holds a line break: line 3. If that was not meant, a double "
+                + "quote on that line is not closed and the lines after it were read into the cell.");
+
+        ProcedureCode sleep = service.rowsFor("95810", "Medicare", java.time.LocalDate.of(2026, 3, 20)).get(0);
+        assertThat(sleep.description()).isEqualTo("Sleep study, attended");
+        assertThat(sleep.authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(sleep.endDate()).isEqualTo("9999-12-31");
+        ProcedureCode cushion = service.rowsFor("E2601", null, null).get(0);
+        assertThat(cushion.description()).isEqualTo("Cushion, under 22\" wide");
+        assertThat(cushion.notes()).isEqualTo("general use\r\nsee the policy");
+        assertThat(service.rowsFor("J3490", null, null).get(0).authRequired()).isEqualTo(AuthRequirement.UNKNOWN);
+    }
+
+    @Test
     void whiteSpaceAroundTheConfiguredPathIsNotPartOfIt() {
         Path file = TestCodeLists.write(directory, "export.csv", CSV);
         assertThat(withSettings(Map.of("file", "  " + file + "  ")).selfCheck().rowCount()).isEqualTo(2);
@@ -99,9 +136,8 @@ class ProcedureCodeServiceLoadingTest {
     void aPathWithNoFileBehindItFailsAtStartupAndNamesThePath() {
         Path missing = directory.resolve("not-there.csv");
         assertThatThrownBy(() -> TestCodeLists.load(missing)).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(missing.toString())
-                .hasMessageContaining("does not exist")
-                .hasMessageContaining("codelist.file");
+                .hasMessage("The code list file " + missing + " does not exist. Set codelist.file to the path of the export, or leave "
+                        + "it blank to use the bundled placeholder list.");
         // Also when the format is stated, so the name was never needed to decide it.
         assertThatThrownBy(() -> TestCodeLists.load(directory.resolve("not-there.dat"), Map.of("format", "csv")))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("not-there.dat").hasMessageContaining("does not exist");
@@ -110,9 +146,36 @@ class ProcedureCodeServiceLoadingTest {
     @Test
     void aRelativePathIsNamedInFullSoItIsClearWhereTheToolLooked() {
         assertThatThrownBy(() -> withSettings(Map.of("file", "no-such-directory/codes.csv"))).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(Path.of("no-such-directory/codes.csv").toAbsolutePath().normalize().toString())
-                // The value as configured is in the message too, so it can be found in application.yml.
-                .hasMessageContaining("\"no-such-directory/codes.csv\"");
+                // Where the tool looked, and the value as configured, so it can be found in application.yml.
+                .hasMessageStartingWith("The code list file " + Path.of("no-such-directory/codes.csv").toAbsolutePath().normalize()
+                        + " (codelist.file is \"no-such-directory/codes.csv\") does not exist.");
+    }
+
+    @Test
+    void aPathThisSystemCannotUseFailsAtStartupAndShowsWhatWasConfigured() {
+        // No file system takes a NUL character in a name, so this is refused before anything is looked for.
+        assertThatThrownBy(() -> withSettings(Map.of("file", "codes\0.csv"))).isInstanceOf(UnusableCodeListException.class)
+                .hasMessage("codelist.file is \"codes<U+0000>.csv\", which is not a path this system can use.");
+    }
+
+    @Test
+    void everyRefusalIsOfTheOneTypeWhoseMessagesTheLoaderWroteItself() {
+        // The service logs the message of this type as it stands. It may do that only because no
+        // message of the type is ever taken from a file system or a parser.
+        assertThatThrownBy(() -> TestCodeLists.load(directory.resolve("not-there.csv"))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThatThrownBy(() -> withSettings(Map.of("format", "xml"))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThatThrownBy(() -> withSettings(Map.of("delimiter", ""))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThatThrownBy(() -> TestCodeLists.load(TestCodeLists.write(directory, "broken.json", "[{"))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThatThrownBy(() -> TestCodeLists.load(TestCodeLists.write(directory, "nocode.csv", "A,B\n1,2\n"))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThat(new UnusableCodeListException("x")).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void aBundledListThatIsNotInTheApplicationIsSaidToBeMissing() {
+        assertThat(CodeListLoader.bundled(CodeListLoader.PLACEHOLDER)).isNotEmpty();
+        assertThatThrownBy(() -> CodeListLoader.bundled("codelist/no-such-list.csv")).isInstanceOf(UnusableCodeListException.class)
+                .hasMessage("The bundled placeholder code list is missing from the application (codelist/no-such-list.csv). "
+                        + "Set codelist.file to a code list, or rebuild the application.");
     }
 
     @Test
@@ -308,7 +371,37 @@ class ProcedureCodeServiceLoadingTest {
                 .hasMessage("The code list file " + file + " has no column this tool recognises as the procedure code. "
                         + "Headers found: \"Proc\", \"Short Description\", \"Needs Auth\", (blank). "
                         + "The first row of the file that is not blank must be the header row. "
-                        + "If one of these holds the code, add it to codelist.columns.code in application.yml.");
+                        + "If one of these holds the code, name it under codelist.columns.code in application.yml. A list set there replaces the built-in names for the column.");
+    }
+
+    @Test
+    void aFileSeparatedByAnotherCharacterThanTheOneConfiguredSaysSoInTheFailure() {
+        // The commonest reason a good export has no column for the code: its whole header row was read as one cell.
+        Path semicolons = TestCodeLists.write(directory, "semicolons.csv", "Code;Description;PA Required\nE0601;CPAP device;No\n");
+        assertThatThrownBy(() -> TestCodeLists.load(semicolons)).isInstanceOf(UnusableCodeListException.class)
+                .hasMessage("The code list file " + semicolons + " has no column this tool recognises as the procedure code. "
+                        + "Headers found: \"Code;Description;PA Required\". "
+                        + "The header row was read as one cell, and it holds a semicolon. If that is what separates the cells of this "
+                        + "file, set codelist.delimiter to \";\". "
+                        + "The first row of the file that is not blank must be the header row. "
+                        + "If one of these holds the code, name it under codelist.columns.code in application.yml. A list set there replaces the built-in names for the column.");
+        // Doing what the message says is what makes the file load.
+        assertThat(codes(TestCodeLists.load(semicolons, Map.of("delimiter", ";")))).containsExactly("E0601");
+
+        Path tabs = TestCodeLists.write(directory, "tabs.csv", "Code\tDescription\nE0601\tCPAP device\n");
+        assertThatThrownBy(() -> TestCodeLists.load(tabs)).isInstanceOf(UnusableCodeListException.class)
+                .hasMessageContaining("Headers found: \"Code<U+0009>Description\". The header row was read as one cell, and it holds a tab. "
+                        + "If that is what separates the cells of this file, set codelist.delimiter to tab. ");
+        assertThat(codes(TestCodeLists.load(tabs, Map.of("delimiter", "tab")))).containsExactly("E0601");
+
+        // The other way round: commas in a file read with a bar between cells.
+        Path commas = TestCodeLists.write(directory, "commas.csv", "Code,Description\nE0601,CPAP device\n");
+        assertThatThrownBy(() -> TestCodeLists.load(commas, Map.of("delimiter", "|"))).isInstanceOf(UnusableCodeListException.class)
+                .hasMessageContaining("it holds a comma. If that is what separates the cells of this file, set codelist.delimiter to \",\". ");
+        // One header that simply is not a known one gets no such hint.
+        Path other = TestCodeLists.write(directory, "other.csv", "Procedure\nE0601\n");
+        assertThatThrownBy(() -> TestCodeLists.load(other)).isInstanceOf(UnusableCodeListException.class)
+                .hasMessageNotContaining("read as one cell");
     }
 
     @Test

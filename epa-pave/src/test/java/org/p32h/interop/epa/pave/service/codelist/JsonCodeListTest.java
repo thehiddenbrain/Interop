@@ -136,7 +136,7 @@ class JsonCodeListTest {
         assertThatThrownBy(() -> TestCodeLists.load(file)).isInstanceOf(IllegalStateException.class)
                 .hasMessage("The code list file " + file + " has no column this tool recognises as the procedure code. "
                         + "Keys found: \"proc\", \"desc\", \"needs auth\". "
-                        + "If one of these holds the code, add it to codelist.columns.code in application.yml.");
+                        + "If one of these holds the code, name it under codelist.columns.code in application.yml. A list set there replaces the built-in names for the column.");
     }
 
     @Test
@@ -201,10 +201,19 @@ class JsonCodeListTest {
         assertThat(service.selfCheck().warnings()).containsExactly(
                 "3 entries of the list are not objects and were not read: entries 2, 3 and 8.",
                 "No column was recognised as the prior authorization flag, so no row says whether prior authorization is required and "
-                        + "nothing can be compared with the service on that point. If the file has such a column, add its header to "
+                        + "nothing can be compared with the service on that point. If the file has such a column, name its header under "
                         + "codelist.columns.auth-required.",
                 // Entry 6 holds something and has no code. Entries 4 and 5 hold nothing, like a blank line.
                 "1 row has no code and was left out: entry 6.");
+    }
+
+    @Test
+    void aValueUnderABlankKeyIsReportedBecauseNoColumnCanBeFoundForIt() {
+        ProcedureCodeService service = TestCodeLists.json(directory, "[{\"code\":\"A1\",\"pa\":\"Y\",\"\":\"stray\"},{\"code\":\"A2\",\"pa\":\"N\",\" \":null},"
+                + "{\"code\":\"A3\",\"pa\":\"N\",\"\":\"again\"}]");
+        assertThat(service.selfCheck().rowCount()).isEqualTo(3);
+        assertThat(service.selfCheck().unrecognisedColumns()).isEmpty();
+        assertThat(service.selfCheck().warnings()).containsExactly("A key that is blank holds something on entries 1 and 3. It was not read.");
     }
 
     @Test

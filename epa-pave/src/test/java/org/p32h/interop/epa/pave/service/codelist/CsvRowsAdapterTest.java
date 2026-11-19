@@ -88,6 +88,32 @@ class CsvRowsAdapterTest {
     }
 
     @Test
+    void aFileWithTheSameMistakeOnEveryLineNamesTheFirstTenAndCountsTheRest() {
+        StringBuilder file = new StringBuilder("caseId,memberId,note\n");
+        for (int i = 1; i <= 15; i++) {
+            file.append("TC-").append(i).append(",S123456789,\"a \"marked\" word\"\n");
+        }
+        CsvRows.Table table = new CsvRowsAdapter().read(file.toString());
+        assertThat(table.problems()).hasSize(CsvRowsAdapter.PROBLEMS_NAMED + 1);
+        assertThat(table.problems().get(0)).startsWith("On line 2 text follows the closing double quote of a cell.");
+        assertThat(table.problems().get(9)).startsWith("On line 11 text follows the closing double quote of a cell.");
+        assertThat(table.problems().get(10)).isEqualTo("The quoting is wrong in 5 more places further down the file.");
+        // The suite reader runs none of it, however the problems are counted.
+        assertThat(suites.read("cases.csv", file.toString()).rows()).isEmpty();
+        assertThat(suites.read("cases.csv", file.toString()).problems()).hasSize(11);
+
+        // Eleven problems: ten named and one more, in the singular.
+        StringBuilder eleven = new StringBuilder("caseId,note\n");
+        for (int i = 1; i <= 11; i++) {
+            eleven.append("TC-").append(i).append(",\"a \"marked\" word\"\n");
+        }
+        assertThat(new CsvRowsAdapter().read(eleven.toString()).problems()).last().isEqualTo("The quoting is wrong in 1 more place further "
+                + "down the file.");
+        // Ten or fewer are all named, with nothing added.
+        assertThat(new CsvRowsAdapter().read("caseId,note\nTC-1,\"a \"marked\" word\"\n").problems()).hasSize(1);
+    }
+
+    @Test
     void theHeaderIsTheFirstRowWhateverItHolds() {
         CsvRows adapter = new CsvRowsAdapter();
         CsvRows.Table table = adapter.read("caseId, memberId \n\n TC-1 ,\" S123456789 \"\n,\n");

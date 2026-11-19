@@ -45,7 +45,8 @@ public class ProcedureCodeController {
      *                       only, or narrowing left nothing to offer. Left out otherwise. Without
      *                       it an empty answer would read as "this code is not in the list"
      * @param limit          the most codes one answer holds, {@code app.autocomplete-limit}
-     * @param matched        how many rows matched in all. More than {@code codes} holds when the limit cut the answer
+     * @param matched        how many rows matched in all, after any narrowing. More than {@code codes}
+     *                       holds when the limit cut the answer, so the picker can say "25 of 61"
      * @param codes          the rows, best match first. Each always carries {@code authRequired}:
      *                       {@code UNKNOWN} means the list does not say, which the picker shows as
      *                       no tag at all and never as "No PA"
@@ -64,7 +65,7 @@ public class ProcedureCodeController {
     public Answer search(@RequestParam(name = "q", required = false) String q, @RequestParam(name = "lob", required = false) String lob) {
         int limit = app.autocompleteLimit();
         CodeSearch found = codes.find(q, lob, limit);
-        return new Answer(Texts.trimToNull(q), Texts.trimToNull(lob), found.narrowed(), found.notice(), found.otherLines(), limit,
+        return new Answer(found.query(), Texts.trimToNull(lob), found.narrowed(), found.notice(), found.otherLines(), limit,
                 found.matched(), found.codes());
     }
 

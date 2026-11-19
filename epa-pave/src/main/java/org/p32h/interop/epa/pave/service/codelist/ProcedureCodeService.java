@@ -38,9 +38,20 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
     private final LineMatcher lines;
     private final Map<String, List<LoadedCodeList.Entry>> byCode = new LinkedHashMap<>();
 
-    /** @throws IllegalStateException when the configured list cannot be used. The message names the file and says what to change */
+    /** @throws UnusableCodeListException when the configured list cannot be used. The message names the file and says what to change */
     public ProcedureCodeService(CodelistProperties properties) {
-        this.list = CodeListLoader.load(properties);
+        LoadedCodeList loaded;
+        try {
+            loaded = CodeListLoader.load(properties);
+        } catch (UnusableCodeListException e) {
+            // The framework reports a failed start as a stack trace with this reason at the bottom
+            // of it. One line that says it outright is what the person who set codelist.file needs.
+            // The message is the loader's own: fixed sentences, the path, and for a file with no
+            // code column the first row of that file. No member data unless the path points at some.
+            log.error("The procedure code list cannot be used, so the application will not start. {}", e.getMessage());
+            throw e;
+        }
+        this.list = loaded;
         this.lines = new LineMatcher(properties.lineOfBusinessAliases());
         list.entries().forEach(entry -> byCode.computeIfAbsent(entry.codeKey(), key -> new ArrayList<>()).add(entry));
 
@@ -125,7 +136,7 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
             otherLines = "Nothing is offered for " + line + ". " + CodeListText.count(heldBack.rows, "row matches", "rows match")
                     + " under " + heldBack.lines() + ".";
         }
-        return new CodeSearch(codes, matched, narrowed, lineGiven && !narrowed ? notNarrowed(line) : null, otherLines);
+        return new CodeSearch(cleaned, codes, matched, narrowed, lineGiven && !narrowed ? notNarrowed(line) : null, otherLines);
     }
 
     /** The rows a line of business filter kept out of one answer, and the lines they are for. */
@@ -205,5 +216,4 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
                 + CodeListText.join(new ArrayList<>(list.lineNames().values())) + ". If one of those is the same line under another "
                 + "name, add it to codelist.line-of-business-aliases.";
     }
-
 }

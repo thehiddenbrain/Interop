@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.Texts;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -28,13 +29,13 @@ final class JsonCodeList {
 
     /**
      * @param subject how a message names the file, as the start of a sentence
-     * @throws IllegalStateException when the text is not JSON or is not one of the two shapes
+     * @throws UnusableCodeListException when the text is not JSON or is not one of the two shapes
      */
     static SourceTable read(String text, String subject) {
         JsonSafe.Parsed parsed = JsonSafe.parse(text);
         if (!parsed.ok()) {
             // The parser's own message is never used: only the fixed phrase and the position it was reduced to.
-            throw new IllegalStateException(subject + parsed.error().replaceFirst("^The body", "") + " " + SHAPE);
+            throw new UnusableCodeListException(subject + parsed.error().replaceFirst("^The body", "") + " " + SHAPE);
         }
         List<String> warnings = new ArrayList<>();
         JsonNode list = parsed.node();
@@ -45,7 +46,7 @@ final class JsonCodeList {
                 (JsonSafe.isArray(property.getValue()) ? lists : others).add(CodeListText.show(property.getKey()));
             }
             if (lists.size() != 1) {
-                throw new IllegalStateException(subject + " is a JSON object with " + (lists.isEmpty() ? "no list in it"
+                throw new UnusableCodeListException(subject + " is a JSON object with " + (lists.isEmpty() ? "no list in it"
                         : lists.size() + " lists in it (" + CodeListText.join(lists) + "), so this tool cannot tell which one holds the rows")
                         + ". " + SHAPE);
             }
@@ -55,7 +56,7 @@ final class JsonCodeList {
             }
             list = JsonSafe.properties(list).stream().filter(p -> JsonSafe.isArray(p.getValue())).findFirst().orElseThrow().getValue();
         } else if (!JsonSafe.isArray(list)) {
-            throw new IllegalStateException(subject + " is JSON, but it is neither a list nor an object. " + SHAPE);
+            throw new UnusableCodeListException(subject + " is JSON, but it is neither a list nor an object. " + SHAPE);
         }
         if (parsed.repeatedKeys()) {
             warnings.add("An object in the file has the same key more than once. Only the last value of such a key was read.");
@@ -100,7 +101,7 @@ final class JsonCodeList {
             if (container) {
                 nested.add(at);
             }
-            if (cells.values().stream().anyMatch(cell -> cell != null && !cell.isBlank())) {
+            if (cells.values().stream().anyMatch(Texts::present)) {
                 List<String> aligned = new ArrayList<>();
                 int width = cells.keySet().stream().mapToInt(Integer::intValue).max().orElse(-1) + 1;
                 for (int i = 0; i < width; i++) {
@@ -122,7 +123,7 @@ final class JsonCodeList {
             warnings.add(CodeListText.count(nested.size(), "entry has", "entries have") + " a value that is an object, or a list holding one: "
                     + entries(nested) + ". Such a value was read as its JSON text.");
         }
-        return new SourceTable(SourceTable.JSON, "entry", headers, rows, warnings);
+        return new SourceTable(SourceTable.JSON, headers, rows, warnings);
     }
 
     /** True for an object, and for a list with an object or a list inside it. A list of plain values is not nested. */
@@ -145,7 +146,7 @@ final class JsonCodeList {
             List<String> parts = new ArrayList<>();
             for (JsonNode element : JsonSafe.elements(value)) {
                 String part = JsonSafe.text(element);
-                if (part != null) {
+                if (Texts.present(part)) {
                     parts.add(part);
                 }
             }
