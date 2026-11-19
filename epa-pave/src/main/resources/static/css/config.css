@@ -290,9 +290,9 @@
 
 /* ---------- where each operation is sent ---------- */
 
-.config-operations th:nth-child(1) { width: 17%; }
-.config-operations th:nth-child(2) { width: 34%; }
-.config-operations th:nth-child(3) { width: 27%; }
+.config-operations th:nth-child(1) { width: 15%; }
+.config-operations th:nth-child(2) { width: 31%; }
+.config-operations th:nth-child(3) { width: 24%; }
 
 .config-op > th {
     font-weight: 400;
