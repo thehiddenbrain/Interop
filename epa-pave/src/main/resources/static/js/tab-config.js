@@ -9,18 +9,24 @@
 //
 // The tab is a row of views, built the way the History tab builds its own. What the tool holds
 // and what is in force is read here once, in three answers, and handed to whichever view is on
-// screen. After any change made on this tab the three are read again and the frame is told to
-// read /api/mode, so the banner, the environment strip and this tab say the same thing.
+// screen. After any change made on this tab the frame is told to read /api/mode first and the
+// three are read after it, so the banner, the environment strip and this tab say the same thing.
 
 import * as calls from './config-calls.js';
 import {el, fill, clear} from './dom.js';
 import {errorPanel} from './result.js';
 import {createInForceView} from './config-inforce.js';
 import {createEnvironmentsView} from './config-environments.js';
+import {createCollectionsView} from './config-collections.js';
+import {createRawView} from './config-raw.js';
+import {createChecksView} from './config-checks.js';
 
 const VIEWS = [
     {id: 'inforce', label: 'In force now', create: createInForceView},
-    {id: 'environments', label: 'Environments', create: createEnvironmentsView}
+    {id: 'environments', label: 'Environments', create: createEnvironmentsView},
+    {id: 'collections', label: 'Collections and mapping', create: createCollectionsView},
+    {id: 'raw', label: 'Send a request as written', create: createRawView},
+    {id: 'checks', label: 'Check this installation', create: createChecksView}
 ];
 
 let app = null;
@@ -46,16 +52,30 @@ const context = {
 function mount(panel, application) {
     app = application;
     context.app = application;
-    nodes.switcher = el('div', {class: 'views', role: 'tablist', aria: {label: 'Views of the configuration'}},
+    nodes.switcher = el('div', {class: 'views config-views', role: 'tablist', aria: {label: 'Views of the configuration'}},
         VIEWS.map(view => el('button', {
             type: 'button', class: 'view', role: 'tab', id: 'config-view-' + view.id, aria: {selected: 'false', controls: 'config-view'},
             on: {click: () => go(view.id)}
         }, view.label)));
+    nodes.switcher.addEventListener('keydown', moveAlongViews);
     nodes.problem = el('div', {class: 'config-problem', aria: {live: 'polite'}});
-    nodes.view = el('div', {id: 'config-view', class: 'config', role: 'tabpanel'});
+    nodes.view = el('div', {id: 'config-view', class: 'config', role: 'tabpanel', tabIndex: -1});
     panel.classList.add('tabpanel--stacked');
     fill(panel, nodes.switcher, nodes.problem, nodes.view);
     reload();
+}
+
+/** Arrow keys, Home and End move along the views, as they move along the tabs above them. */
+function moveAlongViews(event) {
+    const ids = VIEWS.map(view => view.id);
+    const at = ids.indexOf(current);
+    const next = {ArrowRight: ids[(at + 1) % ids.length], ArrowLeft: ids[(at + ids.length - 1) % ids.length],
+        Home: ids[0], End: ids[ids.length - 1]}[event.key];
+    if (next) {
+        event.preventDefault();
+        go(next);
+        document.getElementById('config-view-' + next).focus();
+    }
 }
 
 function onShow(path) {
@@ -66,7 +86,9 @@ function onShow(path) {
 function showView(id, argument) {
     current = id;
     for (const control of nodes.switcher.children) {
-        control.setAttribute('aria-selected', control.id === 'config-view-' + id ? 'true' : 'false');
+        const selected = control.id === 'config-view-' + id;
+        control.setAttribute('aria-selected', selected ? 'true' : 'false');
+        control.tabIndex = selected ? 0 : -1;
     }
     nodes.view.setAttribute('aria-labelledby', 'config-view-' + id);
     let view = built.get(id);
@@ -76,6 +98,7 @@ function showView(id, argument) {
         view.draw();
     }
     fill(nodes.view, view.node);
+    nodes.view.classList.toggle('config--bench', Boolean(view.bench));
     nodes.view.scrollTop = 0;
     view.show(argument);
 }
@@ -117,12 +140,12 @@ async function reload() {
 }
 
 /**
- * Call after any change made on this tab. The stored configuration is read again, and the frame
- * re-reads /api/mode so its banner and its strip agree with what this tab now shows.
+ * Call after any change made on this tab. The frame re-reads /api/mode first, so the write access
+ * this tab draws from is the one the banner shows, and then what the tool holds is read again.
  */
 async function changed() {
-    await reload();
     await app.refreshMode();
+    await reload();
 }
 
 /** The label of an operation, from the list the server sent. One it did not list is shown by its name. */

@@ -238,8 +238,310 @@
     color: var(--ink-soft);
 }
 
+/* ---------- writes to production ---------- */
+
+/*
+ * The panel is about the production guardrail, so it wears the guardrail's purple frame, the one
+ * the colour key names for a write the guardrail refuses. Unlocked is the state to notice: the
+ * frame is joined by a solid purple band down its side and the heading is set in purple.
+ */
+.config-writes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 1180px;
+    padding: var(--gap-3) var(--gap-4) var(--gap-4);
+    border: 3px solid var(--purple);
+}
+
+.config-writes--unlocked {
+    border-left-width: 14px;
+}
+
+.config-writes--unlocked > .section-heading {
+    color: var(--purple);
+}
+
+.config-writes__reason {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.config-writes__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--gap-4);
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.config-writes__what {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.config-unlock {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 640px;
+}
+
+/* ---------- where each operation is sent ---------- */
+
+.config-operations th:nth-child(1) { width: 17%; }
+.config-operations th:nth-child(2) { width: 34%; }
+.config-operations th:nth-child(3) { width: 27%; }
+
+.config-op > th {
+    font-weight: 400;
+    text-align: left;
+    vertical-align: top;
+}
+
+.config-op__label {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+/* Every row keeps the same edge, so the operation names stay in one line. */
+.config-op > th:first-child {
+    padding-left: var(--gap-2);
+    border-left: 4px solid transparent;
+}
+
+/* An operation that cannot be sent is the row to notice: a heavy rule down its edge. */
+.config-op--missing > th:first-child {
+    border-left-color: var(--ink-strong);
+}
+
+/* An operation the guardrail would refuse carries the guardrail's colour on its edge. */
+.config-op--blocked > th:first-child {
+    border-left-color: var(--purple);
+}
+
+.config-op--inside > td, .config-op--inside > th, .config-op--inside .config-op__label {
+    color: var(--ink-soft);
+}
+
+.config-op--more > td {
+    border-top-style: dashed;
+}
+
+.config-op__unavailable, .config-op__unresolved {
+    color: var(--ink-strong);
+}
+
+.config-op__blocked {
+    padding-left: var(--gap-2);
+    border-left: 3px solid var(--purple);
+}
+
+.config-default {
+    font-size: var(--text-small);
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.config-change {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.config-mapping th:nth-child(1) { width: 17%; }
+.config-mapping th:nth-child(2) { width: 36%; }
+.config-mapping th:nth-child(4) { width: 19%; }
+
+.config-mapping tbody > tr > th {
+    font-weight: 400;
+    text-align: left;
+    vertical-align: top;
+}
+
+.config-chooser > td {
+    padding-top: 0;
+    padding-bottom: var(--gap-3);
+}
+
+.config-chooser__box {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 900px;
+    padding: var(--gap-2) var(--gap-3) var(--gap-3);
+    border: 1px solid var(--ink-strong);
+}
+
+.config-unmapped td, .config-collections td {
+    vertical-align: top;
+}
+
+.config-collections th:nth-child(1) { width: 34%; }
+.config-collections th:nth-child(2) { width: 18%; }
+.config-collections th:nth-child(3) { width: 22%; }
+
+/* A placeholder with no value: the row a tester has to act on. */
+.config-row--missing > td:first-child {
+    font-weight: 600;
+}
+
+.config-row--missing > td:nth-child(2) {
+    color: var(--ink-strong);
+}
+
+/* ---------- try a value ---------- */
+
+.config-try__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+    max-width: 1180px;
+}
+
+.config-try__choose {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: var(--gap-3);
+}
+
+.config-try__values {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.config-try__values:empty {
+    display: none;
+}
+
+.config-try__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px var(--gap-3);
+}
+
+.config-try__answer:empty {
+    display: none;
+}
+
+.config-try__resolved {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+    padding-top: var(--gap-3);
+}
+
+.config-script {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: var(--gap-2);
+}
+
+.config-detail {
+    scroll-margin-top: var(--gap-3);
+}
+
+.config-detail:focus {
+    outline: none;
+}
+
+.config-fold > summary {
+    font-size: var(--text-small);
+}
+
+/* ---------- send a request as written ---------- */
+
+/* This view is a workbench: its two panes scroll, the view itself does not. */
+.config--bench {
+    overflow: hidden;
+}
+
+.config-raw {
+    height: 100%;
+    padding-top: var(--gap-2);
+}
+
+.config-raw__body {
+    width: 100%;
+    min-height: 220px;
+    resize: vertical;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    font: 400 var(--text-small)/1.45 var(--font-mono);
+    color: var(--ink-strong);
+}
+
+.config-raw__body:focus-visible {
+    outline-offset: 0;
+}
+
+.config-raw__values {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.config-raw__values:empty, .config-raw__about:empty {
+    display: none;
+}
+
+.config-raw__missing > label {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.config-raw__facts > dt {
+    padding-right: var(--gap-3);
+}
+
+/* ---------- check this installation ---------- */
+
+.config-checks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-4);
+}
+
+/* A check that has found something to report wears the frame of a fault to report. */
+.config-check--alarm {
+    padding: var(--gap-3) var(--gap-4) var(--gap-4);
+    border: 4px solid var(--ink-strong);
+}
+
+.config-check__alarm {
+    font: 600 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.config-check__fine {
+    font-weight: 600;
+}
+
+.config-lookups th:nth-child(1) { width: 16%; }
+.config-lookups th:nth-child(2) { width: 38%; }
+.config-lookups th:nth-child(3) { width: 12%; }
+
 @media (max-width: 860px) {
+    .config-try__choose {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .config-upload__fields {
         grid-template-columns: minmax(0, 1fr);
     }
+}
+
+/* The raw view has no case: the shared case belongs to the protocol tabs, so its slot and the rule under it are not drawn here. */
+.config-raw .case-slot:empty {
+    display: none;
+}
+
+.config-raw .case-pane__own {
+    padding-top: 0;
+    border-top: 0;
 }
