@@ -390,6 +390,7 @@ public class SuiteService implements AutoCloseable {
             }
         } catch (RuntimeException | Error e) {
             String reference = UUID.randomUUID().toString();
+            // A reference and the exception types and frames only. Never a message, and never a case, which holds a member ID.
             log.error("A suite run failed inside this tool, reference {}: {}", reference, Faults.describe(e));
             ended = "This tool failed while running the suite. Reference " + reference + ".";
             if (e instanceof Error error) {
