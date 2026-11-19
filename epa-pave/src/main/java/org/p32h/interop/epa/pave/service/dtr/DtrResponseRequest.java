@@ -17,6 +17,10 @@ import java.util.Map;
  * a browser that posts one of them is told the field is not known, where declaring them would
  * mean accepting a value and then ignoring it.
  *
+ * <p>The member, the provider and the codes are optional. When given, the run is recorded against
+ * the same case as the steps before it, each answer added names the provider as its author, and a
+ * response built from nothing says which coverage and which orders it is for.
+ *
  * @param questionnaire         the Questionnaire resource as the package step returned it, as JSON text
  * @param questionnaireResponse a QuestionnaireResponse to start from, as JSON text: the one the
  *                              package arrived with, or for an adaptive questionnaire the one the

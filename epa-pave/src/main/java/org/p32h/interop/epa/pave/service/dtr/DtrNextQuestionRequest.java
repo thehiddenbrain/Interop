@@ -15,8 +15,10 @@ import java.util.Map;
  * <p>The tool keeps no session between steps, so the request carries everything the step starts
  * from: the questionnaire being answered, the QuestionnaireResponse so far, and the answers the
  * tester is adding. The fields every protocol shares are described on {@link RunRequest}. The
- * member, the provider and the codes are not sent by this step. They are taken so the run is
- * recorded against the same case as the steps before it.
+ * member, the provider and the codes are not sent as resources by this step. They are taken so the
+ * run is recorded against the same case as the steps before it, so each answer added can name the
+ * provider as its author, and so a response built from nothing can say which coverage and which
+ * orders it is for. Each of those is said by a local id, never by the member ID or the NPI.
  *
  * @param questionnaire         the Questionnaire resource as the package step returned it, as JSON
  *                              text. Needed for the first step only

@@ -543,8 +543,9 @@ public class DtrService {
     }
 
     /**
-     * The member, the provider and the codes of a step that does not send them. They are taken so
-     * the run is recorded against the same case as the steps before it, so each is optional, and
+     * The member, the provider and the codes of a step that sends none of them as a resource. They
+     * are taken so the run is recorded against the same case as the steps before it, and so the
+     * response can say who answered and which case it is for. So each is optional, and
      * whatever is given is still checked.
      */
     private static void optionalCase(RunInputs inputs, RunRequest request) {
