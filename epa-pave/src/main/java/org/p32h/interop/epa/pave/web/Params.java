@@ -20,24 +20,36 @@ public final class Params {
     private Params() {
     }
 
-    /** An optional value parsed with the type's own parser. Null when the parameter is blank. */
-    public static <T> T optional(String name, String value, Function<String, T> parser) {
+    /**
+     * An optional value parsed with the type's own parser. Null when the parameter is blank.
+     *
+     * <p>The parser's own message is never passed on. A message this tool did not write, such as
+     * the one a number parser or an enum lookup throws, names Java types and quotes the input.
+     *
+     * @param accepted what the parameter accepts, in words, for the sentence shown to the tester
+     */
+    public static <T> T optional(String name, String value, Function<String, T> parser, String accepted) {
         if (Texts.blank(value)) {
             return null;
         }
         try {
             return parser.apply(value.strip());
         } catch (IllegalArgumentException e) {
-            throw ValidationException.of(name, Texts.orElse(e.getMessage(), "The value given for " + name + " is not valid."));
+            throw ValidationException.of(name, "The value given for " + name + " is not valid. It must be " + accepted + ".");
         }
     }
 
+    /** An optional whole number. Null when blank. */
+    public static Integer integer(String name, String value) {
+        return optional(name, value, Integer::valueOf, "a whole number");
+    }
+
     /** A value that must be present, parsed with the type's own parser. */
-    public static <T> T required(String name, String value, Function<String, T> parser) {
+    public static <T> T required(String name, String value, Function<String, T> parser, String accepted) {
         if (Texts.blank(value)) {
             throw ValidationException.of(name, "The parameter " + name + " is required.");
         }
-        return optional(name, value, parser);
+        return optional(name, value, parser, accepted);
     }
 
     /** An optional ISO date. Null when blank. */

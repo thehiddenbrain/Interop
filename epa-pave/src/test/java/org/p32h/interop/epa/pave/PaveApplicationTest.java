@@ -1,5 +1,16 @@
 package org.p32h.interop.epa.pave;
 
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.cfg.EnumFeature;
+import tools.jackson.databind.DeserializationFeature;
+import org.springframework.boot.env.OriginTrackedMapPropertySource;
+import org.springframework.boot.context.properties.bind.handler.NoUnboundElementsBindHandler;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.BindHandler;
+import org.p32h.interop.epa.pave.testsupport.TestMvc;
+import java.util.Map;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.p32h.interop.epa.pave.config.AppProperties;
@@ -31,6 +42,7 @@ class PaveApplicationTest {
     @Autowired OnyxProperties onyx;
     @Autowired LookupProperties lookup;
     @Autowired BuildProperties build;
+    @Autowired JsonMapper mapper;
 
     @Test
     void mockIsTheDefaultProfile() {
@@ -59,6 +71,30 @@ class PaveApplicationTest {
         assertThat(onyx.auth().enabled()).isFalse();
         assertThat(lookup.member().readTimeoutMs()).isEqualTo(5000);
         assertThat(lookup.provider().enabled()).isTrue();
+    }
+
+    @Test
+    void everyKeyInTheConfigurationFilesIsOneAPropertiesRecordReads() {
+        // The assertions above would also pass on the defaults, so they cannot tell a misspelt key
+        // from a correct one. This binds each prefix again and fails on any key under it that no
+        // record component takes. Only the application's own files are looked at, so a variable in
+        // the operating system environment of whoever runs the build cannot fail it.
+        Map<String, Class<?>> records = Map.of("epa", EpaProperties.class, "config-store", ConfigStoreProperties.class,
+                "tracking", TrackingProperties.class, "codelist", CodelistProperties.class, "app", AppProperties.class,
+                "onyx", OnyxProperties.class, "lookup", LookupProperties.class);
+        NoUnboundElementsBindHandler strict = new NoUnboundElementsBindHandler(BindHandler.DEFAULT,
+                source -> source.getUnderlyingSource() instanceof OriginTrackedMapPropertySource);
+        records.forEach((prefix, type) -> assertThatCode(() -> Binder.get(environment).bind(prefix, Bindable.of(type), strict))
+                .as("keys under " + prefix).doesNotThrowAnyException());
+    }
+
+    @Test
+    void requestBodiesAreReadStrictlyByTheMapperTheApplicationUses() {
+        // The framework switches this off by default. A body with a misnamed property would then
+        // bind to nothing, and the run it describes would mean something else.
+        assertThat(mapper.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)).isTrue();
+        assertThat(mapper.isEnabled(EnumFeature.FAIL_ON_NUMBERS_FOR_ENUMS)).isTrue();
+        assertThat(TestMvc.mapper().isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)).isTrue();
     }
 
     @Test

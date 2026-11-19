@@ -55,8 +55,8 @@ class CrdScenarioDeterminationTest {
     }
 
     private static TestResult assess(String expected, CrdReading reading) {
-        return Expectations.assess(expected, reading.outcome(), reading.answers(), CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS)
-                .result();
+        return Expectations.assess(expected, reading.outcome(), reading.asked(), reading.answers(), CrdOutcome.values(),
+                CrdCodes.EXPECTATION_ELEMENTS).result();
     }
 
     /** A request body carrying one order for each code, as the request builder writes them. */

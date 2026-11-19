@@ -612,6 +612,39 @@ class CrdServiceTest {
     }
 
     @Test
+    void aResponseThatPutsMemberDataWhereCodesBelongIsShownOnScreenAndKeptOutOfTheLedgerLine() {
+        // A non-conformant response: a sentence in place of the pa-needed code, an object in place
+        // of the doc-needed code, and a person where the delegated vendor should be.
+        String ext = "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information";
+        String body = "{\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-1\","
+                + "\"extension\":[{\"url\":\"" + ext + "\",\"extension\":["
+                + "{\"url\":\"pa-needed\",\"valueString\":\"Auth needed for Placeholder-Surname born 1970-01-01\"},"
+                + "{\"url\":\"doc-needed\",\"valueCoding\":{\"code\":{\"patient\":\"Placeholder-Surname\",\"subscriberId\":\"SUB-1\"}}},"
+                + "{\"url\":\"questionnaire\",\"valueCanonical\":\"see {\\\"patient\\\":\\\"Placeholder-Surname\\\"}\"},"
+                + "{\"url\":\"detail\",\"extension\":[{\"url\":\"code\",\"valueCodeableConcept\":{\"coding\":[{\"code\":\"delegated-vendor\"}]}},"
+                + "{\"url\":\"value\",\"valueString\":\"Placeholder-Surname, authorized representative, 1 Placeholder Street\"}]}]}]}}]}";
+        RunEnvelope<CrdDetail> result = service(stub(TestExchanges.crd(200, body)), "mock", Map.of()).run(request("S123456789").build(),
+                RunOrigin.manual(), null);
+
+        // On screen the tester sees exactly what came back: that is the evidence.
+        assertThat(result.verdict().outcomeCode()).isEqualTo("UNRECOGNISED_CODE");
+        assertThat(result.detail().coverageInformation().get(0).paNeeded().code()).isEqualTo("Auth needed for Placeholder-Surname born 1970-01-01");
+        assertThat(result.detail().coverageInformation().get(0).delegatedVendor()).contains("Placeholder Street");
+
+        // The line that is kept holds none of it, and still says that something was there.
+        RunRecord record = ledger.only();
+        String line = JsonSafe.mapper().writeValueAsString(record);
+        assertThat(line).doesNotContain("Placeholder-Surname").doesNotContain("1970-01-01").doesNotContain("SUB-1")
+                .doesNotContain("Placeholder Street").doesNotContain("subscriberId");
+        assertThat(record.outcome()).isEqualTo("UNRECOGNISED_CODE");
+        assertThat(record.coverageCodes()).anySatisfy(code -> assertThat(code).startsWith("pa-needed=(not a code, "));
+        assertThat(record.delegatedVendor()).startsWith("(vendor not on the known list, ");
+        assertThat(record.correlation().get(RunRecord.CORR_QUESTIONNAIRE)).startsWith("(not recorded, ");
+        // The receipt on the result carries the same checked record, not the raw one.
+        assertThat(JsonSafe.mapper().writeValueAsString(result.ledger())).doesNotContain("Placeholder-Surname").doesNotContain("SUB-1");
+    }
+
+    @Test
     void aRunFromASuiteOrAReplayCarriesItsOrigin() {
         service().run(request("P32H-NO-AUTH").build(), new RunOrigin("suite-1", "case-7", "run-earlier"), null);
         assertThat(ledger.only().suiteRunId()).isEqualTo("suite-1");
@@ -819,9 +852,7 @@ class CrdServiceTest {
 
     @Test
     void aCallThatCompletesButIsSlowIsFlaggedAndATimeoutIsNot() {
-        VendorExchange slow = new VendorExchange(TestExchanges.crd(200, "{\"cards\":[]}").request(), 200, List.of(), "{\"cards\":[]}",
-                JsonSafe.parse("{\"cards\":[]}").node(), null, 16000L, org.p32h.interop.epa.pave.model.OnyxFailureType.NONE, null,
-                java.util.Set.of(), null, null, List.of());
+        VendorExchange slow = TestExchanges.crd(200, "{\"cards\":[]}").withElapsedMillis(16000L);
         RunEnvelope<CrdDetail> result = service(stub(slow), "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(result.timing().elapsedMillis()).isEqualTo(16000L);
         assertThat(result.timing().thresholdMillis()).isEqualTo(15000L);

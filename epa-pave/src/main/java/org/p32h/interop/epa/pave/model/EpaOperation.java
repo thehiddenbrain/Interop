@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import java.util.Locale;
 
 /**
@@ -120,6 +121,25 @@ public enum EpaOperation {
      * Wherever the direction of the error is uncertain, the answer is "write", because wrongly
      * blocking a read costs a click and wrongly allowing a write costs a real authorization.
      */
+    /**
+     * Reads an operation from its name, in any case, with hyphens or spaces accepted for the
+     * underscores. Declared as the JSON reader too, so a number in a suite file or a ledger line is
+     * never taken as a position in this list.
+     */
+    @JsonCreator
+    public static EpaOperation parse(String text) {
+        if (Texts.present(text)) {
+            String wanted = text.strip().toUpperCase(Locale.ROOT).replaceAll("[\\s-]+", "_");
+            for (EpaOperation operation : values()) {
+                if (operation.name().equals(wanted)) {
+                    return operation;
+                }
+            }
+        }
+        throw new IllegalArgumentException("The operation must be one of: " + String.join(", ",
+                java.util.Arrays.stream(values()).map(Enum::name).toList()) + ".");
+    }
+
     public boolean writesWith(String method) {
         if (write) {
             return true;

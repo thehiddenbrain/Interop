@@ -19,9 +19,20 @@ public final class Secrets {
     /** Shown in place of any header value that is a credential in its own right. */
     public static final String REDACTED = "[redacted]";
 
-    private static final Set<String> SECRET_WORDS = Set.of("secret", "password", "passwd", "pwd", "passphrase", "token",
-            "key", "apikey", "credential", "credentials", "private", "auth", "authorization", "bearer", "cookie",
-            "signature", "jwt", "assertion");
+    private static final Set<String> SECRET_WORDS = Set.of("secret", "password", "passwd", "pwd", "pass", "pw", "passphrase",
+            "token", "key", "apikey", "credential", "credentials", "creds", "private", "auth", "authorization", "authentication",
+            "bearer", "cookie", "signature", "jwt", "assertion", "session", "sessionid");
+
+    /**
+     * Words long enough to be recognised inside a longer one, so a name written with no separator,
+     * such as clientsecret, ACCESSTOKEN or JSESSIONID, is still masked.
+     */
+    private static final List<String> SECRET_ENDINGS = List.of("secret", "password", "passwd", "passphrase", "token", "apikey",
+            "credential", "credentials", "bearer", "cookie", "signature", "assertion", "sessionid");
+
+    /** The schemes whose name may be shown beside a redacted credential, since the scheme is not a secret. */
+    private static final List<String> AUTH_SCHEMES = List.of("Basic", "Bearer", "Digest", "Negotiate", "NTLM", "Token", "ApiKey",
+            "AWS4-HMAC-SHA256");
 
     /**
      * A name ending in one of these describes where or what a secret is, and is not itself one.
@@ -46,10 +57,31 @@ public final class Secrets {
         if (words.isEmpty()) {
             return false;
         }
-        if (DESCRIPTOR_WORDS.contains(words.get(words.size() - 1))) {
-            return false;
+        String last = words.get(words.size() - 1);
+        if (DESCRIPTOR_WORDS.contains(last)) {
+            // "secret id" and "session id" are credentials whatever the last word says.
+            String before = words.size() > 1 ? words.get(words.size() - 2) : "";
+            boolean stillSecret = last.equals("id") && (before.equals("secret") || before.equals("session"));
+            if (!stillSecret) {
+                return false;
+            }
         }
-        return words.stream().anyMatch(SECRET_WORDS::contains);
+        return words.stream().anyMatch(Secrets::secretWord);
+    }
+
+    /**
+     * True when one word of a name reads as a credential: it is on the list, it ends with one of
+     * the longer entries, or it is a longer word ending in "key". Where this errs, it errs toward
+     * masking, because masking a harmless name costs nothing and showing a credential cannot be undone.
+     */
+    private static boolean secretWord(String word) {
+        if (SECRET_WORDS.contains(word)) {
+            return true;
+        }
+        if (word.length() > 3 && word.endsWith("key")) {
+            return true;
+        }
+        return SECRET_ENDINGS.stream().anyMatch(word::endsWith);
     }
 
     /** True when a header carries a credential by its own name, whatever variable its value came from. */
@@ -60,6 +92,31 @@ public final class Secrets {
         String name = headerName.strip().toLowerCase(Locale.ROOT);
         return name.equals("authorization") || name.equals("proxy-authorization") || name.equals("cookie")
                 || name.equals("set-cookie") || looksSecret(headerName);
+    }
+
+    /**
+     * The form in which the value of a credential header is shown. The value itself is never
+     * shown, in whole or in part. For Authorization and Proxy-Authorization the scheme is kept
+     * when it is one of the well known ones, because knowing whether Basic or Bearer went out
+     * helps a tester and reveals nothing. Any other first word could be the credential itself,
+     * so it is not kept. Applying this to a value that is already redacted leaves it unchanged.
+     */
+    public static String redactCredential(String headerName, String value) {
+        if (value == null || Texts.blank(headerName)) {
+            return REDACTED;
+        }
+        String name = headerName.strip().toLowerCase(Locale.ROOT);
+        String text = value.strip();
+        int space = text.indexOf(' ');
+        if (space > 0 && (name.equals("authorization") || name.equals("proxy-authorization"))) {
+            String first = text.substring(0, space);
+            for (String scheme : AUTH_SCHEMES) {
+                if (scheme.equalsIgnoreCase(first)) {
+                    return scheme + " " + REDACTED;
+                }
+            }
+        }
+        return REDACTED;
     }
 
     /** The text shown wherever the value of the named secret would otherwise appear. */
@@ -75,8 +132,11 @@ public final class Secrets {
         StringBuilder current = new StringBuilder();
         char previous = 0;
         for (char c : name.strip().toCharArray()) {
+            // A new word starts at a separator, at a capital after a lower case letter, and where
+            // letters meet digits, so accessToken1 and token2 are read as token followed by a number.
             boolean boundary = !Character.isLetterOrDigit(c)
-                    || (Character.isUpperCase(c) && Character.isLowerCase(previous));
+                    || (Character.isUpperCase(c) && Character.isLowerCase(previous))
+                    || (Character.isDigit(c) != Character.isDigit(previous) && Character.isLetterOrDigit(previous));
             if (boundary && current.length() > 0) {
                 out.add(current.toString().toLowerCase(Locale.ROOT));
                 current.setLength(0);

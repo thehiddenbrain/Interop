@@ -21,6 +21,9 @@ public record MemberLookupResult(LookupStatus status, MemberIdForms memberId, Me
                                  ErrorView error, String message) {
 
     public MemberLookupResult {
+        if (status == null) {
+            throw new IllegalArgumentException("A lookup result always says how the lookup ended.");
+        }
         attention = attention == null ? List.of() : List.copyOf(attention);
         fields = fields == null ? List.of() : List.copyOf(fields);
         additionalFields = additionalFields == null ? List.of() : List.copyOf(additionalFields);

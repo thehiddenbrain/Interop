@@ -40,17 +40,27 @@ public record CrdReading(CrdDetail detail, CrdOutcome outcome, List<String> requ
     }
 
     /**
-     * The answers a declared expectation is compared with: one per coverage information extension,
-     * each with its own codes, and one marked missing for every order left unanswered. The codes of
-     * different answers are never pooled.
+     * What was asked about, for the expectation check: each procedure code the request carried.
+     * The check works out for itself which of these went unanswered.
+     */
+    public List<String> asked() {
+        return requestedCodes;
+    }
+
+    /**
+     * The answers a declared expectation is compared with: one per coverage information extension
+     * and per requested code it is for, each with its own codes. An answer tied to no requested
+     * code is named by what it applies to. The codes of different answers are never pooled.
      */
     public List<Expectations.Answer> answers() {
-        boolean named = several();
         List<Expectations.Answer> out = new ArrayList<>();
         for (CoverageInformationView view : detail.coverageInformation()) {
-            out.add(Expectations.Answer.of(named ? view.subject() : null, codes(view)));
+            if (view.procedureCodes().isEmpty()) {
+                out.add(Expectations.Answer.of(view.subject(), codes(view)));
+            } else {
+                view.procedureCodes().forEach(code -> out.add(Expectations.Answer.of(code, codes(view))));
+            }
         }
-        unanswered.forEach(label -> out.add(Expectations.Answer.missing(label)));
         return out;
     }
 
@@ -82,7 +92,9 @@ public record CrdReading(CrdDetail detail, CrdOutcome outcome, List<String> requ
         boolean named = several();
         List<String> out = new ArrayList<>();
         for (CoverageInformationView view : detail.coverageInformation()) {
-            String prefix = named ? view.subject() + ": " : "";
+            // The subject written to the ledger is the code that was asked about, or where the
+            // answer sat in the response. It is never text the response supplied.
+            String prefix = named ? (view.procedureCodes().isEmpty() ? view.foundAt() : String.join(", ", view.procedureCodes())) + ": " : "";
             codes(view).forEach((name, values) -> {
                 if (!CrdCodes.SATISFIED_PA_ID.equals(name) && !CrdCodes.DELEGATED_VENDOR.equals(name)) {
                     values.forEach(value -> out.add(prefix + name + "=" + value));

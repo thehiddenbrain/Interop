@@ -1,5 +1,7 @@
 package org.p32h.interop.epa.pave.client.support;
 
+import org.p32h.interop.epa.pave.service.error.BadInputException;
+import java.nio.charset.StandardCharsets;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.OnyxFailureType;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
@@ -31,6 +33,18 @@ public final class Exchanges {
 
     private static final Set<String> BODYLESS_METHODS = Set.of("GET", "HEAD", "DELETE", "OPTIONS");
 
+    /**
+     * Headers the HTTP client writes itself or will not let a caller set. A vendor collection often
+     * saves one, most often a Content-Length that is wrong the moment the body is edited. Sent as
+     * written they would break the request or be silently replaced, so they are left out and the
+     * wire view says so.
+     */
+    private static final Set<String> TRANSPORT_HEADERS = Set.of("content-length", "host", "connection", "transfer-encoding",
+            "expect", "upgrade", "keep-alive", "te", "trailer", "proxy-connection");
+
+    /** The characters an HTTP method or header name may be made of. */
+    private static final java.util.regex.Pattern TOKEN = java.util.regex.Pattern.compile("[!#$%&'*+.^_`|~0-9A-Za-z-]+");
+
     private Exchanges() {
     }
 
@@ -39,6 +53,13 @@ public final class Exchanges {
      *
      * <p>A body that still holds a placeholder is refused. Without this check it would go out as no
      * body at all, and what the tester saw would be a vendor rejection with no visible cause.
+     *
+     * <p>A header that still holds a placeholder is refused for the same reason. Left out, the
+     * request would fail at the far side with nothing to show why, or go out with another
+     * credential in its place.
+     *
+     * <p>A method or a header that is not valid HTTP is refused, naming it. The HTTP client would
+     * refuse it too, but only as an exception that reads like a network failure.
      *
      * <p>A call prepared under an earlier configuration is refused. It carries the url and the
      * guardrail decision of an environment that is no longer the active one.
@@ -49,9 +70,37 @@ public final class Exchanges {
         if (body != null && !body.resolved()) {
             throw new UnresolvedVariablesException(call.operation(), body.unresolved(), call.environment().name(), body.template());
         }
+        for (ResolvedHeader header : call.headers()) {
+            if (Texts.present(header.name()) && !header.resolved()) {
+                throw new UnresolvedVariablesException(call.operation(), header.unresolved(), call.environment().name(),
+                        "the header " + header.name());
+            }
+        }
+        if (!TOKEN.matcher(method(call)).matches()) {
+            throw new BadInputException("The HTTP method of this request is not a valid method.",
+                    "Correct the method of the collection request" + from(call) + ". Nothing was sent.");
+        }
+        for (ResolvedHeader header : call.headers()) {
+            if (Texts.blank(header.name())) {
+                continue;
+            }
+            // The header is named. Its value is never quoted, since it may be a credential.
+            if (!TOKEN.matcher(header.name()).matches()) {
+                throw new BadInputException("A header of this request has a name that is not valid in HTTP.",
+                        "Correct the header names of the collection request" + from(call) + ". Nothing was sent.");
+            }
+            if (header.value().chars().anyMatch(c -> c == '\r' || c == '\n' || c == 0)) {
+                throw new BadInputException("The value of the header " + header.name() + " contains a line break, which HTTP does not allow.",
+                        "Correct that header on the collection request" + from(call) + ". Nothing was sent.");
+            }
+        }
         if (gateway != null && gateway.epoch() != call.epoch()) {
             throw new ConfigurationChangedException();
         }
+    }
+
+    private static String from(PreparedCall call) {
+        return Texts.present(call.requestName()) ? " \"" + call.requestName() + "\"" : "";
     }
 
     /** The HTTP method a call will use, upper case. */
@@ -67,7 +116,8 @@ public final class Exchanges {
     /**
      * The headers a call is sent with, keyed by lower-case name: the operation's defaults, replaced
      * by any header of the same name on the collection request, plus a bearer token when one is
-     * supplied and the collection request does not already carry an Authorization header.
+     * supplied and the collection request does not already carry an Authorization header. The
+     * headers the HTTP client writes itself are left out: see {@link #withheld(PreparedCall)}.
      */
     public static Map<String, ResolvedHeader> headers(PreparedCall call, ResolvedText body, ExchangeOptions options) {
         boolean hasBody = carriesBody(call, body);
@@ -80,7 +130,9 @@ public final class Exchanges {
             }
         }
         for (ResolvedHeader header : call.headers()) {
-            if (Texts.present(header.name()) && header.value() != null) {
+            if (Texts.present(header.name()) && !TRANSPORT_HEADERS.contains(header.name().strip().toLowerCase(Locale.ROOT))) {
+                // An unresolved header stays in the map with no value, so the mock's wire view can
+                // show it as having none. Nothing with an unresolved header is ever sent.
                 merged.put(header.name().toLowerCase(Locale.ROOT), header);
             }
         }
@@ -88,6 +140,17 @@ public final class Exchanges {
             merged.put("authorization", new ResolvedHeader("Authorization", Secrets.REDACTED_BEARER, "Bearer " + options.bearerToken()));
         }
         return merged;
+    }
+
+    /** The names of the collection request's headers that are not sent, because the HTTP client writes them itself. */
+    public static List<String> withheld(PreparedCall call) {
+        List<String> names = new ArrayList<>();
+        for (ResolvedHeader header : call.headers()) {
+            if (Texts.present(header.name()) && TRANSPORT_HEADERS.contains(header.name().strip().toLowerCase(Locale.ROOT))) {
+                names.add(header.name().strip());
+            }
+        }
+        return names;
     }
 
     /**
@@ -101,11 +164,17 @@ public final class Exchanges {
         for (ResolvedHeader header : headers(call, body, options).values()) {
             // A header that is a credential by its own name is redacted whatever its value was built
             // from, which covers a credential typed literally into a collection as well as one that
-            // came from a secret variable.
-            shown.add(new WireHeader(header.name(), Secrets.credentialHeader(header.name()) ? redactCredential(header.value()) : header.display()));
+            // came from a secret variable. WireHeader applies the same rule again by itself.
+            String value = !header.resolved() ? "(no value)"
+                    : Secrets.credentialHeader(header.name()) ? Secrets.redactCredential(header.name(), header.value()) : header.display();
+            shown.add(new WireHeader(header.name(), value));
         }
+        List<String> withheld = withheld(call);
+        String about = withheld.isEmpty() ? note
+                : (note == null ? "" : note + " ") + "Not sent as written on the collection request: " + String.join(", ", withheld)
+                + ". The HTTP client writes " + (withheld.size() == 1 ? "this header" : "these headers") + " itself.";
         return new WireRequest(method(call), call.url().display(), call.url().template(), shown,
-                carriesBody(call, body) ? body.display() : null, sent, note);
+                carriesBody(call, body) ? body.display() : null, sent, about);
     }
 
     /**
@@ -116,6 +185,81 @@ public final class Exchanges {
      */
     public static VendorExchange fromResponse(WireRequest request, int status, List<WireHeader> responseHeaders, String body,
                                               long elapsedMillis, boolean bodyRequired) {
+        return describe(request, status, responseHeaders, body, null, List.of(), elapsedMillis, bodyRequired);
+    }
+
+    /**
+     * Describes a response from the bytes that arrived. The text is decoded with the charset the
+     * Content-Type names, otherwise as UTF-8. Bytes that are not valid in that charset are not
+     * replaced in silence: the body is still shown, and a note says how it was decoded, because a
+     * member's name that changed on the way to the screen must not look like what the service sent.
+     *
+     * @param contentType the Content-Type header of the response, or null
+     */
+    public static VendorExchange fromBytes(WireRequest request, int status, List<WireHeader> responseHeaders, byte[] raw,
+                                           String contentType, long elapsedMillis, boolean bodyRequired) {
+        Decoded decoded = decode(raw, contentType);
+        return describe(request, status, responseHeaders, decoded.text(), raw == null ? 0L : (long) raw.length, decoded.notes(),
+                elapsedMillis, bodyRequired);
+    }
+
+    /**
+     * Describes a response that started and did not finish: the status and headers arrived, and the
+     * connection ended or the read timeout passed while the body was still coming. The status and
+     * whatever arrived are kept, because "the service answered 200 and then stopped" is a different
+     * finding from "the service could not be reached".
+     */
+    public static VendorExchange interrupted(WireRequest request, int status, List<WireHeader> responseHeaders, byte[] soFar,
+                                             String contentType, long elapsedMillis) {
+        Decoded decoded = decode(soFar, contentType);
+        long count = soFar == null ? 0L : soFar.length;
+        boolean success = status >= 200 && status < 300;
+        OnyxFailureType failure = status >= 500 ? OnyxFailureType.SERVER_ERROR
+                : success ? OnyxFailureType.MALFORMED_RESPONSE : OnyxFailureType.BAD_REQUEST;
+        String detail = "The response started with HTTP " + status + " and " + count + " bytes of its body arrived before the "
+                + "connection ended or the read timeout passed.";
+        List<String> notes = new ArrayList<>(decoded.notes());
+        notes.add("The body is incomplete: " + detail);
+        return new VendorExchange(request, status, responseHeaders, Texts.present(decoded.text()) ? decoded.text() : null, count, null,
+                "The body is incomplete.", elapsedMillis, failure, detail, Set.of(), null, null, notes);
+    }
+
+    private record Decoded(String text, List<String> notes) {
+    }
+
+    private static Decoded decode(byte[] raw, String contentType) {
+        if (raw == null || raw.length == 0) {
+            return new Decoded(null, List.of());
+        }
+        java.nio.charset.Charset charset = StandardCharsets.UTF_8;
+        boolean named = false;
+        if (contentType != null) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)charset\\s*=\\s*\"?([A-Za-z0-9._:-]+)").matcher(contentType);
+            if (m.find()) {
+                try {
+                    charset = java.nio.charset.Charset.forName(m.group(1));
+                    named = true;
+                } catch (IllegalArgumentException e) {
+                    // A charset this JVM does not know: fall back to UTF-8 and say so below if it does not fit.
+                    charset = StandardCharsets.UTF_8;
+                }
+            }
+        }
+        try {
+            String text = charset.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(raw)).toString();
+            return new Decoded(text, List.of());
+        } catch (java.nio.charset.CharacterCodingException e) {
+            String text = new String(raw, charset);
+            long replaced = text.chars().filter(c -> c == 0xFFFD).count();
+            return new Decoded(text, List.of("The body is not valid " + charset.name() + (named ? ", the charset its Content-Type names" : "")
+                    + ". " + replaced + " character" + (replaced == 1 ? "" : "s") + " that could not be read "
+                    + (replaced == 1 ? "is" : "are") + " shown as a replacement mark, so the text below is not exactly what was sent."));
+        }
+    }
+
+    private static VendorExchange describe(WireRequest request, int status, List<WireHeader> responseHeaders, String body,
+                                           Long responseBytes, List<String> decodeNotes, long elapsedMillis, boolean bodyRequired) {
         String text = body == null || body.isEmpty() ? null : body;
         JsonSafe.Parsed parsed = text == null ? null : JsonSafe.parse(text);
         boolean success = status >= 200 && status < 300;
@@ -144,11 +288,12 @@ public final class Exchanges {
         } else {
             failure = OnyxFailureType.NONE;
         }
-        List<String> notes = parsed != null && parsed.ok() && parsed.repeatedKeys()
-                ? List.of("The body repeats a key inside one object. Only the last value of a repeated key is shown here. "
-                        + "The body as received is in the wire view.")
-                : List.of();
-        return new VendorExchange(request, status, responseHeaders, text, parsed != null && parsed.ok() ? parsed.node() : null,
+        List<String> notes = new ArrayList<>(decodeNotes);
+        if (parsed != null && parsed.ok() && parsed.repeatedKeys()) {
+            notes.add("The body repeats a key inside one object. Only the last value of a repeated key is shown here. "
+                    + "The body as received is in the wire view.");
+        }
+        return new VendorExchange(request, status, responseHeaders, text, responseBytes, parsed != null && parsed.ok() ? parsed.node() : null,
                 parseError, elapsedMillis, failure, detail, Set.of(), null, null, notes);
     }
 
@@ -163,16 +308,7 @@ public final class Exchanges {
     }
 
     static VendorExchange failed(WireRequest request, long elapsedMillis, OnyxFailureType type, String detail) {
-        return new VendorExchange(request, null, List.of(), null, null, null, elapsedMillis, type, detail, Set.of(), null, null,
+        return new VendorExchange(request, null, List.of(), null, null, null, null, elapsedMillis, type, detail, Set.of(), null, null,
                 List.of());
-    }
-
-    private static String redactCredential(String value) {
-        if (value == null) {
-            return Secrets.REDACTED;
-        }
-        int space = value.strip().indexOf(' ');
-        // Keeping the scheme word tells a tester whether Basic or Bearer was sent without showing the credential.
-        return space > 0 ? value.strip().substring(0, space) + " " + Secrets.REDACTED : Secrets.REDACTED;
     }
 }

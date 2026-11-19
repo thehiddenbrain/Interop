@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.cfg.EnumFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.MissingNode;
@@ -20,8 +21,14 @@ import tools.jackson.databind.node.MissingNode;
  */
 public final class JsonSafe {
 
-    private static final JsonMapper MAPPER = JsonMapper.builder().build();
-    private static final JsonMapper NO_REPEATED_KEYS = JsonMapper.builder().enable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).build();
+    // Decimals are read exactly. Read as doubles, 1250.00 would be shown as 1250.0 and a long
+    // identifier as an exponent, so the screen would show a number the service did not send.
+    // A number is never read as an enum by its position, which would turn 1 into whichever
+    // constant happens to be declared second.
+    private static final JsonMapper MAPPER = JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .enable(EnumFeature.FAIL_ON_NUMBERS_FOR_ENUMS).build();
+    private static final JsonMapper NO_REPEATED_KEYS = JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .enable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).build();
 
     private JsonSafe() {
     }
@@ -36,6 +43,12 @@ public final class JsonSafe {
 
         public boolean ok() {
             return node != null;
+        }
+
+        /** Prints whether it parsed, never the document: it can be a response body or a token response. */
+        @Override
+        public String toString() {
+            return "Parsed[" + (ok() ? "ok" : error) + "]";
         }
     }
 

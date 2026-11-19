@@ -45,6 +45,9 @@ public record NextStepView(NextAction action, String headline, String reason, Ma
     public static final String CARRY_SUBSCRIPTION_ID = "subscriptionId";
 
     public NextStepView {
+        if (action == null || Texts.blank(headline)) {
+            throw new IllegalArgumentException("A next step needs an action and an instruction.");
+        }
         Map<String, List<String>> copy = new LinkedHashMap<>();
         if (carry != null) {
             carry.forEach((key, values) -> {

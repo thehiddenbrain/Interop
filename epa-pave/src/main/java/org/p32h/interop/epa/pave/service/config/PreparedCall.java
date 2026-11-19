@@ -17,6 +17,11 @@ import java.util.List;
  * write that was not authorised. The protection is in the type, not in a check somebody has to
  * remember to call.
  *
+ * <p>The type proves a call was prepared. That the request sent is that call rests on one more
+ * thing: every outbound request leaves through {@code client/support/ExchangeExecutor}, which
+ * sends the url and method that were judged and nothing else. A test walks the source tree and
+ * fails if any file outside {@code client/support} performs an HTTP exchange of its own.
+ *
  * <p>A prepared call belongs to the configuration it was prepared in. It records that epoch, and
  * the sending layer refuses a call whose epoch is no longer current, so a call kept across an
  * environment switch or a relock cannot be sent later.

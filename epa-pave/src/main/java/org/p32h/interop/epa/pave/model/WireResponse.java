@@ -8,7 +8,7 @@ import java.util.List;
  *
  * @param status     the HTTP status, or null when no response arrived
  * @param body       the body as received, or null when there was none
- * @param byteLength the number of bytes received, or null when no response arrived
+ * @param byteLength the number of bytes received, counted before decoding, or null when no response arrived
  * @param parsed     true when the body was read as JSON
  * @param parseError why the body could not be read as JSON, or null
  */

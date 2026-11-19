@@ -23,6 +23,65 @@ class EnumContractTest {
     }
 
     @Test
+    void theCrdVocabularyIsExactlyThisListAndAddingToItIsADeliberateAct() {
+        // A list of forbidden words cannot catch every way of saying no. Pinning the names means a
+        // new outcome cannot arrive without someone editing the test that states the rule:
+        // CRD reports coverage and authorization requirements, and never a clinical decision.
+        assertThat(Arrays.stream(CrdOutcome.values()).map(Enum::name)).containsExactly("AUTH_REQUIRED", "NO_AUTH_REQUIRED",
+                "AUTH_SATISFIED", "PERFORMER_AUTH", "DOCUMENTATION_REQUIRED", "INFORMATION_NEEDED", "CONDITIONAL", "NOT_COVERED",
+                "COVERAGE_INACTIVE", "MEMBER_NOT_FOUND", "PROVIDER_NOT_FOUND", "AUTH_NOT_STATED", "UNRECOGNISED_CODE", "MIXED",
+                "NO_DETERMINATION", "REJECTED", "SERVICE_ERROR", "TIMEOUT", "UNREACHABLE", "MALFORMED_RESPONSE");
+        for (CrdOutcome outcome : CrdOutcome.values()) {
+            assertThat(outcome.label().toLowerCase(java.util.Locale.ROOT)).as(outcome.name()).doesNotContain("medically necessary")
+                    .doesNotContain("declin").doesNotContain("not approved");
+        }
+    }
+
+    @Test
+    void anEnumIsReadFromItsNameInAnyCaseAndNeverFromANumber() {
+        assertThat(Protocol.parse(" crd ")).isEqualTo(Protocol.CRD);
+        assertThat(Protocol.parse("Subscription")).isEqualTo(Protocol.SUBSCRIPTION);
+        assertThatThrownBy(() -> Protocol.parse("fax")).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Protocol must be one of crd, dtr, pas, subscription, lookup or raw.");
+        assertThat(EpaOperation.parse("crd_order_sign")).isEqualTo(EpaOperation.CRD_ORDER_SIGN);
+        assertThat(EpaOperation.parse("pas-submit")).isEqualTo(EpaOperation.PAS_SUBMIT);
+        assertThatThrownBy(() -> EpaOperation.parse("PAS_APPEAL")).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("CRD_ORDER_SIGN").hasMessageNotContaining("PAS_APPEAL");
+        assertThat(JsonSafe.mapper().readValue("\"dtr\"", Protocol.class)).isEqualTo(Protocol.DTR);
+        assertThat(JsonSafe.mapper().readValue("\"pas_inquire\"", EpaOperation.class)).isEqualTo(EpaOperation.PAS_INQUIRE);
+        // 2 must not come back as whichever constant happens to be declared third.
+        assertThatThrownBy(() -> JsonSafe.mapper().readValue("2", Protocol.class)).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> JsonSafe.mapper().readValue("6", EpaOperation.class)).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> JsonSafe.mapper().readValue("1", Tone.class)).isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void theAuthorizationFlagIsReadByItsMeaningAndAnythingElseIsUnknown() {
+        for (String yes : new String[] {"yes", "Y", "TRUE", "1", "required", "Required", "PA", "pa required", "PA_REQUIRED",
+                "prior-auth-required", "auth needed", " yes "}) {
+            assertThat(AuthRequirement.parse(yes)).as(yes).isEqualTo(AuthRequirement.REQUIRED);
+        }
+        for (String no : new String[] {"no", "N", "false", "0", "not required", "NOT_REQUIRED", "No PA", "none", "not-needed"}) {
+            assertThat(AuthRequirement.parse(no)).as(no).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        }
+        for (String unknown : new String[] {null, "", "  ", "maybe", "see policy", "2", "unknown", "x", "tbd"}) {
+            assertThat(AuthRequirement.parse(unknown)).as("[" + unknown + "]").isEqualTo(AuthRequirement.UNKNOWN);
+        }
+        // So a caller can tell a value it could not read from one that says "unknown".
+        assertThat(AuthRequirement.recognises("see policy")).isFalse();
+        assertThat(AuthRequirement.recognises("unknown")).isTrue();
+        assertThat(AuthRequirement.recognises("yes")).isTrue();
+        assertThat(AuthRequirement.recognises(" ")).isFalse();
+        // In a JSON list a number is read by its meaning, not by its position in the enum, where 1 would be "not required".
+        assertThat(JsonSafe.mapper().readValue("1", AuthRequirement.class)).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(JsonSafe.mapper().readValue("0", AuthRequirement.class)).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        assertThat(JsonSafe.mapper().readValue("\"NOT_REQUIRED\"", AuthRequirement.class)).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        assertThat(JsonSafe.mapper().readValue("\"yes\"", AuthRequirement.class)).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(JsonSafe.mapper().readValue(JsonSafe.mapper().writeValueAsString(AuthRequirement.UNKNOWN), AuthRequirement.class))
+                .isEqualTo(AuthRequirement.UNKNOWN);
+    }
+
+    @Test
     void noAuthAndNoDeterminationAreSeparateOutcomesWithSeparateMeanings() {
         assertThat(CrdOutcome.NO_AUTH_REQUIRED).isNotEqualTo(CrdOutcome.NO_DETERMINATION);
         assertThat(CrdOutcome.NO_AUTH_REQUIRED.label()).isNotEqualTo(CrdOutcome.NO_DETERMINATION.label());

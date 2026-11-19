@@ -32,6 +32,8 @@ import java.util.Map;
  *   <li>The codes of different answers are never pooled. A code assertion with no subject holds
  *       only when every answer carries the code. One answer that matches does not speak for
  *       another that differs, or for something that was asked about and got no answer.</li>
+ *   <li>What was asked about is given to the comparison, which works out for itself what went
+ *       unanswered. A caller cannot make a comparison pass by leaving the unanswered part out.</li>
  * </ul>
  */
 public final class Expectations {
@@ -42,12 +44,11 @@ public final class Expectations {
     /**
      * One answer a response gave: what it is about and the standard codes it carried.
      *
-     * @param subject  what the answer is about, such as a procedure code. Null when the response
-     *                 holds one answer about the whole request
-     * @param codes    the standard codes the answer carried, by element name
-     * @param returned false for something that was asked about and received no answer at all
+     * @param subject what the answer is about, such as a procedure code. Null when the response
+     *                holds one answer about the whole request and nothing more specific is known
+     * @param codes   the standard codes the answer carried, by element name
      */
-    public record Answer(String subject, Map<String, List<String>> codes, boolean returned) {
+    public record Answer(String subject, Map<String, List<String>> codes) {
 
         public Answer {
             Map<String, List<String>> copy = new LinkedHashMap<>();
@@ -58,12 +59,7 @@ public final class Expectations {
         }
 
         public static Answer of(String subject, Map<String, List<String>> codes) {
-            return new Answer(subject, codes, true);
-        }
-
-        /** Something that was asked about and got no answer. It carries no codes, so no code assertion holds for it. */
-        public static Answer missing(String subject) {
-            return new Answer(subject, Map.of(), false);
+            return new Answer(subject, codes);
         }
     }
 
@@ -114,14 +110,16 @@ public final class Expectations {
      *
      * @param expected   what the tester declared, possibly null or blank
      * @param actual     the outcome of the run
-     * @param answers    each answer the response gave, with its codes, plus one
-     *                   {@linkplain Answer#missing missing} entry for anything asked about that got
-     *                   no answer. May be null or empty
+     * @param asked      the subjects that were asked about, such as the procedure codes of the
+     *                   request. Any of them that no answer is for is treated as unanswered, and an
+     *                   unanswered subject satisfies no code assertion. May be null or empty when
+     *                   what was asked is not known
+     * @param answers    each answer the response gave, with its codes. May be null or empty
      * @param vocabulary every outcome the operation can produce, for reading the expectation
      * @param elements   the element names a code assertion may use for this operation
      */
-    public static ExpectationView assess(String expected, OutcomeCode actual, List<Answer> answers, OutcomeCode[] vocabulary,
-                                         Collection<String> elements) {
+    public static ExpectationView assess(String expected, OutcomeCode actual, List<String> asked, List<Answer> answers,
+                                         OutcomeCode[] vocabulary, Collection<String> elements) {
         if (actual == null) {
             throw new IllegalArgumentException("A run always has an outcome.");
         }
@@ -136,6 +134,15 @@ public final class Expectations {
                     "The expectation could not be checked. " + String.join(" ", problems));
         }
         List<Answer> given = answers == null ? List.of() : answers;
+        List<String> unanswered = new ArrayList<>();
+        if (asked != null) {
+            for (String subject : asked) {
+                boolean answered = given.stream().anyMatch(a -> a.subject() != null && a.subject().equalsIgnoreCase(subject));
+                if (subject != null && !answered && !unanswered.contains(subject)) {
+                    unanswered.add(subject);
+                }
+            }
+        }
 
         List<String> labels = new ArrayList<>();
         List<String> met = new ArrayList<>();
@@ -144,7 +151,7 @@ public final class Expectations {
             if (term.assertion()) {
                 Term normalised = new Term(term.raw(), term.subject(), element(term.name(), elements), term.code());
                 labels.add(normalised.label());
-                assertion(normalised, given, met, unmet);
+                assertion(normalised, given, unanswered, met, unmet);
             } else {
                 OutcomeCode wanted = findOutcome(term.raw(), vocabulary);
                 labels.add(wanted.label());
@@ -171,16 +178,18 @@ public final class Expectations {
         return new ExpectationView(declared, declared, actual.name(), actual.label(), TestResult.UNVERIFIED, why);
     }
 
-    private static void assertion(Term term, List<Answer> answers, List<String> met, List<String> unmet) {
+    private static void assertion(Term term, List<Answer> answers, List<String> unanswered, List<String> met, List<String> unmet) {
         String wanted = term.name() + "=" + term.code();
         List<Answer> scope = answers;
+        List<String> silent = unanswered;
         if (term.subject() != null) {
             scope = answers.stream().filter(a -> a.subject() != null && a.subject().equalsIgnoreCase(term.subject())).toList();
-            if (scope.isEmpty()) {
+            silent = unanswered.stream().filter(s -> s.equalsIgnoreCase(term.subject())).toList();
+            if (scope.isEmpty() && silent.isEmpty()) {
                 unmet.add("expected " + term.label() + " but the response has no answer for " + term.subject());
                 return;
             }
-        } else if (answers.isEmpty()) {
+        } else if (answers.isEmpty() && unanswered.isEmpty()) {
             unmet.add("expected " + wanted + " but the response did not carry " + term.name());
             return;
         }
@@ -188,13 +197,14 @@ public final class Expectations {
         for (Answer answer : scope) {
             List<String> returned = answer.codes().get(term.name());
             String who = answer.subject() == null ? "the response" : "the answer for " + answer.subject();
-            if (!answer.returned()) {
-                differing.add("no answer was returned for " + Texts.orElse(answer.subject(), "it"));
-            } else if (returned == null || returned.isEmpty()) {
+            if (returned == null || returned.isEmpty()) {
                 differing.add(who + " did not carry " + term.name());
             } else if (!returned.contains(term.code())) {
                 differing.add(who + " carried " + term.name() + "=" + String.join(", ", returned));
             }
+        }
+        for (String subject : silent) {
+            differing.add("no answer was returned for " + subject);
         }
         if (!differing.isEmpty()) {
             unmet.add("expected " + term.label() + " but " + String.join(", and ", differing));

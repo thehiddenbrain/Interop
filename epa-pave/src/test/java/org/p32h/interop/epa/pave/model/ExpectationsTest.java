@@ -14,13 +14,18 @@ class ExpectationsTest {
     private static final List<String> ELEMENTS =
             List.of("covered", "pa-needed", "doc-needed", "doc-purpose", "info-needed", "satisfied-pa-id", "delegated-vendor");
 
-    /** One answer about the whole request, which is what a single-code run produces. */
+    /** One answer about the whole request, with nothing known about what was asked. */
     private static ExpectationView assess(String expected, CrdOutcome actual, Map<String, List<String>> codes) {
-        return Expectations.assess(expected, actual, codes == null ? null : List.of(Answer.of(null, codes)), CRD, ELEMENTS);
+        return Expectations.assess(expected, actual, null, codes == null ? null : List.of(Answer.of(null, codes)), CRD, ELEMENTS);
     }
 
     private static ExpectationView assessAnswers(String expected, CrdOutcome actual, Answer... answers) {
-        return Expectations.assess(expected, actual, List.of(answers), CRD, ELEMENTS);
+        return Expectations.assess(expected, actual, null, List.of(answers), CRD, ELEMENTS);
+    }
+
+    /** As a mapper calls it: what was asked about, and the answers that came back. */
+    private static ExpectationView assessAsked(String expected, CrdOutcome actual, List<String> asked, Answer... answers) {
+        return Expectations.assess(expected, actual, asked, List.of(answers), CRD, ELEMENTS);
     }
 
     private static List<String> problems(String expected) {
@@ -140,14 +145,29 @@ class ExpectationsTest {
     @Test
     void somethingAskedAboutAndLeftUnansweredSatisfiesNoCodeAssertion() {
         Answer noAuth = Answer.of("95810", Map.of("pa-needed", List.of("no-auth")));
-        Answer unanswered = Answer.missing("95811");
+        List<String> asked = List.of("95810", "95811");
 
-        ExpectationView view = assessAnswers("pa-needed=no-auth", CrdOutcome.MIXED, noAuth, unanswered);
+        // The caller passes only the answer that exists. It cannot make this pass by saying
+        // nothing about 95811, because what was asked is given and the gap is worked out here.
+        ExpectationView view = assessAsked("pa-needed=no-auth", CrdOutcome.MIXED, asked, noAuth);
         assertThat(view.result()).isEqualTo(TestResult.FAIL);
         assertThat(view.explanation()).isEqualTo("Expected pa-needed=no-auth but no answer was returned for 95811.");
-        assertThat(assessAnswers("95811: pa-needed=no-auth", CrdOutcome.MIXED, noAuth, unanswered).result()).isEqualTo(TestResult.FAIL);
+        ExpectationView scoped = assessAsked("95811: pa-needed=no-auth", CrdOutcome.MIXED, asked, noAuth);
+        assertThat(scoped.result()).isEqualTo(TestResult.FAIL);
+        assertThat(scoped.explanation()).isEqualTo("Expected 95811: pa-needed=no-auth but no answer was returned for 95811.");
         // The answered code can still be asserted on its own.
-        assertThat(assessAnswers("95810: pa-needed=no-auth", CrdOutcome.MIXED, noAuth, unanswered).result()).isEqualTo(TestResult.PASS);
+        assertThat(assessAsked("95810: pa-needed=no-auth", CrdOutcome.MIXED, asked, noAuth).result()).isEqualTo(TestResult.PASS);
+
+        // With nothing answered at all, every asked subject is unanswered.
+        ExpectationView nothing = assessAsked("pa-needed=no-auth", CrdOutcome.NO_DETERMINATION, asked);
+        assertThat(nothing.result()).isEqualTo(TestResult.FAIL);
+        assertThat(nothing.explanation()).contains("no answer was returned for 95810").contains("no answer was returned for 95811");
+        // When every asked subject has its answer, the same call passes.
+        assertThat(assessAsked("pa-needed=no-auth", CrdOutcome.NO_AUTH_REQUIRED, asked, noAuth,
+                Answer.of("95811", Map.of("pa-needed", List.of("no-auth")))).result()).isEqualTo(TestResult.PASS);
+        // An asked subject is matched to its answer whatever its case.
+        assertThat(assessAsked("pa-needed=no-auth", CrdOutcome.NO_AUTH_REQUIRED, List.of("e0601"),
+                Answer.of("E0601", Map.of("pa-needed", List.of("no-auth")))).result()).isEqualTo(TestResult.PASS);
     }
 
     @Test
@@ -239,6 +259,6 @@ class ExpectationsTest {
 
     @Test
     void anOutcomeIsAlwaysRequired() {
-        assertThatThrownBy(() -> Expectations.assess("x", null, List.of(), CRD, ELEMENTS)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Expectations.assess("x", null, null, List.of(), CRD, ELEMENTS)).isInstanceOf(IllegalArgumentException.class);
     }
 }

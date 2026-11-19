@@ -1,9 +1,11 @@
 package org.p32h.interop.epa.pave.client.support;
 
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import org.p32h.interop.epa.pave.model.OnyxFailureType;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedText;
-import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.WireHeader;
 import org.p32h.interop.epa.pave.model.WireRequest;
@@ -45,7 +47,8 @@ import org.springframework.web.client.RestClient;
 @Component
 public class ExchangeExecutor {
 
-    private record Raw(int status, HttpHeaders headers, byte[] body) {
+    /** @param interrupted true when the status and headers arrived and the body did not finish */
+    private record Raw(int status, HttpHeaders headers, byte[] body, boolean interrupted) {
     }
 
     private record Failure(OnyxFailureType type, String detail) {
@@ -87,25 +90,48 @@ public class ExchangeExecutor {
         Map<String, ResolvedHeader> headers = Exchanges.headers(call, body, options);
         WireRequest wireRequest = Exchanges.wireRequest(call, body, options, true, null);
 
+        // Built before the clock starts. Whatever is wrong with the method or a header was refused
+        // above, by name, so nothing in the timed section can be the request's own fault.
+        RestClient.RequestBodySpec spec = client.method(HttpMethod.valueOf(method)).uri(uri)
+                .headers(out -> headers.values().forEach(h -> out.set(h.name(), h.value())));
+        if (hasBody) {
+            spec.body(body.value().getBytes(StandardCharsets.UTF_8));
+        }
+
         long started = System.nanoTime();
+        Raw raw;
         try {
-            RestClient.RequestBodySpec spec = client.method(HttpMethod.valueOf(method)).uri(uri)
-                    .headers(out -> headers.values().forEach(h -> out.set(h.name(), h.value())));
-            if (hasBody) {
-                spec.body(body.value().getBytes(StandardCharsets.UTF_8));
-            }
-            Raw raw = spec.exchange((request, response) ->
-                    new Raw(response.getStatusCode().value(), response.getHeaders(), response.getBody().readAllBytes()));
-            String text = raw.body() == null || raw.body().length == 0 ? null : new String(raw.body(), StandardCharsets.UTF_8);
-            List<WireHeader> responseHeaders = new ArrayList<>();
-            raw.headers().forEach((name, values) -> values.forEach(value ->
-                    responseHeaders.add(new WireHeader(name, Secrets.credentialHeader(name) ? Secrets.REDACTED : value))));
-            return Exchanges.fromResponse(wireRequest, raw.status(), responseHeaders, text, elapsedSince(started),
-                    options != null && options.bodyRequired());
+            raw = spec.exchange((request, response) -> {
+                // The status and headers are taken first. If the body then fails to arrive they are
+                // still facts about the call, and the bytes that did arrive are kept with them.
+                int status = response.getStatusCode().value();
+                HttpHeaders responseHeaders = response.getHeaders();
+                ByteArrayOutputStream received = new ByteArrayOutputStream();
+                try (InputStream in = response.getBody()) {
+                    byte[] chunk = new byte[8192];
+                    for (int read = in.read(chunk); read >= 0; read = in.read(chunk)) {
+                        received.write(chunk, 0, read);
+                    }
+                    return new Raw(status, responseHeaders, received.toByteArray(), false);
+                } catch (IOException | RuntimeException e) {
+                    return new Raw(status, responseHeaders, received.toByteArray(), true);
+                }
+            });
         } catch (RuntimeException e) {
+            // Only the send is inside this try. A defect in describing the response must surface as
+            // a defect, not as "the service could not be reached".
             Failure failure = classify(e);
             return Exchanges.failed(wireRequest, elapsedSince(started), failure.type(), failure.detail());
         }
+        long elapsed = elapsedSince(started);
+        List<WireHeader> responseHeaders = new ArrayList<>();
+        raw.headers().forEach((name, values) -> values.forEach(value -> responseHeaders.add(new WireHeader(name, value))));
+        String contentType = raw.headers().getFirst(HttpHeaders.CONTENT_TYPE);
+        if (raw.interrupted()) {
+            return Exchanges.interrupted(wireRequest, raw.status(), responseHeaders, raw.body(), contentType, elapsed);
+        }
+        return Exchanges.fromBytes(wireRequest, raw.status(), responseHeaders, raw.body(), contentType, elapsed,
+                options != null && options.bodyRequired());
     }
 
     private static long elapsedSince(long startedNanos) {

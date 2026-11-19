@@ -28,6 +28,9 @@ public final class RestClients {
                 .build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
         factory.setReadTimeout(Duration.ofMillis(readTimeoutMs));
+        // Off, so the client adds no Accept-Encoding header of its own and the bytes shown in the
+        // wire view are the bytes that arrived, not a decompressed form of them.
+        factory.enableCompression(false);
         return builder.clone().requestFactory(factory).build();
     }
 }

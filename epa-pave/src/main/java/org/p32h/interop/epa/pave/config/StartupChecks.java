@@ -25,11 +25,18 @@ public class StartupChecks implements InitializingBean {
 
     private final EpaProperties epa;
     private final OnyxProperties onyx;
+    private final LookupProperties lookup;
+    private final TrackingProperties tracking;
+    private final AppProperties app;
     private final Environment environment;
 
-    public StartupChecks(EpaProperties epa, OnyxProperties onyx, Environment environment) {
+    public StartupChecks(EpaProperties epa, OnyxProperties onyx, LookupProperties lookup, TrackingProperties tracking, AppProperties app,
+                         Environment environment) {
         this.epa = epa;
         this.onyx = onyx;
+        this.lookup = lookup;
+        this.tracking = tracking;
+        this.app = app;
         this.environment = environment;
     }
 
@@ -56,6 +63,27 @@ public class StartupChecks implements InitializingBean {
         if (!ATTACHMENT_FHIR.equals(mode) && !ATTACHMENT_X12_275.equals(mode)) {
             throw new IllegalStateException("onyx.pas.attachment-mode is '" + mode + "'. It must be '" + ATTACHMENT_FHIR + "' or '"
                     + ATTACHMENT_X12_275 + "'.");
+        }
+        // A timeout of zero does not mean "no timeout" to the HTTP client. A read timeout of zero
+        // reports every call as timed out, and a connect timeout of zero fails while the live beans
+        // are built, neither with a word about which setting did it. Checked on both profiles, so a
+        // bad value is found on the mock profile, before anyone switches to live.
+        positive("onyx.connect-timeout-ms", onyx.connectTimeoutMs());
+        positive("onyx.read-timeout-ms", onyx.readTimeoutMs());
+        positive("lookup.member.connect-timeout-ms", lookup.member().connectTimeoutMs());
+        positive("lookup.member.read-timeout-ms", lookup.member().readTimeoutMs());
+        positive("lookup.provider.connect-timeout-ms", lookup.provider().connectTimeoutMs());
+        positive("lookup.provider.read-timeout-ms", lookup.provider().readTimeoutMs());
+        positive("app.autocomplete-limit", app.autocompleteLimit());
+        if (tracking.slowThresholdMs() < 0) {
+            throw new IllegalStateException("tracking.slow-threshold-ms is " + tracking.slowThresholdMs()
+                    + ". It must be zero, to use the Onyx read timeout, or greater.");
+        }
+    }
+
+    private static void positive(String property, long value) {
+        if (value <= 0) {
+            throw new IllegalStateException(property + " is " + value + ". It must be greater than zero.");
         }
     }
 }

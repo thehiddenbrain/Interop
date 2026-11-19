@@ -165,8 +165,12 @@ class CrdResponseMapperTest {
         assertThat(reading.unanswered()).containsExactly("95811");
         assertThat(reading.several()).isTrue();
         assertThat(reading.ledgerCodes()).containsExactly("95810: pa-needed=no-auth", "95811: (no answer)");
-        assertThat(reading.answers()).containsExactly(Expectations.Answer.of("95810", Map.of("pa-needed", List.of("no-auth"))),
-                Expectations.Answer.missing("95811"));
+        // The answer list holds what was answered. What was asked is given beside it, and the
+        // comparison works out for itself that 95811 went unanswered.
+        assertThat(reading.answers()).containsExactly(Expectations.Answer.of("95810", Map.of("pa-needed", List.of("no-auth"))));
+        assertThat(reading.asked()).containsExactly("95810", "95811");
+        assertThat(Expectations.assess("pa-needed=no-auth", reading.outcome(), reading.asked(), reading.answers(), CrdOutcome.values(),
+                CrdCodes.EXPECTATION_ELEMENTS).explanation()).isEqualTo("Expected pa-needed=no-auth but no answer was returned for 95811.");
 
         // An answer that says nothing for one code, and no answer for the other, are alike: nothing was determined.
         CrdReading nothing = mapper.read(TestExchanges.crd(200,

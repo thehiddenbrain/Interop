@@ -11,7 +11,10 @@ import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.FieldError;
+import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.TestResult;
+import org.p32h.interop.epa.pave.testsupport.TestMvc;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
@@ -22,9 +25,11 @@ import org.p32h.interop.epa.pave.service.error.ValidationException;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,7 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 class ApiExceptionHandlerTest {
 
-    record Body(String memberId) {
+    record Body(String memberId, List<String> codes, Boolean flag) {
     }
 
     @RestController
@@ -66,16 +71,19 @@ class ApiExceptionHandlerTest {
             return body;
         }
 
+        // Every parameter that is not plain text is taken as a String and converted with Params,
+        // which is the rule for controllers: it behaves the same here and in the running application.
         @GetMapping("/typed")
-        public String typed(@RequestParam String result, @RequestParam(required = false) Integer limit,
-                            @RequestParam(required = false) String from) {
+        public String typed(@RequestParam(required = false) String result, @RequestParam(required = false) String limit,
+                            @RequestParam(required = false) String from, @RequestParam(required = false) String protocol) {
             Params.date("from", from);
-            return Params.required("result", result, TestResult::parse).wire();
+            Params.integer("limit", limit);
+            Params.optional("protocol", protocol, Protocol::parse, "one of crd, dtr, pas, subscription, lookup or raw");
+            return Params.required("result", result, TestResult::parse, "pass, fail or unverified").wire();
         }
     }
 
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new ThrowingController())
-            .setControllerAdvice(new ApiExceptionHandler()).build();
+    private final MockMvc mvc = TestMvc.standalone(new ThrowingController());
 
     @Test
     void aValidationFailureIs422WithEveryFieldNamed() throws Exception {
@@ -168,7 +176,18 @@ class ApiExceptionHandlerTest {
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("result"));
         mvc.perform(get("/typed").param("result", "passed")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("result"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("Result must be pass, fail or unverified."));
+                .andExpect(jsonPath("$.fieldErrors[0].message")
+                        .value("The value given for result is not valid. It must be pass, fail or unverified."));
+        // The message is this tool's own sentence. What a number parser or an enum lookup throws
+        // names Java types and quotes the input, and is never passed on.
+        mvc.perform(get("/typed").param("result", "pass").param("limit", "ten")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("limit"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given for limit is not valid. It must be a whole number."));
+        String protocol = mvc.perform(get("/typed").param("result", "pass").param("protocol", "fax"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("protocol"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(protocol).doesNotContain("No enum constant").doesNotContain("org.p32h").doesNotContain("fax");
+        mvc.perform(get("/typed").param("result", "pass").param("protocol", "CRD").param("limit", "10")).andExpect(status().isOk());
         mvc.perform(get("/typed").param("result", "pass").param("from", "31/01/2026")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("from"))
                 .andExpect(jsonPath("$.fieldErrors[0].message").value("Enter the date as YYYY-MM-DD, for example 2026-01-31."));
@@ -184,13 +203,48 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
-    void anUnexpectedExceptionGivesAReferenceAndNoDetail() throws Exception {
+    @ExtendWith(OutputCaptureExtension.class)
+    void anUnexpectedExceptionGivesAReferenceAndNoDetail(CapturedOutput output) throws Exception {
         String body = mvc.perform(get("/throw/boom")).andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.kind").value("INTERNAL"))
                 .andExpect(jsonPath("$.reference").isNotEmpty())
                 .andReturn().getResponse().getContentAsString();
         assertThat(body).doesNotContain("Placeholder-Surname").doesNotContain("1970-01-01").doesNotContain("IllegalStateException")
-                .doesNotContain("at com.");
+                .doesNotContain("at org.p32h").doesNotContain(".java:");
+        // What was actually logged: the reference the browser was given, the exception type, and
+        // nothing of the exception's own message, which here stands for member data.
+        String reference = JsonSafe.text(JsonSafe.parse(body).node(), "reference");
+        assertThat(output.getAll()).contains(reference).contains("java.lang.IllegalStateException")
+                .doesNotContain("Placeholder-Surname").doesNotContain("1970-01-01");
+    }
+
+    @Test
+    void aRequestBodyWithAFieldTheEndpointDoesNotHaveIsRefusedByName() throws Exception {
+        // A name that does not match must not bind to nothing in silence.
+        mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON).content("{\"memberId\":\"S123456789\",\"membrId\":\"x\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.kind").value("VALIDATION"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("membrId"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("This tool does not know the field \"membrId\". Check its spelling."));
+        mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON).content("{\"memberId\":\"S123456789\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void aBodyThatIsJsonOfTheWrongShapeNamesTheFieldAndNeverQuotesTheValue() throws Exception {
+        String wrongList = mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberId\":\"S123456789\",\"codes\":\"Placeholder-Surname\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("codes"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(wrongList).contains("but one of its fields does not hold the kind of value").doesNotContain("Placeholder-Surname")
+                .doesNotContain("not valid JSON");
+        mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON).content("{\"flag\":\"maybe\"}"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("flag"));
+        // Text that is not JSON at all keeps the original sentence.
+        mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON).content("{\"memberId\": "))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.title").value("The request body is missing or is not valid JSON. Nothing was sent."));
     }
 
     @Test

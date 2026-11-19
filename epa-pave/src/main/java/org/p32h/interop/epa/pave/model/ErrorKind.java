@@ -11,7 +11,7 @@ public enum ErrorKind {
     CONFIGURATION,
     /** The production guardrail refused a write. Nothing was sent. */
     BLOCKED,
-    /** The vendor answered with an HTTP 4xx status. */
+    /** The vendor answered with a status that is neither a success nor 5xx: 4xx, and also 1xx and 3xx. */
     VENDOR_REJECTED,
     /** The vendor answered with an HTTP 5xx status. */
     VENDOR_ERROR,

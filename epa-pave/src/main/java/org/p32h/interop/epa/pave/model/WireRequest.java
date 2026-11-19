@@ -4,13 +4,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 /**
- * The outbound request exactly as it was built, for the wire view.
+ * The outbound request as this tool built it, for the wire view. Two headers are not listed
+ * because the HTTP client writes them itself: Host and Content-Length. A header of the collection
+ * request that the client would not let through as written is left out, and the note says which.
  *
  * @param url         the resolved url with secrets masked, or null when no url is configured
  * @param urlTemplate the url as configured, placeholders intact
  * @param body        the exact body, or null when the request has none
  * @param sent        false when nothing left this machine: the mock profile, or a blocked write
- * @param note        why nothing was sent, or null
+ * @param note        why nothing was sent, or anything else a tester should know about how the
+ *                    request was put on the wire. Null when there is nothing to say
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record WireRequest(String method, String url, String urlTemplate, List<WireHeader> headers, String body,

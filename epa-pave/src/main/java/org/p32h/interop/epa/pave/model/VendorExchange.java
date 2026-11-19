@@ -20,7 +20,9 @@ import tools.jackson.databind.JsonNode;
  *
  * @param request         the request as built
  * @param httpStatus      the HTTP status, or null when no response arrived
- * @param responseBody    the body as received, or null when there was none
+ * @param responseBody    the body as received, decoded to text, or null when there was none
+ * @param responseBytes   how many bytes the body was on the wire, counted before decoding. Null
+ *                        when no response arrived
  * @param json            the body parsed as JSON, or null when it is absent or not JSON
  * @param parseError      why a body that was present could not be parsed, or null
  * @param failureType     NONE unless the call failed at the transport or HTTP level. Never null
@@ -35,6 +37,7 @@ public record VendorExchange(
         Integer httpStatus,
         List<WireHeader> responseHeaders,
         String responseBody,
+        Long responseBytes,
         @JsonIgnore JsonNode json,
         String parseError,
         long elapsedMillis,
@@ -59,12 +62,38 @@ public record VendorExchange(
         if (failureType == OnyxFailureType.MALFORMED_RESPONSE && json != null) {
             throw new IllegalArgumentException("A malformed response cannot also carry a parsed body.");
         }
+        if (parseError != null && json != null) {
+            throw new IllegalArgumentException("A body that could not be parsed cannot also carry a parsed form.");
+        }
+        if (httpStatus != null) {
+            boolean success = httpStatus >= 200 && httpStatus < 300;
+            if (failureType == OnyxFailureType.NONE && (!success || parseError != null)) {
+                throw new IllegalArgumentException("Only a success status with a body that was read, or with no body, is free of failure.");
+            }
+            if (failureType == OnyxFailureType.SERVER_ERROR && httpStatus < 500) {
+                throw new IllegalArgumentException("A server error needs a status of 500 or more.");
+            }
+            if (failureType == OnyxFailureType.BAD_REQUEST && (success || httpStatus >= 500)) {
+                throw new IllegalArgumentException("A request that was not accepted needs a status that is neither a success nor 5xx.");
+            }
+            if (failureType == OnyxFailureType.MALFORMED_RESPONSE && !success) {
+                throw new IllegalArgumentException("Only a success status can be a malformed response. Any other status is its own failure.");
+            }
+        }
+        if (noResponse) {
+            responseBytes = null;
+        } else if (responseBytes == null) {
+            responseBytes = responseBody == null ? 0L : (long) responseBody.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        }
         responseHeaders = responseHeaders == null ? List.of() : List.copyOf(responseHeaders);
         signals = signals == null || signals.isEmpty() ? Set.of() : Set.copyOf(signals);
         bodyNotes = bodyNotes == null ? List.of() : List.copyOf(bodyNotes);
     }
 
-    /** True when a response arrived with a success status and a readable body. */
+    /**
+     * True when a success status arrived and nothing was wrong with what came with it. The parsed
+     * body is still null when the operation may answer with no content and did.
+     */
     public boolean ok() {
         return failureType == OnyxFailureType.NONE;
     }
@@ -79,19 +108,25 @@ public record VendorExchange(
         if (newSignals != null) {
             merged.addAll(newSignals);
         }
-        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, json, parseError, elapsedMillis,
+        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis,
                 failureType, failureDetail, merged, scenarioId, scenarioNote, bodyNotes);
     }
 
     /** The same exchange marked with the mock scenario that produced it and how it was chosen. */
     public VendorExchange withScenario(String id, String note) {
-        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, json, parseError, elapsedMillis,
+        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis,
                 failureType, failureDetail, signals, id, note, bodyNotes);
     }
 
     /** The same exchange with the parsed body replaced, for a client that normalises a vendor shape. */
     public VendorExchange withJson(JsonNode newJson) {
-        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, newJson, parseError, elapsedMillis,
+        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, newJson, parseError, elapsedMillis,
+                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes);
+    }
+
+    /** The same exchange reported with a different duration, for a test of the slow threshold. */
+    public VendorExchange withElapsedMillis(long millis) {
+        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, millis,
                 failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes);
     }
 
@@ -111,17 +146,7 @@ public record VendorExchange(
 
     /** The response half of the wire view. */
     public WireResponse wireResponse() {
-        // Written as statements, not a nested conditional: mixing null and a primitive long in one
-        // conditional expression unboxes the null.
-        Long bytes;
-        if (responseBody != null) {
-            bytes = (long) responseBody.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-        } else if (httpStatus != null) {
-            bytes = 0L;
-        } else {
-            bytes = null;
-        }
-        return new WireResponse(httpStatus, responseHeaders, responseBody, bytes, json != null, parseError);
+        return new WireResponse(httpStatus, responseHeaders, responseBody, responseBytes, json != null, parseError);
     }
 
     public WireView wire(MemberIdForms memberId) {

@@ -15,4 +15,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ExpectationView(String expected, String expectedLabel, String actual, String actualLabel, TestResult result,
                               String explanation) {
+
+    public ExpectationView {
+        if (Texts.blank(actual) || Texts.blank(actualLabel) || Texts.blank(explanation) || result == null) {
+            throw new IllegalArgumentException("A test result needs what happened, a result and an explanation.");
+        }
+        // A pass or a fail is a comparison, and a comparison has two sides.
+        if (result != TestResult.UNVERIFIED && Texts.blank(expected)) {
+            throw new IllegalArgumentException("A run can pass or fail only against a declared expectation.");
+        }
+    }
 }

@@ -191,8 +191,8 @@ public class CrdService {
         addIfPresent(findings, support.slowFinding(timing));
 
         VerdictView verdict = CrdVerdicts.verdict(reading, exchange);
-        ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.answers(), CrdOutcome.values(),
-                CrdCodes.EXPECTATION_ELEMENTS);
+        ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
+                CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
         NextStepView nextStep = CrdVerdicts.nextStep(reading, exchange);
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.

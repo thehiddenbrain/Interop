@@ -1,5 +1,9 @@
 package org.p32h.interop.epa.pave.web;
 
+import org.p32h.interop.epa.pave.model.Texts;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.core.JacksonException;
 import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.model.ErrorView;
 import org.p32h.interop.epa.pave.model.FieldError;
@@ -97,10 +101,39 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorView> unreadable(HttpMessageNotReadableException e) {
-        // The exception message can quote the request body, which may hold member data, so it is not used.
+        // The exception message can quote the request body, which may hold member data, so it is
+        // never used. What is taken from the cause is the name of a property or its place in the
+        // body, which the sender wrote themselves and which holds no value.
+        for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof UnrecognizedPropertyException unknown) {
+                String name = Texts.orElse(unknown.getPropertyName(), "(unnamed)");
+                return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.validation(
+                        "The request has a field this tool does not know. Nothing was sent.",
+                        List.of(new FieldError(name, "This tool does not know the field \"" + name + "\". Check its spelling."))));
+            }
+            if (t instanceof DatabindException mismatch) {
+                String where = place(mismatch);
+                return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.validation(
+                        "The request is JSON, but one of its fields does not hold the kind of value this endpoint takes. Nothing was sent.",
+                        List.of(new FieldError(where, "The value given here is not of the kind this field takes."))));
+            }
+        }
         return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.of(ErrorKind.VALIDATION,
                 "The request body is missing or is not valid JSON. Nothing was sent.",
                 "Send a JSON body in the shape this endpoint expects."));
+    }
+
+    /** Where in the body a value could not be bound, as property names and positions only. */
+    private static String place(DatabindException error) {
+        StringBuilder out = new StringBuilder();
+        for (JacksonException.Reference step : error.getPath()) {
+            if (step.getPropertyName() != null) {
+                out.append(out.length() == 0 ? "" : ".").append(step.getPropertyName());
+            } else if (step.getIndex() >= 0) {
+                out.append('[').append(step.getIndex()).append(']');
+            }
+        }
+        return out.length() == 0 ? "(body)" : out.toString();
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

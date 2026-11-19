@@ -4,13 +4,13 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**Spine 1 written and reviewed. Five of six reviews are applied. Not yet frozen.** Six reviewers
-read the shared types, each from the seat of one downstream owner. The findings of four are
-applied in full (see the two "Changes made after" sections of `DECISIONS.md`). The fifth
-(frontend, chain and suites) has reported and is being applied. The sixth (will this survive a
-green build) is still running. The freeze and the Wave A fan-out follow it.
+**Spine 1 is frozen.** Six reviewers read the shared types before the freeze, each from the seat
+of one downstream owner, and every finding was checked against the code and applied. What changed
+and why is in the four "Changes made after" sections of `DECISIONS.md` (D-039 to D-096). From here
+on a wave agent may not edit a shared type: it reports the change it needs and the integrator
+makes it.
 
-While the review ran, the integrator built the CRD vertical against fakes, ahead of Wave A:
+The CRD vertical was built by the integrator against fakes while the review ran, ahead of Wave A:
 scenarios, mock and live clients, request builder, response mapper, outcome rules, verdicts,
 conformance checker, service and controller. It is tested but not yet wired as Spring beans,
 because the gateway, the ledger and the code list arrive with Wave A.
@@ -18,10 +18,10 @@ because the gateway, the ledger and the code list arrive with Wave A.
 | Step | State |
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
-| Spine 1: shared contracts | written, build green, 5 of 6 reviews in, 4 applied, not frozen |
-| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | briefs written, not started |
+| Spine 1: shared contracts | done, reviewed by six seats, frozen |
+| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | next |
 | Spine 2: integrate Wave A. V2 PHI audit | not started |
-| Spine 3: CRD reference vertical | built and tested against fakes (332 tests in the build). To do after Wave A: wire as beans, controller tests, raw send |
+| Spine 3: CRD reference vertical | built and tested against fakes. To do after Wave A: wire as beans, controller tests, `/api/mode`, raw send |
 | Wave B: B1 PAS and subscriptions, B2 DTR | not started |
 | Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | not started |
 | Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | not started |
@@ -37,7 +37,8 @@ because the gateway, the ledger and the code list arrive with Wave A.
 - `TrackedJson`, `Shown` and `AdditionalField`: the mechanism behind "nothing silently dropped"
   and behind telling absent, null and empty apart on screen.
 - `Expectations`: expected versus actual, which cannot pass with both sides empty.
-- `RunRecord`: the ledger line, with no component that could hold member data or wire JSON.
+- `RunRecord`: the ledger line. It has no component for member data or wire JSON, and it checks
+  every component a response can fill, so text that is not a code is not written (D-080).
 - `OperationGateway` and `PreparedCall`: the only way a client can be given a target, so an
   unguarded production write does not compile.
 - `ExchangeExecutor`: the one live HTTP path, classifying timeouts, refused connections, HTTP
@@ -53,7 +54,7 @@ because the gateway, the ledger and the code list arrive with Wave A.
 - No ledger, no code list, no lookup, no Postman configuration layer: those are Wave A.
 - No PAS, no DTR, no frontend.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The contracts may still change as a result of the last review.
+- The build runs 390 tests. None of them is a controller test for CRD through MockMvc yet.
 
 ## The plan, written before any feature code
 

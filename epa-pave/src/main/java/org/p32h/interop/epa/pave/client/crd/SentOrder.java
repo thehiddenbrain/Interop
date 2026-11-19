@@ -21,7 +21,7 @@ public record SentOrder(String reference, String code) {
 
     /** How the order is named on a result: its code, else its reference. */
     public String label() {
-        return Texts.present(code) ? code : Texts.orElse(reference, "an order with no code and no id");
+        return Texts.present(code) ? code : Texts.orElse(reference, "unidentified-order");
     }
 
     /**

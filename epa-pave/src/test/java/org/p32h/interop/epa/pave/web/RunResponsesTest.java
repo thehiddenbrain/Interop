@@ -26,7 +26,7 @@ class RunResponsesTest {
                 .operation(EpaOperation.CRD_ORDER_SIGN).outcome(CrdOutcome.REJECTED).result(TestResult.UNVERIFIED).build();
         return RunEnvelope.<String>builder().runId("run-1").protocol(Protocol.CRD).operation(EpaOperation.CRD_ORDER_SIGN)
                 .verdict(VerdictView.of(CrdOutcome.REJECTED, "The service did not accept the request as sent.", List.of()))
-                .expectation(Expectations.assess(null, CrdOutcome.REJECTED, null, CrdOutcome.values(), List.of()))
+                .expectation(Expectations.assess(null, CrdOutcome.REJECTED, null, null, CrdOutcome.values(), List.of()))
                 .nextStep(NextStepView.of(NextAction.FIX_REQUEST, "Next.", "Because."))
                 .ledger(new LedgerReceipt(true, record, null, 1)).error(error).build();
     }

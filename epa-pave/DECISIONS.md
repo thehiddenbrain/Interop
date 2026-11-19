@@ -528,3 +528,100 @@ A null is left out, never written as null, with the ledger record as the documen
 field, a raw body or a note. Which results answer 403 and 500, and with which body, is stated on
 `RunResponses`.
 
+## Changes made after the last review: what survives a green build
+
+The sixth reviewer built nothing and asked only what a passing build could still be hiding. Every
+finding was reproduced before it was applied.
+
+**D-080. Nothing a service wrote reaches the ledger line unchecked.**
+`RunRecord` has no component for member data, but several of its components are filled from a
+response, and a response can hold anything: a sentence where a code belongs, a person where a
+vendor belongs. The record now checks each of them as it is constructed, whoever constructs it. A
+coverage code entry is kept only as `name=code` with the code one unbroken token; anything else
+becomes `name=(not a code, N characters)`, so the fact survives and the text does not. A
+correlation value must be one line with no quotes or braces, under one of the record's own keys.
+A procedure code and a line of business are short labels. The subject written before a code is the
+code that was asked about or the place in the response, never text the response supplied.
+
+**D-081. Only a vendor the tool knows by name is written to the ledger.**
+The reviewer proposed keeping any short name. A pattern cannot tell a company from a person, and
+under a vendor code a service can return either, so the safer reading was taken: eviCore, Evolent,
+Carelon and Optum Post Acute are written in their own spelling, and any other text is written as
+`(vendor not on the known list, N characters)`. The text is still shown in full on screen, where an
+unknown vendor is a finding. The cost is that the name of a new vendor is not in the history until
+it is added to the list.
+
+**D-082. A run line that lacks what makes it a run is refused.**
+The run id, timestamp, protocol, operation, outcome and result are required by the record itself,
+not only by its builder, so an incomplete line fails to read and is counted, and is never taken for
+a run.
+
+**D-083. A response that starts and does not finish keeps what arrived.**
+The status and headers are taken before the body is read. If the connection ends or the read
+timeout passes part way through the body, the result keeps the status and the bytes that arrived
+and says the body is incomplete. It is not reported as a service that could not be reached. A
+method or a header that is not valid HTTP is refused by name before sending, as a 422, and is not
+reported as a network failure either.
+
+**D-084. Headers the HTTP client writes itself are not sent as saved.**
+Content-Length, Host, Connection and the like are left out when they come from a collection
+request, and the wire view names what was left out. Transparent compression is switched off, so
+the client adds no header of its own beyond Host and Content-Length and the bytes shown are the
+bytes that arrived.
+
+**D-085. A header that still holds a placeholder is refused, like a body.**
+`ResolvedHeader` says which placeholders are missing, and a call with such a header is refused
+before sending on both profiles. Left out in silence, the request would go without its key, or
+with the Onyx token standing in for the credential the collection asked for.
+
+**D-086. A credential header shows its scheme at most.**
+Only for Authorization and Proxy-Authorization, and only when the first word is a well known
+scheme. Every other credential header, Cookie included, shows nothing of its value. `WireHeader`
+and `VariableUse` apply the masking themselves, whoever builds them.
+
+**D-087. A body is decoded with the charset it names, and the byte count is what arrived.**
+Bytes that are not valid in that charset are shown with a note saying the text was altered. They
+are not replaced in silence.
+
+**D-088. Which names are secrets.**
+A name is split where letters meet digits, a word counts when it ends with one of the longer
+secret words, and a longer word ending in `key` counts. `clientsecret`, `ACCESSTOKEN`, `token2`
+and `JSESSIONID` are now masked. Where the rule errs it errs toward masking.
+
+**D-089. The parts of a result refuse to exist hollow.**
+A verdict needs a headline, an outcome and a tone. A test result can pass or fail only against a
+declared expectation. A receipt always holds the record and says why when it was not written. The
+exchange refuses a failure type that does not fit its status.
+
+**D-090. An enum is never read from a number.**
+`Protocol`, `EpaOperation` and `AuthRequirement` are read from text. The authorization flag is read
+by its meaning: the common spellings of yes and no, 1 and 0 included, and anything else is unknown.
+The same reader serves the CSV and the JSON form of the code list.
+
+**D-091. A request body is read strictly.**
+A property the receiving type does not have is a 422 that names it. The run requests collect
+unknown properties themselves and name every one; this covers every other body. Controller tests
+build their mapper with the same call the application uses (`testsupport/TestMvc`).
+
+**D-092. What was asked is a parameter of the expectation check.**
+`Expectations.assess` is given the subjects that were asked about and works out for itself which
+went unanswered. A mapper cannot make a comparison pass by leaving the unanswered part out.
+
+**D-093. Every outbound request leaves through the shared executor.**
+A test walks the main sources and fails when a file outside `client/support` performs an HTTP
+exchange of its own. The guardrail proves a request was judged; this is what makes the request
+sent the one that was judged.
+
+**D-094. Decimals are read exactly.**
+A response value of 1250.00 is shown as 1250.00, not 1250.0, and a long identifier is not shown as
+an exponent.
+
+**D-095. Timeouts of zero are refused at startup.**
+On both profiles, naming the property. A read timeout of zero would report every call as timed
+out, with nothing pointing at the setting.
+
+**D-096. A failure of the tool after the call answers 500 with the result as its body.**
+Two reviewers asked for the result to be returned and disagreed on the status. 500 was chosen: the
+browser can tell it from a completed call without reading the body, and the body still carries the
+run id, the wire view and the ledger receipt.
+

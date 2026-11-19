@@ -10,8 +10,24 @@ import java.util.Map;
  * One line of the test run ledger.
  *
  * <p>This type has no component for a member name, date of birth, address, gender, subscriber ID
- * or any request or response JSON, and none may be added. The ledger is not a store of member
- * data, and the surest way to keep it that way is for the record to have nowhere to put any.
+ * or any request or response JSON, and none may be added. That alone is not enough, because
+ * several components are filled from what a service returned, and a service can put anything
+ * there: a sentence in place of a code, a person's name in place of a vendor. So every such
+ * component is checked as the record is constructed, whoever constructs it. What has the shape
+ * of a code is kept. Anything else is replaced by a statement that something was there and how
+ * long it was, so the fact survives and the text does not:
+ * <ul>
+ *   <li>{@code coverageCodes}: an entry is kept only as {@code name=code}, optionally after a
+ *       subject, where the code is one unbroken token</li>
+ *   <li>{@code delegatedVendor}: only the vendors this tool knows by name are written. Any other
+ *       text is shown on screen and not stored</li>
+ *   <li>{@code correlation}: only the CORR keys are accepted, and a value must be a single line
+ *       with no quotes or braces</li>
+ *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token, a line of business
+ *       is a short label</li>
+ * </ul>
+ * A run line that lacks a run id, a timestamp, a protocol, an operation, an outcome or a result is
+ * refused, so an incomplete line fails to read and is counted, and is never taken for a run.
  *
  * <p>The first group of components is always written, with null where a value does not apply. The
  * second group is written only when present. {@code memberId}, {@code dateOfService} and
@@ -132,6 +148,24 @@ public record RunRecord(
     /** The line records something that arrived, such as a notification, so there is nothing to send again. */
     public static final String INPUT_INBOUND = "inbound";
 
+    /** The correlation keys a record may carry. Anything else is a programming error, refused when the record is built. */
+    private static final java.util.Set<String> CORRELATION_KEYS = java.util.Set.of(CORR_CLAIM_ID, CORR_SUBSCRIPTION_ID,
+            CORR_AUTHORIZATION_REF, CORR_RUN_ID, CORR_SUBSCRIPTION_RUN_ID, CORR_CLAIM_RESPONSE_ID, CORR_QUESTIONNAIRE);
+
+    private static final String TOKEN = "[A-Za-z0-9._\\-:/|+]{1,64}";
+    private static final String NAME = "[A-Za-z0-9._-]{1,40}";
+    private static final String ONE_SUBJECT = "[A-Za-z0-9._\\-/\\[\\]]{1,80}";
+    private static final String SUBJECT = ONE_SUBJECT + "(?:, " + ONE_SUBJECT + ")*";
+    private static final java.util.regex.Pattern CODE_ENTRY =
+            java.util.regex.Pattern.compile("(?:(" + SUBJECT + "): )?(" + NAME + ")=(" + TOKEN + ")");
+    private static final java.util.regex.Pattern NO_ANSWER_ENTRY = java.util.regex.Pattern.compile("(" + SUBJECT + "): \\(no answer\\)");
+    private static final java.util.regex.Pattern NAMED_ENTRY =
+            java.util.regex.Pattern.compile("(?:(" + SUBJECT + "): )?(" + NAME + ")=(.*)", java.util.regex.Pattern.DOTALL);
+    private static final java.util.regex.Pattern PROCEDURE_CODE = java.util.regex.Pattern.compile("[A-Za-z0-9][A-Za-z0-9.\\-]{0,19}");
+    private static final java.util.regex.Pattern SHORT_LABEL = java.util.regex.Pattern.compile("[A-Za-z0-9 &/.,()'+\\-]{1,60}");
+    private static final java.util.regex.Pattern CORRELATION_VALUE =
+            java.util.regex.Pattern.compile("[A-Za-z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%| ]{1,512}");
+
     public RunRecord {
         // Boxed, not primitive, because Jackson 3 refuses to bind a missing property to a primitive
         // and a line without these two must still be readable. They are normalised here so callers
@@ -139,11 +173,77 @@ public record RunRecord(
         elapsedMillis = elapsedMillis == null ? Long.valueOf(0L) : elapsedMillis;
         slow = slow != null && slow;
         recordType = recordType == null ? TYPE_RUN : recordType;
-        procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
-        coverageCodes = coverageCodes == null ? List.of() : List.copyOf(coverageCodes);
-        correlation = correlation == null ? Map.of() : Map.copyOf(correlation);
+        if (TYPE_RUN.equals(recordType)) {
+            if (Texts.blank(runId) || Texts.blank(timestamp) || Texts.blank(outcome) || protocol == null || operation == null
+                    || result == null) {
+                throw new IllegalStateException("A run record needs a run id, a timestamp, a protocol, an operation, an outcome and a result.");
+            }
+        }
+        procedureCodes = procedureCodes == null ? List.of()
+                : procedureCodes.stream().map(code -> kept(PROCEDURE_CODE, code, "not a code")).toList();
+        coverageCodes = coverageCodes == null ? List.of() : coverageCodes.stream().map(RunRecord::codeEntry).toList();
+        delegatedVendor = knownVendors(delegatedVendor);
+        lineOfBusiness = lineOfBusiness == null ? null : kept(SHORT_LABEL, lineOfBusiness, "not a line of business");
+        correlation = checkedCorrelation(correlation);
         findings = findings == null ? List.of() : List.copyOf(findings);
         unrecordedInputs = unrecordedInputs == null ? List.of() : List.copyOf(unrecordedInputs);
+    }
+
+    private static String kept(java.util.regex.Pattern shape, String value, String what) {
+        return value != null && shape.matcher(value).matches() ? value : "(" + what + ", " + (value == null ? 0 : value.length()) + " characters)";
+    }
+
+    /** One coverage code entry, kept when it has the shape of one, otherwise replaced by what can safely be said about it. */
+    private static String codeEntry(String entry) {
+        if (entry == null) {
+            return "(not a code entry, 0 characters)";
+        }
+        if (CODE_ENTRY.matcher(entry).matches() || NO_ANSWER_ENTRY.matcher(entry).matches()) {
+            return entry;
+        }
+        java.util.regex.Matcher named = NAMED_ENTRY.matcher(entry);
+        if (named.matches()) {
+            // The element name is the tool's own. What followed it was not a code, so only its length is kept.
+            return (named.group(1) == null ? "" : named.group(1) + ": ") + named.group(2) + "=(not a code, " + named.group(3).length()
+                    + " characters)";
+        }
+        return "(not a code entry, " + entry.length() + " characters)";
+    }
+
+    /**
+     * The vendor names to write: each one this tool knows, in its own spelling. A name it does not
+     * know is not written. Under a vendor code a service can return any text, and the one place a
+     * person's name must never land is a file that is kept.
+     */
+    private static String knownVendors(String vendors) {
+        if (Texts.blank(vendors)) {
+            return null;
+        }
+        List<String> out = new java.util.ArrayList<>();
+        for (String part : vendors.split(";")) {
+            if (Texts.blank(part)) {
+                continue;
+            }
+            out.add(DelegatedVendors.known(part) ? DelegatedVendors.canonical(part)
+                    : "(vendor not on the known list, " + part.strip().length() + " characters)");
+        }
+        return out.isEmpty() ? null : String.join("; ", out);
+    }
+
+    private static Map<String, String> checkedCorrelation(Map<String, String> given) {
+        if (given == null || given.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        given.forEach((key, value) -> {
+            if (!CORRELATION_KEYS.contains(key)) {
+                throw new IllegalArgumentException("A run record can be correlated only under its own CORR keys.");
+            }
+            if (value != null) {
+                out.put(key, kept(CORRELATION_VALUE, value, "not recorded"));
+            }
+        });
+        return java.util.Collections.unmodifiableMap(out);
     }
 
     public static Builder builder() {
@@ -454,12 +554,6 @@ public record RunRecord(
 
         /** Builds the record, refusing one that could not be traced or compared later. */
         public RunRecord build() {
-            require(runId, "runId");
-            require(timestamp, "timestamp");
-            require(outcome, "outcome");
-            if (protocol == null || operation == null || result == null) {
-                throw new IllegalStateException("A run record needs a protocol, an operation and a result.");
-            }
             return new RunRecord(TYPE_RUN, runId, timestamp, protocol, operation, target, profile, environment,
                     environmentKind, scenarioId, procedureCodes, lineOfBusiness, outcome, coverageCodes, delegatedVendor,
                     httpStatus, elapsedMillis, errorType, expected, result, note, testerRef, chainId, suiteRunId, caseId,
@@ -467,10 +561,5 @@ public record RunRecord(
                     findings, unrecordedInputs, slow);
         }
 
-        private static void require(String value, String name) {
-            if (Texts.blank(value)) {
-                throw new IllegalStateException("A run record needs a " + name + ".");
-            }
-        }
     }
 }

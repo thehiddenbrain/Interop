@@ -22,4 +22,10 @@ public record DeterminationRow(String subject, String label, String code, String
     public static DeterminationRow notReturned(String subject, String label, String system) {
         return new DeterminationRow(subject, label, null, null, system, true, Presence.ABSENT);
     }
+
+    /** Prints the label and presence, never the value: a row can hold an authorization number. */
+    @Override
+    public String toString() {
+        return "DeterminationRow[" + label + ", " + presence + "]";
+    }
 }

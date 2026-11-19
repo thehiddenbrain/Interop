@@ -13,6 +13,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record VariableUse(String name, VariableSource source, boolean secret, String display) {
 
+    public VariableUse {
+        // A secret is shown as its mask whatever the producer passed, so a value can never be
+        // displayed just because a producer forgot to mask it.
+        if (secret && display != null) {
+            display = Secrets.mask(name);
+        }
+    }
+
     /** Prints no value. A value typed for one run can be a member ID. */
     @Override
     public String toString() {

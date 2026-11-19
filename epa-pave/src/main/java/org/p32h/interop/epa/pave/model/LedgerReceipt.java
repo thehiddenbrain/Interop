@@ -20,4 +20,13 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record LedgerReceipt(boolean recorded, RunRecord record, String message, Integer runsToday) {
+
+    public LedgerReceipt {
+        if (record == null) {
+            throw new IllegalArgumentException("A receipt always carries the record, whether or not it was written.");
+        }
+        if (!recorded && Texts.blank(message)) {
+            throw new IllegalArgumentException("A run that was not recorded must say why.");
+        }
+    }
 }

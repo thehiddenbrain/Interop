@@ -49,6 +49,28 @@ class JsonSafeTest {
     }
 
     @Test
+    void aDecimalIsShownExactlyAsItWasSent() {
+        // Read as doubles these would come back as 1250.0, 0.1 and an exponent: numbers the service did not send.
+        String body = "{\"total\":1250.00,\"rate\":0.10,\"count\":100.000,\"id\":123456789012345678901234567890.5,\"whole\":42}";
+        JsonNode node = JsonSafe.parse(body).node();
+        assertThat(Shown.of(node.get("total")).value()).isEqualTo("1250.00");
+        assertThat(Shown.of(node.get("rate")).value()).isEqualTo("0.10");
+        assertThat(Shown.of(node.get("count")).value()).isEqualTo("100.000");
+        assertThat(Shown.of(node.get("id")).value()).isEqualTo("123456789012345678901234567890.5");
+        assertThat(Shown.of(node.get("whole")).value()).isEqualTo("42");
+        assertThat(TrackedJson.of(node).unconsumed()).extracting(AdditionalField::value)
+                .containsExactly("1250.00", "0.10", "100.000", "123456789012345678901234567890.5", "42");
+        assertThat(JsonSafe.pretty(node)).contains("1250.00").contains("0.10").contains("100.000").doesNotContain("E29");
+    }
+
+    @Test
+    void aParsedDocumentDoesNotPrintItself() {
+        JsonSafe.Parsed parsed = JsonSafe.parse("{\"lastName\":\"Placeholder-Surname\",\"access_token\":\"placeholder-token\"}");
+        assertThat(parsed.toString()).isEqualTo("Parsed[ok]").doesNotContain("Placeholder-Surname").doesNotContain("placeholder-token");
+        assertThat(JsonSafe.parse("{\"lastName\": ").toString()).startsWith("Parsed[The body is not valid JSON");
+    }
+
+    @Test
     void aParseErrorNeverQuotesTheSourceText() {
         JsonSafe.Parsed parsed = JsonSafe.parse("{\"lastName\": \"Placeholder-Surname\", oops}");
         assertThat(parsed.ok()).isFalse();

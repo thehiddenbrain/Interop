@@ -36,7 +36,7 @@ class RedactionTest {
         WireRequest request = new WireRequest("POST", "https://example.invalid/x", "{{base}}/x", List.of(), BODY, true, null);
         WireResponse response = new WireResponse(200, List.of(), BODY, 10L, true, null);
         WireView wire = new WireView(request, response, MemberIds.forms(MEMBER_ID));
-        VendorExchange exchange = new VendorExchange(request, 200, List.of(), BODY, JsonSafe.parse(BODY).node(), null, 5,
+        VendorExchange exchange = new VendorExchange(request, 200, List.of(), BODY, null, JsonSafe.parse(BODY).node(), null, 5,
                 OnyxFailureType.NONE, null, Set.of(), null, null, List.of());
         for (Object value : new Object[] {request, response, wire, exchange}) {
             assertThat(value.toString()).as(value.getClass().getSimpleName()).doesNotContain(SURNAME).doesNotContain(MEMBER_ID);
@@ -92,7 +92,7 @@ class RedactionTest {
         RunEnvelope<String> envelope = RunEnvelope.<String>builder().runId("run-1").protocol(Protocol.CRD)
                 .operation(EpaOperation.CRD_ORDER_SIGN)
                 .verdict(VerdictView.of(CrdOutcome.NO_AUTH_REQUIRED, "Prior authorization is not required.", List.of()))
-                .expectation(Expectations.assess(null, CrdOutcome.NO_AUTH_REQUIRED, null, CrdOutcome.values(), List.of()))
+                .expectation(Expectations.assess(null, CrdOutcome.NO_AUTH_REQUIRED, null, null, CrdOutcome.values(), List.of()))
                 .nextStep(NextStepView.of(NextAction.FLOW_ENDS, "The flow ends here.", "No authorization is needed."))
                 .ledger(new LedgerReceipt(true, record, null, 1)).detail(BODY).build();
         assertThat(envelope.toString()).doesNotContain(SURNAME);
@@ -109,6 +109,29 @@ class RedactionTest {
         assertThat(draft.toString()).isEqualTo("RunRecord[run-1, PAS, PAS_SUBMIT, APPROVED]");
         assertThat(new LedgerReceipt(true, draft, null, 1).toString()).doesNotContain(MEMBER_ID).doesNotContain("PA-PLACEHOLDER-0001")
                 .doesNotContain("2026-02-03");
+    }
+
+    @Test
+    void aVerdictAndADeterminationRowDoNotPrintAnAuthorizationNumber() {
+        // The ledger tokenises an authorization number. A default toString would print it.
+        VerdictView verdict = VerdictView.of(CrdOutcome.AUTH_SATISFIED, "Prior authorization is already satisfied.",
+                List.of("Existing authorization: PA-PLACEHOLDER-0001."));
+        assertThat(verdict.toString()).isEqualTo("VerdictView[AUTH_SATISFIED, CLEAR]");
+        DeterminationRow row = new DeterminationRow(null, "Existing authorization", "PA-PLACEHOLDER-0001", null, "satisfied-pa-id", true,
+                Presence.VALUE);
+        assertThat(row.toString()).isEqualTo("DeterminationRow[Existing authorization, VALUE]");
+    }
+
+    @Test
+    void aVendorNameMadeOnlyOfPunctuationIsNoVendor() {
+        // A dash in a list cell means "none". It must not compare equal to another piece of punctuation.
+        assertThat(DelegatedVendors.same("-", "/")).isFalse();
+        assertThat(DelegatedVendors.same("-", "-")).isFalse();
+        assertThat(DelegatedVendors.canonical("-")).isNull();
+        assertThat(DelegatedVendors.canonical(" n/a ")).isEqualTo("n/a");
+        assertThat(DelegatedVendors.same("EVICORE", "evi-core")).isTrue();
+        assertThat(DelegatedVendors.known("Optum PostAcute")).isTrue();
+        assertThat(DelegatedVendors.known("-")).isFalse();
     }
 
     @Test

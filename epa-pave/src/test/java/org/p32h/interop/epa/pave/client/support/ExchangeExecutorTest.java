@@ -24,6 +24,7 @@ import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.WireHeader;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.TestPreparedCalls;
+import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
@@ -50,6 +51,7 @@ class ExchangeExecutorTest {
 
     private static final String URL = "https://onyx.example.invalid/cds-services/order-sign";
     private static final String REQUEST = "{\"hook\":\"order-sign\"}";
+    private static final EnvironmentRef SANDBOX = new EnvironmentRef("Test Sandbox", EnvironmentKind.SANDBOX);
 
     private final ExchangeExecutor executor = new ExchangeExecutor();
     private MockRestServiceServer server;
@@ -307,6 +309,113 @@ class ExchangeExecutorTest {
         VendorExchange exchange = post();
         assertThat(exchange.responseHeaders()).contains(new WireHeader("X-Request-Id", "abc-123"));
         assertThat(exchange.responseHeaders().toString()).doesNotContain("placeholder-cookie");
+    }
+
+    @Test
+    void aCredentialHeaderNeverShowsAnyPartOfItsValue() {
+        // A value with no scheme word used to show everything before its first space.
+        PreparedCall call = TestPreparedCalls.to(EpaOperation.CRD_ORDER_SIGN, "POST", URL, List.of(
+                new ResolvedHeader("Cookie", "JSESSIONID=PLACEHOLDERSESSION; route=abc", "JSESSIONID=PLACEHOLDERSESSION; route=abc"),
+                new ResolvedHeader("X-Api-Key", "placeholder key with spaces", "placeholder key with spaces"),
+                new ResolvedHeader("Authorization", "placeholderrawtoken extra", "placeholderrawtoken extra")), SANDBOX);
+        server.expect(requestTo(URL)).andExpect(header("Cookie", "JSESSIONID=PLACEHOLDERSESSION; route=abc"))
+                .andExpect(header("X-Api-Key", "placeholder key with spaces"))
+                .andRespond(withSuccess("{\"cards\":[]}", MediaType.APPLICATION_JSON));
+
+        VendorExchange exchange = executor.execute(client, call, ResolvedText.plain(REQUEST), ExchangeOptions.json("application/json"));
+
+        server.verify();
+        assertThat(exchange.request().headers()).contains(new WireHeader("Cookie", "[redacted]"), new WireHeader("X-Api-Key", "[redacted]"),
+                new WireHeader("Authorization", "[redacted]"));
+        assertThat(exchange.request().headers().toString()).doesNotContain("PLACEHOLDERSESSION").doesNotContain("placeholder key")
+                .doesNotContain("placeholderrawtoken");
+    }
+
+    @Test
+    void headersTheHttpClientWritesItselfAreNotSentAsSavedAndTheWireViewSaysSo() {
+        // A vendor collection often saves a Content-Length, which is wrong as soon as the body is edited.
+        PreparedCall call = TestPreparedCalls.to(EpaOperation.CRD_ORDER_SIGN, "POST", URL, List.of(
+                new ResolvedHeader("Content-Length", "999", "999"), new ResolvedHeader("Host", "other.example.invalid", "other.example.invalid"),
+                new ResolvedHeader("X-Trace", "t-1", "t-1")), SANDBOX);
+        // The length that goes out is the real one, worked out by the client, and not the 999 that was saved.
+        server.expect(requestTo(URL)).andExpect(header("Content-Length", String.valueOf(REQUEST.length()))).andExpect(headerDoesNotExist("Host"))
+                .andExpect(header("X-Trace", "t-1")).andRespond(withSuccess("{\"cards\":[]}", MediaType.APPLICATION_JSON));
+
+        VendorExchange exchange = executor.execute(client, call, ResolvedText.plain(REQUEST), ExchangeOptions.json("application/json"));
+
+        server.verify();
+        assertThat(exchange.ok()).isTrue();
+        assertThat(exchange.request().headers()).extracting(WireHeader::name).contains("X-Trace").doesNotContain("Content-Length", "Host");
+        assertThat(exchange.request().note()).isEqualTo("Not sent as written on the collection request: Content-Length, Host. "
+                + "The HTTP client writes these headers itself.");
+        // With nothing withheld there is no note on a request that was sent.
+        server.reset();
+        server.expect(requestTo(URL)).andRespond(withSuccess("{\"cards\":[]}", MediaType.APPLICATION_JSON));
+        assertThat(post().request().note()).isNull();
+    }
+
+    @Test
+    void aHeaderThatStillHoldsAPlaceholderIsRefusedAndNeverLeftOutInSilence() {
+        // Left out, the request would go without its key, or with the Onyx token in place of the
+        // credential the collection asked for, and nothing would say why it failed.
+        PreparedCall call = TestPreparedCalls.to(EpaOperation.CRD_ORDER_SIGN, "POST", URL,
+                List.of(ResolvedHeader.unresolved("X-Api-Key", List.of("apiKey"))), SANDBOX);
+        assertThatThrownBy(() -> executor.execute(client, call, ResolvedText.plain(REQUEST), ExchangeOptions.json("application/json")))
+                .isInstanceOfSatisfying(UnresolvedVariablesException.class, e -> {
+                    assertThat(e.variables()).containsExactly("apiKey");
+                    assertThat(e.template()).isEqualTo("the header X-Api-Key");
+                });
+        PreparedCall authorization = TestPreparedCalls.to(EpaOperation.CRD_ORDER_SIGN, "POST", URL,
+                List.of(ResolvedHeader.unresolved("Authorization", List.of("accessToken"))), SANDBOX);
+        assertThatThrownBy(() -> executor.execute(client, authorization, ResolvedText.plain(REQUEST),
+                ExchangeOptions.json("application/json").withBearerToken("onyx-token-that-must-not-stand-in")))
+                .isInstanceOf(UnresolvedVariablesException.class);
+        server.verify();
+    }
+
+    @Test
+    void aRequestThatIsNotValidHttpIsRefusedByNameBeforeSendingAndNeverReportedAsUnreachable() {
+        PreparedCall badName = TestPreparedCalls.with(EpaOperation.CRD_ORDER_SIGN, "POST", new ResolvedUrl(URL, URL, URL, List.of(), List.of(), "test"),
+                List.of(new ResolvedHeader("X Bad Name", "v", "v")), SANDBOX, "order-sign Happy Path", false);
+        assertThatThrownBy(() -> executor.execute(client, badName, ResolvedText.plain(REQUEST), ExchangeOptions.json("application/json")))
+                .isInstanceOfSatisfying(BadInputException.class, e -> assertThat(e.action()).contains("order-sign Happy Path").contains("Nothing was sent"));
+        PreparedCall lineBreak = TestPreparedCalls.to(EpaOperation.CRD_ORDER_SIGN, "POST", URL,
+                List.of(new ResolvedHeader("X-Api-Key", "[secret apiKey]", "placeholder-key\n")), SANDBOX);
+        assertThatThrownBy(() -> executor.execute(client, lineBreak, ResolvedText.plain(REQUEST), ExchangeOptions.json("application/json")))
+                .isInstanceOf(BadInputException.class).hasMessageContaining("X-Api-Key").hasMessageNotContaining("placeholder-key");
+        PreparedCall badMethod = TestPreparedCalls.to(EpaOperation.UNMAPPED, "GET X", URL, List.of(), SANDBOX);
+        assertThatThrownBy(() -> executor.execute(client, badMethod, null, ExchangeOptions.read("application/json")))
+                .isInstanceOf(BadInputException.class).hasMessageContaining("method");
+        server.verify();
+    }
+
+    @Test
+    void aBodyIsDecodedWithTheCharsetItsContentTypeNamesAndTheByteCountIsWhatArrived() {
+        byte[] latin1 = "{\"name\":\"Jos\u00e9\"}".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        server.expect(requestTo(URL)).andRespond(withSuccess(latin1, MediaType.parseMediaType("application/json; charset=ISO-8859-1")));
+
+        VendorExchange exchange = post();
+
+        assertThat(exchange.ok()).isTrue();
+        assertThat(exchange.json().get("name").asString()).isEqualTo("Jos\u00e9");
+        assertThat(exchange.bodyNotes()).isEmpty();
+        // 15 bytes arrived. Recounted from the decoded text as UTF-8 it would have been 16.
+        assertThat(exchange.wireResponse().byteLength()).isEqualTo(15L);
+    }
+
+    @Test
+    void bytesThatAreNotValidInTheCharsetAreNotReplacedInSilence() {
+        // The same bytes with no charset named are not valid UTF-8. The text is still shown, and a note says it was altered.
+        byte[] latin1 = "{\"name\":\"Jos\u00e9\"}".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        server.expect(requestTo(URL)).andRespond(withSuccess(latin1, MediaType.APPLICATION_JSON));
+
+        VendorExchange exchange = post();
+
+        assertThat(exchange.responseBody()).contains("Jos\uFFFD");
+        assertThat(exchange.bodyNotes()).singleElement().satisfies(note ->
+                assertThat(note).contains("not valid UTF-8").contains("1 character that could not be read"));
+        assertThat(exchange.bodyFields()).extracting(f -> f.kind()).containsExactly(org.p32h.interop.epa.pave.model.AdditionalField.Kind.NOTE);
+        assertThat(exchange.wireResponse().byteLength()).isEqualTo(15L);
     }
 
     @Test

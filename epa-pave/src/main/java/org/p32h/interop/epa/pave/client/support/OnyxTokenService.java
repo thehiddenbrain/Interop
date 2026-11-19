@@ -81,6 +81,12 @@ public class OnyxTokenService {
     }
 
     private record Cached(String key, String token, Instant refreshAt) {
+
+        /** Redacted, because it holds an access token. */
+        @Override
+        public String toString() {
+            return "Cached[redacted]";
+        }
     }
 
     private final OnyxProperties onyx;

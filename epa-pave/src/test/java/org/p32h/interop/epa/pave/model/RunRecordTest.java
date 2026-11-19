@@ -115,7 +115,7 @@ class RunRecordTest {
                 .chainId("c").suiteRunId("su").caseId("ca").replayOfRunId("r").hook("order-sign").attachmentMode("x12-275").nextAction(NextAction.FLOW_ENDS)
                 .targetSource("order-sign Happy Path").memberId("S123456789")
                 .memberToken("tok").memberIdLast4("6789").npi("1234567893").dateOfService("2026-02-01")
-                .correlation(Map.of("k", "v")).findings(List.of("SLOW_RESPONSE"))
+                .correlation(Map.of(RunRecord.CORR_CLAIM_ID, "claim-1")).findings(List.of("SLOW_RESPONSE"))
                 .unrecordedInputs(List.of(RunRecord.INPUT_RUN_VALUES)).slow(true).build();
         assertThat(record.toBuilder().build()).isEqualTo(record);
         // Guards the copy against a component being added to the record and forgotten in toBuilder.

@@ -14,7 +14,7 @@ import java.util.Locale;
 public enum TestResult {
     PASS("Passed"),
     FAIL("Failed"),
-    /** No expectation was declared. A real state, not a failure. */
+    /** No expectation was declared, or nothing was sent to compare with one. A real state, not a failure. */
     UNVERIFIED("Unverified");
 
     private final String label;

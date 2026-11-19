@@ -7,14 +7,18 @@ import org.p32h.interop.epa.pave.PaveApplication;
 import org.p32h.interop.epa.pave.service.config.CallIntent;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -113,6 +117,42 @@ class GuardedTypesTest {
         assertThat(handlers).as("the scan found the controllers").isPositive();
         assertThat(offenders).as("a controller builds an intent from validated inputs and reads the unlock from the session; "
                 + "it never accepts either from the request").isEmpty();
+    }
+
+    /**
+     * A prepared call proves a request was judged. That the request sent is the one that was judged
+     * rests on every request leaving through the shared executor, which sends the url and method
+     * of the call and nothing else. A client written later could accept a prepared call and still
+     * send to a url it built itself, and the build would stay green. This walks the main sources
+     * and fails when a file outside {@code client/support} performs an HTTP exchange of its own.
+     */
+    @Test
+    void noCodeOutsideTheSharedClientPerformsAnHttpExchange() throws IOException {
+        Path main = Path.of("src/main/java");
+        assertThat(Files.isDirectory(main)).as("the test runs from the project directory").isTrue();
+        // Assembled so this file does not itself contain what it looks for.
+        List<String> marks = List.of(".retr" + "ieve(", ".exch" + "ange(", ".toEnt" + "ity(", "sendAs" + "ync(", "openConn" + "ection(",
+                "java.net" + ".http", "HttpURL" + "Connection", "new Soc" + "ket(");
+        List<String> offenders = new ArrayList<>();
+        int scanned = 0;
+        try (Stream<Path> files = Files.walk(main)) {
+            for (Path file : files.filter(p -> p.toString().endsWith(".java")).toList()) {
+                scanned++;
+                String path = file.toString().replace('\\', '/');
+                if (path.contains("/client/support/")) {
+                    continue;
+                }
+                String source = Files.readString(file);
+                for (String mark : marks) {
+                    if (source.contains(mark)) {
+                        offenders.add(path.substring(path.lastIndexOf('/') + 1) + " uses " + mark);
+                    }
+                }
+            }
+        }
+        assertThat(scanned).as("the scan found the sources").isGreaterThan(50);
+        assertThat(offenders).as("every outbound request goes through client/support/ExchangeExecutor, built with RestClients.withTimeouts")
+                .isEmpty();
     }
 
     private static boolean containsGuarded(Class<?> type, Set<Class<?>> seen) {
