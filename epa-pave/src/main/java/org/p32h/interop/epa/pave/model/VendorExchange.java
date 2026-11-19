@@ -192,16 +192,23 @@ public record VendorExchange(
             shownHeaders.add(value.places() == 0 ? header : new WireHeader(header.name(), value.text()));
         }
         SentSecrets.Masked body = secrets.mask(responseBody);
+        // With no response nothing is shown, so there is nothing to say about what was or was not looked for in it.
+        boolean arrived = httpStatus != null;
         return new WireResponse(httpStatus, shownHeaders, body.text(), responseBytes, json != null, parseError,
-                inHeaders + body.places(), maskNote(inHeaders, body.places(), httpStatus == null ? 0 : secrets.tooShort()));
+                inHeaders + body.places(), maskNote(inHeaders, body.places(), arrived ? secrets.tooShort() : 0, arrived && secrets.incomplete()));
     }
 
     private SentSecrets sentSecrets() {
         return request == null ? SentSecrets.none() : request.secrets();
     }
 
-    /** What the wire view says about masking, or null when there is nothing to say. */
-    private static String maskNote(int inHeaders, int inBody, int tooShort) {
+    /**
+     * What the wire view says about masking, or null when there is nothing to say.
+     *
+     * @param tooShort   how many secrets the request sent that are too short to search for
+     * @param incomplete true when the request carried a secret whose value could not be worked out
+     */
+    private static String maskNote(int inHeaders, int inBody, int tooShort, boolean incomplete) {
         int places = inHeaders + inBody;
         StringBuilder note = new StringBuilder();
         if (places > 0) {
@@ -216,6 +223,13 @@ public record VendorExchange(
                     .append(tooShort == 1 ? "1 secret" : tooShort + " secrets").append(" shorter than ").append(SentSecrets.SHORTEST_SEARCHED)
                     .append(" characters. A secret that short is not searched for, because it would be found by accident, so this ")
                     .append("response is not masked where it repeats ").append(tooShort == 1 ? "that one." : "one of those.");
+        }
+        if (incomplete) {
+            // Said even when nothing was masked: a response shown with a secret in it and no word
+            // about it would pass for one that was searched and found clean.
+            note.append(note.length() > 0 ? " This request also carried " : "This request carried ")
+                    .append("at least one secret whose value this tool could not work out, so this response was not searched for it. ")
+                    .append("Check what is shown here before you share it.");
         }
         return note.length() == 0 ? null : note.toString();
     }

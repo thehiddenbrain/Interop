@@ -200,4 +200,25 @@ class SentSecretsTest {
         assertThat(one()).isNotEqualTo(SentSecrets.builder().variable("otherName", TOKEN).build());
         assertThat(one()).isNotEqualTo(SentSecrets.none());
     }
+
+    @Test
+    void aRequestKnownToCarryASecretNobodyCouldWorkOutSaysSoAndIsNotTheSameAsOneThatCarriedNone() {
+        // The secrets that are known are still searched for. What is added is that the set is known not to be whole.
+        SentSecrets incomplete = SentSecrets.builder().variable("callbackToken", TOKEN).incomplete().build();
+        assertThat(incomplete.incomplete()).isTrue();
+        assertThat(incomplete.searched()).isEqualTo(1);
+        assertThat(incomplete.mask("x " + TOKEN).text()).isEqualTo("x [secret callbackToken]");
+        assertThat(incomplete).isNotEqualTo(one());
+        assertThat(incomplete.toString()).isEqualTo("SentSecrets[1 searched for, 0 too short to search for, and at least one not known]");
+
+        // With nothing else known, it is still not "no secret": a response to it cannot be called searched.
+        SentSecrets nothingKnown = SentSecrets.builder().incomplete().build();
+        assertThat(nothingKnown.incomplete()).isTrue();
+        assertThat(nothingKnown.searched()).isZero();
+        assertThat(nothingKnown).isNotEqualTo(SentSecrets.none());
+        assertThat(nothingKnown.mask("anything").places()).isZero();
+
+        assertThat(one().incomplete()).isFalse();
+        assertThat(SentSecrets.none().incomplete()).isFalse();
+    }
 }

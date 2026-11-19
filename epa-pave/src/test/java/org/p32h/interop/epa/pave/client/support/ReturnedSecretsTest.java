@@ -278,7 +278,9 @@ class ReturnedSecretsTest {
         assertThat(wire.response().headers()).contains(new WireHeader("Location",
                 "https://onyx.example.invalid/fhir/Subscription/s-1?apikey=[secret apiKey]"));
         assertThat(wire.response().maskedPlaces()).isEqualTo(6);
-        assertThat(wire.response().maskNote()).startsWith("6 places in this response, 1 in the headers and 5 in the body, are masked");
+        assertThat(wire.response().maskNote()).startsWith("6 places in this response, 1 in the headers and 5 in the body, are masked")
+                .doesNotContain("could not work out");
+        assertThat(exchange.request().secrets().incomplete()).isFalse();
         assertThat(wire.response().byteLength()).isEqualTo((long) reflecting().getBytes(StandardCharsets.UTF_8).length);
         assertThat(JsonSafe.mapper().writeValueAsString(wire)).doesNotContain(TOKEN).doesNotContain(KEY).doesNotContain(CONTEXT)
                 .doesNotContain(LITERAL).doesNotContain(ACCESS);
@@ -328,6 +330,8 @@ class ReturnedSecretsTest {
 
         WireRequest request = Exchanges.wireRequest(call, ResolvedText.plain("{}"), FHIR.withBearerToken(ACCESS), true, null);
 
+        // A header that is a credential by its name is taken whole, so what its shown form hides is known.
+        assertThat(request.secrets().incomplete()).isFalse();
         String body = "{\"token\":\"" + ACCESS + "\",\"authorization\":\"Basic cGxhY2Vob2xkZXI6Y3JlZGVudGlhbA==\"}";
         WireResponse shown = Exchanges.fromResponse(request, 200, List.of(), body, 1L, true).wireResponse();
         // The collection's own Authorization header went out, so the token was left off and is nothing this request sent.
@@ -348,10 +352,13 @@ class ReturnedSecretsTest {
 
         WireRequest request = Exchanges.wireRequest(call, body, FHIR, true, null);
 
+        // Each of the three texts gave up its one secret, so nothing is left unknown.
+        assertThat(request.secrets().incomplete()).isFalse();
         WireResponse shown = Exchanges.fromResponse(request, 200, List.of(), "{\"a\":\"" + KEY + "\",\"b\":\"" + CONTEXT + "\",\"c\":\"" + TOKEN + "\"}",
                 1L, true).wireResponse();
         assertThat(shown.body()).isEqualTo("{\"a\":\"[secret apiKey]\",\"b\":\"[secret contextSecret]\",\"c\":\"[secret callbackToken]\"}");
         assertThat(shown.maskedPlaces()).isEqualTo(3);
+        assertThat(shown.maskNote()).doesNotContain("could not work out");
     }
 
     @Test
@@ -364,10 +371,50 @@ class ReturnedSecretsTest {
         WireRequest request = Exchanges.wireRequest(call, call.resolve("{\"pair\":\"{{clientSecret}}{{apiKey}}\"}"), FHIR, true, null);
 
         assertThat(request.body()).isEqualTo("{\"pair\":\"[secret clientSecret][secret apiKey]\"}");
+        assertThat(request.secrets().incomplete()).isFalse();
         WireResponse shown = Exchanges.fromResponse(request, 200, List.of(),
                 "{\"one\":\"placeholder-part-one\",\"two\":\"placeholder-part-two\"}", 1L, true).wireResponse();
         assertThat(shown.body()).isEqualTo("{\"one\":\"[secret clientSecret]\",\"two\":\"[secret apiKey]\"}");
         assertThat(shown.maskedPlaces()).isEqualTo(2);
+    }
+
+    private static final String NOT_KNOWN = "This request carried at least one secret whose value this tool could not work out, so this "
+            + "response was not searched for it. Check what is shown here before you share it.";
+
+    @Test
+    void aSecretWhoseValueCannotBeWorkedOutIsSaidInTheWireViewAndNeverPassedOverInSilence() {
+        // Built by hand, with a call that resolves nothing, and two secrets side by side: the two forms cannot tell them apart.
+        PreparedCall call = TestPreparedCalls.to(CREATE, "POST", URL, List.of(), new EnvironmentRef("Test Sandbox", EnvironmentKind.SANDBOX));
+        ResolvedText body = new ResolvedText("{\"pair\":\"{{clientSecret}}{{apiKey}}\"}", "{\"pair\":\"[secret clientSecret][secret apiKey]\"}",
+                "{\"pair\":\"placeholder-part-oneplaceholder-part-two\"}", List.of(), List.of());
+
+        WireRequest request = Exchanges.wireRequest(call, body, FHIR, true, null);
+
+        assertThat(request.secrets().incomplete()).isTrue();
+        String answer = "{\"one\":\"placeholder-part-one\"}";
+        WireResponse shown = Exchanges.fromResponse(request, 200, List.of(), answer, 1L, true).wireResponse();
+        // It cannot be masked, because what to look for is not known. So that is said, and the view does not pass for a searched one.
+        assertThat(shown.body()).isEqualTo(answer);
+        assertThat(shown.maskedPlaces()).isZero();
+        assertThat(shown.maskNote()).isEqualTo(NOT_KNOWN);
+
+        // One secret that stands in two places of one text cannot be read off the two forms either.
+        ResolvedText twice = new ResolvedText("{\"a\":\"{{apiKey}}\",\"b\":\"{{apiKey}}\"}", "{\"a\":\"[secret apiKey]\",\"b\":\"[secret apiKey]\"}",
+                "{\"a\":\"" + KEY + "\",\"b\":\"" + KEY + "\"}", List.of(), List.of());
+        assertThat(Exchanges.wireRequest(call, twice, FHIR, true, null).secrets().incomplete()).isTrue();
+
+        // What is known is still masked, and the note says both things.
+        PreparedCall withHeader = TestPreparedCalls.to(CREATE, "POST", URL,
+                List.of(new ResolvedHeader("X-Context", "ctx [secret contextSecret]", "ctx " + CONTEXT)),
+                new EnvironmentRef("Test Sandbox", EnvironmentKind.SANDBOX));
+        WireResponse both = Exchanges.fromResponse(Exchanges.wireRequest(withHeader, body, FHIR, true, null), 200, List.of(),
+                "{\"context\":\"" + CONTEXT + "\"}", 1L, true).wireResponse();
+        assertThat(both.body()).isEqualTo("{\"context\":\"[secret contextSecret]\"}");
+        assertThat(both.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this request sent."
+                + EXPLAINED + " " + NOT_KNOWN.replace("This request carried", "This request also carried"));
+
+        // No response, so nothing is shown and there is nothing to say about how it is shown.
+        assertThat(Exchanges.timeout(request, 5L).wireResponse().maskNote()).isNull();
     }
 
     @Test
@@ -392,6 +439,13 @@ class ReturnedSecretsTest {
         WireResponse again = Exchanges.fromResponse(second, 200, List.of(), mixed.replace("{{apiKey}}", KEY) + " " + TOKEN, 1L, false).wireResponse();
         assertThat(again.body()).isEqualTo(mixed.replace("{{apiKey}}", "[secret apiKey]") + " " + TOKEN);
         assertThat(again.maskedPlaces()).isEqualTo(1);
+        assertThat(second.secrets().incomplete()).isFalse();
+
+        // Two typed masks no variable stands behind, beside the real secret: both forms read the same there, so nothing is unknown.
+        String two = "{\"a\":\"[secret nobody]\",\"b\":\"[secret nothing]\",\"key\":\"{{apiKey}}\"}";
+        WireRequest third = Exchanges.wireRequest(call, call.resolve(two), FHIR, true, null);
+        assertThat(third.secrets().incomplete()).isFalse();
+        assertThat(third.secrets().searched()).isEqualTo(1);
     }
 
     @Test
@@ -518,6 +572,9 @@ class ReturnedSecretsTest {
                 + "?k=[secret apiKey]&c=[secret collectionTenant]&y=[secret ymlPassword]&t=[secret typedPassword]"));
         // Ten in the body, four in the header.
         assertThat(wire.response().maskedPlaces()).isEqualTo(14);
+        // Every value the request hides was worked out, from every layer, so the view does not say that one was not.
+        assertThat(request.secrets().incomplete()).isFalse();
+        assertThat(wire.response().maskNote()).doesNotContain("could not work out");
         // What the request shows and what the response shows hide the same things.
         assertThat(wire.request().url()).isEqualTo(wire.response().headers().get(0).value());
     }

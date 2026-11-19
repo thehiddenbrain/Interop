@@ -20,8 +20,9 @@ import java.util.List;
  * @param maskedPlaces how many places in the headers and the body together are shown as a mask.
  *                     Zero means the headers and the body are shown as they were received
  * @param maskNote     what a tester should know about the masking, in plain words: how many places
- *                     were masked and why, and that a secret too short to search for was not looked
- *                     for. Null when nothing was masked and nothing was left unsearched
+ *                     were masked and why, that a secret too short to search for was not looked
+ *                     for, and that a secret whose value could not be worked out was not looked for
+ *                     either. Null when nothing was masked and nothing was left unsearched
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record WireResponse(Integer status, List<WireHeader> headers, String body, Long byteLength, boolean parsed,

@@ -38,7 +38,7 @@ public final class SentSecrets {
      */
     public static final int SHORTEST_SEARCHED = 6;
 
-    private static final SentSecrets NONE = new SentSecrets(List.of(), 0);
+    private static final SentSecrets NONE = new SentSecrets(List.of(), 0, false);
 
     /**
      * A text as it may be shown.
@@ -68,10 +68,12 @@ public final class SentSecrets {
 
     private final List<Entry> searched;
     private final int tooShort;
+    private final boolean incomplete;
 
-    private SentSecrets(List<Entry> searched, int tooShort) {
+    private SentSecrets(List<Entry> searched, int tooShort, boolean incomplete) {
         this.searched = List.copyOf(searched);
         this.tooShort = tooShort;
+        this.incomplete = incomplete;
     }
 
     /** A request that carried no secret. */
@@ -91,6 +93,16 @@ public final class SentSecrets {
     /** How many secrets the request carried that are too short to be searched for. */
     public int tooShort() {
         return tooShort;
+    }
+
+    /**
+     * True when the request is known to have carried at least one secret whose value could not be
+     * worked out: its shown form hides something, and what it hides could not be established. A
+     * response to such a request cannot be searched for that secret, and the wire view has to say
+     * so, because a view that shows the secret and says nothing would pass for one that was checked.
+     */
+    public boolean incomplete() {
+        return incomplete;
     }
 
     /**
@@ -221,26 +233,38 @@ public final class SentSecrets {
 
     @Override
     public boolean equals(Object other) {
-        return other instanceof SentSecrets that && tooShort == that.tooShort && searched.equals(that.searched);
+        return other instanceof SentSecrets that && tooShort == that.tooShort && incomplete == that.incomplete
+                && searched.equals(that.searched);
     }
 
     @Override
     public int hashCode() {
-        return 31 * searched.hashCode() + tooShort;
+        return 31 * (31 * searched.hashCode() + tooShort) + Boolean.hashCode(incomplete);
     }
 
     /** Prints the counts and nothing else. */
     @Override
     public String toString() {
-        return "SentSecrets[" + searched.size() + " searched for, " + tooShort + " too short to search for]";
+        return "SentSecrets[" + searched.size() + " searched for, " + tooShort + " too short to search for"
+                + (incomplete ? ", and at least one not known]" : "]");
     }
 
     /** Collects the secrets of one request. A value that is given twice keeps the name it was first given under. */
     public static final class Builder {
 
         private final Map<String, String> maskByValue = new LinkedHashMap<>();
+        private boolean incomplete;
 
         private Builder() {
+        }
+
+        /**
+         * Says that the request carried a secret whose value could not be worked out, so the
+         * values given here are not all the secrets it sent.
+         */
+        public Builder incomplete() {
+            this.incomplete = true;
+            return this;
         }
 
         /** The value of a secret variable, masked by the variable's name exactly as the request side masks it. */
@@ -280,7 +304,7 @@ public final class SentSecrets {
                     searched.add(new Entry(secret.getValue(), secret.getKey()));
                 }
             }
-            return searched.isEmpty() && tooShort == 0 ? NONE : new SentSecrets(searched, tooShort);
+            return searched.isEmpty() && tooShort == 0 && !incomplete ? NONE : new SentSecrets(searched, tooShort, incomplete);
         }
 
         /** Prints how many values it holds and none of them. */
