@@ -48,7 +48,6 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
@@ -69,18 +68,6 @@ class DtrControllerTest {
     private final InMemoryLedger ledger = new InMemoryLedger();
     private final ScenarioRepository scenarios = new ScenarioRepository(APP);
 
-    /**
-     * The controller carries no stereotype until the integrator wires it, so that the application
-     * context does not try to build it before its dependencies exist. A standalone MockMvc only
-     * registers handlers of an annotated controller, so the test registers it through this.
-     */
-    @RestController
-    static class Wired extends DtrController {
-        Wired(DtrService service, ScenarioRepository scenarios, EpaProperties epa) {
-            super(service, scenarios, epa);
-        }
-    }
-
     private MockMvc mvc(String mode, OnyxDtrClient client) {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("ledger", ledger);
@@ -88,7 +75,7 @@ class DtrControllerTest {
         RunSupport support = new RunSupport(epa, TrackingProperties.defaults(), OnyxProperties.defaults(),
                 beans.getBeanProvider(RunLedger.class), CLOCK);
         DtrService service = new DtrService(epa, gateway, client, new FakeCodeList(), support);
-        return TestMvc.standalone(new Wired(service, scenarios, epa));
+        return TestMvc.standalone(new DtrController(service, scenarios, epa));
     }
 
     private MockMvc mvc(String mode) {

@@ -37,11 +37,6 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>The session's production unlock is read here and handed to the service. It is never a request
  * parameter or part of the posted body, so nothing a browser sends can stand in for it. The
  * response step takes none, because it sends nothing.
- *
- * <p>This class is not a Spring bean yet. The gateway, the ledger and the code list it depends on
- * arrive with another wave, and the integrator registers it once they are merged. Until then it
- * carries no stereotype annotation, so the application context does not try to build it. Its test
- * registers it through a small annotated subclass and drives it with a standalone MockMvc.
  */
 @RestController
 @RequestMapping("/api/dtr")

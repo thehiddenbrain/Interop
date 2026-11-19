@@ -233,6 +233,81 @@ class ApplicationJourneyTest {
         assertThat(run.get("headline").stringValue()).isEqualTo("Finished: 4 cases. 2 passed, 1 failed, 1 unverified.");
     }
 
+    /** One step of a journey a person drives: what the form holds, plus whatever the step before handed on. */
+    private JsonNode step(String path, String memberId, JsonNode before, String more) throws Exception {
+        String body = "{\"member\":{\"memberId\":\"" + memberId + "\",\"lineOfBusiness\":\"Medicare\"},\"provider\":{\"npi\":\"1234567893\"},"
+                + "\"procedureCodes\":[{\"code\":\"95810\"}],\"dateOfService\":\"2026-03-20\""
+                + (before == null ? ",\"chainId\":\"new\"" : ",\"chainId\":\"" + before.get("chainId").stringValue() + "\",\"carry\":"
+                + before.get("nextStep").get("carry"))
+                + (more == null ? "" : "," + more) + "}";
+        return json(post(path).contentType(MediaType.APPLICATION_JSON).content(body), 200);
+    }
+
+    @Test
+    void theAnswersAPersonGivesInDtrTravelInsideTheRequestThatIsSentToPas() throws Exception {
+        // The payer asks for documentation, so the journey goes through DTR and a person answers.
+        JsonNode crd = step("/api/crd", "P32H-DOC-DTR", null, null);
+        assertThat(crd.get("nextStep").get("action").stringValue()).isEqualTo("START_DTR");
+
+        JsonNode fetched = step("/api/dtr/package", "P32H-DOC-DTR", crd, null);
+        assertThat(fetched.get("verdict").get("outcomeCode").stringValue()).isEqualTo("PACKAGE_LOADED");
+        assertThat(fetched.get("nextStep").get("action").stringValue()).isEqualTo("SUBMIT_RESPONSE");
+        JsonNode questionnaire = fetched.get("detail").get("questionnaires").get(0);
+
+        // The screen posts the questionnaire back with the answers: the tool keeps nothing between steps.
+        JsonNode answered = step("/api/dtr/response", "P32H-DOC-DTR", fetched, "\"questionnaire\":" + questionnaire.get("json")
+                + ",\"answers\":[{\"linkId\":\"sleep-1\",\"values\":[\"true\"]},{\"linkId\":\"sleep-2\",\"values\":[\"14\"]},"
+                + "{\"linkId\":\"sleep-3\",\"values\":[\"snoring\"]}]");
+        assertThat(answered.get("verdict").get("outcomeCode").stringValue()).isEqualTo("RESPONSE_COMPLETED");
+        assertThat(answered.get("nextStep").get("action").stringValue()).isEqualTo("START_PAS");
+        // The response step sends nothing, and says so by having no wire view.
+        assertThat(answered.has("wire")).isFalse();
+
+        JsonNode submitted = step("/api/pas/submit", "P32H-DOC-DTR", answered, null);
+        assertThat(submitted.get("verdict").get("outcomeCode").stringValue()).isEqualTo("APPROVED");
+
+        // The proof is the request as it went out, not anything the tool says about it.
+        JsonNode bundle = JsonSafe.parse(submitted.get("wire").get("request").get("body").stringValue()).node();
+        JsonNode claim = null;
+        JsonNode response = null;
+        java.util.Set<String> inBundle = new java.util.TreeSet<>();
+        for (JsonNode entry : bundle.get("entry")) {
+            JsonNode resource = entry.get("resource");
+            inBundle.add(resource.get("resourceType").stringValue() + "/" + resource.get("id").stringValue());
+            if (resource.get("resourceType").stringValue().equals("Claim")) {
+                claim = resource;
+            }
+            if (resource.get("resourceType").stringValue().equals("QuestionnaireResponse")) {
+                response = resource;
+            }
+        }
+        assertThat(response).as("the QuestionnaireResponse inside the PAS bundle").isNotNull();
+        assertThat(response.get("status").stringValue()).isEqualTo("completed");
+        assertThat(response.get("questionnaire").stringValue()).startsWith(questionnaire.get("url").get("value").stringValue());
+        // The answers are the ones that were given, as the types the questionnaire asks for.
+        assertThat(response.get("item").get(0).get("linkId").stringValue()).isEqualTo("sleep-1");
+        assertThat(response.get("item").get(0).get("answer").get(0).get("valueBoolean").booleanValue()).isTrue();
+        assertThat(response.get("item").get(1).get("answer").get(0).get("valueInteger").intValue()).isEqualTo(14);
+        assertThat(response.get("item").get(2).get("answer").get(0).get("valueCoding").get("code").stringValue()).isEqualTo("snoring");
+        // The claim names it, and it is about the member, the coverage and the provider of this same bundle.
+        String named = claim.get("supportingInfo").get(0).get("valueReference").get("reference").stringValue();
+        assertThat(named).isEqualTo("QuestionnaireResponse/" + response.get("id").stringValue());
+        assertThat(inBundle).contains(named, response.get("subject").get("reference").stringValue(), "Coverage/coverage-1",
+                "Practitioner/practitioner-1");
+        assertThat(response.toString()).contains("Coverage/coverage-1").contains("Practitioner/practitioner-1");
+
+        // One journey in history: four lines under one chain id, and every stage done.
+        JsonNode chain = json(get("/api/chains/" + submitted.get("chainId").stringValue()), 200);
+        assertThat(chain.get("runCount").intValue()).isEqualTo(4);
+        assertThat(chain.get("ended").booleanValue()).isTrue();
+        for (JsonNode stage : chain.get("stages")) {
+            assertThat(stage.get("state").stringValue()).isEqualTo("DONE");
+        }
+        // Nothing of the answers is in the ledger: a line holds no wire JSON and no response text.
+        String ledger = json(get("/api/runs").param("chainId", submitted.get("chainId").stringValue()), 200).toString();
+        assertThat(ledger).doesNotContain("sleep-1").doesNotContain("snoring").doesNotContain("QuestionnaireResponse\"");
+    }
+
     @Test
     void aSubmissionAndAPackageFetchRunFromASuiteAndAChainRowIsCheckedBeforeAnythingIsSent() throws Exception {
         JsonNode run = runSuite("single.csv", "caseId,protocol,memberId,npi,codes,expected\n"

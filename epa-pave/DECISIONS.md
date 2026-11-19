@@ -12,7 +12,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-001 | The reference implementation `onyx-crd-harness-1.2.0.zip` was not available | Everything here was written fresh. Nothing was reused from it |
 | D-004 | `build.gradle` as given in section 2 does not resolve. One line was added | A changed build file nobody is told about is a mystery for the next build |
 | D-005 | The Spring Boot 4.0.7 BOM manages JUnit Jupiter 6.0.3, and the stack table says JUnit 5 | The pin in the stack table does not match what resolves |
-| D-008 | `hl7.org` and `build.fhir.org` are blocked from the build environment | Implementation guide details could not be checked against the published guides |
+| D-008, D-130 | `hl7.org` and `build.fhir.org` are blocked from the build environment. Parts of the guides were found readable from other sources late in the build | CRD, PAS and DTR were written from the build prompt and from memory, and so were their mock scenarios. What an independent comparison with the guides then found, and what was done about it, is under D-130 |
 | D-053 | The root package and the Gradle group are `org.p32h.interop.epa...`, not `com.thehiddenbrain.interop.epa...` | Changed on the operator's instruction during the build. It overrides the identity table in section 2 |
 
 ## Build and environment
@@ -943,3 +943,108 @@ of the build prompt), so the mapping is written to be narrowed, not guessed once
 - Mock sentinels for the states of a lookup itself: `P32H-LOOKUP-FAULT`, `P32H-LOOKUP-TIMEOUT`,
   `P32H-LOOKUP-MULTI`, `P32H-LOOKUP-NONE`, and NPIs `9999999987` (directory fault) and
   `1000000020` (out of network). Every fixture has to look invented, and a test enforces it.
+
+## Decisions made while integrating the second wave
+
+**D-130. D-008 revised: parts of the implementation guides can be read here after all.**
+Found by the owner of DTR. `hl7.org` and `build.fhir.org` remain refused, and nothing was done to
+get round that. Two other sources hold the same publications:
+- the HL7 packages on the public package registry: CRD, PAS and DTR as balloted for 2.2.0, the
+  Subscriptions backport as balloted for 1.2.0 and SDC as balloted for 4.0.0. These are built
+  profiles, value sets and examples.
+- the public source repository of the PAS guide, read at its 2.0.1 tag, which is the version the
+  CMS rule names. The repository tool of this session served that one. Attaching the CRD and the
+  DTR guide repositories was refused for this session, and they were not fetched another way.
+So PAS can be compared with 2.0.1 and with the ballot, and CRD and DTR with the ballot only. The
+owner of DTR read the narrative of DTR 2.0.1 and 2.1.0 before the refusal and recorded what
+differs between versions in `OnyxDtrConventions`.
+
+Why this matters more than a late convenience: the DTR owner found two faults by reading the
+guide that every test had passed, because the mock scenarios were written from the same memory
+as the code. CRD and PAS were written the same way. An independent comparison of each protocol
+with what can be read was started as soon as this was known, by auditors who wrote none of the
+code. Which version of each guide the vendor sandbox follows is still not known (section 26).
+
+**D-131. A chain is a case like any other, and it stops where a tool has to stop.**
+Section 28.1 makes the chain the real test case, so a suite row and a replay can run one.
+- It starts with CRD under a new chain id and then follows the next step each result states. It
+  never decides the route from outcome codes of its own.
+- CRD says go to PAS: the submission is sent with what CRD handed on. CRD says go to DTR: the
+  questionnaire package is fetched. If the package can go straight on, the submission follows.
+  If a questionnaire has to be answered, the chain stops there and says that a person has to
+  answer it. A tool that answered a clinical questionnaire by itself would be testing its own
+  guesses.
+- Anything else, the end of the flow included, stops the chain with the sentence of the step it
+  stopped at.
+- The expectation of a chain says which step each part is about: `crd:`, `dtr:` or `pas:` in
+  front of each term, each checked against that step's own vocabulary. An expectation that does
+  not say which step it means is refused before anything is sent, because "APPROVED" checked
+  against whichever step happened to answer last could pass for the wrong reason.
+- A case that expects an answer from a step the chain never reached has failed. It is not a
+  pass with a step left out.
+- A chain row may not choose a mock scenario: one scenario cannot describe three services.
+
+**D-132. A submission that is replayed or run from a suite is a new request.**
+It gets a new claim identifier every time. Sending a stored identifier again would be read by a
+payer as a resubmission of the same request, and a replay is meant to ask the question again,
+not to amend the earlier one. An inquiry does use the identifier of the submission it asks about.
+
+**D-133. From the PAS report: how submissions, inquiries, subscriptions and notifications are handled.**
+- The claim identifier is the one typed, else the one handed on, else minted. A resubmission
+  after "attachment required" carries the same identifier, so both are one request.
+- An inquiry is linked to the run that submitted the request it asks about: the one handed on,
+  else the newest submission the ledger holds for that claim identifier. A ledger that cannot be
+  asked leaves the inquiry unlinked, and it is still answered.
+- A body of the tester's own is sent as written, valid or not, and what the form held and was
+  not added is said in a note.
+- What a subscription subscribes to comes from run variables. Where the resource cannot go
+  without a value the tool sends a default and says so in a note.
+- A subscription call is a success only when the status is a success and the body is what that
+  call returns. A success status with an OperationOutcome of severity error is not a success.
+- The value of a channel header is never shown in the designed view or the returned fields. Only
+  its name is.
+- The receiver answers 200 with no body to anything. It keeps the first 131072 bytes of a body,
+  stops reading at 8 MiB and holds 200 notifications, letting the oldest go. Nothing of a
+  notification is written to disk beyond its ledger line.
+- A notification is matched to its submission by the claim identifier, then the ClaimResponse
+  id, then the authorization number, and every comparison with a stored value is the ledger's. A
+  notification no run of this tool can account for is said to be unmatched, whatever its type.
+- An unreachable service is never said to have received nothing.
+- What the PAS report leaves open is listed in `PROGRESS.md`. The receiver does not authenticate
+  its caller and has not been called over a socket by a real service; in the attachment mode
+  `x12-275` the tool only names the attachment on the claim and sends no attachment.
+
+**D-134. From the DTR report: how the questionnaire steps are handled.**
+- A response from the adaptive loop is tied to the questionnaire it completes by `derivedFrom`
+  of the questionnaire inside it, then by that questionnaire's url. This is what the guides
+  publish. A response that can be tied to nothing is handed on and not counted, and the result
+  says why.
+- A package with no questionnaire stays its own outcome with "review" as the next step, although
+  later versions of the guide read an empty package as "nothing needs to be completed". An
+  absence must not pass as an answer. The result states the guide's reading and that the tool
+  does not apply it.
+- PAS is offered only when every questionnaire of the package has a completed response that
+  names it.
+- Every answer the tool adds says where it came from and who gave it, in the extension the guide
+  requires of a client. An answer posted again unchanged keeps the origin it had.
+- A next-question request is sent as the bare QuestionnaireResponse unless the request asks for
+  it to be wrapped, because the two versions of the guide differ and nobody knows which the
+  sandbox follows. Both shapes are read.
+- The url an adaptive questionnaire gives for its next question is never used as an address. It
+  is compared with the configured one and the tester is told whether they agree. The gateway is
+  the only source of where a call goes.
+- Only the service completes an adaptive response. The tool never calls one complete itself.
+- The response step sends nothing, so it has no wire view and no timing, and its ledger line
+  cannot be replayed from the line alone and says so.
+- There is no SMART launch behind any of this, and every result says so (section 14).
+
+**D-135. What the answers carry into PAS, and one reference that does not resolve yet.**
+The completed QuestionnaireResponse travels inside the PAS bundle and the claim names it under
+supporting information. `ApplicationJourneyTest` proves that on the request as it went out:
+CRD, the package, the response and the submission through the real endpoints, one chain id on
+four ledger lines, and nothing of the answers in the ledger. Inside the response, the member,
+the coverage and the provider are named by the ids the PAS bundle uses, so those resolve. The
+order does not: the response names `ServiceRequest/service-request-1`, as the guide has a client
+do, and the PAS bundle this tool builds holds no ServiceRequest. Open at this entry. It is closed
+together with whatever the comparison of the PAS request with the guide finds, since both change
+the same builder.
