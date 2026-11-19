@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.suite;
 
+import org.p32h.interop.epa.pave.service.codelist.CsvRowsAdapter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
@@ -18,7 +19,7 @@ class SuiteCasesTest {
 
     private static final OutcomeCatalogue OUTCOMES = new OutcomeCatalogue()
             .register(Protocol.CRD, CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
-    private final SuiteFileReader reader = new SuiteFileReader(new TestCsv());
+    private final SuiteFileReader reader = new SuiteFileReader(new CsvRowsAdapter());
 
     private SuiteDefinition csv(String text) {
         return SuiteCases.define("cases.csv", reader.read("cases.csv", text), true, OUTCOMES);

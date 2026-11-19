@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * The CRD endpoints. A completed call answers 200 even when the service returned a fault, because
@@ -30,12 +31,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
  *
  * <p>The session's production unlock is read here and handed to the service. It is never a
  * request parameter or part of the posted body, so nothing a browser sends can stand in for it.
- *
- * <p>This class is not a Spring bean yet. The gateway, the ledger and the code list it depends on
- * arrive with the first wave, and the integrator registers it once they are merged. Until then it
- * carries no stereotype annotation, so the application context does not try to build it. Its test
- * registers it through a small annotated subclass and drives it with a standalone MockMvc.
  */
+@RestController
 @RequestMapping("/api/crd")
 public class CrdController {
 

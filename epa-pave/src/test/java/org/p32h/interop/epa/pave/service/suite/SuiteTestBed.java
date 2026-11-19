@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.suite;
 
+import org.p32h.interop.epa.pave.service.codelist.CsvRowsAdapter;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -115,6 +116,6 @@ public final class SuiteTestBed {
         }
         OutcomeCatalogue outcomes = new OutcomeCatalogue().register(Protocol.CRD, CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
         return new SuiteService(beans.getBeanProvider(CaseRunner.class), beans.getBeanProvider(RunLedger.class), gateway, epa,
-                outcomes, new SuiteFileReader(new TestCsv()), support(epa), executor);
+                outcomes, new SuiteFileReader(new CsvRowsAdapter()), support(epa), executor);
     }
 }

@@ -21,7 +21,6 @@ import org.p32h.interop.epa.pave.testsupport.InMemoryLedger;
 import org.p32h.interop.epa.pave.testsupport.TestMvc;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 /** The chain endpoints as a browser sees them. What a chain says is tested with the chain service. */
@@ -29,18 +28,10 @@ class ChainControllerTest {
 
     private final InMemoryLedger ledger = new InMemoryLedger();
 
-    /** Registered through an annotated subclass, for the reason given in CrdControllerTest. */
-    @RestController
-    static class Wired extends ChainController {
-        Wired(ChainService service) {
-            super(service);
-        }
-    }
-
     private MockMvc mvc() {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("ledger", ledger);
-        return TestMvc.standalone(new Wired(new ChainService(beans.getBeanProvider(RunLedger.class),
+        return TestMvc.standalone(new ChainController(new ChainService(beans.getBeanProvider(RunLedger.class),
                 new OutcomeCatalogue().register(Protocol.CRD, CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS))));
     }
 

@@ -37,6 +37,7 @@ import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
+import org.springframework.stereotype.Service;
 
 /**
  * Sends one collection request as written: its own method, url and headers, with placeholders
@@ -51,6 +52,7 @@ import org.p32h.interop.epa.pave.service.run.RunSupport;
  * <p>The tool does not interpret the answer. It reports what came back, shows every field of it,
  * and records the run. The one thing it reads is a FHIR OperationOutcome, issue by issue.
  */
+@Service
 public class RawService {
 
     /** The one thing about the answer a tester can assert besides the outcome: its HTTP status. */

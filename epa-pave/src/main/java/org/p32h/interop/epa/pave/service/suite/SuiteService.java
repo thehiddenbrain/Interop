@@ -46,6 +46,8 @@ import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 /**
  * Runs a suite file: each row a case, one after another, against the configuration in force when
@@ -68,6 +70,7 @@ import org.springframework.beans.factory.ObjectProvider;
  * </ul>
  * Nothing here logs a case.
  */
+@Service
 public class SuiteService implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(SuiteService.class);
@@ -93,6 +96,7 @@ public class SuiteService implements AutoCloseable {
     private final Object lock = new Object();
     private final LinkedHashMap<String, Run> runs = new LinkedHashMap<>();
 
+    @Autowired
     public SuiteService(ObjectProvider<CaseRunner> caseRunner, ObjectProvider<RunLedger> ledger, OperationGateway gateway,
                         EpaProperties epa, OutcomeCatalogue outcomes, SuiteFileReader reader, RunSupport support) {
         this(caseRunner, ledger, gateway, epa, outcomes, reader, support, null);

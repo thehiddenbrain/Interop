@@ -14,7 +14,6 @@ import org.p32h.interop.epa.pave.testsupport.FakeGateway;
 import org.p32h.interop.epa.pave.testsupport.TestMvc;
 import org.springframework.core.env.Environment;
 import org.springframework.mock.env.MockEnvironment;
-import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 class ModeControllerTest {
@@ -22,16 +21,8 @@ class ModeControllerTest {
     private final FakeGateway gateway = FakeGateway.unconfigured();
     private final MockEnvironment environment = new MockEnvironment();
 
-    /** Registered through an annotated subclass, for the reason given in CrdControllerTest. */
-    @RestController
-    static class Wired extends ModeController {
-        Wired(EpaProperties epa, OperationGateway gateway, Environment environment) {
-            super(epa, gateway, environment);
-        }
-    }
-
     private JsonNode mode(String mode) throws Exception {
-        return JsonSafe.parse(TestMvc.standalone(new Wired(EpaProperties.of(Map.of("mode", mode)), gateway, environment))
+        return JsonSafe.parse(TestMvc.standalone(new ModeController(EpaProperties.of(Map.of("mode", mode)), gateway, environment))
                 .perform(get("/api/mode")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).node();
     }
 
@@ -74,7 +65,7 @@ class ModeControllerTest {
         environment.setProperty("local.server.port", "49152");
         assertThat(mode("mock").get("port").intValue()).isEqualTo(49152);
         // With neither set, the documented default.
-        assertThat(JsonSafe.parse(TestMvc.standalone(new Wired(EpaProperties.defaults(), gateway, new MockEnvironment()))
+        assertThat(JsonSafe.parse(TestMvc.standalone(new ModeController(EpaProperties.defaults(), gateway, new MockEnvironment()))
                 .perform(get("/api/mode")).andReturn().getResponse().getContentAsString()).node().get("port").intValue()).isEqualTo(8057);
     }
 }

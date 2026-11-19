@@ -6,15 +6,14 @@ import org.p32h.interop.epa.pave.service.chain.ChainService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * Chains read back from the ledger. A chain is started by sending a run with the chain id "new"
  * and continued by sending the id that run returned, so there is nothing to create here.
- *
- * <p>This class is not a Spring bean until the integrator registers it, for the reason given on
- * {@link CrdController}.
  */
+@RestController
 @RequestMapping("/api/chains")
 public class ChainController {
 

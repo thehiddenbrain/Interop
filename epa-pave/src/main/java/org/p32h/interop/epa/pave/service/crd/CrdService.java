@@ -46,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
 
 /**
  * One CRD run, end to end.
@@ -65,6 +66,7 @@ import java.util.UUID;
  * The record is written before the result is returned, so a result on screen always has its line
  * in the ledger or says plainly that it does not.
  */
+@Service
 public class CrdService {
 
     private final EpaProperties epa;

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,10 +26,8 @@ import org.springframework.web.multipart.MultipartFile;
  * <p>A suite file is uploaded for one run and is not stored. Starting a run answers 202 with the
  * run as it stands, because the cases are still running when the answer goes out. The screen then
  * asks for the run by id until its state is no longer RUNNING.
- *
- * <p>This class is not a Spring bean until the integrator registers it, for the reason given on
- * {@link CrdController}.
  */
+@RestController
 @RequestMapping("/api/suites")
 public class SuiteController {
 

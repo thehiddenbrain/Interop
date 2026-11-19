@@ -51,7 +51,6 @@ import org.p32h.interop.epa.pave.web.RawController;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.bind.annotation.RestController;
 
 /** Sending a collection request as written, through the service and the controller, with fakes around them. */
 class RawServiceTest {
@@ -220,16 +219,9 @@ class RawServiceTest {
         assertThat(ledger.records()).isEmpty();
     }
 
-    @RestController
-    static class Wired extends RawController {
-        Wired(RawService service) {
-            super(service);
-        }
-    }
-
     @Test
     void theEndpointAnswersLikeEveryOtherRunEndpoint() throws Exception {
-        MockMvc mvc = TestMvc.standalone(new Wired(service(mockClient)));
+        MockMvc mvc = TestMvc.standalone(new RawController(service(mockClient)));
         mvc.perform(post("/api/raw").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"request\":{\"collectionId\":\"col-1\",\"requestId\":\"req-9\"},\"rawBody\":\"{}\",\"expected\":\"ANSWERED\"}"))
                 .andExpect(status().isOk())

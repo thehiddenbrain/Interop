@@ -6,15 +6,14 @@ import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.springframework.core.env.Environment;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Says what this tool is and what it is pointed at: name, version, port, mode, target, the active
  * environment, the configuration epoch, and whether a write would be sent for this browser
  * session. Every tab polls it, so it reads state and does nothing else.
- *
- * <p>This class is not a Spring bean until the integrator registers it, for the reason given on
- * {@link CrdController}.
  */
+@RestController
 @RequestMapping("/api/mode")
 public class ModeController {
 

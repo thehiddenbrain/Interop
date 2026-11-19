@@ -36,7 +36,6 @@ import org.p32h.interop.epa.pave.testsupport.TestMvc;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -56,18 +55,6 @@ class CrdControllerTest {
     private final FakeCodeList codeList = new FakeCodeList();
     private final ScenarioRepository scenarios = new ScenarioRepository(APP);
 
-    /**
-     * The controller carries no stereotype until the integrator wires it, so that the application
-     * context does not try to build it before its dependencies exist. A standalone MockMvc only
-     * registers handlers of an annotated controller, so the test registers it through this.
-     */
-    @RestController
-    static class Wired extends CrdController {
-        Wired(CrdService service, ScenarioRepository scenarios, EpaProperties epa) {
-            super(service, scenarios, epa);
-        }
-    }
-
     private MockMvc mvc(String mode) {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("ledger", ledger);
@@ -75,7 +62,7 @@ class CrdControllerTest {
         RunSupport support = new RunSupport(epa, TrackingProperties.defaults(), OnyxProperties.defaults(),
                 beans.getBeanProvider(RunLedger.class), CLOCK);
         CrdService service = new CrdService(epa, gateway, new MockOnyxCrdClient(scenarios, new MockExchanges(APP)), codeList, support);
-        return TestMvc.standalone(new Wired(service, scenarios, epa));
+        return TestMvc.standalone(new CrdController(service, scenarios, epa));
     }
 
     private static String body(String memberId, String extra) {

@@ -17,7 +17,6 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
-import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -31,16 +30,8 @@ class SuiteControllerTest {
 
     private final SuiteTestBed bed = new SuiteTestBed();
 
-    /** Registered through an annotated subclass, for the reason given in CrdControllerTest. */
-    @RestController
-    static class Wired extends SuiteController {
-        Wired(SuiteService service) {
-            super(service);
-        }
-    }
-
     private MockMvc mvc() {
-        return TestMvc.standalone(new Wired(bed.service()));
+        return TestMvc.standalone(new SuiteController(bed.service()));
     }
 
     private static MockMultipartFile file(String name, String text) {

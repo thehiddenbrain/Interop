@@ -25,6 +25,7 @@ import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Service;
 
 /**
  * Reads a chain back from the ledger: the runs made under one chain id, arranged as the journey
@@ -35,6 +36,7 @@ import org.springframework.beans.factory.ObjectProvider;
  * A stage that did not run says why, in words, because "skipped" and "not reached yet" are
  * different facts and a blank would hide which one it is.
  */
+@Service
 public class ChainService {
 
     /** The stages of the journey, in order. */

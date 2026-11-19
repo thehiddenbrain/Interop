@@ -11,14 +11,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Sends a collection request as written. The statuses are the ones every run endpoint uses: see
  * {@link RunResponses}.
- *
- * <p>This class is not a Spring bean until the integrator registers it, for the reason given on
- * {@link CrdController}.
  */
+@RestController
 @RequestMapping("/api/raw")
 public class RawController {
 

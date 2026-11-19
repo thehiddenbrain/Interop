@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.suite;
 
+import org.p32h.interop.epa.pave.service.codelist.CsvRowsAdapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -11,7 +12,7 @@ import org.p32h.interop.epa.pave.service.error.BadInputException;
 
 class SuiteFileReaderTest {
 
-    private final SuiteFileReader reader = new SuiteFileReader(new TestCsv());
+    private final SuiteFileReader reader = new SuiteFileReader(new CsvRowsAdapter());
 
     @Test
     void aCsvFileIsRowsOfCellsNamedByItsFirstRow() {
