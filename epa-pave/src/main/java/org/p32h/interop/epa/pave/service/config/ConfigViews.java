@@ -1,0 +1,774 @@
+package org.p32h.interop.epa.pave.service.config;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.List;
+import org.p32h.interop.epa.pave.model.EnvironmentKind;
+import org.p32h.interop.epa.pave.model.EnvironmentRef;
+import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.Protocol;
+import org.p32h.interop.epa.pave.model.ResolvedUrl;
+import org.p32h.interop.epa.pave.model.VariableSource;
+
+/**
+ * What the Config endpoints answer with.
+ *
+ * <p>Every type here is built for the browser from masked rows. None of them holds the value of a
+ * secret, and none of them is a stored type or a properties record: a stored environment holds
+ * credentials, and returning one would return them. A null is left out of the JSON, never written
+ * as null.
+ */
+public final class ConfigViews {
+
+    private ConfigViews() {
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Environments
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * One variable of an environment or a collection.
+     *
+     * @param name      the variable name
+     * @param type      the type Postman gave it, or absent
+     * @param enabled   false when the export switches it off. A disabled variable is never used
+     * @param secret    true when its value is never shown
+     * @param set       true when it has a value. A variable that is defined and blank is not set
+     * @param display   what to show for the value: the value itself, or for a secret that is set a
+     *                  mask that names the variable. A secret whose value only points at other
+     *                  variables is shown as written, since a reference is not a secret. Absent
+     *                  when there is no value
+     * @param readsFrom the operating system variable the value is read from, when the value is a
+     *                  reference to one. Absent otherwise
+     * @param used      true when a collection request, a fallback url or a setting refers to it
+     * @param usedBy    where it is referred to, in words
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record VariableView(String name, String type, boolean enabled, boolean secret, boolean set, String display, String readsFrom,
+                               boolean used, List<String> usedBy) {
+
+        public VariableView {
+            usedBy = usedBy == null ? List.of() : List.copyOf(usedBy);
+        }
+    }
+
+    /**
+     * @param id                  the id that is safe in a url path. The endpoints that take an
+     *                            environment name take this too
+     * @param file                where the uploaded file sits on disk
+     * @param acknowledgedNotProd true when the upload read as production, was declared as
+     *                            something else, and the uploader confirmed that
+     * @param productionSigns     what about it reads as production, in words
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record EnvironmentView(String id, String name, EnvironmentKind kind, boolean active, String uploadedAt, String originalFileName,
+                                  String file, boolean acknowledgedNotProd, List<String> productionSigns, List<VariableView> variables) {
+
+        public EnvironmentView {
+            productionSigns = productionSigns == null ? List.of() : List.copyOf(productionSigns);
+            variables = variables == null ? List.of() : List.copyOf(variables);
+        }
+    }
+
+    /** @param warnings one for each secret that now sits in the file in plain text, and anything the parser set aside */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record EnvironmentUploaded(EnvironmentView environment, boolean replaced, List<String> warnings, long epoch) {
+
+        public EnvironmentUploaded {
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+        }
+    }
+
+    /**
+     * @param active   the name of the active environment, or absent when none is
+     * @param problems what is wrong with the configuration as it stands, in words
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record EnvironmentList(List<EnvironmentView> environments, String active, long epoch, List<String> problems) {
+
+        public EnvironmentList {
+            environments = environments == null ? List.of() : List.copyOf(environments);
+            problems = problems == null ? List.of() : List.copyOf(problems);
+        }
+    }
+
+    /** What switching the active environment answers: the environment now in force, the new epoch, and whether a write would be sent. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Activated(EnvironmentRef environment, long epoch, WriteAccess writeAccess) {
+    }
+
+    /**
+     * @param removed   the name of what was removed
+     * @param wasActive true when the active environment was removed, so none is active now
+     * @param warnings  set when the file could not be deleted from disk
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Removed(String removed, boolean wasActive, long epoch, List<String> warnings) {
+
+        public Removed {
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Collections
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * One request of a collection with its mapping.
+     *
+     * @param detectedOperation  what detection proposed
+     * @param detectionBasis     what the proposal rests on, in words
+     * @param detectionConflict  true when the name and the url read as different operations
+     * @param correctedOperation the operation an operator chose in its place, or absent
+     * @param effectiveOperation the operation in force
+     * @param effectiveLabel     its label, so the browser keeps no copy of the list
+     * @param guardedAsWrite     true when sending this request counts as a write, whatever it is
+     *                           mapped to. On a production environment it then needs an unlock
+     * @param scripted           true when a pre-request script would run before it in Postman. The
+     *                           script is never run here
+     * @param testScripted       true when a script would run after the response in Postman, which
+     *                           may store a value a later request needs
+     * @param authHelper         the Postman authentication helper that would apply, or absent.
+     *                           This tool does not apply it
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record RequestSummary(String id, String name, List<String> folderPath, String method, String urlTemplate,
+                                 EpaOperation detectedOperation, String detectionBasis, boolean detectionConflict,
+                                 EpaOperation correctedOperation, EpaOperation effectiveOperation, String effectiveLabel,
+                                 boolean guardedAsWrite, boolean scripted, boolean testScripted, boolean hasBody, int exampleCount,
+                                 String authHelper, List<String> notes) {
+
+        public RequestSummary {
+            folderPath = folderPath == null ? List.of() : List.copyOf(folderPath);
+            notes = notes == null ? List.of() : List.copyOf(notes);
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        /** Named setters, because eighteen components in a row invite two of one type to change places. */
+        public static final class Builder {
+            private String id;
+            private String name;
+            private List<String> folderPath;
+            private String method;
+            private String urlTemplate;
+            private EpaOperation detectedOperation;
+            private String detectionBasis;
+            private boolean detectionConflict;
+            private EpaOperation correctedOperation;
+            private EpaOperation effectiveOperation;
+            private boolean guardedAsWrite;
+            private boolean scripted;
+            private boolean testScripted;
+            private boolean hasBody;
+            private int exampleCount;
+            private String authHelper;
+            private List<String> notes;
+
+            private Builder() {
+            }
+
+            public Builder id(String value) {
+                this.id = value;
+                return this;
+            }
+
+            public Builder name(String value) {
+                this.name = value;
+                return this;
+            }
+
+            public Builder folderPath(List<String> value) {
+                this.folderPath = value;
+                return this;
+            }
+
+            public Builder method(String value) {
+                this.method = value;
+                return this;
+            }
+
+            public Builder urlTemplate(String value) {
+                this.urlTemplate = value;
+                return this;
+            }
+
+            public Builder detectedOperation(EpaOperation value) {
+                this.detectedOperation = value;
+                return this;
+            }
+
+            public Builder detectionBasis(String value) {
+                this.detectionBasis = value;
+                return this;
+            }
+
+            public Builder detectionConflict(boolean value) {
+                this.detectionConflict = value;
+                return this;
+            }
+
+            public Builder correctedOperation(EpaOperation value) {
+                this.correctedOperation = value;
+                return this;
+            }
+
+            public Builder effectiveOperation(EpaOperation value) {
+                this.effectiveOperation = value;
+                return this;
+            }
+
+            public Builder guardedAsWrite(boolean value) {
+                this.guardedAsWrite = value;
+                return this;
+            }
+
+            public Builder scripted(boolean value) {
+                this.scripted = value;
+                return this;
+            }
+
+            public Builder testScripted(boolean value) {
+                this.testScripted = value;
+                return this;
+            }
+
+            public Builder hasBody(boolean value) {
+                this.hasBody = value;
+                return this;
+            }
+
+            public Builder exampleCount(int value) {
+                this.exampleCount = value;
+                return this;
+            }
+
+            public Builder authHelper(String value) {
+                this.authHelper = value;
+                return this;
+            }
+
+            public Builder notes(List<String> value) {
+                this.notes = value;
+                return this;
+            }
+
+            public RequestSummary build() {
+                return new RequestSummary(id, name, folderPath, method, urlTemplate, detectedOperation, detectionBasis, detectionConflict,
+                        correctedOperation, effectiveOperation, effectiveOperation == null ? null : effectiveOperation.label(),
+                        guardedAsWrite, scripted, testScripted, hasBody, exampleCount, authHelper, notes);
+            }
+        }
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record CollectionView(String id, String name, String schema, String uploadedAt, String originalFileName, String file,
+                                 List<VariableView> variables, List<RequestSummary> requests, List<String> notes) {
+
+        public CollectionView {
+            variables = variables == null ? List.of() : List.copyOf(variables);
+            requests = requests == null ? List.of() : List.copyOf(requests);
+            notes = notes == null ? List.of() : List.copyOf(notes);
+        }
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record CollectionUploaded(CollectionView collection, boolean replaced, List<String> warnings, long epoch) {
+
+        public CollectionUploaded {
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+        }
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record CollectionList(List<CollectionView> collections, long epoch) {
+
+        public CollectionList {
+            collections = collections == null ? List.of() : List.copyOf(collections);
+        }
+    }
+
+    /**
+     * @param value    the value as written, placeholders intact. For a header that is a credential
+     *                 by its own name the value is shown only when it is made of placeholders;
+     *                 anything typed literally is redacted
+     * @param disabled true when the collection switches the header off, so it is not sent
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record HeaderView(String name, String value, boolean disabled) {
+    }
+
+    /** A saved example response, with its body exactly as the collection holds it. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ExampleView(String name, String status, Integer code, List<HeaderView> headers, String body) {
+
+        public ExampleView {
+            headers = headers == null ? List.of() : List.copyOf(headers);
+        }
+
+        /** Prints no body. */
+        @Override
+        public String toString() {
+            return "ExampleView[" + name + ", " + code + "]";
+        }
+    }
+
+    /**
+     * A script Postman would run around the request, as text. It is shown so a tester can read
+     * what it would have computed. It is never run.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ScriptView(String listen, String from, String source) {
+
+        /** Prints where the script sits and never its text. */
+        @Override
+        public String toString() {
+            return "ScriptView[" + listen + ", " + from + "]";
+        }
+    }
+
+    /** @param note what this tool does about the helper, which is nothing, and what to do instead */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AuthView(String type, String from, List<String> variables, String note) {
+
+        public AuthView {
+            variables = variables == null ? List.of() : List.copyOf(variables);
+        }
+    }
+
+    /** @param savedValue the value the collection saved for a {@code :name} path variable. Shown, never sent */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record PathVariableView(String name, String savedValue) {
+    }
+
+    /** One request in full. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record RequestDetail(String collectionId, String collectionName, RequestSummary request, List<HeaderView> headers,
+                                String bodyMode, String bodyLanguage, String body, List<PathVariableView> pathVariables,
+                                List<ScriptView> scripts, AuthView auth, List<ExampleView> examples, String description) {
+
+        public RequestDetail {
+            headers = headers == null ? List.of() : List.copyOf(headers);
+            pathVariables = pathVariables == null ? List.of() : List.copyOf(pathVariables);
+            scripts = scripts == null ? List.of() : List.copyOf(scripts);
+            examples = examples == null ? List.of() : List.copyOf(examples);
+        }
+
+        /** Prints the request and never its body, which is vendor sample data. */
+        @Override
+        public String toString() {
+            return "RequestDetail[" + collectionId + ", " + (request == null ? null : request.id()) + "]";
+        }
+    }
+
+    /**
+     * @param changed false when the mapping already was what was asked for, so nothing moved
+     * @param notes   what the correction does and does not change, in words
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record MappingChanged(String collectionId, RequestSummary request, boolean changed, List<String> notes, long epoch) {
+
+        public MappingChanged {
+            notes = notes == null ? List.of() : List.copyOf(notes);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Everything in force
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * Where an operation goes.
+     *
+     * @param template   the url as configured, placeholders and tokens intact
+     * @param display    the url with every placeholder that resolved filled in and secrets masked.
+     *                   A placeholder with no value, and a token such as {@code {id}} that is
+     *                   filled when the call is made, are left as written
+     * @param resolved   true when every placeholder has a value
+     * @param unresolved the placeholders that have none
+     * @param tokens     the tokens that are filled from the identifier a call is for
+     * @param source     where the template came from, in words
+     * @param request    the collection request it came from, or absent
+     * @param scripted   true when that request carries a pre-request script this tool will not run
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record TargetView(String template, String display, boolean resolved, List<String> unresolved, List<String> tokens,
+                             String source, String requestName, RequestRef request, boolean scripted) {
+
+        public TargetView {
+            unresolved = unresolved == null ? List.of() : List.copyOf(unresolved);
+            tokens = tokens == null ? List.of() : List.copyOf(tokens);
+        }
+    }
+
+    /**
+     * A collection request that is mapped to an operation and can be chosen for it.
+     *
+     * @param usedByDefault true for the one a call uses when it names no request
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AvailableRequest(String collectionId, String collectionName, RequestSummary request, boolean usedByDefault) {
+    }
+
+    /**
+     * One operation and where it stands.
+     *
+     * @param label       the operation in words. The browser keeps no copy of these
+     * @param write       true when the operation always changes something on the far side
+     * @param outbound    false for the two operations that never leave the tool
+     * @param method      the method a call would be sent with, or absent when there is no call
+     * @param target      where it goes, or absent when it has no url
+     * @param requests    the collection requests mapped to it
+     * @param unavailable why it cannot be sent as things stand, in words, or absent when it can
+     * @param blocked     why the production guardrail would refuse it for this session, or absent
+     * @param note        anything else worth saying, such as that the mock profile needs no url
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record OperationRow(EpaOperation operation, String label, Protocol protocol, boolean write, boolean outbound, String method,
+                               TargetView target, List<AvailableRequest> requests, String unavailable, String blocked, String note) {
+
+        public OperationRow {
+            requests = requests == null ? List.of() : List.copyOf(requests);
+        }
+
+        /** A row for an operation, with what the operation says about itself already filled in. */
+        public static Builder of(EpaOperation operation) {
+            return new Builder(operation);
+        }
+
+        /** Named setters, so the three sentences a row can carry cannot change places. */
+        public static final class Builder {
+            private final EpaOperation operation;
+            private String method;
+            private TargetView target;
+            private List<AvailableRequest> requests;
+            private String unavailable;
+            private String blocked;
+            private String note;
+
+            private Builder(EpaOperation operation) {
+                this.operation = operation;
+            }
+
+            public Builder method(String value) {
+                this.method = value;
+                return this;
+            }
+
+            public Builder target(TargetView value) {
+                this.target = value;
+                return this;
+            }
+
+            public Builder requests(List<AvailableRequest> value) {
+                this.requests = value;
+                return this;
+            }
+
+            public Builder unavailable(String value) {
+                this.unavailable = value;
+                return this;
+            }
+
+            public Builder blocked(String value) {
+                this.blocked = value;
+                return this;
+            }
+
+            public Builder note(String value) {
+                this.note = value;
+                return this;
+            }
+
+            public OperationRow build() {
+                return new OperationRow(operation, operation.label(), operation.protocol(), operation.write(), operation.outbound(), method,
+                        target, requests, unavailable, blocked, note);
+            }
+        }
+    }
+
+    /**
+     * One setting of the application.yml layer.
+     *
+     * @param value  what to show: the value, or for a secret a mask. A secret that only points at
+     *               variables is shown as written. Absent when the setting is not set
+     * @param set    true when the setting has a value
+     * @param secret true when the value is never shown
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record SettingRow(String property, String value, boolean set, boolean secret) {
+    }
+
+    /**
+     * Everything in force.
+     *
+     * @param mode            mock or live
+     * @param problems        what is wrong with the configuration as it stands, in words
+     * @param allowProdWrites the configuration floor. While false no unlock is possible
+     * @param writeAccess     whether a write would be sent right now for this browser session
+     * @param storeDirectory  where uploaded files are kept
+     * @param operations      one row for every operation the tool knows, in the order of the enum
+     * @param settings        the application.yml layer, secrets masked
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Effective(String mode, EnvironmentRef environment, long epoch, List<String> problems, boolean allowProdWrites,
+                            WriteAccess writeAccess, String storeDirectory, List<OperationRow> operations, List<SettingRow> settings) {
+
+        public Effective {
+            problems = problems == null ? List.of() : List.copyOf(problems);
+            operations = operations == null ? List.of() : List.copyOf(operations);
+            settings = settings == null ? List.of() : List.copyOf(settings);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // The preview before sending
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * One variable a request needs.
+     *
+     * @param source   the layer that supplied its value, or UNRESOLVED
+     * @param display  the value, or a mask for a secret. Absent when it has no value
+     * @param resolved false when it has no value, so the request cannot be sent as it stands
+     * @param reason   why it has no value, in words. Absent when it has one
+     * @param usedIn   where the request refers to it: the url, a header by name, the body
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record VariableRow(String name, VariableSource source, boolean secret, String display, boolean resolved, String reason,
+                              List<String> usedIn) {
+
+        public VariableRow {
+            usedIn = usedIn == null ? List.of() : List.copyOf(usedIn);
+        }
+
+        /** Prints no value. A value typed for one run can be an identifier. */
+        @Override
+        public String toString() {
+            return "VariableRow[" + name + ", " + source + "]";
+        }
+    }
+
+    /**
+     * @param template   the value as written. Redacted for a credential header that holds anything
+     *                   typed literally
+     * @param display    the resolved value in the form that is shown. A credential header shows its
+     *                   scheme at most. Absent when the value did not resolve
+     * @param unresolved the placeholders in the value that have no value
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ResolvedHeaderView(String name, String template, String display, boolean resolved, List<String> unresolved) {
+
+        public ResolvedHeaderView {
+            unresolved = unresolved == null ? List.of() : List.copyOf(unresolved);
+        }
+    }
+
+    /**
+     * A {@code {name}} or {@code :name} part of the url, which is filled from the identifier a call is for.
+     *
+     * @param supplied   true when the preview was given a value for it
+     * @param savedValue the value the collection saved for it, as a suggestion. It is never sent
+     *                   unless it is supplied
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record TokenRow(String name, boolean supplied, String savedValue) {
+    }
+
+    /**
+     * What a request would be, before it is sent.
+     *
+     * @param url            the template beside what it resolved to
+     * @param urlShown       the url with whatever resolved filled in, for when it is not complete
+     * @param variables      every variable the url, the headers and the body need
+     * @param bodyTemplate   the vendor's sample body exactly as the collection holds it, or absent
+     * @param body           the body with its placeholders resolved, in the form that is shown.
+     *                       Absent when there is no body or it did not resolve
+     * @param bodyUnresolved the placeholders in the body that have no value
+     * @param scripted       true when the request carries a pre-request script this tool will not run
+     * @param write          true when sending it counts as a write
+     * @param blocked        why the production guardrail would refuse it for this session, or absent
+     * @param unavailable    why it cannot be sent as things stand, or absent when it can
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Resolved(EpaOperation operation, String label, String method, EnvironmentRef environment, long epoch, ResolvedUrl url,
+                           String urlShown, List<ResolvedHeaderView> headers, List<VariableRow> variables, List<TokenRow> urlTokens,
+                           String bodyTemplate, String body, List<String> bodyUnresolved, String bodyMode, String requestName,
+                           RequestRef request, boolean scripted, List<ScriptView> scripts, AuthView auth, List<ExampleView> examples,
+                           boolean write, String blocked, String unavailable, List<String> notes) {
+
+        public Resolved {
+            headers = headers == null ? List.of() : List.copyOf(headers);
+            variables = variables == null ? List.of() : List.copyOf(variables);
+            urlTokens = urlTokens == null ? List.of() : List.copyOf(urlTokens);
+            bodyUnresolved = bodyUnresolved == null ? List.of() : List.copyOf(bodyUnresolved);
+            scripts = scripts == null ? List.of() : List.copyOf(scripts);
+            examples = examples == null ? List.of() : List.copyOf(examples);
+            notes = notes == null ? List.of() : List.copyOf(notes);
+        }
+
+        /** Prints the operation and the method. The body is vendor sample data, and the url can hold an identifier. */
+        @Override
+        public String toString() {
+            return "Resolved[" + operation + " " + method + "]";
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        /** Named setters, because this is the widest answer the Config endpoints give. */
+        public static final class Builder {
+            private EpaOperation operation;
+            private String method;
+            private EnvironmentRef environment;
+            private long epoch;
+            private ResolvedUrl url;
+            private String urlShown;
+            private List<ResolvedHeaderView> headers;
+            private List<VariableRow> variables;
+            private List<TokenRow> urlTokens;
+            private String bodyTemplate;
+            private String body;
+            private List<String> bodyUnresolved;
+            private String bodyMode;
+            private String requestName;
+            private RequestRef request;
+            private boolean scripted;
+            private List<ScriptView> scripts;
+            private AuthView auth;
+            private List<ExampleView> examples;
+            private boolean write;
+            private String blocked;
+            private String unavailable;
+            private List<String> notes;
+
+            private Builder() {
+            }
+
+            public Builder operation(EpaOperation value) {
+                this.operation = value;
+                return this;
+            }
+
+            public Builder method(String value) {
+                this.method = value;
+                return this;
+            }
+
+            public Builder environment(EnvironmentRef value) {
+                this.environment = value;
+                return this;
+            }
+
+            public Builder epoch(long value) {
+                this.epoch = value;
+                return this;
+            }
+
+            public Builder url(ResolvedUrl value) {
+                this.url = value;
+                return this;
+            }
+
+            public Builder urlShown(String value) {
+                this.urlShown = value;
+                return this;
+            }
+
+            public Builder headers(List<ResolvedHeaderView> value) {
+                this.headers = value;
+                return this;
+            }
+
+            public Builder variables(List<VariableRow> value) {
+                this.variables = value;
+                return this;
+            }
+
+            public Builder urlTokens(List<TokenRow> value) {
+                this.urlTokens = value;
+                return this;
+            }
+
+            public Builder bodyTemplate(String value) {
+                this.bodyTemplate = value;
+                return this;
+            }
+
+            public Builder body(String value) {
+                this.body = value;
+                return this;
+            }
+
+            public Builder bodyUnresolved(List<String> value) {
+                this.bodyUnresolved = value;
+                return this;
+            }
+
+            public Builder bodyMode(String value) {
+                this.bodyMode = value;
+                return this;
+            }
+
+            public Builder requestName(String value) {
+                this.requestName = value;
+                return this;
+            }
+
+            public Builder request(RequestRef value) {
+                this.request = value;
+                return this;
+            }
+
+            public Builder scripted(boolean value) {
+                this.scripted = value;
+                return this;
+            }
+
+            public Builder scripts(List<ScriptView> value) {
+                this.scripts = value;
+                return this;
+            }
+
+            public Builder auth(AuthView value) {
+                this.auth = value;
+                return this;
+            }
+
+            public Builder examples(List<ExampleView> value) {
+                this.examples = value;
+                return this;
+            }
+
+            public Builder write(boolean value) {
+                this.write = value;
+                return this;
+            }
+
+            public Builder blocked(String value) {
+                this.blocked = value;
+                return this;
+            }
+
+            public Builder unavailable(String value) {
+                this.unavailable = value;
+                return this;
+            }
+
+            public Builder notes(List<String> value) {
+                this.notes = value;
+                return this;
+            }
+
+            public Resolved build() {
+                return new Resolved(operation, operation == null ? null : operation.label(), method, environment, epoch, url, urlShown,
+                        headers, variables, urlTokens, bodyTemplate, body, bodyUnresolved, bodyMode, requestName, request, scripted,
+                        scripts, auth, examples, write, blocked, unavailable, notes);
+            }
+        }
+    }
+}

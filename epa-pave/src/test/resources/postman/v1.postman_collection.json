@@ -1,0 +1,43 @@
+{
+	"id": "6f1d2c3b-4a59-4e78-9b0a-c1d2e3f4a5b6",
+	"name": "Old format sample",
+	"description": "",
+	"order": [
+		"a1b2c3d4-0000-4000-8000-000000000001"
+	],
+	"folders": [],
+	"folders_order": [],
+	"timestamp": 1767625200000,
+	"owner": "0",
+	"public": false,
+	"requests": [
+		{
+			"id": "a1b2c3d4-0000-4000-8000-000000000001",
+			"headers": "Content-Type: application/json\n",
+			"headerData": [
+				{
+					"key": "Content-Type",
+					"value": "application/json",
+					"enabled": true
+				}
+			],
+			"url": "{{crdUrl}}/cds-services/{{crdOrderSignServiceId}}",
+			"queryParams": [],
+			"preRequestScript": null,
+			"pathVariables": {},
+			"pathVariableData": [],
+			"method": "POST",
+			"data": [],
+			"dataMode": "raw",
+			"tests": null,
+			"currentHelper": "normal",
+			"helperAttributes": {},
+			"time": 1767625200000,
+			"name": "order-sign Happy Path",
+			"description": "",
+			"collectionId": "6f1d2c3b-4a59-4e78-9b0a-c1d2e3f4a5b6",
+			"responses": [],
+			"rawModeData": "{\"hook\": \"order-sign\"}"
+		}
+	]
+}

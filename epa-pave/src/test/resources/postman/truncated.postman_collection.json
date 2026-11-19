@@ -1,0 +1,162 @@
+{
+	"info": {
+		"_postman_id": "0c3f9a52-6e1b-4d87-a2f4-5b9d0e7c1a36",
+		"name": "Onyx Sandbox ePA",
+		"description": "Vendor-shaped sample. Every identifier in it is a placeholder.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "DTR",
+			"item": [
+				{
+					"name": "$questionnaire-package Happy path",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/fhir+json",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/fhir+json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/Questionnaire/$questionnaire-package",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"Questionnaire",
+								"$questionnaire-package"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"resourceType\": \"Parameters\",\n  \"parameter\": [\n    {\n      \"name\": \"coverage\",\n      \"resource\": {\n        \"resourceType\": \"Coverage\",\n        \"id\": \"coverage-1\",\n        \"status\": \"active\",\n        \"subscriberId\": \"S123456789\",\n        \"beneficiary\": {\n          \"reference\": \"Patient/patient-1\"\n        }\n      }\n    },\n    {\n      \"name\": \"order\",\n      \"resource\": {\n        \"resourceType\": \"ServiceRequest\",\n        \"id\": \"order-1\",\n        \"status\": \"draft\",\n        \"intent\": \"order\",\n        \"code\": {\n          \"coding\": [\n            {\n              \"system\": \"http://www.ama-assn.org/go/cpt\",\n              \"code\": \"95810\"\n            }\n          ]\n        },\n        \"subject\": {\n          \"reference\": \"Patient/patient-1\"\n        }\n      }\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "$questionnaire-package Error",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/fhir+json",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/fhir+json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/Questionnaire/$questionnaire-package",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"Questionnaire",
+								"$questionnaire-package"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"resourceType\": \"Parameters\",\n  \"parameter\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [
+						{
+							"name": "Bad request",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}"
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"resourceType\": \"OperationOutcome\",\n  \"issue\": [\n    {\n      \"severity\": \"error\",\n      \"code\": \"invalid\",\n      \"diagnostics\": \"The request could not be read.\"\n    }\n  ]\n}"
+						}
+					]
+				},
+				{
+					"name": "next-question Happy Path",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/fhir+json",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/fhir+json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/Questionnaire/$next-question",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"Questionnaire",
+								"$next-question"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"resourceType\": \"Parameters\",\n  \"parameter\": [\n    {\n      \"name\": \"questionnaire-response\",\n      \"resource\": {\n        \"resourceType\": \"QuestionnaireResponse\",\n        \"status\": \"in-progress\",\n        \"questionnaire\": \"https://example.invalid/Questionnaire/sleep-study\",\n        \"item\": [\n          {\n            \"linkId\": \"1\",\n            \"answer\": [\n              {\n                \"valueBoolean\": true\n              }\n            ]\n          }\n        ]\n      }\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "PAS",
+			"item": [
+				{
+					"name": "submit Happy Path",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Stamps the bundle before it is sent.",
+									"pm.variables.set(\"submittedAt\", new Date().toISOS
