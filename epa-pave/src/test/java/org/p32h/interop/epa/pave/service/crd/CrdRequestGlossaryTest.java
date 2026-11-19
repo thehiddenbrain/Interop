@@ -13,7 +13,10 @@ import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
+import org.p32h.interop.epa.pave.model.Shown;
+import org.p32h.interop.epa.pave.model.compare.DifferenceGroup;
 import org.p32h.interop.epa.pave.model.compare.DifferenceKind;
+import org.p32h.interop.epa.pave.service.compare.JsonComparer;
 import org.p32h.interop.epa.pave.service.compare.ElementPath;
 import org.p32h.interop.epa.pave.service.compare.ElementRole;
 import org.p32h.interop.epa.pave.service.compare.Glossary;
@@ -99,6 +102,17 @@ class CrdRequestGlossaryTest {
         assertThat(fhir("Condition.extension").what()).startsWith("An extension:");
         assertThat(fhir("Condition.extension.extension.url").what()).isEqualTo("The url that names the extension.");
         assertThat(fhir("Condition.modifierExtension").role()).isEqualTo(ElementRole.BUILD);
+    }
+
+    @Test
+    void aTopLevelKeyWithADotInItIsNotDescribedAsTheElementOfThatName() {
+        JsonNode tool = JsonSafe.parse("{\"hook\":\"order-sign\"}").node();
+        JsonNode yours = JsonSafe.parse("{\"hook\":\"order-sign\",\"context.patientId\":\"x\"}").node();
+        assertThat(new JsonComparer(CrdRequestGlossary.RULES, glossary).compare(tool, yours).differences()).singleElement().satisfies(difference -> {
+            assertThat(difference.path()).isEqualTo("\"context.patientId\"");
+            assertThat(difference.what()).isNull();
+            assertThat(difference.group()).isEqualTo(DifferenceGroup.NOT_CLASSIFIED);
+        });
     }
 
     @Test
@@ -239,8 +253,13 @@ class CrdRequestGlossaryTest {
         assertThat(configured.at("/prefetch/coverage").has("payor")).isTrue();
         assertThat(build(everything().build(), new FakeGateway().variable("payerName", "Placeholder payer")).at("/prefetch/coverage").has("payor")).isTrue();
 
-        assertThat(glossary.remark(new ElementPath("prefetch.*.identifier.value", "Coverage.identifier.value"), DifferenceKind.DIFFERENT_VALUE))
+        // Said only of two values that differ in their spaces and in nothing else, which is the difference it explains.
+        ElementPath identifierValue = new ElementPath("prefetch.*.identifier.value", "Coverage.identifier.value");
+        assertThat(glossary.remark(identifierValue, DifferenceKind.DIFFERENT_VALUE, Shown.of("S1234567801"), Shown.of("S12345678 01")))
                 .isEqualTo("This tool removes the spaces from a member ID before it sends it.");
+        assertThat(glossary.remark(identifierValue, DifferenceKind.DIFFERENT_VALUE, Shown.of("S1234567801"), Shown.of("S222222222"))).isNull();
+        assertThat(glossary.remark(identifierValue, DifferenceKind.DIFFERENT_VALUE, Shown.of("S1234567801"), Shown.empty())).isNull();
+        assertThat(glossary.remark(identifierValue, DifferenceKind.DIFFERENT_VALUE)).isNull();
         assertThat(bare.at("/prefetch/patient/identifier/0/value").asString()).isEqualTo("S1234567801");
         assertThat(bare.at("/prefetch/coverage/identifier/0/value").asString()).isEqualTo("S1234567801");
     }

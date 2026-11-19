@@ -342,6 +342,7 @@ class CrdRequestComparerTest {
     // ---- this tool's own request, edited by hand ----
 
     private static final String SAME_TEXT = "hold the same reference text";
+    private static final String FHIR_SERVER_NOTE = "Your request names a fhirServer. An id in it may also be used to fetch a resource from that server, so a renamed id can matter there.";
 
     /** The request with the id of its prefetched patient changed and nothing else: no reference to it is changed with it. */
     private static String withThePatientRenamed(String request) {
@@ -378,7 +379,7 @@ class CrdRequestComparerTest {
         assertThat(comparison.notes()).noneMatch(note -> note.contains("it does not carry"));
         assertThat(comparison.notes()).filteredOn(note -> note.contains(SAME_TEXT)).singleElement().satisfies(note -> assertThat(note)
                 .startsWith("At context.patientId and at 4 other places the two requests hold the same reference text."));
-        assertThat(comparison.notes()).contains("Your request names a fhirServer, so its ids also name resources on that server.");
+        assertThat(comparison.notes()).contains(FHIR_SERVER_NOTE);
     }
 
     @Test
@@ -464,7 +465,7 @@ class CrdRequestComparerTest {
         assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
                 "Your request carries an order as a DeviceRequest. This tool builds a ServiceRequest for each procedure code, so the two orders "
                         + "are different kinds of resource and each is listed whole.",
-                "Your request names a fhirServer, so its ids also name resources on that server.");
+                FHIR_SERVER_NOTE);
     }
 
     @Test
@@ -501,11 +502,12 @@ class CrdRequestComparerTest {
         assertThat(key.yourValue().value()).isEqualTo("patientRequest");
         assertThat(key.what()).isEqualTo("The member, as a FHIR Patient resource.");
         assertThat(key.explanation()).isEqualTo("The tool's request holds this Patient under the key `patient` and your request holds it under "
-                + "`patientRequest`. A CDS service names the prefetch keys it looks for in its discovery response, and reads only those. "
+                + "`patientRequest`. The tool's was built from what was read out of yours, so the two are compared with each other. "
+                + "A CDS service names the prefetch keys it asks for in its discovery response. "
                 + "GET /api/crd/discover lists the keys the service names.");
         assertThat(at(comparison, "prefetch.practitionerRole").explanation()).isEqualTo("The tool's request has the key `practitionerRole` here "
-                + "and your request does not. It holds a PractitionerRole resource. A CDS service names the prefetch keys it looks for in its "
-                + "discovery response, and reads only those. GET /api/crd/discover lists the keys the service names.");
+                + "and your request does not. It holds a PractitionerRole resource. A CDS service names the prefetch keys it asks for in its "
+                + "discovery response. GET /api/crd/discover lists the keys the service names.");
 
         Difference date = at(comparison, "context.draftOrders.entry[ServiceRequest #1].resource.occurrenceDateTime");
         assertThat(date.toolValue().value()).isEqualTo("2026-03-20");
@@ -646,7 +648,7 @@ class CrdRequestComparerTest {
         assertThat(comparison.toolBody()).contains("1234567893").doesNotContain("Sample-Provider");
         Difference npi = at(comparison, "prefetch[Practitioner].identifier[http://hl7.org/fhir/sid/us-npi].value");
         assertThat(npi.group()).isEqualTo(DifferenceGroup.CASE);
-        assertThat(npi.what()).isEqualTo("The practitioner's identifier itself, which is where an NPI travels.");
+        assertThat(npi.what()).isEqualTo("The value of one identifier of the practitioner, such as an NPI.");
     }
 
     @Test
@@ -771,7 +773,7 @@ class CrdRequestComparerTest {
         RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(withServer).includePrefetch(false)
                 .member(MemberDetail.builder().memberId("S123456789").build()).provider(ProviderDetail.builder().npi(NPI).build()).build());
         assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
-                "Your request names a fhirServer, so its ids also name resources on that server.");
+                FHIR_SERVER_NOTE);
         assertThat(lines(comparison)).doesNotContain("fhirServer | ONLY_IN_YOURS | BUILD").hasSize(13);
     }
 
@@ -1003,7 +1005,11 @@ class CrdRequestComparerTest {
         assertThat(only.has("referencesFollowing")).isFalse();
         // The element nobody described has no description, and the property is left out, not sent as null.
         assertThat(comparable.at("/differences/33").has("what")).isFalse();
-        assertThat(comparable.at("/caseSource/1").propertyNames()).containsExactlyInAnyOrder("field", "label", "path", "pointer", "source", "value");
+        // The sample types no identifier as a member number, so the member ID is read from the subscriber id, and the answer says so.
+        assertThat(comparable.at("/caseSource/1").propertyNames()).containsExactlyInAnyOrder("field", "label", "path", "pointer", "source", "value",
+                "note");
+        assertThat(comparable.at("/caseSource/1/note").asString()).startsWith("Read from Coverage.subscriberId");
+        assertThat(comparable.at("/caseSource/2").propertyNames()).containsExactlyInAnyOrder("field", "label", "path", "pointer", "source", "value");
         assertThat(comparable.at("/caseSource/1/source").asString()).isEqualTo("YOUR_REQUEST");
         assertThat(comparable.at("/counts/0").propertyNames()).containsExactlyInAnyOrder("count", "description", "group", "label");
         assertThat(comparable.at("/notFound/0").propertyNames()).containsExactlyInAnyOrder("candidates", "field", "label", "note");

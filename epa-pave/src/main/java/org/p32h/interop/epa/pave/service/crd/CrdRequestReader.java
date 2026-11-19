@@ -130,8 +130,11 @@ public final class CrdRequestReader {
      * @param missing the values that were looked for and not used, each with where it was looked for
      * @param orders  the orders in {@code context.draftOrders}, in their order
      * @param notes   facts about the request that bear on reading it
+     * @param patient      the JSON Pointer of the Patient the member was read from, or null when none was
+     * @param practitioner the JSON Pointer of the Practitioner the provider was read from, or null when none was
      */
-    public record Reading(Map<CaseField, Found> found, Map<CaseField, Missing> missing, List<Order> orders, List<String> notes) {
+    public record Reading(Map<CaseField, Found> found, Map<CaseField, Missing> missing, List<Order> orders, List<String> notes,
+                          String patient, String practitioner) {
 
         public Reading {
             // Copied by putAll: the copy constructor of an EnumMap refuses an empty map of another kind.
@@ -167,7 +170,7 @@ public final class CrdRequestReader {
     }
 
     /** The order resources this tool reads a procedure code from, each with the element that holds the code. */
-    private static final Map<String, String> CODE_ELEMENT = Map.of("ServiceRequest", "code", "DeviceRequest", "codeCodeableConcept",
+    static final Map<String, String> CODE_ELEMENT = Map.of("ServiceRequest", "code", "DeviceRequest", "codeCodeableConcept",
             "MedicationRequest", "medicationCodeableConcept");
     /** The order resources whose occurrence is the date the service is to be performed. */
     private static final Set<String> HAS_OCCURRENCE = Set.of("ServiceRequest", "DeviceRequest");
@@ -175,12 +178,15 @@ public final class CrdRequestReader {
     private static final Set<String> OTHER_ORDERS = Set.of("NutritionOrder", "VisionPrescription", "CommunicationRequest", "Appointment");
     private static final String COVERAGE_CLASS = "http://terminology.hl7.org/CodeSystem/coverage-class";
     private static final Pattern DATE_TIME = Pattern.compile("(\\d{4}-\\d{2}-\\d{2})T.+");
+    static final String NAMES_ANOTHER_PATIENT = "context.patientId names a Patient your request does not carry.";
 
     private final Map<CaseField, Found> found = new EnumMap<>(CaseField.class);
     private final Map<CaseField, Missing> missing = new EnumMap<>(CaseField.class);
     private final List<String> notes = new ArrayList<>();
     private final JsonNode root;
     private final ResourceIndex index;
+    private String patientPointer;
+    private String practitionerPointer;
 
     private CrdRequestReader(JsonNode root) {
         this.root = root;
@@ -196,7 +202,7 @@ public final class CrdRequestReader {
         List<Order> orders = reader.orders();
         reader.missing.put(CaseField.LINE_OF_BUSINESS, new Missing(null, "A CRD request does not carry the line of business in any "
                 + "element this tool writes, so it is never read from a request. A plan name is not taken for one.", List.of()));
-        return new Reading(reader.found, reader.missing, orders, reader.notes);
+        return new Reading(reader.found, reader.missing, orders, reader.notes, reader.patientPointer, reader.practitionerPointer);
     }
 
     // ---- the hook ----
@@ -218,19 +224,35 @@ public final class CrdRequestReader {
         ResourceIndex.Resource patient = null;
         List<ResourceIndex.Resource> patients = index.resources("Patient");
         JsonNode patientId = JsonSafe.at(root, "context", "patientId");
-        if (patientId.isString()) {
-            patient = index.resolve(ReferenceText.parse(patientId.stringValue(), "Patient")).stream()
-                    .filter(resource -> resource.type().equals("Patient")).findFirst().orElse(null);
-        }
-        if (patient == null && patients.size() == 1) {
+        // Only a request that does not name its patient is read from its only Patient. One that
+        // names another is not: that Patient is then not the one the request is about.
+        boolean named = !JsonSafe.nullOrMissing(patientId);
+        if (named && patientId.isString() && !patientId.stringValue().isBlank()) {
+            List<ResourceIndex.Resource> targets = index.resolve(ReferenceText.parse(patientId.stringValue(), "Patient")).stream()
+                    .filter(resource -> resource.type().equals("Patient")).toList();
+            if (targets.size() == 1) {
+                patient = targets.get(0);
+            } else {
+                noPatient = targets.isEmpty() ? NAMES_ANOTHER_PATIENT
+                        : "context.patientId names " + targets.size() + " Patient resources in your request, which carry the same id, so which "
+                                + "one is the member cannot be told.";
+            }
+        } else if (named) {
+            noPatient = "context.patientId is not written as an id, so the Patient it names cannot be told.";
+        } else if (patients.size() == 1) {
             patient = patients.get(0);
-        }
-        if (patient == null) {
+        } else {
             noPatient = patients.isEmpty() ? "Your request carries no Patient resource."
-                    : "Your request carries " + patients.size() + " Patient resources and context.patientId names none of them.";
+                    : "Your request carries " + patients.size() + " Patient resources and no context.patientId to name one of them.";
         }
+        patientPointer = patient == null ? null : patient.pointer();
 
         memberId(patient, coverages);
+        if (patient == null && named && found.containsKey(CaseField.MEMBER_ID)) {
+            // Read from a Coverage, and the Coverage is not tied to the patient the request names.
+            found.put(CaseField.MEMBER_ID, withNote(found.get(CaseField.MEMBER_ID), noPatient + " The member ID was read from a Coverage, "
+                    + "and nothing shows that the Coverage is that patient's."));
+        }
         if (patient == null) {
             for (CaseField field : List.of(CaseField.MEMBER_FIRST_NAME, CaseField.MEMBER_LAST_NAME, CaseField.MEMBER_DATE_OF_BIRTH,
                     CaseField.MEMBER_GENDER)) {
@@ -282,6 +304,17 @@ public final class CrdRequestReader {
         agree(CaseField.MEMBER_ID, typed.isEmpty() ? others : typed,
                 "an identifier typed as a member number (MB) on the Patient or a Coverage, then Coverage.subscriberId and the other "
                         + "identifiers of a Coverage", MemberIds::noSpace, "member IDs");
+        Found read = found.get(CaseField.MEMBER_ID);
+        if (read != null && typed.isEmpty()) {
+            found.put(CaseField.MEMBER_ID, withNote(read, read.path().endsWith(".subscriberId")
+                    ? "Read from Coverage.subscriberId, because no identifier is typed as a member number. Coverage.subscriberId is the "
+                            + "subscriber's ID, which for a dependent can differ from the member's own."
+                    : "Read from an identifier of a Coverage that is not typed as a member number, because no identifier is."));
+        }
+    }
+
+    private static Found withNote(Found value, String note) {
+        return new Found(value.value(), value.path(), value.pointer(), value.note() == null ? note : value.note() + " " + note);
     }
 
     /**
@@ -325,6 +358,9 @@ public final class CrdRequestReader {
             ReferenceText user = ReferenceText.parse(userId.stringValue(), null);
             if (user.type() == null) {
                 why = "context.userId is not written as a resource type and an id.";
+            } else if (index.resolve(user).size() > 1) {
+                why = "context.userId names " + index.resolve(user).size() + " resources in your request, which carry the same id, so which "
+                        + "one is meant cannot be told.";
             } else if (user.type().equals("Practitioner")) {
                 practitioner = index.resolve(user).stream().findFirst().orElse(null);
                 why = practitioner == null ? "context.userId names a Practitioner that your request does not carry." : null;
@@ -336,15 +372,18 @@ public final class CrdRequestReader {
                 } else if (!reference.isString()) {
                     why = "The PractitionerRole that context.userId names has no reference to a practitioner.";
                 } else {
-                    practitioner = index.resolve(ReferenceText.parse(reference.stringValue(), null)).stream()
-                            .filter(resource -> resource.type().equals("Practitioner")).findFirst().orElse(null);
-                    why = practitioner == null ? "The PractitionerRole that context.userId names points at a Practitioner that your "
-                            + "request does not carry." : null;
+                    List<ResourceIndex.Resource> named = index.resolve(ReferenceText.parse(reference.stringValue(), null)).stream()
+                            .filter(resource -> resource.type().equals("Practitioner")).toList();
+                    practitioner = named.size() == 1 ? named.get(0) : null;
+                    why = named.isEmpty() ? "The PractitionerRole that context.userId names points at a Practitioner that your request does "
+                            + "not carry." : named.size() > 1 ? "The PractitionerRole that context.userId names points at " + named.size()
+                            + " Practitioner resources in your request, which carry the same id, so which one is meant cannot be told." : null;
                 }
             } else {
                 why = "context.userId names a resource that is neither a Practitioner nor a PractitionerRole.";
             }
         }
+        practitionerPointer = practitioner == null ? null : practitioner.pointer();
         if (practitioner == null) {
             for (CaseField field : List.of(CaseField.NPI, CaseField.PROVIDER_LAST_NAME, CaseField.PROVIDER_FIRST_NAME, CaseField.PROVIDER_NAME_TEXT)) {
                 missing.put(field, new Missing(lookedIn, why, List.of()));

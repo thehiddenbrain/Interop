@@ -21,7 +21,7 @@ class LabelsAndReferencesTest {
 
     /** A document whose top level tells the engine where its bare ids and typed strings are, as a hook's context does. */
     private static final CompareRules RULES = new CompareRules(Set.of(),
-            Map.of("context.patientId", "Patient", "context.userId", "", "context.selections", ""));
+            Map.of("context.patientId", "Patient", "context.userId", "", "context.selections", ""), Map.of(), "fhirServer");
 
     private static JsonNode json(String text) {
         JsonSafe.Parsed parsed = JsonSafe.parse(text.replace('\'', '"'));
@@ -130,10 +130,12 @@ class LabelsAndReferencesTest {
 
     @Test
     void theSameResourcePointedAtInAnotherFormIsWrittenDifferentlyAndIsListed() {
+        // The absolute url is on the server the request names, so it names the Patient the request carries under that id.
         List<Difference> all = differences(request("patient-1", "Patient/patient-1", "Patient/patient-1", "patient-1"),
-                request("8842", "https://ehr.example.invalid/fhir/Patient/8842", "Patient/8842", "Patient/8842"));
+                request("8842", "https://ehr.example.invalid/fhir/Patient/8842", "Patient/8842", "Patient/8842")
+                        .replaceFirst("\\{", "{'fhirServer':'https://ehr.example.invalid/fhir/',"));
         assertThat(lines(all)).containsExactly("context.patientId | WRITTEN_DIFFERENTLY | BUILD", "order.subject.reference | WRITTEN_DIFFERENTLY | BUILD",
-                "patient.id | DIFFERENT_VALUE | LABELS");
+                "patient.id | DIFFERENT_VALUE | LABELS", "fhirServer | ONLY_IN_YOURS | NOT_CLASSIFIED");
         assertThat(all.get(0).explanation()).startsWith("Both point at the same matched resource, written in different forms: the tool's "
                 + "request writes an id on its own and your request writes a resource type and an id.");
         assertThat(all.get(1).explanation()).startsWith("Both point at the same matched resource, written in different forms: the tool's "
@@ -142,15 +144,37 @@ class LabelsAndReferencesTest {
     }
 
     @Test
-    void twoAbsoluteUrlsOnDifferentBasesAreListedEvenWhenTheyPointAtTheMatchedResource() {
-        String tool = "{'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'https://one.example.invalid/fhir/Patient/a'}},"
-                + "'patient':{'resourceType':'Patient','id':'a'}}";
-        String yours = "{'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'https://two.example.invalid/fhir/Patient/a'}},"
-                + "'patient':{'resourceType':'Patient','id':'a'}}";
-        assertThat(differences(tool, yours)).singleElement().satisfies(difference -> {
-            assertThat(line(difference)).isEqualTo("order.subject.reference | WRITTEN_DIFFERENTLY | BUILD");
-            assertThat(difference.explanation()).startsWith("Both point at the same matched resource, written in different forms: each is an "
-                    + "absolute url, on a different base url.");
+    void anAbsoluteUrlOnAServerTheRequestDoesNotNameIsNotFollowedByItsLastTwoSegments() {
+        String tool = "{'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'Patient/patient-1'}},"
+                + "'patient':{'resourceType':'Patient','id':'patient-1'}}";
+        String yours = "{'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'https://other.example.invalid/fhir/Patient/8842'}},"
+                + "'patient':{'resourceType':'Patient','id':'8842'}}";
+        List<Difference> all = differences(tool, yours);
+        assertThat(lines(all)).containsExactly("order.subject.reference | DIFFERENT_VALUE | BUILD", "patient.id | DIFFERENT_VALUE | LABELS");
+        assertThat(all.get(0).explanation()).isEqualTo("The two references do not follow one matched pair of resources: the tool's points at a "
+                + "Patient in the tool's request, and yours is an absolute url to a Patient that nothing in your request ties to a resource the "
+                + "request carries. Whether the two name the same Patient cannot be seen from the requests.");
+        assertThat(all.get(1).referencesFollowing()).isZero();
+        // A server the request names that is another server changes nothing.
+        String elsewhere = yours.replaceFirst("\\{", "{'fhirServer':'https://ehr.example.invalid/fhir',");
+        assertThat(lines(differences(tool, elsewhere))).startsWith("order.subject.reference | DIFFERENT_VALUE | BUILD");
+    }
+
+    @Test
+    void twoAbsoluteUrlsOnDifferentBasesAreListedEvenWhenEachPointsAtTheMatchedResourceOnItsOwnServer() {
+        String tool = "{'fhirServer':'https://one.example.invalid/fhir','order':{'resourceType':'ServiceRequest','id':'sr','subject':"
+                + "{'reference':'https://one.example.invalid/fhir/Patient/a'}},'patient':{'resourceType':'Patient','id':'a'}}";
+        String yours = tool.replace("one.example", "two.example");
+        assertThat(lines(differences(tool, yours))).containsExactly("fhirServer | DIFFERENT_VALUE | NOT_CLASSIFIED",
+                "order.subject.reference | WRITTEN_DIFFERENTLY | BUILD");
+        assertThat(differences(tool, yours).get(1).explanation()).startsWith("Both point at the same matched resource, written in different "
+                + "forms: each is an absolute url, on a different base url.");
+        // With no server named, neither url can be tied to the Patient its request carries.
+        String toolBare = tool.replace("'fhirServer':'https://one.example.invalid/fhir',", "");
+        String yoursBare = yours.replace("'fhirServer':'https://two.example.invalid/fhir',", "");
+        assertThat(differences(toolBare, yoursBare)).singleElement().satisfies(difference -> {
+            assertThat(line(difference)).isEqualTo("order.subject.reference | DIFFERENT_VALUE | BUILD");
+            assertThat(difference.explanation()).endsWith("Whether the two name the same Patient cannot be seen from the requests.");
         });
     }
 
@@ -348,11 +372,38 @@ class LabelsAndReferencesTest {
     }
 
     @Test
-    void aResourceCarriedTwiceIsFollowedThroughEitherCopy() {
+    void aReferenceToATypeAndIdCarriedTwiceIsListedAndNotCountedAsFollowingEitherCopy() {
         String document = "{'a':{'resourceType':'Patient','id':'%1$s'},'b':{'resourceType':'Patient','id':'%1$s'},"
                 + "'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'Patient/%1$s'}}}";
-        assertThat(lines(differences(document.formatted("p1"), document.formatted("9")))).containsExactly("a.id | DIFFERENT_VALUE | LABELS",
-                "b.id | DIFFERENT_VALUE | LABELS");
+        JsonComparer.Result result = new JsonComparer(RULES, Glossary.NONE).compare(json(document.formatted("p1")), json(document.formatted("9")));
+        assertThat(lines(result.differences())).containsExactly("a.id | DIFFERENT_VALUE | LABELS", "b.id | DIFFERENT_VALUE | LABELS",
+                "order.subject.reference | DIFFERENT_VALUE | BUILD");
+        assertThat(result.differences()).extracting(Difference::referencesFollowing).containsExactly(0, 0, null);
+        assertThat(result.differences().get(2).explanation()).startsWith("Each request carries more than one resource with the type and id "
+                + "this reference names, so which one it means cannot be told.");
+        assertThat(result.notes()).containsExactly(
+                "The tool's request carries 2 Patient resources with the same id, at a and b. A reference to that id can mean either.",
+                "Your request carries 2 Patient resources with the same id, at a and b. A reference to that id can mean either.");
+        // Where the reference is the same in both, nothing differs and nothing is noted.
+        assertThat(new JsonComparer(RULES, Glossary.NONE).compare(json(document.formatted("p1")), json(document.formatted("p1"))).notes()).isEmpty();
+    }
+
+    @Test
+    void aReferenceThatCanMeanEitherOfTwoResourcesInTheOtherRequestIsListedAndNoted() {
+        String tool = "{'context':{'patientId':'patient-1'},'patient':{'resourceType':'Patient','id':'patient-1'},"
+                + "'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'Patient/patient-1'}}}";
+        String yours = "{'context':{'patientId':'A'},'patient':{'resourceType':'Patient','id':'A','birthDate':'1970-01-01'},"
+                + "'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'Patient/A'}},"
+                + "'extra':{'resourceType':'Patient','id':'A','birthDate':'1980-01-01'}}";
+        JsonComparer.Result result = new JsonComparer(RULES, Glossary.NONE).compare(json(tool), json(yours));
+        assertThat(lines(result.differences())).containsExactly("context.patientId | DIFFERENT_VALUE | BUILD", "patient.id | DIFFERENT_VALUE | LABELS",
+                "patient.birthDate | ONLY_IN_YOURS | NOT_CLASSIFIED", "order.subject.reference | DIFFERENT_VALUE | BUILD",
+                "extra | ONLY_IN_YOURS | NOT_CLASSIFIED");
+        assertThat(result.differences().get(1).referencesFollowing()).isZero();
+        assertThat(result.differences().get(0).explanation()).startsWith("Your request carries more than one resource with the type and id this "
+                + "reference names, so which one it means cannot be told. It is listed here and not counted as following a renamed id.");
+        assertThat(result.notes()).containsExactly("Your request carries 2 Patient resources with the same id, at patient and extra. A reference "
+                + "to that id can mean either.");
     }
 
     @Test

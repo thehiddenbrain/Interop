@@ -94,9 +94,17 @@ class ResourceIndexTest {
         assertThat(index.resolve(ReferenceText.parse("https://one.example.invalid/fhir/Patient/1", null))).hasSize(1);
         // The same type and id on another server is another resource.
         assertThat(index.resolve(ReferenceText.parse("https://two.example.invalid/fhir/Patient/1", null))).isEmpty();
-        // A resource addressed only by a urn, or by nothing, has no address that could contradict the url.
-        assertThat(index.resolve(ReferenceText.parse("https://two.example.invalid/fhir/Coverage/1", null))).hasSize(1);
+        // A document that names no server ties no url to a resource it carries by a type and an id alone.
+        assertThat(index.resolve(ReferenceText.parse("https://two.example.invalid/fhir/Coverage/1", null))).isEmpty();
         assertThat(index.resolve(ReferenceText.parse("Patient/1", null))).hasSize(1);
+        // On the server the document names, a resource addressed only by a urn has no address that could contradict the url.
+        CompareRules named = new CompareRules(Set.of(), Map.of(), Map.of(), "fhirServer");
+        ResourceIndex onServer = ResourceIndex.of(json("{'fhirServer':'https://two.example.invalid/fhir/','resourceType':'Bundle','entry':["
+                + "{'fullUrl':'https://one.example.invalid/fhir/Patient/1','resource':{'resourceType':'Patient','id':'1'}},"
+                + "{'fullUrl':'urn:uuid:00000000-0000-4000-8000-000000000001','resource':{'resourceType':'Coverage','id':'1'}}]}"), named);
+        assertThat(onServer.resolve(ReferenceText.parse("https://two.example.invalid/fhir/Coverage/1", null))).hasSize(1);
+        assertThat(onServer.resolve(ReferenceText.parse("https://two.example.invalid/fhir/Patient/1", null))).isEmpty();
+        assertThat(onServer.resolve(ReferenceText.parse("https://three.example.invalid/fhir/Coverage/1", null))).isEmpty();
     }
 
     @Test
@@ -149,8 +157,11 @@ class ResourceIndexTest {
         // A urn names the entry that carries it as its full url, whatever the letter case of the UUID.
         assertThat(index.resolve(ReferenceText.parse("urn:uuid:00000000-0000-4000-8000-00000000000a", null)))
                 .extracting(ResourceIndex.Resource::type).containsExactly("ServiceRequest");
-        // An absolute url is followed by its last two segments when no entry carries it as its full url.
-        assertThat(index.resolve(ReferenceText.parse("https://ehr.example.invalid/fhir/Patient/patient-1", null))).hasSize(1);
+        // An absolute url is followed by its last two segments only on the server the document names, and this one names none.
+        assertThat(index.resolve(ReferenceText.parse("https://ehr.example.invalid/fhir/Patient/patient-1", null))).isEmpty();
+        CompareRules named = new CompareRules(Set.of(), Map.of(), Map.of(), "fhirServer");
+        ResourceIndex onServer = ResourceIndex.of(json(DOCUMENT.replaceFirst("\\{", "{'fhirServer':'https://ehr.example.invalid/fhir',")), named);
+        assertThat(onServer.resolve(ReferenceText.parse("https://ehr.example.invalid/fhir/Patient/patient-1", null))).hasSize(1);
         assertThat(index.resolve(ReferenceText.parse("Patient/someone-else", null))).isEmpty();
         assertThat(index.resolve(ReferenceText.parse("patient-1", "Encounter"))).isEmpty();
         assertThat(index.resolve(ReferenceText.parse("#condition-1", null))).isEmpty();

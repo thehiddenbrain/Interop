@@ -29,6 +29,7 @@ import org.p32h.interop.epa.pave.model.compare.GroupCount;
 import org.p32h.interop.epa.pave.model.compare.NotFound;
 import org.p32h.interop.epa.pave.model.compare.RequestComparison;
 import org.p32h.interop.epa.pave.service.compare.JsonComparer;
+import org.p32h.interop.epa.pave.service.compare.Nesting;
 import org.p32h.interop.epa.pave.service.compare.ReferenceText;
 import org.p32h.interop.epa.pave.service.compare.ResourceIndex;
 import org.p32h.interop.epa.pave.service.crd.CrdRequestReader.CaseField;
@@ -90,8 +91,16 @@ public final class CrdRequestComparer {
         String whyNot = null;
         if (yours == null) {
             Matcher position = POSITION.matcher(Texts.orElse(parsed.error(), ""));
-            whyNot = "The two cannot be compared field by field, because your request could not be read as JSON"
-                    + (position.find() ? " " + position.group() : "") + ".";
+            boolean hasPosition = position.find();
+            Nesting.TooDeep deep = hasPosition ? null : Nesting.tooDeep(yourText);
+            if (deep != null) {
+                // Valid JSON can still be deeper than the parser reads, and the parser does not say where it stopped.
+                whyNot = "The two cannot be compared field by field, because your request nests deeper than this tool reads (more than "
+                        + deep.limit() + " levels), first at line " + deep.line() + ", column " + deep.column() + ".";
+            } else {
+                whyNot = "The two cannot be compared field by field, because your request could not be read as JSON"
+                        + (hasPosition ? " " + position.group() : "") + ".";
+            }
         } else if (!yours.isObject()) {
             whyNot = "The two cannot be compared field by field, because your request is JSON but not a JSON object: it is " + kind(yours) + ".";
         } else if (yours.isEmpty()) {
@@ -138,7 +147,7 @@ public final class CrdRequestComparer {
             return answer.comparable(false).whyNot(whyNot).headline("The two requests were not compared field by field.").notes(notes).build();
         }
 
-        JsonComparer.Result result = new JsonComparer(CrdRequestGlossary.RULES, glossary).compare(tool, yours);
+        JsonComparer.Result result = new JsonComparer(CrdRequestGlossary.RULES, glossary).compare(tool, yours, builtFrom(tool, built, reading));
         Map<DifferenceGroup, Integer> counted = new EnumMap<>(DifferenceGroup.class);
         for (Difference difference : result.differences()) {
             counted.merge(difference.group(), 1, Integer::sum);
@@ -152,7 +161,8 @@ public final class CrdRequestComparer {
         pointingOutside(yours, "Your request", all);
         pointingOutside(tool, "The tool's request", all);
         if (counted.getOrDefault(DifferenceGroup.LABELS, 0) > 0 && Texts.present(JsonSafe.text(yours, "fhirServer"))) {
-            all.add("Your request names a fhirServer, so its ids also name resources on that server.");
+            all.add("Your request names a fhirServer. An id in it may also be used to fetch a resource from that server, so a renamed id can "
+                    + "matter there.");
         }
         List<GroupCount> counts = new ArrayList<>();
         for (DifferenceGroup group : DifferenceGroup.values()) {
@@ -440,6 +450,28 @@ public final class CrdRequestComparer {
             }
         }
         return false;
+    }
+
+    /**
+     * The tool's Patient and Practitioner, each with the resource of the pasted request its values
+     * were read from. Paired by key, the tool's Practitioner would be compared with whichever
+     * Practitioner the pasted request happens to hold under the same key, and the values the tool
+     * took from the one the request names would be reported as differing from another one's.
+     */
+    private static Map<String, String> builtFrom(JsonNode tool, Case built, Reading reading) {
+        Reading own = CrdRequestReader.read(tool);
+        Map<String, String> pairs = new LinkedHashMap<>();
+        pair(pairs, own.patient(), reading.patient(), built);
+        pair(pairs, own.practitioner(), reading.practitioner(), built);
+        return pairs;
+    }
+
+    private static void pair(Map<String, String> pairs, String toolPointer, String yourPointer, Case built) {
+        boolean readFromIt = yourPointer != null && built.sources.stream().anyMatch(source -> source.source() == CaseValue.Source.YOUR_REQUEST
+                && source.pointer() != null && source.pointer().startsWith(yourPointer + "/"));
+        if (toolPointer != null && readFromIt) {
+            pairs.put(toolPointer, yourPointer);
+        }
     }
 
     // ---- notes about the two requests ----

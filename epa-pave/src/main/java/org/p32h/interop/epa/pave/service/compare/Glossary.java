@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.compare;
 
+import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.compare.DifferenceKind;
 
 /**
@@ -36,5 +37,14 @@ public interface Glossary {
      */
     default String remark(ElementPath element, DifferenceKind kind) {
         return null;
+    }
+
+    /**
+     * The same, for a remark that is true only of some values: one that explains a difference
+     * must not be added to a difference it does not explain. The values are as the screen shows
+     * them, so a long one may be cut.
+     */
+    default String remark(ElementPath element, DifferenceKind kind, Shown toolValue, Shown yourValue) {
+        return remark(element, kind);
     }
 }

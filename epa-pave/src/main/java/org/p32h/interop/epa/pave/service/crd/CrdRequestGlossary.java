@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.p32h.interop.epa.pave.model.MemberIds;
+import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.compare.DifferenceKind;
 import org.p32h.interop.epa.pave.service.compare.CompareRules;
 import org.p32h.interop.epa.pave.service.compare.ElementPath;
@@ -37,13 +39,16 @@ public final class CrdRequestGlossary implements Glossary {
     /**
      * What the engine cannot know about a hook request from JSON and FHIR alone: prefetch is a map
      * whose keys the service chooses, and the context names resources by text that is not a FHIR
-     * Reference. An id on its own stands for a Patient or an Encounter by where it sits.
+     * Reference. An id on its own stands for a Patient or an Encounter by where it sits. An order
+     * says what was ordered in the element the reader reads its code from, and fhirServer names
+     * the server the ids of the request belong to.
      */
     public static final CompareRules RULES = new CompareRules(Set.of("prefetch"),
-            Map.of("context.patientId", "Patient", "context.encounterId", "Encounter", "context.userId", "", "context.selections", ""));
+            Map.of("context.patientId", "Patient", "context.encounterId", "Encounter", "context.userId", "", "context.selections", ""),
+            CrdRequestReader.CODE_ELEMENT, "fhirServer");
 
-    static final String PREFETCH_KEYS = "A CDS service names the prefetch keys it looks for in its discovery response, and reads only "
-            + "those. GET /api/crd/discover lists the keys the service names.";
+    static final String PREFETCH_KEYS = "A CDS service names the prefetch keys it asks for in its discovery response. GET "
+            + "/api/crd/discover lists the keys the service names.";
 
     static final String PREFETCH_SHAPES = "In CDS Hooks a prefetch entry is the answer to a FHIR read or search: a read gives the "
             + "resource itself and a search gives a Bundle. GET /api/crd/discover shows the query the service names for each key.";
@@ -75,7 +80,7 @@ public final class CrdRequestGlossary implements Glossary {
         document(null, "fhirAuthorization.scope", "What the token allows a service to do on the sender's FHIR server.");
         document(null, "fhirAuthorization.subject", "The client id the service is registered under with the sender's authorization server.");
         document(BUILD, "context", "What the hook is about: who is ordering, for which patient, and the orders themselves.");
-        document(BUILD, "context.userId", "The clinician using the sender's system, written as a resource type and an id.");
+        document(LABEL, "context.userId", "The clinician using the sender's system, written as a resource type and an id.");
         document(LABEL, "context.patientId", "The FHIR id of the patient the orders are for, which is a label and not a member ID.");
         document(LABEL, "context.encounterId", "The FHIR id of the encounter the orders belong to.");
         document(BUILD, "context.selections", "For order-select, which of the draft orders were just selected, each written as a resource type and an id.");
@@ -96,7 +101,7 @@ public final class CrdRequestGlossary implements Glossary {
         // ---- the member ----
         fhir(BUILD, "Patient", "The member, as a FHIR Patient resource.");
         fhir(BUILD, "Patient.identifier", "One identifier of the member, such as the member ID.");
-        fhir(CASE, "Patient.identifier.value", "The member's identifier itself, which is where a member ID travels.");
+        fhir(CASE, "Patient.identifier.value", "The value of one identifier of the patient, such as a member ID or a record number.");
         fhir(CASE, "Patient.name", "One name of the member.");
         fhir(CASE, "Patient.birthDate", "The member's date of birth.");
         fhir(CASE, "Patient.gender", "The member's administrative gender: male, female, other or unknown.");
@@ -104,12 +109,12 @@ public final class CrdRequestGlossary implements Glossary {
         fhir(BUILD, "Patient.managingOrganization", "The organization that keeps the patient record, as a reference.");
 
         fhir(BUILD, "Coverage", "The member's coverage with a payer, as a FHIR Coverage resource.");
-        fhir(CASE, "Coverage.status", "Whether the coverage is in force: active, cancelled, draft or entered-in-error.");
+        fhir(CASE, "Coverage.status", "The status of the Coverage record: active, cancelled, draft or entered-in-error.");
         fhir(null, "Coverage.type", "The kind of coverage, as a code.");
         fhir(BUILD, "Coverage.identifier", "One identifier the payer gave the coverage, such as the member ID.");
         fhir(CASE, "Coverage.identifier.value", "The coverage identifier itself, which can be the member ID.");
-        fhir(CASE, "Coverage.subscriberId", "The id the payer gave the subscriber, the person who holds the policy.");
-        fhir(BUILD, "Coverage.subscriber", "The person who holds the policy, as a reference.");
+        fhir(CASE, "Coverage.subscriberId", "The id of the subscriber to the coverage.");
+        fhir(BUILD, "Coverage.subscriber", "The subscriber to the coverage, as a reference.");
         fhir(BUILD, "Coverage.policyHolder", "The owner of the policy, as a reference.");
         fhir(BUILD, "Coverage.beneficiary", "The person the coverage is for, as a reference to the Patient.");
         fhir(CASE, "Coverage.dependent", "An identifier that tells one covered person from another under the same coverage.");
@@ -130,7 +135,7 @@ public final class CrdRequestGlossary implements Glossary {
         // ---- the provider ----
         fhir(BUILD, "Practitioner", "A person who provides care, as a FHIR Practitioner resource.");
         fhir(BUILD, "Practitioner.identifier", "One identifier of the practitioner, such as the NPI.");
-        fhir(CASE, "Practitioner.identifier.value", "The practitioner's identifier itself, which is where an NPI travels.");
+        fhir(CASE, "Practitioner.identifier.value", "The value of one identifier of the practitioner, such as an NPI.");
         fhir(CASE, "Practitioner.name", "One name of the practitioner.");
         fhir(CASE, "Practitioner.qualification", "A qualification the practitioner holds, such as a licence.");
         fhir(null, "Practitioner.active", "Whether the practitioner record is in active use.");
@@ -293,7 +298,6 @@ public final class CrdRequestGlossary implements Glossary {
         fhir(null, "Appointment.participant", "Someone or something that takes part in the appointment: a patient, a practitioner or a place.");
         fhir(BUILD, "Appointment.participant.actor", "Who or what takes part, as a reference.");
         fhir(null, "Appointment.participant.status", "Whether this participant has accepted the appointment.");
-        fhir(null, "Appointment.participant.required", "Whether this participant has to be there.");
     }
 
     /** A coded element that says what was ordered: the concept, its codings and its words. */
@@ -495,6 +499,22 @@ public final class CrdRequestGlossary implements Glossary {
     }
 
     /**
+     * A remark that explains only some values: that this tool removes the spaces from a member ID
+     * explains two identifiers that differ in nothing else, and says nothing about two that differ
+     * in more.
+     */
+    @Override
+    public String remark(ElementPath element, DifferenceKind kind, Shown toolValue, Shown yourValue) {
+        String fhir = element.fhir() == null ? "" : element.fhir();
+        if (kind == DifferenceKind.DIFFERENT_VALUE && (fhir.equals("Patient.identifier.value") || fhir.equals("Coverage.identifier.value"))) {
+            boolean onlySpaces = toolValue != null && yourValue != null && toolValue.hasValue() && yourValue.hasValue()
+                    && MemberIds.noSpace(toolValue.value()).equals(MemberIds.noSpace(yourValue.value()));
+            return onlySpaces ? "This tool removes the spaces from a member ID before it sends it." : null;
+        }
+        return remark(element, kind);
+    }
+
+    /**
      * What this tool's own builder does at an element, where that explains a difference. Each
      * sentence states a fact about {@link CrdRequestBuilder} and {@link CaseResources}, never
      * about what a service expects.
@@ -536,8 +556,6 @@ public final class CrdRequestGlossary implements Glossary {
             case "Patient.identifier", "Coverage.identifier":
                 return onlyInTool || onlyInYours ? "This tool writes the member ID as an identifier typed MB, with a system only when the "
                         + "variable " + CaseResources.VAR_MEMBER_ID_SYSTEM + " has a value." : null;
-            case "Patient.identifier.value", "Coverage.identifier.value":
-                return differentValue ? "This tool removes the spaces from a member ID before it sends it." : null;
             case "Patient.gender":
                 return onlyInYours ? "This tool sends a gender only when the case gives one it can read as male, female, other or unknown." : null;
             case "Coverage.status":

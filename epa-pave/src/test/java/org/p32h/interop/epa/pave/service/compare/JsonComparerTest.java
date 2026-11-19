@@ -79,6 +79,17 @@ class JsonComparerTest {
     }
 
     @Test
+    void aKeyWithADotInItIsNeverTakenForTheNestedElementOfThatName() {
+        List<ElementPath> asked = new java.util.ArrayList<>();
+        Glossary recording = element -> {
+            asked.add(element);
+            return null;
+        };
+        new JsonComparer(CompareRules.none(), recording).compare(json("{'hook':'order-sign'}"), json("{'hook':'order-sign','context.patientId':'x'}"));
+        assertThat(asked).extracting(ElementPath::document).containsExactly("\"context.patientId\"");
+    }
+
+    @Test
     void aKeyThatHoldsPathPunctuationIsQuotedInThePathAndEscapedInThePointer() {
         Difference difference = only("{'k':1,'a.b/c':{'x':1}}", "{'k':1,'a.b/c':{'x':2}}");
         assertThat(difference.path()).isEqualTo("\"a.b/c\".x");
@@ -192,8 +203,9 @@ class JsonComparerTest {
             Difference difference = only("{'x':" + pair[0] + "}", "{'x':" + pair[1] + "}");
             assertThat(difference.kind()).as(pair[0] + " against " + pair[1]).isEqualTo(DifferenceKind.WRITTEN_DIFFERENTLY);
             assertThat(difference.kindLabel()).isEqualTo("The same value written differently");
-            assertThat(difference.explanation()).startsWith("Both are the same number, written differently. FHIR treats the written precision "
-                    + "of a decimal as meaningful, so this is listed and not treated as equal.");
+            // Said as a condition: the engine does not know whether the element is a FHIR decimal.
+            assertThat(difference.explanation()).startsWith("Both are the same number, written differently. It is listed and not treated as "
+                    + "equal, because where an element is a FHIR decimal the precision it is written with is part of its value.");
         }
         Difference kept = only("{'x':1.50}", "{'x':1.5}");
         assertThat(kept.toolValue().value()).isEqualTo("1.50");
@@ -293,6 +305,30 @@ class JsonComparerTest {
                 "entry[ServiceRequest #3] | ONLY_IN_YOURS");
         assertThat(differences(tool, yours).get(1).toolPointer()).isEqualTo("/entry/2/resource/id");
         assertThat(differences(tool, yours).get(1).yourPointer()).isEqualTo("/entry/1/resource/id");
+    }
+
+    @Test
+    void entriesLeftAfterTheirIdsAreMatchedOnTheCodeTheRulesNameBeforeTheirPosition() {
+        CompareRules codes = new CompareRules(Set.of(), Map.of(), Map.of("ServiceRequest", "code"), null);
+        String tool = BUNDLE.formatted(entry("ServiceRequest", "service-request-1", "'code':{'coding':[{'code':'A'}]}") + ","
+                + entry("ServiceRequest", "service-request-2", "'code':{'coding':[{'code':'B'}]}"));
+        String yours = BUNDLE.formatted(entry("ServiceRequest", "vsr-a", "'code':{'coding':[{'code':'B'}]}") + ","
+                + entry("ServiceRequest", "vsr-b", "'code':{'coding':[{'code':'A'}]}"));
+        List<Difference> byCode = new JsonComparer(codes, Glossary.NONE).compare(json(tool), json(yours)).differences();
+        // The same two orders in another order: only their labels differ.
+        assertThat(lines(byCode)).containsExactly("entry[ServiceRequest #1].resource.id | DIFFERENT_VALUE",
+                "entry[ServiceRequest #2].resource.id | DIFFERENT_VALUE");
+        assertThat(byCode.get(0).yourPointer()).isEqualTo("/entry/1/resource/id");
+        // Without the rule they are paired by position, and each code reads as changed.
+        assertThat(lines(differences(tool, yours))).contains("entry[ServiceRequest #1].resource.code.coding[0].code | DIFFERENT_VALUE");
+        // What has no partner by its code is still paired by position among what is left.
+        String other = BUNDLE.formatted(entry("ServiceRequest", "vsr-a", "'code':{'coding':[{'code':'B'}]}") + ","
+                + entry("ServiceRequest", "vsr-b", "'code':{'coding':[{'code':'C'}]}"));
+        List<Difference> partly = new JsonComparer(codes, Glossary.NONE).compare(json(tool), json(other)).differences();
+        assertThat(lines(partly)).containsExactly("entry[ServiceRequest #1].resource.id | DIFFERENT_VALUE",
+                "entry[ServiceRequest #1].resource.code.coding[0].code | DIFFERENT_VALUE",
+                "entry[ServiceRequest #2].resource.id | DIFFERENT_VALUE");
+        assertThat(partly.get(1).yourPointer()).isEqualTo("/entry/1/resource/code/coding/0/code");
     }
 
     @Test

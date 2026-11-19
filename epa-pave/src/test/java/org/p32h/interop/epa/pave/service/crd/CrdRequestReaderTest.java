@@ -90,12 +90,19 @@ class CrdRequestReaderTest {
     }
 
     @Test
-    void whereNoIdentifierIsTypedTheSubscriberIdAndTheIdentifiersOfACoverageAreRead() {
+    void whereNoIdentifierIsTypedTheSubscriberIdAndTheIdentifiersOfACoverageAreReadAndEachSaysWhereItCameFrom() {
         Reading subscriber = read(request("", "'cov':{'resourceType':'Coverage','id':'c1','subscriberId':'S123456789'}"));
         assertFound(subscriber, CaseField.MEMBER_ID, "S123456789", "prefetch.cov.subscriberId");
+        assertThat(subscriber.found(CaseField.MEMBER_ID).note()).isEqualTo("Read from Coverage.subscriberId, because no identifier is typed as "
+                + "a member number. Coverage.subscriberId is the subscriber's ID, which for a dependent can differ from the member's own.");
         Reading identifier = read(request("", "'cov':{'resourceType':'Coverage','id':'c1','identifier':[{'system':'https://payer.example.invalid/ids',"
                 + "'value':'S123456789'}]}"));
         assertFound(identifier, CaseField.MEMBER_ID, "S123456789", "prefetch.cov.identifier[0].value");
+        assertThat(identifier.found(CaseField.MEMBER_ID).note()).isEqualTo("Read from an identifier of a Coverage that is not typed as a member "
+                + "number, because no identifier is.");
+        // A typed identifier needs no such note.
+        assertThat(read(request("", "'cov':{'resourceType':'Coverage','id':'c1','identifier':[{" + MB + ",'value':'S123456789'}]}"))
+                .found(CaseField.MEMBER_ID).note()).isNull();
         // Both, and they agree once the spaces of a member ID are set aside.
         Reading both = read(request("", "'cov':{'resourceType':'Coverage','id':'c1','subscriberId':'S12345678   01',"
                 + "'identifier':[{'value':'S1234567801'}]}"));
@@ -156,12 +163,25 @@ class CrdRequestReaderTest {
         String two = "'a':{'resourceType':'Patient','id':'p1','birthDate':'1968-04-12'},'b':{'resourceType':'Patient','id':'p2','birthDate':'1970-01-31'}";
         assertFound(read(request("'patientId':'p2'", two)), CaseField.MEMBER_DATE_OF_BIRTH, "1970-01-31", "prefetch.b.birthDate");
         assertFound(read(request("'patientId':'Patient/p1'", two)), CaseField.MEMBER_DATE_OF_BIRTH, "1968-04-12", "prefetch.a.birthDate");
-        // Two patients and a context that names neither: which one is the member would be a guess.
+        // A context that names a patient the request does not carry: the patients it does carry are not that patient.
         assertThat(missing(read(request("'patientId':'p9'", two)), CaseField.MEMBER_DATE_OF_BIRTH).note())
-                .isEqualTo("Your request carries 2 Patient resources and context.patientId names none of them.");
-        // One patient is the patient, whatever the context calls it.
-        assertFound(read(request("'patientId':'p9'", "'a':{'resourceType':'Patient','id':'p1','birthDate':'1968-04-12'}")),
-                CaseField.MEMBER_DATE_OF_BIRTH, "1968-04-12", "prefetch.a.birthDate");
+                .isEqualTo("context.patientId names a Patient your request does not carry.");
+        Reading another = read(request("'patientId':'p9'", "'a':{'resourceType':'Patient','id':'p1','birthDate':'1968-04-12'}"));
+        for (CaseField field : List.of(CaseField.MEMBER_DATE_OF_BIRTH, CaseField.MEMBER_FIRST_NAME, CaseField.MEMBER_LAST_NAME, CaseField.MEMBER_GENDER)) {
+            assertThat(missing(another, field).note()).isEqualTo("context.patientId names a Patient your request does not carry.");
+        }
+        assertThat(another.patient()).isNull();
+        // The only patient of a request that does not name one is the patient.
+        Reading unnamed = read(request("", "'a':{'resourceType':'Patient','id':'p1','birthDate':'1968-04-12'}"));
+        assertFound(unnamed, CaseField.MEMBER_DATE_OF_BIRTH, "1968-04-12", "prefetch.a.birthDate");
+        assertThat(unnamed.patient()).isEqualTo("/prefetch/a");
+        // Two patients and no context to name one: which one is the member would be a guess.
+        assertThat(missing(read(request("", two)), CaseField.MEMBER_DATE_OF_BIRTH).note())
+                .isEqualTo("Your request carries 2 Patient resources and no context.patientId to name one of them.");
+        // Two patients under the one id the context names: the same.
+        String twins = "'a':{'resourceType':'Patient','id':'p1','birthDate':'1968-04-12'},'b':{'resourceType':'Patient','id':'p1'}";
+        assertThat(missing(read(request("'patientId':'p1'", twins)), CaseField.MEMBER_DATE_OF_BIRTH).note()).isEqualTo("context.patientId names "
+                + "2 Patient resources in your request, which carry the same id, so which one is the member cannot be told.");
         assertThat(missing(read(request("", "")), CaseField.MEMBER_GENDER).note()).isEqualTo("Your request carries no Patient resource.");
     }
 

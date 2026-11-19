@@ -41,6 +41,8 @@ public final class ResourceIndex {
     }
 
     private final CompareRules rules;
+    /** The FHIR server the document says its ids belong to, without a closing slash, or null. */
+    private String serverBase;
     private final List<Resource> resources = new ArrayList<>();
     private final List<Use> uses = new ArrayList<>();
     private final Map<String, List<Resource>> byTypeAndId = new HashMap<>();
@@ -55,6 +57,8 @@ public final class ResourceIndex {
     public static ResourceIndex of(JsonNode root, CompareRules rules) {
         ResourceIndex index = new ResourceIndex(rules);
         if (root != null) {
+            String base = index.rules.serverBaseOf(root);
+            index.serverBase = base == null ? null : withoutClosingSlash(base);
             index.walk(root, "", "", "", false, 1, null);
         }
         return index;
@@ -84,7 +88,7 @@ public final class ResourceIndex {
                 JsonNode child = member.getValue();
                 String childPath = Paths.join(path, Paths.display(key));
                 String childPointer = Paths.member(pointer, key);
-                String childDocument = Paths.join(document, freeKeys ? "*" : key);
+                String childDocument = Paths.join(document, freeKeys ? "*" : Paths.display(key));
                 boolean reference = (within && key.equals("reference")) || rules.referenceAt(childDocument);
                 if (reference && child.isString()) {
                     uses.add(new Use(childPath, childPointer, ReferenceText.parse(child.stringValue(), rules.bareTypeAt(childDocument))));
@@ -165,17 +169,46 @@ public final class ResourceIndex {
             case URN -> byFullUrl.getOrDefault(urlKey(reference.raw()), List.of());
             case ABSOLUTE -> {
                 List<Resource> byUrl = byFullUrl.getOrDefault(urlKey(reference.raw()), List.of());
-                if (!byUrl.isEmpty() || reference.type() == null) {
+                if (!byUrl.isEmpty() || reference.type() == null || !onThisServer(reference)) {
                     yield byUrl;
                 }
-                // By its last two segments, but never to a resource whose entry gives it another
-                // absolute address: that one is somewhere else, whatever its id.
+                // By its last two segments, on the server the document names, but never to a
+                // resource whose entry gives it another absolute address: that one is somewhere
+                // else, whatever its id.
                 yield byTypeAndId.getOrDefault(reference.type() + "/" + reference.id(), List.of()).stream()
                         .filter(resource -> resource.fullUrl() == null || ReferenceText.parse(resource.fullUrl(), null).form() != ReferenceText.Form.ABSOLUTE)
                         .toList();
             }
             default -> List.of();
         };
+    }
+
+    /**
+     * True when an absolute url is on the FHIR server the document names. Only there does a type
+     * and an id name the resource the document carries under them: on another server, or when the
+     * document names none, the same type and id can be another resource.
+     */
+    private boolean onThisServer(ReferenceText reference) {
+        return serverBase != null && reference.base() != null && withoutClosingSlash(reference.base()).equals(serverBase);
+    }
+
+    private static String withoutClosingSlash(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+    }
+
+    /**
+     * Each type and id that more than one resource of this document carries, with the places of
+     * those resources, in document order. A reference to such a type and id can mean either.
+     */
+    public Map<String, List<Resource>> duplicated() {
+        Map<String, List<Resource>> out = new java.util.LinkedHashMap<>();
+        for (Resource resource : resources) {
+            List<Resource> same = resource.id() == null ? List.of() : byTypeAndId.get(resource.type() + "/" + resource.id());
+            if (same.size() > 1) {
+                out.putIfAbsent(resource.type() + "/" + resource.id(), same);
+            }
+        }
+        return out;
     }
 
     /**

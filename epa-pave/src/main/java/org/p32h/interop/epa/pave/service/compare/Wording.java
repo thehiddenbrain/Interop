@@ -170,8 +170,8 @@ final class Wording {
     }
 
     static String writtenDifferently() {
-        return "Both are the same number, written differently. FHIR treats the written precision of a decimal as meaningful, so "
-                + "this is listed and not treated as equal.";
+        return "Both are the same number, written differently. It is listed and not treated as equal, because where an element is a "
+                + "FHIR decimal the precision it is written with is part of its value.";
     }
 
     static String differentOrder() {
@@ -208,6 +208,10 @@ final class Wording {
     static String differentKey(String resourceType, String toolKey, String yourKey) {
         return "The tool's request holds this " + resourceType + " under the key `" + toolKey + "` and your request holds it under `"
                 + yourKey + "`.";
+    }
+
+    static String builtFrom() {
+        return " The tool's was built from what was read out of yours, so the two are compared with each other.";
     }
 
     // ---- labels and references ----
@@ -248,9 +252,34 @@ final class Wording {
                                      List<ResourceIndex.Resource> yourTargets) {
         String sentence = "The two references do not follow one matched pair of resources: the tool's "
                 + target(tool, toolTargets, "the tool's request") + ", and yours " + target(yours, yourTargets, "your request") + ".";
-        // When neither request carries what is pointed at, nothing shows whether the two ids name one thing or two.
-        boolean bothOutside = toolTargets.isEmpty() && yourTargets.isEmpty() && tool.type() != null && tool.type().equals(yours.type());
-        return bothOutside ? sentence + " Whether the two name the same " + tool.type() + " cannot be seen from the requests." : sentence;
+        // When neither request carries what is pointed at, or one points at a server by an absolute
+        // url, nothing shows whether the two name one thing or two.
+        boolean bothOutside = toolTargets.isEmpty() && yourTargets.isEmpty();
+        boolean urlOutside = (toolTargets.isEmpty() && tool.form() == ReferenceText.Form.ABSOLUTE)
+                || (yourTargets.isEmpty() && yours.form() == ReferenceText.Form.ABSOLUTE);
+        boolean sameType = tool.type() != null && tool.type().equals(yours.type());
+        return (bothOutside || urlOutside) && sameType ? sentence + " Whether the two name the same " + tool.type() + " cannot be seen from the requests."
+                : sentence;
+    }
+
+    /**
+     * @param inTool  true when the tool's request carries more than one resource the reference can mean
+     * @param inYours the same for the other request
+     */
+    static String ambiguousReference(boolean inTool, boolean inYours) {
+        String where = inTool && inYours ? "Each request carries" : inTool ? "The tool's request carries" : "Your request carries";
+        return where + " more than one resource with the type and id this reference names, so which one it means cannot be told. It is "
+                + "listed here and not counted as following a renamed id.";
+    }
+
+    /**
+     * @param paths the places of the resources that share one type and id, at least two
+     */
+    static String duplicated(boolean tool, String resourceType, List<String> paths) {
+        String places = paths.size() == 2 ? paths.get(0) + " and " + paths.get(1)
+                : String.join(", ", paths.subList(0, paths.size() - 1)) + ", and " + paths.get(paths.size() - 1);
+        return side(tool) + " carries " + paths.size() + " " + resourceType + " resources with the same id, at " + places
+                + ". A reference to that id can mean either.";
     }
 
     private static String target(ReferenceText reference, List<ResourceIndex.Resource> targets, String document) {
@@ -259,6 +288,9 @@ final class Wording {
         }
         return switch (reference.form()) {
             case CONTAINED -> "points at a resource contained in the resource that holds it";
+            // The url names a server, and nothing in the request says the resource there is one it carries.
+            case ABSOLUTE -> "is an absolute url" + (reference.type() == null ? "" : " to " + a(reference.type()))
+                    + " that nothing in " + document + " ties to a resource the request carries";
             case UNRECOGNISED -> "is not written in a form this tool reads as a reference";
             default -> "points at " + (reference.type() == null ? "a resource" : a(reference.type())) + " that " + document + " does not contain";
         };

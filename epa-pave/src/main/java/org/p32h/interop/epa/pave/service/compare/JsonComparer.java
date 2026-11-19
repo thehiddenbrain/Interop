@@ -6,10 +6,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.compare.Difference;
 import org.p32h.interop.epa.pave.model.compare.DifferenceGroup;
@@ -105,10 +107,21 @@ public final class JsonComparer {
      * @param yours the document it is compared with
      */
     public Result compare(JsonNode tool, JsonNode yours) {
+        return compare(tool, yours, Map.of());
+    }
+
+    /**
+     * @param builtFrom the JSON Pointer of a resource in the tool's document to the JSON Pointer of
+     *                  the resource in the other document it was built from. Where both are
+     *                  members of an object whose keys are free, the two are compared with each
+     *                  other whatever their keys: matching by key would compare the tool's
+     *                  resource with another one that happens to sit under the same key
+     */
+    public Result compare(JsonNode tool, JsonNode yours, Map<String, String> builtFrom) {
         if (tool == null || yours == null) {
             throw new IllegalArgumentException("A comparison needs two documents.");
         }
-        Run run = new Run(tool, yours);
+        Run run = new Run(tool, yours, builtFrom == null ? Map.of() : Map.copyOf(builtFrom));
         run.walk(Place.root(), tool, yours, null, null, null);
         return run.finish();
     }
@@ -123,9 +136,15 @@ public final class JsonComparer {
             return new Place("", "", "", "", null, 1);
         }
 
+        /**
+         * The glossary paths take the key as the path shows it, quoted when it holds a dot, so a
+         * key such as {@code context.patientId} at the top is never taken for the element of that
+         * name inside {@code context}.
+         */
         Place key(String key, boolean freeKey) {
-            return new Place(Paths.join(path, Paths.display(key)), Paths.member(toolPointer, key), Paths.member(yourPointer, key),
-                    Paths.join(document, freeKey ? "*" : key), fhir == null ? null : fhir + "." + key, depth + 1);
+            String shown = Paths.display(key);
+            return new Place(Paths.join(path, shown), Paths.member(toolPointer, key), Paths.member(yourPointer, key),
+                    Paths.join(document, freeKey ? "*" : shown), fhir == null ? null : fhir + "." + shown, depth + 1);
         }
 
         /** Two members of a free-keyed object that hold the same resource type under different keys. */
@@ -268,14 +287,19 @@ public final class JsonComparer {
 
         private final ResourceIndex toolIndex;
         private final ResourceIndex yourIndex;
+        private final Map<String, String> builtFrom;
         private final List<Slot> slots = new ArrayList<>();
         /** The tool's resource to the resource it was compared with. By identity: two resources can be equal and distinct. */
         private final Map<JsonNode, JsonNode> pairs = new IdentityHashMap<>();
         private final List<SameText> sameTexts = new ArrayList<>();
+        /** The type and id of each resource a listed reference could not be told apart from another, in each document. */
+        private final Set<String> ambiguousInTool = new HashSet<>();
+        private final Set<String> ambiguousInYours = new HashSet<>();
         private String depthFirstPath;
         private int depthPlaces;
 
-        private Run(JsonNode tool, JsonNode yours) {
+        private Run(JsonNode tool, JsonNode yours, Map<String, String> builtFrom) {
+            this.builtFrom = builtFrom;
             this.toolIndex = ResourceIndex.of(tool, rules);
             this.yourIndex = ResourceIndex.of(yours, rules);
         }
@@ -421,22 +445,41 @@ public final class JsonComparer {
          * then matched with the one Bundle that holds it, as {@link #pairWithBundles} describes.
          */
         private void freeKeyed(Place at, JsonNode tool, JsonNode yours) {
+            // First the pairs the caller knows: a resource of the tool's and the one it was built from.
+            Map<String, String> renamed = new HashMap<>();
+            Map<String, String> renamedFrom = new HashMap<>();
+            Map<String, String> yourKeyByPointer = new HashMap<>();
+            for (Map.Entry<String, JsonNode> member : yours.properties()) {
+                yourKeyByPointer.put(Paths.member(at.yourPointer(), member.getKey()), member.getKey());
+            }
+            Set<String> builtFromPairs = new HashSet<>();
+            for (Map.Entry<String, JsonNode> member : tool.properties()) {
+                String yourKey = yourKeyByPointer.get(builtFrom.get(Paths.member(at.toolPointer(), member.getKey())));
+                if (yourKey != null && !yourKey.equals(member.getKey()) && !renamedFrom.containsKey(yourKey)
+                        && ResourceIndex.resourceType(member.getValue()) != null && ResourceIndex.resourceType(member.getValue())
+                        .equals(ResourceIndex.resourceType(yours.get(yourKey)))) {
+                    renamed.put(member.getKey(), yourKey);
+                    renamedFrom.put(yourKey, member.getKey());
+                    builtFromPairs.add(member.getKey());
+                }
+            }
+            // Then by key, among the members neither of those pairs took.
+            java.util.function.Predicate<String> byKey = key -> tool.get(key) != null && yours.get(key) != null && !renamed.containsKey(key)
+                    && !renamedFrom.containsKey(key);
             Map<String, List<String>> toolLeft = new LinkedHashMap<>();
             Map<String, List<String>> yourLeft = new HashMap<>();
             for (Map.Entry<String, JsonNode> member : tool.properties()) {
                 String type = ResourceIndex.resourceType(member.getValue());
-                if (yours.get(member.getKey()) == null && type != null) {
+                if (!byKey.test(member.getKey()) && !renamed.containsKey(member.getKey()) && type != null) {
                     toolLeft.computeIfAbsent(type, k -> new ArrayList<>()).add(member.getKey());
                 }
             }
             for (Map.Entry<String, JsonNode> member : yours.properties()) {
                 String type = ResourceIndex.resourceType(member.getValue());
-                if (tool.get(member.getKey()) == null && type != null) {
+                if (!byKey.test(member.getKey()) && !renamedFrom.containsKey(member.getKey()) && type != null) {
                     yourLeft.computeIfAbsent(type, k -> new ArrayList<>()).add(member.getKey());
                 }
             }
-            Map<String, String> renamed = new HashMap<>();
-            Map<String, String> renamedFrom = new HashMap<>();
             for (Map.Entry<String, List<String>> left : toolLeft.entrySet()) {
                 List<String> theirs = yourLeft.get(left.getKey());
                 if (left.getValue().size() == 1 && theirs != null && theirs.size() == 1) {
@@ -448,17 +491,17 @@ public final class JsonComparer {
             pairWithBundles(yours, tool, yourLeft, toolLeft, renamedFrom, renamed);
             for (Map.Entry<String, JsonNode> member : tool.properties()) {
                 String key = member.getKey();
-                JsonNode other = yours.get(key);
-                if (other != null) {
-                    walk(at.key(key, true), member.getValue(), other, key, tool, yours);
+                if (byKey.test(key)) {
+                    walk(at.key(key, true), member.getValue(), yours.get(key), key, tool, yours);
                 } else if (renamed.containsKey(key)) {
                     String yourKey = renamed.get(key);
                     String toolType = ResourceIndex.resourceType(member.getValue());
                     // Where one side wraps its resource in a Bundle, the pair is named after the resource and not after the wrapper.
                     String type = BUNDLE.equals(toolType) ? ResourceIndex.resourceType(yours.get(yourKey)) : toolType;
                     Place matched = at.matchedByType(type, key, yourKey);
+                    String sentence = Wording.differentKey(type, key, yourKey) + (builtFromPairs.contains(key) ? Wording.builtFrom() : "");
                     slots.add(ready(difference(matched.resource(type), DifferenceKind.DIFFERENT_KEY, Shown.of(key), Shown.of(yourKey), null,
-                            null, Grouping.STRUCTURE, null, Wording.differentKey(type, key, yourKey), null)));
+                            null, Grouping.STRUCTURE, null, sentence, null)));
                     walk(matched, member.getValue(), yours.get(yourKey), key, tool, yours);
                 } else {
                     only(true, at.key(key, true), member.getValue(), Grouping.STRUCTURE, Wording.onlyKey(true, key, member.getValue()));
@@ -466,7 +509,7 @@ public final class JsonComparer {
             }
             for (Map.Entry<String, JsonNode> member : yours.properties()) {
                 String key = member.getKey();
-                if (tool.get(key) == null && !renamedFrom.containsKey(key)) {
+                if (!byKey.test(key) && !renamedFrom.containsKey(key)) {
                     only(false, at.key(key, true), member.getValue(), Grouping.STRUCTURE, Wording.onlyKey(false, key, member.getValue()));
                 }
             }
@@ -492,7 +535,7 @@ public final class JsonComparer {
             }
             boolean bundle = "entry".equals(key) && BUNDLE.equals(ResourceIndex.resourceType(toolParent))
                     && BUNDLE.equals(ResourceIndex.resourceType(yourParent));
-            ArrayMatcher.Plan plan = ArrayMatcher.plan(bundle, tool, yours);
+            ArrayMatcher.Plan plan = ArrayMatcher.plan(bundle, tool, yours, rules);
             if (plan.rule() == ArrayMatcher.Rule.SCALARS) {
                 scalars(at, tool, yours);
                 return;
@@ -672,7 +715,7 @@ public final class JsonComparer {
                 group = entry.role() == null ? DifferenceGroup.NOT_CLASSIFIED : entry.role().group();
             }
             String text = explanation;
-            String remark = glossary.remark(element, kind);
+            String remark = glossary.remark(element, kind, toolValue, yourValue);
             if (remark != null && !remark.isBlank()) {
                 text += " " + remark.strip();
             }
@@ -722,7 +765,28 @@ public final class JsonComparer {
                 notes.add(Wording.depthReached(MAX_DEPTH, depthFirstPath, depthPlaces));
             }
             sameTextAnotherTarget(notes);
+            duplicated(toolIndex, true, ambiguousInTool, notes);
+            duplicated(yourIndex, false, ambiguousInYours, notes);
             return new Result(differences, notes);
+        }
+
+        private void ambiguous(List<ResourceIndex.Resource> targets, Set<String> into) {
+            if (targets.size() > 1) {
+                into.add(targets.get(0).type() + "/" + targets.get(0).id());
+            }
+        }
+
+        /**
+         * A note for each type and id a document carries more than once, where a reference that
+         * differs between the two documents names it. Where every reference to it is the same in
+         * both, the two documents agree and there is nothing to explain.
+         */
+        private void duplicated(ResourceIndex index, boolean tool, Set<String> named, List<String> notes) {
+            for (Map.Entry<String, List<ResourceIndex.Resource>> same : index.duplicated().entrySet()) {
+                if (named.contains(same.getKey())) {
+                    notes.add(Wording.duplicated(tool, same.getValue().get(0).type(), same.getValue().stream().map(ResourceIndex.Resource::path).toList()));
+                }
+            }
         }
 
         /**
@@ -784,6 +848,14 @@ public final class JsonComparer {
             ReferenceText yourText = ReferenceText.parse(Values.text(slot.yours), slot.bareType);
             List<ResourceIndex.Resource> toolTargets = slot.fullUrl ? own(slot.toolOwner, toolIndex) : toolIndex.resolve(toolText);
             List<ResourceIndex.Resource> yourTargets = slot.fullUrl ? own(slot.yourOwner, yourIndex) : yourIndex.resolve(yourText);
+            if (!slot.fullUrl && (toolTargets.size() > 1 || yourTargets.size() > 1)) {
+                // Which of the resources it means cannot be told, so it cannot be said to follow a renamed pair.
+                ambiguous(toolTargets, ambiguousInTool);
+                ambiguous(yourTargets, ambiguousInYours);
+                slot.ready.add(difference(slot.at, DifferenceKind.DIFFERENT_VALUE, slot.tool, slot.yours, Grouping.ROLE, DifferenceGroup.BUILD,
+                        Wording.ambiguousReference(toolTargets.size() > 1, yourTargets.size() > 1), null));
+                return;
+            }
             Pair pair = pair(toolTargets, yourTargets);
             boolean sameForm = toolText.sameFormAs(yourText);
             if (pair != null && sameForm && pair.labelledDifferently(toolText.form())) {
@@ -831,8 +903,13 @@ public final class JsonComparer {
             ReferenceText[] yourTexts = new ReferenceText[yours.size()];
             for (int j = 0; j < yours.size(); j++) {
                 yourTexts[j] = ReferenceText.parse(Values.text(yours.get(j)), slot.bareType);
+                // A reference that can mean either of two resources is never taken to follow one of them.
+                List<ResourceIndex.Resource> targets = yourIndex.resolve(yourTexts[j]);
                 if (!taken[j]) {
-                    for (ResourceIndex.Resource target : yourIndex.resolve(yourTexts[j])) {
+                    ambiguous(targets, ambiguousInYours);
+                }
+                if (!taken[j] && targets.size() == 1) {
+                    for (ResourceIndex.Resource target : targets) {
                         yourByTarget.computeIfAbsent(target.node(), k -> new ArrayDeque<>()).add(j);
                         yourResources.put(target.node(), target);
                     }
@@ -843,7 +920,9 @@ public final class JsonComparer {
                     continue;
                 }
                 ReferenceText toolText = ReferenceText.parse(Values.text(tool.get(i)), slot.bareType);
-                for (ResourceIndex.Resource target : toolIndex.resolve(toolText)) {
+                List<ResourceIndex.Resource> toolTargets = toolIndex.resolve(toolText);
+                ambiguous(toolTargets, ambiguousInTool);
+                for (ResourceIndex.Resource target : toolTargets.size() == 1 ? toolTargets : List.<ResourceIndex.Resource>of()) {
                     JsonNode counterpart = pairs.get(target.node());
                     Deque<Integer> candidates = counterpart == null ? null : yourByTarget.get(counterpart);
                     Integer found = null;

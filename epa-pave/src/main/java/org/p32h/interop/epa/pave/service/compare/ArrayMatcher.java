@@ -17,8 +17,12 @@ import tools.jackson.databind.JsonNode;
  * codings in a different order as two changed codings. The rules, first that applies:
  * <ol>
  *   <li>the entries of a Bundle: by resource type and id where both sides carry such a resource,
- *       and what is left by position among the entries of the same resource type that are left.
- *       One entry of a type left on each side is therefore matched whatever its id</li>
+ *       then what is left by resource type and the code that says what the resource is, where the
+ *       rules name an element for that code, and what is still left by position among the entries
+ *       of the same resource type that are left. One entry of a type left on each side is
+ *       therefore matched whatever its id. Two senders never share their ids, so without the
+ *       code two lists of the same orders in another order would be paired by position, and every
+ *       code of every order would be reported as changed</li>
  *   <li>objects that all carry a {@code url}, which is what extensions are: by url, then by
  *       position among equal urls</li>
  *   <li>objects of which at least one carries a {@code system}, which is what codings,
@@ -67,11 +71,12 @@ final class ArrayMatcher {
 
     /**
      * @param bundleEntries true when both lists are the {@code entry} of a FHIR Bundle
+     * @param rules         say which element of a resource holds the code an entry is matched on
      */
-    static Plan plan(boolean bundleEntries, JsonNode tool, JsonNode yours) {
+    static Plan plan(boolean bundleEntries, JsonNode tool, JsonNode yours, CompareRules rules) {
         boolean objects = all(tool, JsonNode::isObject) && all(yours, JsonNode::isObject);
         if (objects && bundleEntries) {
-            return new Plan(Rule.BUNDLE_ENTRY, entries(tool, yours));
+            return new Plan(Rule.BUNDLE_ENTRY, entries(tool, yours, rules == null ? CompareRules.none() : rules));
         }
         if (objects && all(tool, ArrayMatcher::hasUrl) && all(yours, ArrayMatcher::hasUrl)) {
             return new Plan(Rule.URL, keyed(tool, yours, node -> JsonSafe.text(node, "url"), "no url"));
@@ -184,27 +189,34 @@ final class ArrayMatcher {
         return (key == null ? noKeyLabel : key) + (several ? " #" + ordinal : "");
     }
 
-    /** The resource type and id of what a Bundle entry holds. Both null when it holds no resource. */
-    private record Held(String type, String id) {
+    /**
+     * The resource type and id of what a Bundle entry holds, and the code that says what it is.
+     * All null when it holds no resource.
+     */
+    private record Held(String type, String id, String code) {
 
-        static Held of(JsonNode entry) {
+        static Held of(JsonNode entry, CompareRules rules) {
             JsonNode resource = JsonSafe.child(entry, "resource");
             String type = ResourceIndex.resourceType(resource);
-            return new Held(type, type == null ? null : ResourceIndex.exact(JsonSafe.child(resource, "id")));
+            return new Held(type, type == null ? null : ResourceIndex.exact(JsonSafe.child(resource, "id")), rules.codeOf(resource, type));
         }
 
-        /** Prints the type and never the id: an id is a label, and a sender can put anything in one. */
+        Held identity() {
+            return new Held(type, id, null);
+        }
+
+        /** Prints the type and never the id or the code: a sender can put anything in either. */
         @Override
         public String toString() {
             return "Held[" + type + "]";
         }
     }
 
-    private static List<Match> entries(JsonNode tool, JsonNode yours) {
+    private static List<Match> entries(JsonNode tool, JsonNode yours, CompareRules rules) {
         List<Held> toolHeld = new ArrayList<>();
         List<Held> yourHeld = new ArrayList<>();
-        tool.forEach(entry -> toolHeld.add(Held.of(entry)));
-        yours.forEach(entry -> yourHeld.add(Held.of(entry)));
+        tool.forEach(entry -> toolHeld.add(Held.of(entry, rules)));
+        yours.forEach(entry -> yourHeld.add(Held.of(entry, rules)));
         int[] partner = new int[toolHeld.size()];
         java.util.Arrays.fill(partner, -1);
         boolean[] taken = new boolean[yourHeld.size()];
@@ -213,17 +225,32 @@ final class ArrayMatcher {
         Map<Held, Deque<Integer>> yourByIdentity = new HashMap<>();
         for (int j = 0; j < yourHeld.size(); j++) {
             if (yourHeld.get(j).id() != null) {
-                yourByIdentity.computeIfAbsent(yourHeld.get(j), k -> new ArrayDeque<>()).add(j);
+                yourByIdentity.computeIfAbsent(yourHeld.get(j).identity(), k -> new ArrayDeque<>()).add(j);
             }
         }
         for (int i = 0; i < toolHeld.size(); i++) {
-            Deque<Integer> same = toolHeld.get(i).id() == null ? null : yourByIdentity.get(toolHeld.get(i));
+            Deque<Integer> same = toolHeld.get(i).id() == null ? null : yourByIdentity.get(toolHeld.get(i).identity());
             if (same != null && !same.isEmpty()) {
                 partner[i] = same.poll();
                 taken[partner[i]] = true;
             }
         }
-        // Then what is left, by position among the entries of the same resource type that are left.
+        // Then what is left, by resource type and the code that says what the resource is.
+        Map<String, Deque<Integer>> yourLeftByCode = new HashMap<>();
+        for (int j = 0; j < yourHeld.size(); j++) {
+            if (!taken[j] && yourHeld.get(j).code() != null) {
+                yourLeftByCode.computeIfAbsent(yourHeld.get(j).type() + "\n" + yourHeld.get(j).code(), k -> new ArrayDeque<>()).add(j);
+            }
+        }
+        for (int i = 0; i < toolHeld.size(); i++) {
+            Deque<Integer> same = partner[i] >= 0 || toolHeld.get(i).code() == null ? null
+                    : yourLeftByCode.get(toolHeld.get(i).type() + "\n" + toolHeld.get(i).code());
+            if (same != null && !same.isEmpty()) {
+                partner[i] = same.poll();
+                taken[partner[i]] = true;
+            }
+        }
+        // Then what is still left, by position among the entries of the same resource type that are left.
         Map<String, Deque<Integer>> yourLeftByType = new HashMap<>();
         for (int j = 0; j < yourHeld.size(); j++) {
             if (!taken[j]) {
