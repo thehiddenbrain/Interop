@@ -1,0 +1,309 @@
+{
+	"info": {
+		"_postman_id": "4e8a1c70-9b2d-4f35-8c61-d7e0a9b3f512",
+		"name": "Nested sample",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{accessToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Runs before every request in the collection.",
+					"pm.variables.set(\"traceId\", pm.variables.replaceIn(\"{{$guid}}\"));"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://collection.example.invalid/fhir",
+			"type": "string"
+		},
+		{
+			"key": "apiVersion",
+			"value": "v2",
+			"type": "string"
+		},
+		{
+			"key": "collectionKey",
+			"value": "placeholder-collection-key",
+			"type": "secret"
+		},
+		{
+			"key": "retired",
+			"value": "not-used",
+			"type": "string",
+			"disabled": true
+		},
+		{
+			"id": "legacyNamed",
+			"value": "named-by-id",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Level one",
+			"description": "The outermost folder.",
+			"item": [
+				{
+					"name": "Level two",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.variables.set(\"folderStamp\", Date.now());"
+								]
+							}
+						}
+					],
+					"item": [
+						{
+							"name": "Level three",
+							"item": [
+								{
+									"name": "deep order-select",
+									"request": {
+										"method": "post",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "X-Api-Key",
+												"value": "{{collectionKey}}"
+											},
+											{
+												"key": "X-Debug",
+												"value": "on",
+												"disabled": true
+											}
+										],
+										"url": {
+											"protocol": "https",
+											"host": [
+												"deep",
+												"example",
+												"invalid"
+											],
+											"port": "8443",
+											"path": [
+												"cds-services",
+												"{{crdOrderSelectServiceId}}"
+											],
+											"query": [
+												{
+													"key": "trace",
+													"value": "{{traceId}}"
+												},
+												{
+													"key": "skipped",
+													"value": "1",
+													"disabled": true
+												}
+											]
+										},
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"hook\": \"order-select\",\n  \"hookInstance\": \"{{$guid}}\",\n  \"context\": {\n    \"userId\": \"PractitionerRole/role-1\",\n    \"patientId\": \"patient-1\",\n    \"selections\": [\n      \"ServiceRequest/order-1\"\n    ]\n  }\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"description": "A request three folders down."
+									},
+									"response": [
+										{
+											"name": "No cards",
+											"originalRequest": {
+												"method": "POST",
+												"header": [],
+												"url": {
+													"raw": "https://deep.example.invalid"
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												},
+												{
+													"key": "X-Vendor-Trace",
+													"value": "trace-placeholder"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"cards\": []\n}"
+										},
+										{
+											"name": "Service down",
+											"status": "Service Unavailable",
+											"code": 503,
+											"header": [],
+											"body": ""
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "scripted inquiry",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.variables.set(\"inquiryStamp\", new Date().toISOString());"
+										]
+									}
+								},
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.environment.set(\"lastStatus\", pm.response.code);"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/Claim/$inquire",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"Claim",
+										"$inquire"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\"resourceType\": \"Bundle\", \"id\": \"{{inquiryStamp}}\"}"
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "duplicate",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/metadata?first=1"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "duplicate",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/metadata?second=1"
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "discovery as a bare url",
+			"request": "https://plain.example.invalid/cds-services",
+			"response": []
+		},
+		{
+			"name": "subscription by path variable",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "DELETE",
+				"header": "Accept: application/fhir+json\nX-Trace: {{traceId}}",
+				"url": {
+					"raw": "{{baseUrl}}/Subscription/:id",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"Subscription",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "saved-subscription-7"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "token request",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded"
+					}
+				],
+				"url": "{{tokenUrl}}",
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "grant_type",
+							"value": "client_credentials"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{clientSecret}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "A note that is neither a folder nor a request"
+		}
+	]
+}
