@@ -32,6 +32,8 @@ public final class ConfigViews {
      * @param name      the variable name
      * @param type      the type Postman gave it, or absent
      * @param enabled   false when the export switches it off. A disabled variable is never used
+     * @param inForce   false when the variable is switched off, or when a later definition of the
+     *                  same name in the same file replaces it. Only a variable in force is ever used
      * @param secret    true when its value is never shown
      * @param set       true when it has a value. A variable that is defined and blank is not set
      * @param display   what to show for the value: the value itself, or for a secret that is set a
@@ -40,12 +42,16 @@ public final class ConfigViews {
      *                  when there is no value
      * @param readsFrom the operating system variable the value is read from, when the value is a
      *                  reference to one. Absent otherwise
-     * @param used      true when a collection request, a fallback url or a setting refers to it
+     * @param used      true when it is in force and something refers to it. For a variable of an
+     *                  environment that is a collection request, a fallback url or a setting, or
+     *                  another variable of the environment. For a variable of a collection it is a
+     *                  request or another variable of that same collection, since no other
+     *                  collection ever sees it
      * @param usedBy    where it is referred to, in words
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record VariableView(String name, String type, boolean enabled, boolean secret, boolean set, String display, String readsFrom,
-                               boolean used, List<String> usedBy) {
+    public record VariableView(String name, String type, boolean enabled, boolean inForce, boolean secret, boolean set, String display,
+                               String readsFrom, boolean used, List<String> usedBy) {
 
         public VariableView {
             usedBy = usedBy == null ? List.of() : List.copyOf(usedBy);

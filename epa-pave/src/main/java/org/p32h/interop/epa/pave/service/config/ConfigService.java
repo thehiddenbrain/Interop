@@ -67,6 +67,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class ConfigService {
 
+    /** How many places a variable is used in are listed before the rest are counted. */
+    private static final int USED_BY_SHOWN = 5;
+
     private static final String NOT_APPLIED = "This tool does not apply Postman's authentication helpers. A request is sent with the "
             + "headers written on it, and authentication is set once under onyx.auth. If the far side refuses the credentials, this "
             + "is the first place to look.";
@@ -117,13 +120,17 @@ public class ConfigService {
     }
 
     private EnvironmentView environmentView(StoredEnvironment environment, ConfigSnapshot snapshot) {
-        Map<String, Set<String>> usage = usage(snapshot);
+        // An environment's variables reach every collection request and every setting of application.yml.
+        Map<String, Set<String>> usage = new LinkedHashMap<>();
+        snapshot.collections().forEach(collection -> noteCollection(usage, collection));
+        noteApplicationYml(usage);
+        Map<String, PostmanVariable> inForce = environment.content().inForce();
         // A variable of this environment can also be used by another variable of this environment.
-        for (PostmanVariable variable : environment.content().inForce().values()) {
+        for (PostmanVariable variable : inForce.values()) {
             note(usage, variable.value(), "the variable \"" + variable.key() + "\" of this environment");
         }
         List<VariableView> variables = new ArrayList<>();
-        environment.content().variables().forEach(variable -> variables.add(variableView(variable, usage)));
+        environment.content().variables().forEach(variable -> variables.add(variableView(variable, usage, inForce.get(variable.key()) == variable)));
         return new EnvironmentView(environment.id(), environment.name(), environment.kind(), environment.name().equals(snapshot.activeName()),
                 environment.uploadedAt(), environment.originalFileName(), store.directory().resolve(environment.file()).toString(),
                 environment.acknowledgedNotProd(), environment.productionSigns(), variables);
@@ -190,9 +197,12 @@ public class ConfigService {
     }
 
     private CollectionView collectionView(StoredCollection collection, ConfigSnapshot snapshot) {
-        Map<String, Set<String>> usage = usage(snapshot);
+        // A collection's variables reach the requests of that collection and nothing else.
+        Map<String, Set<String>> usage = new LinkedHashMap<>();
+        noteCollection(usage, collection);
+        Map<String, PostmanVariable> inForce = collection.content().inForce();
         List<VariableView> variables = new ArrayList<>();
-        collection.content().variables().forEach(variable -> variables.add(variableView(variable, usage)));
+        collection.content().variables().forEach(variable -> variables.add(variableView(variable, usage, inForce.get(variable.key()) == variable)));
         List<RequestSummary> requests = new ArrayList<>();
         collection.requests().forEach(mapped -> requests.add(summary(snapshot, collection, mapped)));
         return new CollectionView(collection.id(), collection.name(), collection.content().schema(), collection.uploadedAt(),
@@ -534,7 +544,8 @@ public class ConfigService {
     // Masking, and which variables are used
     // ------------------------------------------------------------------------------------------
 
-    private static VariableView variableView(PostmanVariable variable, Map<String, Set<String>> usage) {
+    /** @param inForce false for a variable that is switched off or that a later definition of the same name replaces */
+    private static VariableView variableView(PostmanVariable variable, Map<String, Set<String>> usage, boolean inForce) {
         String value = variable.value();
         boolean set = variable.hasValue();
         boolean fromOperatingSystem = pointsAtOperatingSystem(value);
@@ -542,13 +553,15 @@ public class ConfigService {
         String display = !set ? null : !secret || Placeholders.referencesOnly(value) ? value : Secrets.mask(variable.key());
         String readsFrom = fromOperatingSystem
                 ? "the operating system variable " + Placeholders.sole(value).substring(VariableResolver.OS_REFERENCE.length()).strip() : null;
-        List<String> usedBy = new ArrayList<>(usage.getOrDefault(variable.key(), Set.of()));
-        if (usedBy.size() > 5) {
-            int more = usedBy.size() - 5;
-            usedBy = new ArrayList<>(usedBy.subList(0, 5));
+        // A variable that is not in force is never used, whatever refers to its name.
+        List<String> usedBy = new ArrayList<>(inForce ? usage.getOrDefault(variable.key(), Set.of()) : Set.of());
+        if (usedBy.size() > USED_BY_SHOWN) {
+            int more = usedBy.size() - USED_BY_SHOWN;
+            usedBy = new ArrayList<>(usedBy.subList(0, USED_BY_SHOWN));
             usedBy.add("and " + more + " more");
         }
-        return new VariableView(variable.key(), variable.type(), variable.enabled(), secret, set, display, readsFrom, !usedBy.isEmpty(), usedBy);
+        return new VariableView(variable.key(), variable.type(), variable.enabled(), inForce, secret, set, display, readsFrom,
+                !usedBy.isEmpty(), usedBy);
     }
 
     private static boolean pointsAtOperatingSystem(String value) {
@@ -576,21 +589,22 @@ public class ConfigService {
         return redacted;
     }
 
-    /** Where each placeholder name is referred to: collection requests, collection variables and the application.yml layer. */
-    private Map<String, Set<String>> usage(ConfigSnapshot snapshot) {
-        Map<String, Set<String>> usage = new LinkedHashMap<>();
-        for (StoredCollection collection : snapshot.collections()) {
-            for (StoredCollection.Mapped mapped : collection.requests()) {
-                PostmanRequest request = mapped.request();
-                String where = "the request \"" + request.name() + "\" of the collection \"" + collection.name() + "\"";
-                note(usage, request.url(), where);
-                request.sentHeaders().forEach(header -> note(usage, header.value(), where));
-                note(usage, request.body(), where);
-            }
-            for (PostmanVariable variable : collection.content().inForce().values()) {
-                note(usage, variable.value(), "the variable \"" + variable.key() + "\" of the collection \"" + collection.name() + "\"");
-            }
+    /** Notes where the requests and the variables of one collection refer to placeholders. */
+    private static void noteCollection(Map<String, Set<String>> usage, StoredCollection collection) {
+        for (StoredCollection.Mapped mapped : collection.requests()) {
+            PostmanRequest request = mapped.request();
+            String where = "the request \"" + request.name() + "\" of the collection \"" + collection.name() + "\"";
+            note(usage, request.url(), where);
+            request.sentHeaders().forEach(header -> note(usage, header.value(), where));
+            note(usage, request.body(), where);
         }
+        for (PostmanVariable variable : collection.content().inForce().values()) {
+            note(usage, variable.value(), "the variable \"" + variable.key() + "\" of the collection \"" + collection.name() + "\"");
+        }
+    }
+
+    /** Notes where the application.yml layer, and the urls this tool builds from it, refer to placeholders. */
+    private void noteApplicationYml(Map<String, Set<String>> usage) {
         note(usage, onyx.crd().url(), "application.yml: onyx.crd.url");
         note(usage, onyx.dtr().url(), "application.yml: onyx.dtr.url");
         note(usage, onyx.pas().url(), "application.yml: onyx.pas.url");
@@ -608,7 +622,6 @@ public class ConfigService {
         for (EpaOperation operation : EpaOperation.values()) {
             note(usage, operation.fallbackPath(), "the url this tool builds for " + operation.label() + " when no request is mapped to it");
         }
-        return usage;
     }
 
     private static void note(Map<String, Set<String>> usage, String template, String where) {
