@@ -35,6 +35,11 @@ public record NextStepView(NextAction action, String headline, String reason, Ma
     public static final String CARRY_DELEGATED_VENDOR = "delegatedVendor";
     /** The procedure codes the step was about. */
     public static final String CARRY_PROCEDURE_CODES = "procedureCodes";
+    /**
+     * What CRD said the documentation is for, as the codes of its doc-purpose answer. DTR states
+     * the intended use of a questionnaire response from it.
+     */
+    public static final String CARRY_DOC_PURPOSE = "docPurpose";
     /** A completed QuestionnaireResponse as JSON text, for the prior authorization request to include. */
     public static final String CARRY_QUESTIONNAIRE_RESPONSE = "questionnaireResponse";
     /** The run this step follows from. */

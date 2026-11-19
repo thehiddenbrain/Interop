@@ -13,10 +13,30 @@ public enum FindingKind {
     /** The procedure code list and the service disagree on the delegated vendor. */
     CODE_LIST_DISAGREES_ON_VENDOR,
     /**
-     * The code list could not be compared with the service for a code, and the finding says why.
-     * Without this, a result with no disagreement would read as agreement when nothing was compared.
+     * The code list could not be compared with the service, for one code or for a whole run, and
+     * the finding says why. Without this, a result with no disagreement would read as agreement
+     * when nothing was compared.
      */
     CODE_LIST_NOT_COMPARED,
+    /**
+     * A code or an element that the version of the guide this tool is held to does not define,
+     * and that a later version does. It is read, shown with its meaning, and named with the
+     * version that defines it. It is not called wrong: which version the service follows is the
+     * service's to say.
+     */
+    OTHER_VERSION_CONTENT,
+    /**
+     * The response does not state something a tester would look for, and the guide does not
+     * require it. This is information. An absence the guide does forbid is
+     * {@link #REQUIRED_ELEMENT_MISSING}.
+     */
+    NOT_STATED,
+    /**
+     * The request this tool sent left out something the guide requires of a request, because
+     * nobody supplied it and the tool does not invent values. This is about what was sent, so
+     * that a refusal by the service is not read as a fault of the service.
+     */
+    REQUEST_INCOMPLETE,
     /** A notification arrived that matches no subscription this tool knows of. It is recorded and shown, never dropped. */
     UNMATCHED_NOTIFICATION,
     /**
