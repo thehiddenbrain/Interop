@@ -93,6 +93,34 @@ next frontend pass and do not exist on screen yet.
 - `ApiExceptionHandler`: the one error shape.
 - All configuration properties records, bound from `application.yml`.
 
+### Defects the audits have found so far, not fixed in this revision
+
+The member data audit (V2) and the review of the HTTP edge have reported. Neither found a
+blocker. The majors, each being fixed on a branch and checked by an agent that did not write
+the fix:
+
+- On the live profile a page of another site open in the tester's browser can make the tool
+  look a member up at the payer, with the tool's credentials, for an identifier that page
+  chooses, and can make the browser save the ledger export. The page cannot read the answer.
+  The request guard let reads through whatever site they came from (D-116); it will refuse them.
+- A plain form posted from the tool's own page would be refused as if it came from elsewhere.
+  The tool's pages post with scripts today, so nothing shows yet.
+- An address with a bad escape inside a path parameter gets past the error handling: the answer
+  is a bare 500 and the server logs the request text, with stack traces, some 230 lines a time.
+- The embedded server writes a cookie it cannot parse, and an address it cannot map to a file
+  name, to the log. Either can hold text of another tool or a member ID.
+- Text from a service can reach the ledger where a code, a questionnaire address or a line of
+  business belongs, and the note, the tester reference and the expectation of a run have no
+  limit there. With well-behaved input the ledger stayed clean in everything the auditor ran.
+- An uploaded file is written to the system's temporary folder while it is read, and is left
+  there if the tool is killed in the middle.
+- A credential typed literally into a collection, and not held in a variable, is stored without
+  a word and shown unmasked in the configuration views and the wire view.
+- Several rules of the edge have no test that would notice their removal.
+
+The full reports, with the request that shows each finding, were kept outside the repository
+during the build; their substance is recorded in `DECISIONS.md` when each fix is merged.
+
 ### Not done at this commit
 
 - No frontend. `http://localhost:8057/` answers 404 on this revision.
