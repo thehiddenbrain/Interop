@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.model.pas;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.p32h.interop.epa.pave.model.Shown;
 import java.util.List;
 
@@ -10,6 +11,7 @@ import java.util.List;
  * @param value the extension's own value. Absent for an extension that carries only parts
  * @param parts the extensions nested inside it, in the order returned
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record ExtensionView(String url, Shown value, List<ExtensionView> parts) {
 
     public ExtensionView {

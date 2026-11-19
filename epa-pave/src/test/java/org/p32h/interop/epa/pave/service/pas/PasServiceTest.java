@@ -688,7 +688,7 @@ class PasServiceTest {
     void aLedgerThatCannotBeAskedLeavesTheInquiryUnlinkedAndStillAnswersIt() {
         InMemoryLedger backing = new InMemoryLedger();
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("ledger", new RunLedgerThatFailsOnQuery(backing));
+        beans.addBean("ledger", new QueryFailingLedger(backing));
         EpaProperties epa = EpaProperties.of(Map.of("mode", "mock"));
         RunSupport support = new RunSupport(epa, TrackingProperties.defaults(), OnyxProperties.defaults(), beans.getBeanProvider(RunLedger.class), CLOCK);
         PasService service = new PasService(OnyxProperties.defaults(), gateway, mockClient, codeList, support, beans.getBeanProvider(RunLedger.class));
@@ -699,50 +699,8 @@ class PasServiceTest {
         assertThat(inquired.verdict().outcomeCode()).isEqualTo("APPROVED");
         assertThat(inquired.ledger().recorded()).isTrue();
         assertThat(backing.last().correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, CLAIM).doesNotContainKey(RunRecord.CORR_RUN_ID);
-    }
-
-    /** A ledger whose queries fail and whose writes succeed, for the one lookup an inquiry makes. */
-    private static final class RunLedgerThatFailsOnQuery implements RunLedger {
-        private final InMemoryLedger delegate;
-
-        private RunLedgerThatFailsOnQuery(InMemoryLedger delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public org.p32h.interop.epa.pave.model.LedgerReceipt record(RunRecord draft) {
-            return delegate.record(draft);
-        }
-
-        @Override
-        public List<RunRecord> query(org.p32h.interop.epa.pave.model.RunQuery query) {
-            throw new IllegalStateException("the ledger directory is gone");
-        }
-
-        @Override
-        public java.util.Optional<RunRecord> find(String runId) {
-            return delegate.find(runId);
-        }
-
-        @Override
-        public org.p32h.interop.epa.pave.model.LedgerReceipt addNote(String runId, String note, String testerRef) {
-            return delegate.addNote(runId, note, testerRef);
-        }
-
-        @Override
-        public org.p32h.interop.epa.pave.model.LedgerHealth health() {
-            return delegate.health();
-        }
-
-        @Override
-        public String tokenFor(String identifier) {
-            return delegate.tokenFor(identifier);
-        }
-
-        @Override
-        public boolean matches(String stored, String identifier) {
-            return delegate.matches(stored, identifier);
-        }
+        // What the ledger said when it failed is nowhere in the result.
+        assertThat(JsonSafe.mapper().writeValueAsString(inquired)).doesNotContain("ledger directory").doesNotContain("is gone for");
     }
 
     // ---- not found, faults: every one rendered in full ----

@@ -50,6 +50,12 @@ public final class SubscriptionRequestBuilder {
      * @param callbackProblem why it names none, in plain words with what to set, or null when it names one
      */
     public record Built(String json, List<String> notes, String callbackUrl, String callbackProblem) {
+
+        /** The body is what goes on the wire and the receiver's address is the operator's, so neither is printed. */
+        @Override
+        public String toString() {
+            return "Built[notes=" + notes.size() + ", namesReceiver=" + (callbackUrl != null) + "]";
+        }
     }
 
     private final String configuredCallbackUrl;

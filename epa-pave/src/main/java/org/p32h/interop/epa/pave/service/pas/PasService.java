@@ -245,6 +245,12 @@ public class PasService {
     /** Everything worked out from one response, before anything is written. */
     private record Interpreted(PasReading reading, List<Finding> findings, VerdictView verdict, ExpectationView expectation,
                                NextStepView nextStep, ErrorView error, Timing timing, Map<String, String> correlation) {
+
+        /** The correlation holds the authorization number as returned, which is guarded as a member id is. Only the outcome is printed. */
+        @Override
+        public String toString() {
+            return "Interpreted[" + reading.outcome() + "]";
+        }
     }
 
     private Interpreted interpret(RunRequest request, EpaOperation operation, PreparedCall call, VendorExchange exchange, SentClaim sent,

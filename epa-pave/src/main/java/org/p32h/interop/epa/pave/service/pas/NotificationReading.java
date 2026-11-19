@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.service.pas;
 
 import org.p32h.interop.epa.pave.model.AdditionalField;
 import org.p32h.interop.epa.pave.model.Shown;
+import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.pas.NotificationEventView;
 import org.p32h.interop.epa.pave.model.pas.NotificationKind;
@@ -35,6 +36,8 @@ public record NotificationReading(NotificationKind kind, String kindNote, Status
                          Shown eventsSinceSubscriptionStart, List<NotificationEventView> events, List<Shown> errors) {
 
         public Status {
+            // Blank is made null here, so "names none" is one state wherever the id is asked for.
+            subscriptionId = Texts.trimToNull(subscriptionId);
             events = events == null ? List.of() : List.copyOf(events);
             errors = errors == null ? List.of() : List.copyOf(errors);
         }
@@ -54,6 +57,13 @@ public record NotificationReading(NotificationKind kind, String kindNote, Status
      * @param authorizationRef the authorization number a carried ClaimResponse states
      */
     public record Identifiers(String claimId, String claimResponseId, String authorizationRef) {
+
+        /** Blank is made null, so an identifier that is there in name only is never looked up or counted as carried. */
+        public Identifiers {
+            claimId = Texts.trimToNull(claimId);
+            claimResponseId = Texts.trimToNull(claimResponseId);
+            authorizationRef = Texts.trimToNull(authorizationRef);
+        }
 
         /** Prints which are there, never what they are: an authorization number identifies a member's request. */
         @Override

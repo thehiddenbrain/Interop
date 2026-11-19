@@ -28,19 +28,39 @@ public final class NotificationVerdicts {
     }
 
     /**
-     * What arrived. A body that is not a notification is that before anything else. A notification
-     * for a subscription no run of this tool created is unmatched whatever its type, because that
-     * is the fact a tester has to look at first. Only then does the type code decide, and a type
-     * that is absent or outside the value set is its own outcome: it is never taken for an event.
-     *
-     * @param matched true when a run of this tool created the subscription the notification names
+     * Why a notification was not matched to a subscription this tool created. The three are
+     * different states, and what the tester should do differs with each, so they are worded apart.
      */
-    public static NotificationOutcome outcome(NotificationReading reading, boolean matched) {
+    public enum Unmatched {
+        /** The notification names no subscription, so there is none to look up. */
+        NAMES_NONE,
+        /** The ledger was asked, and no run in it created the subscription the notification names. */
+        NOT_IN_LEDGER,
+        /** The ledger could not be asked, so whether this tool created the subscription is not known. */
+        NOT_ASKED
+    }
+
+    /**
+     * What arrived. A body that is not a notification is that before anything else. A notification
+     * that names no subscription, or one no run of this tool created, is unmatched whatever its
+     * type, because that is the fact a tester has to look at first. When the ledger could not be
+     * asked, nothing is known about whose subscription it is, and the outcome says that instead of
+     * calling it unmatched. Only then does the type code decide, and a type that is absent or
+     * outside the value set is its own outcome: it is never taken for an event.
+     *
+     * @param unmatched why no run of this tool was found to have created the subscription the
+     *                  notification names, or null when one was
+     */
+    public static NotificationOutcome outcome(NotificationReading reading, Unmatched unmatched) {
         if (!reading.notification()) {
             return NotificationOutcome.UNREADABLE_NOTIFICATION;
         }
-        if (!matched) {
-            return NotificationOutcome.UNMATCHED_NOTIFICATION;
+        if (unmatched != null) {
+            // A switch expression with no default: a reason added without an outcome here does not compile.
+            return switch (unmatched) {
+                case NAMES_NONE, NOT_IN_LEDGER -> NotificationOutcome.UNMATCHED_NOTIFICATION;
+                case NOT_ASKED -> NotificationOutcome.UNCHECKED_NOTIFICATION;
+            };
         }
         String type = reading.status().type().code();
         if (type == null) {
@@ -91,6 +111,14 @@ public final class NotificationVerdicts {
                 }
                 yield "A notification arrived that matches no subscription this tool created.";
             }
+            case UNCHECKED_NOTIFICATION -> {
+                supporting.add("It is recorded and shown all the same. It is not dropped.");
+                supporting.add("This says nothing about who created the subscription. It is a finding about this installation of the tool.");
+                if (type.code() != null) {
+                    supporting.add("Its type: " + type.display() + ".");
+                }
+                yield "A notification arrived, and the ledger could not be asked which subscription it belongs to.";
+            }
             case UNREADABLE_NOTIFICATION -> {
                 if (Texts.present(reading.kindNote())) {
                     supporting.add(reading.kindNote());
@@ -126,9 +154,11 @@ public final class NotificationVerdicts {
      * @param claimId        the claim the notification is about, when that could be established
      * @param submissionRun  the submission it was matched to, or null
      * @param subscriptionId the subscription it names, or null
+     * @param unmatched      why it was not matched to a subscription this tool created. Read only
+     *                       for the two outcomes that say it was not, and required for them
      */
     public static NextStepView nextStep(NotificationOutcome outcome, NotificationReading reading, String claimId, String submissionRun,
-                                        String subscriptionId) {
+                                        String subscriptionId, Unmatched unmatched) {
         Map<String, List<String>> carry = new LinkedHashMap<>();
         carry.put(NextStepView.CARRY_CLAIM_ID, Texts.present(claimId) ? List.of(claimId) : List.of());
         carry.put(NextStepView.CARRY_RUN_ID, Texts.present(submissionRun) ? List.of(submissionRun) : List.of());
@@ -142,11 +172,28 @@ public final class NotificationVerdicts {
                     "A heartbeat means there was no event to report.", carry);
             case UNRECOGNISED_TYPE -> new NextStepView(NextAction.REVIEW, "Next: read the notification below. This tool cannot say what "
                     + "should happen next.", "The notification does not state a type this tool knows.", carry);
-            case UNMATCHED_NOTIFICATION -> new NextStepView(NextAction.REVIEW, "Next: find out who created the subscription it names. The "
-                    + "list of subscriptions shows what the service holds.",
-                    "No run in the ledger created a subscription with the id this notification names.", carry);
+            case UNMATCHED_NOTIFICATION, UNCHECKED_NOTIFICATION -> notMatched(unmatched, carry);
             case UNREADABLE_NOTIFICATION -> new NextStepView(NextAction.REVIEW, "Next: read the payload below as it arrived, and find out "
                     + "what sent it.", "The body is not a subscription notification this tool can read.", carry);
+        };
+    }
+
+    /**
+     * The step for a notification that was not matched to a subscription this tool created. It is
+     * worded by why, and never by the outcome alone, so that "nobody here created it" is said only
+     * when the ledger was asked and answered. A switch expression with no default: a reason added
+     * without wording it here does not compile.
+     */
+    private static NextStepView notMatched(Unmatched why, Map<String, List<String>> carry) {
+        return switch (why) {
+            case NAMES_NONE -> new NextStepView(NextAction.REVIEW, "Next: read the notification below and find out what sent it.",
+                    "The notification names no subscription, so it cannot be matched to one.", carry);
+            case NOT_IN_LEDGER -> new NextStepView(NextAction.REVIEW, "Next: find out who created the subscription it names. The list "
+                    + "of subscriptions shows what the service holds.",
+                    "No run in the ledger created a subscription with the id this notification names.", carry);
+            case NOT_ASKED -> new NextStepView(NextAction.REVIEW, "Next: find out why the ledger could not be read. Until it can, this "
+                    + "tool cannot say whether it created the subscription this notification names.",
+                    "The ledger could not be asked which run created the subscription.", carry);
         };
     }
 

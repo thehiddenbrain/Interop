@@ -82,6 +82,8 @@ class SubscriptionRequestBuilderTest {
                 "The payload content was set to id-only, which puts the least member data on the wire. It is this tool's default and not "
                         + "something known about the service. Set the variable subscriptionPayloadContent to send another.",
                 "No header was asked for on the notifications. This tool's receiver accepts a notification without one.");
+        // Printed, it holds neither the body nor the address of the receiver.
+        assertThat(built.toString()).isEqualTo("Built[notes=8, namesReceiver=true]");
     }
 
     @Test

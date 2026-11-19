@@ -114,4 +114,18 @@ class PasOutcomeContractTest {
         assertThat(NotificationOutcome.UNREADABLE_NOTIFICATION.fault()).isTrue();
         assertThat(NotificationOutcome.UNMATCHED_NOTIFICATION.label()).isNotEqualTo(NotificationOutcome.UNREADABLE_NOTIFICATION.label());
     }
+
+    @Test
+    void aSubscriptionNobodyHereCreatedAndALedgerThatCouldNotBeAskedAreNeverTheSameOutcome() {
+        // The first is a finding about who created a subscription. The second is one about this
+        // installation, and reporting it as the first would send a tester looking for another client.
+        assertThat(NotificationOutcome.UNMATCHED_NOTIFICATION.tone()).isEqualTo(Tone.DATA);
+        assertThat(NotificationOutcome.UNCHECKED_NOTIFICATION.tone()).isEqualTo(Tone.FAULT);
+        assertThat(NotificationOutcome.UNCHECKED_NOTIFICATION.fault()).isTrue();
+        assertThat(NotificationOutcome.UNCHECKED_NOTIFICATION.label()).isNotEqualTo(NotificationOutcome.UNMATCHED_NOTIFICATION.label())
+                .contains("could not be asked");
+        assertThat(Arrays.stream(NotificationOutcome.values()).map(Enum::name)).containsExactly("NOTIFICATION_RECEIVED", "HANDSHAKE_RECEIVED",
+                "HEARTBEAT_RECEIVED", "STATUS_RECEIVED", "UNRECOGNISED_TYPE", "UNMATCHED_NOTIFICATION", "UNCHECKED_NOTIFICATION",
+                "UNREADABLE_NOTIFICATION");
+    }
 }

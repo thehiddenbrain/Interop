@@ -37,7 +37,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CoderResult;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -162,13 +164,25 @@ public class NotificationReceiver {
     private record Held(Instant stamp, NotificationView view) {
     }
 
-    /** The two links of a notification to earlier runs, and how each was or was not established. */
-    private record Links(String subscriptionRunId, String submissionRunId, String submissionClaimId, List<String> notes) {
+    /**
+     * The two links of a notification to earlier runs, and how each was or was not established.
+     *
+     * @param unmatched why no run was found to have created the subscription the notification
+     *                  names. Null when one was found, and for a body that is not a notification
+     */
+    private record Links(String subscriptionRunId, NotificationVerdicts.Unmatched unmatched, String submissionRunId, String submissionClaimId,
+                         List<String> notes) {
     }
 
     /** Everything worked out from one body, before anything is written. */
     private record Interpreted(OutcomeCode outcome, NotificationReading reading, Links links, List<Finding> findings, VerdictView verdict,
                                NextStepView nextStep, List<String> codes, Map<String, String> correlation, String claimId) {
+
+        /** The correlation holds identifiers read from the payload, an authorization number among them. Only the outcome is printed. */
+        @Override
+        public String toString() {
+            return "Interpreted[" + outcome + "]";
+        }
     }
 
     private final OperationGateway gateway;
@@ -274,10 +288,13 @@ public class NotificationReceiver {
         }
         List<String> notes = new ArrayList<>();
         if (subscriptionId == null) {
-            subscriptionId = latestCreatedSubscription(target);
+            boolean[] lookupFailed = new boolean[1];
+            subscriptionId = latestCreatedSubscription(target, lookupFailed);
             if (subscriptionId == null) {
-                notes.add("No run in the ledger has created a subscription, so this sample names one nobody created and is shown as "
-                        + "unmatched. Create a subscription first to see a notification that is matched to it.");
+                notes.add(target == null || lookupFailed[0]
+                        ? "The ledger could not be asked which subscription this tool created last, so this sample names one nobody created."
+                        : "No run in the ledger has created a subscription, so this sample names one nobody created and is shown as "
+                                + "unmatched. Create a subscription first to see a notification that is matched to it.");
             }
         }
         return accept(Inbound.of(MockNotifications.body(notify, subscriptionId, claimId, claimResponseId)), scenario.id(), notes);
@@ -318,7 +335,7 @@ public class NotificationReceiver {
 
     private NotificationView accept(Inbound inbound, String sampleScenarioId, List<String> sampleNotes) {
         List<String> payloadNotes = new ArrayList<>(sampleNotes);
-        String text = decode(inbound.kept(), payloadNotes);
+        String text = decode(inbound.kept(), inbound.cut(), payloadNotes);
         String cut = null;
         if (inbound.cut()) {
             cut = (inbound.complete() ? "The body was " + inbound.bytesReceived() + " bytes long."
@@ -393,18 +410,21 @@ public class NotificationReceiver {
     private Interpreted interpret(String text, boolean wasCut, String sampleScenarioId, String cut) {
         NotificationReading reading = reader.apply(text);
         Links links = correlate(reading);
-        NotificationOutcome outcome = NotificationVerdicts.outcome(reading, links.subscriptionRunId() != null);
+        NotificationOutcome outcome = NotificationVerdicts.outcome(reading, links.unmatched());
         NotificationReading.Status status = reading.status();
         NotificationReading.Identifiers ids = reading.identifiers();
         String claimId = Texts.firstPresent(ids.claimId(), links.submissionClaimId());
 
         List<Finding> findings = new ArrayList<>();
+        // Raised only when it is known that nobody here created the subscription. When the ledger
+        // could not be asked that is not known, and the outcome says so in its place.
         if (outcome == NotificationOutcome.UNMATCHED_NOTIFICATION) {
             findings.add(new Finding(FindingKind.UNMATCHED_NOTIFICATION, "This notification matches no subscription this tool created",
-                    (status.subscriptionId() == null ? "It names no subscription." : "It names the subscription " + status.subscriptionId()
-                            + ", and no run in the ledger created a subscription with that id.")
-                            + " Another client may have created it, or it was created before this ledger began, or by another installation "
-                            + "of this tool. It is recorded and shown, never dropped.", status.subscriptionId(), null, null));
+                    (status.subscriptionId() == null ? "It names no subscription, so there is none to look up."
+                            : "It names the subscription " + status.subscriptionId() + ", and no run in the ledger created a subscription "
+                            + "with that id. Another client may have created it, or it was created before this ledger began, or by "
+                            + "another installation of this tool.")
+                            + " It is recorded and shown, never dropped.", status.subscriptionId(), null, null));
         }
         unrecognised(findings, "notification type", PasCodes.NOTIFICATION_TYPE, status.type());
         unrecognised(findings, "subscription status", PasCodes.SUBSCRIPTION_STATUS, status.subscriptionStatus());
@@ -434,7 +454,8 @@ public class NotificationReceiver {
         put(correlation, RunRecord.CORR_AUTHORIZATION_REF, ids.authorizationRef());
 
         VerdictView verdict = NotificationVerdicts.verdict(outcome, reading, links.notes(), sampleScenarioId, cut);
-        NextStepView nextStep = NotificationVerdicts.nextStep(outcome, reading, claimId, links.submissionRunId(), status.subscriptionId());
+        NextStepView nextStep = NotificationVerdicts.nextStep(outcome, reading, claimId, links.submissionRunId(), status.subscriptionId(),
+                links.unmatched());
         return new Interpreted(outcome, reading, links, findings, verdict, nextStep, codes, correlation, claimId);
     }
 
@@ -450,27 +471,40 @@ public class NotificationReceiver {
     private Links correlate(NotificationReading reading) {
         List<String> notes = new ArrayList<>();
         RunLedger target = available();
-        boolean[] failed = new boolean[1];
         NotificationReading.Identifiers ids = reading.identifiers();
 
+        // "No run created it" and "the ledger could not be asked" are kept apart from here on: the
+        // first is a fact about the subscription, the second leaves it unknown.
         String subscriptionRunId = null;
+        NotificationVerdicts.Unmatched unmatched = null;
         if (reading.notification()) {
             String subscriptionId = reading.status().subscriptionId();
             if (subscriptionId == null) {
+                unmatched = NotificationVerdicts.Unmatched.NAMES_NONE;
                 notes.add("It names no subscription, so it cannot be matched to one this tool created.");
             } else if (target == null) {
+                unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
                 notes.add("No ledger is available, so the subscription it names could not be looked up.");
             } else {
-                RunRecord created = find(target, EpaOperation.SUBSCRIPTION_CREATE, RunRecord.CORR_SUBSCRIPTION_ID, subscriptionId, failed);
-                subscriptionRunId = created == null ? null : created.runId();
-                notes.add(created != null ? "The subscription it names was created by the run " + created.runId() + "."
-                        : failed[0] ? "The ledger could not be read, so the subscription it names could not be looked up."
-                        : "No run in the ledger created the subscription it names.");
+                boolean[] lookupFailed = new boolean[1];
+                RunRecord created = find(target, EpaOperation.SUBSCRIPTION_CREATE, RunRecord.CORR_SUBSCRIPTION_ID, subscriptionId, lookupFailed);
+                if (created != null) {
+                    subscriptionRunId = created.runId();
+                    notes.add("The subscription it names was created by the run " + created.runId() + ".");
+                } else if (lookupFailed[0]) {
+                    unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
+                    notes.add("The ledger could not be read, so the subscription it names could not be looked up.");
+                } else {
+                    unmatched = NotificationVerdicts.Unmatched.NOT_IN_LEDGER;
+                    notes.add("No run in the ledger created the subscription it names.");
+                }
             }
         }
 
         String submissionRunId = null;
         String submissionClaimId = null;
+        // A flag of its own, so a failure to look the subscription up is not reported as a failure to look the submission up.
+        boolean[] failed = new boolean[1];
         if (ids.any() && target != null) {
             // Each identifier is asked about on its own, so one that points somewhere else is seen and said.
             Map<String, RunRecord> found = new LinkedHashMap<>();
@@ -512,7 +546,7 @@ public class NotificationReceiver {
         } else if (reading.notification() && !reading.status().events().isEmpty()) {
             notes.add("It reports an event and names no claim, ClaimResponse or authorization number, so it cannot be tied to a submission.");
         }
-        return new Links(subscriptionRunId, submissionRunId, submissionClaimId, notes);
+        return new Links(subscriptionRunId, unmatched, submissionRunId, submissionClaimId, notes);
     }
 
     /**
@@ -565,8 +599,13 @@ public class NotificationReceiver {
         }
     }
 
-    /** The id of the subscription this tool created most recently, or null when the ledger holds none. */
-    private static String latestCreatedSubscription(RunLedger target) {
+    /**
+     * The id of the subscription this tool created most recently, or null when the ledger holds
+     * none or could not be asked.
+     *
+     * @param failed set when the ledger could not be read, so "none" is not said when it is not known
+     */
+    private static String latestCreatedSubscription(RunLedger target, boolean[] failed) {
         if (target == null) {
             return null;
         }
@@ -579,6 +618,7 @@ public class NotificationReceiver {
                 }
             }
         } catch (RuntimeException e) {
+            failed[0] = true;
             return null;
         }
         return null;
@@ -606,19 +646,31 @@ public class NotificationReceiver {
      * The kept bytes as text. A notification is JSON, which is UTF-8. Bytes that are not are shown
      * with a replacement mark and a note, so text that changed on the way to the screen does not
      * pass for what was sent.
+     *
+     * @param cut true when the bytes are only the start of the body. A cut can fall inside one
+     *            character. That is the doing of this tool and not of the sender, so the body is
+     *            not called invalid for it: the incomplete character is left out, with a note
      */
-    private static String decode(byte[] kept, List<String> notes) {
+    private static String decode(byte[] kept, boolean cut, List<String> notes) {
         if (kept.length == 0) {
             return "";
         }
-        try {
-            return StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(kept)).toString();
-        } catch (CharacterCodingException e) {
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+        ByteBuffer in = ByteBuffer.wrap(kept);
+        // No byte of UTF-8 becomes more than one char, so the text never needs more room than this.
+        CharBuffer out = CharBuffer.allocate(kept.length);
+        // Told that more input follows, the decoder leaves an incomplete last character unread and does not report it.
+        CoderResult result = decoder.decode(in, out, !cut);
+        if (result.isError()) {
             notes.add("The body is not valid UTF-8. What could not be read is shown as a replacement mark, so the text below is not exactly "
                     + "what was sent.");
             return new String(kept, StandardCharsets.UTF_8);
         }
+        if (in.hasRemaining()) {
+            notes.add("What is held ends inside one character. That character is left out of the text below.");
+        }
+        return out.flip().toString();
     }
 
     private static void unrecognised(List<Finding> findings, String what, String element, CodedValue value) {

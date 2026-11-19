@@ -239,9 +239,13 @@ class NotificationReceiverTest {
                 "No submission in the ledger carries the ClaimResponse id this notification carries.");
         Finding finding = view.findings().stream().filter(f -> f.kind() == FindingKind.UNMATCHED_NOTIFICATION).findFirst().orElseThrow();
         assertThat(finding.title()).isEqualTo("This notification matches no subscription this tool created");
-        assertThat(finding.detail()).startsWith("It names the subscription subscription-of-another-client, and no run in the ledger created a "
-                + "subscription with that id.");
+        assertThat(finding.detail()).isEqualTo("It names the subscription subscription-of-another-client, and no run in the ledger created a "
+                + "subscription with that id. Another client may have created it, or it was created before this ledger began, or by another "
+                + "installation of this tool. It is recorded and shown, never dropped.");
         assertThat(view.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(view.nextStep().headline()).isEqualTo("Next: find out who created the subscription it names. The list of subscriptions "
+                + "shows what the service holds.");
+        assertThat(view.nextStep().reason()).isEqualTo("No run in the ledger created a subscription with the id this notification names.");
 
         // It has its ledger line, with the kind it was kept beside the fact that it is unmatched.
         RunRecord record = ledger.last();
@@ -260,7 +264,64 @@ class NotificationReceiverTest {
         NotificationView nameless = receive(bundle(status(null, "heartbeat")));
         assertThat(nameless.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
         assertThat(nameless.correlationNotes()).containsExactly("It names no subscription, so it cannot be matched to one this tool created.");
-        assertThat(nameless.findings().get(0).detail()).startsWith("It names no subscription.");
+        assertThat(nameless.findings().get(0).detail()).isEqualTo("It names no subscription, so there is none to look up. It is recorded and "
+                + "shown, never dropped.");
+        // Nobody is sent looking for the creator of a subscription that was never named.
+        assertThat(nameless.nextStep().headline()).isEqualTo("Next: read the notification below and find out what sent it.");
+        assertThat(nameless.nextStep().reason()).isEqualTo("The notification names no subscription, so it cannot be matched to one.");
+    }
+
+    @Test
+    void aLedgerThatCannotBeAskedLeavesItUnknownWhoseSubscriptionItIsAndThatIsNeverReportedAsUnmatched() {
+        // The subscription and the submission are both in the ledger. Only asking about them fails.
+        createSubscription();
+        RunEnvelope<PasDetail> submitted = submit("P32H-PAS-NOTIFY");
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("ledger", new QueryFailingLedger(ledger));
+        ObjectProvider<RunLedger> failing = beans.getBeanProvider(RunLedger.class);
+        NotificationReceiver unanswered = new NotificationReceiver(gateway,
+                new RunSupport(EpaProperties.of(Map.of("mode", "mock")), TrackingProperties.defaults(), ONYX, failing, CLOCK), failing, scenarios);
+
+        NotificationView view = unanswered.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, claimResponseIdOf(submitted))));
+
+        // Not "unmatched": that would say nobody here created the subscription, and this tool did.
+        assertThat(view.verdict().outcomeCode()).isEqualTo("UNCHECKED_NOTIFICATION");
+        assertThat(view.verdict().tone()).isEqualTo(Tone.FAULT);
+        assertThat(view.verdict().headline()).isEqualTo("A notification arrived, and the ledger could not be asked which subscription it belongs to.");
+        assertThat(view.verdict().supporting()).containsExactly("It is recorded and shown all the same. It is not dropped.",
+                "This says nothing about who created the subscription. It is a finding about this installation of the tool.",
+                "Its type: Event notification.",
+                "The subscription status it reports: Active.",
+                "It carries ids only: it says that something changed and not what. An inquiry shows the decision.",
+                "The ledger could not be read, so the subscription it names could not be looked up.",
+                "The ledger could not be read, so the submission it is about could not be looked up.");
+        assertThat(view.findings()).isEmpty();
+        assertThat(view.subscriptionRunId()).isNull();
+        assertThat(view.correlatedRunId()).isNull();
+        assertThat(view.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(view.nextStep().headline()).isEqualTo("Next: find out why the ledger could not be read. Until it can, this tool cannot say "
+                + "whether it created the subscription this notification names.");
+        assertThat(view.nextStep().reason()).isEqualTo("The ledger could not be asked which run created the subscription.");
+        // The notification still has its line, with what it carries and no link that was not established.
+        RunRecord record = ledger.last();
+        assertThat(record.operation()).isEqualTo(EpaOperation.SUBSCRIPTION_NOTIFICATION);
+        assertThat(record.outcome()).isEqualTo("UNCHECKED_NOTIFICATION");
+        assertThat(record.findings()).isEmpty();
+        assertThat(record.correlation()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, SUBSCRIPTION),
+                Map.entry(RunRecord.CORR_CLAIM_RESPONSE_ID, claimResponseIdOf(submitted)));
+        assertThat(unanswered.list(null).notifications()).singleElement().satisfies(held -> assertThat(held.id()).isEqualTo(view.id()));
+        // What the ledger said when it failed is in neither the result nor its line.
+        assertThat(JsonSafe.mapper().writeValueAsString(List.of(view, record))).doesNotContain("ledger directory").doesNotContain("is gone for");
+
+        // A notification that names no subscription is unmatched whatever the ledger can do: there was nothing to ask.
+        assertThat(unanswered.receive(NotificationReceiver.Inbound.of(bundle(status(null, "heartbeat")))).verdict().outcomeCode())
+                .isEqualTo("UNMATCHED_NOTIFICATION");
+
+        // On mock, a sample that has to ask which subscription was created last says that it could not.
+        NotificationView sample = unanswered.deliverSample(new NotificationSampleRequest("pas-20-heartbeat", null, null));
+        assertThat(sample.verdict().outcomeCode()).isEqualTo("UNCHECKED_NOTIFICATION");
+        assertThat(sample.payloadNotes()).containsExactly("The ledger could not be asked which subscription this tool created last, so this "
+                + "sample names one nobody created.");
     }
 
     @Test
@@ -445,6 +506,30 @@ class NotificationReceiverTest {
     }
 
     @Test
+    void aCutThatFallsInsideOneCharacterLeavesThatCharacterOutAndDoesNotCallTheBodyInvalid() {
+        // The accented letter is two bytes, and the first of them is the last byte the receiver holds.
+        String shown = "{\"padding\":\"" + "a".repeat(NotificationReceiver.MAX_KEPT_BYTES - 13);
+        byte[] body = (shown + "é".repeat(40) + "\"}").getBytes(StandardCharsets.UTF_8);
+        assertThat(shown.length()).isEqualTo(NotificationReceiver.MAX_KEPT_BYTES - 1);
+
+        NotificationView view = receiver.receive(NotificationReceiver.Inbound.read(new ByteArrayInputStream(body)));
+        assertThat(view.truncated()).isTrue();
+        assertThat(view.bytesKept()).isEqualTo(NotificationReceiver.MAX_KEPT_BYTES);
+        // Nothing stands in for the half character, and the sender is not blamed for where this tool cut.
+        assertThat(view.payload()).isEqualTo(shown);
+        assertThat(view.payloadNotes()).containsExactly("What is held ends inside one character. That character is left out of the text below.",
+                "The body was " + body.length + " bytes long. Only its first " + NotificationReceiver.MAX_KEPT_BYTES
+                        + " bytes are held and shown, so what is read here is not all that was sent.");
+
+        // The same bytes as a whole body do end in half a character, and that is the sender's.
+        byte[] ending = java.util.Arrays.copyOf(body, NotificationReceiver.MAX_KEPT_BYTES);
+        NotificationView whole = receiver.receive(NotificationReceiver.Inbound.read(new ByteArrayInputStream(ending)));
+        assertThat(whole.truncated()).isFalse();
+        assertThat(whole.payloadNotes()).hasSize(1).allSatisfy(note -> assertThat(note).startsWith("The body is not valid UTF-8."));
+        assertThat(whole.payload()).startsWith(shown).hasSize(NotificationReceiver.MAX_KEPT_BYTES);
+    }
+
+    @Test
     void readingStopsAtALimitAndASenderThatGoesAwayPartWayIsStillRecorded() {
         InputStream endless = new InputStream() {
             @Override
@@ -514,7 +599,7 @@ class NotificationReceiverTest {
     }
 
     @Test
-    void aLedgerThatCannotWriteOrCannotBeAskedDoesNotCostTheNotification() {
+    void aLedgerThatCannotWriteAndNoLedgerAtAllDoNotCostTheNotification() {
         createSubscription();
         ledger.refusing("This run was NOT recorded: the ledger file could not be written.");
         NotificationView unwritten = receive(bundle(status(SUBSCRIPTION, "heartbeat")));
@@ -528,7 +613,9 @@ class NotificationReceiverTest {
                 new StaticListableBeanFactory().getBeanProvider(RunLedger.class), CLOCK), new StaticListableBeanFactory().getBeanProvider(RunLedger.class),
                 scenarios);
         NotificationView view = noLedger.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, "claimresponse-claim-test-1")));
-        assertThat(view.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
+        // Nothing was asked, so nothing is claimed about who created the subscription.
+        assertThat(view.verdict().outcomeCode()).isEqualTo("UNCHECKED_NOTIFICATION");
+        assertThat(view.findings()).isEmpty();
         assertThat(view.correlationNotes()).containsExactly("No ledger is available, so the subscription it names could not be looked up.",
                 "No ledger is available, so the submission it is about could not be looked up.");
         assertThat(view.ledger().recorded()).isFalse();

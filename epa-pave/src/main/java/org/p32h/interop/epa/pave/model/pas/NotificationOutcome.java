@@ -8,8 +8,13 @@ import org.p32h.interop.epa.pave.model.Tone;
  *
  * <p>A notification is never dropped, so every one of these is recorded. The first four say that
  * a notification arrived for a subscription this tool created, and of which kind. A notification
- * for a subscription the tool does not know is {@link #UNMATCHED_NOTIFICATION} whatever its kind,
- * because that is the fact a tester has to look at first, and its kind is kept beside it as a code.
+ * that names no subscription, or one no run in the ledger created, is
+ * {@link #UNMATCHED_NOTIFICATION} whatever its kind, because that is the fact a tester has to look
+ * at first, and its kind is kept beside it as a code.
+ *
+ * <p>{@link #UNCHECKED_NOTIFICATION} is a different state and is never reported as unmatched: the
+ * ledger could not be asked, so whether this tool created the subscription is not known. The first
+ * is a finding about who created a subscription. The second is a finding about this installation.
  */
 public enum NotificationOutcome implements OutcomeCode {
 
@@ -19,6 +24,7 @@ public enum NotificationOutcome implements OutcomeCode {
     STATUS_RECEIVED("A status report arrived for a subscription this tool created", Tone.NEUTRAL, false),
     UNRECOGNISED_TYPE("A notification arrived whose type this tool does not recognise", Tone.NO_ANSWER, false),
     UNMATCHED_NOTIFICATION("A notification arrived that matches no subscription this tool created", Tone.DATA, false),
+    UNCHECKED_NOTIFICATION("A notification arrived and the ledger could not be asked which subscription it belongs to", Tone.FAULT, true),
     UNREADABLE_NOTIFICATION("Something arrived at the receiver that is not a subscription notification", Tone.FAULT, true);
 
     private final String label;
