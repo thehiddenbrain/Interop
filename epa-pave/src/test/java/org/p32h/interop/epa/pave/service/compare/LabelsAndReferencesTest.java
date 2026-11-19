@@ -262,6 +262,91 @@ class LabelsAndReferencesTest {
         assertThat(extra).extracting(Difference::referencesFollowing).containsExactly(null, 1, 0);
     }
 
+    // ---- the same text is not always the same reference ----
+
+    private static List<String> notes(String tool, String yours) {
+        return new JsonComparer(RULES, Glossary.NONE).compare(json(tool), json(yours)).notes();
+    }
+
+    @Test
+    void theSameReferenceTextIsNotTheSameReferenceWhenTheOtherRequestLabelsTheResourceDifferently() {
+        // The other request renamed its patient and left every reference as it was.
+        String tool = request("patient-1", "Patient/patient-1", "Patient/patient-1", "patient-1");
+        String yours = request("8842", "Patient/patient-1", "Patient/patient-1", "patient-1");
+        List<Difference> all = differences(tool, yours);
+        // No reference differs in its text, so none is listed, and the id says that none follows it.
+        assertThat(lines(all)).containsExactly("patient.id | DIFFERENT_VALUE | LABELS");
+        assertThat(all.get(0).referencesFollowing()).isZero();
+        // Left at that, the renamed id would read as a label and nothing more.
+        assertThat(notes(tool, yours)).containsExactly("At context.patientId and at 2 other places the two requests hold the same reference "
+                + "text. In the tool's request it points at a Patient the request carries. The Patient that your request carries in its place "
+                + "is labelled differently, so in your request the same text does not point at that Patient.");
+    }
+
+    @Test
+    void theSameIsSaidTheOtherWayRoundWhenItIsTheToolsRequestThatLabelsTheResourceDifferently() {
+        // The tool's order points past its own patient, at the id the other request gives its patient.
+        String tool = request("patient-1", "Patient/8842", "Patient/patient-1", "patient-1");
+        String yours = request("8842", "Patient/8842", "Patient/8842", "8842");
+        List<Difference> all = differences(tool, yours);
+        assertThat(lines(all)).containsExactly("patient.id | DIFFERENT_VALUE | LABELS");
+        assertThat(all.get(0).referencesFollowing()).isEqualTo(2);
+        assertThat(notes(tool, yours)).containsExactly("At order.subject.reference the two requests hold the same reference text. In your "
+                + "request it points at a Patient the request carries. The Patient that the tool's request carries in its place is labelled "
+                + "differently, so in the tool's request the same text does not point at that Patient.");
+    }
+
+    @Test
+    void twoPlacesAreCountedAsOneAndOneOther() {
+        String tool = request("patient-1", "Patient/patient-1", "Patient/patient-1", "patient-1");
+        String yours = request("8842", "Patient/patient-1", "Patient/patient-1", "8842");
+        assertThat(notes(tool, yours)).singleElement().satisfies(note -> assertThat(note)
+                .startsWith("At order.subject.reference and at 1 other place the two requests hold the same reference text."));
+        assertThat(differences(tool, yours)).singleElement().satisfies(label -> assertThat(label.referencesFollowing()).isEqualTo(1));
+    }
+
+    @Test
+    void theSameReferenceTextIsTheSameReferenceWhereNothingShowsOtherwise() {
+        // Each request uses its own label throughout.
+        assertThat(notes(request("patient-1", "Patient/patient-1", "Patient/patient-1", "patient-1"),
+                request("8842", "Patient/8842", "Patient/8842", "8842"))).isEmpty();
+        // The two label the patient alike, and both point at it.
+        String alike = request("patient-1", "Patient/patient-1", "Patient/patient-1", "patient-1");
+        assertThat(notes(alike, alike)).isEmpty();
+        // Neither request carries what the text points at, so nothing is known about it in either.
+        assertThat(notes(request("patient-1", "Patient/elsewhere", "Patient/patient-1", "patient-1"),
+                request("8842", "Patient/elsewhere", "Patient/8842", "8842"))).isEmpty();
+        // The text points at a resource only one request carries at all: that is listed as the element only one has.
+        String order = "'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'Patient/a'}}";
+        assertThat(notes("{" + order + ",'patient':{'resourceType':'Patient','id':'a'}}", "{" + order + "}")).isEmpty();
+    }
+
+    @Test
+    void aSelectionThatIsTheSameTextIsLookedAtTheSameWay() {
+        String bundle = "{'context':{'selections':['ServiceRequest/a','ServiceRequest/b'],'draftOrders':{'resourceType':'Bundle','entry':["
+                + "{'resource':{'resourceType':'ServiceRequest','id':'%s'}},{'resource':{'resourceType':'ServiceRequest','id':'b'}}]}}}";
+        // The other request renamed its first order and still selects it by the old id.
+        List<Difference> all = differences(bundle.formatted("a"), bundle.formatted("x"));
+        assertThat(lines(all)).containsExactly("context.draftOrders.entry[ServiceRequest #1].resource.id | DIFFERENT_VALUE | LABELS");
+        assertThat(notes(bundle.formatted("a"), bundle.formatted("x"))).containsExactly("At context.selections[0] the two requests hold the same "
+                + "reference text. In the tool's request it points at a ServiceRequest the request carries. The ServiceRequest that your "
+                + "request carries in its place is labelled differently, so in your request the same text does not point at that ServiceRequest.");
+    }
+
+    @Test
+    void anEntryLabelledByAnotherFullUrlIsLabelledDifferentlyForAReferenceWrittenAsAUrl() {
+        String bundle = "{'b':{'resourceType':'Bundle','entry':[{'fullUrl':'%s','resource':{'resourceType':'Patient','id':'p'}},"
+                + "{'fullUrl':'urn:uuid:00000000-0000-4000-8000-0000000000aa','resource':{'resourceType':'ServiceRequest','id':'sr',"
+                + "'subject':{'reference':'urn:uuid:00000000-0000-4000-8000-000000000001'}}}]}}";
+        String tool = bundle.formatted("urn:uuid:00000000-0000-4000-8000-000000000001");
+        String yours = bundle.formatted("urn:uuid:00000000-0000-4000-8000-000000000002");
+        // The ids agree. The entry's address does not, and the order's subject is written as the tool's address in both.
+        assertThat(lines(differences(tool, yours))).containsExactly("b.entry[Patient].fullUrl | DIFFERENT_VALUE | LABELS");
+        assertThat(notes(tool, yours)).containsExactly("At b.entry[ServiceRequest].resource.subject.reference the two requests hold the same "
+                + "reference text. In the tool's request it points at a Patient the request carries. The Patient that your request carries in "
+                + "its place is labelled differently, so in your request the same text does not point at that Patient.");
+    }
+
     @Test
     void aResourceCarriedTwiceIsFollowedThroughEitherCopy() {
         String document = "{'a':{'resourceType':'Patient','id':'%1$s'},'b':{'resourceType':'Patient','id':'%1$s'},"

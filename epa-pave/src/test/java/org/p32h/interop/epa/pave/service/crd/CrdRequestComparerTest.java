@@ -43,13 +43,13 @@ import tools.jackson.databind.JsonNode;
 class CrdRequestComparerTest {
 
     /** Generated with the algorithm the application validates with, never typed by hand. */
-    private static final String NPI = Npi.withCheckDigit("198765432");
+    static final String NPI = Npi.withCheckDigit("198765432");
     private static final String HOOK_INSTANCE = "11111111-1111-4111-8111-111111111111";
     private static final String SURNAME = "Placeholder-Surname";
     private static final String BIRTH_DATE = "1970-01-31";
     private static final String ONLY_HOOK_INSTANCE = "hookInstance | DIFFERENT_VALUE | EVERY_CALL";
     /** The names, dates of birth and addresses of every fixture: none may appear in a sentence. */
-    private static final String[] MEMBER_DATA = {SURNAME, BIRTH_DATE, "Given", "Sample-Member", "Robin", "Quinn", "1968-04-12",
+    static final String[] MEMBER_DATA = {SURNAME, BIRTH_DATE, "Given", "Sample-Member", "Robin", "Quinn", "1968-04-12",
             "1 Placeholder Street", "Sampletown", "Sample-Provider", "Alex", "Form-Surname"};
 
     private final FakeGateway gateway = new FakeGateway();
@@ -69,7 +69,7 @@ class CrdRequestComparerTest {
         return comparison;
     }
 
-    private static String fixture(String name) {
+    static String fixture(String name) {
         try (InputStream in = CrdRequestComparerTest.class.getResourceAsStream("/compare/" + name)) {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -101,7 +101,7 @@ class CrdRequestComparerTest {
     }
 
     /** A case as the form holds it once a member and a provider have been looked up. */
-    private static CrdRunRequest.Builder form(String hook, int codes, boolean prefetch) {
+    static CrdRunRequest.Builder form(String hook, int codes, boolean prefetch) {
         List<CodeInput> procedureCodes = List.of(new CodeInput("95810", null, "Sleep study, attended"), CodeInput.of("E0601"),
                 new CodeInput("70553", "http://www.ama-assn.org/go/cpt", null)).subList(0, codes);
         return CrdRunRequest.builder().hook(hook)
@@ -226,16 +226,30 @@ class CrdRequestComparerTest {
                         tuple("provider.npi", "prefetch.practitioner.identifier[0].value", NPI),
                         tuple("provider.firstName", "prefetch.practitioner.name[0].given[0]", "Pat"),
                         tuple("provider.lastName", "prefetch.practitioner.name[0].family", "Provider"),
-                        tuple("procedureCodes[0]", "context.draftOrders.entry[0].resource.code.coding[0].code", "95810"),
-                        tuple("procedureCodes[1]", "context.draftOrders.entry[1].resource.code.coding[0].code", "E0601"),
-                        tuple("procedureCodes[2]", "context.draftOrders.entry[2].resource.code.coding[0].code", "70553"),
+                        // A code, its system and its description are three values, and each is reported with its own place.
+                        tuple("procedureCodes[0].code", "context.draftOrders.entry[0].resource.code.coding[0].code", "95810"),
+                        tuple("procedureCodes[0].system", "context.draftOrders.entry[0].resource.code.coding[0].system", "http://www.ama-assn.org/go/cpt"),
+                        tuple("procedureCodes[0].description", "context.draftOrders.entry[0].resource.code.coding[0].display", "Sleep study, attended"),
+                        tuple("procedureCodes[1].code", "context.draftOrders.entry[1].resource.code.coding[0].code", "E0601"),
+                        tuple("procedureCodes[1].system", "context.draftOrders.entry[1].resource.code.coding[0].system",
+                                "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"),
+                        tuple("procedureCodes[2].code", "context.draftOrders.entry[2].resource.code.coding[0].code", "70553"),
+                        tuple("procedureCodes[2].system", "context.draftOrders.entry[2].resource.code.coding[0].system", "http://www.ama-assn.org/go/cpt"),
                         tuple("dateOfService", "context.draftOrders.entry[0].resource.occurrenceDateTime", "2026-03-20"));
         assertThat(source(comparison, "member.memberId").pointer()).isEqualTo("/prefetch/patient/identifier/0/value");
         assertThat(source(comparison, "member.memberId").label()).isEqualTo("Member ID");
-        assertThat(source(comparison, "procedureCodes[0]").note()).isEqualTo("Its system was read from the same coding. So was its display.");
-        // The one value a request never carries is said to be missing, and nothing is put in its place.
-        assertThat(comparison.notFound()).extracting(NotFound::field).containsExactly("member.lineOfBusiness");
+        assertThat(source(comparison, "procedureCodes[0].system").pointer()).isEqualTo("/context/draftOrders/entry/0/resource/code/coding/0/system");
+        assertThat(source(comparison, "procedureCodes[0].system").label()).isEqualTo("System of procedure code 1");
+        assertThat(source(comparison, "procedureCodes[0].description").label()).isEqualTo("Description of procedure code 1");
+        // What a request never carries, and what this one does not state, is said to be missing, and nothing is put in its place.
+        assertThat(comparison.notFound()).extracting(NotFound::field, NotFound::lookedIn).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("member.lineOfBusiness", notFound(comparison, "member.lineOfBusiness").lookedIn()),
+                org.assertj.core.groups.Tuple.tuple("procedureCodes[1].description", "context.draftOrders.entry[1].resource.code.coding[0].display"),
+                org.assertj.core.groups.Tuple.tuple("procedureCodes[2].description", "context.draftOrders.entry[2].resource.code.coding[0].display"));
         assertThat(notFound(comparison, "member.lineOfBusiness").note()).startsWith("A CRD request does not carry the line of business");
+        assertThat(notFound(comparison, "procedureCodes[1].description").note()).isEqualTo("The coding states no display. This tool writes a "
+                + "display only when it is given a description.");
+        assertThat(notFound(comparison, "procedureCodes[1].description").label()).isEqualTo("Description of procedure code 2");
     }
 
     private static org.assertj.core.groups.Tuple tuple(String field, String path, String value) {
@@ -298,6 +312,59 @@ class CrdRequestComparerTest {
                 + "element here too: the two were not compared with each other, because they do not share a system. When a code comes without "
                 + "a system, this tool takes one from the code list, or else from the format of the code.");
         assertThat(comparison.notes()).noneMatch(note -> note.contains(OWN_SYSTEM));
+    }
+
+    // ---- this tool's own request, edited by hand ----
+
+    private static final String SAME_TEXT = "hold the same reference text";
+
+    /** The request with the id of its prefetched patient changed and nothing else: no reference to it is changed with it. */
+    private static String withThePatientRenamed(String request) {
+        JsonNode root = JsonSafe.parse(request).node();
+        ((tools.jackson.databind.node.ObjectNode) root.at("/prefetch/patient")).put("id", "8842");
+        return root.toString();
+    }
+
+    @Test
+    void aRenamedIdWhoseReferencesWereNotRenamedWithItIsNotLeftToReadAsALabelAndNothingMore() {
+        // What comes of editing this tool's own request by hand: the patient renamed, and every reference to it left as it was.
+        String sent = sent(form("order-sign", 1, true).build());
+        RequestComparison comparison = compare(form("order-sign", 1, true).rawBody(withThePatientRenamed(sent)).build());
+        // No text of a reference differs, so the id is the one difference, and it says that no reference follows it.
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patient.id | DIFFERENT_VALUE | LABELS");
+        assertThat(at(comparison, "prefetch.patient.id").referencesFollowing()).isZero();
+        // The same texts now point past the patient of the pasted request, and that is said.
+        String sameText = comparison.notes().stream().filter(note -> note.contains(SAME_TEXT)).findFirst().orElseThrow();
+        assertThat(sameText).startsWith("At context.patientId and at 2 other places the two requests hold the same reference text. In the "
+                + "tool's request it points at a Patient the request carries.").endsWith("The Patient that your request carries in its place is "
+                + "labelled differently, so in your request the same text does not point at that Patient.");
+        // The pasted request names no fhirServer, so where its references point is said as a fact about it as well.
+        assertThat(comparison.notes()).anyMatch(note -> note.startsWith("Your request points at a Patient it does not carry, at context.patientId"));
+    }
+
+    @Test
+    void theSameIsSaidWhenThePastedRequestNamesAServerItsReferencesCouldBeFetchedFrom() {
+        configureEveryVariable();
+        String sent = sent(form("order-select", 3, true).build());
+        assertThat(sent).contains("https://ehr.example.invalid/fhir");
+        RequestComparison comparison = compare(form("order-select", 3, true).rawBody(withThePatientRenamed(sent)).build());
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patient.id | DIFFERENT_VALUE | LABELS");
+        // With a server named, a reference to a resource the request does not carry is not remarked on. What is said is about the two requests.
+        assertThat(comparison.notes()).noneMatch(note -> note.contains("it does not carry"));
+        assertThat(comparison.notes()).filteredOn(note -> note.contains(SAME_TEXT)).singleElement().satisfies(note -> assertThat(note)
+                .startsWith("At context.patientId and at 4 other places the two requests hold the same reference text."));
+        assertThat(comparison.notes()).contains("Your request names a fhirServer, so its ids also name resources on that server.");
+    }
+
+    @Test
+    void aRequestThatUsesItsOwnLabelsThroughoutGetsNoSuchNote() {
+        for (String name : List.of("vendor-shaped-order-sign.json", "no-prefetch-order-select.json")) {
+            RequestComparison comparison = compare(form("order-sign", 1, true).rawBody(fixture(name)).build());
+            assertThat(comparison.comparable()).as(name).isTrue();
+            assertThat(comparison.notes()).as(name).noneMatch(note -> note.contains(SAME_TEXT));
+        }
+        String sent = sent(form("order-select", 3, true).build());
+        assertThat(compare(CrdRunRequest.builder().rawBody(sent).build()).notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
     }
 
     // ---- a request shaped the way a vendor might shape it ----
@@ -455,7 +522,8 @@ class CrdRequestComparerTest {
         assertThat(source(comparison, "member.memberId").path()).isEqualTo("prefetch.coverageRequest.subscriberId");
         assertThat(source(comparison, "member.memberId").value().value()).isEqualTo("S123456789");
         assertThat(source(comparison, "provider.npi").path()).isEqualTo("prefetch.practitionerRequest.identifier[0].value");
-        assertThat(source(comparison, "procedureCodes[1]").path()).isEqualTo("context.draftOrders.entry[1].resource.codeCodeableConcept.coding[0].code");
+        assertThat(source(comparison, "procedureCodes[1].code").path()).isEqualTo("context.draftOrders.entry[1].resource.codeCodeableConcept.coding[0].code");
+        assertThat(source(comparison, "procedureCodes[1].system").path()).isEqualTo("context.draftOrders.entry[1].resource.codeCodeableConcept.coding[0].system");
         assertThat(source(comparison, "dateOfService").value().value()).isEqualTo("2026-03-20");
         assertThat(source(comparison, "dateOfService").note()).isEqualTo("Your request holds a date and time here. This tool sends the date of "
                 + "service as a date, so the date was used.");
@@ -791,8 +859,15 @@ class CrdRequestComparerTest {
         assertThat(notFound(comparison, "member.memberId").lookedIn()).startsWith("an identifier typed as a member number (MB)");
         // What was found is still reported, so the tester can see how far the request got.
         assertThat(source(comparison, "provider.npi").value().value()).isEqualTo(NPI);
-        assertThat(source(comparison, "procedureCodes[0]").value().value()).isEqualTo("95810");
-        assertThat(source(comparison, "procedureCodes[0]").note()).isEqualTo("The coding states no system.");
+        assertThat(source(comparison, "procedureCodes[0].code").value().value()).isEqualTo("95810");
+        assertThat(source(comparison, "procedureCodes[0].code").note()).isNull();
+        // The coding states a code and nothing else, and what this tool does then is said where the system was looked for.
+        NotFound system = notFound(comparison, "procedureCodes[0].system");
+        assertThat(system.lookedIn()).isEqualTo("context.draftOrders.entry[0].resource.code.coding[0].system");
+        assertThat(system.note()).isEqualTo("The coding states no system. This tool then takes one from its code list, or else from the format "
+                + "of the code, and writes none when neither gives one.");
+        assertThat(system.candidates()).isEmpty();
+        assertThat(notFound(comparison, "procedureCodes[0].description").lookedIn()).isEqualTo("context.draftOrders.entry[0].resource.code.coding[0].display");
         assertThat(comparison.notes()).isEmpty();
         assertThat(comparison.differences()).isEmpty();
 

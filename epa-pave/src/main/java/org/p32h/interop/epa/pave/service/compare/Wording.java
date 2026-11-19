@@ -264,6 +264,23 @@ final class Wording {
         };
     }
 
+    /**
+     * A reference that is the same text in both requests and points at a matched resource in only
+     * one of them, because the other request labels that resource differently.
+     *
+     * @param inTool true when it is the tool's request in which the text points at the resource
+     * @param paths  the places the text is written at, never empty
+     */
+    static String sameTextAnotherTarget(boolean inTool, String resourceType, List<String> paths) {
+        int others = paths.size() - 1;
+        String where = "At " + paths.get(0) + (others == 0 ? "" : others == 1 ? " and at 1 other place" : " and at " + others + " other places");
+        String here = inTool ? "the tool's request" : "your request";
+        String there = inTool ? "your request" : "the tool's request";
+        return where + " the two requests hold the same reference text. In " + here + " it points at " + a(resourceType)
+                + " the request carries. The " + resourceType + " that " + there + " carries in its place is labelled differently, so in "
+                + there + " the same text does not point at that " + resourceType + ".";
+    }
+
     // ---- what the engine could not do ----
 
     static String notClassified(boolean known) {

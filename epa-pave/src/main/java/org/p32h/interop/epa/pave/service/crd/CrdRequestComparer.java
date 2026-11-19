@@ -256,6 +256,11 @@ public final class CrdRequestComparer {
             return null;
         }
 
+        /** Records one value that was read from the pasted request and used. */
+        private void read(String field, String label, Found value) {
+            sources.add(new CaseValue(field, label, CaseValue.Source.YOUR_REQUEST, value.path(), value.pointer(), Shown.of(value.value()), value.note()));
+        }
+
         private boolean fromRequest(CaseField field) {
             return sources.stream().anyMatch(source -> source.field().equals(field.key()) && source.source() == CaseValue.Source.YOUR_REQUEST);
         }
@@ -368,12 +373,26 @@ public final class CrdRequestComparer {
             List<CrdRequestReader.Order> orders = reading.ordersWithCode();
             for (int i = 0; i < orders.size(); i++) {
                 CrdRequestReader.Order order = orders.get(i);
-                codes.add(new CodeInput(order.code().value(), order.system(), order.display()));
-                String display = order.display() == null ? "" : order.system() == null ? " Its display was read from the same coding."
-                        : " So was its display.";
-                out.sources.add(new CaseValue(CaseField.PROCEDURE_CODES.key() + "[" + i + "]", "Procedure code " + (i + 1),
-                        CaseValue.Source.YOUR_REQUEST, order.code().path(), order.code().pointer(), Shown.of(order.code().value()),
-                        (order.system() == null ? "The coding states no system." : "Its system was read from the same coding.") + display));
+                codes.add(new CodeInput(order.code().value(), order.system() == null ? null : order.system().value(),
+                        order.display() == null ? null : order.display().value()));
+                // Named as the form names them, so a screen can set each beside the field it would have come from.
+                String field = CaseField.PROCEDURE_CODES.key() + "[" + i + "]";
+                out.read(field + ".code", "Procedure code " + (i + 1), order.code());
+                // The system and the description travel with the code, and each is a value read from the pasted request in its own right.
+                if (order.system() != null) {
+                    out.read(field + ".system", "System of procedure code " + (i + 1), order.system());
+                } else {
+                    out.notFound.add(new NotFound(field + ".system", "System of procedure code " + (i + 1), order.codingPath() + ".system",
+                            "The coding states no system. This tool then takes one from its code list, or else from the format of the code, "
+                                    + "and writes none when neither gives one.", List.of()));
+                }
+                if (order.display() != null) {
+                    out.read(field + ".description", "Description of procedure code " + (i + 1), order.display());
+                } else {
+                    out.notFound.add(new NotFound(field + ".description", "Description of procedure code " + (i + 1),
+                            order.codingPath() + ".display", "The coding states no display. This tool writes a display only when it is given "
+                            + "a description.", List.of()));
+                }
             }
         } else {
             Missing missing = reading.missing().get(CaseField.PROCEDURE_CODES);
@@ -445,7 +464,7 @@ public final class CrdRequestComparer {
         JsonNode alone = JsonSafe.parse(builder.build(leftToTheTool, HOOK_INSTANCE, variables).json()).node();
         List<JsonNode> entries = JsonSafe.elements(JsonSafe.at(alone, "context", "draftOrders"), "entry");
         for (int i = 0; i < orders.size() && i < entries.size(); i++) {
-            String stated = orders.get(i).system();
+            String stated = orders.get(i).system() == null ? null : orders.get(i).system().value();
             String chosen = JsonSafe.elements(JsonSafe.at(entries.get(i), "resource", "code"), "coding").stream().findFirst()
                     .map(coding -> JsonSafe.presentText(coding, "system")).orElse(null);
             if (stated != null && !stated.equals(chosen)) {

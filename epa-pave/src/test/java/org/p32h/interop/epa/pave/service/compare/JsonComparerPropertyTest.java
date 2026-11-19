@@ -329,6 +329,7 @@ class JsonComparerPropertyTest {
     void anyTwoDocumentsAreComparedWithoutFailingAndEveryDifferencePointsAtWhatIsThere() {
         int differences = 0;
         int referencesFollowing = 0;
+        int sameTextNotes = 0;
         Set<DifferenceKind> kinds = java.util.EnumSet.noneOf(DifferenceKind.class);
         Set<org.p32h.interop.epa.pave.model.compare.DifferenceGroup> groups =
                 java.util.EnumSet.noneOf(org.p32h.interop.epa.pave.model.compare.DifferenceGroup.class);
@@ -337,8 +338,11 @@ class JsonComparerPropertyTest {
             ObjectNode yours = document(seed + 1);
             JsonComparer.Result result = COMPARER.compare(tool, yours);
             assertPointsAtWhatIsThere(tool, yours, result.differences(), "seeds " + seed + " and " + (seed + 1));
-            // The same two documents always give the same differences, in the same order.
-            assertThat(COMPARER.compare(tool, yours).differences()).as("seed " + seed).isEqualTo(result.differences());
+            // The same two documents always give the same differences and the same notes, in the same order.
+            JsonComparer.Result again = COMPARER.compare(tool, yours);
+            assertThat(again.differences()).as("seed " + seed).isEqualTo(result.differences());
+            assertThat(again.notes()).as("seed " + seed).isEqualTo(result.notes());
+            sameTextNotes += (int) result.notes().stream().filter(note -> note.contains("hold the same reference text")).count();
             differences += result.differences().size();
             for (Difference difference : result.differences()) {
                 kinds.add(difference.kind());
@@ -353,5 +357,7 @@ class JsonComparerPropertyTest {
         assertThat(groups).contains(org.p32h.interop.epa.pave.model.compare.DifferenceGroup.LABELS,
                 org.p32h.interop.epa.pave.model.compare.DifferenceGroup.BUILD);
         assertThat(referencesFollowing).isPositive();
+        // And the case that is no difference in any text: one reference text that points at a matched resource in one document only.
+        assertThat(sameTextNotes).as("notes about the same reference text pointing elsewhere").isPositive();
     }
 }

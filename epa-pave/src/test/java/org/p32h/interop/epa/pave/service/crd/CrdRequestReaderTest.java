@@ -258,15 +258,50 @@ class CrdRequestReaderTest {
                 "'resourceType':'ServiceRequest','id':'a','code':{'coding':[{'system':'http://www.ama-assn.org/go/cpt','code':'95810','display':'Sleep study'}]}",
                 "'resourceType':'DeviceRequest','id':'b','codeCodeableConcept':{'coding':[{'code':'E0601'}]}",
                 "'resourceType':'MedicationRequest','id':'c','medicationCodeableConcept':{'coding':[{'system':'http://www.nlm.nih.gov/research/umls/rxnorm','code':'1049502'}]}"));
-        assertThat(reading.orders()).extracting(CrdRequestReader.Order::resourceType, order -> order.code().value(), CrdRequestReader.Order::system,
-                CrdRequestReader.Order::display).containsExactly(
+        assertThat(reading.orders()).extracting(CrdRequestReader.Order::resourceType, order -> order.code().value(),
+                order -> order.system() == null ? null : order.system().value(),
+                order -> order.display() == null ? null : order.display().value()).containsExactly(
                 org.assertj.core.groups.Tuple.tuple("ServiceRequest", "95810", "http://www.ama-assn.org/go/cpt", "Sleep study"),
                 org.assertj.core.groups.Tuple.tuple("DeviceRequest", "E0601", null, null),
                 org.assertj.core.groups.Tuple.tuple("MedicationRequest", "1049502", "http://www.nlm.nih.gov/research/umls/rxnorm", null));
         assertThat(reading.orders().get(0).code().path()).isEqualTo("context.draftOrders.entry[0].resource.code.coding[0].code");
         assertThat(reading.orders().get(1).code().pointer()).isEqualTo("/context/draftOrders/entry/1/resource/codeCodeableConcept/coding/0/code");
+        // The system and the display are values read from the request too, so each has the place it was read from.
+        assertThat(reading.orders().get(0).system().path()).isEqualTo("context.draftOrders.entry[0].resource.code.coding[0].system");
+        assertThat(reading.orders().get(0).system().pointer()).isEqualTo("/context/draftOrders/entry/0/resource/code/coding/0/system");
+        assertThat(reading.orders().get(0).display().path()).isEqualTo("context.draftOrders.entry[0].resource.code.coding[0].display");
+        assertThat(reading.orders().get(0).display().pointer()).isEqualTo("/context/draftOrders/entry/0/resource/code/coding/0/display");
+        assertThat(reading.orders().get(2).system().pointer())
+                .isEqualTo("/context/draftOrders/entry/2/resource/medicationCodeableConcept/coding/0/system");
+        // Where the coding states none, the place it would have been in is still known, so the answer can say where it looked.
+        assertThat(reading.orders().get(1).codingPath()).isEqualTo("context.draftOrders.entry[1].resource.codeCodeableConcept.coding[0]");
         assertThat(reading.missing()).doesNotContainKey(CaseField.PROCEDURE_CODES);
         assertThat(reading.notes()).isEmpty();
+    }
+
+    @Test
+    void aSystemOrADisplayThatIsNotTextIsNotReadAsOne() {
+        // A number where a url belongs is not a system this tool could build with: it is left to the comparison to show.
+        Reading reading = read(orders("'resourceType':'ServiceRequest','id':'a','code':{'coding':[{'system':7,'code':'95810','display':true},"
+                + "{'system':'  ','code':'70553','display':''}]}"));
+        assertThat(reading.orders()).singleElement().satisfies(order -> {
+            assertThat(order.code().value()).isEqualTo("95810");
+            assertThat(order.system()).isNull();
+            assertThat(order.display()).isNull();
+        });
+    }
+
+    @Test
+    void theSystemAndTheDisplayComeFromTheCodingTheCodeWasReadFromAndFromNoOther() {
+        // The first coding has a system and no code. Its system belongs to it, and is never lent to the code of the next coding.
+        Reading reading = read(orders("'resourceType':'ServiceRequest','id':'a','code':{'coding':[{'system':'https://example.invalid/first',"
+                + "'display':'No code here'},{'code':'95810'}]}"));
+        assertThat(reading.orders()).singleElement().satisfies(order -> {
+            assertThat(order.code().path()).isEqualTo("context.draftOrders.entry[0].resource.code.coding[1].code");
+            assertThat(order.codingPath()).isEqualTo("context.draftOrders.entry[0].resource.code.coding[1]");
+            assertThat(order.system()).isNull();
+            assertThat(order.display()).isNull();
+        });
     }
 
     @Test

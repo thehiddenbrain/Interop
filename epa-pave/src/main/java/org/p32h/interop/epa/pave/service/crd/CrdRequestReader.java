@@ -107,13 +107,14 @@ public final class CrdRequestReader {
      *
      * @param path         where the order resource sits
      * @param code         the code of the first coding that has one, or null when the order carries none
+     * @param codingPath   where the coding that code was read from sits
      * @param system       the system of that coding, or null when it states none
      * @param display      the display of that coding, or null
      * @param otherCodings how many further codings with a code the order carries
      * @param date         the date of service on this order, as a date, or null
      */
-    public record Order(String resourceType, String path, String pointer, Found code, String system, String display, int otherCodings,
-                        Found date) {
+    public record Order(String resourceType, String path, String pointer, Found code, String codingPath, Found system, Found display,
+                        int otherCodings, Found date) {
 
         /** Prints the kind of order and its place, never what it holds. */
         @Override
@@ -392,8 +393,9 @@ public final class CrdRequestReader {
                 continue;
             }
             Found code = null;
-            String system = null;
-            String display = null;
+            String codingPath = null;
+            Found system = null;
+            Found display = null;
             int others = 0;
             List<JsonNode> codings = JsonSafe.elements(JsonSafe.child(resource, codeElement), "coding");
             for (int k = 0; k < codings.size(); k++) {
@@ -402,10 +404,11 @@ public final class CrdRequestReader {
                     continue;
                 }
                 if (code == null) {
-                    code = new Found(value, path + "." + codeElement + ".coding[" + k + "].code",
-                            Paths.member(Paths.element(Paths.member(Paths.member(pointer, codeElement), "coding"), k), "code"), null);
-                    system = JsonSafe.presentText(codings.get(k), "system");
-                    display = JsonSafe.presentText(codings.get(k), "display");
+                    codingPath = path + "." + codeElement + ".coding[" + k + "]";
+                    String codingPointer = Paths.element(Paths.member(Paths.member(pointer, codeElement), "coding"), k);
+                    code = new Found(value, codingPath + ".code", Paths.member(codingPointer, "code"), null);
+                    system = text(codings.get(k), "system", codingPath, codingPointer);
+                    display = text(codings.get(k), "display", codingPath, codingPointer);
                 } else {
                     others++;
                 }
@@ -418,7 +421,7 @@ public final class CrdRequestReader {
             }
             Found date = HAS_OCCURRENCE.contains(type) ? date(resource, path, pointer) : null;
             add(dates, date);
-            orders.add(new Order(type, path, pointer, code, system, display, others, date));
+            orders.add(new Order(type, path, pointer, code, codingPath, system, display, others, date));
         }
         if (orders.stream().noneMatch(order -> order.code() != null)) {
             missing.put(CaseField.PROCEDURE_CODES, new Missing(codesLookedIn, entries.isEmpty() ? "Your request has no entries in "

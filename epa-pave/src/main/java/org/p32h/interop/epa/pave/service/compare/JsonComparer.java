@@ -224,25 +224,31 @@ public final class JsonComparer {
     }
 
     /**
-     * The references that follow each matched pair, by the tool's resource of the pair. Resources
-     * are kept by identity, since two can be equal and distinct, and in the order they were first
-     * followed, so the same two documents always give the same list of differences.
+     * One reference that is the same text in both documents. The same text is the same reference
+     * only where both documents label the resource alike, and that is known once every pair is.
      */
-    private static final class Followers {
-        private final Map<JsonNode, List<Follower>> byResource = new IdentityHashMap<>();
+    private record SameText(String path, ReferenceText text) { }
+
+    /**
+     * What was found about each matched pair, by the tool's resource of the pair. Resources are
+     * kept by identity, since two can be equal and distinct, and in the order they were first met,
+     * so the same two documents always give the same answer.
+     */
+    private static final class ByResource<T> {
+        private final Map<JsonNode, List<T>> byResource = new IdentityHashMap<>();
         private final List<JsonNode> order = new ArrayList<>();
 
-        private void add(JsonNode toolResource, Follower follower) {
-            List<Follower> list = byResource.get(toolResource);
+        private void add(JsonNode toolResource, T found) {
+            List<T> list = byResource.get(toolResource);
             if (list == null) {
                 list = new ArrayList<>();
                 byResource.put(toolResource, list);
                 order.add(toolResource);
             }
-            list.add(follower);
+            list.add(found);
         }
 
-        private List<Follower> of(JsonNode toolResource) {
+        private List<T> of(JsonNode toolResource) {
             return byResource.getOrDefault(toolResource, List.of());
         }
 
@@ -259,6 +265,7 @@ public final class JsonComparer {
         private final List<Slot> slots = new ArrayList<>();
         /** The tool's resource to the resource it was compared with. By identity: two resources can be equal and distinct. */
         private final Map<JsonNode, JsonNode> pairs = new IdentityHashMap<>();
+        private final List<SameText> sameTexts = new ArrayList<>();
         private String depthFirstPath;
         private int depthPlaces;
 
@@ -526,6 +533,10 @@ public final class JsonComparer {
             String toolText = Values.text(tool);
             String yourText = Values.text(yours);
             if (toolText.equals(yourText)) {
+                // Not a difference in the text. Whether it points at the same thing in both is looked at once every pair is known.
+                if (key != null && ((key.equals("reference") && at.fhir() != null) || rules.referenceAt(at.document()))) {
+                    sameTexts.add(new SameText(at.shownPath(), ReferenceText.parse(toolText, rules.bareTypeAt(at.document()))));
+                }
                 return;
             }
             if (key != null) {
@@ -627,7 +638,7 @@ public final class JsonComparer {
         // ---- labels and references, once every pair is known ----
 
         private Result finish() {
-            Followers followers = new Followers();
+            ByResource<Follower> followers = new ByResource<>();
             Map<JsonNode, Slot> idSlots = new IdentityHashMap<>();
             for (Slot slot : slots) {
                 switch (slot.pending) {
@@ -662,7 +673,44 @@ public final class JsonComparer {
             if (depthFirstPath != null) {
                 notes.add(Wording.depthReached(MAX_DEPTH, depthFirstPath, depthPlaces));
             }
+            sameTextAnotherTarget(notes);
             return new Result(differences, notes);
+        }
+
+        /**
+         * A reference that is the same text in both documents is no difference in the text, and so
+         * is not listed. It is still not the same reference when the two documents label the
+         * resource differently: the text then points at the resource in one document and past it
+         * in the other. Left unsaid, a renamed id whose references were not renamed with it would
+         * read as a label and nothing more.
+         */
+        private void sameTextAnotherTarget(List<String> notes) {
+            Map<JsonNode, JsonNode> toolOf = new IdentityHashMap<>();
+            pairs.forEach((toolResource, yourResource) -> toolOf.put(yourResource, toolResource));
+            ByResource<String> onlyInTool = new ByResource<>();
+            ByResource<String> onlyInYours = new ByResource<>();
+            for (SameText same : sameTexts) {
+                List<ResourceIndex.Resource> toolTargets = toolIndex.resolve(same.text());
+                List<ResourceIndex.Resource> yourTargets = yourIndex.resolve(same.text());
+                for (ResourceIndex.Resource target : toolTargets) {
+                    JsonNode partner = pairs.get(target.node());
+                    if (partner != null && yourTargets.stream().noneMatch(other -> other.node() == partner)) {
+                        onlyInTool.add(target.node(), same.path());
+                    }
+                }
+                for (ResourceIndex.Resource target : yourTargets) {
+                    JsonNode partner = toolOf.get(target.node());
+                    if (partner != null && toolTargets.stream().noneMatch(other -> other.node() == partner)) {
+                        onlyInYours.add(partner, same.path());
+                    }
+                }
+            }
+            for (JsonNode resource : onlyInTool.resources()) {
+                notes.add(Wording.sameTextAnotherTarget(true, ResourceIndex.resourceType(resource), onlyInTool.of(resource)));
+            }
+            for (JsonNode resource : onlyInYours.resources()) {
+                notes.add(Wording.sameTextAnotherTarget(false, ResourceIndex.resourceType(resource), onlyInYours.of(resource)));
+            }
         }
 
         /** The first of the tool's resources whose partner is among the other request's, with that partner. Null when there is none. */
@@ -683,7 +731,7 @@ public final class JsonComparer {
             return known == null ? List.of() : List.of(known);
         }
 
-        private void reference(Slot slot, Followers followers) {
+        private void reference(Slot slot, ByResource<Follower> followers) {
             ReferenceText toolText = ReferenceText.parse(Values.text(slot.tool), slot.bareType);
             ReferenceText yourText = ReferenceText.parse(Values.text(slot.yours), slot.bareType);
             List<ResourceIndex.Resource> toolTargets = slot.fullUrl ? own(slot.toolOwner, toolIndex) : toolIndex.resolve(toolText);
@@ -710,7 +758,7 @@ public final class JsonComparer {
          * other when the two are the same text, or when they point at a matched pair of resources
          * in the same form.
          */
-        private void referenceList(Slot slot, Followers followers) {
+        private void referenceList(Slot slot, ByResource<Follower> followers) {
             JsonNode tool = slot.tool;
             JsonNode yours = slot.yours;
             int[] partner = new int[tool.size()];
@@ -725,6 +773,8 @@ public final class JsonComparer {
                 if (same != null && !same.isEmpty()) {
                     partner[i] = same.poll();
                     taken[partner[i]] = true;
+                    sameTexts.add(new SameText(slot.at.element(String.valueOf(i), i, partner[i]).shownPath(),
+                            ReferenceText.parse(Values.text(tool.get(i)), slot.bareType)));
                 }
             }
             // What is left of the other list, by the resource each element points at and the form it is written in.
