@@ -295,7 +295,7 @@ public final class CrdRequestGlossary implements Glossary {
         fhir(CASE, "Appointment.comment", "A comment on the appointment, in words.");
         fhir(BUILD, "Appointment.basedOn", "The order this appointment carries out, as a reference.");
         fhir(BUILD, "Appointment.supportingInformation", "Other information that supports the appointment, as a reference.");
-        fhir(null, "Appointment.participant", "Someone or something that takes part in the appointment: a patient, a practitioner or a place.");
+        fhir(null, "Appointment.participant", "Someone or something that takes part in the appointment, such as a patient, a practitioner or a place.");
         fhir(BUILD, "Appointment.participant.actor", "Who or what takes part, as a reference.");
         fhir(null, "Appointment.participant.status", "Whether this participant has accepted the appointment.");
     }

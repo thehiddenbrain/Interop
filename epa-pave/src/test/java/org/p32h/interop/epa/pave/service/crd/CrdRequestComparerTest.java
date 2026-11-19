@@ -15,6 +15,7 @@ import org.p32h.interop.epa.pave.model.AuthRequirement;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.ProcedureCode;
@@ -199,6 +200,26 @@ class CrdRequestComparerTest {
                                         + memberId + "], variables set " + configured).isEqualTo(sent);
                                 // With prefetch the request says everything, and all of it was found.
                                 assertThat(read.lacking).isEqualTo(prefetch ? List.of() : List.of("no member ID", "no NPI"));
+                                // Not only the same request built again: each value read is the value the form held, the member ID as sent.
+                                assertThat(read.request.procedureCodes()).extracting(CodeInput::code)
+                                        .isEqualTo(original.procedureCodes().stream().map(CodeInput::code).toList());
+                                assertThat(read.request.dateOfService()).isEqualTo(original.dateOfService());
+                                assertThat(read.request.hook()).isEqualTo(hook);
+                                List<String> fields = read.sources.stream().map(CaseValue::field).toList();
+                                if (prefetch) {
+                                    assertThat(read.request.member().memberId()).isEqualTo(MemberIds.noSpace(memberId));
+                                    assertThat(read.request.provider().npi()).isEqualTo(NPI);
+                                    assertThat(read.request.member().lastName()).isEqualTo(SURNAME);
+                                    assertThat(read.request.member().dateOfBirth()).isEqualTo(BIRTH_DATE);
+                                    assertThat(fields).contains("member.memberId", "provider.npi");
+                                } else {
+                                    // Without prefetch the request carries no member and no provider, and nothing is read for them.
+                                    assertThat(read.request.member()).isNull();
+                                    assertThat(read.request.provider()).isNull();
+                                    assertThat(fields).allMatch(field -> field.equals("hook") || field.equals("dateOfService")
+                                            || field.startsWith("procedureCodes["));
+                                    assertThat(fields).contains("hook", "dateOfService", "procedureCodes[0].code");
+                                }
                                 built++;
                             }
                         }

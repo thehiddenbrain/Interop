@@ -52,6 +52,13 @@ import tools.jackson.databind.JsonNode;
  *   <li>A reference that is the same text in both documents is not a difference. Where the two
  *       documents label the resource it names differently, a note says that the text points at
  *       the resource in one document only.</li>
+ *   <li>A reference that differs and names a type and id its document carries more than once is
+ *       listed, never counted as following a pair, and a note names the resources it can mean.</li>
+ *   <li>An absolute url is followed to a resource of its own document only by the full url of an
+ *       entry, or when it is on the server the document names: on any other server the same type
+ *       and id can be another resource.</li>
+ *   <li>A caller that built a resource of its document from a resource of the other can say so,
+ *       and the two are then compared with each other whatever keys they sit under.</li>
  * </ul>
  * Differences come back in the document order of the tool's document. What only the other
  * document has follows its neighbours.
