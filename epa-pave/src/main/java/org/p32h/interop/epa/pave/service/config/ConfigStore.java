@@ -19,6 +19,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
@@ -31,6 +32,7 @@ import org.p32h.interop.epa.pave.postman.OperationDetector;
 import org.p32h.interop.epa.pave.postman.Placeholders;
 import org.p32h.interop.epa.pave.postman.PostmanCollection;
 import org.p32h.interop.epa.pave.postman.PostmanEnvironment;
+import org.p32h.interop.epa.pave.postman.PostmanHeader;
 import org.p32h.interop.epa.pave.postman.PostmanParser;
 import org.p32h.interop.epa.pave.postman.PostmanRequest;
 import org.p32h.interop.epa.pave.postman.PostmanVariable;
@@ -59,7 +61,9 @@ import tools.jackson.databind.node.ObjectNode;
  *       writes a new file beside the old one, and the old one is removed only after the commit</li>
  * </ul>
  * Every file is written to a temporary name and then moved into place, so a crash leaves either
- * the old file or the new one and never half of either.
+ * the old file or the new one and never half of either. A crash between writing an uploaded file
+ * and the commit leaves a whole file that nothing names: it is reported at the next start and on
+ * the Config tab, and left where it is.
  *
  * <p>The production unlock is not here. It is never written anywhere.
  *
@@ -368,6 +372,7 @@ public class ConfigStore {
                 file, previous == null ? null : previous.file());
 
         warnings.addAll(secretWarnings(parsed.variables(), file));
+        warnings.addAll(literalCredentialWarnings(parsed, file));
         warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
         // The name and counts only. Never a url, a header or a body.
@@ -493,6 +498,31 @@ public class ConfigStore {
                         + "variable of that name where this tool runs.");
             }
         }
+        return warnings;
+    }
+
+    /**
+     * One warning for each header name under which a collection carries a credential that was
+     * typed into it, not referred to through a placeholder. Such a credential sits in the stored
+     * file in plain text exactly as a secret variable does. The header and the first request are
+     * named. The value is not.
+     */
+    private List<String> literalCredentialWarnings(PostmanCollection collection, String file) {
+        Map<String, List<String>> requestsByHeader = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (PostmanRequest request : collection.requests()) {
+            // Headers that are switched off are looked at too. They are not sent, and they are still in the file.
+            for (PostmanHeader header : request.headers()) {
+                if (HeaderMasking.literalCredential(header.name(), header.value())) {
+                    requestsByHeader.computeIfAbsent(header.name().strip(), name -> new ArrayList<>()).add(request.qualifiedName());
+                }
+            }
+        }
+        List<String> warnings = new ArrayList<>();
+        requestsByHeader.forEach((header, requests) -> warnings.add("The header \"" + oneLine(header) + "\" holds a credential typed into "
+                + "the collection in " + requests.size() + (requests.size() == 1 ? " request" : " requests") + ", the first being \""
+                + oneLine(requests.get(0)) + "\", and it now sits in the file " + directory.resolve(file) + " in plain text. This tool "
+                + "redacts it wherever it shows the header. To keep it out of that file, replace it in Postman with a {{placeholder}} and "
+                + "export again."));
         return warnings;
     }
 

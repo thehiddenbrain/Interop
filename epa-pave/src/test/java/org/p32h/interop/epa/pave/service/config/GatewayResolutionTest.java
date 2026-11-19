@@ -382,4 +382,23 @@ class GatewayResolutionTest {
         String json = JsonSafe.mapper().writeValueAsString(Map.of("url", call.url(), "headers", call.headers(), "body", resolvedBody));
         assertThat(json).doesNotContain("hunter2").contains("[secret apiKey]").contains("[secret clientSecret]");
     }
+
+    @Test
+    void noPrintedFormOfWhatTheGatewayWorkedOutHoldsAValue() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        fixture.activeEnvironmentOf("Secrets", EnvironmentKind.SANDBOX, "baseUrl", "https://x.example.invalid/fhir", "apiKey", "hunter2-by-name");
+        fixture.collectionOf("Secret users", items(item("inquiry Happy Path", "POST", "{{baseUrl}}/Claim/$inquire?k={{apiKey}}&t={{typedPassword}}")
+                // A credential typed literally into the collection. No variable name masks it.
+                .header("Authorization", "Bearer hunter2-literal").header("X-Key", "{{apiKey}}")));
+
+        CallPlan plan = fixture.gateway.describe(fixture.store.snapshot(), CallIntent.of(EpaOperation.PAS_INQUIRE)
+                .withRunValues(Map.of("typedPassword", "hunter2-typed")));
+
+        assertThat(plan.url().value()).contains("hunter2-by-name").contains("hunter2-typed");
+        assertThat(plan.resolvedHeaders().get(0).value()).isEqualTo("Bearer hunter2-literal");
+        for (Object form : List.of(plan, plan.target(), plan.headers(), plan.resolvedHeaders(), plan.filled(), plan.urlVariables(),
+                plan.urlVariables().pieces(), plan.intent(), plan.snapshot(), plan.reasons(), plan.tokens())) {
+            assertThat(form.toString()).as(form.getClass().getSimpleName()).doesNotContain("hunter2");
+        }
+    }
 }
