@@ -40,7 +40,7 @@ import java.util.List;
 public final class CsvReader {
 
     private static final char QUOTE = '"';
-    private static final char BYTE_ORDER_MARK = '﻿';
+    private static final char BYTE_ORDER_MARK = '\uFEFF';
 
     private final char delimiter;
 

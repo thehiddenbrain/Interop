@@ -24,7 +24,7 @@ class CsvRowsAdapterTest {
     void aSuiteFileASpreadsheetWroteIsReadCellForCell() {
         // As a spreadsheet saves "CSV UTF-8": a byte order mark, CRLF between rows, LF inside a
         // cell, a cell with a comma or a quote in double quotes, and a blank line at the end.
-        String file = "﻿caseId,memberId,npi,procedureCodes,expected,note\r\n"
+        String file = "\uFEFFcaseId,memberId,npi,procedureCodes,expected,note\r\n"
                 + "TC-1,S123456789,1234567893,95810,AUTH_REQUIRED,\"Sleep study, attended\"\r\n"
                 + "TC-2,S223456789,1234567893,95810|95811,,\"first line\nsecond line\"\r\n"
                 + "TC-3,S323456789,1234567893,E2601,NO_AUTH_REQUIRED,\"Cushion under 22\"\" wide, \"\"general use\"\"\"\r\n"
@@ -108,7 +108,7 @@ class CsvRowsAdapterTest {
     @Test
     void textWithNoRecordsIsAnEmptyTable() {
         CsvRows adapter = new CsvRowsAdapter();
-        for (String text : new String[] {null, "", "﻿"}) {
+        for (String text : new String[] {null, "", "\uFEFF"}) {
             CsvRows.Table table = adapter.read(text);
             assertThat(table.header()).isEmpty();
             assertThat(table.rows()).isEmpty();
