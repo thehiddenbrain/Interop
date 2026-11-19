@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-NOPROV",
+  "description": "Sentinel for CRD scenario 9, provider not found. The member is a Medicare member with active coverage: it is the provider the service does not know. The record arrives bare, with upper case names.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "MEMBER_ID": "P32H-NOPROV",
+    "FIRST_NAME": "Harper",
+    "LAST_NAME": "Placeholder-NoProvider",
+    "DATE_OF_BIRTH": "1952-12-01",
+    "GENDER": "M",
+    "LINE_OF_BUSINESS": "Medicare",
+    "PLAN_NAME": "Synthetic Medicare Plan A",
+    "COVERAGE_STATUS": "ACTIVE",
+    "COVERAGE_EFFECTIVE_DATE": "2025-01-01",
+    "SUBSCRIBER_ID": "P32H-NOPROV",
+    "ADDRESS": {
+      "ADDRESS_LINE_1": "8 Placeholder Street",
+      "CITY": "Sampletown",
+      "STATE": "MA",
+      "POSTAL_CODE": "00000"
+    }
+  }
+}

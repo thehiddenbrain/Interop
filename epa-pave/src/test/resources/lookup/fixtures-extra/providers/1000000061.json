@@ -1,0 +1,6 @@
+{
+  "npi": "1000000061",
+  "description": "Test resource. A provider fixture added as one more file. The directory cannot be reached for this NPI.",
+  "basis": "Synthetic. Every value in this file is invented. The NPI was made with the application's own check digit rule.",
+  "behavior": "unavailable"
+}

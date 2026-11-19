@@ -1,0 +1,30 @@
+{
+  "memberId": "S123456789",
+  "description": "An ordinary placeholder: a Medicaid member with active coverage. Public plan IDs are written with no spaces.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicaid"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "S123456789",
+    "firstName": "Noel",
+    "lastName": "Placeholder-Medicaid",
+    "dateOfBirth": "1970-01-31",
+    "gender": "male",
+    "lineOfBusiness": "Medicaid",
+    "planName": "Synthetic Medicaid Plan",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "S123456789",
+    "address": {
+      "line1": "14 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

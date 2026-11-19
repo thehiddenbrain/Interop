@@ -15,6 +15,8 @@ import org.p32h.interop.epa.pave.model.MemberLookupResult;
 import org.p32h.interop.epa.pave.model.PostalAddress;
 import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.WireRequest;
+import org.p32h.interop.epa.pave.model.WireView;
 
 /**
  * EVERYTHING THIS TOOL ASSUMES ABOUT THE MEMBER API, IN ONE FILE.
@@ -272,6 +274,17 @@ final class MemberResponseMapping {
         additional.addAll(tracked.unconsumed());
         return new MemberLookupResult(LookupStatus.FOUND, memberId, member, attention, fields, additional, exchange.wire(memberId), null,
                 message);
+    }
+
+    /**
+     * The result of a lookup that was never sent: switched off, not configured, or stopped before
+     * sending.
+     *
+     * @param request the request as it would have gone, marked as not sent, or null when there is none to show
+     */
+    static MemberLookupResult notSent(LookupOutcomes.Ending ending, MemberIdForms memberId, WireRequest request) {
+        return new MemberLookupResult(ending.status(), memberId, null, List.of(), List.of(), List.of(),
+                request == null ? null : new WireView(request, null, memberId), ending.error(), ending.message());
     }
 
     /** A result with no member in it: not found, or a fault. */

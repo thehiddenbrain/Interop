@@ -1,0 +1,32 @@
+{
+  "memberId": "P32H-INFO",
+  "description": "Sentinel for CRD scenario 5, additional information needed. A Commercial member. The record arrives as a list of one, with PascalCase names.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": [
+    {
+      "MemberId": "P32H-INFO",
+      "FirstName": "Emery",
+      "LastName": "Placeholder-Info",
+      "DateOfBirth": "1990-09-09",
+      "Gender": "F",
+      "LineOfBusiness": "Commercial",
+      "PlanName": "Synthetic Commercial HMO",
+      "CoverageStatus": "Active",
+      "CoverageStartDate": "2025-01-01",
+      "SubscriberId": "P32H-INFO",
+      "Address": {
+        "AddressLine1": "5 Placeholder Street",
+        "City": "Sampletown",
+        "State": "MA",
+        "ZipCode": "00000"
+      }
+    }
+  ]
+}

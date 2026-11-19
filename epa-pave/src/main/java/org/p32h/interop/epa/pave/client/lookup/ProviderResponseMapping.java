@@ -12,6 +12,7 @@ import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.ProviderLookupResult;
 import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.model.WireView;
 
 /**
@@ -237,6 +238,17 @@ final class ProviderResponseMapping {
 
         additional.addAll(tracked.unconsumed());
         return new ProviderLookupResult(LookupStatus.FOUND, npi, provider, attention, fields, additional, wire(exchange), null, message);
+    }
+
+    /**
+     * The result of a lookup that was never sent: switched off, not configured, or stopped before
+     * sending.
+     *
+     * @param request the request as it would have gone, marked as not sent, or null when there is none to show
+     */
+    static ProviderLookupResult notSent(LookupOutcomes.Ending ending, String npi, WireRequest request) {
+        return new ProviderLookupResult(ending.status(), npi, null, List.of(), List.of(), List.of(),
+                request == null ? null : new WireView(request, null, null), ending.error(), ending.message());
     }
 
     /** A result with no provider in it: not found, or a fault. */

@@ -1,0 +1,30 @@
+{
+  "memberId": "S1234567801",
+  "description": "An ordinary placeholder: a Medicare member whose ID is written with spaces, S12345678 then three spaces then 01. This file is keyed by the no-space form, which is the form that is sent. The record returns the ID in its written form, with the spaces, as a source system that holds it that way would.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "S12345678   01",
+    "firstName": "Oakley",
+    "lastName": "Placeholder-Medicare",
+    "dateOfBirth": "1945-06-15",
+    "gender": "female",
+    "lineOfBusiness": "Medicare",
+    "planName": "Synthetic Medicare Plan A",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "S12345678   01",
+    "address": {
+      "line1": "15 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

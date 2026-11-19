@@ -1,0 +1,12 @@
+{
+  "memberId": "P32H-TEST-EXTRA",
+  "description": "Test resource. A fixture added as one more file, to show a file is picked up with no change to any other.",
+  "basis": "Synthetic. Every value in this file is invented.",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-TEST-EXTRA",
+    "firstName": "Extra",
+    "lastName": "Placeholder-Extra",
+    "lineOfBusiness": "Medicaid"
+  }
+}

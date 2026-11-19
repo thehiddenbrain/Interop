@@ -1,0 +1,14 @@
+{
+  "memberId": "P32H-LOOKUP-NONE",
+  "description": "Sentinel for a member API that answers an unknown ID with HTTP 200 and an empty list, where P32H-NOMEM is answered with HTTP 404. Both are not found, and neither is a fault.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "NOT_FOUND"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "count": 0,
+    "data": []
+  }
+}

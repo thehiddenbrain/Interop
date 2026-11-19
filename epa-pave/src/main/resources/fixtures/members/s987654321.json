@@ -1,0 +1,31 @@
+{
+  "memberId": "S987654321",
+  "description": "An ordinary placeholder: a Commercial member with active coverage.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "S987654321",
+    "firstName": "Parker",
+    "lastName": "Placeholder-Commercial",
+    "dateOfBirth": "1980-08-08",
+    "gender": "other",
+    "lineOfBusiness": "Commercial",
+    "planName": "Synthetic Commercial PPO",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "coverageEnd": "2099-12-31",
+    "subscriberId": "S987654321",
+    "address": {
+      "line1": "16 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

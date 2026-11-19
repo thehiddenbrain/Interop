@@ -1,6 +1,8 @@
 package org.p32h.interop.epa.pave.client.lookup;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.p32h.interop.epa.pave.client.support.Exchanges;
 import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.model.ErrorView;
@@ -104,6 +106,91 @@ final class LookupOutcomes {
         return fault(ErrorKind.VENDOR_REJECTED, words.api() + " did not accept the lookup and answered HTTP " + status + ".",
                 "What it returned is listed under the returned fields. If the " + words.identifier() + " is written correctly, check that "
                         + words.property() + ".url has the form this API expects. Until then, " + words.byHand() + ".", exchange, tracked);
+    }
+
+    /**
+     * The lookup is switched off in the configuration. Not an error: the tester types the details
+     * by hand. The same on both profiles, so the state can be seen on mock.
+     */
+    static Ending switchedOff(LookupWords words) {
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is switched off (" + words.property() + ".enabled is false): "
+                + words.byHand() + ".", null);
+    }
+
+    /** No url is configured for the lookup. Not an error: the tester types the details by hand. */
+    static Ending notConfigured(LookupWords words) {
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is not configured, so there is no url to ask: set " + words.property()
+                + ".url, and until then " + words.byHand() + ".", null);
+    }
+
+    /**
+     * The lookup is configured, and a placeholder it needs has no value. Reported as disabled and
+     * not as a fault: sent anyway, the request would fail in a way that looks like a network
+     * problem and is not one.
+     *
+     * @param variables   the placeholders with no value
+     * @param where       what holds them, for example "its url" or "the header X-Api-Key"
+     * @param environment the active environment, or null when none is active
+     * @param reasons     for a placeholder that is defined and still has no value, why
+     */
+    static Ending incomplete(LookupWords words, List<String> variables, String where, String environment, Map<String, String> reasons) {
+        List<String> named = new ArrayList<>();
+        for (String variable : variables) {
+            String reason = reasons == null ? null : Texts.trimToNull(reasons.get(variable));
+            named.add("{{" + variable + "}}" + (reason == null ? "" : " (" + reason.replaceAll("[.\\s]+$", "") + ")"));
+        }
+        String placeholders = named.isEmpty() ? "a placeholder" : (named.size() == 1 ? "the placeholder " : "the placeholders ")
+                + String.join(", ", named);
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is configured but not completely, because " + placeholders + " in "
+                + where + (named.size() > 1 ? " have" : " has") + " no value, and "
+                + (Texts.present(environment) ? "the active environment is \"" + environment.strip() + "\"" : "no environment is active")
+                + ": " + words.byHand() + ".", null);
+    }
+
+    /** The url template has nowhere to put the identifier. */
+    static Ending noPlaceForTheIdentifier(LookupWords words) {
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is configured, but its url has no {id} token for the "
+                + words.identifier() + " to go in: correct " + words.property() + ".url, and until then " + words.byHand() + ".", null);
+    }
+
+    /** The url resolved, and what it resolved to cannot be called. */
+    static Ending urlCannotBeCalled(LookupWords words) {
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is configured, but " + words.property()
+                + ".url does not resolve to a url that can be called: correct it, and until then " + words.byHand() + ".", null);
+    }
+
+    /** A header or the method of the request is not valid HTTP, so the request was refused before sending. */
+    static Ending notValidHttp(LookupWords words) {
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is configured, but a header set for it, or its method, is not valid "
+                + "HTTP, so nothing was sent: correct " + words.property() + ".headers, and until then " + words.byHand() + ".", null);
+    }
+
+    /** The production guardrail refused the request, which can only happen when the lookup is mapped to a request that counts as a write. */
+    static Ending refusedByTheGuardrail(LookupWords words, String environment) {
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " was not sent: on the production environment"
+                + (Texts.present(environment) ? " \"" + environment.strip() + "\"" : "") + " the request it is mapped to counts as a "
+                + "write, and writes are locked, so " + words.byHand() + ".", null);
+    }
+
+    /**
+     * No access token could be obtained, so nothing was sent. A fault, since the lookup is
+     * configured to work and did not.
+     *
+     * @param reason what the token service said, which never holds a credential
+     */
+    static Ending noAccessToken(LookupWords words, String reason) {
+        String message = words.lookup() + " was not sent, because no access token could be obtained for it.";
+        return new Ending(LookupStatus.FAULT, message, new ErrorView(ErrorKind.UNREACHABLE, (message + " " + Texts.orElse(reason, "")).strip(),
+                "Check the onyx.auth settings and the credentials in the active environment, or set " + words.property()
+                        + ".use-onyx-auth to false if this API does not take the Onyx access token. Until then, " + words.byHand() + ".",
+                null, List.of(), List.of(), null));
+    }
+
+    /** The configuration changed between preparing the request and sending it, so it was not sent. */
+    static Ending configurationChanged(LookupWords words) {
+        String message = words.lookup() + " was not sent, because the configuration changed while it was being prepared.";
+        return new Ending(LookupStatus.FAULT, message, ErrorView.of(ErrorKind.CONFIGURATION, message,
+                "Check which environment is active, then leave the field again to repeat the lookup."));
     }
 
     /** The response holds no record: an empty object, an empty list, or a wrapper holding nothing. */
