@@ -19,8 +19,12 @@ import org.p32h.interop.epa.pave.model.ProcedureCode;
  *                   under, in the two cases where leaving it unsaid would mislead: the code that
  *                   was typed is in the list under other lines only, or narrowing left nothing to
  *                   offer at all. Null otherwise
+ * @param placeholder true when the rows come from the synthetic list that ships with the tool and
+ *                   not from a P32H export. What such a row says about prior authorization or a
+ *                   vendor was made up, and whoever shows it has to be able to say so
  */
-public record CodeSearch(String query, List<ProcedureCode> codes, int matched, boolean narrowed, String notice, String otherLines) {
+public record CodeSearch(String query, List<ProcedureCode> codes, int matched, boolean narrowed, String notice, String otherLines,
+                         boolean placeholder) {
 
     public CodeSearch {
         codes = codes == null ? List.of() : List.copyOf(codes);

@@ -10,7 +10,9 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -43,11 +45,37 @@ public final class CaseResources {
     public static final String PRACTITIONER_ROLE_REF = "PractitionerRole/" + PRACTITIONER_ROLE_ID;
     public static final String INSURER_REF = "Organization/" + INSURER_ID;
 
-    /** Coding systems, used when the tester and the code list do not state one and the code's format decides it. */
+    /**
+     * The two coding systems this tool has a uri for. Used when neither the tester nor the code
+     * list states a system and the format of the code decides it, and when the code list names one
+     * of the two by a label where a uri belongs.
+     */
     public static final String CPT = "http://www.ama-assn.org/go/cpt";
     public static final String HCPCS = "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets";
+
     public static final String NPI_SYSTEM = "http://hl7.org/fhir/sid/us-npi";
     public static final String IDENTIFIER_TYPES = "http://terminology.hl7.org/CodeSystem/v2-0203";
+
+    /**
+     * The labels a code list may hold where a coding system belongs, in the form
+     * {@link #labelKey} gives them, each with the uri this tool uses for that system. A list that
+     * writes HCPCS with no level gets the same uri as one that writes HCPCS Level II, because that
+     * is the only uri this tool has for HCPCS. The request note names what was sent, so a list
+     * that meant something else is not followed in silence.
+     */
+    private static final Map<String, String> LABELS = Map.of("cpt", CPT, "cpt4", CPT, "hcpcs", HCPCS, "hcpcslevelii", HCPCS,
+            "hcpcsii", HCPCS);
+
+    /**
+     * A uri as far as this tool looks: a scheme of two or more characters, a colon, and something
+     * after it that is not only slashes, with no white space anywhere. That takes the http, https
+     * and urn forms and leaves out a name, a bare identifier and a path that starts with a drive
+     * letter. Whether the uri is the right one for the code is not this tool's to say.
+     */
+    private static final Pattern URI_SHAPE = Pattern.compile("[A-Za-z][A-Za-z0-9+.-]+:/*[^\\s/]\\S*");
+
+    /** The most characters of a code list cell a request note quotes. */
+    private static final int QUOTED_LENGTH = 60;
 
     /** Placeholder names the built resources read. Each is optional; an unset one leaves its element out. */
     public static final String VAR_FHIR_SERVER = "fhirServer";
@@ -120,30 +148,90 @@ public final class CaseResources {
      * else the one the code's format decides. The last is a rule about published code formats, not
      * a guess about this code, and it is still reported so the tester can see where the system
      * came from.
+     *
+     * <p>The two sources that state a system are not treated alike. What the tester typed is sent
+     * exactly as typed, whatever it is: a wrong system is a negative case a tester is entitled to
+     * send. What the code list holds is read first, because a FHIR coding system is a uri and an
+     * export may hold a name there, such as CPT. Sent as it stands, that name would be the system
+     * of every order built from the list, which nobody asked for. So from the list:
+     * <ul>
+     *   <li>a uri is used as it is</li>
+     *   <li>a label this tool knows is replaced by the uri this tool uses for it, and a note says so</li>
+     *   <li>anything else is not sent as the system. A note says what the list held, and the
+     *       format of the code decides</li>
+     * </ul>
      */
     public String codingSystem(CodeInput code, String lineOfBusiness, List<String> notes) {
         if (Texts.present(code.system())) {
             return code.system().strip();
         }
         String value = code.code().strip();
+        String byFormat = byFormat(value);
+        String stated = statedByTheCodeList(value, lineOfBusiness);
+        if (stated != null) {
+            // The label is looked for first. A cell written "CPT:4" has the shape of a uri and is not one.
+            String labelled = LABELS.get(labelKey(stated));
+            if (labelled != null) {
+                String note = "The code list gives the coding system for " + value + " as the label " + quoted(stated) + ", which is not "
+                        + "a uri. The uri this tool uses for " + name(labelled) + " was sent in its place: " + labelled + ".";
+                // The list is followed, since it is the list's statement. When the format of the
+                // code points elsewhere, that is the first thing to look at if the service refuses
+                // the request, so it is said here and not left for the tester to work out.
+                if (byFormat != null && !byFormat.equals(labelled)) {
+                    note += " By its format alone the code would have been sent as " + name(byFormat) + ".";
+                }
+                notes.add(note);
+                return labelled;
+            }
+            if (URI_SHAPE.matcher(stated).matches()) {
+                return stated;
+            }
+            notes.add("The code list gives the coding system for " + value + " as " + quoted(stated) + ". That is not a uri, and it is "
+                    + "not a label this tool knows, so it was not sent as the system.");
+        }
+        if (byFormat == null) {
+            notes.add("No coding system could be worked out for " + value + ", so it was sent without one.");
+            return null;
+        }
+        notes.add("The coding system for " + value + " was taken from its format: " + name(byFormat) + ".");
+        return byFormat;
+    }
+
+    /** What the first row of the code list that states a system for the code holds there, or null when no row states one. */
+    private String statedByTheCodeList(String code, String lineOfBusiness) {
         if (codeList != null) {
-            for (ProcedureCode row : codeList.rowsFor(value, lineOfBusiness, null)) {
+            for (ProcedureCode row : codeList.rowsFor(code, lineOfBusiness, null)) {
                 if (Texts.present(row.system())) {
                     return row.system().strip();
                 }
             }
         }
-        String upper = value.toUpperCase(Locale.ROOT);
+        return null;
+    }
+
+    /** The system the format of a code points to, or null when the format decides nothing. */
+    private static String byFormat(String code) {
+        String upper = code.toUpperCase(Locale.ROOT);
         if (upper.matches("\\d{5}") || upper.matches("\\d{4}[FTU]")) {
-            notes.add("The coding system for " + value + " was taken from its format: CPT.");
             return CPT;
         }
-        if (upper.matches("[A-V]\\d{4}")) {
-            notes.add("The coding system for " + value + " was taken from its format: HCPCS Level II.");
-            return HCPCS;
-        }
-        notes.add("No coding system could be worked out for " + value + ", so it was sent without one.");
-        return null;
+        return upper.matches("[A-V]\\d{4}") ? HCPCS : null;
+    }
+
+    /** What a note calls one of the two systems this tool has a uri for. */
+    private static String name(String system) {
+        return CPT.equals(system) ? "CPT" : "HCPCS Level II";
+    }
+
+    /** The form a label is looked up in: its letters and digits in lower case, so "CPT-4", "cpt 4" and "Cpt4" are one label. */
+    private static String labelKey(String cell) {
+        return cell.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
+
+    /** A cell as a note shows it: in double quotes, and cut when long, since a note is read on screen beside the request. */
+    private static String quoted(String cell) {
+        boolean cut = cell.codePointCount(0, cell.length()) > QUOTED_LENGTH;
+        return "\"" + (cut ? cell.substring(0, cell.offsetByCodePoints(0, QUOTED_LENGTH)) + "..." : cell) + "\"";
     }
 
     public ObjectNode patient(MemberDetail member, Function<String, ResolvedText> variables, List<String> notes) {

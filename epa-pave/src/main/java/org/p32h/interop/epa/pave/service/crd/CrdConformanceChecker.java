@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.crd;
 
+import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.AuthRequirement;
 import org.p32h.interop.epa.pave.model.DelegatedVendors;
 import org.p32h.interop.epa.pave.model.Finding;
@@ -27,14 +28,40 @@ import java.util.Set;
  *
  * <p>When the two could not be compared for a code, that is a finding too, with the reason. A
  * result with no disagreement must mean the two agree, never that nothing was looked at.
+ *
+ * <p><b>The placeholder list is never passed off as the P32H list.</b> With no export configured
+ * the tool loads the synthetic list that ships with it, so that it runs on a fresh checkout. What
+ * that list says about a code was made up.
+ * <ul>
+ *   <li>Anywhere but on the mock profile nothing is compared with it. A disagreement between a
+ *       real service and invented rows is a finding about neither, and a tester would take it to
+ *       the vendor. The result carries one finding for the run that says no P32H list is loaded.</li>
+ *   <li>On the mock profile the comparison runs, because there the service's answer is synthetic
+ *       as well and showing what a disagreement looks like is the point. Every finding that rests
+ *       on the list then says in its detail which list that was.</li>
+ * </ul>
  */
 public final class CrdConformanceChecker {
 
-    private final ProcedureCodeDirectory codeList;
+    private static final String NO_P32H_LIST_TITLE = "The code list was not compared with the service: no P32H code list is loaded";
+    private static final String NO_P32H_LIST_DETAIL = "No P32H code list is loaded. The tool is using the synthetic placeholder list that "
+            + "ships with it, which says nothing about real codes, so nothing was compared with the service's answer. Set codelist.file "
+            + "to the P32H export and restart the tool.";
+    private static final String PLACEHOLDER_NOTE = "The code list here is the synthetic placeholder that ships with the tool and not a "
+            + "P32H list.";
 
-    /** @param codeList the procedure code list. May be null, in which case the two code list checks are skipped */
-    public CrdConformanceChecker(ProcedureCodeDirectory codeList) {
+    private final ProcedureCodeDirectory codeList;
+    private final boolean mockProfile;
+
+    /**
+     * @param codeList the procedure code list. May be null, in which case the two code list checks are skipped
+     * @param epa      says which profile the tool runs on. The placeholder list is compared with an
+     *                 answer on the mock profile only. Any other mode is treated as live, because
+     *                 comparing invented rows with a real service is the mistake that costs more
+     */
+    public CrdConformanceChecker(ProcedureCodeDirectory codeList, EpaProperties epa) {
         this.codeList = codeList;
+        this.mockProfile = epa.mock();
     }
 
     /**
@@ -74,21 +101,38 @@ public final class CrdConformanceChecker {
         // The code list is compared with a response that answered something. A fault, or a response
         // with no coverage information, already has its own finding and outcome for the whole call.
         if (codeList != null && exchange.ok() && !coverage.isEmpty()) {
-            for (String code : reading.requestedCodes()) {
-                List<ProcedureCode> rows = rowsToCompare(findings, code, lineOfBusiness, dateOfService);
-                if (rows.isEmpty()) {
-                    continue;
+            // Asked once for the whole check. Which list is loaded cannot differ from one code to the next.
+            boolean placeholder = codeList.selfCheck().placeholder();
+            if (placeholder && !mockProfile) {
+                // One finding for the run and not one for each code: the reason is the same for all of them.
+                findings.add(new Finding(FindingKind.CODE_LIST_NOT_COMPARED, NO_P32H_LIST_TITLE, NO_P32H_LIST_DETAIL, null, null, null));
+            } else {
+                List<Finding> fromTheList = new ArrayList<>();
+                for (String code : reading.requestedCodes()) {
+                    List<ProcedureCode> rows = rowsToCompare(fromTheList, code, lineOfBusiness, dateOfService);
+                    if (rows.isEmpty()) {
+                        continue;
+                    }
+                    List<CoverageInformationView> answers = coverage.stream().filter(v -> v.procedureCodes().contains(code)).toList();
+                    if (answers.isEmpty()) {
+                        notCompared(fromTheList, code, "The response carries no answer this tool could tie to " + code + ".");
+                    }
+                    for (CoverageInformationView view : answers) {
+                        compareWithCodeList(fromTheList, code, view, rows);
+                    }
                 }
-                List<CoverageInformationView> answers = coverage.stream().filter(v -> v.procedureCodes().contains(code)).toList();
-                if (answers.isEmpty()) {
-                    notCompared(findings, code, "The response carries no answer this tool could tie to " + code + ".");
-                }
-                for (CoverageInformationView view : answers) {
-                    compareWithCodeList(findings, code, view, rows);
-                }
+                // The note is added here, to whatever the comparison raised, and not where each
+                // finding is made: a finding added to the comparison later cannot then go without it.
+                findings.addAll(placeholder ? fromTheList.stream().map(CrdConformanceChecker::fromThePlaceholder).toList() : fromTheList);
             }
         }
         return findings;
+    }
+
+    /** The same finding, saying in its detail that the list it rests on is the placeholder. */
+    private static Finding fromThePlaceholder(Finding finding) {
+        return new Finding(finding.kind(), finding.title(), finding.detail() + " " + PLACEHOLDER_NOTE, finding.subject(),
+                finding.codeListSays(), finding.serviceSays());
     }
 
     /**
@@ -158,8 +202,11 @@ public final class CrdConformanceChecker {
 
         Set<String> listVendors = new LinkedHashSet<>();
         rows.forEach(row -> {
-            if (Texts.present(row.delegatedVendor())) {
-                listVendors.add(DelegatedVendors.canonical(row.delegatedVendor()));
+            // Null for a blank cell, and also for one with no letter or digit in it, such as a dash
+            // written for "none". Neither names a vendor, so neither is a routing to compare.
+            String vendor = DelegatedVendors.canonical(row.delegatedVendor());
+            if (vendor != null) {
+                listVendors.add(vendor);
             }
         });
         if (listVendors.size() == 1) {

@@ -233,6 +233,37 @@ class ProcedureCodeControllerTest {
         assertThat(answer.get("codes").get(0).get("delegatedVendor").stringValue()).isEqualTo("eviCore");
     }
 
+    @Test
+    void thePickerSaysWhenItsCodesComeFromThePlaceholderAndStillShowsWhatTheyState() throws Exception {
+        ProcedureCodeService bundled = new ProcedureCodeService(CodelistProperties.defaults());
+        MockMvc mvc = TestMvc.standalone(new ProcedureCodeController(bundled, AppProperties.defaults()));
+
+        JsonNode answer = json(mvc, get("/api/procedure-codes").param("q", "95810").param("lob", "Medicare"));
+        // The first thing in the answer, so nobody reading it can miss which list this is.
+        assertThat(answer.propertyNames()).containsExactly("placeholder", "query", "lineOfBusiness", "narrowed", "limit", "matched", "codes");
+        assertThat(answer.get("placeholder").isBoolean()).isTrue();
+        assertThat(answer.get("placeholder").booleanValue()).isTrue();
+        // The tags are not taken away: the row still states a requirement and a vendor. The flag is
+        // what lets the screen say, beside each of them, that they are not from a P32H list.
+        JsonNode row = answer.get("codes").get(0);
+        assertThat(row.get("authRequired").stringValue()).isEqualTo("REQUIRED");
+        assertThat(row.get("authRequiredSource").stringValue()).isEqualTo("Yes");
+        assertThat(row.get("delegatedVendor").stringValue()).isEqualTo("eviCore");
+
+        // On every answer, also one with nothing in it and one with no query at all.
+        assertThat(json(mvc, get("/api/procedure-codes").param("q", "zzz")).get("placeholder").booleanValue()).isTrue();
+        assertThat(json(mvc, get("/api/procedure-codes")).propertyNames()).containsExactly("placeholder", "narrowed", "limit", "matched", "codes");
+    }
+
+    @Test
+    void aConfiguredListCarriesNoPlaceholderFlagAtAllRatherThanAFalseOne() throws Exception {
+        // A false would read as this tool vouching that the file is the P32H list. It was pointed at a file, and that is all it knows.
+        for (MockHttpServletRequestBuilder request : List.of(get("/api/procedure-codes"), get("/api/procedure-codes").param("q", "958"),
+                get("/api/procedure-codes").param("q", "zzz").param("lob", "Medicare"))) {
+            assertThat(json(mvc(), request).has("placeholder")).isFalse();
+        }
+    }
+
     // ---- errors leave in the one shared shape ----
 
     @Test

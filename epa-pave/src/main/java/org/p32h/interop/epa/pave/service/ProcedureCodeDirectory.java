@@ -10,11 +10,12 @@ import java.util.List;
  * service answers, so it is read as it is and never tidied towards an expected answer.
  *
  * <p><b>How a line of business is matched.</b> A requested line matches a row when it equals a
- * line the row names, after the normalisation used for column headers: case, spaces, underscores,
- * hyphens and dots are ignored. A cell that names several lines separated by a comma, semicolon,
- * slash or pipe belongs to each of them. {@code codelist.line-of-business-aliases} maps a name as
- * the member API gives it to the names the list uses for it. There is no fuzzy matching: Medicare,
- * Medicaid and Commercial use different lists and logic and are never conflated.
+ * line the row names once case, spaces, underscores, hyphens and dots are ignored. Nothing else
+ * is ignored, which is less than is ignored when a column header is matched. A cell that names
+ * several lines separated by a comma, semicolon, slash or pipe belongs to each of them.
+ * {@code codelist.line-of-business-aliases} maps a name as the member API gives it to the names
+ * the list uses for it. There is no fuzzy matching: Medicare, Medicaid and Commercial use
+ * different lists and logic and are never conflated.
  */
 public interface ProcedureCodeDirectory {
 
@@ -23,7 +24,8 @@ public interface ProcedureCodeDirectory {
      *
      * @param lineOfBusiness when present, only rows for that line plus rows that state no line. Rows
      *                       stating no line are always offered, so a list without that column never
-     *                       comes back empty
+     *                       comes back empty. When no row of the list names the line, the result
+     *                       is not narrowed; {@link #statesLine} tells the two cases apart
      * @param limit          the most rows to return
      */
     List<ProcedureCode> search(String query, String lineOfBusiness, int limit);
