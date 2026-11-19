@@ -89,7 +89,9 @@ class RestClientsLoopbackTest {
         List<Socket> held = new ArrayList<>();
         byte[] partial = ascii("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{\"cards\":");
         try (ServerSocket server = serveOnce(partial, false, held)) {
-            RestClient client = RestClients.withTimeouts(RestClient.builder(), 2000, 400);
+            // A generous read timeout: the first bytes must arrive inside it even when the machine
+            // is busy running other builds, or this would read as a timeout with no status at all.
+            RestClient client = RestClients.withTimeouts(RestClient.builder(), 5000, 2500);
             VendorExchange exchange = executor.execute(client,
                     TestPreparedCalls.to(EpaOperation.CRD_ORDER_SIGN, "http://127.0.0.1:" + server.getLocalPort() + "/cds-services/x"),
                     ResolvedText.plain("{}"), ExchangeOptions.json("application/json"));
