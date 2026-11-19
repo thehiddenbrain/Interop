@@ -3,6 +3,10 @@ package org.p32h.interop.epa.pave.service.pas;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -12,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.pas.MockOnyxPasClient;
 import org.p32h.interop.epa.pave.client.pas.MockSubscriptionClient;
@@ -39,12 +44,15 @@ import org.p32h.interop.epa.pave.model.ResolvedUrl;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Timing;
 import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.WireResponse;
 import org.p32h.interop.epa.pave.model.pas.SubscriptionDetail;
 import org.p32h.interop.epa.pave.model.pas.SubscriptionResponseKind;
+import org.p32h.interop.epa.pave.model.pas.SubscriptionView;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
@@ -734,6 +742,96 @@ class SubscriptionServiceTest {
         run(GET, about(ID).build());
         run(DELETE, about(ID).build());
         assertThat(output.getAll()).doesNotContain(ID).doesNotContain("pave.example.invalid").doesNotContain("resourceType");
+    }
+
+    // ---- a secret the service sends back ----
+
+    private static final String CALLBACK_SECRET = "placeholder-receiver-secret-0001";
+
+    /** A scenario directory with one scenario, whose create answers with the subscription and the header it was sent. */
+    private static AppProperties echoingScenario(Path directory) throws IOException {
+        Path pas = Files.createDirectories(directory.resolve(MockOnyxPasClient.SCENARIOS));
+        Files.writeString(pas.resolve("pas-90-header-returned.json"), """
+                {
+                  "id": "pas-90-header-returned",
+                  "number": 90,
+                  "label": "A subscription returned with the header it was created with",
+                  "basis": "Synthetic. For a test of this tool only.",
+                  "steps": {
+                    "subscription-create": {
+                      "httpStatus": 201,
+                      "response": {
+                        "resourceType": "Subscription",
+                        "id": "subscription-placeholder-0001",
+                        "status": "requested",
+                        "criteria": "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status",
+                        "channel": {
+                          "type": "rest-hook",
+                          "endpoint": "https://pave.example.invalid/api/pas/notifications",
+                          "payload": "application/fhir+json",
+                          "header": ["Authorization: Bearer %s"]
+                        }
+                      }
+                    }
+                  }
+                }
+                """.formatted(CALLBACK_SECRET), StandardCharsets.UTF_8);
+        return AppProperties.of(Map.of("mock-latency-enabled", "false", "scenario-dir", directory.toString()));
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aSecretTheServiceSendsBackIsMaskedInTheWireViewAndReachesNeitherTheLedgerNorTheLog(@TempDir Path directory, CapturedOutput output)
+            throws IOException {
+        AppProperties app = echoingScenario(directory);
+        SubscriptionClient echoing = new MockSubscriptionClient(new ScenarioRepository(app), new MockExchanges(app));
+        // The credential the service is to send with each notification, kept in a secret variable as a tester would keep it.
+        gateway.variable("callbackToken", CALLBACK_SECRET);
+        String body = "{\"resourceType\":\"Subscription\",\"status\":\"requested\",\"channel\":{\"type\":\"rest-hook\",\"endpoint\":\""
+                + RECEIVER + "\",\"header\":[\"Authorization: Bearer {{callbackToken}}\"]}}";
+
+        RunEnvelope<SubscriptionDetail> result = service(echoing, "mock", WITH_RECEIVER).run(CREATE, request().rawBody(body).build(),
+                RunOrigin.manual(), null);
+
+        assertThat(result.verdict().outcomeCode()).isEqualTo("CREATED");
+        // The request side already hides it, by the name of the variable it came from.
+        assertThat(result.wire().request().body()).contains("\"Authorization: Bearer [secret callbackToken]\"");
+        // The service sent it back. The wire view shows the same mask in its place, and says that it did.
+        WireResponse response = result.wire().response();
+        assertThat(response.body()).contains("\"header\" : [ \"Authorization: Bearer [secret callbackToken]\" ]");
+        assertThat(response.maskedPlaces()).isEqualTo(1);
+        assertThat(response.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this request "
+                + "sent. A masked place is shown as [secret ...], naming the variable, the header or the token whose value it repeats. "
+                + "What is shown here is therefore not exactly what was received. The byte count is the count of what was received.");
+        assertThat(response.byteLength()).isEqualTo((long) response.body().replace("[secret callbackToken]", CALLBACK_SECRET)
+                .getBytes(StandardCharsets.UTF_8).length);
+
+        // The mapper read what really arrived, and the designed view and the returned fields hide the header as they did before.
+        SubscriptionView subscription = result.detail().subscriptions().get(0);
+        assertThat(subscription.headers()).extracting(Shown::value).containsExactly("Authorization: (value not shown)");
+        assertThat(subscription.endpoint().value()).isEqualTo(RECEIVER);
+        assertThat(result.detail().subscriptionId()).isEqualTo(ID);
+        assertThat(result.additionalFields()).isEmpty();
+
+        // Nothing the browser is sent holds it, and neither does the ledger line.
+        assertThat(JsonSafe.mapper().writeValueAsString(result)).doesNotContain(CALLBACK_SECRET).contains("[secret callbackToken]");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.only())).doesNotContain(CALLBACK_SECRET).doesNotContain("callbackToken");
+
+        // A failure of this tool after the call still shows the response, and writes to the log. Neither holds it.
+        RunSupport failing = new RunSupport(EpaProperties.of(Map.of("mode", "mock")), TrackingProperties.defaults(), OnyxProperties.defaults(),
+                ledgerProvider(), CLOCK) {
+            @Override
+            public Finding slowFinding(Timing timing) {
+                throw new IllegalStateException("the reader exploded for " + CALLBACK_SECRET);
+            }
+        };
+        RunEnvelope<SubscriptionDetail> failed = new SubscriptionService(OnyxProperties.of(WITH_RECEIVER), gateway, echoing, failing)
+                .run(CREATE, request().rawBody(body).build(), RunOrigin.manual(), null);
+        assertThat(RunSupport.isToolError(failed)).isTrue();
+        assertThat(failed.wire().response().maskedPlaces()).isEqualTo(1);
+        assertThat(JsonSafe.mapper().writeValueAsString(failed)).doesNotContain(CALLBACK_SECRET).contains("[secret callbackToken]");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.last())).doesNotContain(CALLBACK_SECRET).doesNotContain("callbackToken");
+        assertThat(output.getAll()).contains("A run failed inside this tool after the service was called").doesNotContain(CALLBACK_SECRET);
     }
 
     // ---- preview ----

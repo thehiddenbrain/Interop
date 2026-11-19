@@ -134,19 +134,75 @@ public record VendorExchange(
      * The fields every mapper adds to its additional fields before anything it found itself: the
      * body as received when it could not be parsed, and each note about the body. They are what
      * keeps an unreadable body, or a quirk of a readable one, out of the wire view alone.
+     *
+     * <p>The body is the same text the wire view shows, so it is masked in the same way: a place
+     * that repeats a secret the request sent is shown as that secret's mask, and a note says so.
      */
     public List<AdditionalField> bodyFields() {
         List<AdditionalField> out = new ArrayList<>();
         if (json == null && responseBody != null) {
-            out.add(AdditionalField.unparsedBody(responseBody));
+            SentSecrets.Masked shown = sentSecrets().mask(responseBody);
+            out.add(AdditionalField.unparsedBody(shown.text()));
+            if (shown.places() > 0) {
+                out.add(AdditionalField.bodyNote(masked(shown.places(), "in the body as shown here")));
+            }
         }
         bodyNotes.forEach(note -> out.add(AdditionalField.bodyNote(note)));
         return out;
     }
 
-    /** The response half of the wire view. */
+    /**
+     * The response half of the wire view: the headers and the body as received, except that every
+     * place which repeats a secret the request sent is shown as that secret's mask. The view then
+     * says how many places were masked, so that it never passes for the exact bytes received when
+     * it is not. The byte count stays the count of what was received.
+     *
+     * <p>Only what is shown is masked. {@link #responseBody()}, {@link #json()} and
+     * {@link #responseHeaders()} stay as they were received, because a mapper has to read what the
+     * service really said.
+     */
     public WireResponse wireResponse() {
-        return new WireResponse(httpStatus, responseHeaders, responseBody, responseBytes, json != null, parseError);
+        SentSecrets secrets = sentSecrets();
+        int inHeaders = 0;
+        List<WireHeader> shownHeaders = new ArrayList<>();
+        for (WireHeader header : responseHeaders) {
+            SentSecrets.Masked value = secrets.mask(header.value());
+            inHeaders += value.places();
+            shownHeaders.add(value.places() == 0 ? header : new WireHeader(header.name(), value.text()));
+        }
+        SentSecrets.Masked body = secrets.mask(responseBody);
+        return new WireResponse(httpStatus, shownHeaders, body.text(), responseBytes, json != null, parseError,
+                inHeaders + body.places(), maskNote(inHeaders, body.places(), httpStatus == null ? 0 : secrets.tooShort()));
+    }
+
+    private SentSecrets sentSecrets() {
+        return request == null ? SentSecrets.none() : request.secrets();
+    }
+
+    /** What the wire view says about masking, or null when there is nothing to say. */
+    private static String maskNote(int inHeaders, int inBody, int tooShort) {
+        int places = inHeaders + inBody;
+        StringBuilder note = new StringBuilder();
+        if (places > 0) {
+            String where = inBody == 0 ? "in the headers of this response" : inHeaders == 0 ? "in the body of this response"
+                    : "in this response, " + inHeaders + " in the headers and " + inBody + " in the body,";
+            note.append(masked(places, where)).append(" A masked place is shown as [secret ...], naming the variable, the header or the ")
+                    .append("token whose value it repeats. What is shown here is therefore not exactly what was received. The byte count is ")
+                    .append("the count of what was received.");
+        }
+        if (tooShort > 0) {
+            note.append(places > 0 ? " This request also sent " : "This request sent ")
+                    .append(tooShort == 1 ? "1 secret" : tooShort + " secrets").append(" shorter than ").append(SentSecrets.SHORTEST_SEARCHED)
+                    .append(" characters. A secret that short is not searched for, because it would be found by accident, so this ")
+                    .append("response is not masked where it repeats ").append(tooShort == 1 ? "that one." : "one of those.");
+        }
+        return note.length() == 0 ? null : note.toString();
+    }
+
+    /** The sentence that says how many places were masked and why, worded for one place as well as for several. */
+    private static String masked(int places, String where) {
+        return places == 1 ? "1 place " + where + " is masked because it repeats a secret this request sent."
+                : places + " places " + where + " are masked because they repeat a secret this request sent.";
     }
 
     public WireView wire(MemberIdForms memberId) {
