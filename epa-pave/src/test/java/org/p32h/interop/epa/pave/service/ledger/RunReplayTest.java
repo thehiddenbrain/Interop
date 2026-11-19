@@ -11,6 +11,7 @@ import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.recordingI
 import org.p32h.interop.epa.pave.model.CaseOutcome;
 import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.CaseStatus;
+import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.JsonSafe;
@@ -877,6 +878,43 @@ class RunReplayTest {
         assertThat(entry.replayRunId()).isEqualTo("replay-1");
         assertThat(entry.replayed().outcome()).isEqualTo("AUTH_REQUIRED");
         assertThat(entry.notRecorded()).containsExactly("This run was NOT recorded: the ledger file could not be written.");
+    }
+
+    // ---- runs that went somewhere else than the first time ----
+
+    @Test
+    void aReplayAgainstAnotherEnvironmentOrProfileSaysSoBecauseADifferenceCanComeFromTheMove() {
+        RunReplay replay = replay();
+        recorded(draft("stayed", clock));
+        recorded(draft("other-environment", clock));
+        recorded(draft("other-profile", clock));
+        recorded(draft("no-environment-then", clock).environment(null, null));
+        recorded(draft("blocked", clock).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).outcome("APPROVED"));
+        runner.answer = spec -> switch (spec.replayOfRunId()) {
+            case "other-environment" -> runner.completed(spec, again -> again.environment("Onyx UAT", EnvironmentKind.UAT).outcome("AUTH_REQUIRED"));
+            case "other-profile" -> runner.completed(spec, again -> again.profile("live").scenarioId(null));
+            case "no-environment-then" -> runner.completed(spec, again -> again.environment("Onyx Sandbox", EnvironmentKind.SANDBOX));
+            // Not sent, so it went nowhere, whatever environment refused it.
+            case "blocked" -> new CaseOutcome(spec, CaseStatus.BLOCKED, "Writes to production are locked.", List.of());
+            default -> runner.completed(spec, same -> same);
+        };
+
+        ReplayReport report = replay.replay(TENTH, TENTH, null);
+
+        assertThat(report.results()).extracting(entry -> entry.status().wire()).containsExactly("same", "changed", "same", "same", "blocked");
+        assertThat(report.notes()).containsExactly("3 of the runs that were sent again ran against another environment or profile than the "
+                + "first time. A difference in those can come from that move and not from the service. Each entry shows both.");
+        // The move is not listed as a difference of the run: those say how the answer changed.
+        assertThat(report.results().get(1).differences()).extracting(ReplayDifference::field).containsExactly("outcome");
+        assertThat(report.results().get(2).differences()).isEmpty();
+        assertThat(report.results().get(1).original().environment()).isEqualTo("Onyx Sandbox");
+        assertThat(report.results().get(1).replayed().environment()).isEqualTo("Onyx UAT");
+
+        // One on its own is worded as one, and a replay that stayed where it was says nothing.
+        assertThat(replay.replay(null, null, List.of("other-environment")).notes()).containsExactly("1 of the runs that were sent again ran "
+                + "against another environment or profile than the first time. A difference in it can come from that move and not from the "
+                + "service. Its entry shows both.");
+        assertThat(replay.replay(null, null, List.of("stayed", "blocked")).notes()).isEmpty();
     }
 
     // ---- writes that were sent again ----

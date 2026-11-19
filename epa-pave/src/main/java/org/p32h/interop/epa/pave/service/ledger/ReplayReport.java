@@ -21,8 +21,9 @@ import java.util.Map;
  *                        the answers of two environments
  * @param notes           what applies to the whole replay and not to one run: that nothing could
  *                        be run, that nothing was selected, that runs in the range were left out
- *                        of the selection and why, that writes were sent again. Empty when there
- *                        is nothing to say
+ *                        of the selection and why, that runs went to another environment than the
+ *                        first time, that writes were sent again. Empty when there is nothing to
+ *                        say
  * @param selected        how many runs were selected. Always the number of results
  * @param summary         how many results there are of each status, by the status as it is
  *                        written. Every status is listed, with zero where there are none

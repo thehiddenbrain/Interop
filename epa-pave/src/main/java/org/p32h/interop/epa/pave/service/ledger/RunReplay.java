@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -154,12 +155,46 @@ public class RunReplay {
         } else if (caseRunner == null) {
             notes.add(NO_RUNNER);
         }
+        String moved = ranSomewhereElse(results);
+        if (moved != null) {
+            notes.add(moved);
+        }
         String writes = writesSentAgain(results);
         if (writes != null) {
             notes.add(writes);
         }
         return ReplayReport.of(startedAt, from == null ? null : from.toString(), to == null ? null : to.toString(), caseRunner != null,
                 caseRunner == null ? null : epoch, notes, results);
+    }
+
+    private static boolean wasCompared(ReplayStatus status) {
+        return status == ReplayStatus.SAME || status == ReplayStatus.CHANGED || status == ReplayStatus.NOT_COMPARABLE;
+    }
+
+    /**
+     * What there is to say when runs were sent to another environment, or on another profile, than
+     * the first time, or null when none were. Running against the configuration in force now is the
+     * point of a replay. But then a difference can come from the move and not from the service, and
+     * the counts alone would not show which. The environment is not listed among the differences of
+     * a run, because those say how the answer changed.
+     */
+    private static String ranSomewhereElse(List<ReplayEntry> results) {
+        long moved = results.stream().filter(entry -> wasCompared(entry.status()))
+                .filter(entry -> !Objects.equals(entry.original().environment(), entry.replayed().environment())
+                        || !Objects.equals(lower(entry.original().profile()), lower(entry.replayed().profile())))
+                .count();
+        if (moved == 0) {
+            return null;
+        }
+        return moved == 1
+                ? "1 of the runs that were sent again ran against another environment or profile than the first time. A difference in it "
+                + "can come from that move and not from the service. Its entry shows both."
+                : moved + " of the runs that were sent again ran against another environment or profile than the first time. A difference "
+                + "in those can come from that move and not from the service. Each entry shows both.";
+    }
+
+    private static String lower(String text) {
+        return text == null ? null : text.toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -172,9 +207,8 @@ public class RunReplay {
         Set<String> labels = new LinkedHashSet<>();
         int writes = 0;
         for (ReplayEntry entry : results) {
-            boolean completed = entry.status() == ReplayStatus.SAME || entry.status() == ReplayStatus.CHANGED
-                    || entry.status() == ReplayStatus.NOT_COMPARABLE;
-            if (completed && entry.original().operation().write() && EpaProperties.LIVE.equalsIgnoreCase(entry.replayed().profile())) {
+            if (wasCompared(entry.status()) && entry.original().operation().write()
+                    && EpaProperties.LIVE.equalsIgnoreCase(entry.replayed().profile())) {
                 writes++;
                 labels.add(entry.original().operation().label());
             }
