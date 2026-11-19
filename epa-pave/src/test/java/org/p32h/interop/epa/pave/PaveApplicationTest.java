@@ -44,6 +44,20 @@ class PaveApplicationTest {
     @Autowired BuildProperties build;
     @Autowired JsonMapper mapper;
 
+    @Autowired org.springframework.context.ApplicationContext context;
+
+    @Test
+    void nothingFromTheTestSourcesIsPartOfTheApplication() {
+        // The test classes are on the path when this context is built, under the package the
+        // application scans. A stand-in picked up from there would make this test pass on wiring
+        // the real application does not have.
+        for (String name : context.getBeanDefinitionNames()) {
+            Class<?> type = context.getType(name);
+            String className = type == null ? "" : type.getName();
+            assertThat(className).as(name).doesNotContain(".devharness.").doesNotContain(".testsupport.");
+        }
+    }
+
     @Test
     void mockIsTheDefaultProfile() {
         assertThat(environment.getActiveProfiles()).isEmpty();

@@ -49,7 +49,7 @@ public final class SuiteResultsCsv {
                     String.join(" ", row.runIds()),
                     row.chainId(),
                     run.environment() == null ? null : run.environment().name(),
-                    run.environment() == null || run.environment().kind() == null ? null : run.environment().kind().name(),
+                    run.environment() == null || run.environment().kind() == null ? null : run.environment().kind().wire(),
                     run.mode(),
                     run.target(),
                     run.startedAt(),

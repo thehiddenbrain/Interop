@@ -7,7 +7,7 @@ import java.util.List;
  * A stand-in for the CSV reader in tests of the suite rules: one row per line, cells split on
  * commas, no quoting. What a real CSV file needs is tested where the real reader is.
  */
-final class TestCsv implements CsvRows {
+public final class TestCsv implements CsvRows {
 
     @Override
     public Table read(String text) {

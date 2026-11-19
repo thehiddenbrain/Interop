@@ -756,3 +756,12 @@ an early step is run again after a late one, the chain's next step follows that 
 members under one chain id are reported as a note on the chain, since a chain follows one member
 and one order.
 
+**D-114. A dev harness in the test sources, so the frontend can start before the first wave lands.**
+`DevHarness` starts the application as far as it is built, with stand-ins for the configuration
+layer, the ledger, the code list and the lookups, and a few /dev switches for reaching a screen
+state on purpose (a production environment, a refused write, a ledger that did not record). It is
+in the test sources, so it is never in the jar, and it is removed when the real parts are wired.
+It is a test configuration, and `PaveApplicationTest` checks that nothing from the test sources is
+part of the application's context: without that, the application's own start-up test picked the
+stand-ins up from the class path and would have passed on wiring the application does not have.
+

@@ -28,6 +28,8 @@ Wave A:
 - the chain view (D-111 to D-113, section 28.1): a chain read back from the ledger with where
   each of CRD, DTR and PAS stands, why a stage did not run, and the stated next step. Carrying
   context between the steps and running a chain as one suite case wait for Wave B
+- `GET /api/mode` (the controller, not yet a bean) and a dev harness in the test sources (D-114)
+  that serves CRD, raw, suites, chains and mode with stand-ins, for the frontend's first pass
 - suite runs (D-103 to D-110, section 28.2 and 28.4): the suite file reader and its row rules, the
   sequential runner with a progress count, the results table, the comparison with an earlier run,
   the response time distribution, the CSV export and the controller. The CSV text itself is read
@@ -78,7 +80,7 @@ Wave A:
 - No PAS, no DTR on this branch: those are Wave B, still building. No chain, no suites, no
   frontend.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
-- The build runs 523 tests.
+- The build runs 527 tests.
 
 ## The plan, written before any feature code
 

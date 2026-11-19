@@ -31,7 +31,7 @@ class SuiteResultsCsvTest {
         String runId1 = run.results().get(0).runId();
         assertThat(lines.get(1)).startsWith(run.suiteRunId() + ",sleep.csv,1,TC-1,CRD order-sign,Passed: the outcome is what the row expected.,"
                 + "NO_AUTH_REQUIRED,NO_AUTH_REQUIRED,Prior authorization is not required,pass,");
-        assertThat(lines.get(1)).contains("," + runId1 + "," + runId1 + ",").contains(",Onyx Sandbox,SANDBOX,mock,onyx,");
+        assertThat(lines.get(1)).contains("," + runId1 + "," + runId1 + ",").contains(",Onyx Sandbox,sandbox,mock,onyx,");
         // The two outcomes a tester must never confuse are two different rows of the export.
         assertThat(lines.get(2)).contains(",NO_AUTH_REQUIRED,NO_DETERMINATION,The service returned no determination,fail,");
         // A row that was not sent has no outcome, no result and no run id, and says why.
