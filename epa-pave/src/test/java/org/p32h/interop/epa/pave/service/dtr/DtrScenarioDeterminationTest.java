@@ -109,7 +109,7 @@ class DtrScenarioDeterminationTest {
     void everyBundledScenarioIsCompleteSyntheticAndUsesOnlyPlaceholderIdentifiers() {
         ScenarioRepository.Loaded loaded = scenarios.load("dtr");
         assertThat(loaded.problems()).isEmpty();
-        assertThat(loaded.scenarios()).extracting(Scenario::number).containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14);
+        assertThat(loaded.scenarios()).extracting(Scenario::number).containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
         Pattern looksLikeAnIdentifier = Pattern.compile("\"[A-Za-z]{0,3}\\d{8,}\"");
         for (Scenario scenario : loaded.scenarios()) {
             assertThat(scenario.id()).startsWith("dtr-");
@@ -134,7 +134,7 @@ class DtrScenarioDeterminationTest {
     @Test
     void theScenariosThatModelWhatThePublishedGuidesDoNotDefineSayWhatTheyAssume() {
         for (Scenario scenario : scenarios.list("dtr")) {
-            if (List.of(2, 7, 8, 9, 10, 13, 14).contains(scenario.number())) {
+            if (List.of(2, 7, 8, 9, 10, 13, 14, 15).contains(scenario.number())) {
                 assertThat(scenario.assumption()).as(scenario.id()).isNotBlank();
             }
             // Every scenario with an adaptive loop states the rule its steps are chosen by, in words.
@@ -163,7 +163,8 @@ class DtrScenarioDeterminationTest {
         table.put("P32H-DTR-TIMEOUT", DtrOutcome.TIMEOUT);
         table.put("P32H-DTR-TWO", DtrOutcome.PACKAGE_LOADED);
         table.put("P32H-DTR-LOOPERR", DtrOutcome.PACKAGE_LOADED);
-        assertThat(table).hasSize(14);
+        table.put("P32H-DTR-NOBUNDLE", DtrOutcome.NO_QUESTIONNAIRE);
+        assertThat(table).hasSize(15);
         table.forEach((sentinel, outcome) -> {
             VendorExchange exchange = fetch(null, sentinel, DtrFixtures.NPI);
             assertThat(mapper.readPackage(exchange, List.of()).outcome()).as(sentinel).isEqualTo(outcome);
@@ -180,7 +181,7 @@ class DtrScenarioDeterminationTest {
     @Test
     void everyScenarioFileProducesThePackageItClaims() {
         List<Scenario> all = scenarios.list("dtr");
-        assertThat(all).hasSize(14);
+        assertThat(all).hasSize(15);
         for (Scenario scenario : all) {
             VendorExchange exchange = fetch(scenario.id(), null, null);
             DtrReading reading = mapper.readPackage(exchange, List.of());
@@ -332,8 +333,8 @@ class DtrScenarioDeterminationTest {
                 DtrAnswers.Posted posted = DtrAnswers.read(questionnaire.json(), startFrom, DtrFixtures.answers(claim.get("answers")));
                 assertThat(posted.errors()).as(what).isEmpty();
                 assertThat(DtrResponseAssembler.problems(posted)).as(what).isEmpty();
-                DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted, DtrFixtures.member("S123456789"),
-                        DtrFixtures.CLOCK, builder, mapper);
+                DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted,
+                        DtrRequestBuilder.Filler.of(DtrFixtures.member("S123456789")), DtrFixtures.CLOCK, builder, mapper);
                 DtrReading reading = assembled.reading();
 
                 JsonNode expect = claim.get("expect");
@@ -378,7 +379,7 @@ class DtrScenarioDeterminationTest {
         assertThat(noQuestionnaire.outcome().tone()).isEqualTo(Tone.NO_ANSWER);
         assertThat(nothingRequired.outcome().tone()).isEqualTo(Tone.CLEAR);
 
-        // One said nothing. The other said the response is complete, with a status to show for it.
+        // One is an empty package. The other is the service saying the response is complete, with a status to show for it.
         assertThat(noQuestionnaire.answers()).isEmpty();
         assertThat(noQuestionnaire.ledgerCodes()).isEmpty();
         assertThat(noQuestionnaire.detail().questionnaires()).isEmpty();

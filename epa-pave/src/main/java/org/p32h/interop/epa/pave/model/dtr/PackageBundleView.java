@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.model.dtr;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.p32h.interop.epa.pave.model.Shown;
 import java.util.List;
 
@@ -12,6 +13,7 @@ import java.util.List;
  * @param entryCount how many entries it holds
  * @param fullUrls   the fullUrl of each entry that states one, in order
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record PackageBundleView(String foundAt, Shown type, Shown id, int entryCount, List<Shown> fullUrls) {
 
     public PackageBundleView {

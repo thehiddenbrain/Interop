@@ -28,6 +28,13 @@ class DtrHandoffTest {
                 + (version == null ? "" : ",\"version\":\"" + version + "\"") + "}],\"questionnaire\":\"#q\",\"status\":\"completed\"}";
     }
 
+    /** A response from the loop as the guides shape it: the questionnaire inside says what it is derived from. */
+    private static String derivedResponse(String ownUrl, String derivedFrom) {
+        return "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"q\""
+                + (ownUrl == null ? "" : ",\"url\":\"" + ownUrl + "\"") + ",\"derivedFrom\":[\"" + derivedFrom + "\"]}],"
+                + "\"questionnaire\":\"#q\",\"status\":\"completed\"}";
+    }
+
     @Test
     void whatCrdSaidIsPassedOnUnchangedAndAKeyThisToolDoesNotDefineIsNot() {
         Map<String, List<String>> given = new LinkedHashMap<>();
@@ -104,19 +111,53 @@ class DtrHandoffTest {
     }
 
     @Test
-    void theQuestionnaireAResponseAnswersIsTheOneInsideItElseTheOneItNames() {
-        assertThat(DtrHandoff.answeredBy(loopResponse(ONE, "1.0"))).isEqualTo(ONE + "|1.0");
-        assertThat(DtrHandoff.answeredBy(loopResponse(ONE, null))).isEqualTo(ONE);
-        assertThat(DtrHandoff.answeredBy(response(TWO + "|3"))).isEqualTo(TWO + "|3");
+    void theQuestionnaireAResponseAnswersIsWhatTheOneInsideItIsDerivedFromThenThatOnesOwnUrlElseTheOneItNames() {
+        assertThat(DtrHandoff.answeredBy(loopResponse(ONE, "1.0"))).containsExactly(ONE + "|1.0");
+        assertThat(DtrHandoff.answeredBy(loopResponse(ONE, null))).containsExactly(ONE);
+        assertThat(DtrHandoff.answeredBy(response(TWO + "|3"))).containsExactly(TWO + "|3");
+        // The shape the guides give a response from the loop: the questionnaire inside has no url and says what it is derived from.
+        assertThat(DtrHandoff.answeredBy(derivedResponse(null, ONE + "|1.0"))).containsExactly(ONE + "|1.0");
+        // When it has a url of its own as well, what it is derived from still comes first.
+        assertThat(DtrHandoff.answeredBy(derivedResponse(TWO, ONE + "|1.0"))).containsExactly(ONE + "|1.0", TWO);
         // A local reference to something that is not there names nothing, and so does anything that is not a response.
-        assertThat(DtrHandoff.answeredBy("{\"resourceType\":\"QuestionnaireResponse\",\"questionnaire\":\"#gone\"}")).isNull();
-        assertThat(DtrHandoff.answeredBy("{\"resourceType\":\"QuestionnaireResponse\"}")).isNull();
-        assertThat(DtrHandoff.answeredBy("{\"resourceType\":\"Patient\",\"questionnaire\":\"" + ONE + "\"}")).isNull();
-        assertThat(DtrHandoff.answeredBy("not json")).isNull();
-        assertThat(DtrHandoff.answeredBy((String) null)).isNull();
+        assertThat(DtrHandoff.answeredBy("{\"resourceType\":\"QuestionnaireResponse\",\"questionnaire\":\"#gone\"}")).isEmpty();
+        assertThat(DtrHandoff.answeredBy("{\"resourceType\":\"QuestionnaireResponse\"}")).isEmpty();
+        assertThat(DtrHandoff.answeredBy("{\"resourceType\":\"Patient\",\"questionnaire\":\"" + ONE + "\"}")).isEmpty();
+        assertThat(DtrHandoff.answeredBy("not json")).isEmpty();
+        assertThat(DtrHandoff.answeredBy((String) null)).isEmpty();
         // A response for a questionnaire that cannot be named never counts another questionnaire as answered.
         DtrHandoff handoff = DtrHandoff.afterAnswering(RUN, List.of(), null, Map.of(NextStepView.CARRY_QUESTIONNAIRE, List.of(ONE)));
-        assertThat(handoff.stillToAnswer("{\"resourceType\":\"QuestionnaireResponse\",\"status\":\"completed\"}")).containsExactly(ONE);
+        String unnamed = "{\"resourceType\":\"QuestionnaireResponse\",\"status\":\"completed\"}";
+        assertThat(handoff.stillToAnswer(unnamed)).containsExactly(ONE);
+        assertThat(handoff.counts(unnamed)).isFalse();
+    }
+
+    @Test
+    void aResponseFromTheLoopIsCountedTowardsTheQuestionnaireItsQuestionnaireIsDerivedFrom() {
+        String instance = "https://example.org/p32h-placeholder/Questionnaire/an-instance-of-one";
+        Map<String, List<String>> ofThePackage = Map.of(NextStepView.CARRY_QUESTIONNAIRE, List.of(ONE + "|1.0", TWO));
+        DtrHandoff handoff = DtrHandoff.afterAnswering(RUN, List.of(), ONE + "|1.0", ofThePackage);
+        // No url of its own at all, which is what the SDC profile asks for: it is tied by what it is derived from.
+        assertThat(handoff.counts(derivedResponse(null, ONE + "|1.0"))).isTrue();
+        assertThat(handoff.stillToAnswer(derivedResponse(null, ONE + "|1.0"))).containsExactly(TWO);
+        // A url of its own that is not the one in the package does not untie it.
+        assertThat(handoff.counts(derivedResponse(instance, ONE + "|1.0"))).isTrue();
+        assertThat(handoff.stillToAnswer(derivedResponse(instance, ONE))).containsExactly(TWO);
+        // Derived from something the package does not hold: complete or not, it answers none of the package.
+        assertThat(handoff.counts(derivedResponse(null, instance))).isFalse();
+        assertThat(handoff.stillToAnswer(derivedResponse(null, instance))).containsExactly(ONE + "|1.0", TWO);
+        // Derived from something else, and carrying the url of the one in the package: the second way of naming it counts as well.
+        assertThat(handoff.counts(derivedResponse(ONE, instance))).isTrue();
+        assertThat(handoff.stillToAnswer(derivedResponse(ONE, instance))).containsExactly(TWO);
+
+        // A response handed on for the questionnaire now being answered is replaced, whichever of the two ways it names it.
+        Map<String, List<String>> given = Map.of(NextStepView.CARRY_QUESTIONNAIRE, List.of(ONE + "|1.0", TWO),
+                NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of(derivedResponse(null, ONE + "|1.0"), response(TWO)));
+        assertThat(DtrHandoff.afterAnswering(RUN, List.of(), ONE + "|1.0", given).completedResponses(null)).containsExactly(response(TWO));
+        assertThat(DtrHandoff.afterAnswering(RUN, List.of(), TWO, given).completedResponses(null))
+                .containsExactly(derivedResponse(null, ONE + "|1.0"));
+        assertThat(DtrHandoff.afterAnswering(RUN, List.of(), ONE + "|1.0", Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE,
+                List.of(derivedResponse(ONE, instance)))).completedResponses(null)).isEmpty();
     }
 
     @Test

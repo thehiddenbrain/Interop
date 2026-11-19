@@ -19,6 +19,10 @@ import java.util.List;
  * @param contained     the resources it carries inside itself, such as a value set its questions use
  * @param problems      what makes it unusable as a questionnaire, one plain sentence each. Empty when it is usable
  * @param answersBasis  one plain sentence saying which answers the enableWhen conditions were evaluated against
+ * @param arrivedWith   where in the response the QuestionnaireResponse sat that the package carries
+ *                      for this questionnaire, which is that response's {@code foundAt}. Null when
+ *                      the package carries none for it. Answering starts from that response: for an
+ *                      adaptive questionnaire it is what the first next-question step sends
  * @param json          the resource exactly as returned, as compact JSON. The next step posts it back,
  *                      because the tool keeps no session between steps
  */
@@ -48,6 +52,7 @@ public record QuestionnaireView(
         List<PackageResourceView> contained,
         List<String> problems,
         String answersBasis,
+        String arrivedWith,
         String json) {
 
     public QuestionnaireView {

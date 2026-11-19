@@ -2,7 +2,7 @@
   "id": "dtr-08-adaptive-nothing-required",
   "number": 8,
   "label": "Adaptive questionnaire that asks nothing",
-  "description": "The package holds one adaptive questionnaire. The first next-question call comes back completed with no question in it: the payer asks for no documentation. That is an answer, and it is kept apart from scenario 7, where the service returned no questionnaire and so said nothing.",
+  "description": "The package holds one adaptive questionnaire. The first next-question call comes back completed with no question in it: the payer asks for no documentation. That is an answer the service gives through the loop, and it is kept apart from scenarios 7 and 15, where the package holds no questionnaire.",
   "sentinelMemberId": "P32H-DTR-NOTHING",
   "behavior": "respond",
   "httpStatus": 200,
@@ -18,7 +18,7 @@
     }
   },
   "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
-  "assumption": "How the live service answers when its rules need no documentation is not known. This file models a first next-question call that returns the QuestionnaireResponse with the status completed and a contained questionnaire that holds no question.",
+  "assumption": "How the live service answers when its rules need no documentation is not known. This file models a first next-question call that returns the QuestionnaireResponse with the status completed and a contained questionnaire that holds no question. The marker is the boolean form, which DTR 2.0.1 allows and later versions do not. The questionnaire inside each response carries the url of the one in the package and no derivedFrom, which is not how the guides tie the two: this tool then ties them by that url.",
   "nextQuestion": {
     "rule": "Every call gets the same step, whatever answers are sent: the service asks nothing.",
     "select": [

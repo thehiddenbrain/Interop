@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -28,7 +29,8 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>A package fetch is answered by the scenario's main step. A next-question call is answered by
  * one of the scenario's named steps, chosen from the answers in the QuestionnaireResponse that was
- * sent, by the rule the scenario file states in its {@code nextQuestion} section.
+ * sent, by the rule the scenario file states in its {@code nextQuestion} section. The answer comes
+ * back in the shape the request was sent in: by itself, or inside a Parameters resource.
  */
 @Component
 @Profile("mock")
@@ -75,7 +77,36 @@ public class MockOnyxDtrClient implements OnyxDtrClient {
         Map<String, List<JsonNode>> answers = sent == null ? Map.of() : QuestionnaireJson.answers(sent);
         VendorExchange exchange = exchanges.answer(call, body, HttpOnyxDtrClient.OPTIONS, chosen, step(chosen.scenario(), answers));
         exchange = returnWhatWasSent(exchange, sent, answers);
+        exchange = answerInTheShapeOfTheRequest(exchange, parsed.ok() ? parsed.node() : null);
         return exchange.withSignals(OnyxDtrConventions.signals(exchange));
+    }
+
+    /**
+     * A service that takes the QuestionnaireResponse inside a Parameters resource answers with one
+     * inside a Parameters resource too, under the name its guide gives the answer. A scenario step
+     * holds the response by itself, so the mock puts it in the shape the request came in, and the
+     * result says so. Nothing else about the step changes.
+     */
+    private static VendorExchange answerInTheShapeOfTheRequest(VendorExchange exchange, JsonNode sentBody) {
+        if (!exchange.ok() || !QuestionnaireJson.isType(sentBody, "Parameters") || !QuestionnaireJson.isType(exchange.json(), "QuestionnaireResponse")) {
+            return exchange;
+        }
+        String sentUnder = null;
+        for (JsonNode parameter : JsonSafe.elements(sentBody, "parameter")) {
+            if (QuestionnaireJson.isType(JsonSafe.child(parameter, "resource"), "QuestionnaireResponse")) {
+                sentUnder = JsonSafe.presentText(parameter, "name");
+                break;
+            }
+        }
+        String returnedUnder = OnyxDtrConventions.WRAP_DTR_BALLOT.equals(sentUnder) ? OnyxDtrConventions.RETURN_DTR_BALLOT
+                : OnyxDtrConventions.RETURN_SDC;
+        ObjectNode wrapped = JsonNodeFactory.instance.objectNode();
+        wrapped.put("resourceType", "Parameters");
+        wrapped.putArray("parameter").addObject().put("name", returnedUnder).set("resource", exchange.json().deepCopy());
+        return Exchanges.fromResponse(exchange.request(), exchange.httpStatus(), exchange.responseHeaders(), JsonSafe.pretty(wrapped),
+                        exchange.elapsedMillis(), true)
+                .withScenario(exchange.scenarioId(), exchange.scenarioNote() + ". The response came back inside a Parameters resource, "
+                        + "under " + returnedUnder + ", because the request was sent inside one");
     }
 
     /**

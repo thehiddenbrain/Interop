@@ -15,8 +15,10 @@ import java.util.Map;
  * <p>The tool keeps no session between steps, so the request carries everything the step starts
  * from: the questionnaire being answered, the QuestionnaireResponse so far, and the answers the
  * tester is adding. The fields every protocol shares are described on {@link RunRequest}. The
- * member, the provider and the codes are not sent by this step. They are taken so the run is
- * recorded against the same case as the steps before it.
+ * member, the provider and the codes are not sent as resources by this step. They are taken so the
+ * run is recorded against the same case as the steps before it, so each answer added can name the
+ * provider as its author, and so a response built from nothing can say which coverage and which
+ * orders it is for. Each of those is said by a local id, never by the member ID or the NPI.
  *
  * @param questionnaire         the Questionnaire resource as the package step returned it, as JSON
  *                              text. Needed for the first step only
@@ -24,6 +26,9 @@ import java.util.Map;
  *                              text. Blank for the first step
  * @param answers               the answers to add. An answer to a question already answered
  *                              replaces the earlier one, which is how an earlier answer is changed
+ * @param wrapInParameter       blank to send the QuestionnaireResponse by itself. Otherwise the name
+ *                              of the parameter to send it under, inside a Parameters resource, for
+ *                              a service that takes next-question that way
  */
 public record DtrNextQuestionRequest(
         MemberDetail member,
@@ -35,6 +40,7 @@ public record DtrNextQuestionRequest(
         String questionnaire,
         String questionnaireResponse,
         List<DtrAnswerInput> answers,
+        String wrapInParameter,
         String scenarioId,
         String expected,
         String testerRef,
@@ -77,6 +83,7 @@ public record DtrNextQuestionRequest(
         private String questionnaire;
         private String questionnaireResponse;
         private List<DtrAnswerInput> answers = List.of();
+        private String wrapInParameter;
         private String scenarioId;
         private String expected;
         private String testerRef;
@@ -136,6 +143,11 @@ public record DtrNextQuestionRequest(
             return this;
         }
 
+        public Builder wrapInParameter(String value) {
+            this.wrapInParameter = value;
+            return this;
+        }
+
         public Builder scenarioId(String value) {
             this.scenarioId = value;
             return this;
@@ -188,8 +200,8 @@ public record DtrNextQuestionRequest(
 
         public DtrNextQuestionRequest build() {
             return new DtrNextQuestionRequest(member, memberOverrides, provider, providerOverrides, procedureCodes, dateOfService,
-                    questionnaire, questionnaireResponse, answers, scenarioId, expected, testerRef, note, chainId, request, rawBody,
-                    variables, carry, configEpoch, Map.of());
+                    questionnaire, questionnaireResponse, answers, wrapInParameter, scenarioId, expected, testerRef, note, chainId, request,
+                    rawBody, variables, carry, configEpoch, Map.of());
         }
     }
 }

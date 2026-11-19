@@ -81,8 +81,8 @@ public final class DtrOutcomeRules {
             return DtrOutcome.MALFORMED_QUESTIONNAIRE;
         }
         if (questionnaires.isEmpty()) {
-            // A body in one of the shapes a package arrives in, with no questionnaire in it, is the
-            // service answering and saying nothing. A body in no such shape cannot be used at all.
+            // A body in one of the shapes a package arrives in, with no questionnaire in it, is an
+            // empty package and has its own outcome. A body in no such shape cannot be used at all.
             boolean packageShape = kind == DtrResponseKind.PARAMETERS || kind == DtrResponseKind.BUNDLE
                     || kind == DtrResponseKind.OPERATION_OUTCOME;
             return packageShape ? DtrOutcome.NO_QUESTIONNAIRE : DtrOutcome.MALFORMED_QUESTIONNAIRE;

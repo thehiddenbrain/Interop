@@ -446,6 +446,42 @@ class DtrResponseMapperTest {
                 "https://example.org/p32h-placeholder/Questionnaire/a", "https://example.org/p32h-placeholder/Questionnaire/b");
         assertThat(reading.ledgerCodes()).containsExactly("questionnaires=2", "questionnaire[1]: questionnaire-kind=static",
                 "questionnaire[1]: questions=2", "questionnaire[2]: questionnaire-kind=static", "questionnaire[2]: questions=2");
+        // Each questionnaire says which response the package carries for it, so the step that answers it knows where to start.
+        assertThat(reading.detail().questionnaires().get(0).arrivedWith()).isNull();
+        assertThat(reading.detail().questionnaires().get(1).arrivedWith()).isEqualTo("entry[2].resource")
+                .isEqualTo(reading.detail().questionnaireResponses().get(0).foundAt());
+    }
+
+    @Test
+    void aResponseThatCarriesItsQuestionnaireInsideItselfIsTiedByWhatThatQuestionnaireIsDerivedFrom() {
+        String adaptive = "{\"resourceType\":\"Questionnaire\",\"url\":\"https://example.org/p32h-placeholder/Questionnaire/adaptive\","
+                + "\"version\":\"2.0\",\"title\":\"Adaptive\",\"extension\":[{\"url\":\"http://hl7.org/fhir/uv/sdc/StructureDefinition/"
+                + "sdc-questionnaire-questionnaireAdaptive\",\"valueUrl\":\"https://example.org/p32h-placeholder/fhir\"}]}";
+        String other = "{\"resourceType\":\"Questionnaire\",\"url\":\"https://example.org/p32h-placeholder/Questionnaire/other\","
+                + "\"title\":\"Other\",\"item\":[{\"linkId\":\"q1\",\"type\":\"boolean\"}]}";
+        String draft = "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"inside\","
+                + "%s\"status\":\"active\"}],\"questionnaire\":\"#inside\",\"status\":\"in-progress\"}";
+        String bundle = "{\"resourceType\":\"Bundle\",\"type\":\"collection\",\"entry\":[{\"resource\":" + other + "},{\"resource\":"
+                + adaptive + "},{\"resource\":%s}]}";
+
+        // The shape the guides publish: no url of its own, and derived from the questionnaire being completed.
+        DtrReading derived = readPackage(bundle.formatted(draft.formatted(
+                "\"derivedFrom\":[\"https://example.org/p32h-placeholder/Questionnaire/adaptive|2.0\"],")));
+        assertThat(derived.detail().questionnaires()).extracting(QuestionnaireView::subject).containsExactly("Other", "Adaptive");
+        assertThat(derived.detail().questionnaires().get(0).arrivedWith()).isNull();
+        assertThat(derived.detail().questionnaires().get(1).arrivedWith()).isEqualTo("entry[2].resource");
+        // The questionnaire inside the response is not a questionnaire of the package, and is not counted as one.
+        assertThat(derived.ledgerCodes()).contains("questionnaires=2");
+        // Nothing of it is lost: what the package step does not interpret is listed as returned.
+        assertThat(derived.additionalFields()).extracting(field -> field.path()).contains("entry[2].resource.contained[0].derivedFrom[0]");
+
+        // Derived from a questionnaire the package does not hold: tied to neither.
+        DtrReading elsewhere = readPackage(bundle.formatted(draft.formatted(
+                "\"derivedFrom\":[\"https://example.org/p32h-placeholder/Questionnaire/elsewhere\"],")));
+        assertThat(elsewhere.detail().questionnaires()).extracting(QuestionnaireView::arrivedWith).containsOnlyNulls();
+        // Saying nothing about where it comes from, among two questionnaires: tied to neither. Nothing is guessed.
+        DtrReading unnamed = readPackage(bundle.formatted(draft.formatted("")));
+        assertThat(unnamed.detail().questionnaires()).extracting(QuestionnaireView::arrivedWith).containsOnlyNulls();
     }
 
     // ---- a fault is read with the same care as a success ----
@@ -592,6 +628,43 @@ class DtrResponseMapperTest {
         assertThat(values(reading.detail().questionnaireResponses().get(0).items().get(0).answers())).containsExactly("given");
         assertThat(reading.detail().form()).isNull();
         assertThat(reading.additionalFields()).isEmpty();
+    }
+
+    @Test
+    void whereEachAnswerCameFromIsInTheDesignedViewAndAPartOfItNobodyAnticipatedIsStillListed() {
+        String origin = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/information-origin";
+        String body = "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"item\":["
+                + "{\"linkId\":\"q1\",\"type\":\"string\"},{\"linkId\":\"q2\",\"type\":\"string\"},{\"linkId\":\"q3\",\"type\":\"string\"}]}],"
+                + "\"questionnaire\":\"#q\",\"status\":\"in-progress\",\"item\":["
+                + "{\"linkId\":\"q1\",\"answer\":[{\"extension\":[{\"url\":\"" + origin + "\",\"extension\":[{\"url\":\"source\","
+                + "\"valueCode\":\"auto\"}]}],\"valueString\":\"pre-populated\"}]},"
+                + "{\"linkId\":\"q2\",\"answer\":[{\"extension\":[{\"url\":\"https://example.org/p32h-placeholder/score\",\"valueInteger\":3},"
+                + "{\"url\":\"" + origin + "\",\"extension\":[{\"url\":\"source\",\"valueCode\":\"override\"},{\"url\":\"author\",\"extension\":["
+                + "{\"url\":\"role\",\"valueCodeableConcept\":{\"coding\":[{\"system\":\"http://terminology.hl7.org/CodeSystem/practitioner-role\","
+                + "\"code\":\"doctor\",\"display\":\"Doctor\"}]}},{\"url\":\"practitioner\",\"valueReference\":{\"reference\":"
+                + "\"Practitioner/practitioner-1\"}}]},{\"url\":\"surprise\",\"valueString\":\"never heard of it\"}]}],"
+                + "\"valueString\":\"changed\"}]},"
+                + "{\"linkId\":\"q3\",\"answer\":[{\"valueString\":\"says nothing\"}]}]}";
+        DtrReading reading = readStep(200, body);
+        List<ResponseItemView> items = reading.detail().questionnaireResponses().get(0).items();
+        // One origin for each answer, in the same order as the answers.
+        assertThat(items).allSatisfy(item -> assertThat(item.origins()).hasSameSizeAs(item.answers()));
+        assertThat(items.get(0).origins().get(0).source().value()).isEqualTo("auto");
+        assertThat(items.get(0).origins().get(0).author().presence()).isEqualTo(Presence.ABSENT);
+        assertThat(items.get(1).origins().get(0).source().value()).isEqualTo("override");
+        assertThat(items.get(1).origins().get(0).author().value()).isEqualTo("Practitioner/practitioner-1");
+        assertThat(values(items.get(1).origins().get(0).roles())).singleElement().satisfies(role -> assertThat(role).contains("Doctor"));
+        // An answer that says nothing about where it came from is shown as saying nothing, which the guide does not allow.
+        assertThat(items.get(2).origins().get(0).source().presence()).isEqualTo(Presence.ABSENT);
+        // Any other extension on an answer is shown by its url and its value.
+        assertThat(items.get(1).answerExtensions()).singleElement().satisfies(extension -> {
+            assertThat(extension.url().value()).isEqualTo("https://example.org/p32h-placeholder/score");
+            assertThat(extension.value().value()).isEqualTo("3");
+        });
+        assertThat(items.get(0).answerExtensions()).isEmpty();
+        // What the origin held that this tool was never told about is not swallowed with the rest of it.
+        assertThat(paths(reading)).containsExactly("item[1].answer[0].extension[1].extension[2].url",
+                "item[1].answer[0].extension[1].extension[2].valueString");
     }
 
     @Test

@@ -18,7 +18,7 @@
     }
   },
   "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
-  "assumption": "How the live service reports a failure of its rules in the middle of the adaptive loop is not known. This file models an HTTP 500 carrying a FHIR OperationOutcome.",
+  "assumption": "How the live service reports a failure of its rules in the middle of the adaptive loop is not known. This file models an HTTP 500 carrying a FHIR OperationOutcome. The marker is the boolean form, which DTR 2.0.1 allows and later versions do not. The questionnaire inside each response carries the url of the one in the package and no derivedFrom, which is not how the guides tie the two: this tool then ties them by that url.",
   "nextQuestion": {
     "rule": "The step is chosen from the answers in the QuestionnaireResponse that was sent. With no answer to the first question the service asks it. With any answer to it the service fails.",
     "select": [

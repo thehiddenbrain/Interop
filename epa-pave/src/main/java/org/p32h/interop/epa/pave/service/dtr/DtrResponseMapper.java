@@ -12,6 +12,7 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.dtr.AnswerOptionView;
+import org.p32h.interop.epa.pave.model.dtr.AnswerOriginView;
 import org.p32h.interop.epa.pave.model.dtr.AnswerView;
 import org.p32h.interop.epa.pave.model.dtr.ChangesView;
 import org.p32h.interop.epa.pave.model.dtr.ConditionState;
@@ -213,14 +214,11 @@ public final class DtrResponseMapper {
     private QuestionnaireView packaged(TrackedJson.Node node, int position, Walk walk) {
         JsonNode raw = node.raw();
         JsonNode answered = null;
+        String arrivedWith = null;
         for (TrackedJson.Node response : walk.responses) {
-            String names = JsonSafe.presentText(response.raw(), "questionnaire");
-            // A response that names no questionnaire is taken to answer the only one in the
-            // package. One that names another questionnaire is never tied to this one.
-            boolean forThis = names != null ? QuestionnaireJson.names(names, raw)
-                    : walk.questionnaires.size() == 1 && walk.responses.size() == 1;
-            if (forThis) {
+            if (carriedFor(response.raw(), raw, walk)) {
                 answered = response.raw();
+                arrivedWith = response.path();
                 break;
             }
         }
@@ -236,7 +234,22 @@ public final class DtrResponseMapper {
                     + "with no answers for it.";
         }
         return questionnaire(node, position, node.path(), EnableWhenEvaluator.evaluate(raw, answers),
-                answered == null ? Map.of() : QuestionnaireJson.answers(answered), basis);
+                answered == null ? Map.of() : QuestionnaireJson.answers(answered), basis, arrivedWith);
+    }
+
+    /**
+     * True when a response of a package is the one it carries for this questionnaire. A response
+     * that names a questionnaire, by canonical url or through the questionnaire inside it, is tied
+     * to the one it names and to no other. One that names none at all is taken to answer the only
+     * questionnaire in the package.
+     */
+    private static boolean carriedFor(JsonNode response, JsonNode questionnaire, Walk walk) {
+        List<String> named = OnyxDtrConventions.completes(response);
+        if (!named.isEmpty()) {
+            return named.stream().anyMatch(canonical -> QuestionnaireJson.names(canonical, questionnaire));
+        }
+        // A local reference that leads to nothing which names a questionnaire is still a statement about which one, so it is not tied.
+        return JsonSafe.presentText(response, "questionnaire") == null && walk.questionnaires.size() == 1 && walk.responses.size() == 1;
     }
 
     /** The answers a questionnaire starts with by its own account: initial values, and options it marks as selected. */
@@ -335,7 +348,7 @@ public final class DtrResponseMapper {
                 if (questionnaireNode != null) {
                     Form evaluated = EnableWhenEvaluator.evaluate(rawQuestionnaire, QuestionnaireJson.answers(rawResponse));
                     questionnaire = questionnaire(questionnaireNode, 1, questionnaireNode.path(), evaluated, Map.of(),
-                            "The conditions were evaluated against the answers in the QuestionnaireResponse the service returned.");
+                            "The conditions were evaluated against the answers in the QuestionnaireResponse the service returned.", null);
                     form = formState(evaluated, rawResponse, response.status(), progress == Progress.COMPLETED, List.of(),
                             changes(sent, rawQuestionnaire, rawResponse));
                 } else {
@@ -367,7 +380,7 @@ public final class DtrResponseMapper {
     public DtrReading describeResponse(JsonNode questionnaire, JsonNode response, Form evaluated, QuestionnaireKind answeredAs,
                                        Progress progress, boolean builtHere, List<String> notes) {
         QuestionnaireView questionnaireView = questionnaire(TrackedJson.of(questionnaire).root(), 1, "As posted with the request", evaluated,
-                Map.of(), "The conditions were evaluated against the answers given.");
+                Map.of(), "The conditions were evaluated against the answers given.", null);
         QuestionnaireResponseView responseView = response(TrackedJson.of(response).root(),
                 builtHere ? "Put together by this tool" : "As the service last returned it");
         FormStateView form = formState(evaluated, response, responseView.status(),
@@ -469,7 +482,7 @@ public final class DtrResponseMapper {
     // ---- the views ----
 
     private QuestionnaireView questionnaire(TrackedJson.Node node, int position, String foundAt, Form form,
-                                            Map<String, List<JsonNode>> prepopulated, String answersBasis) {
+                                            Map<String, List<JsonNode>> prepopulated, String answersBasis, String arrivedWith) {
         JsonNode raw = node.raw();
         node.text("resourceType");
         Shown id = node.shown("id");
@@ -497,7 +510,7 @@ public final class DtrResponseMapper {
         return new QuestionnaireView(position, foundAt, subject, id, url, version, QuestionnaireJson.canonical(raw), name, title, status,
                 date, publisher, description, profiles, derivedFrom, kind.kind(), kind.basis(), questions.size(),
                 (int) questions.stream().filter(state -> state.item().required()).count(), items, extensions, contained,
-                QuestionnaireJson.problems(raw), answersBasis, JsonSafe.compact(raw));
+                QuestionnaireJson.problems(raw), answersBasis, arrivedWith, JsonSafe.compact(raw));
     }
 
     private List<ItemView> items(TrackedJson.Node parent, String prefix, Form form, Map<String, List<JsonNode>> prepopulated) {
@@ -575,8 +588,9 @@ public final class DtrResponseMapper {
         Shown authored = node.shown("authored");
         Shown subject = node.child("subject").exists() ? FhirViews.reference(node.child("subject")) : Shown.absent();
         Shown author = node.child("author").exists() ? FhirViews.reference(node.child("author")) : Shown.absent();
+        List<Shown> profiles = each(node.child("meta").children("profile"));
         List<ResponseItemView> items = responseItems(node.child("item"), "item");
-        return new QuestionnaireResponseView(foundAt, id, questionnaire, status, authored, subject, author, items, extensions(node),
+        return new QuestionnaireResponseView(foundAt, id, questionnaire, status, authored, subject, author, profiles, items, extensions(node),
                 QuestionnaireJson.answers(raw).size(), JsonSafe.compact(raw));
     }
 
@@ -587,20 +601,72 @@ public final class DtrResponseMapper {
             String path = prefix + "[" + index + "]";
             if (item.isObject()) {
                 List<Shown> answers = new ArrayList<>();
+                List<AnswerOriginView> origins = new ArrayList<>();
+                List<ExtensionView> answerExtensions = new ArrayList<>();
                 List<ResponseItemView> nested = new ArrayList<>(responseItems(item.child("item"), path + ".item"));
                 int answerIndex = 0;
                 for (TrackedJson.Node answer : item.children("answer")) {
                     if (answer.isObject()) {
                         answers.add(typed(answer, "value"));
+                        origins.add(origin(answer, answerExtensions));
                         nested.addAll(responseItems(answer.child("item"), path + ".answer[" + answerIndex + "].item"));
                     }
                     answerIndex++;
                 }
-                out.add(new ResponseItemView(path, item.shown("linkId"), item.shown("text"), answers, nested));
+                out.add(new ResponseItemView(path, item.shown("linkId"), item.shown("text"), answers, origins, answerExtensions, nested));
             }
             index++;
         }
         return out;
+    }
+
+    /**
+     * Where an answer came from, read from its information-origin extension: the source, the
+     * practitioner named as the author, and each role given. Every other extension the answer
+     * carries is shown by its url and value. A part of the origin this mapper was never told about
+     * is not read here, so it stays among the fields that were returned and not interpreted.
+     *
+     * @param others receives the other extensions of the answer
+     */
+    private static AnswerOriginView origin(TrackedJson.Node answer, List<ExtensionView> others) {
+        AnswerOriginView origin = AnswerOriginView.notStated();
+        for (TrackedJson.Node extension : answer.children("extension")) {
+            if (!extension.isObject()) {
+                continue;
+            }
+            if (!OnyxDtrConventions.EXT_INFORMATION_ORIGIN.equals(JsonSafe.presentText(extension.raw(), "url"))) {
+                Shown url = extension.shown("url");
+                Shown value = FhirViews.extensionValue(extension) != null ? FhirViews.extensionValueShown(extension)
+                        : extension.child("extension").exists() ? extension.shown("extension") : Shown.absent();
+                others.add(new ExtensionView(url, value));
+                continue;
+            }
+            extension.text("url");
+            Shown source = Shown.absent();
+            Shown author = Shown.absent();
+            List<Shown> roles = new ArrayList<>();
+            for (TrackedJson.Node part : extension.children("extension")) {
+                String name = JsonSafe.presentText(part.raw(), "url");
+                if ("source".equals(name)) {
+                    part.text("url");
+                    source = part.shown("valueCode");
+                } else if ("author".equals(name)) {
+                    part.text("url");
+                    for (TrackedJson.Node detail : part.children("extension")) {
+                        String detailName = JsonSafe.presentText(detail.raw(), "url");
+                        if ("practitioner".equals(detailName)) {
+                            detail.text("url");
+                            author = FhirViews.reference(detail.child("valueReference"));
+                        } else if ("role".equals(detailName)) {
+                            detail.text("url");
+                            roles.add(FhirViews.concept(detail.child("valueCodeableConcept")));
+                        }
+                    }
+                }
+            }
+            origin = new AnswerOriginView(source, author, roles);
+        }
+        return origin;
     }
 
     /** A resource that is neither a questionnaire nor a response: its identity, and for a value set or a library what it holds. */

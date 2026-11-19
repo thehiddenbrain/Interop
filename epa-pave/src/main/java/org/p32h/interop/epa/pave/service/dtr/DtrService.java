@@ -42,6 +42,7 @@ import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
+import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunRequest;
@@ -83,6 +84,9 @@ public class DtrService {
      * urn, with a version after a bar when it has one.
      */
     private static final Pattern CANONICAL = Pattern.compile("(?i)(?:https?://|urn:)[^\\s\"{}<>\\\\]{1,300}");
+
+    /** The name of a FHIR operation parameter: a short token, so nothing typed here can be mistaken for content. */
+    private static final Pattern PARAMETER_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9-]{0,63}");
 
     private final EpaProperties epa;
     private final OperationGateway gateway;
@@ -221,10 +225,13 @@ public class DtrService {
                 requestNotes.add("The questionnaire, the response so far and the answers on the form were not added to the body you "
                         + "supplied. Only what the body itself holds was sent.");
             }
+            if (Texts.present(request.wrapInParameter())) {
+                requestNotes.add("The body you supplied was not put inside a Parameters resource. It was sent exactly as written.");
+            }
         } else {
-            DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock());
+            DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request), support.clock(), request.wrapInParameter());
             body = ResolvedText.plain(built.json());
-            requestNotes.addAll(loopNotes(posted, built));
+            requestNotes.addAll(loopNotes(posted, built, call));
             sent = built.response();
         }
 
@@ -232,7 +239,7 @@ public class DtrService {
 
         String runId = RunStamps.newRunId();
         String packageRun = DtrHandoff.first(request.carry(), NextStepView.CARRY_RUN_ID);
-        String answering = DtrHandoff.answeredBy(sent);
+        String answering = first(OnyxDtrConventions.completes(sent));
         Map<String, String> known = correlation(packageRun, listOf(answering));
         // The questionnaire and the answers so far came from earlier steps and are not on the line,
         // so the line alone can never rebuild this request.
@@ -241,8 +248,8 @@ public class DtrService {
         Interpreted read;
         try {
             DtrReading reading = mapper.readNextQuestion(exchange, sent);
-            // The questionnaire as the service returned it, else the one that was sent.
-            String answered = reading.canonicals().isEmpty() ? answering : reading.canonicals().get(0);
+            // The questionnaire being completed as the response that came back names it, else as the one that was sent did.
+            String answered = Texts.orElse(first(OnyxDtrConventions.completes(QuestionnaireJson.findResponse(exchange.json()))), answering);
             DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), answered, request.carry());
             read = interpret(operation, request, call, exchange, reading, handoff, correlation(packageRun, listOf(answered)));
         } catch (RuntimeException e) {
@@ -264,8 +271,8 @@ public class DtrService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request.rawBody(), null);
         }
-        DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, request.member(), support.clock());
-        return RequestPreview.of(operation, call, built.json(), loopNotes(posted, built), null);
+        DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request), support.clock(), request.wrapInParameter());
+        return RequestPreview.of(operation, call, built.json(), loopNotes(posted, built, call), null);
     }
 
     /**
@@ -274,11 +281,24 @@ public class DtrService {
      * questionnaire that is not marked adaptive is sent all the same, because what the service
      * makes of it is a test a tester is entitled to run.
      */
-    private static List<String> loopNotes(DtrAnswers.Posted posted, DtrRequestBuilder.LoopBody built) {
+    private static List<String> loopNotes(DtrAnswers.Posted posted, DtrRequestBuilder.LoopBody built, PreparedCall call) {
         List<String> notes = new ArrayList<>(built.notes());
         OnyxDtrConventions.Kind kind = OnyxDtrConventions.kind(posted.questionnaire());
         if (kind.kind() != QuestionnaireKind.ADAPTIVE) {
             notes.add("The questionnaire is not marked as adaptive. " + kind.basis() + " The next-question request is sent all the same.");
+        }
+        if (kind.nextQuestionBase() != null) {
+            // The guide has the questionnaire say where next-question is called for it. A url is never taken from a response:
+            // the gateway is the one source of where a call goes. So the two are compared, and the tester is told.
+            String names = "The questionnaire names " + kind.nextQuestionBase() + " as the base address for next-question. ";
+            if (!call.url().resolved()) {
+                notes.add(names + "This tool sends to the address configured for the environment, and never takes one from a response.");
+            } else if (OnyxDtrConventions.nextQuestionAddresses(kind.nextQuestionBase()).contains(call.url().value().replaceAll("/+$", ""))) {
+                notes.add(names + "This request goes to an address the DTR guide derives from it.");
+            } else {
+                notes.add(names + "This request goes to the address configured for the environment, " + call.url().display()
+                        + ", which is not one the DTR guide derives from it. This tool never takes an address from a response.");
+            }
         }
         return notes;
     }
@@ -305,11 +325,11 @@ public class DtrService {
         EpaOperation operation = EpaOperation.DTR_RESPONSE;
         EnvironmentRef environment = gateway.activeEnvironment();
 
-        DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted, request.member(), support.clock(), builder, mapper);
+        DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted, filler(request), support.clock(), builder, mapper);
         DtrReading reading = assembled.reading();
         String runId = RunStamps.newRunId();
         String packageRun = DtrHandoff.first(request.carry(), NextStepView.CARRY_RUN_ID);
-        String canonical = QuestionnaireJson.canonical(posted.questionnaire());
+        String canonical = completing(posted, assembled.response());
         List<String> questionnaires = listOf(canonical);
         DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), canonical, request.carry());
 
@@ -466,10 +486,13 @@ public class DtrService {
             if (!request.procedureCodes().isEmpty()) {
                 inputs.codes(request.procedureCodes());
             } else {
-                // A step that follows CRD takes the codes CRD was asked about. A questionnaire can
-                // also be asked for by its canonical url alone, with no order at all.
-                inputs.require(!DtrRequestBuilder.codes(request).isEmpty() || !DtrRequestBuilder.canonicals(request).isEmpty(),
-                        "procedureCodes", "Choose at least one procedure code, or name a questionnaire to ask for.");
+                // A step that follows CRD takes the codes CRD was asked about. The guide also lets a
+                // package be asked for with no order at all: by canonical url, or by the context alone,
+                // which is all there is to ask by after a PAS response.
+                boolean context = Texts.present(request.coverageAssertionId())
+                        || !DtrHandoff.values(request.carry(), NextStepView.CARRY_COVERAGE_ASSERTION_ID).isEmpty();
+                inputs.require(!DtrRequestBuilder.codes(request).isEmpty() || !DtrRequestBuilder.canonicals(request).isEmpty() || context,
+                        "procedureCodes", "Choose at least one procedure code, or give a questionnaire or a coverage assertion id to ask by.");
             }
         }
         for (int i = 0; i < request.questionnaires().size(); i++) {
@@ -493,6 +516,10 @@ public class DtrService {
             posted = DtrAnswers.read(request.questionnaire(), request.questionnaireResponse(), request.answers());
             posted.errors().forEach(error -> inputs.require(false, error.field(), error.message()));
         }
+        inputs.require(Texts.blank(request.wrapInParameter()) || PARAMETER_NAME.matcher(request.wrapInParameter().strip()).matches(),
+                "wrapInParameter", "Leave this empty to send the QuestionnaireResponse by itself. To send it inside a Parameters resource, "
+                        + "give the name of the parameter to put it under: " + OnyxDtrConventions.WRAP_SDC + " as SDC defines it, or "
+                        + OnyxDtrConventions.WRAP_DTR_BALLOT + " as DTR 2.2.0-ballot defines it.");
         optionalCase(inputs, request);
         carriedRun(inputs, request);
         inputs.date("dateOfService", request.dateOfService())
@@ -518,8 +545,9 @@ public class DtrService {
     }
 
     /**
-     * The member, the provider and the codes of a step that does not send them. They are taken so
-     * the run is recorded against the same case as the steps before it, so each is optional, and
+     * The member, the provider and the codes of a step that sends none of them as a resource. They
+     * are taken so the run is recorded against the same case as the steps before it, and so the
+     * response can say who answered and which case it is for. So each is optional, and
      * whatever is given is still checked.
      */
     private static void optionalCase(RunInputs inputs, RunRequest request) {
@@ -579,6 +607,25 @@ public class DtrService {
         return typed.isEmpty() ? DtrHandoff.values(request.carry(), NextStepView.CARRY_PROCEDURE_CODES) : typed;
     }
 
+    /**
+     * Who is answering and for which case, for a step that answers a questionnaire. The orders are
+     * the ones the package request for this case carries, chosen by the same rule: the orders CRD's
+     * answer applied to when it handed any on that this tool builds, otherwise one for each code.
+     */
+    private static DtrRequestBuilder.Filler filler(RunRequest request) {
+        List<String> carried = DtrHandoff.values(request.carry(), NextStepView.CARRY_ORDER);
+        List<String> every = new ArrayList<>();
+        List<String> chosen = new ArrayList<>();
+        for (int position = 1; position <= caseCodes(request).size(); position++) {
+            String reference = CaseResources.serviceRequestRef(position);
+            every.add(reference);
+            if (carried.contains(reference) || carried.contains(CaseResources.serviceRequestId(position))) {
+                chosen.add(reference);
+            }
+        }
+        return new DtrRequestBuilder.Filler(request.member(), request.provider(), chosen.isEmpty() ? every : chosen);
+    }
+
     /** True when the form names a questionnaire or a coverage assertion id, both of which an earlier answer supplied. */
     private static boolean typedFromAnEarlierAnswer(DtrPackageRequest request) {
         return request.questionnaires().stream().anyMatch(Texts::present) || Texts.present(request.coverageAssertionId());
@@ -614,6 +661,22 @@ public class DtrService {
                     .toList()));
         }
         return correlation;
+    }
+
+    /**
+     * The canonical url of the questionnaire a response step is completing. A response from the
+     * adaptive loop says which through the questionnaire inside it. A conventional form is the
+     * questionnaire of the package itself, named by its own url, so that its line carries the same
+     * name as the package fetch it came from.
+     */
+    private static String completing(DtrAnswers.Posted posted, JsonNode response) {
+        String own = QuestionnaireJson.canonical(posted.questionnaire());
+        boolean inside = QuestionnaireJson.containedQuestionnaire(response) != null;
+        return inside || own == null ? first(OnyxDtrConventions.completes(response)) : own;
+    }
+
+    private static String first(List<String> canonicals) {
+        return canonicals.isEmpty() ? null : canonicals.get(0);
     }
 
     private static List<String> listOf(String canonical) {

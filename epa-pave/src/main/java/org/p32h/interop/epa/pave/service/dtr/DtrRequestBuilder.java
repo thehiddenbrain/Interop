@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Texts;
@@ -16,6 +17,7 @@ import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -74,6 +76,41 @@ public final class DtrRequestBuilder {
         @Override
         public String toString() {
             return "LoopBody[notes=" + (notes == null ? 0 : notes.size()) + "]";
+        }
+    }
+
+    /**
+     * Who is filling a response in, and for which case. A step that sends none of this as a resource
+     * still needs it: the DTR guide has a client say on each answer a person gives who gave it, and
+     * on a response which coverage and which order it is for.
+     *
+     * @param orders the references of the orders the case is about, such as
+     *               {@code ServiceRequest/service-request-1}, under the ids this tool gives them in
+     *               every request it builds
+     */
+    public record Filler(MemberDetail member, ProviderDetail provider, List<String> orders) {
+
+        public Filler {
+            orders = orders == null ? List.of() : List.copyOf(orders);
+        }
+
+        /** Nobody in particular: a response is still built, and says less. */
+        public static Filler of(MemberDetail member) {
+            return new Filler(member, null, List.of());
+        }
+
+        boolean namesAProvider() {
+            return provider != null && Texts.present(provider.npi());
+        }
+
+        boolean namesAMember() {
+            return member != null && Texts.present(member.memberId());
+        }
+
+        /** Redacted, because it holds the member and the provider. */
+        @Override
+        public String toString() {
+            return "Filler[orders=" + orders.size() + "]";
         }
     }
 
@@ -145,30 +182,34 @@ public final class DtrRequestBuilder {
                 sentCodes.add(codes.get(position - 1).code().strip());
             }
         }
+        List<String> typed = clean(request.questionnaires());
+        List<String> canonicals = canonicals(request);
+        String typedAssertion = Texts.trimToNull(request.coverageAssertionId());
+        List<String> carriedAssertions = carried(carry, NextStepView.CARRY_COVERAGE_ASSERTION_ID);
+        String assertion = typedAssertion != null ? typedAssertion : carriedAssertions.isEmpty() ? null : carriedAssertions.get(0);
         if (codes.isEmpty()) {
-            notes.add("No order was sent, because the request names no procedure code. The service is asked for the questionnaires by "
-                    + "their canonical url alone.");
+            String askedBy = !canonicals.isEmpty()
+                    ? "The service is asked for the questionnaires by their canonical url" + (assertion == null ? " alone." : ", with the context.")
+                    : assertion != null ? "The service is asked by the context alone."
+                    : "The request gives the service nothing but the coverage to choose a questionnaire by.";
+            notes.add("No order was sent, because the request names no procedure code. " + askedBy);
         }
         // What the orders and the coverage refer to travels with them, so no reference is left pointing at nothing.
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", resources.patient(member, variables, notes));
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitionerRole());
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitioner(request.provider()));
 
-        List<String> typed = clean(request.questionnaires());
-        List<String> canonicals = canonicals(request);
         for (String canonical : canonicals) {
             parameters.addObject().put("name", OnyxDtrConventions.PARAM_QUESTIONNAIRE).put("valueCanonical", canonical);
         }
         if (canonicals.isEmpty()) {
-            notes.add("The request names no questionnaire, so the service chooses from the coverage and the order.");
+            notes.add("The request names no questionnaire, so the service chooses from the coverage"
+                    + (!codes.isEmpty() ? " and the order." : assertion != null ? " and the context." : "."));
         } else {
             notes.add("The request asks for the " + (canonicals.size() == 1 ? "questionnaire" : "questionnaires") + " "
                     + (typed.isEmpty() ? "CRD named" : "given on the form") + ": " + String.join(", ", canonicals) + ".");
         }
 
-        String typedAssertion = Texts.trimToNull(request.coverageAssertionId());
-        List<String> carriedAssertions = carried(carry, NextStepView.CARRY_COVERAGE_ASSERTION_ID);
-        String assertion = typedAssertion != null ? typedAssertion : carriedAssertions.isEmpty() ? null : carriedAssertions.get(0);
         if (assertion == null) {
             notes.add("No context was sent: no coverage assertion id was handed on by CRD or given on the form.");
         } else {
@@ -224,6 +265,15 @@ public final class DtrRequestBuilder {
      * @param posted what the request carried, already checked and free of errors
      */
     public LoopBody buildNextQuestion(DtrAnswers.Posted posted, MemberDetail member, Clock clock) {
+        return buildNextQuestion(posted, Filler.of(member), clock, null);
+    }
+
+    /**
+     * @param filler          who is answering and for which case, so each answer added says who gave it
+     * @param wrapInParameter blank to send the QuestionnaireResponse by itself, otherwise the name
+     *                        of the parameter to send it under inside a Parameters resource
+     */
+    public LoopBody buildNextQuestion(DtrAnswers.Posted posted, Filler filler, Clock clock, String wrapInParameter) {
         List<String> notes = new ArrayList<>();
         ObjectNode response;
         if (posted.response() != null) {
@@ -241,14 +291,16 @@ public final class DtrRequestBuilder {
         } else {
             response = JSON.objectNode();
             response.put("resourceType", "QuestionnaireResponse");
+            caseOf(response, filler, notes);
             contain(response, posted.questionnaire(), notes);
             response.put("status", OnyxDtrConventions.STATUS_IN_PROGRESS);
-            subject(response, member, notes);
+            subject(response, filler.member(), notes);
             response.put("authored", RunStamps.timestamp(clock));
         }
         JsonNode inside = QuestionnaireJson.containedQuestionnaire(response);
+        Map<String, List<JsonNode>> answers = withOrigins(posted, filler, notes);
         // Every answer goes: in the adaptive loop the service decides which questions still apply.
-        ArrayNode items = QuestionnaireJson.buildItems(QuestionnaireJson.items(inside), posted.merged(),
+        ArrayNode items = QuestionnaireJson.buildItems(QuestionnaireJson.items(inside), answers,
                 QuestionnaireJson.responseItems(posted.response()), item -> true);
         if (items.isEmpty()) {
             response.remove("item");
@@ -259,7 +311,11 @@ public final class DtrRequestBuilder {
             notes.add("The response so far holds an answer for " + linkId + ", which is not a question of its questionnaire. It was not "
                     + "sent: a response is built from the questionnaire it answers.");
         }
-        return new LoopBody(response, JsonSafe.pretty(OnyxDtrConventions.nextQuestionBody(response)), List.copyOf(notes));
+        if (Texts.present(wrapInParameter)) {
+            notes.add("The QuestionnaireResponse was put inside a Parameters resource, under the parameter " + wrapInParameter.strip()
+                    + ", as the request asked.");
+        }
+        return new LoopBody(response, JsonSafe.pretty(OnyxDtrConventions.nextQuestionBody(response, wrapInParameter)), List.copyOf(notes));
     }
 
     /**
@@ -269,13 +325,18 @@ public final class DtrRequestBuilder {
      *
      * @param evaluated the questionnaire evaluated against the answers in {@code posted}
      * @param complete  true to mark it completed, false to mark it in progress
+     * @param filler    who is answering and for which case, so each answer added says who gave it
      * @param notes     receives one plain sentence for each thing left out or worked out
      */
-    public ObjectNode buildResponse(DtrAnswers.Posted posted, EnableWhenEvaluator.Form evaluated, boolean complete, MemberDetail member,
+    public ObjectNode buildResponse(DtrAnswers.Posted posted, EnableWhenEvaluator.Form evaluated, boolean complete, Filler filler,
                                     Clock clock, List<String> notes) {
+        MemberDetail member = filler.member();
         ObjectNode response = posted.response() != null ? (ObjectNode) posted.response().deepCopy() : JSON.objectNode();
         if (!response.has("resourceType")) {
             response.put("resourceType", "QuestionnaireResponse");
+        }
+        if (posted.response() == null) {
+            caseOf(response, filler, notes);
         }
         if (Texts.blank(JsonSafe.text(response, "questionnaire"))) {
             String canonical = QuestionnaireJson.canonical(posted.questionnaire());
@@ -290,8 +351,8 @@ public final class DtrRequestBuilder {
             subject(response, member, notes);
         }
         response.put("authored", RunStamps.timestamp(clock));
-        ArrayNode items = QuestionnaireJson.buildItems(evaluated.roots(), posted.merged(), QuestionnaireJson.responseItems(posted.response()),
-                evaluated::include);
+        ArrayNode items = QuestionnaireJson.buildItems(evaluated.roots(), withOrigins(posted, filler, notes),
+                QuestionnaireJson.responseItems(posted.response()), evaluated::include);
         if (items.isEmpty()) {
             response.remove("item");
         } else {
@@ -323,6 +384,115 @@ public final class DtrRequestBuilder {
         return answers.keySet().stream().filter(linkId -> !questions.contains(linkId)).toList();
     }
 
+    /**
+     * The answers to put into a response: those it already holds as they are, and the ones being
+     * added in this step marked with where they came from. The DTR guide requires that of a client
+     * whenever a person fills in or changes an answer: the person is named as the author, and the
+     * source is override when the answer was pre-populated before, manual otherwise.
+     *
+     * <p>An answer posted again with the value it already had was neither filled in nor changed, so
+     * it keeps the origin it had. An answer posted as a FHIR answer that already says where it came
+     * from is used as written.
+     */
+    private static Map<String, List<JsonNode>> withOrigins(DtrAnswers.Posted posted, Filler filler, List<String> notes) {
+        Map<String, List<JsonNode>> earlier = posted.response() == null ? Map.of() : QuestionnaireJson.answers(posted.response());
+        Map<String, List<JsonNode>> out = new LinkedHashMap<>(posted.merged());
+        boolean marked = false;
+        for (Map.Entry<String, List<JsonNode>> given : posted.given().entrySet()) {
+            List<JsonNode> before = earlier.getOrDefault(given.getKey(), List.of());
+            if (given.getValue().isEmpty()) {
+                continue;
+            }
+            if (sameValues(before, given.getValue())) {
+                out.put(given.getKey(), before);
+                continue;
+            }
+            boolean populated = before.stream().map(OnyxDtrConventions::originSource)
+                    .anyMatch(source -> OnyxDtrConventions.ORIGIN_AUTO.equals(source) || OnyxDtrConventions.ORIGIN_OVERRIDE.equals(source));
+            List<JsonNode> answers = new ArrayList<>();
+            for (JsonNode answer : given.getValue()) {
+                // An extension element that is not a list is the tester's own malformed answer, sent as written.
+                boolean canBeMarked = OnyxDtrConventions.origin(answer) == null && answer instanceof ObjectNode
+                        && (!answer.has("extension") || answer.get("extension").isArray());
+                if (canBeMarked) {
+                    answers.add(withOrigin((ObjectNode) answer, populated ? OnyxDtrConventions.ORIGIN_OVERRIDE : OnyxDtrConventions.ORIGIN_MANUAL,
+                            filler.namesAProvider()));
+                    marked = true;
+                } else {
+                    answers.add(answer);
+                }
+            }
+            out.put(given.getKey(), answers);
+        }
+        if (marked) {
+            notes.add("Each answer added in this step was marked with the information-origin extension the DTR guide requires of a client: "
+                    + "given by a person, or changed by one where it had been pre-populated. " + (filler.namesAProvider()
+                    ? "The provider on the form is named as its author, by the id this tool gives the Practitioner in every request."
+                    : "No author is named, because the request names no provider. The guide asks for one."));
+        }
+        return out;
+    }
+
+    private static boolean sameValues(List<JsonNode> before, List<JsonNode> given) {
+        if (before.size() != given.size()) {
+            return false;
+        }
+        for (int i = 0; i < before.size(); i++) {
+            String key = QuestionnaireJson.valueKey(before.get(i), "value");
+            if (key == null || !key.equals(QuestionnaireJson.valueKey(given.get(i), "value"))
+                    || !before.get(i).get(key).equals(given.get(i).get(key))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static ObjectNode withOrigin(ObjectNode answer, String source, boolean author) {
+        ObjectNode out = JSON.objectNode();
+        ArrayNode extensions = out.putArray("extension");
+        JsonSafe.elements(answer, "extension").forEach(extension -> extensions.add(extension.deepCopy()));
+        ObjectNode origin = extensions.addObject();
+        ArrayNode parts = origin.putArray("extension");
+        parts.addObject().put("url", "source").put("valueCode", source);
+        if (author) {
+            // The Practitioner resource has this id in every request this tool builds. The NPI itself is not put here.
+            parts.addObject().put("url", "author").putArray("extension").addObject().put("url", "practitioner")
+                    .putObject("valueReference").put("reference", CaseResources.PRACTITIONER_REF);
+        }
+        origin.put("url", OnyxDtrConventions.EXT_INFORMATION_ORIGIN);
+        JsonSafe.properties(answer).forEach(property -> {
+            if (!"extension".equals(property.getKey())) {
+                out.set(property.getKey(), property.getValue().deepCopy());
+            }
+        });
+        return out;
+    }
+
+    /**
+     * Says on a response this tool starts from nothing which coverage and which orders it is for.
+     * A response the package carried already says so, in the payer's own words, and is left alone.
+     */
+    private static void caseOf(ObjectNode response, Filler filler, List<String> notes) {
+        ArrayNode extensions = JSON.arrayNode();
+        if (filler.namesAMember()) {
+            extensions.addObject().put("url", OnyxDtrConventions.EXT_QR_COVERAGE).putObject("valueReference")
+                    .put("reference", CaseResources.COVERAGE_REF);
+        }
+        for (String order : filler.orders()) {
+            extensions.addObject().put("url", OnyxDtrConventions.EXT_QR_CONTEXT).putObject("valueReference").put("reference", order);
+        }
+        if (!extensions.isEmpty()) {
+            response.set("extension", extensions);
+        }
+        int orders = filler.orders().size();
+        notes.add("No response was given to start from, so this tool built one. "
+                + (filler.namesAMember() ? "It names the coverage of the case" : "It names no coverage, because the request names no member")
+                + (orders == 0 ? ", and no order, because this step was handed no order and no procedure code."
+                : ", and " + (orders == 1 ? "the order" : "the " + orders + " orders") + " it is for.")
+                + (extensions.isEmpty() ? "" : " The references use the ids this tool gives those resources in every request.")
+                + " It states no intended use, which DTR 2.2.0-ballot asks for and this tool cannot know.");
+    }
+
     /** Puts a copy of the questionnaire inside the response and points the response at it. */
     private static void contain(ObjectNode response, JsonNode questionnaire, List<String> notes) {
         ObjectNode copy = (ObjectNode) questionnaire.deepCopy();
@@ -332,6 +502,16 @@ public final class DtrRequestBuilder {
             copy.put("id", id);
             notes.add("The questionnaire arrived with no id, so the copy inside the QuestionnaireResponse was given the id " + id
                     + " to be referred to by.");
+        }
+        String canonical = QuestionnaireJson.canonical(questionnaire);
+        if (canonical != null && !QuestionnaireJson.derivedFrom(copy).contains(canonical)) {
+            // The guides tie an adaptive response to the questionnaire being completed by the derivedFrom of the questionnaire
+            // inside it. It goes first, so that it is read before anything the questionnaire was itself derived from.
+            ArrayNode derivedFrom = JSON.arrayNode().add(canonical);
+            JsonSafe.elements(copy, "derivedFrom").forEach(derivedFrom::add);
+            copy.set("derivedFrom", derivedFrom);
+            notes.add("The copy of the questionnaire inside the QuestionnaireResponse was marked as derived from " + canonical
+                    + ", which is how the DTR and SDC guides tie an adaptive response to the questionnaire being completed.");
         }
         ArrayNode contained = response.get("contained") instanceof ArrayNode existing ? existing : response.putArray("contained");
         contained.add(copy);

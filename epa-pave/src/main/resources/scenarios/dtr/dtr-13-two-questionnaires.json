@@ -17,7 +17,7 @@
     }
   },
   "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
-  "assumption": "Whether the live service returns a package as Parameters or as a Bundle is not confirmed. The other scenario files model Parameters. This one models a Bundle of type collection that holds the questionnaires directly.",
+  "assumption": "Whether the live service returns a package as Parameters or as a Bundle is not confirmed. The other scenario files model Parameters. This one models a Bundle of type collection that holds the questionnaires directly. The DTR guide defines the Parameters shape, with one bundle for each questionnaire, so this file models a departure from it.",
   "responses": [
     {
       "name": "the first questionnaire answered in full",

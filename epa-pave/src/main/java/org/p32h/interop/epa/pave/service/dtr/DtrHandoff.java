@@ -1,14 +1,13 @@
 package org.p32h.interop.epa.pave.service.dtr;
 
+import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Texts;
-import org.p32h.interop.epa.pave.model.dtr.QuestionnaireJson;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import tools.jackson.databind.JsonNode;
 
 /**
  * What one DTR step hands the step after it, so a tester retypes nothing and the tool keeps no
@@ -32,8 +31,9 @@ import tools.jackson.databind.JsonNode;
  * @param procedureCodes the procedure codes the case is about
  * @param questionnaires the canonical url of every questionnaire of the package, in the order
  *                       returned. For a step that was handed none, the one it is answering
- * @param answering      the canonical url of the questionnaire this step answers. Null for a package
- *                       fetch, and for a questionnaire that has no url
+ * @param answering      the canonical url of the questionnaire this step answers. For a response from
+ *                       the adaptive loop that is the one the questionnaire inside it is derived
+ *                       from. Null for a package fetch, and for a questionnaire that names none
  * @param given          what this step was handed, exactly as it arrived
  */
 public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<String> questionnaires, String answering,
@@ -66,7 +66,7 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
      * The hand-off of a step that answers a questionnaire.
      *
      * @param runId     the id of this run, handed on only when the step was handed no run itself
-     * @param answering the canonical url of the questionnaire being answered, or null when it has no url
+     * @param answering the canonical url of the questionnaire being answered, or null when it names none
      */
     public static DtrHandoff afterAnswering(String runId, List<String> procedureCodes, String answering, Map<String, List<String>> given) {
         List<String> ofThePackage = values(given, NextStepView.CARRY_QUESTIONNAIRE);
@@ -104,7 +104,7 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
         List<String> handedOn = given.get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
         if (handedOn != null) {
             for (String response : handedOn) {
-                if (Texts.present(response) && !same(answering, answeredBy(response))) {
+                if (Texts.present(response) && answeredBy(response).stream().noneMatch(canonical -> same(answering, canonical))) {
                     out.add(response);
                 }
             }
@@ -120,11 +120,14 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
      * done. Empty when every one has, which is when the journey can move on.
      */
     public List<String> stillToAnswer(String completedResponse) {
-        List<String> answered = new ArrayList<>(completedResponses(completedResponse).stream().map(DtrHandoff::answeredBy).toList());
+        List<List<String>> answered = new ArrayList<>();
+        for (String response : completedResponses(completedResponse)) {
+            answered.add(answeredBy(response));
+        }
         List<String> remaining = new ArrayList<>();
         for (String wanted : questionnaires) {
             // One response answers one questionnaire. A response that names no version cannot stand for two versions of one url.
-            String by = answered.stream().filter(canonical -> same(wanted, canonical)).findFirst().orElse(null);
+            List<String> by = answered.stream().filter(names -> names(names, wanted)).findFirst().orElse(null);
             if (by == null) {
                 remaining.add(wanted);
             } else {
@@ -135,23 +138,26 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
     }
 
     /**
-     * The canonical url of the questionnaire a QuestionnaireResponse answers: that of the
-     * questionnaire it carries inside itself, else the one it names. Null when it says neither, or
-     * is not a QuestionnaireResponse at all.
+     * True when a response names one of the questionnaires of the package, so that it is counted
+     * towards them. A complete response that names none of them, or none at all, is still handed
+     * on, and the result says that this tool could not tell which questionnaire it answers.
      */
-    static String answeredBy(String responseJson) {
-        JsonSafe.Parsed parsed = JsonSafe.parse(responseJson);
-        return parsed.ok() ? answeredBy(parsed.node()) : null;
+    public boolean counts(String response) {
+        List<String> names = answeredBy(response);
+        return questionnaires.stream().anyMatch(wanted -> names(names, wanted));
     }
 
-    static String answeredBy(JsonNode response) {
-        if (!QuestionnaireJson.isType(response, "QuestionnaireResponse")) {
-            return null;
-        }
-        JsonNode contained = QuestionnaireJson.containedQuestionnaire(response);
-        String canonical = contained != null ? QuestionnaireJson.canonical(contained) : JsonSafe.presentText(response, "questionnaire");
-        // A local reference such as #q1 names something inside the response and is not a canonical url.
-        return canonical == null || canonical.startsWith("#") ? null : canonical;
+    /**
+     * Every canonical url that names the questionnaire a QuestionnaireResponse answers, as the
+     * vendor conventions read it. Empty when it names none, or is not a QuestionnaireResponse at all.
+     */
+    static List<String> answeredBy(String responseJson) {
+        JsonSafe.Parsed parsed = JsonSafe.parse(responseJson);
+        return parsed.ok() ? OnyxDtrConventions.completes(parsed.node()) : List.of();
+    }
+
+    private static boolean names(List<String> canonicals, String wanted) {
+        return canonicals.stream().anyMatch(canonical -> same(wanted, canonical));
     }
 
     /**

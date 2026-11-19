@@ -2,7 +2,7 @@
   "id": "dtr-03-prepopulated",
   "number": 3,
   "label": "Package with pre-populated answers",
-  "description": "The package holds one conventional questionnaire and a QuestionnaireResponse that already answers three of its five questions. One question becomes enabled by a pre-populated answer, and one stays disabled until the tester answers the question it depends on.",
+  "description": "The package holds one conventional questionnaire and a QuestionnaireResponse that already answers three of its five questions. One question becomes enabled by a pre-populated answer, and one stays disabled until the tester answers the question it depends on. Each pre-populated answer says it was pre-populated, and the response says which coverage and order it is for, as the DTR guide has a payer do.",
   "sentinelMemberId": "P32H-DTR-PREPOP",
   "behavior": "respond",
   "httpStatus": 200,
@@ -199,6 +199,25 @@
               "resource": {
                 "resourceType": "QuestionnaireResponse",
                 "id": "genetic-testing-prepopulated",
+                "meta": {
+                  "profile": [
+                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse"
+                  ]
+                },
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-coverage",
+                    "valueReference": {
+                      "reference": "Coverage/coverage-1"
+                    }
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+                    "valueReference": {
+                      "reference": "ServiceRequest/service-request-1"
+                    }
+                  }
+                ],
                 "questionnaire": "https://example.org/p32h-placeholder/Questionnaire/genetic-testing-criteria|2.1.0",
                 "status": "in-progress",
                 "subject": {
@@ -211,6 +230,17 @@
                     "text": "Specialty of the ordering provider",
                     "answer": [
                       {
+                        "extension": [
+                          {
+                            "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/information-origin",
+                            "extension": [
+                              {
+                                "url": "source",
+                                "valueCode": "auto"
+                              }
+                            ]
+                          }
+                        ],
                         "valueString": "Medical genetics"
                       }
                     ]
@@ -220,6 +250,17 @@
                     "text": "Has the member received genetic counselling?",
                     "answer": [
                       {
+                        "extension": [
+                          {
+                            "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/information-origin",
+                            "extension": [
+                              {
+                                "url": "source",
+                                "valueCode": "auto"
+                              }
+                            ]
+                          }
+                        ],
                         "valueBoolean": true
                       }
                     ]
@@ -229,6 +270,17 @@
                     "text": "Date of genetic counselling",
                     "answer": [
                       {
+                        "extension": [
+                          {
+                            "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/information-origin",
+                            "extension": [
+                              {
+                                "url": "source",
+                                "valueCode": "auto"
+                              }
+                            ]
+                          }
+                        ],
                         "valueDate": "2026-01-10"
                       }
                     ]

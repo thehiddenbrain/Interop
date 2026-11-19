@@ -14,6 +14,10 @@ import tools.jackson.databind.node.JsonNodeFactory;
  * integer question, and the code of an option becomes that option's coding. As a JSON object it is
  * taken to be a FHIR answer already, such as {@code {"valueCoding": {...}}}, and is used as written.
  *
+ * <p>Either way the answer goes out marked with where it came from, as the DTR guide requires of a
+ * client: given by a person, with the provider on the form as its author. A FHIR answer that
+ * already carries an information-origin extension says so itself and is not marked again.
+ *
  * @param linkId the question the answer is for
  * @param values the answers. More than one only for a question that repeats. An empty list takes
  *               back an answer given earlier
