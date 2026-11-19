@@ -3,6 +3,10 @@ package org.p32h.interop.epa.pave.service.pas;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -12,10 +16,12 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.pas.MockOnyxPasClient;
 import org.p32h.interop.epa.pave.client.pas.MockSubscriptionClient;
 import org.p32h.interop.epa.pave.client.pas.SubscriptionClient;
+import org.p32h.interop.epa.pave.client.support.Exchanges;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
@@ -34,17 +40,21 @@ import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Protocol;
+import org.p32h.interop.epa.pave.model.Reached;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Timing;
 import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.WireResponse;
 import org.p32h.interop.epa.pave.model.pas.SubscriptionDetail;
 import org.p32h.interop.epa.pave.model.pas.SubscriptionResponseKind;
+import org.p32h.interop.epa.pave.model.pas.SubscriptionView;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
@@ -286,14 +296,16 @@ class SubscriptionServiceTest {
         assertThat(JsonSafe.parse(result.wire().request().body()).node().at("/channel").has("endpoint")).isFalse();
         assertThat(result.detail().callbackUrl()).isNull();
 
-        Finding finding = result.findings().stream().filter(f -> f.kind() == FindingKind.REQUIRED_ELEMENT_MISSING).findFirst().orElseThrow();
+        // Its own kind. Nothing is missing from a response here: it is what was sent that names no receiver.
+        Finding finding = result.findings().stream().filter(f -> f.kind() == FindingKind.NO_CALLBACK_URL).findFirst().orElseThrow();
+        assertThat(result.findings()).extracting(Finding::kind).doesNotContain(FindingKind.REQUIRED_ELEMENT_MISSING);
         assertThat(finding.title()).isEqualTo("The subscription names no url to call back");
         assertThat(finding.detail()).isEqualTo("The service has nowhere to send a notification, so none can arrive at this tool for this "
                 + "subscription. The setting onyx.subscription.callback-url is blank. Set it to the address at which the service can reach "
                 + "this tool's receiver, which ends in /api/pas/notifications, and send again. Until then, follow a request with an "
                 + "inquiry: that path needs no callback.");
         assertThat(finding.subject()).isEqualTo("channel.endpoint");
-        assertThat(ledger.only().findings()).containsExactly("REQUIRED_ELEMENT_MISSING");
+        assertThat(ledger.only().findings()).containsExactly("NO_CALLBACK_URL");
         // And the next step is to set it, not to wait for a notification that cannot come.
         assertThat(result.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
         assertThat(result.nextStep().headline()).isEqualTo("Next: set onyx.subscription.callback-url to an address the service can reach, then "
@@ -307,13 +319,14 @@ class SubscriptionServiceTest {
         // An update that names no receiver says the same, and is not reported as done with nothing left to do.
         RunEnvelope<SubscriptionDetail> updated = service(mockClient, "mock", Map.of()).run(UPDATE, about(ID).build(), RunOrigin.manual(), null);
         assertThat(updated.verdict().outcomeCode()).isEqualTo("UPDATED");
-        assertThat(updated.findings()).extracting(Finding::kind).containsExactly(FindingKind.REQUIRED_ELEMENT_MISSING);
+        assertThat(updated.findings()).extracting(Finding::kind).containsExactly(FindingKind.NO_CALLBACK_URL);
+        assertThat(ledger.last().findings()).containsExactly("NO_CALLBACK_URL");
         assertThat(updated.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
         assertThat(updated.nextStep().reason()).startsWith("The subscription was updated without a url to call back, so no notification can "
                 + "reach this tool.");
-        // With a receiver named, a create leads on to a submission and an update is complete.
+        // With a receiver named, a create leads on to a submission and an update is complete: nothing further, and no journey ended.
         assertThat(run(CREATE, request().build()).nextStep().action()).isEqualTo(NextAction.START_PAS);
-        assertThat(run(UPDATE, about(ID).build()).nextStep().action()).isEqualTo(NextAction.FLOW_ENDS);
+        assertThat(run(UPDATE, about(ID).build()).nextStep().action()).isEqualTo(NextAction.NOTHING_FURTHER);
         // A read sends no subscription, so it has nothing to say about a receiver.
         assertThat(service(mockClient, "mock", Map.of()).run(GET, about(ID).build(), RunOrigin.manual(), null).findings()).isEmpty();
     }
@@ -367,7 +380,15 @@ class SubscriptionServiceTest {
         assertThat(ledger.records()).extracting(RunRecord::operation).containsExactly(GET, GET, UPDATE, DELETE);
         assertThat(ledger.records()).extracting(RunRecord::outcome).containsExactly("READ", "LISTED", "UPDATED", "DELETED");
         assertThat(ledger.records()).extracting(RunRecord::httpStatus).containsExactly(200, 200, 200, 204);
-        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsOnly("FLOW_ENDS");
+        // After each of the four there is nothing to do, and none of them is the end of a case's journey.
+        for (RunEnvelope<SubscriptionDetail> done : List.of(read, list, updated, deleted)) {
+            assertThat(done.nextStep().action()).as(done.verdict().outcomeCode()).isEqualTo(NextAction.NOTHING_FURTHER);
+        }
+        assertThat(read.nextStep().headline()).isEqualTo("Nothing follows from a read. Record this result.");
+        assertThat(list.nextStep().headline()).isEqualTo("Nothing follows from a read. Record this result.");
+        assertThat(updated.nextStep().headline()).isEqualTo("The update is done. Record this result.");
+        assertThat(deleted.nextStep().headline()).isEqualTo("The subscription is gone. Record this result.");
+        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsOnly("NOTHING_FURTHER");
         assertThat(ledger.records()).extracting(RunRecord::unrecordedInputs).containsExactly(List.of(), List.of(), List.of(RunRecord.INPUT_RUN_VALUES),
                 List.of());
         // Each line about one subscription names it. A list names none.
@@ -451,9 +472,23 @@ class SubscriptionServiceTest {
             assertThat(record.errorType()).isEqualTo(RunRecord.ERROR_BLOCKED);
             assertThat(record.environmentKind()).isEqualTo(EnvironmentKind.PROD);
             assertThat(record.httpStatus()).isNull();
+            // The line of a refused update or delete names the subscription it was aimed at. A create is aimed at none.
+            if (operation == CREATE) {
+                assertThat(record.correlation()).isEmpty();
+            } else {
+                assertThat(record.correlation()).as(operation.name()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, ID));
+            }
         }
         assertThat(client.calls.get()).isZero();
         assertThat(ledger.records()).hasSize(3);
+
+        // A refused step that follows from an earlier run says which, as the same step would have had it gone through.
+        String earlier = "run-00000000-0000-4000-8000-000000000001";
+        gateway.failing(blocked(DELETE));
+        service.run(DELETE, about(ID).carry(Map.of(NextStepView.CARRY_RUN_ID, List.of(earlier))).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, ID),
+                Map.entry(RunRecord.CORR_RUN_ID, earlier));
+        assertThat(client.calls.get()).isZero();
     }
 
     @Test
@@ -534,24 +569,50 @@ class SubscriptionServiceTest {
     // ---- faults, each rendered in full ----
 
     @Test
-    void aWriteThatCouldNotBeCompletedIsNeverSaidToHaveDeliveredNothing() {
-        // As a live client reports it. A connection that never opened and one that failed after it
-        // opened are both "unreachable", and this tool cannot tell which.
-        RunEnvelope<SubscriptionDetail> create = service(stub(TestExchanges.unavailable(CREATE)), "live", WITH_RECEIVER)
-                .run(CREATE, request().build(), RunOrigin.manual(), null);
+    void aWriteThatCannotHaveReachedTheServiceChangedNothingAndOneThatMayHaveIsLookedUpBeforeItIsSentAgain() {
+        // As a live client reports it: the connection was never opened, so nothing was delivered.
+        VendorExchange refused = TestExchanges.unavailable(CREATE);
+        assertThat(refused.reached()).isEqualTo(Reached.NO);
+        RunEnvelope<SubscriptionDetail> create = service(stub(refused), "live", WITH_RECEIVER).run(CREATE, request().build(), RunOrigin.manual(), null);
         assertThat(create.verdict().outcomeCode()).isEqualTo("UNREACHABLE");
-        assertThat(create.verdict().supporting()).containsExactly("The connection was refused or could not be opened.");
+        assertThat(create.verdict().headline()).isEqualTo("The service could not be reached.");
+        assertThat(create.verdict().supporting()).containsExactly("The connection was refused or could not be opened.",
+                "Nothing was changed: the request did not reach the service.");
         assertThat(create.nextStep().action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
-        assertThat(create.nextStep().headline()).isEqualTo("Next: check the environment. Send again only when the connection never opened.");
-        assertThat(create.nextStep().reason()).isEqualTo("No answer came back, and the verdict says how the connection failed. A connection "
-                + "that never opened delivered nothing. One that failed after it opened may have delivered the request, so list the "
-                + "subscriptions before sending again.");
+        assertThat(create.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+        assertThat(create.nextStep().reason()).isEqualTo("Nothing was changed, because the request did not reach the service. It is safe to "
+                + "send the same request again.");
+
+        // The connection failed after it was opened. The same outcome, and the opposite advice.
+        Map<EpaOperation, String> why = new LinkedHashMap<>();
+        why.put(CREATE, "sending it again without checking could create a second subscription.");
+        why.put(UPDATE, "the list shows whether the change took effect.");
+        why.put(DELETE, "the list shows whether the subscription is gone.");
+        for (Map.Entry<EpaOperation, String> write : why.entrySet()) {
+            VendorExchange broken = Exchanges.cutOff(refused.request(), 12L, "The request could not be completed (IOException).");
+            assertThat(broken.reached()).isEqualTo(Reached.CANNOT_SAY);
+            RunEnvelope<SubscriptionDetail> result = service(stub(broken), "live", WITH_RECEIVER).run(write.getKey(),
+                    (write.getKey() == CREATE ? request() : about(ID)).build(), RunOrigin.manual(), null);
+            assertThat(result.verdict().outcomeCode()).as(write.getKey().name()).isEqualTo("UNREACHABLE");
+            // "Could not be reached" would be a claim this tool cannot back when the request may have arrived.
+            assertThat(result.verdict().headline()).isEqualTo("The connection to the service failed before an answer arrived.");
+            assertThat(result.verdict().supporting()).containsExactly("The request could not be completed (IOException).",
+                    "The service may have received the request and applied it.");
+            assertThat(result.nextStep().headline()).isEqualTo("Next: check the environment, then list the subscriptions before sending again.");
+            // Only a create can leave a second subscription behind.
+            assertThat(result.nextStep().reason()).isEqualTo("The service may have received the request and applied it. List the "
+                    + "subscriptions first: " + write.getValue());
+        }
+
         // A read changes nothing, so it is sent again however the connection failed.
-        RunEnvelope<SubscriptionDetail> read = service(stub(TestExchanges.unavailable(GET)), "live", WITH_RECEIVER)
-                .run(GET, about(ID).build(), RunOrigin.manual(), null);
-        assertThat(read.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
-        assertThat(read.nextStep().reason()).isEqualTo("No answer came back. This is a finding about the environment, not about the "
-                + "subscription.");
+        for (VendorExchange failed : List.of(TestExchanges.unavailable(GET), Exchanges.cutOff(refused.request(), 12L, "The request could not "
+                + "be completed (IOException)."))) {
+            RunEnvelope<SubscriptionDetail> read = service(stub(failed), "live", WITH_RECEIVER).run(GET, about(ID).build(), RunOrigin.manual(), null);
+            assertThat(read.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+            assertThat(read.nextStep().reason()).isEqualTo("No answer came back. This is a finding about the environment, not about the "
+                    + "subscription.");
+            assertThat(read.verdict().supporting()).hasSize(1);
+        }
     }
 
     @Test
@@ -581,14 +642,24 @@ class SubscriptionServiceTest {
         assertThat(serverError.error().kind()).isEqualTo(ErrorKind.VENDOR_ERROR);
         assertThat(serverError.additionalFields()).singleElement().satisfies(field -> assertThat(field.value()).isEqualTo("<html>Unavailable</html>"));
 
-        // As a live client reports it: the delete was sent, and no answer arrived in time.
+        // As a live client reports it: the delete had gone out, and no answer arrived in time.
         RunEnvelope<SubscriptionDetail> timeout = service(stub(TestExchanges.timeout(DELETE)), "live", WITH_RECEIVER)
                 .run(DELETE, about(ID).build(), RunOrigin.manual(), null);
         assertThat(timeout.verdict().headline()).isEqualTo("The service did not answer in time.");
-        assertThat(timeout.verdict().supporting()).contains("The request was sent. Whether the service applied it is not known.");
+        assertThat(timeout.verdict().supporting()).containsExactly("No response arrived inside the read timeout.",
+                "The service may have received the request and applied it.");
         assertThat(timeout.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
         assertThat(timeout.nextStep().headline()).isEqualTo("Next: check the environment, then list the subscriptions before sending again.");
+        assertThat(timeout.nextStep().reason()).isEqualTo("The service may have received the request and applied it. List the subscriptions "
+                + "first: the list shows whether the subscription is gone.");
         assertThat(timeout.detail().responseKind()).isEqualTo(SubscriptionResponseKind.NO_RESPONSE);
+        // A read that timed out changed nothing, so nothing of the kind is said about it.
+        RunEnvelope<SubscriptionDetail> readTimeout = service(stub(TestExchanges.timeout(GET)), "live", WITH_RECEIVER)
+                .run(GET, about(ID).build(), RunOrigin.manual(), null);
+        assertThat(readTimeout.verdict().supporting()).containsExactly("No response arrived inside the read timeout.");
+        assertThat(readTimeout.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+        assertThat(readTimeout.nextStep().reason()).isEqualTo("No usable answer came back. This is a finding about the environment, not "
+                + "about the subscription.");
 
         RunEnvelope<SubscriptionDetail> down = service(stub(TestExchanges.unavailable(GET)), "live", WITH_RECEIVER)
                 .run(GET, request().build(), RunOrigin.manual(), null);
@@ -608,10 +679,10 @@ class SubscriptionServiceTest {
         assertThat(empty.verdict().headline()).isEqualTo("The service answered with no body (HTTP 200).");
         assertThat(empty.error().kind()).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
 
-        assertThat(ledger.records()).extracting(RunRecord::outcome).containsExactly("REJECTED", "REJECTED", "SERVICE_ERROR", "TIMEOUT", "UNREACHABLE",
-                "MALFORMED_RESPONSE", "MALFORMED_RESPONSE");
+        assertThat(ledger.records()).extracting(RunRecord::outcome).containsExactly("REJECTED", "REJECTED", "SERVICE_ERROR", "TIMEOUT", "TIMEOUT",
+                "UNREACHABLE", "MALFORMED_RESPONSE", "MALFORMED_RESPONSE");
         assertThat(ledger.records()).extracting(RunRecord::errorType).containsExactly("BAD_REQUEST", "BAD_REQUEST", "SERVER_ERROR", "TIMEOUT",
-                "UNAVAILABLE", "MALFORMED_RESPONSE", "MALFORMED_RESPONSE");
+                "TIMEOUT", "UNAVAILABLE", "MALFORMED_RESPONSE", "MALFORMED_RESPONSE");
         // A fault is never a subscription state.
         assertThat(ledger.records()).allSatisfy(record -> assertThat(record.coverageCodes()).isEmpty());
     }
@@ -660,8 +731,10 @@ class SubscriptionServiceTest {
 
         RunEnvelope<SubscriptionDetail> noReceiver = run(CREATE, request().rawBody("{\"resourceType\":\"Subscription\",\"channel\":{\"type\":\"rest-hook\"}}")
                 .build());
-        assertThat(noReceiver.findings()).singleElement().satisfies(finding ->
-                assertThat(finding.detail()).contains("The body you supplied names no channel.endpoint"));
+        assertThat(noReceiver.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.kind()).isEqualTo(FindingKind.NO_CALLBACK_URL);
+            assertThat(finding.detail()).contains("The body you supplied names no channel.endpoint");
+        });
         // The fix is in the body they wrote. The setting this tool reads its receiver from had no part in it.
         assertThat(noReceiver.nextStep().action()).isEqualTo(NextAction.FIX_REQUEST);
         assertThat(noReceiver.nextStep().headline()).isEqualTo("Next: add channel.endpoint to the body you supplied, then update this "
@@ -734,6 +807,96 @@ class SubscriptionServiceTest {
         run(GET, about(ID).build());
         run(DELETE, about(ID).build());
         assertThat(output.getAll()).doesNotContain(ID).doesNotContain("pave.example.invalid").doesNotContain("resourceType");
+    }
+
+    // ---- a secret the service sends back ----
+
+    private static final String CALLBACK_SECRET = "placeholder-receiver-secret-0001";
+
+    /** A scenario directory with one scenario, whose create answers with the subscription and the header it was sent. */
+    private static AppProperties echoingScenario(Path directory) throws IOException {
+        Path pas = Files.createDirectories(directory.resolve(MockOnyxPasClient.SCENARIOS));
+        Files.writeString(pas.resolve("pas-90-header-returned.json"), """
+                {
+                  "id": "pas-90-header-returned",
+                  "number": 90,
+                  "label": "A subscription returned with the header it was created with",
+                  "basis": "Synthetic. For a test of this tool only.",
+                  "steps": {
+                    "subscription-create": {
+                      "httpStatus": 201,
+                      "response": {
+                        "resourceType": "Subscription",
+                        "id": "subscription-placeholder-0001",
+                        "status": "requested",
+                        "criteria": "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status",
+                        "channel": {
+                          "type": "rest-hook",
+                          "endpoint": "https://pave.example.invalid/api/pas/notifications",
+                          "payload": "application/fhir+json",
+                          "header": ["Authorization: Bearer %s"]
+                        }
+                      }
+                    }
+                  }
+                }
+                """.formatted(CALLBACK_SECRET), StandardCharsets.UTF_8);
+        return AppProperties.of(Map.of("mock-latency-enabled", "false", "scenario-dir", directory.toString()));
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aSecretTheServiceSendsBackIsMaskedInTheWireViewAndReachesNeitherTheLedgerNorTheLog(@TempDir Path directory, CapturedOutput output)
+            throws IOException {
+        AppProperties app = echoingScenario(directory);
+        SubscriptionClient echoing = new MockSubscriptionClient(new ScenarioRepository(app), new MockExchanges(app));
+        // The credential the service is to send with each notification, kept in a secret variable as a tester would keep it.
+        gateway.variable("callbackToken", CALLBACK_SECRET);
+        String body = "{\"resourceType\":\"Subscription\",\"status\":\"requested\",\"channel\":{\"type\":\"rest-hook\",\"endpoint\":\""
+                + RECEIVER + "\",\"header\":[\"Authorization: Bearer {{callbackToken}}\"]}}";
+
+        RunEnvelope<SubscriptionDetail> result = service(echoing, "mock", WITH_RECEIVER).run(CREATE, request().rawBody(body).build(),
+                RunOrigin.manual(), null);
+
+        assertThat(result.verdict().outcomeCode()).isEqualTo("CREATED");
+        // The request side already hides it, by the name of the variable it came from.
+        assertThat(result.wire().request().body()).contains("\"Authorization: Bearer [secret callbackToken]\"");
+        // The service sent it back. The wire view shows the same mask in its place, and says that it did.
+        WireResponse response = result.wire().response();
+        assertThat(response.body()).contains("\"header\" : [ \"Authorization: Bearer [secret callbackToken]\" ]");
+        assertThat(response.maskedPlaces()).isEqualTo(1);
+        assertThat(response.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this request "
+                + "sent. A masked place is shown as [secret ...], naming the variable, the header or the token whose value it repeats. "
+                + "What is shown here is therefore not exactly what was received. The byte count is the count of what was received.");
+        assertThat(response.byteLength()).isEqualTo((long) response.body().replace("[secret callbackToken]", CALLBACK_SECRET)
+                .getBytes(StandardCharsets.UTF_8).length);
+
+        // The mapper read what really arrived, and the designed view and the returned fields hide the header as they did before.
+        SubscriptionView subscription = result.detail().subscriptions().get(0);
+        assertThat(subscription.headers()).extracting(Shown::value).containsExactly("Authorization: (value not shown)");
+        assertThat(subscription.endpoint().value()).isEqualTo(RECEIVER);
+        assertThat(result.detail().subscriptionId()).isEqualTo(ID);
+        assertThat(result.additionalFields()).isEmpty();
+
+        // Nothing the browser is sent holds it, and neither does the ledger line.
+        assertThat(JsonSafe.mapper().writeValueAsString(result)).doesNotContain(CALLBACK_SECRET).contains("[secret callbackToken]");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.only())).doesNotContain(CALLBACK_SECRET).doesNotContain("callbackToken");
+
+        // A failure of this tool after the call still shows the response, and writes to the log. Neither holds it.
+        RunSupport failing = new RunSupport(EpaProperties.of(Map.of("mode", "mock")), TrackingProperties.defaults(), OnyxProperties.defaults(),
+                ledgerProvider(), CLOCK) {
+            @Override
+            public Finding slowFinding(Timing timing) {
+                throw new IllegalStateException("the reader exploded for " + CALLBACK_SECRET);
+            }
+        };
+        RunEnvelope<SubscriptionDetail> failed = new SubscriptionService(OnyxProperties.of(WITH_RECEIVER), gateway, echoing, failing)
+                .run(CREATE, request().rawBody(body).build(), RunOrigin.manual(), null);
+        assertThat(RunSupport.isToolError(failed)).isTrue();
+        assertThat(failed.wire().response().maskedPlaces()).isEqualTo(1);
+        assertThat(JsonSafe.mapper().writeValueAsString(failed)).doesNotContain(CALLBACK_SECRET).contains("[secret callbackToken]");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.last())).doesNotContain(CALLBACK_SECRET).doesNotContain("callbackToken");
+        assertThat(output.getAll()).contains("A run failed inside this tool after the service was called").doesNotContain(CALLBACK_SECRET);
     }
 
     // ---- preview ----

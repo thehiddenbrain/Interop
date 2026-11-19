@@ -76,10 +76,6 @@ import org.springframework.web.bind.annotation.RestController;
  * a value typed for one placeholder as {@code var.<name>}, and something an earlier step handed on
  * as {@code carry.<key>}. A parameter outside these is refused by name, exactly as an unknown
  * field of a body is.
- *
- * <p>This class is not a Spring bean yet. The gateway, the ledger and the code list its services
- * depend on arrive with another wave, and the integrator registers it once they are merged. Until
- * then it carries no stereotype annotation, so the application context does not try to build it.
  */
 @RestController
 @RequestMapping("/api/pas")

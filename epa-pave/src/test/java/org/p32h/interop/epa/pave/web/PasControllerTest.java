@@ -55,7 +55,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -78,18 +77,6 @@ class PasControllerTest {
     private final InMemoryLedger ledger = new InMemoryLedger();
     private final ScenarioRepository scenarios = new ScenarioRepository(APP);
 
-    /**
-     * The controller carries no stereotype until the integrator wires it, so that the application
-     * context does not try to build it before its dependencies exist. A standalone MockMvc only
-     * registers handlers of an annotated controller, so the test registers it through this.
-     */
-    @RestController
-    static class Wired extends PasController {
-        Wired(PasService pas, SubscriptionService subscriptions, NotificationReceiver receiver, ScenarioRepository scenarios, EpaProperties epa) {
-            super(pas, subscriptions, receiver, scenarios, epa);
-        }
-    }
-
     private ObjectProvider<RunLedger> ledgerProvider() {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("ledger", ledger);
@@ -106,7 +93,8 @@ class PasControllerTest {
                 ledgerProvider());
         SubscriptionService subscriptions = new SubscriptionService(ONYX, gateway, new MockSubscriptionClient(scenarios, new MockExchanges(APP)), support);
         NotificationReceiver receiver = new NotificationReceiver(gateway, support, ledgerProvider(), scenarios);
-        return TestMvc.standalone(new Wired(pas, subscriptions, receiver, scenarios, epa));
+        // The controller itself, as the application registers it, so its own annotations are what is tested.
+        return TestMvc.standalone(new PasController(pas, subscriptions, receiver, scenarios, epa));
     }
 
     /** A controller whose services fail while reading an answer, after the client has been called. */

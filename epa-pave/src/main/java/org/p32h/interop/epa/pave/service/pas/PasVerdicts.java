@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Presence;
+import org.p32h.interop.epa.pave.model.Reached;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
@@ -118,7 +119,10 @@ public final class PasVerdicts {
             case REJECTED -> "The service did not accept the request as sent" + status(exchange) + ".";
             case SERVICE_ERROR -> "The service failed" + status(exchange) + ".";
             case TIMEOUT -> "The service did not answer in time.";
-            case UNREACHABLE -> "The service could not be reached.";
+            // The same outcome covers a connection that never opened and one that broke after it
+            // opened. Only the first is a service that could not be reached.
+            case UNREACHABLE -> exchange.reached() == Reached.NO ? "The service could not be reached."
+                    : "The connection to the service failed before an answer arrived.";
             case MALFORMED_RESPONSE -> reading.detail().responseKind() == PasResponseKind.NO_BODY
                     ? "The service answered with no body" + status(exchange) + "."
                     : "The service answered with a body that could not be read" + status(exchange) + ".";
@@ -127,8 +131,9 @@ public final class PasVerdicts {
             if (Texts.present(exchange.failureDetail())) {
                 supporting.add(exchange.failureDetail());
             }
-            if (mayHaveBeenReceived(outcome, exchange, operation)) {
-                supporting.add("The submission was sent. Whether the payer received and kept it is not known.");
+            if (operation.write() && noUsableAnswer(outcome)) {
+                supporting.add(exchange.reached() == Reached.NO ? "Nothing was submitted: the request did not reach the payer."
+                        : "The payer may have received the submission and acted on it.");
             }
         } else {
             supporting.addAll(facets(reading));
@@ -254,38 +259,39 @@ public final class PasVerdicts {
                     "Next: check the claim id against the submission it should belong to.",
                     "The service does not recognise the request that was asked about. The environment answered normally.", carry);
             case REJECTED -> notAccepted(exchange, carry);
-            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE -> mayHaveBeenReceived(outcome, exchange, operation)
-                    ? new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then ask for the status before sending again.",
-                    "No usable answer came back, but the submission was sent and may have been received. Sending it again without "
-                            + "checking could create a second request.", carry)
-                    : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
-                    "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
-            // Not "it received nothing": a connection that never opened and one that failed after
-            // it opened are both reported as unreachable, and only the first delivered nothing.
-            case UNREACHABLE -> operation == EpaOperation.PAS_SUBMIT && leftThisMachine(exchange)
-                    ? new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment. Send again only when the connection "
-                    + "never opened.", "No answer came back, and the verdict says how the connection failed. A connection that never "
-                    + "opened delivered nothing. One that failed after it opened may have delivered the submission, so ask for its "
-                    + "status before sending again.", carry)
-                    : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
-                    "No answer came back. This is a finding about the environment, not about the member or the code.", carry);
+            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> afterNoUsableAnswer(outcome, exchange, operation, carry);
         };
     }
 
-    /**
-     * True when a submission really left this machine and no usable answer came back. The payer
-     * may hold the request all the same, which a tester must know before sending it a second time.
-     * Never true on the mock profile, where nothing is sent. An unreachable service is worded on
-     * its own, because whether anything was delivered then depends on how the connection failed.
-     */
-    private static boolean mayHaveBeenReceived(PasOutcome outcome, VendorExchange exchange, EpaOperation operation) {
-        boolean noUsableAnswer = outcome == PasOutcome.TIMEOUT || outcome == PasOutcome.SERVICE_ERROR || outcome == PasOutcome.MALFORMED_RESPONSE;
-        return operation == EpaOperation.PAS_SUBMIT && noUsableAnswer && leftThisMachine(exchange);
+    /** The outcomes in which the call was made and nothing usable came back. A rejection is not one: the service said no. */
+    private static boolean noUsableAnswer(PasOutcome outcome) {
+        return outcome == PasOutcome.TIMEOUT || outcome == PasOutcome.UNREACHABLE || outcome == PasOutcome.SERVICE_ERROR
+                || outcome == PasOutcome.MALFORMED_RESPONSE;
     }
 
-    /** False on the mock profile and for a blocked write, where no attempt to reach the service was made. */
-    private static boolean leftThisMachine(VendorExchange exchange) {
-        return exchange.request() != null && exchange.request().sent();
+    /**
+     * The next step when the call was made and nothing usable came back.
+     *
+     * <p>An inquiry changes nothing, so it is simply sent again. For a submission it turns on
+     * whether the request can have reached the payer, which the exchange says: one that cannot
+     * have reached it was never submitted and can be sent again, and one that may have reached it
+     * may already be a request the payer holds, so its status is asked for first. The same holds
+     * on the mock profile, where the scenario says which of the two it models.
+     */
+    private static NextStepView afterNoUsableAnswer(PasOutcome outcome, VendorExchange exchange, EpaOperation operation,
+                                                    Map<String, List<String>> carry) {
+        if (!operation.write()) {
+            return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                    (outcome == PasOutcome.UNREACHABLE ? "No answer came back." : "No usable answer came back.")
+                            + " This is a finding about the environment, not about the member or the code.", carry);
+        }
+        if (exchange.reached() == Reached.NO) {
+            return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                    "Nothing was submitted, because the request did not reach the payer. It is safe to send the same request again.", carry);
+        }
+        return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then ask for the status before sending again.",
+                "The payer may have received the submission and acted on it. Ask for its status with an inquiry first: sending it "
+                        + "again without checking could create a second request.", carry);
     }
 
     /**

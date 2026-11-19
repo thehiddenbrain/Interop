@@ -65,6 +65,10 @@ public class MockExchanges {
         pause(step.delayMillis());
         long elapsed = (System.nanoTime() - started) / 1_000_000L;
 
+        // Whether the request reached the service follows from what the scenario models, exactly as
+        // it would on live: an answer means it did, a refused connection means it did not, and a
+        // read timeout leaves it open. A tester therefore meets the advice that follows a timed
+        // out submission, to ask before sending again, on mock first.
         VendorExchange exchange = switch (step.behavior()) {
             case RESPOND -> Exchanges.fromResponse(request, step.httpStatus(),
                     step.body() == null ? List.of() : List.of(new WireHeader("Content-Type", "application/json")), step.body(),

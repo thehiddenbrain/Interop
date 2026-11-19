@@ -4,9 +4,11 @@ import org.p32h.interop.epa.pave.service.error.BadInputException;
 import java.nio.charset.StandardCharsets;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.OnyxFailureType;
+import org.p32h.interop.epa.pave.model.Reached;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Secrets;
+import org.p32h.interop.epa.pave.model.SentSecrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.WireHeader;
@@ -163,8 +165,14 @@ public final class Exchanges {
      * @param note why nothing was sent, or null
      */
     public static WireRequest wireRequest(PreparedCall call, ResolvedText body, ExchangeOptions options, boolean sent, String note) {
+        Map<String, ResolvedHeader> headers = headers(call, body, options);
+        boolean carriesBody = carriesBody(call, body);
+        // Worked out here, where the request is described, so that every description of a call
+        // knows which values the response to it must not be shown with. The mock builds its
+        // requests through this method too, so it masks exactly what live would.
+        SentSecrets secrets = CallSecrets.of(call, carriesBody ? body : null, headers, bearerTokenIn(headers, options));
         List<WireHeader> shown = new ArrayList<>();
-        for (ResolvedHeader header : headers(call, body, options).values()) {
+        for (ResolvedHeader header : headers.values()) {
             // A header that is a credential by its own name is redacted whatever its value was built
             // from, which covers a credential typed literally into a collection as well as one that
             // came from a secret variable. WireHeader applies the same rule again by itself.
@@ -177,7 +185,18 @@ public final class Exchanges {
                 : (note == null ? "" : note + " ") + "Not sent as written on the collection request: " + String.join(", ", withheld)
                 + ". The HTTP client writes " + (withheld.size() == 1 ? "this header" : "these headers") + " itself.";
         return new WireRequest(method(call), call.url().display(), call.url().template(), shown,
-                carriesBody(call, body) ? body.display() : null, sent, about);
+                carriesBody ? body.display() : null, sent, about, secrets);
+    }
+
+    /**
+     * The access token when it is among the headers a call is sent with, otherwise null. A token
+     * that was supplied and left off, because the collection request carries an Authorization
+     * header of its own, was not sent and is not a secret of this request.
+     */
+    private static String bearerTokenIn(Map<String, ResolvedHeader> headers, ExchangeOptions options) {
+        String token = options == null ? null : options.bearerToken();
+        ResolvedHeader authorization = headers.get("authorization");
+        return Texts.present(token) && authorization != null && ("Bearer " + token).equals(authorization.value()) ? token : null;
     }
 
     /**
@@ -300,18 +319,33 @@ public final class Exchanges {
                 parseError, elapsedMillis, failure, detail, Set.of(), null, null, notes);
     }
 
-    /** Describes a call that got no response inside the read timeout. */
+    /**
+     * Describes a call that got no response inside the read timeout. The connection was open and
+     * the request had gone out, so the service may have received it: whether it did cannot be said.
+     */
     public static VendorExchange timeout(WireRequest request, long elapsedMillis) {
-        return failed(request, elapsedMillis, OnyxFailureType.TIMEOUT, "No response arrived inside the read timeout.");
+        return failed(request, elapsedMillis, OnyxFailureType.TIMEOUT, "No response arrived inside the read timeout.", Reached.CANNOT_SAY);
     }
 
-    /** Describes a call that never reached the service. */
+    /**
+     * Describes a call that never reached the service: the connection could not be opened, or
+     * nothing was sent at all. For a connection that failed after it was opened use {@link #cutOff},
+     * because only this one tells a tester that a write can be sent again.
+     */
     public static VendorExchange unavailable(WireRequest request, long elapsedMillis, String detail) {
-        return failed(request, elapsedMillis, OnyxFailureType.UNAVAILABLE, detail);
+        return failed(request, elapsedMillis, OnyxFailureType.UNAVAILABLE, detail, Reached.NO);
     }
 
-    static VendorExchange failed(WireRequest request, long elapsedMillis, OnyxFailureType type, String detail) {
+    /**
+     * Describes a call whose connection failed after it was opened, with no response. The request
+     * may have gone out before it failed, so whether the service received it cannot be said.
+     */
+    public static VendorExchange cutOff(WireRequest request, long elapsedMillis, String detail) {
+        return failed(request, elapsedMillis, OnyxFailureType.UNAVAILABLE, detail, Reached.CANNOT_SAY);
+    }
+
+    static VendorExchange failed(WireRequest request, long elapsedMillis, OnyxFailureType type, String detail, Reached reached) {
         return new VendorExchange(request, null, List.of(), null, null, null, null, elapsedMillis, type, detail, Set.of(), null, null,
-                List.of());
+                List.of(), reached);
     }
 }

@@ -146,8 +146,10 @@ public class ChainService {
             headline = "This chain holds no CRD, DTR or PAS run yet.";
         } else {
             String said = name(last.protocol()) + ": " + Texts.orElse(last.outcomeLabel(), "no outcome recorded") + ".";
+            // "Nothing further" is not a next step, so it is not introduced as one.
             headline = ended ? said + " The journey ends here."
                     : next == null ? said + " The record does not say what should happen next."
+                    : next == NextAction.NOTHING_FURTHER ? said + " " + instruction(next)
                     : said + " Next: " + lowerFirst(instruction(next));
         }
 
@@ -193,6 +195,10 @@ public class ChainService {
             } else if (next == NextAction.FLOW_ENDS) {
                 state = ChainStageState.DONE;
                 line = "Done: " + said + ". The journey ends here.";
+            } else if (next == NextAction.NOTHING_FURTHER) {
+                // Done, and said apart from a stage that handed on: this one did not, and it did not end the journey either.
+                state = ChainStageState.DONE;
+                line = "Done: " + said + ". " + instruction(next);
             } else {
                 Protocol target = target(next, protocol);
                 if (target == protocol && attention(next)) {
@@ -223,6 +229,12 @@ public class ChainService {
             if (next == NextAction.FLOW_ENDS) {
                 return new ChainStage(protocol, name(protocol), ChainStageState.NOT_NEEDED, "Not needed: the journey ended at "
                         + shortName(from) + " with \"" + said + "\".", null, List.of());
+            }
+            if (next == NextAction.NOTHING_FURTHER) {
+                // The earlier stage is not unfinished, so "has to finish first" would send a person to fix what is not
+                // broken. And nothing said the journey can do without this stage, so it is not "not needed" either.
+                return new ChainStage(protocol, name(protocol), ChainStageState.NOT_REACHED, "Not reached: " + shortName(from) + " answered \""
+                        + said + "\" and called for nothing further, so nothing has led on to this stage.", null, List.of());
             }
             Protocol target = next == null ? null : target(next, from);
             if (target == protocol) {
@@ -265,23 +277,28 @@ public class ChainService {
     }
 
     /** The stage an action belongs to. An action that fixes something belongs to the stage that asked for it. */
-    private static Protocol target(NextAction action, Protocol stage) {
+    static Protocol target(NextAction action, Protocol stage) {
         if (action == null) {
             return null;
         }
         return switch (action) {
             case START_DTR, ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE -> Protocol.DTR;
             case START_PAS, CHECK_STATUS -> Protocol.PAS;
-            case FLOW_ENDS -> null;
+            // Neither names a stage. One says the journey is over, the other that nothing follows from the call.
+            case FLOW_ENDS, NOTHING_FURTHER -> null;
             case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, REVIEW -> stage;
         };
     }
 
-    /** True for an action that asks a person to fix or check something, as opposed to carrying on with the stage. */
-    private static boolean attention(NextAction action) {
+    /**
+     * True for an action that asks a person to fix or check something, as opposed to carrying on
+     * with the stage. Every action is named and there is no default, so an action added later does
+     * not compile until someone has decided which of the two it is.
+     */
+    static boolean attention(NextAction action) {
         return switch (action) {
             case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, REVIEW -> true;
-            default -> false;
+            case START_DTR, ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE, START_PAS, CHECK_STATUS, FLOW_ENDS, NOTHING_FURTHER -> false;
         };
     }
 
@@ -294,6 +311,7 @@ public class ChainService {
             case START_PAS -> "Submit the prior authorization request (PAS).";
             case CHECK_STATUS -> "Ask for the status of the pended authorization (PAS).";
             case FLOW_ENDS -> "Nothing more to do. The journey is complete at this step.";
+            case NOTHING_FURTHER -> "Nothing further to do after this call. No journey ended with it.";
             case FIX_TEST_DATA -> "Check the test data. The member, provider or code is not known to the service.";
             case FIX_REQUEST -> "Check what was sent. The service did not accept the request.";
             case SUPPLY_INFORMATION -> "Supply the information the payer asked for and send again.";

@@ -31,6 +31,12 @@ import tools.jackson.databind.JsonNode;
  * @param scenarioId      the mock scenario that answered, or null when the answer came from a real service
  * @param scenarioNote    how that scenario came to be the one that answered, in plain words, or null
  * @param bodyNotes       things a tester should know about the body as a whole, such as a repeated key
+ * @param reached         whether the request reached the service. Yes when, and only when, a
+ *                        response arrived. For a call with no response it is no when the
+ *                        connection was never opened or nothing was sent, and cannot say when the
+ *                        request may have gone out. Given as null it is worked out from the
+ *                        status, and is then never no: "no" tells a tester that a write can be
+ *                        sent again, so only whoever knows how the call failed may say it
  */
 public record VendorExchange(
         WireRequest request,
@@ -46,7 +52,16 @@ public record VendorExchange(
         Set<VendorSignal> signals,
         String scenarioId,
         String scenarioNote,
-        List<String> bodyNotes) {
+        List<String> bodyNotes,
+        Reached reached) {
+
+    /** An exchange that leaves it to the status to say whether the service was reached: yes with a response, cannot say without one. */
+    public VendorExchange(WireRequest request, Integer httpStatus, List<WireHeader> responseHeaders, String responseBody, Long responseBytes,
+                          JsonNode json, String parseError, long elapsedMillis, OnyxFailureType failureType, String failureDetail,
+                          Set<VendorSignal> signals, String scenarioId, String scenarioNote, List<String> bodyNotes) {
+        this(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis, failureType, failureDetail,
+                signals, scenarioId, scenarioNote, bodyNotes, null);
+    }
 
     public VendorExchange {
         if (failureType == null) {
@@ -88,6 +103,12 @@ public record VendorExchange(
         responseHeaders = responseHeaders == null ? List.of() : List.copyOf(responseHeaders);
         signals = signals == null || signals.isEmpty() ? Set.of() : Set.copyOf(signals);
         bodyNotes = bodyNotes == null ? List.of() : List.copyOf(bodyNotes);
+        if (reached == null) {
+            reached = httpStatus != null ? Reached.YES : Reached.CANNOT_SAY;
+        }
+        if ((httpStatus != null) != (reached == Reached.YES)) {
+            throw new IllegalArgumentException("A request reached the service for certain when a response arrived, and only then.");
+        }
     }
 
     /**
@@ -109,44 +130,114 @@ public record VendorExchange(
             merged.addAll(newSignals);
         }
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis,
-                failureType, failureDetail, merged, scenarioId, scenarioNote, bodyNotes);
+                failureType, failureDetail, merged, scenarioId, scenarioNote, bodyNotes, reached);
     }
 
     /** The same exchange marked with the mock scenario that produced it and how it was chosen. */
     public VendorExchange withScenario(String id, String note) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis,
-                failureType, failureDetail, signals, id, note, bodyNotes);
+                failureType, failureDetail, signals, id, note, bodyNotes, reached);
     }
 
     /** The same exchange with the parsed body replaced, for a client that normalises a vendor shape. */
     public VendorExchange withJson(JsonNode newJson) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, newJson, parseError, elapsedMillis,
-                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes);
+                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes, reached);
     }
 
     /** The same exchange reported with a different duration, for a test of the slow threshold. */
     public VendorExchange withElapsedMillis(long millis) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, millis,
-                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes);
+                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes, reached);
     }
 
     /**
      * The fields every mapper adds to its additional fields before anything it found itself: the
      * body as received when it could not be parsed, and each note about the body. They are what
      * keeps an unreadable body, or a quirk of a readable one, out of the wire view alone.
+     *
+     * <p>The body is the same text the wire view shows, so it is masked in the same way: a place
+     * that repeats a secret the request sent is shown as that secret's mask, and a note says so.
      */
     public List<AdditionalField> bodyFields() {
         List<AdditionalField> out = new ArrayList<>();
         if (json == null && responseBody != null) {
-            out.add(AdditionalField.unparsedBody(responseBody));
+            SentSecrets.Masked shown = sentSecrets().mask(responseBody);
+            out.add(AdditionalField.unparsedBody(shown.text()));
+            if (shown.places() > 0) {
+                out.add(AdditionalField.bodyNote(masked(shown.places(), "in the body as shown here")));
+            }
         }
         bodyNotes.forEach(note -> out.add(AdditionalField.bodyNote(note)));
         return out;
     }
 
-    /** The response half of the wire view. */
+    /**
+     * The response half of the wire view: the headers and the body as received, except that every
+     * place which repeats a secret the request sent is shown as that secret's mask. The view then
+     * says how many places were masked, so that it never passes for the exact bytes received when
+     * it is not. The byte count stays the count of what was received.
+     *
+     * <p>Only what is shown is masked. {@link #responseBody()}, {@link #json()} and
+     * {@link #responseHeaders()} stay as they were received, because a mapper has to read what the
+     * service really said.
+     */
     public WireResponse wireResponse() {
-        return new WireResponse(httpStatus, responseHeaders, responseBody, responseBytes, json != null, parseError);
+        SentSecrets secrets = sentSecrets();
+        int inHeaders = 0;
+        List<WireHeader> shownHeaders = new ArrayList<>();
+        for (WireHeader header : responseHeaders) {
+            SentSecrets.Masked value = secrets.mask(header.value());
+            inHeaders += value.places();
+            shownHeaders.add(value.places() == 0 ? header : new WireHeader(header.name(), value.text()));
+        }
+        SentSecrets.Masked body = secrets.mask(responseBody);
+        // With no response nothing is shown, so there is nothing to say about what was or was not looked for in it.
+        boolean arrived = httpStatus != null;
+        return new WireResponse(httpStatus, shownHeaders, body.text(), responseBytes, json != null, parseError,
+                inHeaders + body.places(), maskNote(inHeaders, body.places(), arrived ? secrets.tooShort() : 0, arrived && secrets.incomplete()));
+    }
+
+    private SentSecrets sentSecrets() {
+        return request == null ? SentSecrets.none() : request.secrets();
+    }
+
+    /**
+     * What the wire view says about masking, or null when there is nothing to say.
+     *
+     * @param tooShort   how many secrets the request sent that are too short to search for
+     * @param incomplete true when the request carried a secret whose value could not be worked out
+     */
+    private static String maskNote(int inHeaders, int inBody, int tooShort, boolean incomplete) {
+        int places = inHeaders + inBody;
+        StringBuilder note = new StringBuilder();
+        if (places > 0) {
+            String where = inBody == 0 ? "in the headers of this response" : inHeaders == 0 ? "in the body of this response"
+                    : "in this response, " + inHeaders + " in the headers and " + inBody + " in the body,";
+            note.append(masked(places, where)).append(" A masked place is shown as [secret ...], naming the variable, the header or the ")
+                    .append("token whose value it repeats. What is shown here is therefore not exactly what was received. The byte count is ")
+                    .append("the count of what was received.");
+        }
+        if (tooShort > 0) {
+            note.append(places > 0 ? " This request also sent " : "This request sent ")
+                    .append(tooShort == 1 ? "1 secret" : tooShort + " secrets").append(" shorter than ").append(SentSecrets.SHORTEST_SEARCHED)
+                    .append(" characters. A secret that short is not searched for, because it would be found by accident, so this ")
+                    .append("response is not masked where it repeats ").append(tooShort == 1 ? "that one." : "one of those.");
+        }
+        if (incomplete) {
+            // Said even when nothing was masked: a response shown with a secret in it and no word
+            // about it would pass for one that was searched and found clean.
+            note.append(note.length() > 0 ? " This request also carried " : "This request carried ")
+                    .append("at least one secret whose value this tool could not work out, so this response was not searched for it. ")
+                    .append("Check what is shown here before you share it.");
+        }
+        return note.length() == 0 ? null : note.toString();
+    }
+
+    /** The sentence that says how many places were masked and why, worded for one place as well as for several. */
+    private static String masked(int places, String where) {
+        return places == 1 ? "1 place " + where + " is masked because it repeats a secret this request sent."
+                : places + " places " + where + " are masked because they repeat a secret this request sent.";
     }
 
     public WireView wire(MemberIdForms memberId) {

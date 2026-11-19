@@ -246,7 +246,28 @@ public class RunSupport {
      */
     public <D> RunEnvelope<D> blocked(EpaOperation operation, ProdWriteBlockedException refusal, RunRequest request,
                                       RunOrigin origin) {
-        RunRecord record = fill(blockedDraft(operation, refusal, origin), request).nextAction(NextAction.UNLOCK_OR_SWITCH).build();
+        return blocked(operation, refusal, request, origin, Map.of());
+    }
+
+    /**
+     * As {@link #blocked(EpaOperation, ProdWriteBlockedException, RunRequest, RunOrigin)}, for a
+     * run that names what it was aimed at: the subscription an update or a delete was for, the
+     * claim a submission carried, the run it follows from. An owner who reads the ledger for
+     * refused production writes can then see what each one would have changed.
+     *
+     * <p>Only what the request itself names belongs here. Nothing was sent, so nothing a service
+     * would have assigned exists, and an identifier this tool would have minted on sending is not
+     * minted for a request that did not go.
+     *
+     * @param correlation what the refused run was about, keyed by the CORR constants of
+     *                    {@link RunRecord}. The record checks the keys and the values itself, as it
+     *                    does for every line. Null or empty for a run that names nothing
+     * @param <D>         the protocol's detail type. A blocked result has no detail
+     */
+    public <D> RunEnvelope<D> blocked(EpaOperation operation, ProdWriteBlockedException refusal, RunRequest request,
+                                      RunOrigin origin, Map<String, String> correlation) {
+        RunRecord record = fill(blockedDraft(operation, refusal, origin), request).correlation(correlation == null ? Map.of() : correlation)
+                .nextAction(NextAction.UNLOCK_OR_SWITCH).build();
         LedgerReceipt receipt = record(record);
         ResolvedUrl target = refusal.target();
         MemberIdForms memberId = memberId(request);
@@ -301,7 +322,7 @@ public class RunSupport {
             supporting.add(scenario);
         }
         supporting.add(exchange.httpStatus() == null ? "No response arrived from the service."
-                : "The service answered with HTTP " + exchange.httpStatus() + ". Its answer is shown below exactly as received.");
+                : "The service answered with HTTP " + exchange.httpStatus() + ". Its answer is shown below " + asReceived(exchange) + ".");
         return RunEnvelope.<D>builder()
                 .runId(record.runId())
                 .chainId(record.chainId())
@@ -424,9 +445,12 @@ public class RunSupport {
                             + "wire view.");
             case SERVER_ERROR -> ErrorView.of(ErrorKind.VENDOR_ERROR, "The service failed" + status + ".",
                     "This is a fault in the environment, not in the request. Note the time and the run id and report it.");
+            // No advice to send again here. This panel is the same for a read and for a write, and
+            // a write that timed out may have reached the service: the next step, which knows what
+            // was sent, says whether to send again or to ask first.
             case TIMEOUT -> ErrorView.of(ErrorKind.TIMEOUT,
                     "No response arrived within the read timeout" + (epa.mock() ? "" : " of " + onyx.readTimeoutMs() + " ms") + ".",
-                    "The service may be slow or down. Send again, and if it repeats report the environment.");
+                    "The service may be slow or down. If it repeats, report the environment. The next step says whether to send again.");
             case UNAVAILABLE -> ErrorView.of(ErrorKind.UNREACHABLE,
                     Texts.orElse(exchange.failureDetail(), "The service could not be reached."),
                     "Check the url on the Config tab, the network and any proxy or trust store settings.");
@@ -436,11 +460,21 @@ public class RunSupport {
                     : ErrorView.of(ErrorKind.MALFORMED_RESPONSE,
                     ("The service answered" + status + " with a body this tool could not read. "
                             + Texts.orElse(exchange.parseError(), "")).strip(),
-                    "The body is shown exactly as received. Report it as a defect in the service.");
+                    "The body is shown " + asReceived(exchange) + ". Report it as a defect in the service.");
         };
         if (view == null) {
             return null;
         }
         return view.withHttpStatus(exchange.httpStatus()).withIssues(issues == null ? List.of() : issues);
+    }
+
+    /**
+     * How a response is shown, in the words a sentence about it can use: exactly as received,
+     * unless a place in it repeats a secret the request sent and is masked. "Exactly" is then not
+     * true, and the wire view says how many places were masked.
+     */
+    private static String asReceived(VendorExchange exchange) {
+        return exchange.wireResponse().maskedPlaces() == 0 ? "exactly as received"
+                : "as received, apart from the places the wire view says are masked";
     }
 }

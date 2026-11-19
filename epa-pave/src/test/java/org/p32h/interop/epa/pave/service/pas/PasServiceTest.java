@@ -483,8 +483,60 @@ class PasServiceTest {
         assertThat(record.httpStatus()).isNull();
         assertThat(record.memberId()).isEqualTo("S1234567801");
         assertThat(record.nextAction()).isEqualTo("UNLOCK_OR_SWITCH");
-        // No claim was sent, so the line names none.
+        // No claim id was given and none was sent, so the line names none. An id is not minted for a request that did not go.
         assertThat(record.correlation()).isEmpty();
+    }
+
+    @Test
+    void aBlockedSubmissionNamesTheClaimAndTheRunItWasAbout() {
+        gateway.failing(blockedWrite());
+        CountingClient client = new CountingClient();
+        PasService live = service(client, "live", Map.of(), Map.of());
+        String earlier = "run-00000000-0000-4000-8000-000000000001";
+
+        // The claim id typed on the form.
+        live.runSubmit(submission("S123456789").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().outcome()).isEqualTo("BLOCKED");
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, CLAIM));
+
+        // The claim and the run an earlier step handed on, as a resubmission with documentation carries them.
+        live.runSubmit(submission("S123456789").carry(Map.of(NextStepView.CARRY_CLAIM_ID, List.of(CLAIM), NextStepView.CARRY_RUN_ID,
+                List.of(earlier))).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, CLAIM),
+                Map.entry(RunRecord.CORR_RUN_ID, earlier));
+
+        // The claim a body of the tester's own names. The claim id on the form is not part of that body, so it is not the one.
+        live.runSubmit(PasSubmitRequest.builder().rawBody(PasJson.request("claim-in-the-body", "95810")).claimId(CLAIM).build(),
+                RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, "claim-in-the-body"));
+        // A body whose claim id is still a placeholder names no claim: nothing is resolved for a request that does not go.
+        live.runSubmit(PasSubmitRequest.builder().rawBody(PasJson.request("{{claimIdentifier}}", "95810")).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).isEmpty();
+
+        // A refused inquiry names the claim it asked about in the same way.
+        live.runInquire(inquiry("S123456789").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().operation()).isEqualTo(EpaOperation.PAS_INQUIRE);
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, CLAIM));
+
+        assertThat(ledger.records()).hasSize(5).allSatisfy(record -> assertThat(record.outcome()).isEqualTo("BLOCKED"));
+        assertThat(client.calls.get()).isZero();
+    }
+
+    @Test
+    void anInquiryIsLinkedToTheSubmissionThatWasSentAndNeverToALaterAttemptTheGuardrailRefused() {
+        RunEnvelope<PasDetail> submitted = service().runSubmit(submission("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        // The same claim is submitted again and refused. Its line names the claim, and it sent nothing.
+        gateway.failing(blockedWrite());
+        RunEnvelope<PasDetail> refused = service().runSubmit(submission("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        assertThat(RunSupport.isBlocked(refused)).isTrue();
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, CLAIM);
+        gateway.failing(null);
+
+        RunEnvelope<PasDetail> inquired = service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+
+        // The newest line for that claim is the refused one. The inquiry is about the request the payer holds.
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, submitted.runId());
+        assertThat(inquired.nextStep().first(NextStepView.CARRY_RUN_ID)).isEqualTo(submitted.runId());
     }
 
     @Test
@@ -686,21 +738,26 @@ class PasServiceTest {
 
     @Test
     void aLedgerThatCannotBeAskedLeavesTheInquiryUnlinkedAndStillAnswersIt() {
-        InMemoryLedger backing = new InMemoryLedger();
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("ledger", new QueryFailingLedger(backing));
-        EpaProperties epa = EpaProperties.of(Map.of("mode", "mock"));
-        RunSupport support = new RunSupport(epa, TrackingProperties.defaults(), OnyxProperties.defaults(), beans.getBeanProvider(RunLedger.class), CLOCK);
-        PasService service = new PasService(OnyxProperties.defaults(), gateway, mockClient, codeList, support, beans.getBeanProvider(RunLedger.class));
-
         // The submission is in the ledger. Only the question "which run submitted this claim" fails.
-        service.runSubmit(submission("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
-        RunEnvelope<PasDetail> inquired = service.runInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        RunEnvelope<PasDetail> submitted = service().runSubmit(submission("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        // The message names a member on purpose: a caller that copied it into a result would be caught below.
+        ledger.throwingOnRead(new IllegalStateException("the ledger directory is gone for " + SURNAME));
+
+        RunEnvelope<PasDetail> inquired = service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+
         assertThat(inquired.verdict().outcomeCode()).isEqualTo("APPROVED");
+        // Writing is another matter than asking: the inquiry still has its line.
         assertThat(inquired.ledger().recorded()).isTrue();
-        assertThat(backing.last().correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, CLAIM).doesNotContainKey(RunRecord.CORR_RUN_ID);
+        assertThat(ledger.last().runId()).isEqualTo(inquired.runId());
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, CLAIM).doesNotContainKey(RunRecord.CORR_RUN_ID);
+        assertThat(inquired.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_RUN_ID);
         // What the ledger said when it failed is nowhere in the result.
         assertThat(JsonSafe.mapper().writeValueAsString(inquired)).doesNotContain("ledger directory").doesNotContain("is gone for");
+
+        // Once the ledger answers again, the same inquiry is linked.
+        ledger.throwingOnRead(null);
+        service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), RunOrigin.manual(), null);
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, submitted.runId());
     }
 
     // ---- not found, faults: every one rendered in full ----
@@ -1159,19 +1216,53 @@ class PasServiceTest {
     }
 
     @Test
-    void aSubmissionThatLeftThisMachineAndGotNoUsableAnswerMayHaveBeenReceived() {
-        // As a live client reports it: the request was sent, and no answer arrived in time.
+    void aSubmissionThatMayHaveReachedThePayerIsToBeAskedAboutAndOneThatCannotHaveIsSentAgain() {
+        // As a live client reports it: the request had gone out, and no answer arrived in time.
         VendorExchange timeout = TestExchanges.timeout(EpaOperation.PAS_SUBMIT);
         RunEnvelope<PasDetail> result = service(stub(timeout), "live", Map.of(), Map.of()).runSubmit(submission("S123456789").build(), RunOrigin.manual(), null);
-        assertThat(result.verdict().supporting()).contains("The submission was sent. Whether the payer received and kept it is not known.");
+        assertThat(result.verdict().supporting()).contains("The payer may have received the submission and acted on it.");
         assertThat(result.nextStep().headline()).isEqualTo("Next: check the environment, then ask for the status before sending again.");
         // The claim id to ask about is handed on, so the tester does not have to find it.
         assertThat(result.nextStep().carry()).containsKeys(NextStepView.CARRY_CLAIM_ID, NextStepView.CARRY_RUN_ID);
+        // The panel beside it does not tell the tester to send again while the next step says to ask first.
+        assertThat(result.error().action()).isEqualTo("The service may be slow or down. If it repeats, report the environment. The next step "
+                + "says whether to send again.");
+
+        // The connection was refused, so nothing was delivered and the same request can go again.
+        RunEnvelope<PasDetail> refused = service(stub(TestExchanges.unavailable(EpaOperation.PAS_SUBMIT)), "live", Map.of(), Map.of())
+                .runSubmit(submission("S123456789").build(), RunOrigin.manual(), null);
+        assertThat(refused.verdict().headline()).isEqualTo("The service could not be reached.");
+        assertThat(refused.verdict().supporting()).containsExactly("The connection was refused or could not be opened.",
+                "Nothing was submitted: the request did not reach the payer.");
+        assertThat(refused.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+        assertThat(refused.nextStep().reason()).isEqualTo("Nothing was submitted, because the request did not reach the payer. It is safe to "
+                + "send the same request again.");
+
         // An inquiry that timed out changed nothing on the far side, so it carries no such warning.
         RunEnvelope<PasDetail> inquiry = service(stub(TestExchanges.timeout(EpaOperation.PAS_INQUIRE)), "live", Map.of(), Map.of())
                 .runInquire(inquiry("S123456789").claimId(CLAIM).build(), RunOrigin.manual(), null);
-        assertThat(inquiry.verdict().supporting()).noneMatch(line -> line.contains("may have been received") || line.contains("was sent"));
+        assertThat(inquiry.verdict().supporting()).noneMatch(line -> line.contains("may have received") || line.contains("submitted"));
         assertThat(inquiry.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+    }
+
+    @Test
+    void onMockTheTwoTransportScenariosRehearseTheTwoAnswersALiveSubmissionCanGet() {
+        // The scenario models a service that took the submission and did not answer: ask before sending again.
+        RunEnvelope<PasDetail> timeout = submit("P32H-PAS-TIMEOUT");
+        assertThat(timeout.verdict().outcomeCode()).isEqualTo("TIMEOUT");
+        assertThat(timeout.verdict().supporting()).contains("The payer may have received the submission and acted on it.");
+        assertThat(timeout.nextStep().headline()).isEqualTo("Next: check the environment, then ask for the status before sending again.");
+        // The scenario models a refused connection: nothing was submitted.
+        RunEnvelope<PasDetail> down = submit("P32H-PAS-DOWN");
+        assertThat(down.verdict().outcomeCode()).isEqualTo("UNREACHABLE");
+        assertThat(down.verdict().supporting()).contains("Nothing was submitted: the request did not reach the payer.");
+        assertThat(down.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+        // Either way the mock says first that it is a mock, and the wire view that nothing left this machine.
+        for (RunEnvelope<PasDetail> result : List.of(timeout, down)) {
+            assertThat(result.verdict().supporting().get(0)).startsWith("Mock scenario ");
+            assertThat(result.wire().request().sent()).isFalse();
+            assertThat(result.wire().request().note()).contains("Nothing left this machine.");
+        }
     }
 
     // ---- preview ----

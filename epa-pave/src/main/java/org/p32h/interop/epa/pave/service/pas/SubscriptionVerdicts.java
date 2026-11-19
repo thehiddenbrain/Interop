@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Presence;
+import org.p32h.interop.epa.pave.model.Reached;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
@@ -70,7 +71,10 @@ public final class SubscriptionVerdicts {
             case REJECTED -> "The service did not accept the request as sent" + status(exchange) + ".";
             case SERVICE_ERROR -> "The service failed" + status(exchange) + ".";
             case TIMEOUT -> "The service did not answer in time.";
-            case UNREACHABLE -> "The service could not be reached.";
+            // The same outcome covers a connection that never opened and one that broke after it
+            // opened. Only the first is a service that could not be reached.
+            case UNREACHABLE -> exchange.reached() == Reached.NO ? "The service could not be reached."
+                    : "The connection to the service failed before an answer arrived.";
             case MALFORMED_RESPONSE -> reading.detail().responseKind() == SubscriptionResponseKind.NO_BODY
                     ? "The service answered with no body" + status(exchange) + "."
                     : "The service answered with a body that could not be read" + status(exchange) + ".";
@@ -79,8 +83,9 @@ public final class SubscriptionVerdicts {
             if (Texts.present(exchange.failureDetail())) {
                 supporting.add(exchange.failureDetail());
             }
-            if (mayHaveBeenApplied(outcome, exchange, operation)) {
-                supporting.add("The request was sent. Whether the service applied it is not known.");
+            if (operation.write() && noUsableAnswer(outcome)) {
+                supporting.add(exchange.reached() == Reached.NO ? "Nothing was changed: the request did not reach the service."
+                        : "The service may have received the request and applied it.");
             }
         } else {
             if (Texts.present(reading.detail().responseNote())) {
@@ -126,34 +131,56 @@ public final class SubscriptionVerdicts {
                     : new NextStepView(NextAction.START_PAS, "Next: submit a prior authorization request. The service notifies a "
                     + "subscription's receiver when the status of a request changes.",
                     "The subscription exists. A notification about a request arrives only after a request is submitted.", carry);
-            case READ, LISTED -> new NextStepView(NextAction.FLOW_ENDS, "Nothing follows from a read. Record this result.",
+            // After a read, a list, an update and a delete there is nothing to do. None of them is the end of
+            // a case's journey, which is what FLOW_ENDS says, so none of them says that.
+            case READ, LISTED -> new NextStepView(NextAction.NOTHING_FURTHER, "Nothing follows from a read. Record this result.",
                     "The call read what the service holds and changed nothing.", carry);
             case UPDATED -> Texts.present(callbackProblem) ? noReceiver("updated", callbackProblem, ownBody, carry)
-                    : new NextStepView(NextAction.FLOW_ENDS, "The update is done. Record this result.",
+                    : new NextStepView(NextAction.NOTHING_FURTHER, "The update is done. Record this result.",
                     "The service accepted the new state of the subscription.", carry);
-            case DELETED -> new NextStepView(NextAction.FLOW_ENDS, "The subscription is gone. Record this result.",
+            case DELETED -> new NextStepView(NextAction.NOTHING_FURTHER, "The subscription is gone. Record this result.",
                     "The service accepted the delete, so there is nothing further to do with this subscription.", carry);
             case NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the subscription id. The list shows the ids the service knows.",
                     "The service does not know the id that was asked for. The environment answered normally.", carry);
             case UNRECOGNISED_RESPONSE -> new NextStepView(NextAction.REVIEW, "Next: read the response detail below. This tool cannot say "
                     + "what should happen next.", "The response is not something this tool can read as the answer to this call.", carry);
             case REJECTED -> notAccepted(exchange, carry);
-            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE -> mayHaveBeenApplied(outcome, exchange, operation)
-                    ? new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then list the subscriptions before sending again.",
-                    "No usable answer came back, but the request was sent and may have been applied. Sending it again without checking "
-                            + "could create a second subscription.", carry)
-                    : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
-                    "No usable answer came back. This is a finding about the environment, not about the subscription.", carry);
-            // Not "it received nothing": a connection that never opened and one that failed after
-            // it opened are both reported as unreachable, and only the first delivered nothing.
-            case UNREACHABLE -> operation.write() && leftThisMachine(exchange)
-                    ? new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment. Send again only when the connection "
-                    + "never opened.", "No answer came back, and the verdict says how the connection failed. A connection that never "
-                    + "opened delivered nothing. One that failed after it opened may have delivered the request, so list the "
-                    + "subscriptions before sending again.", carry)
-                    : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
-                    "No answer came back. This is a finding about the environment, not about the subscription.", carry);
+            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> afterNoUsableAnswer(outcome, exchange, operation, carry);
         };
+    }
+
+    /** The outcomes in which the call was made and nothing usable came back. A rejection is not one: the service said no. */
+    private static boolean noUsableAnswer(SubscriptionOutcome outcome) {
+        return outcome == SubscriptionOutcome.TIMEOUT || outcome == SubscriptionOutcome.UNREACHABLE
+                || outcome == SubscriptionOutcome.SERVICE_ERROR || outcome == SubscriptionOutcome.MALFORMED_RESPONSE;
+    }
+
+    /**
+     * The next step when the call was made and nothing usable came back.
+     *
+     * <p>A read changes nothing, so it is simply sent again. For a create, an update or a delete it
+     * turns on whether the request can have reached the service, which the exchange says: one that
+     * cannot have reached it changed nothing and can be sent again, and one that may have reached
+     * it may have been applied, so the tester looks at what the service holds first. The same
+     * holds on the mock profile, where the scenario says which of the two it models.
+     */
+    private static NextStepView afterNoUsableAnswer(SubscriptionOutcome outcome, VendorExchange exchange, EpaOperation operation,
+                                                    Map<String, List<String>> carry) {
+        if (!operation.write()) {
+            return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                    (outcome == SubscriptionOutcome.UNREACHABLE ? "No answer came back." : "No usable answer came back.")
+                            + " This is a finding about the environment, not about the subscription.", carry);
+        }
+        if (exchange.reached() == Reached.NO) {
+            return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                    "Nothing was changed, because the request did not reach the service. It is safe to send the same request again.", carry);
+        }
+        // Only a create can leave a second subscription behind. Saying so of an update or a delete would be false.
+        String why = operation == EpaOperation.SUBSCRIPTION_CREATE ? "sending it again without checking could create a second subscription."
+                : operation == EpaOperation.SUBSCRIPTION_DELETE ? "the list shows whether the subscription is gone."
+                : "the list shows whether the change took effect.";
+        return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then list the subscriptions before sending again.",
+                "The service may have received the request and applied it. List the subscriptions first: " + why, carry);
     }
 
     /**
@@ -174,23 +201,6 @@ public final class SubscriptionVerdicts {
                 : new NextStepView(NextAction.OPEN_CONFIG, "Next: set " + SubscriptionRequestBuilder.CALLBACK_PROPERTY + " to an address the "
                 + "service can reach, then update this subscription or create another. Until then, follow a request with an inquiry.",
                 reason, carry);
-    }
-
-    /**
-     * True when a create, an update or a delete really left this machine and no usable answer came
-     * back. The service may have applied it all the same. Never true on the mock profile, where
-     * nothing is sent. An unreachable service is worded on its own, because whether anything was
-     * delivered then depends on how the connection failed.
-     */
-    private static boolean mayHaveBeenApplied(SubscriptionOutcome outcome, VendorExchange exchange, EpaOperation operation) {
-        boolean noUsableAnswer = outcome == SubscriptionOutcome.TIMEOUT || outcome == SubscriptionOutcome.SERVICE_ERROR
-                || outcome == SubscriptionOutcome.MALFORMED_RESPONSE;
-        return operation.write() && noUsableAnswer && leftThisMachine(exchange);
-    }
-
-    /** False on the mock profile and for a blocked write, where no attempt to reach the service was made. */
-    private static boolean leftThisMachine(VendorExchange exchange) {
-        return exchange.request() != null && exchange.request().sent();
     }
 
     /** The next step when the service answered with a 4xx status, which does not always mean the body is at fault. */
