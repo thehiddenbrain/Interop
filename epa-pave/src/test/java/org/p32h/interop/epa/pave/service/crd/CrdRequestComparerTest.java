@@ -252,7 +252,52 @@ class CrdRequestComparerTest {
                 .member(MemberDetail.builder().memberId("S123456789").lineOfBusiness("Medicare").build()).build();
         String sent = sent(original);
         assertThat(sent).contains("urn:from-the-code-list");
-        assertThat(lines(compare(CrdRunRequest.builder().rawBody(sent).build()))).containsExactly(ONLY_HOOK_INSTANCE);
+        RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(sent).build());
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE);
+        // The code list would have led this tool to the same system, so there is nothing to note.
+        assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
+    }
+
+    private static final String OWN_SYSTEM = "Left to work the system out for itself";
+
+    @Test
+    void aSystemReadFromThePastedRequestIsUsedAndTheResultSaysWhichOneThisToolWritesByItself() {
+        // The sample writes its HCPCS code under another system than the one this tool takes from the format of the code.
+        String pasted = fixture("vendor-shaped-order-sign.json").replace("https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+                "urn:oid:2.16.840.1.113883.6.285");
+        RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(pasted).build());
+        // Used as read, so that the two orders describe the same code. Unsaid, that would hide how this tool itself writes the code.
+        assertThat(JsonSafe.parse(comparison.toolBody()).node().at("/context/draftOrders/entry/1/resource/code/coding/0/system").asString())
+                .isEqualTo("urn:oid:2.16.840.1.113883.6.285");
+        assertThat(comparison.notes()).contains("Your request states the system of the code at "
+                + "context.draftOrders.entry[1].resource.codeCodeableConcept.coding[0].code, and the tool's request was built with that system. "
+                + "Left to work the system out for itself, from the code list or else from the format of the code, this tool writes "
+                + "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets.");
+        assertThat(comparison.notes()).filteredOn(note -> note.contains(OWN_SYSTEM)).hasSize(1);
+
+        // A code whose format says nothing, under a system only the sample knows: by itself this tool writes none.
+        String unknown = sent(form("order-sign", 1, true).procedureCodes(List.of(new CodeInput("XYZ-1", "https://example.invalid/local-codes", null))).build());
+        assertThat(compare(CrdRunRequest.builder().rawBody(unknown).build()).notes()).contains("Your request states the system of the code at "
+                + "context.draftOrders.entry[0].resource.code.coding[0].code, and the tool's request was built with that system. Left to work "
+                + "the system out for itself, from the code list or else from the format of the code, this tool writes none.");
+
+        // Where this tool writes the same system by itself there is nothing to note.
+        assertThat(compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json")).build()).notes())
+                .noneMatch(note -> note.contains(OWN_SYSTEM));
+    }
+
+    @Test
+    void aCodeOnTheFormIsBuiltWithTheSystemThisToolChoosesAndADifferentSystemInThePastedRequestIsADifference() {
+        String pasted = sent(form("order-sign", 1, true).procedureCodes(List.of(new CodeInput("95810", "urn:oid:2.16.840.1.113883.6.12", null))).build());
+        RequestComparison comparison = compare(form("order-sign", 1, true).procedureCodes(List.of(CodeInput.of("95810"))).rawBody(pasted).build());
+        String coding = "context.draftOrders.entry[ServiceRequest].resource.code.coding";
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, coding + "[http://www.ama-assn.org/go/cpt] | ONLY_IN_TOOL | BUILD",
+                coding + "[urn:oid:2.16.840.1.113883.6.12] | ONLY_IN_YOURS | BUILD");
+        assertThat(at(comparison, coding + "[http://www.ama-assn.org/go/cpt]").explanation()).isEqualTo("This list is matched by system. The "
+                + "tool's request has an element with this system that your request has no counterpart for. The other request has an unmatched "
+                + "element here too: the two were not compared with each other, because they do not share a system. When a code comes without "
+                + "a system, this tool takes one from the code list, or else from the format of the code.");
+        assertThat(comparison.notes()).noneMatch(note -> note.contains(OWN_SYSTEM));
     }
 
     // ---- a request shaped the way a vendor might shape it ----
@@ -304,7 +349,7 @@ class CrdRequestComparerTest {
                 "prefetch[Coverage] | DIFFERENT_KEY | BUILD",
                 "prefetch[Coverage].id | DIFFERENT_VALUE | LABELS",
                 "prefetch[Coverage].identifier | ONLY_IN_TOOL | BUILD",
-                "prefetch[Coverage].class[0].name | ONLY_IN_YOURS | BUILD",
+                "prefetch[Coverage].class[plan].name | ONLY_IN_YOURS | BUILD",
                 "prefetch[Coverage].period | ONLY_IN_YOURS | BUILD",
                 "prefetch[Coverage].payor | ONLY_IN_YOURS | BUILD",
                 "prefetch.practitionerRole | ONLY_IN_TOOL | BUILD",
@@ -497,9 +542,9 @@ class CrdRequestComparerTest {
         CaseValue memberId = source(comparison, "member.memberId");
         assertThat(memberId.value().value()).isEqualTo("S12345678   01");
         assertThat(memberId.note()).isEqualTo("This tool removes the spaces from a member ID before it sends it.");
-        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patient.identifier[0].value | DIFFERENT_VALUE | CASE",
-                "prefetch.coverage.identifier[0].value | DIFFERENT_VALUE | CASE");
-        Difference value = at(comparison, "prefetch.patient.identifier[0].value");
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patient.identifier[MB].value | DIFFERENT_VALUE | CASE",
+                "prefetch.coverage.identifier[MB].value | DIFFERENT_VALUE | CASE");
+        Difference value = at(comparison, "prefetch.patient.identifier[MB].value");
         assertThat(value.toolValue().value()).isEqualTo("S1234567801");
         assertThat(value.yourValue().value()).isEqualTo("S12345678   01");
         assertThat(value.explanation()).isEqualTo("The two requests hold different text here. They differ only in spaces: one has spaces where "

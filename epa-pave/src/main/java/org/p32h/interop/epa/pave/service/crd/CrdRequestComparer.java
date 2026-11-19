@@ -105,6 +105,8 @@ public final class CrdRequestComparer {
         Reading reading = CrdRequestReader.read(yours != null && yours.isObject() ? yours : JsonNodeFactory.instance.objectNode());
         Case built = merge(form, reading);
         notes.addAll(built.notes);
+        // What the reader could not use is said whether or not the two end up compared: it is often the reason they are not.
+        notes.addAll(reading.notes());
 
         String toolBody = null;
         JsonNode tool = null;
@@ -140,7 +142,7 @@ public final class CrdRequestComparer {
         all.add(WHAT_IT_CANNOT_SHOW);
         all.addAll(notes);
         all.addAll(result.notes());
-        all.addAll(reading.notes());
+        systemsLeftToThisTool(built, reading, variables, all);
         otherOrderTypes(reading, all);
         pointingOutside(yours, "Your request", all);
         pointingOutside(tool, "The tool's request", all);
@@ -417,6 +419,37 @@ public final class CrdRequestComparer {
     }
 
     // ---- notes about the two requests ----
+
+    /**
+     * A coding system read from the pasted request is used as it stands, so that the two orders
+     * describe the same code and can be compared. That alone would hide one thing a tester needs
+     * to know: which system this tool writes when nobody states one. So the request is built once
+     * more with no system stated, and each code whose system then comes out differently is noted.
+     */
+    private void systemsLeftToThisTool(Case built, Reading reading, Function<String, ResolvedText> variables, List<String> notes) {
+        List<CrdRequestReader.Order> orders = reading.ordersWithCode();
+        boolean codesReadFromRequest = built.sources.stream().anyMatch(source -> source.field().startsWith(CaseField.PROCEDURE_CODES.key() + "["));
+        if (!codesReadFromRequest || orders.stream().allMatch(order -> order.system() == null)) {
+            return;
+        }
+        CrdRunRequest request = built.request;
+        List<CodeInput> unstated = request.procedureCodes().stream().map(code -> new CodeInput(code.code(), null, code.description())).toList();
+        CrdRunRequest leftToTheTool = CrdRunRequest.builder().hook(request.hook()).member(request.member()).provider(request.provider())
+                .procedureCodes(unstated).dateOfService(request.dateOfService()).includePrefetch(request.includePrefetch())
+                .variables(request.variables()).build();
+        JsonNode alone = JsonSafe.parse(builder.build(leftToTheTool, HOOK_INSTANCE, variables).json()).node();
+        List<JsonNode> entries = JsonSafe.elements(JsonSafe.at(alone, "context", "draftOrders"), "entry");
+        for (int i = 0; i < orders.size() && i < entries.size(); i++) {
+            String stated = orders.get(i).system();
+            String chosen = JsonSafe.elements(JsonSafe.at(entries.get(i), "resource", "code"), "coding").stream().findFirst()
+                    .map(coding -> JsonSafe.presentText(coding, "system")).orElse(null);
+            if (stated != null && !stated.equals(chosen)) {
+                notes.add("Your request states the system of the code at " + orders.get(i).code().path() + ", and the tool's request was built "
+                        + "with that system. Left to work the system out for itself, from the code list or else from the format of the code, "
+                        + "this tool writes " + (chosen == null ? "none" : chosen) + ".");
+            }
+        }
+    }
 
     private static void otherOrderTypes(Reading reading, List<String> notes) {
         Set<String> types = new LinkedHashSet<>();

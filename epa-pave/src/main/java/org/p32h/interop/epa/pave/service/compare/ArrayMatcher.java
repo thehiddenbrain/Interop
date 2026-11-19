@@ -24,14 +24,20 @@ import tools.jackson.databind.JsonNode;
  *   <li>objects of which at least one carries a {@code system}, which is what codings,
  *       identifiers and telecoms are: by system, then by position among equal systems. Those
  *       with no system are matched among themselves by position, and never with one that has a system</li>
+ *   <li>objects that all say what they are in a {@code type} with a coded value, which is how
+ *       the classes of a coverage tell a plan from a group: by the code of that type, then by
+ *       position among equal codes. Without this a sender that lists the group before the plan
+ *       would be reported as holding another plan</li>
  *   <li>scalars: by value, which the engine does itself because order then matters as a whole</li>
  *   <li>anything else: by position</li>
  * </ol>
- * An element with no partner is reported as being in one list only.
+ * An element with no partner is reported as being in one list only. It is never paired with
+ * whatever else happens to be left over: that would compare two different things and report
+ * every one of their values as changed.
  */
 final class ArrayMatcher {
 
-    enum Rule { BUNDLE_ENTRY, URL, SYSTEM, SCALARS, POSITION }
+    enum Rule { BUNDLE_ENTRY, URL, SYSTEM, TYPE, SCALARS, POSITION }
 
     /**
      * One element of the tool's list with its partner, or one element that has none.
@@ -73,6 +79,9 @@ final class ArrayMatcher {
         if (objects && (any(tool, ArrayMatcher::hasSystem) || any(yours, ArrayMatcher::hasSystem))) {
             return new Plan(Rule.SYSTEM, keyed(tool, yours, node -> hasSystem(node) ? JsonSafe.text(node, "system") : null, "no system"));
         }
+        if (objects && all(tool, ArrayMatcher::hasTypeCode) && all(yours, ArrayMatcher::hasTypeCode)) {
+            return new Plan(Rule.TYPE, keyed(tool, yours, ArrayMatcher::typeCode, "no type"));
+        }
         if (all(tool, ArrayMatcher::scalar) && all(yours, ArrayMatcher::scalar)) {
             return new Plan(Rule.SCALARS, List.of());
         }
@@ -85,6 +94,20 @@ final class ArrayMatcher {
 
     private static boolean hasSystem(JsonNode node) {
         return JsonSafe.child(node, "system").isString();
+    }
+
+    /** The first code among the codings of an element's type, or null when its type carries none. */
+    private static String typeCode(JsonNode node) {
+        for (JsonNode coding : JsonSafe.elements(JsonSafe.child(node, "type"), "coding")) {
+            if (JsonSafe.child(coding, "code").isString()) {
+                return JsonSafe.text(coding, "code");
+            }
+        }
+        return null;
+    }
+
+    private static boolean hasTypeCode(JsonNode node) {
+        return typeCode(node) != null;
     }
 
     private static boolean scalar(JsonNode node) {

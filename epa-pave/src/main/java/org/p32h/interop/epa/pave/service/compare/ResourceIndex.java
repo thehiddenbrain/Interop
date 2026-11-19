@@ -45,6 +45,8 @@ public final class ResourceIndex {
     private final List<Use> uses = new ArrayList<>();
     private final Map<String, List<Resource>> byTypeAndId = new HashMap<>();
     private final Map<String, List<Resource>> byFullUrl = new HashMap<>();
+    /** By identity: two resources of one document can be equal and are still two. */
+    private final Map<JsonNode, Resource> byNode = new java.util.IdentityHashMap<>();
 
     private ResourceIndex(CompareRules rules) {
         this.rules = rules == null ? CompareRules.none() : rules;
@@ -72,11 +74,11 @@ public final class ResourceIndex {
         if (node.isObject()) {
             String type = resourceType(node);
             if (type != null) {
-                add(new Resource(node, type, JsonSafe.presentText(JsonSafe.child(node, "id")), fullUrl, path, pointer));
+                add(new Resource(node, type, exact(JsonSafe.child(node, "id")), fullUrl, path, pointer));
             }
             boolean within = inResource || type != null;
             boolean freeKeys = rules.freeKeyedAt(document);
-            String entryUrl = JsonSafe.presentText(JsonSafe.child(node, "fullUrl"));
+            String entryUrl = exact(JsonSafe.child(node, "fullUrl"));
             for (Map.Entry<String, JsonNode> member : node.properties()) {
                 String key = member.getKey();
                 JsonNode child = member.getValue();
@@ -105,6 +107,7 @@ public final class ResourceIndex {
 
     private void add(Resource resource) {
         resources.add(resource);
+        byNode.put(resource.node(), resource);
         if (resource.id() != null) {
             byTypeAndId.computeIfAbsent(resource.type() + "/" + resource.id(), k -> new ArrayList<>()).add(resource);
         }
@@ -113,10 +116,24 @@ public final class ResourceIndex {
         }
     }
 
+    /** A label exactly as written, or null when the node is not text or is blank. Never trimmed: a label with a space in it is another label. */
+    private static String exact(JsonNode node) {
+        return node.isString() && !node.stringValue().isBlank() ? node.stringValue() : null;
+    }
+
     // A urn is compared without regard to letter case, since a UUID may be written either way. A url is not.
     private static String urlKey(String url) {
-        String text = url.strip();
-        return text.regionMatches(true, 0, "urn:", 0, 4) ? text.toLowerCase(Locale.ROOT) : text;
+        return url.regionMatches(true, 0, "urn:", 0, 4) ? url.toLowerCase(Locale.ROOT) : url;
+    }
+
+    /** True when two full urls are the same address, or when neither entry has one. */
+    public static boolean sameUrl(String one, String other) {
+        return one == null || other == null ? one == null && other == null : urlKey(one).equals(urlKey(other));
+    }
+
+    /** What the index knows of the resource that this very node is, or null when the node is not one of its resources. */
+    public Resource at(JsonNode node) {
+        return node == null ? null : byNode.get(node);
     }
 
     /** Every resource, in document order. */
@@ -148,8 +165,14 @@ public final class ResourceIndex {
             case URN -> byFullUrl.getOrDefault(urlKey(reference.raw()), List.of());
             case ABSOLUTE -> {
                 List<Resource> byUrl = byFullUrl.getOrDefault(urlKey(reference.raw()), List.of());
-                yield !byUrl.isEmpty() || reference.type() == null ? byUrl
-                        : byTypeAndId.getOrDefault(reference.type() + "/" + reference.id(), List.of());
+                if (!byUrl.isEmpty() || reference.type() == null) {
+                    yield byUrl;
+                }
+                // By its last two segments, but never to a resource whose entry gives it another
+                // absolute address: that one is somewhere else, whatever its id.
+                yield byTypeAndId.getOrDefault(reference.type() + "/" + reference.id(), List.of()).stream()
+                        .filter(resource -> resource.fullUrl() == null || ReferenceText.parse(resource.fullUrl(), null).form() != ReferenceText.Form.ABSOLUTE)
+                        .toList();
             }
             default -> List.of();
         };

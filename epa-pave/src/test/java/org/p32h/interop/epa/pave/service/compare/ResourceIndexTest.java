@@ -26,9 +26,14 @@ class ResourceIndexTest {
         assertThat(reference.form()).isEqualTo(ReferenceText.Form.RELATIVE);
         assertThat(reference.type()).isEqualTo("Patient");
         assertThat(reference.id()).isEqualTo("patient-1");
-        // A version at the end does not change what is pointed at.
-        assertThat(ReferenceText.parse("Patient/patient-1/_history/3", null).id()).isEqualTo("patient-1");
-        assertThat(ReferenceText.parse(" Patient/patient-1 ", null).form()).isEqualTo(ReferenceText.Form.RELATIVE);
+        assertThat(reference.version()).isNull();
+        // A version at the end does not change what is pointed at, and is kept as part of how the reference is written.
+        ReferenceText versioned = ReferenceText.parse("Patient/patient-1/_history/3", null);
+        assertThat(versioned.id()).isEqualTo("patient-1");
+        assertThat(versioned.version()).isEqualTo("3");
+        // The text is read exactly as written: with a space around it, it is not a reference.
+        assertThat(ReferenceText.parse(" Patient/patient-1 ", null).recognised()).isFalse();
+        assertThat(ReferenceText.parse("Patient/patient 1", null).recognised()).isFalse();
     }
 
     @Test
@@ -76,6 +81,33 @@ class ResourceIndexTest {
         ReferenceText absolute = ReferenceText.parse("https://one.example.invalid/fhir/Patient/a", null);
         assertThat(absolute.sameFormAs(ReferenceText.parse("https://one.example.invalid/fhir/Patient/b", null))).isTrue();
         assertThat(absolute.sameFormAs(ReferenceText.parse("https://two.example.invalid/fhir/Patient/a", null))).isFalse();
+        // A version is part of how a reference is written: one with a version and one without are not written the same way.
+        assertThat(relative.sameFormAs(ReferenceText.parse("Patient/a/_history/2", null))).isFalse();
+        assertThat(ReferenceText.parse("Patient/a/_history/2", null).sameFormAs(ReferenceText.parse("Patient/b/_history/2", null))).isTrue();
+    }
+
+    @Test
+    void anAbsoluteUrlIsNotFollowedToAResourceWhoseEntryGivesItAnotherAddress() {
+        ResourceIndex index = ResourceIndex.of(json("{'resourceType':'Bundle','entry':["
+                + "{'fullUrl':'https://one.example.invalid/fhir/Patient/1','resource':{'resourceType':'Patient','id':'1'}},"
+                + "{'fullUrl':'urn:uuid:00000000-0000-4000-8000-000000000001','resource':{'resourceType':'Coverage','id':'1'}}]}"), RULES);
+        assertThat(index.resolve(ReferenceText.parse("https://one.example.invalid/fhir/Patient/1", null))).hasSize(1);
+        // The same type and id on another server is another resource.
+        assertThat(index.resolve(ReferenceText.parse("https://two.example.invalid/fhir/Patient/1", null))).isEmpty();
+        // A resource addressed only by a urn, or by nothing, has no address that could contradict the url.
+        assertThat(index.resolve(ReferenceText.parse("https://two.example.invalid/fhir/Coverage/1", null))).hasSize(1);
+        assertThat(index.resolve(ReferenceText.parse("Patient/1", null))).hasSize(1);
+    }
+
+    @Test
+    void anIdAndAFullUrlAreKeptExactlyAsWritten() {
+        ResourceIndex index = ResourceIndex.of(json("{'a':{'resourceType':'Patient','id':' 1 '},'b':{'resourceType':'Patient','id':'  '}}"), RULES);
+        assertThat(index.resources()).extracting(ResourceIndex.Resource::id).containsExactly(" 1 ", null);
+        assertThat(index.resolve(ReferenceText.parse("Patient/1", null))).isEmpty();
+        assertThat(ResourceIndex.sameUrl(null, null)).isTrue();
+        assertThat(ResourceIndex.sameUrl("urn:uuid:0000000A-0000-4000-8000-000000000001", "urn:uuid:0000000a-0000-4000-8000-000000000001")).isTrue();
+        assertThat(ResourceIndex.sameUrl("https://one.example.invalid/A", "https://one.example.invalid/a")).isFalse();
+        assertThat(ResourceIndex.sameUrl("urn:uuid:0000000a-0000-4000-8000-000000000001", null)).isFalse();
     }
 
     @Test

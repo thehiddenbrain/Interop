@@ -155,6 +155,37 @@ class LabelsAndReferencesTest {
     }
 
     @Test
+    void aReferenceThatNamesAnotherVersionOfTheMatchedResourceIsListedAndNotCountedAsFollowingItsId() {
+        String document = "{'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'%s'}},'patient':{'resourceType':'Patient','id':'%s'}}";
+        List<Difference> all = differences(document.formatted("Patient/a", "a"), document.formatted("Patient/b/_history/3", "b"));
+        assertThat(lines(all)).containsExactly("order.subject.reference | WRITTEN_DIFFERENTLY | BUILD", "patient.id | DIFFERENT_VALUE | LABELS");
+        assertThat(all.get(0).explanation()).startsWith("Both point at the same matched resource, written in different forms: they do not name "
+                + "the same version of the resource.");
+        assertThat(all.get(1).referencesFollowing()).isZero();
+    }
+
+    @Test
+    void aReferenceWithASpaceAroundItIsNotReadAsOneAndTheDifferenceSaysSo() {
+        String document = "{'order':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'%s'}},'patient':{'resourceType':'Patient','id':'a'}}";
+        List<Difference> all = differences(document.formatted("Patient/a"), document.formatted("Patient/a "));
+        assertThat(lines(all)).containsExactly("order.subject.reference | DIFFERENT_VALUE | BUILD");
+        assertThat(all.get(0).explanation()).startsWith("The two references do not follow one matched pair of resources: the tool's points at "
+                + "a Patient in the tool's request, and yours is not written in a form this tool reads as a reference.");
+    }
+
+    @Test
+    void aReferenceIsOnlySaidToFollowALabelWhenTheLabelsReallyDiffer() {
+        // Both requests give the entry the same full url. One reference writes it in capitals: that is a difference in the text, not in a label.
+        String bundle = "{'resourceType':'Bundle','entry':[{'fullUrl':'urn:uuid:0000000a-0000-4000-8000-000000000001','resource':{'resourceType':'Patient'}},"
+                + "{'resource':{'resourceType':'ServiceRequest','id':'sr','subject':{'reference':'%s'}}}]}";
+        List<Difference> all = differences(bundle.formatted("urn:uuid:0000000a-0000-4000-8000-000000000001"),
+                bundle.formatted("urn:uuid:0000000A-0000-4000-8000-000000000001"));
+        assertThat(lines(all)).containsExactly("entry[ServiceRequest].resource.subject.reference | DIFFERENT_VALUE | NOT_CLASSIFIED");
+        assertThat(all.get(0).explanation()).startsWith("The two requests hold different text here. They differ only in letter case.");
+        assertThat(all.get(0).referencesFollowing()).isNull();
+    }
+
+    @Test
     void theFullUrlOfABundleEntryFollowsTheIdOfTheResourceItHolds() {
         String tool = "{'resourceType':'Bundle','entry':[{'fullUrl':'https://ehr.example.invalid/fhir/Patient/patient-1',"
                 + "'resource':{'resourceType':'Patient','id':'patient-1'}}]}";

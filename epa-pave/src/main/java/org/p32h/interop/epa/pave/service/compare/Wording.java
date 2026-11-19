@@ -232,10 +232,12 @@ final class Wording {
 
     static String referenceForms(ReferenceText tool, ReferenceText yours) {
         String start = "Both point at the same matched resource, written in different forms: ";
-        if (tool.form() == ReferenceText.Form.ABSOLUTE && yours.form() == ReferenceText.Form.ABSOLUTE) {
-            return start + "each is an absolute url, on a different base url.";
+        if (tool.form() != yours.form()) {
+            return start + "the tool's request writes " + tool.form().words() + " and your request writes " + yours.form().words() + ".";
         }
-        return start + "the tool's request writes " + tool.form().words() + " and your request writes " + yours.form().words() + ".";
+        // The same form, so what differs is one of the two things that are part of a form.
+        return start + (java.util.Objects.equals(tool.version(), yours.version()) ? "each is an absolute url, on a different base url."
+                : "they do not name the same version of the resource.");
     }
 
     /**

@@ -368,6 +368,43 @@ class JsonComparerTest {
                 + "the tool's request has no counterpart for. The other request has an unmatched element here too");
     }
 
+    private static String typed(String code, String value) {
+        return "{'type':{'coding':[{'system':'http://example.org/kinds','code':'" + code + "'}]},'value':'" + value + "'}";
+    }
+
+    @Test
+    void objectsThatAllSayWhatTheyAreInATypeAreMatchedOnTheCodeOfThatTypeWhateverTheirOrder() {
+        // One request lists the group before the plan. By position the plan would be compared with the group.
+        List<Difference> all = differences("{'class':[" + typed("plan", "P1") + "]}", "{'class':[" + typed("group", "G1") + "," + typed("plan", "P2") + "]}");
+        assertThat(lines(all)).containsExactly("class[plan].value | DIFFERENT_VALUE", "class[group] | ONLY_IN_YOURS");
+        assertThat(all.get(0).toolPointer()).isEqualTo("/class/0/value");
+        assertThat(all.get(0).yourPointer()).isEqualTo("/class/1/value");
+        assertThat(all.get(1).explanation()).startsWith("This list is matched by type. Your request has an element with this type that the "
+                + "tool's request has no counterpart for.");
+        // Equal types are matched by position among themselves.
+        assertThat(lines(differences("{'class':[" + typed("plan", "a") + "," + typed("plan", "b") + "]}",
+                "{'class':[" + typed("plan", "a") + "," + typed("plan", "c") + "]}"))).containsExactly("class[plan #2].value | DIFFERENT_VALUE");
+    }
+
+    @Test
+    void aListInWhichNotEveryElementHasATypeIsMatchedByPosition() {
+        // The other element says nothing about what it is, so there is no type to match it on.
+        assertThat(lines(differences("{'class':[" + typed("plan", "P1") + "]}", "{'class':[{'value':'P1'}]}")))
+                .containsExactly("class[0].type | ONLY_IN_TOOL");
+        // A type that is plain text is not a coded type.
+        assertThat(lines(differences("{'address':[{'type':'postal','city':'A'},{'type':'physical','city':'B'}]}",
+                "{'address':[{'type':'physical','city':'B'},{'type':'postal','city':'A'}]}")))
+                .containsExactly("address[0].type | DIFFERENT_VALUE", "address[0].city | DIFFERENT_VALUE", "address[1].type | DIFFERENT_VALUE",
+                        "address[1].city | DIFFERENT_VALUE");
+    }
+
+    @Test
+    void aSystemIsMatchedOnBeforeAType() {
+        String tool = "{'identifier':[{'system':'http://example.org/a','type':{'coding':[{'code':'MB'}]},'value':'1'}]}";
+        String yours = "{'identifier':[{'system':'http://example.org/a','type':{'coding':[{'code':'MR'}]},'value':'1'}]}";
+        assertThat(lines(differences(tool, yours))).containsExactly("identifier[http://example.org/a].type.coding[0].code | DIFFERENT_VALUE");
+    }
+
     @Test
     void scalarListsAreEqualWhenTheyAreTheSameList() {
         assertThat(differences("{'given':['Given','Middle']}", "{'given':['Given','Middle']}")).isEmpty();

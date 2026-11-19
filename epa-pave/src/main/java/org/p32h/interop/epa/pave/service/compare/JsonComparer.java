@@ -192,6 +192,18 @@ public final class JsonComparer {
         }
     }
 
+    /** Two resources that were compared with each other, as each document's index knows them. */
+    private record Pair(ResourceIndex.Resource tool, ResourceIndex.Resource yours) {
+
+        /**
+         * True when the two documents really label the resource differently: by its id, or by the
+         * full url of its entry. Only then can a reference differ because it follows the label.
+         */
+        boolean labelledDifferently() {
+            return !java.util.Objects.equals(tool.id(), yours.id()) || !ResourceIndex.sameUrl(tool.fullUrl(), yours.fullUrl());
+        }
+    }
+
     /** One reference that differs only because it follows a matched pair of resources. */
     private record Follower(Slot slot, Place at, JsonNode tool, JsonNode yours) {
     }
@@ -428,6 +440,7 @@ public final class JsonComparer {
                     case BUNDLE_ENTRY -> Wording.onlyEntry(inTool, value);
                     case URL -> Wording.onlyKeyed(inTool, "url", match.keyed(), extraOnBothSides);
                     case SYSTEM -> Wording.onlyKeyed(inTool, "system", match.keyed(), extraOnBothSides);
+                    case TYPE -> Wording.onlyKeyed(inTool, "type", match.keyed(), extraOnBothSides);
                     default -> Wording.onlyPosition(inTool);
                 };
                 only(inTool, element, value, Grouping.STRUCTURE, sentence);
@@ -637,19 +650,22 @@ public final class JsonComparer {
             return new Result(differences, notes);
         }
 
-        /** The tool's resource among these whose partner is among those, or null when no such pair exists. */
-        private JsonNode pairedTool(List<ResourceIndex.Resource> toolTargets, List<ResourceIndex.Resource> yourTargets) {
+        /** The first of the tool's resources whose partner is among the other request's, with that partner. Null when there is none. */
+        private Pair pair(List<ResourceIndex.Resource> toolTargets, List<ResourceIndex.Resource> yourTargets) {
             for (ResourceIndex.Resource toolTarget : toolTargets) {
                 JsonNode partner = pairs.get(toolTarget.node());
-                if (partner != null && yourTargets.stream().anyMatch(target -> target.node() == partner)) {
-                    return toolTarget.node();
+                for (ResourceIndex.Resource yourTarget : yourTargets) {
+                    if (partner != null && yourTarget.node() == partner) {
+                        return new Pair(toolTarget, yourTarget);
+                    }
                 }
             }
             return null;
         }
 
         private List<ResourceIndex.Resource> own(JsonNode resource, ResourceIndex index) {
-            return resource == null ? List.of() : index.resources().stream().filter(r -> r.node() == resource).toList();
+            ResourceIndex.Resource known = index.at(resource);
+            return known == null ? List.of() : List.of(known);
         }
 
         private void reference(Slot slot, Followers followers) {
@@ -657,14 +673,15 @@ public final class JsonComparer {
             ReferenceText yourText = ReferenceText.parse(Values.text(slot.yours), slot.bareType);
             List<ResourceIndex.Resource> toolTargets = slot.fullUrl ? own(slot.toolOwner, toolIndex) : toolIndex.resolve(toolText);
             List<ResourceIndex.Resource> yourTargets = slot.fullUrl ? own(slot.yourOwner, yourIndex) : yourIndex.resolve(yourText);
-            JsonNode paired = pairedTool(toolTargets, yourTargets);
-            if (paired != null && toolText.sameFormAs(yourText)) {
-                followers.add(paired, new Follower(slot, slot.at, slot.tool, slot.yours));
-            } else if (paired != null) {
+            Pair pair = pair(toolTargets, yourTargets);
+            boolean sameForm = toolText.sameFormAs(yourText);
+            if (pair != null && sameForm && pair.labelledDifferently()) {
+                followers.add(pair.tool().node(), new Follower(slot, slot.at, slot.tool, slot.yours));
+            } else if (pair != null && !sameForm) {
                 slot.ready.add(difference(slot.at, DifferenceKind.WRITTEN_DIFFERENTLY, slot.tool, slot.yours, Grouping.ROLE, DifferenceGroup.BUILD,
                         Wording.referenceForms(toolText, yourText), null));
-            } else if (slot.fullUrl || (!toolText.recognised() && !yourText.recognised())) {
-                // Not a pointer at anything this tool can follow, so it is compared as the text it is.
+            } else if (pair != null || slot.fullUrl || (!toolText.recognised() && !yourText.recognised())) {
+                // Not explained by a relabelling, and not a pointer at something else: it is compared as the text it is.
                 slot.ready.add(difference(slot.at, DifferenceKind.DIFFERENT_VALUE, slot.tool, slot.yours, Grouping.ROLE, null,
                         Wording.differentText(Values.text(slot.tool), Values.text(slot.yours)), null));
             } else {
@@ -697,12 +714,14 @@ public final class JsonComparer {
             }
             // What is left of the other list, by the resource each element points at and the form it is written in.
             Map<JsonNode, Deque<Integer>> yourByTarget = new IdentityHashMap<>();
+            Map<JsonNode, ResourceIndex.Resource> yourResources = new IdentityHashMap<>();
             ReferenceText[] yourTexts = new ReferenceText[yours.size()];
             for (int j = 0; j < yours.size(); j++) {
                 yourTexts[j] = ReferenceText.parse(Values.text(yours.get(j)), slot.bareType);
                 if (!taken[j]) {
                     for (ResourceIndex.Resource target : yourIndex.resolve(yourTexts[j])) {
                         yourByTarget.computeIfAbsent(target.node(), k -> new ArrayDeque<>()).add(j);
+                        yourResources.put(target.node(), target);
                     }
                 }
             }
@@ -724,7 +743,14 @@ public final class JsonComparer {
                     if (found != null) {
                         partner[i] = found;
                         taken[found] = true;
-                        followers.add(target.node(), new Follower(slot, slot.at.element(String.valueOf(i), i, found), tool.get(i), yours.get(found)));
+                        Place element = slot.at.element(String.valueOf(i), i, found);
+                        if (new Pair(target, yourResources.get(counterpart)).labelledDifferently()) {
+                            followers.add(target.node(), new Follower(slot, element, tool.get(i), yours.get(found)));
+                        } else {
+                            // The same resource under the same labels, so the two texts differ in something that is not a label.
+                            slot.ready.add(difference(element, DifferenceKind.DIFFERENT_VALUE, tool.get(i), yours.get(found), Grouping.ROLE, null,
+                                    Wording.differentText(Values.text(tool.get(i)), Values.text(yours.get(found))), null));
+                        }
                         break;
                     }
                 }
