@@ -338,6 +338,36 @@ class ProcedureCodeServiceLoadingTest {
     }
 
     @Test
+    void aFileSeparatedByAnotherCharacterThanTheOneConfiguredSaysSoInTheFailure() {
+        // The commonest reason a good export has no column for the code: its whole header row was read as one cell.
+        Path semicolons = TestCodeLists.write(directory, "semicolons.csv", "Code;Description;PA Required\nE0601;CPAP device;No\n");
+        assertThatThrownBy(() -> TestCodeLists.load(semicolons)).isInstanceOf(UnusableCodeListException.class)
+                .hasMessage("The code list file " + semicolons + " has no column this tool recognises as the procedure code. "
+                        + "Headers found: \"Code;Description;PA Required\". "
+                        + "The header row was read as one cell, and it holds a semicolon. If that is what separates the cells of this "
+                        + "file, set codelist.delimiter to \";\". "
+                        + "The first row of the file that is not blank must be the header row. "
+                        + "If one of these holds the code, add it to codelist.columns.code in application.yml.");
+        // Doing what the message says is what makes the file load.
+        assertThat(codes(TestCodeLists.load(semicolons, Map.of("delimiter", ";")))).containsExactly("E0601");
+
+        Path tabs = TestCodeLists.write(directory, "tabs.csv", "Code\tDescription\nE0601\tCPAP device\n");
+        assertThatThrownBy(() -> TestCodeLists.load(tabs)).isInstanceOf(UnusableCodeListException.class)
+                .hasMessageContaining("Headers found: \"Code<U+0009>Description\". The header row was read as one cell, and it holds a tab. "
+                        + "If that is what separates the cells of this file, set codelist.delimiter to tab. ");
+        assertThat(codes(TestCodeLists.load(tabs, Map.of("delimiter", "tab")))).containsExactly("E0601");
+
+        // The other way round: commas in a file read with a bar between cells.
+        Path commas = TestCodeLists.write(directory, "commas.csv", "Code,Description\nE0601,CPAP device\n");
+        assertThatThrownBy(() -> TestCodeLists.load(commas, Map.of("delimiter", "|"))).isInstanceOf(UnusableCodeListException.class)
+                .hasMessageContaining("it holds a comma. If that is what separates the cells of this file, set codelist.delimiter to \",\". ");
+        // One header that simply is not a known one gets no such hint.
+        Path other = TestCodeLists.write(directory, "other.csv", "Procedure\nE0601\n");
+        assertThatThrownBy(() -> TestCodeLists.load(other)).isInstanceOf(UnusableCodeListException.class)
+                .hasMessageNotContaining("read as one cell");
+    }
+
+    @Test
     void addingTheHeaderToTheCandidatesIsWhatMakesThatFileLoad() {
         Path file = TestCodeLists.write(directory, "export.csv", "Proc,Short Description,Needs Auth\nE0601,CPAP device,No\n");
         ProcedureCodeService service = TestCodeLists.load(file, Map.of("columns.code[0]", "proc", "columns.auth-required[0]", "needs auth"));

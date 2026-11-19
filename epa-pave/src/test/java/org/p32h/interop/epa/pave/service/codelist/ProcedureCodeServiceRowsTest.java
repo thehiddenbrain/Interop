@@ -320,6 +320,34 @@ class ProcedureCodeServiceRowsTest {
         assertThat(row.authRequiredSource()).isEqualTo("Yes");
     }
 
+    @Test
+    void aCodeThatMayHaveLostItsLeadingZerosIsReportedAndServedAsWritten() {
+        // A spreadsheet that takes 00100 for a number saves it as 100. Which code was meant is not
+        // this tool's to decide, so nothing is put back. It is said, with the codes.
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA\n100,Y\n1999,N\n00100,Y\n99213,N\nE0601,N\n7,Y\n100,N\n0450,N\n");
+        assertThat(service.rowsFor("100", null, null)).hasSize(2);
+        assertThat(service.rowsFor("00100", null, null)).singleElement().satisfies(row -> assertThat(row.code()).isEqualTo("00100"));
+        assertThat(service.selfCheck().rowCount()).isEqualTo(8);
+        assertThat(service.selfCheck().warnings()).containsExactly("The code column holds codes that are all digits and shorter than five "
+                + "digits: \"100\" (2 rows), \"1999\" (1 row), \"7\" (1 row) and \"0450\" (1 row). If they are meant to be five digit codes, "
+                + "their leading zeros were lost on the way, which is what a spreadsheet does to a code it takes for a number. They are "
+                + "served as written.");
+        // Five digits, or a letter anywhere, and nothing is said.
+        assertThat(TestCodeLists.csv(directory, "Code,PA\n00100,Y\n99213,N\nE0601,N\n0001F,N\nA1,Y\n").selfCheck().warnings()).isEmpty();
+    }
+
+    @Test
+    void aCodeWithASpaceOrAnUnseenCharacterInsideItIsReportedBecauseNobodyWillTypeIt() {
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA,Notes\nE 0601,Y,r1\nE06\u200B01,N,r2\nE0601,N,r3\n");
+        // Served as written: the two odd codes are their own codes, and only the clean one is found by typing it.
+        assertThat(service.search("E0601", null, 10)).extracting(ProcedureCode::notes).containsExactly("r3");
+        assertThat(service.rowsFor("E0601", null, null)).extracting(ProcedureCode::notes).containsExactly("r3");
+        assertThat(service.rowsFor("E 0601", null, null)).extracting(ProcedureCode::notes).containsExactly("r1");
+        assertThat(service.selfCheck().warnings()).containsExactly("The code column holds codes with a space or an unseen character inside "
+                + "them: \"E 0601\" (1 row) and \"E06<U+200B>01\" (1 row). They are served as written, so a tester who types the code without "
+                + "it will not find the row.");
+    }
+
     // ---- rows of the wrong width, and quoting that went wrong ----
 
     @Test

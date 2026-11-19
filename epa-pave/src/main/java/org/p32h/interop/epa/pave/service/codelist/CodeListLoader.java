@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.config.CodelistProperties;
 import org.p32h.interop.epa.pave.model.AuthRequirement;
 import org.p32h.interop.epa.pave.model.CodeListSelfCheck;
@@ -52,6 +53,8 @@ final class CodeListLoader {
 
     private static final char REPLACEMENT = '\uFFFD';
 
+    private static final Pattern SHORT_NUMBER = Pattern.compile("[0-9]{1,4}");
+
     private CodeListLoader() {
     }
 
@@ -72,7 +75,8 @@ final class CodeListLoader {
         if (!columns.has(CodeListColumn.CODE)) {
             throw new UnusableCodeListException(source.subject() + " has no column this tool recognises as the procedure code. "
                     + (source.json() ? "Keys" : "Headers") + " found: " + String.join(", ", table.headers().stream().map(CodeListLoader::header).toList())
-                    + ". " + (source.json() ? "" : "The first row of the file that is not blank must be the header row. ")
+                    + ". " + (source.json() ? "" : otherDelimiter(table.headers(), source.delimiter())
+                    + "The first row of the file that is not blank must be the header row. ")
                     + "If one of these holds the code, add it to " + CodeListColumn.CODE.setting() + " in application.yml.");
         }
 
@@ -237,6 +241,30 @@ final class CodeListLoader {
         return header == null ? "(blank)" : CodeListText.show(header);
     }
 
+    /**
+     * A sentence for the commonest reason a good file has no column for the code: it is separated
+     * by another character than the one configured, so its whole header row was read as one cell.
+     * Empty when the header row does not look like that.
+     */
+    private static String otherDelimiter(List<String> headers, char delimiter) {
+        if (headers.size() != 1) {
+            return "";
+        }
+        Map<Character, String> others = new LinkedHashMap<>();
+        others.put(',', "a comma");
+        others.put(';', "a semicolon");
+        others.put('\t', "a tab");
+        others.put('|', "a bar");
+        others.remove(delimiter);
+        for (Map.Entry<Character, String> other : others.entrySet()) {
+            if (headers.get(0).indexOf(other.getKey()) >= 0) {
+                return "The header row was read as one cell, and it holds " + other.getValue() + ". If that is what separates the cells of "
+                        + "this file, set codelist.delimiter to " + (other.getKey() == '\t' ? "tab" : "\"" + other.getKey() + "\"") + ". ";
+            }
+        }
+        return "";
+    }
+
     // ---- rows ----
 
     /** Reads the rows of one table and keeps count of everything a warning will need. */
@@ -248,6 +276,8 @@ final class CodeListLoader {
         private final Map<String, String> lineNames = new LinkedHashMap<>();
         private final Map<String, Integer> lineRows = new LinkedHashMap<>();
         private final List<Integer> noCode = new ArrayList<>();
+        private final Map<String, Integer> shortNumbers = new LinkedHashMap<>();
+        private final Map<String, Integer> codesWithGaps = new LinkedHashMap<>();
         private final Map<String, Integer> unreadFlags = new LinkedHashMap<>();
         private final Map<String, Integer> notAVendor = new LinkedHashMap<>();
         private final Map<String, Integer> otherVendors = new LinkedHashMap<>();
@@ -273,6 +303,14 @@ final class CodeListLoader {
             if (code == null) {
                 noCode.add(row.at());
                 return;
+            }
+            // Two ways a code stops being the code a tester types. Neither is corrected: which
+            // code was meant is not this tool's to decide. Both are said, with the codes.
+            if (SHORT_NUMBER.matcher(code).matches()) {
+                shortNumbers.merge(code, 1, Integer::sum);
+            }
+            if (CodeListText.holdsSpaceOrUnseen(code)) {
+                codesWithGaps.merge(code, 1, Integer::sum);
             }
             // The one reader of the flag, shared with the JSON form of the enum. Whatever it does
             // not read stays UNKNOWN, and the cell is kept beside it so a tester can see why.
@@ -362,6 +400,15 @@ final class CodeListLoader {
             if (!noCode.isEmpty()) {
                 out.add(CodeListText.count(noCode.size(), "row has", "rows have") + " no code and " + (noCode.size() == 1 ? "was" : "were")
                         + " left out: " + table.where(noCode) + ".");
+            }
+            if (!shortNumbers.isEmpty()) {
+                out.add("The code column holds codes that are all digits and shorter than five digits: " + tallied(shortNumbers)
+                        + ". If they are meant to be five digit codes, their leading zeros were lost on the way, which is what a "
+                        + "spreadsheet does to a code it takes for a number. They are served as written.");
+            }
+            if (!codesWithGaps.isEmpty()) {
+                out.add("The code column holds codes with a space or an unseen character inside them: " + tallied(codesWithGaps)
+                        + ". They are served as written, so a tester who types the code without it will not find the row.");
             }
             if (!unreadFlags.isEmpty()) {
                 out.add("The prior authorization column holds text this tool does not read as a yes or a no: " + tallied(unreadFlags)

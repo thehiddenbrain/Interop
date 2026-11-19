@@ -245,4 +245,30 @@ class ProcedureCodeControllerTest {
                     .andExpect(jsonPath("$.title").value("This endpoint does not accept POST."));
         }
     }
+
+    @Test
+    void aDefectBehindEitherEndpointLeavesAsAReferenceAndNeverAsItsOwnMessage() throws Exception {
+        // Neither endpoint has a failure of its own to report, so the one thing left to show is
+        // what a browser gets if the code behind them is wrong: the shared shape, and no detail.
+        ProcedureCodeService broken = new ProcedureCodeService(CodelistProperties.defaults()) {
+            @Override
+            public org.p32h.interop.epa.pave.service.codelist.CodeSearch find(String query, String lineOfBusiness, int limit) {
+                throw new IllegalStateException("text of a cell, which must not reach the browser");
+            }
+
+            @Override
+            public org.p32h.interop.epa.pave.model.CodeListSelfCheck selfCheck() {
+                throw new IllegalStateException("text of a cell, which must not reach the browser");
+            }
+        };
+        MockMvc mvc = TestMvc.standalone(new ProcedureCodeController(broken, AppProperties.defaults()));
+        for (String path : new String[] {"/api/procedure-codes?q=95810", "/api/procedure-codes/self-check"}) {
+            String body = mvc.perform(get(path)).andExpect(status().isInternalServerError())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.kind").value("INTERNAL"))
+                    .andExpect(jsonPath("$.reference").isNotEmpty())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(body).as(path).doesNotContain("text of a cell").doesNotContain("IllegalStateException");
+        }
+    }
 }

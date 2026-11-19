@@ -70,6 +70,11 @@ final class CodeListText {
         return out.toString();
     }
 
+    /** True when the text holds a space, or a character a reader could not see, anywhere in it. */
+    static boolean holdsSpaceOrUnseen(String text) {
+        return text != null && text.codePoints().anyMatch(codePoint -> invisible(codePoint) || Character.isISOControl(codePoint));
+    }
+
     private static boolean invisible(int codePoint) {
         return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint) || Character.getType(codePoint) == Character.FORMAT;
     }
