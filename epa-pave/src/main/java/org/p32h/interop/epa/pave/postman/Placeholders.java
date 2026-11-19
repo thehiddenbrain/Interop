@@ -75,6 +75,25 @@ public final class Placeholders {
         return !names(template).isEmpty();
     }
 
+    /**
+     * True when the text is made of placeholders and white space and nothing else. Such text holds
+     * no value of its own: showing it shows only the names it refers to.
+     */
+    public static boolean referencesOnly(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        boolean any = false;
+        for (Part part : parts(text)) {
+            if (part.placeholder()) {
+                any = true;
+            } else if (!part.literal().isBlank()) {
+                return false;
+            }
+        }
+        return any;
+    }
+
     /** The placeholder name when the whole text, apart from surrounding white space, is one placeholder. Otherwise null. */
     public static String sole(String text) {
         if (text == null) {

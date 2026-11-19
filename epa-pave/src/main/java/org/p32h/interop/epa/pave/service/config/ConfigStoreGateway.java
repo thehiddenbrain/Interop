@@ -23,6 +23,7 @@ import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
+import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VariableSource;
 import org.p32h.interop.epa.pave.model.VariableUse;
@@ -221,7 +222,7 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         if (!store.allowProdWrites()) {
             // The outcome and the environment name only.
-            log.info("An unlock of production writes was refused on \"{}\": the configuration floor forbids them", active.name());
+            log.info("An unlock of production writes was refused on \"{}\": the configuration floor forbids them", ConfigStore.oneLine(active.name()));
             throw new ProdWriteBlockedException(null, active.ref(), "Production writes cannot be unlocked: an owner has locked this "
                     + "installation against them.", "No unlock is possible from this screen. config-store.allow-prod-writes is false, and "
                     + "only whoever owns this installation can change that, with a restart. To test without production, switch to a "
@@ -229,7 +230,7 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         if (typedEnvironmentName == null || !typedEnvironmentName.equals(active.name())) {
             // The outcome only. What was typed is not logged.
-            log.info("An unlock of production writes was refused on \"{}\": the name typed did not match", active.name());
+            log.info("An unlock of production writes was refused on \"{}\": the name typed did not match", ConfigStore.oneLine(active.name()));
             throw ValidationException.of("environment", "The name typed is not the name of the active production environment. Type it "
                     + "exactly as the environment strip shows it, with the same capitals and spaces.");
         }
@@ -244,7 +245,7 @@ public class ConfigStoreGateway implements OperationGateway {
             minted.add(unlock);
         }
         // The environment name only. This line is the record of when production was opened for writing.
-        log.warn("Production writes were unlocked for one browser session on \"{}\"", active.name());
+        log.warn("Production writes were unlocked for one browser session on \"{}\"", ConfigStore.oneLine(active.name()));
         return unlock;
     }
 
@@ -331,7 +332,7 @@ public class ConfigStoreGateway implements OperationGateway {
                 // template the template itself was cut. Otherwise it arrived inside a variable, and
                 // what resolved is cut.
                 skeleton = skeleton.upTo(DISCOVERY_MARKER);
-                cutInsideAVariable = !template.toLowerCase(Locale.ROOT).endsWith(DISCOVERY_MARKER);
+                cutInsideAVariable = UrlForms.endOfSegment(template, DISCOVERY_MARKER) != template.length();
                 if (skeleton == null) {
                     target = Target.none("No collection request is mapped to " + operation.label() + ", onyx.crd.url is not set, and "
                             + "the url of the hook request \"" + target.request().request().qualifiedName() + "\" shows no "
@@ -388,7 +389,7 @@ public class ConfigStoreGateway implements OperationGateway {
             Resolution how = callResolver.apply(template);
             // A header that still holds a placeholder is carried as unresolved. It is neither
             // dropped nor sent empty: the sending layer refuses the call and names what is missing.
-            headers.add(new CallPlan.Header(how.complete() ? new ResolvedHeader(header.name(), how.display(), how.send())
+            headers.add(new CallPlan.Header(how.complete() ? new ResolvedHeader(header.name(), shownValue(header.name(), how), how.send())
                     : ResolvedHeader.unresolved(header.name(), how.unresolved()), template, how));
         }
 
@@ -539,13 +540,9 @@ public class ConfigStoreGateway implements OperationGateway {
                 }
                 PostmanRequest request = found.request().request();
                 String template = request.url();
-                String lower = template.toLowerCase(Locale.ROOT);
-                for (int at = lower.indexOf(DISCOVERY_MARKER); at >= 0; at = lower.indexOf(DISCOVERY_MARKER, at + 1)) {
-                    int end = at + DISCOVERY_MARKER.length();
-                    if (end == template.length() || "/?#".indexOf(template.charAt(end)) >= 0) {
-                        template = template.substring(0, end);
-                        break;
-                    }
+                int end = UrlForms.endOfSegment(template, DISCOVERY_MARKER);
+                if (end >= 0) {
+                    template = template.substring(0, end);
                 }
                 return new Target(Source.DERIVED, found.collection(), found.request(), template, template, List.of(),
                         "the url of the request \"" + request.qualifiedName() + "\" of the collection \"" + found.collection().name()
@@ -553,6 +550,15 @@ public class ConfigStoreGateway implements OperationGateway {
             }
         }
         return null;
+    }
+
+    /**
+     * The form in which a resolved header value is shown. A header that is a credential by its own
+     * name shows its scheme at most, whatever its value was built from: masking by variable name
+     * does not cover a credential typed literally into a collection or into application.yml.
+     */
+    private static String shownValue(String headerName, Resolution how) {
+        return Secrets.credentialHeader(headerName) ? Secrets.redactCredential(headerName, how.send()) : how.display();
     }
 
     /**
@@ -710,9 +716,9 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         if (!store.allowProdWrites()) {
             return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment, and an owner has locked "
-                    + "this installation against production writes." + why, "No unlock is possible: config-store.allow-prod-writes is "
-                    + "false, and only whoever owns this installation can change that. To test without production, switch to a sandbox "
-                    + "or uat environment.");
+                    + "this installation against production writes." + why, "An owner has locked this installation against production "
+                    + "writes (config-store.allow-prod-writes is false), so no unlock is possible. Only whoever owns the installation "
+                    + "can change that. To test without production, switch to a sandbox or uat environment.");
         }
         if (holds(intent.unlock(), snapshot)) {
             return null;

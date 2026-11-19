@@ -139,6 +139,13 @@ public final class VariableResolver {
             for (Placeholders.Part part : Placeholders.parts(template)) {
                 if (!part.placeholder()) {
                     out.add(owner == null ? Piece.literal(part.literal()) : Piece.partOf(owner, part.literal()));
+                    if (owner != null) {
+                        // The text of a value counts toward the limit as well as the values it leads
+                        // to. Counting only the ends would let values that each hold text and refer
+                        // twice to the next one double their way past it.
+                        expanded += part.literal().length();
+                        overflow |= expanded > MAX_EXPANSION;
+                    }
                 } else if (!variable(part.name(), stack, out, missing)) {
                     complete = false;
                 }

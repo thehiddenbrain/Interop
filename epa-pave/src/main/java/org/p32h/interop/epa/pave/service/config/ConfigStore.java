@@ -189,17 +189,24 @@ public class ConfigStore {
             throw ValidationException.of("kind", "State what kind of environment this is: sandbox, uat or prod. It is never guessed.");
         }
         PostmanEnvironment parsed = PostmanParser.environment(PostmanParser.decode(content));
+        ConfigSnapshot before = current;
+        StoredEnvironment previous = before.byName(parsed.name());
         List<String> signs = ProductionSigns.in(parsed);
-        boolean needsConfirmation = kind != EnvironmentKind.PROD && !signs.isEmpty();
+        // What the file says about itself is kept with the environment. What this installation
+        // already holds under the same name is a reason of its own to ask, and is not kept: once
+        // the upload is confirmed it is no longer true.
+        List<String> reasonsToAsk = new ArrayList<>(signs);
+        if (previous != null && previous.kind() == EnvironmentKind.PROD) {
+            reasonsToAsk.add("an environment named \"" + oneLine(parsed.name()) + "\" is already stored here as prod, and this upload would replace it");
+        }
+        boolean needsConfirmation = kind != EnvironmentKind.PROD && !reasonsToAsk.isEmpty();
         if (needsConfirmation && !acknowledgedNotProd) {
             throw new ValidationException("This environment looks like production and was declared as " + kind.wire()
                     + ". It was not stored.", List.of(new FieldError("acknowledgeNotProd", "It looks like production because "
-                    + String.join(", and ", signs) + ". If it really is " + kind.wire() + ", upload it again with acknowledgeNotProd set "
-                    + "to true. If it is production, declare its kind as prod.")));
+                    + String.join(", and ", reasonsToAsk) + ". If it really is " + kind.wire() + ", upload it again with "
+                    + "acknowledgeNotProd set to true. If it is production, declare its kind as prod.")));
         }
 
-        ConfigSnapshot before = current;
-        StoredEnvironment previous = before.byName(parsed.name());
         String id = Ids.named(parsed.name());
         String file = ENVIRONMENTS + "/" + id + "-" + Ids.hash(content, 8) + ".json";
         writeAtomically(directory.resolve(file), content);
@@ -212,13 +219,14 @@ public class ConfigStore {
         } else {
             environments.set(environments.indexOf(previous), stored);
         }
-        commit(new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections()), file,
-                previous == null ? null : previous.file());
+        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections()),
+                file, previous == null ? null : previous.file());
 
         List<String> warnings = new ArrayList<>(secretWarnings(parsed.variables(), file));
+        warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
         // The name, the kind and a count. Never a variable value.
-        log.info("Environment \"{}\" uploaded as {} with {} variable(s){}", stored.name(), kind.wire(), parsed.variables().size(),
+        log.info("Environment \"{}\" uploaded as {} with {} variable(s){}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
         return new EnvironmentUpload(stored, previous != null, warnings, current.epoch());
     }
@@ -232,7 +240,7 @@ public class ConfigStore {
         }
         commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), environment.name(), before.collections()), null, null);
         // The name and the kind only.
-        log.info("Active environment switched to \"{}\" ({})", environment.name(), environment.kind().wire());
+        log.info("Active environment switched to \"{}\" ({})", oneLine(environment.name()), environment.kind().wire());
         return current;
     }
 
@@ -245,7 +253,7 @@ public class ConfigStore {
         List<String> warnings = commit(new ConfigSnapshot(before.epoch() + 1, environments, wasActive ? null : before.activeName(),
                 before.collections()), null, environment.file());
         // The name only.
-        log.info("Environment \"{}\" removed{}", environment.name(), wasActive ? ". It was the active one, so none is active now" : "");
+        log.info("Environment \"{}\" removed{}", oneLine(environment.name()), wasActive ? ". It was the active one, so none is active now" : "");
         return new Removal(environment.name(), wasActive, warnings, current.epoch());
     }
 
@@ -286,13 +294,14 @@ public class ConfigStore {
         } else {
             collections.set(collections.indexOf(previous), stored);
         }
-        commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections), file,
-                previous == null ? null : previous.file());
+        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections),
+                file, previous == null ? null : previous.file());
 
         warnings.addAll(secretWarnings(parsed.variables(), file));
+        warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
         // The name and counts only. Never a url, a header or a body.
-        log.info("Collection \"{}\" uploaded with {} request(s){}", parsed.name(), parsed.requests().size(),
+        log.info("Collection \"{}\" uploaded with {} request(s){}", oneLine(parsed.name()), parsed.requests().size(),
                 previous == null ? "" : ", replacing the one of the same name");
         return new CollectionUpload(stored, previous != null, warnings, current.epoch());
     }
@@ -341,7 +350,7 @@ public class ConfigStore {
         List<String> warnings = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections),
                 null, collection.file());
         // The name only.
-        log.info("Collection \"{}\" removed, with its mapping corrections", collection.name());
+        log.info("Collection \"{}\" removed, with its mapping corrections", oneLine(collection.name()));
         return new Removal(collection.name(), false, warnings, current.epoch());
     }
 
@@ -374,8 +383,17 @@ public class ConfigStore {
 
     /** An identifier from a request as it may be repeated in a message: one line, bounded, in quotes. */
     private static String shown(String identifier) {
-        String text = identifier == null ? "" : identifier.replaceAll("[\\p{Cntrl}]", " ").strip();
+        String text = oneLine(identifier);
         return "\"" + (text.length() > 80 ? text.substring(0, 80) + "..." : text) + "\"";
+    }
+
+    /**
+     * A name from an uploaded file as it may be written to the log or into a sentence: on one
+     * line. A name is whatever the file says, and a line break in it would let an upload write
+     * what reads as a log line of its own.
+     */
+    static String oneLine(String name) {
+        return name == null ? "" : name.replaceAll("[\\p{Cntrl}]", " ").strip();
     }
 
     private static List<StoredCollection.Mapped> mapped(PostmanCollection collection, Map<String, EpaOperation> corrections) {
@@ -390,16 +408,15 @@ public class ConfigStore {
     }
 
     /**
-     * One warning for each secret that now sits in a file in plain text. A secret whose value is a
-     * reference to the operating system is not in the file, so it is not warned about.
+     * One warning for each secret that now sits in a file in plain text. A secret whose value only
+     * refers to the operating system or to other variables is not itself in the file, so it is not
+     * warned about. A disabled variable is: it is not used, and it is still in the file.
      */
     private List<String> secretWarnings(List<PostmanVariable> variables, String file) {
         List<String> warnings = new ArrayList<>();
         Set<String> named = new LinkedHashSet<>();
         for (PostmanVariable variable : variables) {
-            String pointer = Placeholders.sole(variable.value());
-            boolean readFromOperatingSystem = pointer != null && pointer.startsWith(VariableResolver.OS_REFERENCE);
-            if (variable.secret() && variable.hasValue() && !readFromOperatingSystem && named.add(variable.key())) {
+            if (variable.secret() && variable.hasValue() && !Placeholders.referencesOnly(variable.value()) && named.add(variable.key())) {
                 warnings.add("The variable \"" + variable.key() + "\" holds a secret in plain text, and it now sits in the file "
                         + directory.resolve(file) + ". To keep it out of that file, give the variable the value {{env:"
                         + VariableResolver.OS_NAME_PREFIX + "YOUR_NAME}} in Postman, export again, and set the operating system "

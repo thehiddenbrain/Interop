@@ -57,6 +57,25 @@ public final class UrlForms {
     }
 
     /**
+     * Where the first occurrence of a marker that ends a path segment ends in the text, or -1 when
+     * there is none. The marker ends a segment when the text stops there or goes on with a slash,
+     * a question mark or a hash. Letters are compared ignoring case, in place: lower-casing the
+     * whole text first can change its length, and the position would then point somewhere else.
+     */
+    public static int endOfSegment(String text, String marker) {
+        if (text == null || marker == null || marker.isEmpty()) {
+            return -1;
+        }
+        for (int at = 0; at + marker.length() <= text.length(); at++) {
+            int end = at + marker.length();
+            if (text.regionMatches(true, at, marker, 0, marker.length()) && (end == text.length() || "/?#".indexOf(text.charAt(end)) >= 0)) {
+                return end;
+            }
+        }
+        return -1;
+    }
+
+    /**
      * A url with its tokens filled.
      *
      * @param send          the url to send to, or null when a placeholder or a token has no value
@@ -247,15 +266,8 @@ public final class UrlForms {
          * and including {@code /cds-services}.
          */
         public Skeleton upTo(String marker) {
-            String lower = text.toLowerCase(java.util.Locale.ROOT);
-            String wanted = marker.toLowerCase(java.util.Locale.ROOT);
-            for (int at = lower.indexOf(wanted); at >= 0; at = lower.indexOf(wanted, at + 1)) {
-                int end = at + wanted.length();
-                if (end == text.length() || "/?#".indexOf(text.charAt(end)) >= 0) {
-                    return new Skeleton(this, end);
-                }
-            }
-            return null;
+            int end = endOfSegment(text, marker);
+            return end < 0 ? null : new Skeleton(this, end);
         }
 
         private boolean readable(int[] range) {

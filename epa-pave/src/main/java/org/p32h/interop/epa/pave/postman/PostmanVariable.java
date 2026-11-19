@@ -21,7 +21,7 @@ public record PostmanVariable(String key, @JsonIgnore String value, boolean enab
 
     /** True when Postman itself typed the variable as a secret. */
     public boolean secretType() {
-        return type != null && SECRET_TYPE.equalsIgnoreCase(type.strip());
+        return Texts.present(type) && SECRET_TYPE.equalsIgnoreCase(type.strip());
     }
 
     /** True when the variable must be masked wherever it is shown: Postman typed it secret, or its name reads as a credential. */

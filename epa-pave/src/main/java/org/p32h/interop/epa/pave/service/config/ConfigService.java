@@ -396,7 +396,7 @@ public class ConfigService {
             if (Secrets.credentialHeader(name) || pointsAtOperatingSystem(value)) {
                 String shown = shownTemplate(name, value);
                 // A header that reads its value from the operating system is a secret whatever it is called.
-                rows.add(new SettingRow(property, Texts.blank(value) ? null : referencesOnly(value) ? value
+                rows.add(new SettingRow(property, Texts.blank(value) ? null : Placeholders.referencesOnly(value) ? value
                         : Secrets.credentialHeader(name) ? shown : Secrets.mask(property), Texts.present(value), true));
             } else {
                 rows.add(plain(property, value));
@@ -412,7 +412,7 @@ public class ConfigService {
         if (Texts.blank(value)) {
             return new SettingRow(property, null, false, true);
         }
-        return new SettingRow(property, referencesOnly(value) ? value : Secrets.mask(property), true, true);
+        return new SettingRow(property, Placeholders.referencesOnly(value) ? value : Secrets.mask(property), true, true);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -540,7 +540,7 @@ public class ConfigService {
         boolean set = variable.hasValue();
         boolean fromOperatingSystem = pointsAtOperatingSystem(value);
         boolean secret = variable.secret() || fromOperatingSystem;
-        String display = !set ? null : !secret || referencesOnly(value) ? value : Secrets.mask(variable.key());
+        String display = !set ? null : !secret || Placeholders.referencesOnly(value) ? value : Secrets.mask(variable.key());
         String readsFrom = fromOperatingSystem
                 ? "the operating system variable " + Placeholders.sole(value).substring(VariableResolver.OS_REFERENCE.length()).strip() : null;
         List<String> usedBy = new ArrayList<>(usage.getOrDefault(variable.key(), Set.of()));
@@ -557,22 +557,6 @@ public class ConfigService {
         return pointer != null && pointer.startsWith(VariableResolver.OS_REFERENCE);
     }
 
-    /** True when the text is made of placeholders and white space and nothing else, so showing it shows no value. */
-    static boolean referencesOnly(String text) {
-        if (Texts.blank(text)) {
-            return false;
-        }
-        boolean any = false;
-        for (Placeholders.Part part : Placeholders.parts(text)) {
-            if (part.placeholder()) {
-                any = true;
-            } else if (!part.literal().isBlank()) {
-                return false;
-            }
-        }
-        return any;
-    }
-
     /**
      * The value of a header as written, in the form that may be shown. A header that is a
      * credential by its own name is shown as written only when nothing in it was typed literally:
@@ -580,14 +564,14 @@ public class ConfigService {
      * could be a credential someone typed into the collection, and is redacted.
      */
     static String shownTemplate(String headerName, String template) {
-        if (template == null || !Secrets.credentialHeader(headerName) || referencesOnly(template)) {
+        if (template == null || !Secrets.credentialHeader(headerName) || Placeholders.referencesOnly(template)) {
             return template;
         }
         String redacted = Secrets.redactCredential(headerName, template);
         String text = template.strip();
         int space = text.indexOf(' ');
         // The redaction keeps the first word only when it is a well known scheme, which is how one is recognised here.
-        if (!redacted.equals(Secrets.REDACTED) && space > 0 && referencesOnly(text.substring(space + 1))) {
+        if (!redacted.equals(Secrets.REDACTED) && space > 0 && Placeholders.referencesOnly(text.substring(space + 1))) {
             return template;
         }
         return redacted;
