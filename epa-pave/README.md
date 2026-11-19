@@ -17,7 +17,8 @@ describes it says so.
 
 ## First run checklist
 
-Six steps from nothing to a working tool on the mock profile. Each shows the exact command and what
+Six steps from nothing to a running tool on the mock profile, used through its API: this revision
+has no screens yet (step 6). Each shows the exact command and what
 correct output looks like. The output shown is what these commands printed when this README was
 checked (see the last section for where and on which revision).
 
@@ -42,7 +43,18 @@ Anything older than 21 will not build or run PAVE. Install a JDK 21 and set `JAV
 ```
 git clone --branch epa-pave https://github.com/thehiddenbrain/Interop.git
 cd Interop/epa-pave
+ls run.sh
 ```
+
+Correct output of the last command is `run.sh`.
+
+**Stop here if it prints `ls: cannot access 'run.sh': No such file or directory`.** That is what
+it printed on 2026-11-19: the `epa-pave` branch on GitHub (then at commit `44c7760`) did not yet
+hold this README, `run.sh`, `run.cmd` or `samples/`. They are on the branch `docs-c2`, which had
+not been merged into `epa-pave` or pushed to GitHub. Until it is, step 4 fails in a clone from
+GitHub. Ask whoever gave you this README for the copy that holds it, clone that with
+`git clone --branch docs-c2 <that copy>`, go into its `epa-pave/` directory, and check
+`ls run.sh` again.
 
 PAVE lives in the `epa-pave/` directory. The application at the root of the repository is a
 different project; leave it alone. Every command below is run from `epa-pave/`.
@@ -75,9 +87,9 @@ The time and the task counts differ from machine to machine. `BUILD SUCCESSFUL` 
 ./run.sh
 ```
 
-On Windows: `run.cmd`. The script checks for Java 21, builds the jar if it is not there yet, and
-starts PAVE on the mock profile on port 8057. Correct output includes these lines, and then the
-terminal stays busy while the tool runs:
+The script checks for Java 21, builds the jar if it is not there yet, and starts PAVE on the mock
+profile on port 8057. Correct output includes these lines, and then the terminal stays busy while
+the tool runs:
 
 ```
 Starting PAVE 1.0.0 on http://localhost:8057/ (mock profile). Stop it with Ctrl+C.
@@ -93,13 +105,27 @@ Started PaveApplication in 18.439 seconds (process running for 20.228)
 If it says `Port 8057 was already in use`, something else is on that port: start with
 `./run.sh mock --server.port=8091` and use 8091 in place of 8057 below.
 
+**On Windows**, run `run.cmd`, or `run.cmd mock "--server.port=8091"` for another port. **`run.cmd`
+has never been run**: no Windows machine was available, so it was only read. If it stops with an
+error, or does not print the lines above, start PAVE without it, from `epa-pave\`:
+
+```
+gradlew.bat bootJar
+java -jar build\libs\epa-pave-1.0.0.jar --spring.profiles.active=mock
+```
+
+The same two commands, with `./gradlew` and `build/libs/...`, were run on Linux and start PAVE as
+`run.sh` does. Started through `run.cmd`, Ctrl+C is followed by the prompt
+`Terminate batch job (Y/N)?`; answer `Y`.
+
 **5. Ask the tool what it is, from a second terminal.**
 
 ```
 curl -s localhost:8057/api/mode
 ```
 
-Correct output (the `epoch` number differs every time):
+Correct output (the `epoch` number is the configuration epoch: it differs from one start to the
+next and changes when the configuration changes, but two calls in a row answer the same number):
 
 ```
 {"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795129834662,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."}}
@@ -109,18 +135,19 @@ Correct output (the `epoch` number differs every time):
 
 **6. Open the tool in a browser.**
 
-Open `http://localhost:8057/`. The browser tab reads `PAVE 1.0.0 | ` followed by the environment
-name, and the page shows the five tabs CRD, DTR, PAS, History and Config.
+Open `http://localhost:8057/`.
 
-**Not checked:** the screens are built on a separate branch and were not part of the revision this
-README was checked on. On that revision this address answered with an error in JSON, not a page:
+**This revision has no screens.** They are built on a separate branch that is not merged here. So
+the correct output of this step, on this revision, is not a page: the browser shows this error in
+JSON (HTTP 404):
 
 ```
 {"kind":"NOT_FOUND","title":"There is nothing at this address.","action":"Check the path against the endpoint table in the README.","fieldErrors":[],"issues":[]}
 ```
 
-If you see that, your copy has the API without the screens. Everything below that uses `curl`
-works without them.
+That means the tool is running and answering; it has the API and no screens. Everything below that
+uses `curl` works without them. What the screens are meant to show once merged is described,
+unchecked, under [Using the screens](#using-the-screens).
 
 To stop the tool, press Ctrl+C in the terminal where it runs.
 
@@ -160,9 +187,14 @@ nothing). A case you expect to be denied that comes back denied is a denial **an
 - **PAVE does not tell you what the published guides require.** Its request shapes and its reading
   of responses were written before the guides could be read in the build environment (decisions
   D-008 and D-130 in `DECISIONS.md`). The operator named version 2.0.1 of the guides as the one to
-  hold the tool to (D-136). An independent comparison of each protocol with the guides was running
-  when this README was written and had not reported. Until it does, treat every message shape in
-  CRD and PAS as unverified against the guides, and DTR as checked only by its own author.
+  hold the tool to (D-136). On this revision the independent comparison of each protocol with
+  2.0.1 had not reported. It has since reported, on a later commit of the `epa-pave` branch
+  (`44c7760`, in `PROGRESS.md` there): **the tool does not conform to 2.0.1**, with blockers in CRD
+  and PAS and majors in all three (CRD 3 blockers, 14 majors, 9 minors; PAS 9 blockers, 11 majors,
+  6 minors; DTR 8 majors, 6 minors), not fixed at that commit. Among them: CRD calls some codes
+  2.0.1 defines non-conformant, and PAS builds bundles a validating 2.0.1 service would refuse. So
+  a conformance finding from PAVE can be wrong in either direction, and a request PAVE builds can
+  be refused by a conformant service for reasons that are PAVE's.
 
 ### What a tester must not conclude
 
@@ -222,7 +254,8 @@ produce. A run can also name a scenario with `scenarioId`. Mock member fixtures 
 NPI `9999999995` selects "provider not found".
 
 **Switching** is a restart: stop the tool and start it with `./run.sh live` (or `./run.sh` for
-mock). The mode is shown by `GET /api/mode` and on every screen. The application refuses to start
+mock). The mode is shown by `GET /api/mode` (and, once the screens are merged, on every screen;
+this revision has none). The application refuses to start
 when `epa.mode` and the Spring profile disagree, so the badge can never say mock while the wiring is
 live. Both profiles use the same `config-store/` and `run-history/` directories, and every ledger
 line records the profile it ran on.
@@ -385,7 +418,14 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
 - **Detection**: each request is mapped to an operation from its name, then its url. The answer
   says why (for example "The name contains "submit", and the url has a $submit segment."). Correct
   a wrong one with `PUT /api/config/collections/{id}/mapping`; the correction is kept across a
-  restart. An unmapped request is listed and can be sent as written with `POST /api/raw`.
+  restart. An unmapped request is listed and can be sent with `POST /api/raw`.
+- **`POST /api/raw` does not send the body saved in the collection.** It sends the request's
+  method, url and headers, with placeholders resolved, and a body only when you supply one as
+  `rawBody`. To send the saved body, read it from
+  `GET /api/config/collections/{id}/requests/{requestId}` (the `body` field), edit it if you like,
+  and pass it as `rawBody`. Without `rawBody`, a POST such as `Claim/$submit` goes out with no
+  body, and `POST /api/raw/preview` says so ("No body will be sent, because none was supplied.").
+  Observed with the sample's `submit Happy Path`.
 - **Pre-request scripts are never run.** A request that has one is flagged, and every run that
   uses it carries the finding `PRE_REQUEST_SCRIPT_NOT_RUN`, because a value Postman would have
   computed was not computed here. Observed with the sample's `order-sign Happy Path`.
@@ -395,11 +435,23 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
 A `{{placeholder}}` is resolved from, in order: a value typed for this run, the active environment,
 the variables of the collection the request came from, then `onyx.variables` in
 `application.yml`. A defined but blank variable counts as not set. When a placeholder cannot be
-resolved the request is **not sent**, and the answer names the variable and the active environment.
-`POST /api/config/resolve` shows what a request would become without sending it.
+resolved the request is **not sent**: the answer is 422 (`"kind":"CONFIGURATION"`) and names the
+variable and the active environment, for example "PAS inquire cannot be sent: the placeholder
+{{baseUrl}} has no value, and the active environment is "Blank Url Sandbox". Nothing was sent."
+(observed on live). `POST /api/config/resolve` shows what a request would become without sending
+it.
+
+**On mock the url of a CRD, DTR or PAS run is not resolved at all**, because nothing is sent: the
+scenario answers whatever the environment holds. Observed: with `baseUrl` defined but blank, a PAS
+submit, a CRD run and a DTR package request on mock each answered 200 with no finding about the url.
+So on mock, an incomplete environment is found only by asking: `POST /api/config/resolve` marks each
+unresolved variable `UNRESOLVED` with the reason. `POST /api/raw` is the exception: on mock it
+does refuse an unresolved placeholder with 422.
 
 `{{$guid}}`, `{{$randomUUID}}`, `{{$timestamp}}` and `{{$isoTimestamp}}` are generated. Any other
-dynamic variable is not computed and the request is flagged.
+dynamic variable, such as `{{$randomInt}}`, is not computed: a request that needs one is refused
+with 422 naming it, and nothing is sent, unless you type a value for it for that run (in
+`variables`, for example `"variables":{"$randomInt":"5"}`). Observed with `POST /api/raw` on mock.
 
 ### Secrets
 
@@ -408,11 +460,20 @@ verbatim in `config-store/`. So:
 
 - **The upload warns**, naming the variable and the stored file, when a secret variable holds
   literal text.
-- **Secrets are masked** in every answer that shows configuration: the answer says a secret is
-  set, not what it is. This was not observed for this README with a literal secret; the build's
-  tests cover it. A variable is secret when Postman typed it `secret` or when its name reads as a credential.
+- **Secret variables are masked** in every answer that shows configuration: the answer says the
+  secret is set, not what it is. Observed: a variable `apiKey` holding literal text did not appear
+  in the upload answer or in `GET /api/config/effective`. A variable is secret when Postman typed
+  it `secret` or when its name reads as a credential.
   Redaction is by name, never by matching a value. On the wire view, credential headers
   (`Authorization`, `Cookie`, API key headers) show at most their scheme.
+- **What masking does not catch.** Because masking goes by the variable's name, a key written
+  inside a url, or held by a variable with an ordinary name, is shown as written, in the upload
+  answer, in `GET /api/config/effective`, in `POST /api/config/resolve` and in the wire view.
+  Observed: an environment whose `baseUrl` was
+  `https://sandbox.onyx.example.invalid/fhir?api_key=LITERALURLKEY999` showed that key in all
+  three answers, while a variable named `apiKey` in the same file was masked. Keep every key in a
+  variable of its own whose name reads as a credential (`apiKey`, `clientSecret`, `token`), typed
+  `secret`, and refer to it from the url or the header.
 - **Keep the secret out of the file.** Give the variable the value `{{env:PAVE_NAME}}` in Postman,
   export, and set the operating system variable `PAVE_NAME` where PAVE runs. The sample does this:
 
@@ -496,7 +557,8 @@ environment.
 Every run, on both profiles, is appended as one JSON line to
 `run-history/runs-YYYY-MM-DD.jsonl` (one file per day; the folder is beside `run.sh` when started
 with it, otherwise in the directory you start from; `tracking.directory` moves it). A line is
-written before the result is shown, flushed and synced; files are never rewritten. If a write
+written before the result is shown, then flushed and synced to disk (this was checked by reading
+the code: no test can observe a sync); files are never rewritten. If a write
 fails, the result says so. If the folder cannot be written at startup, the tool refuses to start
 and names the path. `GET /api/runs/health` says whether tracking is alive and how many runs were
 recorded today.
@@ -571,7 +633,14 @@ against the directory PAVE starts in) and restart:
 ```
 
 `samples/codelist/sample-code-list.csv` is a sample in the shape the real export is expected to
-have, every row marked `SAMPLE ROW`. A test loads it through the real loader, and the command above
+have, every row marked `SAMPLE ROW`. Its vendor names are real: they are the four delegated
+vendors the specification names as current (eviCore, Evolent, Carelon, Optum Post Acute), the
+specification asks for them in fixtures, and they are the only names the tool recognises as
+vendors (D-081), so a made-up name would be treated as an unknown vendor. The codes are real CPT
+and HCPCS codes. **Which code goes to which vendor, and every flag and date, is invented**: it
+follows the specialties the specification lists (sleep, imaging, genetic testing, post-acute) and
+says nothing about P32H's actual assignments. The bundled placeholder list is built the same way.
+A test loads it through the real loader, and the command above
 was run: the self-check then answered `"placeholder":false`, `"rowCount":11`,
 `"statingAuthRequirement":10`, `"namingVendor":7` and `"unrecognisedColumns":[]`, with each column
 found under the sample's own header (`"code":"CPT/HCPCS"`, `"authRequired":"Prior Auth Required"`,
@@ -635,7 +704,9 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 - **200** for a completed call, **including one where the service returned a fault**: the fault is
   described in the body, with the request that caused it.
 - **422** when the form failed validation (and for an unknown property in a request body, which is
-  named).
+  named), and on live (and for `POST /api/raw` on mock too) when a placeholder the request needs
+  has no value (`"kind":"CONFIGURATION"`,
+  naming the variable and the active environment; see [Variables](#variables)).
 - **403** when the production guardrail blocked a write, or when the request came from another
   site or a host name the tool does not answer to.
 - **409** when no url is configured for an operation, or the configuration changed since the screen
@@ -688,7 +759,7 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 | GET | `/api/pas/notifications?since=` | Notifications received, correlated to runs |
 | POST | `/api/pas/notifications/sample` | Deliver a sample notification (mock only) |
 | GET | `/api/pas/scenarios?for=` | PAS scenarios (mock) and the outcome vocabulary |
-| POST | `/api/raw` | Send one collection request as written |
+| POST | `/api/raw` | Send one collection request: its method, url and headers, and `rawBody` if given (the saved body is not sent) |
 | POST | `/api/raw/preview` | The same, without sending it |
 | GET | `/api/runs?from=&to=&protocol=&operation=&result=&outcome=&chainId=&suiteRunId=&limit=` | Query the ledger |
 | GET | `/api/runs/{runId}` | One run |
@@ -735,7 +806,9 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
 curl -s localhost:8057/api/config/collections
 # 200
 curl -s localhost:8057/api/config/collections/pave-sample-collection-632d456c/requests/r-3c98d3437327
-# 200
+# 200, "changed":true: the request "order-sign Error" is now mapped to CRD order-select
+curl -s -X PUT -H 'Content-Type: application/json' -d '{"requestId":"r-b740dcfeaff4","operation":"CRD_ORDER_SELECT"}' localhost:8057/api/config/collections/pave-sample-collection-632d456c/mapping
+# 200, "changed":true: mapped back to what detection proposed, so the correction is removed
 curl -s -X PUT -H 'Content-Type: application/json' -d '{"requestId":"r-b740dcfeaff4","operation":"CRD_ORDER_SIGN"}' localhost:8057/api/config/collections/pave-sample-collection-632d456c/mapping
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"action":"lock"}' localhost:8057/api/config/writes
@@ -833,13 +906,17 @@ curl -s localhost:8057/api/pas/notifications
 curl -s 'localhost:8057/api/pas/scenarios?for=submit'
 ```
 
-Sending a collection request as written:
+Sending a collection request (method, url and headers; a body only when you give `rawBody`):
 
 ```bash
 # 200: on mock every raw request gets the same fixed answer, which says the mock does not model it
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-6d8194d8fa41"}}' localhost:8057/api/raw
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-6d8194d8fa41"}}' localhost:8057/api/raw/preview
+# 200: "No body will be sent, because none was supplied.", although the saved request has a body
+curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-e8574dbaa06d"}}' localhost:8057/api/raw/preview
+# 200: with rawBody, the preview shows the body that would be sent
+curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-e8574dbaa06d"},"rawBody":"{\"resourceType\":\"Bundle\",\"type\":\"collection\"}"}' localhost:8057/api/raw/preview
 ```
 
 The ledger and chains:
@@ -1060,15 +1137,23 @@ Each of these is unknown. PAVE uses an obvious placeholder for it rather than a 
 
 ## Limitations
 
-What is not done, not verified, or known to be wrong on this revision. `PROGRESS.md` is the full
-account and is kept current.
+What is not done, not verified, or known to be wrong on this revision. `PROGRESS.md` is the
+project's own account, but **on this revision it is out of date about this work**: it still says
+that the README, `run.sh`, `run.cmd` and the sample files do not exist, gives the build as 1831
+tests (1,846 now, 2 of them skipped), and lists Wave C2 as not started. Everything else it lists
+as not done is repeated below.
 
 - **Nothing has been run against Onyx or any real service.** Every result anyone has seen came from
   the mock profile or a fake.
 - **No screens on this revision.** The frontend is on its own branch.
-- **Message shapes are unverified against the guides.** CRD and PAS were written from memory of
-  the guides; DTR was compared by its own author only. An independent comparison was running. CRD
-  and DTR can only be compared with the 2.2.0 ballot here, not with 2.0.1 (D-136).
+- **Message shapes do not conform to 2.0.1.** On this revision they were unverified: CRD and PAS
+  were written from memory of the guides, and DTR was compared by its own author only. The
+  operator has since supplied the CRD and DTR 2.0.1 packages (`hl7.fhir.us.davinci-crd-2.0.1.tgz`
+  and `hl7.fhir.us.davinci-dtr-2.0.1.tgz`), which removes the reason D-136 gave for comparing CRD
+  and DTR with the 2.2.0 ballot only. The comparison with 2.0.1 reported on a later commit of the
+  `epa-pave` branch: the tool does not conform (see
+  [What PAVE is not](#what-pave-is-not)). None of it is fixed on this revision. This README was not
+  compared with those packages.
 - **The section 27 verification agents** other than the member data audit had not run. The
   guardrail audit, the fixture audit and the independent review of the integrator's own code (the
   case runner, suites, the chain, the request guard) were owed.
@@ -1091,13 +1176,29 @@ account and is kept current.
   holds no ServiceRequest**, so that one reference does not resolve inside the submission (D-135).
 - **Lookups** have never met the real member API or provider directory. A member ID containing a
   slash cannot be looked up. A name returned in one piece cannot fill first and last name.
-- **The ledger** was run on Linux only. Two instances pointed at one ledger folder are not
+- **The ledger** was run on Linux only. That a line is flushed and synced to disk was checked by
+  reading the code, not by a test. Two instances pointed at one ledger folder are not
   coordinated. A note written after the clock was set back across midnight is on disk and not
   applied when the run is read.
 - **Comparing a pasted CRD request with the tool's own** (D-119) is not in this revision.
+- **Concurrency in the configuration store** (two uploads or a switch at the same moment) is
+  reasoned about and not tested.
+- **Two notifications arriving at the same moment** at the receiver are not tested.
+- **The receiver stops reading a notification at 8 MiB** (D-133): what lies beyond is not read,
+  and the record says the size is not known. Of what it reads it keeps the first 128 KiB.
+- **Reviewed by nobody but their author:** the chain as a suite case and the wiring of the second
+  wave (PAS and DTR into the application). The independent review of the integrator's own code
+  covered the first wave only.
+- **A key written into a url, or held by a variable with an ordinary name,** is shown as written
+  wherever configuration is shown (see [Secrets](#secrets)).
+- **`POST /api/raw` sends no body unless one is supplied** as `rawBody`; it does not send the body
+  saved in the collection.
+- **On mock, a run does not check that its url resolves.** Use `POST /api/config/resolve`.
 - **`run.cmd` has not been run.** No Windows machine was available. It was written to do what
-  `run.sh` does; on Windows an argument with an equals sign must be quoted
-  (`run.cmd mock "--server.port=8091"`).
+  `run.sh` does, and corrected once after a reader found, by reading, that its Java version check
+  would have failed on every machine. Quote an argument with an equals sign
+  (`run.cmd mock "--server.port=8091"`). If it fails, use the two commands under step 4 of the
+  checklist.
 - **Two tests are skipped** when the build runs as root, because a read-only folder is not
   read-only for root. The same refusals are covered by tests that do run.
 
