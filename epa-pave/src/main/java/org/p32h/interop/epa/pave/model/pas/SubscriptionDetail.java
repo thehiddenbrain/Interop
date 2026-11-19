@@ -9,9 +9,10 @@ import java.util.List;
  * Everything the tool understood in the response to a subscription call, for the designed view.
  *
  * @param responseKind    what kind of thing came back
- * @param responseNote    one plain sentence about it, or null when it needs none
+ * @param responseNote    what a tester should know about it in plain words, or null when it needs none
  * @param subscriptions   every subscription the response carried: one for a read, a create or an
  *                        update that returned it, any number for a list
+ * @param bundleType      the type of the bundle a list came in
  * @param total           the total a list states, when it states one
  * @param otherResources  anything else a list bundle carried
  * @param issues          the issues of an OperationOutcome, when one came back
@@ -24,8 +25,9 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SubscriptionDetail(SubscriptionResponseKind responseKind, String responseNote, List<SubscriptionView> subscriptions,
-                                 Shown total, List<BundleResourceView> otherResources, List<IssueView> issues, String subscriptionId,
-                                 String idSource, String callbackUrl, List<String> requestNotes, boolean bodyBuiltByTool) {
+                                 Shown bundleType, Shown bundleId, Shown total, List<BundleResourceView> otherResources,
+                                 List<IssueView> issues, String subscriptionId, String idSource, String callbackUrl,
+                                 List<String> requestNotes, boolean bodyBuiltByTool) {
 
     public SubscriptionDetail {
         subscriptions = subscriptions == null ? List.of() : List.copyOf(subscriptions);
@@ -36,7 +38,13 @@ public record SubscriptionDetail(SubscriptionResponseKind responseKind, String r
 
     /** The same detail with what is known about the request that produced it. */
     public SubscriptionDetail withRequest(String id, String source, String receiver, List<String> notes, boolean builtByTool) {
-        return new SubscriptionDetail(responseKind, responseNote, subscriptions, total, otherResources, issues, id, source, receiver,
-                notes, builtByTool);
+        return new SubscriptionDetail(responseKind, responseNote, subscriptions, bundleType, bundleId, total, otherResources, issues, id,
+                source, receiver, notes, builtByTool);
+    }
+
+    /** Prints the kind of response only. A subscription names the url of a receiver. */
+    @Override
+    public String toString() {
+        return "SubscriptionDetail[" + responseKind + ", subscriptions=" + subscriptions.size() + "]";
     }
 }

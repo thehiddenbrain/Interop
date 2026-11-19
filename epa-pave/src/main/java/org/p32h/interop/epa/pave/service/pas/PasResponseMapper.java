@@ -576,7 +576,12 @@ public final class PasResponseMapper {
         return null;
     }
 
-    private ExtensionView extension(TrackedJson.Node extension, String name) {
+    /**
+     * One extension as returned, with the extensions nested inside it. The readers of the other
+     * resources this package shows use it too, so an extension nobody anticipated is listed the
+     * same way wherever it sat.
+     */
+    static ExtensionView extension(TrackedJson.Node extension, String name) {
         List<ExtensionView> parts = new ArrayList<>();
         for (TrackedJson.Node part : extension.children("extension")) {
             if (part.isObject()) {
@@ -658,7 +663,7 @@ public final class PasResponseMapper {
      * not ABSENT: the part was sent, it just says nothing, and that difference is what a tester
      * chasing a contract mismatch needs to see.
      */
-    private static Shown present(Shown value) {
+    static Shown present(Shown value) {
         return value.presence() == Presence.ABSENT ? Shown.empty() : value;
     }
 }

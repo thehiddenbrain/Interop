@@ -158,6 +158,13 @@ public final class OnyxPasConventions {
     /** The status a client asks for when it creates a subscription. The service decides whether to activate it. */
     public static final String REQUESTED = "requested";
 
+    /**
+     * A subscription has to say why it exists. This is the tool's own sentence, sent when the
+     * tester states none, so that whoever reads the subscription on the far side can see where it
+     * came from. The request notes say it was a default.
+     */
+    public static final String DEFAULT_SUBSCRIPTION_REASON = "Prior authorization status notifications for a PAVE test run";
+
     // ---------------------------------------------------------------------------------------------
     // Notifications
     // ---------------------------------------------------------------------------------------------
