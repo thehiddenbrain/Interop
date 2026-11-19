@@ -164,7 +164,7 @@ function addAssertionRow() {
         controls.assertions.append(
             el('p', {class: 'field__hint'}, 'Each line asserts one standard code, such as pa-needed = no-auth. Every line must hold for the run to pass.'),
             row,
-            el('div', {class: 'assertions__add'}, button('Add another assertion', () => addAssertionRow(), {class: 'button--text'})));
+            el('div', {class: 'assertions__add'}, button('Add an assertion', () => addAssertionRow(), {class: 'button--text'})));
     }
 }
 

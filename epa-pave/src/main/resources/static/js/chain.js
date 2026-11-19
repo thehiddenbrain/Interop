@@ -7,7 +7,7 @@
 // one thing only, the id of the chain the case on screen belongs to, and forgets it on reload.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts, table, heading, copyButton, millis, when, token} from './dom.js';
+import {el, fill, clear, button, code, facts, tableRow, heading, copyButton, millis, when, token} from './dom.js';
 import {outcome, stamp, slowFlag, toneMark} from './marks.js';
 import {errorPanel} from './result.js';
 
@@ -30,7 +30,12 @@ export function createChain(app, bar) {
             draw();
             return;
         }
-        const answer = await api.get('/api/chains/' + encodeURIComponent(chainId));
+        const asked = chainId;
+        const answer = await api.get('/api/chains/' + encodeURIComponent(asked));
+        if (chainId !== asked) {
+            // The case moved on while the answer was on its way. It is about a chain no longer on screen.
+            return;
+        }
         view = answer.kind === 'ok' ? answer.body : {problem: answer.body};
         draw();
     }
@@ -63,6 +68,12 @@ export function createChain(app, bar) {
                 el('p', {class: 'chain-bar__next'},
                     el('span', {class: 'chain-bar__next-label'}, 'Next step '),
                     el('span', {class: 'chain-bar__next-headline'}, view.nextHeadline || 'The latest run did not state one.')),
+                // Whose journey this is, as the ledger shows it, so a case changed on screen is not taken for the case of the chain.
+                el('p', {class: 'quiet'}, 'Chain for ', view.member ? ['member ', code(view.member)] : 'a member the ledger does not show',
+                    view.procedureCodes && view.procedureCodes.length > 0
+                        ? [', ', view.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null, '.'),
+                follow.checked ? null : el('p', null, el('strong', null, 'Paused.'),
+                    ' Runs sent now do not join this chain. Tick "Run as part of a chain" to go on with it.'),
                 actions())));
     }
 
@@ -87,17 +98,19 @@ export function createChain(app, bar) {
 
         /** What to send as chainId with the next run: nothing, "new" to start a chain, or the id of the running one. */
         requestValue() {
-            if (chainId) {
-                return chainId;
+            if (!follow.checked) {
+                return undefined;
             }
-            return follow.checked ? 'new' : undefined;
+            return chainId || 'new';
         },
 
         /** Call with every run result. A result that names a chain makes that chain the one on screen. */
         onResult(envelope) {
             if (envelope && envelope.chainId) {
+                if (envelope.chainId !== chainId) {
+                    view = null;
+                }
                 chainId = envelope.chainId;
-                follow.checked = true;
                 refresh();
             }
         },
@@ -124,20 +137,23 @@ export function chainView(chain) {
     const node = el('article', {class: 'chain-view'});
     node.append(
         el('h3', {class: 'chain-view__headline'}, chain.headline),
-        facts([
-            ['Next step', chain.nextHeadline ? el('strong', null, chain.nextHeadline) : 'The latest run did not state one.'],
-            ['Journey', chain.ended ? 'Ended: the latest run said the journey is complete.' : 'Open: the latest run did not end the journey.'],
-            ['Chain', [code(chain.chainId), ' ', copyButton('Copy chain id', () => chain.chainId)]],
-            ['Member', chain.member ? code(chain.member) : el('span', {class: 'presence presence--none'}, 'not stated')],
-            ['Procedure codes', chain.procedureCodes && chain.procedureCodes.length > 0
-                ? chain.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])
-                : el('span', {class: 'presence presence--none'}, 'none recorded')],
-            ['Ran against', [chain.environment ? chain.environment + (chain.environmentKind ? ' (' + chain.environmentKind + ')' : '') : 'no environment',
-                ', ', chain.profile, ' profile, target ', chain.target]],
-            ['Started', when(chain.startedAt)],
-            ['Latest run', when(chain.lastRunAt)],
-            ['Runs', String(chain.runCount) + ', taking ' + millis(chain.elapsedMillis) + ' in all']
-        ], 'facts--ruled'));
+        el('div', {class: 'facts-pair'},
+            facts([
+                ['Next step', chain.nextHeadline ? el('strong', null, chain.nextHeadline) : 'The latest run did not state one.'],
+                ['Journey', chain.ended ? 'Ended: the latest run said the journey is complete.' : 'Open: the latest run did not end the journey.'],
+                ['Chain', [code(chain.chainId), ' ', copyButton('Copy chain id', () => chain.chainId)]],
+                ['Member', chain.member ? code(chain.member) : el('span', {class: 'presence presence--none'}, 'not stated')]
+            ], 'facts--ruled'),
+            facts([
+                ['Procedure codes', chain.procedureCodes && chain.procedureCodes.length > 0
+                    ? chain.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])
+                    : el('span', {class: 'presence presence--none'}, 'none recorded')],
+                ['Ran against', [chain.environment ? chain.environment + (chain.environmentKind ? ' (' + chain.environmentKind + ')' : '') : 'no environment',
+                    ', ', chain.profile, ' profile, target ', chain.target]],
+                ['Started', when(chain.startedAt)],
+                ['Latest run', [when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs', ' taking ',
+                    millis(chain.elapsedMillis), ' in all']]
+            ], 'facts--ruled')));
     if (chain.notes && chain.notes.length > 0) {
         node.append(el('ul', {class: 'note-list'}, chain.notes.map(note => el('li', null, note))));
     }
@@ -159,20 +175,37 @@ function stageSection(stage) {
         runs.length > 0 ? runTable(runs) : null);
 }
 
+/**
+ * The runs of a stage. Each run takes two lines: what it produced, then the identifiers that tie
+ * it to the ledger, which are long and would squeeze every other column if they had one of their own.
+ */
 function runTable(runs) {
     const none = text => el('span', {class: 'presence presence--none'}, text);
-    return el('div', {class: 'table-scroll'}, table(
-        [{text: 'When', class: 'col-14'}, {text: 'Ran', class: 'col-12'}, {text: 'Outcome', class: 'col-18'}, {text: 'Expected', class: 'col-14'},
-            {text: 'Test result', class: 'col-11'}, {text: 'Elapsed', class: 'num col-8'}, {text: 'Findings', class: 'col-11'}, 'Run'], runs.map(run => [
-            [when(run.timestamp), run.latestOfItsKind === false ? el('div', {class: 'small'}, el('span', {class: 'flag'}, 'run again since')) : null],
-            [run.what, run.scenarioId ? el('div', {class: 'small quiet'}, 'scenario ', code(run.scenarioId)) : null],
-            [outcome(run.outcomeLabel, run.tone),
-                el('div', {class: 'small quiet'}, typeof run.httpStatus === 'number' ? 'HTTP ' + run.httpStatus : 'no HTTP status')],
-            run.expected ? code(run.expected) : none('nothing declared'),
-            stamp(run.result),
-            {class: 'num', node: [millis(run.elapsedMillis), run.slow ? [' ', slowFlag()] : null]},
-            run.findings && run.findings.length > 0 ? el('ul', {class: 'plain-list'}, run.findings.map(kind => el('li', null, code(kind))))
-                : el('span', {class: 'quiet'}, 'none'),
-            [code(run.runId, 'literal--id'), ' ', copyButton('Copy', () => run.runId)]
-        ]), {class: 'chain-runs'}));
+    const headings = [{text: 'When', class: 'col-16'}, {text: 'Ran', class: 'col-12'}, {text: 'Outcome', class: 'col-22'}, {text: 'Expected', class: 'col-16'},
+        {text: 'Test result', class: 'col-12'}, {text: 'Elapsed', class: 'num col-8'}, 'Findings'];
+    const body = el('tbody');
+    for (const run of runs) {
+        body.append(
+            tableRow({class: 'chain-run', cells: [
+                when(run.timestamp),
+                run.what,
+                outcome(run.outcomeLabel, run.tone),
+                run.expected ? code(run.expected) : none('nothing declared'),
+                stamp(run.result),
+                {class: 'num', node: [millis(run.elapsedMillis), run.slow ? el('div', null, slowFlag()) : null]},
+                run.findings && run.findings.length > 0 ? el('ul', {class: 'plain-list'}, run.findings.map(kind => el('li', null, code(kind))))
+                    : el('span', {class: 'quiet'}, 'none')
+            ]}),
+            // Seam: when the Runs view exists, the run id here becomes a link to it.
+            tableRow({class: 'chain-run__more', cells: [{colSpan: 7, node: [
+                run.latestOfItsKind === false ? [el('span', {class: 'flag'}, 'run again since'), ' '] : null,
+                el('span', {class: 'quiet small'}, 'Run '), code(run.runId, 'literal--id'), ' ', copyButton('Copy', () => run.runId),
+                el('span', {class: 'quiet small'}, typeof run.httpStatus === 'number' ? ' HTTP ' + run.httpStatus : ' no HTTP status',
+                    run.scenarioId ? [', scenario ', code(run.scenarioId)] : null)
+            ]}]}));
+    }
+    return el('table', {class: 'grid chain-runs'},
+        el('thead', null, el('tr', null, headings.map(item => (typeof item === 'string'
+            ? el('th', {scope: 'col'}, item) : el('th', {scope: 'col', class: item.class}, item.text))))),
+        body);
 }

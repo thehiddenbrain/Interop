@@ -1003,6 +1003,7 @@ legend, .case-legend {
 .col-11 { width: 11%; }
 .col-12 { width: 12%; }
 .col-14 { width: 14%; }
+.col-16 { width: 16%; }
 .col-18 { width: 18%; }
 .col-22 { width: 22%; }
 .col-25 { width: 25%; }
@@ -1735,8 +1736,14 @@ details.fold > :not(summary) {
     color: var(--ink-strong);
 }
 
-.chain-runs {
-    min-width: 820px;
+/* The first line of a run carries no rule beneath it: the second line belongs to the same run. */
+.chain-runs .chain-run > td {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.chain-runs .chain-run__more > td {
+    padding-top: 2px;
 }
 
 .chain-view {

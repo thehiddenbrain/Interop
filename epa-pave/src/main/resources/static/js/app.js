@@ -75,6 +75,14 @@ const app = {
 };
 
 async function start() {
+    // A defect in this page must not leave a tester looking at a screen that silently stopped
+    // half way. The detail stays in the browser console; it is not put on screen, because an
+    // error message can quote what it was handling.
+    const ownFault = () => notice('This page hit an error of its own and may be showing an incomplete answer. '
+        + 'Reload the page. A run that was sent was made whether or not its result was drawn here: look for it in the ledger.');
+    window.addEventListener('error', ownFault);
+    window.addEventListener('unhandledrejection', ownFault);
+
     document.getElementById('legend-open').addEventListener('click', () => openLegend(document.getElementById('legend')));
     app.caseContext = createCaseContext();
     app.chain = createChain(app, document.getElementById('chain-bar'));

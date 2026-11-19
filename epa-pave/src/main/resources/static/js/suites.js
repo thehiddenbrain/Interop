@@ -112,29 +112,33 @@ export function createSuites(app) {
         }
         const seen = answer.body;
         const environment = seen.environment || {};
+        const problems = seen.problems || [];
+        const rowProblems = seen.rowProblems || [];
+        const kinds = seen.kinds || [];
+        const columns = seen.columns || [];
         start.disabled = !seen.runnable;
         fill(previewBox,
             el('p', {class: 'suite-preview__headline'}, seen.headline),
-            seen.problems.length > 0 ? el('div', {class: 'form-problem'},
+            problems.length > 0 ? el('div', {class: 'form-problem'},
                 el('p', {class: 'form-problem__title'}, 'The file cannot be run as it is.'),
-                el('ul', {class: 'note-list'}, seen.problems.map(text => el('li', null, text)))) : null,
+                el('ul', {class: 'note-list'}, problems.map(text => el('li', null, text)))) : null,
             facts([
                 ['File', [seen.name, seen.format ? ' (' + seen.format + ')' : null]],
                 ['Would run against', [environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment',
                     ', ', seen.mode, ' profile, target ', seen.target]],
                 ['Cases', count(seen.total) + ', of which ' + count(seen.valid) + ' can be run'],
-                ['What they run', seen.kinds.length > 0
-                    ? el('ul', {class: 'plain-list'}, seen.kinds.map(kind => el('li', null, count(kind.count) + ' x ' + kind.what))) : null],
+                ['What they run', kinds.length > 0
+                    ? el('ul', {class: 'plain-list'}, kinds.map(kind => el('li', null, count(kind.count) + ' x ' + kind.what))) : null],
                 ['Declare an expected outcome', count(seen.withExpectation) + ' of ' + count(seen.total)],
                 ['Writes', seen.writeNote ? seen.writeNote : count(seen.writes)],
-                ['Columns read', seen.columns.length > 0 ? seen.columns.map((name, index) => [index > 0 ? ', ' : null, code(name)]) : null]
+                ['Columns read', columns.length > 0 ? columns.map((name, index) => [index > 0 ? ', ' : null, code(name)]) : null]
             ], 'facts--ruled'),
-            seen.rowProblems.length > 0 ? el('div', null,
+            rowProblems.length > 0 ? el('div', null,
                 el('p', {class: 'sub-heading'}, 'Rows that will be reported as not valid ('
-                    + count(seen.rowProblemCount) + (seen.rowProblemCount > seen.rowProblems.length ? ', the first ' + seen.rowProblems.length + ' listed' : '') + ')'),
-                table([{text: 'Row', class: 'num col-8'}, {text: 'Case', class: 'col-18'}, 'Why'], seen.rowProblems.map(row => [
+                    + count(seen.rowProblemCount) + (seen.rowProblemCount > rowProblems.length ? ', the first ' + rowProblems.length + ' listed' : '') + ')'),
+                table([{text: 'Row', class: 'num col-8'}, {text: 'Case', class: 'col-18'}, 'Why'], rowProblems.map(row => [
                     {class: 'num', node: String(row.row)}, code(row.caseId),
-                    el('ul', {class: 'plain-list'}, row.problems.map(text => el('li', null, text)))]))) : null);
+                    el('ul', {class: 'plain-list'}, (row.problems || []).map(text => el('li', null, text)))]))) : null);
     }
 
     /* ---------- starting, following and stopping a run ---------- */
@@ -261,7 +265,10 @@ export function createSuites(app) {
                 el('progress', {max: counts.total, value: counts.done, aria: {label: 'Cases done'}}),
                 el('span', {class: 'suite-progress__count', role: 'status', aria: {live: 'polite'}},
                     count(counts.done) + ' of ' + count(counts.total) + ' cases done'),
-                running ? button('Stop suite', stop, {class: 'button--quiet'}) : null),
+                running ? button('Stop suite', stop, {class: 'button--quiet'}) : null,
+                // The export is the server's own file: every case as it stands when the link is used.
+                el('a', {class: 'button button--quiet', href: '/api/suites/' + encodeURIComponent(run.suiteRunId) + '/results.csv', download: ''},
+                    'Export results as CSV')),
             run.stopReason ? el('p', {class: 'suite-head__stop'}, run.stopReason) : null);
 
         const about = el('div', {class: 'facts-pair'},
@@ -281,9 +288,7 @@ export function createSuites(app) {
         const notes = run.notes && run.notes.length > 0 ? el('ul', {class: 'note-list'}, run.notes.map(text => el('li', null, text))) : null;
 
         fill(runBox, head, about, notes, summary(counts, run.findingCounts || {}, rows.length),
-            resultsSection(visible, rows.length), timingSection(run.timing),
-            el('p', null, el('a', {class: 'button button--quiet', href: '/api/suites/' + encodeURIComponent(run.suiteRunId) + '/results.csv',
-                download: ''}, 'Export results as CSV')));
+            resultsSection(visible, rows.length), timingSection(run.timing));
     }
 
     /** The counts, as buttons that filter the table. A count of zero is not offered. */
