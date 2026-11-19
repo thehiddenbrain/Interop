@@ -18,13 +18,22 @@ import java.util.Map;
  * long it was, so the fact survives and the text does not:
  * <ul>
  *   <li>{@code coverageCodes}: an entry is kept only as {@code name=code}, optionally after a
- *       subject, where the code is one unbroken token</li>
+ *       subject, where the code is one unbroken token that does not read like an identifier or a
+ *       date. A code of a known vocabulary is a word or a short mix of letters and digits; a member
+ *       ID, a subscriber ID and a date of birth are long runs of digits or dates, and one of those
+ *       where a code belongs is not kept</li>
  *   <li>{@code delegatedVendor}: only the vendors this tool knows by name are written. Any other
  *       text is shown on screen and not stored</li>
- *   <li>{@code correlation}: only the CORR keys are accepted, and a value must be a single line
- *       with no quotes or braces</li>
+ *   <li>{@code correlation}: only the CORR keys are accepted. A questionnaire is kept only as one
+ *       or more canonical addresses (http, https or urn, no query, no fragment, no user, no white
+ *       space, an optional {@code |version}); every other value only as one identifier token</li>
  *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token, a line of business
- *       is a short label</li>
+ *       is a short label that does not read like an identifier or a date. Which lines the tool
+ *       knows is the ledger's to decide, since the record cannot see the code list</li>
+ *   <li>any of the above that holds this run's own member ID is not kept, whatever its shape</li>
+ *   <li>{@code note}, {@code testerRef} and {@code expected}: kept up to {@link #LONGEST_NOTE},
+ *       {@link #LONGEST_TESTER_REF} and {@link #LONGEST_EXPECTED} characters. Every way in refuses
+ *       a longer one with a message to the tester; this is the last line of defence behind them</li>
  * </ul>
  * A run line that lacks a run id, a timestamp, a protocol, an operation, an outcome or a result is
  * refused, so an incomplete line fails to read and is counted, and is never taken for a run.
@@ -152,6 +161,31 @@ public record RunRecord(
     private static final java.util.Set<String> CORRELATION_KEYS = java.util.Set.of(CORR_CLAIM_ID, CORR_SUBSCRIPTION_ID,
             CORR_AUTHORIZATION_REF, CORR_RUN_ID, CORR_SUBSCRIPTION_RUN_ID, CORR_CLAIM_RESPONSE_ID, CORR_QUESTIONNAIRE);
 
+    /**
+     * The longest note a run may carry. A note is a remark about a run. Much longer than this and
+     * it is something else pasted in, most likely a request or a response, which this file must
+     * never hold. The same limit applies at every way in: the run form, a suite row and a note
+     * added later.
+     */
+    public static final int LONGEST_NOTE = 4000;
+    /** The longest tester reference: a ticket number, a test step or a name for the run, never a paragraph. */
+    public static final int LONGEST_TESTER_REF = 200;
+    /**
+     * The longest declared expectation. An expectation is outcome codes and {@code name=code}
+     * terms, each perhaps after a subject such as a procedure code or a questionnaire address; ten
+     * such terms with long addresses stay well under this.
+     */
+    public static final int LONGEST_EXPECTED = 1000;
+
+    /** What a code, a line of business or an identifier is replaced by when it reads like an identifier or a date. */
+    public static final String READS_LIKE_AN_IDENTIFIER = "not recorded: reads like an identifier or a date";
+    /** What the ledger writes in place of a line of business it does not know. */
+    public static final String LINE_NOT_KNOWN = "line of business not on the known list";
+
+    private static final String NOTE_NOT_KEPT = "note not recorded";
+    private static final String TESTER_REF_NOT_KEPT = "tester reference not recorded";
+    private static final String EXPECTED_NOT_KEPT = "expectation not recorded";
+
     private static final String TOKEN = "[A-Za-z0-9._\\-:/|+]{1,64}";
     private static final String NAME = "[A-Za-z0-9._-]{1,40}";
     private static final String ONE_SUBJECT = "[A-Za-z0-9._\\-/\\[\\]]{1,80}";
@@ -165,8 +199,35 @@ public record RunRecord(
     private static final java.util.regex.Pattern SHORT_LABEL = java.util.regex.Pattern.compile("[A-Za-z0-9 &/.,()'+\\-]{1,60}");
     private static final java.util.regex.Pattern MEMBER_TOKEN = java.util.regex.Pattern.compile("[0-9a-f]{64}");
     private static final java.util.regex.Pattern LAST_FOUR = java.util.regex.Pattern.compile("\\S{1,4}");
-    private static final java.util.regex.Pattern CORRELATION_VALUE =
-            java.util.regex.Pattern.compile("[A-Za-z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%| ]{1,512}");
+    /**
+     * An identifier under a correlation key: a claim id, a ClaimResponse id, a subscription id, an
+     * authorization number or a run id. One token, so neither a sentence nor an address with a
+     * query can be one.
+     */
+    private static final java.util.regex.Pattern IDENTIFIER = java.util.regex.Pattern.compile("[A-Za-z0-9\\-._:/|]{1,128}");
+    private static final java.util.regex.Pattern SPACED_IDENTIFIER = java.util.regex.Pattern.compile("\\s*[A-Za-z0-9\\-._:/|]+(?: +[A-Za-z0-9\\-._:/|]+)?\\s*");
+    /**
+     * One canonical address: http or https with a host and a path, or a urn, then an optional
+     * {@code |version}. No query, no fragment, no user before the host, no percent escape (which
+     * could spell a space) and no white space.
+     */
+    private static final String CANONICAL = "(?i:https?://[A-Za-z0-9.\\-]{1,253}(?::\\d{1,5})?(?:/[A-Za-z0-9\\-._~:]*)*"
+            + "|urn:[A-Za-z0-9][A-Za-z0-9\\-]{0,31}:[A-Za-z0-9\\-._:/]{1,400})(?:\\|[A-Za-z0-9.\\-_+]{1,64})?";
+    /** What the DTR service writes in place of a requested questionnaire that was not an address. */
+    private static final String NOT_A_URL = "\\(not a url, \\d{1,9} characters\\)";
+    /** The questionnaire entry: one or more canonicals, or the DTR service's statements, joined by a space. */
+    private static final java.util.regex.Pattern QUESTIONNAIRES = java.util.regex.Pattern.compile(
+            "(?:" + CANONICAL + "|" + NOT_A_URL + ")(?: (?:" + CANONICAL + "|" + NOT_A_URL + ")){0,19}");
+    /**
+     * A run of six digits or more, or a date written in any of the usual ways. A code of the
+     * vocabularies the three protocols use never holds either: they are words, X12 codes of a
+     * letter and a digit or two, and short numbers. A member ID, a subscriber ID and a date of
+     * birth almost always do.
+     */
+    private static final java.util.regex.Pattern IDENTIFIER_OR_DATE = java.util.regex.Pattern.compile(
+            "\\d{6,}|\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}|\\d{1,2}[-/.]\\d{1,2}[-/.]\\d{2,4}");
+    /** A member ID shorter than this is not looked for inside other values: too short to say anything. */
+    private static final int SHORTEST_MEMBER_ID_SOUGHT = 6;
 
     public RunRecord {
         // Boxed, not primitive, because Jackson 3 refuses to bind a missing property to a primitive
@@ -181,12 +242,20 @@ public record RunRecord(
                 throw new IllegalStateException("A run record needs a run id, a timestamp, a protocol, an operation, an outcome and a result.");
             }
         }
+        // Read before anything else is checked, because a value that holds the member ID is not
+        // kept, whatever its shape. Only a draft holds the ID: once the ledger has tokenised it,
+        // the values it would have caught were replaced when the draft was built.
+        String member = MemberIds.noSpace(memberId).toLowerCase(java.util.Locale.ROOT);
+        String sought = member.length() >= SHORTEST_MEMBER_ID_SOUGHT ? member : null;
         procedureCodes = procedureCodes == null ? List.of()
                 : procedureCodes.stream().map(code -> kept(PROCEDURE_CODE, code, "not a code")).toList();
-        coverageCodes = coverageCodes == null ? List.of() : coverageCodes.stream().map(RunRecord::codeEntry).toList();
+        coverageCodes = coverageCodes == null ? List.of() : coverageCodes.stream().map(entry -> codeEntry(entry, sought)).toList();
         delegatedVendor = knownVendors(delegatedVendor);
-        lineOfBusiness = lineOfBusiness == null ? null : kept(SHORT_LABEL, lineOfBusiness, "not a line of business");
-        correlation = checkedCorrelation(correlation);
+        lineOfBusiness = line(lineOfBusiness, sought);
+        correlation = checkedCorrelation(correlation, sought);
+        note = bounded(note, LONGEST_NOTE, NOTE_NOT_KEPT);
+        testerRef = bounded(testerRef, LONGEST_TESTER_REF, TESTER_REF_NOT_KEPT);
+        expected = bounded(expected, LONGEST_EXPECTED, EXPECTED_NOT_KEPT);
         // These two are written under every configuration, when the member ID itself is not. So
         // neither may hold anything but what the ledger puts there: a keyed hash in hex, and at
         // most four characters. Anything else is dropped, never written.
@@ -210,16 +279,53 @@ public record RunRecord(
         return value != null && value.matches("\\(" + java.util.regex.Pattern.quote(what) + ", \\d{1,9} characters\\)");
     }
 
+    /** True when a value reads like an identifier or a date, or holds this run's member ID. */
+    private static boolean identifying(String value, String sought) {
+        return value != null && (IDENTIFIER_OR_DATE.matcher(value).find()
+                || sought != null && MemberIds.noSpace(value).toLowerCase(java.util.Locale.ROOT).contains(sought));
+    }
+
+    private static String notKept(String what, String value) {
+        return "(" + what + ", " + (value == null ? 0 : value.length()) + " characters)";
+    }
+
+    /** Free text a tester typed, kept up to its limit and otherwise replaced by its length. */
+    private static String bounded(String value, int longest, String what) {
+        return value == null || value.length() <= longest || statement(what, value) ? value : notKept(what, value);
+    }
+
+    /**
+     * A line of business, kept when it is a short label that names nobody. Whether it is a line
+     * the tool knows is decided by the ledger, which can see the code list, and its statement is
+     * left as it is.
+     */
+    private static String line(String value, String sought) {
+        if (value == null || statement("not a line of business", value) || statement(LINE_NOT_KNOWN, value)
+                || statement(READS_LIKE_AN_IDENTIFIER, value)) {
+            return value;
+        }
+        if (!SHORT_LABEL.matcher(value).matches()) {
+            return notKept("not a line of business", value);
+        }
+        return identifying(value, sought) ? notKept(READS_LIKE_AN_IDENTIFIER, value) : value;
+    }
+
     /** One coverage code entry, kept when it has the shape of one, otherwise replaced by what can safely be said about it. */
-    private static String codeEntry(String entry) {
+    private static String codeEntry(String entry, String sought) {
         if (entry == null) {
             return "(not a code entry, 0 characters)";
         }
-        if (CODE_ENTRY.matcher(entry).matches() || NO_ANSWER_ENTRY.matcher(entry).matches() || statement("not a code entry", entry)) {
+        java.util.regex.Matcher code = CODE_ENTRY.matcher(entry);
+        if (code.matches()) {
+            // The subject and the element name are the tool's own. The code came from the response.
+            return !identifying(code.group(3), sought) ? entry
+                    : (code.group(1) == null ? "" : code.group(1) + ": ") + code.group(2) + "=" + notKept(READS_LIKE_AN_IDENTIFIER, code.group(3));
+        }
+        if (NO_ANSWER_ENTRY.matcher(entry).matches() || statement("not a code entry", entry)) {
             return entry;
         }
         java.util.regex.Matcher named = NAMED_ENTRY.matcher(entry);
-        if (named.matches() && statement("not a code", named.group(3))) {
+        if (named.matches() && (statement("not a code", named.group(3)) || statement(READS_LIKE_AN_IDENTIFIER, named.group(3)))) {
             return entry;
         }
         if (named.matches()) {
@@ -251,7 +357,15 @@ public record RunRecord(
         return out.isEmpty() ? null : String.join("; ", out);
     }
 
-    private static Map<String, String> checkedCorrelation(Map<String, String> given) {
+    /**
+     * The correlation entries, each checked for what its key can hold. Every one but the run ids
+     * can come from a response or from what a tester typed: a claim id (typed on an inquiry or in a
+     * suite row, or minted by the tool), a ClaimResponse id, a subscription id and an authorization
+     * number (from a response), and the questionnaire addresses (from a response, or asked for by
+     * the tester). A run id is minted by the tool and carried by the browser. None of them is free
+     * text, so a value of any other shape is replaced by its length.
+     */
+    private static Map<String, String> checkedCorrelation(Map<String, String> given, String sought) {
         if (given == null || given.isEmpty()) {
             return Map.of();
         }
@@ -260,8 +374,23 @@ public record RunRecord(
             if (!CORRELATION_KEYS.contains(key)) {
                 throw new IllegalArgumentException("A run record can be correlated only under its own CORR keys.");
             }
-            if (value != null) {
-                out.put(key, kept(CORRELATION_VALUE, value, "not recorded"));
+            // A blank value identifies nothing, so there is nothing to write for it.
+            if (Texts.blank(value)) {
+                return;
+            }
+            boolean holdsMember = sought != null && !statement("not recorded", value)
+                    && MemberIds.noSpace(value).toLowerCase(java.util.Locale.ROOT).contains(sought);
+            if (holdsMember) {
+                out.put(key, notKept("not recorded", value));
+            } else if (CORR_QUESTIONNAIRE.equals(key)) {
+                out.put(key, kept(QUESTIONNAIRES, value, "not recorded"));
+            } else if (CORR_AUTHORIZATION_REF.equals(key)) {
+                // An authorization number can have one gap of spaces before a suffix, as a member ID
+                // can, and the ledger keeps it without them. Anything more is not one identifier.
+                out.put(key, SPACED_IDENTIFIER.matcher(value).matches() && MemberIds.noSpace(value).length() <= 128
+                        || statement("not recorded", value) ? value : notKept("not recorded", value));
+            } else {
+                out.put(key, kept(IDENTIFIER, value, "not recorded"));
             }
         });
         return java.util.Collections.unmodifiableMap(out);

@@ -87,7 +87,8 @@ public class RunReplay {
 
     /** What the record writes in place of text it did not keep, anywhere in a coverage code entry or a vendor name. */
     private static final Pattern TEXT_NOT_KEPT =
-            Pattern.compile("\\((?:not a code|not a code entry|vendor not on the known list), \\d+ characters\\)");
+            Pattern.compile("\\((?:not a code|not a code entry|vendor not on the known list|" + Pattern.quote(RunRecord.READS_LIKE_AN_IDENTIFIER)
+                    + "), \\d+ characters\\)");
 
     /** Each kind of input a line can say it does not hold, in words a tester reads. */
     static final Map<String, String> INPUTS_IN_WORDS = Map.of(
