@@ -149,7 +149,7 @@ public class RunReplay {
         String startedAt = RunStamps.timestamp(clock);
         List<ReplayEntry> results = new ArrayList<>();
         for (RunRecord original : selected) {
-            results.add(caseRunner == null ? ReplayEntry.notSent(original, ReplayStatus.NOT_REPLAYABLE, NO_RUNNER)
+            results.add(caseRunner == null ? ReplayEntry.withNoRecord(original, ReplayStatus.NOT_REPLAYABLE, NO_RUNNER)
                     : replayOne(original, caseRunner, epoch));
         }
         if (selected.isEmpty()) {
@@ -300,7 +300,7 @@ public class RunReplay {
     private ReplayEntry replayOne(RunRecord original, CaseRunner caseRunner, Long epoch) {
         String refusal = whyNotReplayable(original);
         if (refusal != null) {
-            return ReplayEntry.notSent(original, ReplayStatus.NOT_REPLAYABLE, refusal);
+            return ReplayEntry.withNoRecord(original, ReplayStatus.NOT_REPLAYABLE, refusal);
         }
         CaseOutcome outcome;
         try {
@@ -309,11 +309,11 @@ public class RunReplay {
             String reference = UUID.randomUUID().toString();
             // Logs the kinds of exception and where they were thrown. Never a message, which can quote a request or a response.
             log.error("Running a recorded run again failed inside this tool, reference {}: {}", reference, Faults.describe(e));
-            return ReplayEntry.notSent(original, ReplayStatus.ERROR, "This tool failed while running this again, so nothing can be said "
+            return ReplayEntry.withNoRecord(original, ReplayStatus.ERROR, "This tool failed while running this again, so nothing can be said "
                     + "about the answer. A request may have been sent. Report the reference " + reference + ".");
         }
         if (outcome == null) {
-            return ReplayEntry.notSent(original, ReplayStatus.ERROR, "The runner gave no answer for this run, so nothing can be said about "
+            return ReplayEntry.withNoRecord(original, ReplayStatus.ERROR, "The runner gave no answer for this run, so nothing can be said about "
                     + "it. A request may have been sent.");
         }
         RunRecord replayed = outcome.finalRun();

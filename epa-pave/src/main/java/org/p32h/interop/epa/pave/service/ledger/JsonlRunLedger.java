@@ -89,7 +89,7 @@ public class JsonlRunLedger implements RunLedger {
     /** Held for every append and for every read of a file's bytes, so a reader never sees half of a line this instance is writing. */
     private final Object lock = new Object();
 
-    // Everything below is read and written only while holding the lock.
+    // Once the ledger is built, everything below is read and written only while holding the lock.
     private LedgerTokens tokens;
     private DayCount counted;
     private final Map<String, Integer> unreadableByFile = new HashMap<>();

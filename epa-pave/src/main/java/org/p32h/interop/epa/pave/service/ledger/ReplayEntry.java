@@ -18,7 +18,9 @@ import java.util.List;
  * @param notRecorded the ledger's own message for each run of the replay it did not keep. The
  *                    comparison is still made, against the record the run produced
  * @param original    the original run as the ledger holds it
- * @param replayed    the record of the run that was sent again, whether or not the ledger kept it
+ * @param replayed    the record this replay produced, whether or not the ledger kept it: the run
+ *                    that was sent again, or for a write the guardrail refused, the record of the
+ *                    attempt. Left out when there is none
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ReplayEntry(String runId, ReplayStatus status, String reason, String replayRunId, List<ReplayDifference> differences,
@@ -29,8 +31,11 @@ public record ReplayEntry(String runId, ReplayStatus status, String reason, Stri
         notRecorded = notRecorded == null ? List.of() : List.copyOf(notRecorded);
     }
 
-    /** An entry for a run that was not sent again by this replay. */
-    static ReplayEntry notSent(RunRecord original, ReplayStatus status, String reason) {
+    /**
+     * An entry for a run this replay has no record of. Either it was not sent again, or this tool
+     * lost track of it part way and cannot say whether it was. The reason says which.
+     */
+    static ReplayEntry withNoRecord(RunRecord original, ReplayStatus status, String reason) {
         return new ReplayEntry(original.runId(), status, reason, null, List.of(), List.of(), original, null);
     }
 }
