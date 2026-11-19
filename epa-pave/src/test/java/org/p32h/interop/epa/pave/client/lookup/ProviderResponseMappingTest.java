@@ -81,7 +81,7 @@ class ProviderResponseMappingTest {
         SAMPLE.put("organizationName", "Placeholder Sleep Center");
         SAMPLE.put("name", "Pat Provider");
         SAMPLE.put("specialty", "Sleep Medicine");
-        SAMPLE.put("taxonomyCode", "2084S0012X");
+        SAMPLE.put("taxonomyCode", "207X00000X");
         SAMPLE.put("networkStatus", "In network");
         SAMPLE.put("inNetwork", "true");
         SAMPLE.put("phone", "617-555-0100");
@@ -182,12 +182,12 @@ class ProviderResponseMappingTest {
         ProviderLookupResult result = found("{\"number\":\"" + NPI + "\",\"basic\":{\"organization_name\":\"Placeholder Sleep Center\"},"
                 + "\"addresses\":[{\"address_1\":\"1 Placeholder Street\",\"city\":\"Sampletown\",\"state\":\"MA\","
                 + "\"postal_code\":\"00000\",\"telephone_number\":\"617-555-0100\",\"address_purpose\":\"LOCATION\"}],"
-                + "\"taxonomies\":[{\"code\":\"2084S0012X\",\"desc\":\"Sleep Medicine\",\"primary\":true}]}");
+                + "\"taxonomies\":[{\"code\":\"207X00000X\",\"desc\":\"Orthopaedic Surgery\",\"primary\":true}]}");
         assertThat(result.provider().address().line1()).isEqualTo("1 Placeholder Street");
         assertThat(result.provider().phone()).isEqualTo("617-555-0100");
         assertThat(result.provider().organizationName()).isEqualTo("Placeholder Sleep Center");
-        assertThat(result.provider().taxonomyCode()).isEqualTo("2084S0012X");
-        assertThat(result.provider().specialty()).isEqualTo("Sleep Medicine");
+        assertThat(result.provider().taxonomyCode()).isEqualTo("207X00000X");
+        assertThat(result.provider().specialty()).isEqualTo("Orthopaedic Surgery");
         assertThat(field(result, "phone").sourceField()).isEqualTo("addresses[0].telephone_number");
         assertThat(field(result, "addressLine1").sourceField()).isEqualTo("addresses[0].address_1");
         assertThat(field(result, "taxonomyCode").sourceField()).isEqualTo("taxonomies[0].code");
