@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -189,6 +190,7 @@ class LookupControllerTest {
     void aBlankMemberIdIs422AndNothingIsLookedUp() throws Exception {
         mvc().perform(get("/api/members/{memberId}", "   ")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.kind").value("VALIDATION"))
+                .andExpect(jsonPath("$.title").value("There is no member ID to look up. Nothing was sent."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("memberId"))
                 .andExpect(jsonPath("$.fieldErrors[0].message").value("Enter a member ID. Nothing was looked up."));
         assertThat(asked).isEmpty();
@@ -244,6 +246,7 @@ class LookupControllerTest {
         MockMvc mvc = mvc();
         mvc.perform(get("/api/providers/{npi}", "1234567890")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.kind").value("VALIDATION"))
+                .andExpect(jsonPath("$.title").value("This is not an NPI that can be looked up. Nothing was sent."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("npi"))
                 .andExpect(jsonPath("$.fieldErrors[0].message").value("The check digit of this NPI does not match, so it is probably a "
                         + "typing mistake. The directory was not asked."));
@@ -253,6 +256,35 @@ class LookupControllerTest {
         mvc.perform(get("/api/providers/{npi}", " ")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("npi"));
         assertThat(asked).isEmpty();
+    }
+
+    @Test
+    void anIdentifierIsNeverCutShortByASemicolonInTheAddress() throws Exception {
+        MockMvc mvc = mvc();
+        // Unencoded, everything from the semicolon on would be dropped before the lookup, and the
+        // member looked up would not be the one that was typed.
+        mvc.perform(get(URI.create("/api/members/S123456789;x=1"))).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.kind").value("VALIDATION"))
+                .andExpect(jsonPath("$.title").value("This lookup cannot be made as it was addressed. Nothing was sent."))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("memberId"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value(org.hamcrest.Matchers.containsString("semicolon")));
+        mvc.perform(get(URI.create("/api/providers/1234567893;x=1"))).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("npi"));
+        assertThat(asked).isEmpty();
+
+        // Percent-encoded, a semicolon is part of the identifier and arrives whole. So does every
+        // other character a url would otherwise read as its own.
+        Map<String, String> whole = new java.util.LinkedHashMap<>();
+        whole.put("/api/members/S123456789%3Bx=1", "S123456789;x=1");
+        whole.put("/api/members/S123%25456", "S123%456");
+        whole.put("/api/members/S123%23x%3Fy", "S123#x?y");
+        whole.put("/api/members/S123+456", "S123+456");
+        whole.put("/api/members/S123.456.789", "S123.456.789");
+        whole.put("/api/members/S12345678%20%20%2001", "S12345678   01");
+        for (Map.Entry<String, String> one : whole.entrySet()) {
+            String body = mvc.perform(get(URI.create(one.getKey()))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            assertThat(JsonSafe.parse(body).node().at("/memberId/typed").asString()).as(one.getKey()).isEqualTo(one.getValue());
+        }
     }
 
     @Test

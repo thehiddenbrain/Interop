@@ -19,6 +19,17 @@ import org.springframework.stereotype.Component;
  *
  * <p>A member ID with no fixture is not found. {@code P32H-NOMEM} is one on purpose, so the
  * sentinel for "member not found" is not found here too.
+ *
+ * <p>Four sentinels exist only to show a state of the lookup itself without a network:
+ * <ul>
+ *   <li>{@code P32H-LOOKUP-FAULT}: the member API fails with HTTP 503. The fault state</li>
+ *   <li>{@code P32H-LOOKUP-TIMEOUT}: the member API does not answer in time</li>
+ *   <li>{@code P32H-LOOKUP-MULTI}: two records come back for one ID, which is a fault and is never
+ *       answered by choosing one</li>
+ *   <li>{@code P32H-LOOKUP-NONE}: HTTP 200 with an empty list, the other way of saying not found</li>
+ * </ul>
+ * {@code P32H-INACTIVE} is found with coverage that is not active, which is the "needs a look"
+ * state. Setting {@code lookup.member.enabled} to false shows the disabled state.
  */
 @Component
 @Profile("mock")

@@ -1,6 +1,8 @@
 package org.p32h.interop.epa.pave.service.lookup;
 
+import java.util.List;
 import org.p32h.interop.epa.pave.client.lookup.MemberLookupClient;
+import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.MemberIdForms;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.MemberLookupResult;
@@ -33,7 +35,8 @@ public class MemberLookupService implements MemberLookup {
     public MemberLookupResult lookup(String typedMemberId) {
         MemberIdForms forms = MemberIds.forms(typedMemberId);
         if (Texts.blank(forms.sent())) {
-            throw ValidationException.of("memberId", "Enter a member ID. Nothing was looked up.");
+            throw new ValidationException("There is no member ID to look up. Nothing was sent.",
+                    List.of(new FieldError("memberId", "Enter a member ID. Nothing was looked up.")));
         }
         MemberLookupResult result = client.lookup(forms);
         if (result == null) {

@@ -1,6 +1,8 @@
 package org.p32h.interop.epa.pave.service.lookup;
 
+import java.util.List;
 import org.p32h.interop.epa.pave.client.lookup.ProviderLookupClient;
+import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.ProviderLookupResult;
 import org.p32h.interop.epa.pave.model.Texts;
@@ -27,22 +29,26 @@ public class ProviderLookupService implements ProviderLookup {
     @Override
     public ProviderLookupResult lookup(String npi) {
         if (Texts.blank(npi)) {
-            throw ValidationException.of("npi", "Enter an NPI. Nothing was looked up.");
+            throw refused("Enter an NPI. Nothing was looked up.");
         }
         // Spaces around a pasted number are not part of it. Anything inside it is left alone and fails the check.
         String candidate = npi.strip();
         if (!candidate.matches("\\d{10}")) {
-            throw ValidationException.of("npi", "An NPI is exactly ten digits. This is probably a typing mistake, so the directory "
-                    + "was not asked.");
+            throw refused("An NPI is exactly ten digits. This is probably a typing mistake, so the directory was not asked.");
         }
         if (!Npi.isValid(candidate)) {
-            throw ValidationException.of("npi", "The check digit of this NPI does not match, so it is probably a typing mistake. The "
-                    + "directory was not asked.");
+            throw refused("The check digit of this NPI does not match, so it is probably a typing mistake. The directory was not "
+                    + "asked.");
         }
         ProviderLookupResult result = client.lookup(candidate);
         if (result == null) {
             throw new IllegalStateException("The provider lookup client returned no result.");
         }
         return result;
+    }
+
+    /** The message never repeats what was typed: it names the rule that was broken. */
+    private static ValidationException refused(String message) {
+        return new ValidationException("This is not an NPI that can be looked up. Nothing was sent.", List.of(new FieldError("npi", message)));
     }
 }
