@@ -14,6 +14,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-005 | The Spring Boot 4.0.7 BOM manages JUnit Jupiter 6.0.3, and the stack table says JUnit 5 | The pin in the stack table does not match what resolves |
 | D-008, D-130 | `hl7.org` and `build.fhir.org` are blocked from the build environment. Parts of the guides were found readable from other sources late in the build | CRD, PAS and DTR were written from the build prompt and from memory, and so were their mock scenarios. What an independent comparison with the guides then found, and what was done about it, is under D-130 |
 | D-053 | The root package and the Gradle group are `org.p32h.interop.epa...`, not `com.thehiddenbrain.interop.epa...` | Changed on the operator's instruction during the build. It overrides the identity table in section 2 |
+| D-136 | The operator named 2.0.1 as the version of the Da Vinci guides to hold the tool to | PAS is being compared with 2.0.1. CRD and DTR are not yet: their 2.0.1 sources could not be read in this session, so they are compared with the 2.2.0 ballot only |
 
 ## Build and environment
 
@@ -816,6 +817,26 @@ was not available when the request builder was written (D-001) and the guides co
 reached (D-008), which is exactly why the operator asked. And an element the tool cannot describe
 with confidence is listed as not classified, since a tester would repeat a wrong description to
 the vendor. The comparison covers CRD. Nothing equivalent exists for DTR or PAS.
+
+**D-136. The guides the tool is held to are version 2.0.1, on the operator's word.**
+Asked which version to compare with, the operator answered "2.0.1". That is also the version the
+CMS interoperability and prior authorization rule names for CRD, DTR and PAS, and until the
+vendor says otherwise it is taken as the version the sandbox follows. This settles part of the
+open item under D-130 and has three consequences.
+- Where the published versions differ, the tool follows 2.0.1 and says so where a tester can
+  see it. A requirement that only a later version makes is not applied by default, and is not
+  raised as a finding against a service that follows 2.0.1.
+- PAS is compared with 2.0.1 from the guide's own source repository, which this session could
+  read, and with the 2.2.0 ballot for what changes.
+- CRD and DTR have not been compared with 2.0.1. Their 2.0.1 sources are in two public
+  repositories of the standards body. This session's permission check refused attaching them,
+  before and again after the operator's answer, and they were not fetched another way. Until
+  that access is given, or the two 2.0.1 packages are supplied as files, CRD and DTR are
+  compared with the 2.2.0 ballot only, every finding from that comparison says which version it
+  rests on, and none of them is treated as settled where the ballot may differ from 2.0.1. The
+  DTR owner read the narrative of DTR 2.0.1 earlier in the build and recorded the differences
+  it found in `OnyxDtrConventions`; that is the author's reading and has not been checked by
+  anyone else.
 
 ## Decisions made while integrating the first wave
 

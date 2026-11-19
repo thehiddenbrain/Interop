@@ -92,6 +92,9 @@ next frontend pass and do not exist on screen yet.
 - No frontend. `http://localhost:8057/` answers 404 on this revision.
 - CRD and PAS message shapes have not been compared with the published guides. DTR was compared
   by its own author only. An independent comparison of all three is running (D-130).
+- The operator named 2.0.1 as the version of the guides to hold the tool to (D-136). PAS is
+  being compared with 2.0.1. CRD and DTR cannot be yet: this session was refused the two public
+  repositories that hold their 2.0.1 sources, so they are compared with the 2.2.0 ballot only.
 - The order a DTR response refers to is not in the PAS bundle, so that one reference does not
   resolve there (D-135).
 - Comparing a pasted CRD request with the tool's own is not in this revision.
