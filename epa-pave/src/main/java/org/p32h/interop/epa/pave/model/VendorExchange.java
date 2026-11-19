@@ -31,6 +31,12 @@ import tools.jackson.databind.JsonNode;
  * @param scenarioId      the mock scenario that answered, or null when the answer came from a real service
  * @param scenarioNote    how that scenario came to be the one that answered, in plain words, or null
  * @param bodyNotes       things a tester should know about the body as a whole, such as a repeated key
+ * @param reached         whether the request reached the service. Yes when, and only when, a
+ *                        response arrived. For a call with no response it is no when the
+ *                        connection was never opened or nothing was sent, and cannot say when the
+ *                        request may have gone out. Given as null it is worked out from the
+ *                        status, and is then never no: "no" tells a tester that a write can be
+ *                        sent again, so only whoever knows how the call failed may say it
  */
 public record VendorExchange(
         WireRequest request,
@@ -46,7 +52,16 @@ public record VendorExchange(
         Set<VendorSignal> signals,
         String scenarioId,
         String scenarioNote,
-        List<String> bodyNotes) {
+        List<String> bodyNotes,
+        Reached reached) {
+
+    /** An exchange that leaves it to the status to say whether the service was reached: yes with a response, cannot say without one. */
+    public VendorExchange(WireRequest request, Integer httpStatus, List<WireHeader> responseHeaders, String responseBody, Long responseBytes,
+                          JsonNode json, String parseError, long elapsedMillis, OnyxFailureType failureType, String failureDetail,
+                          Set<VendorSignal> signals, String scenarioId, String scenarioNote, List<String> bodyNotes) {
+        this(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis, failureType, failureDetail,
+                signals, scenarioId, scenarioNote, bodyNotes, null);
+    }
 
     public VendorExchange {
         if (failureType == null) {
@@ -88,6 +103,12 @@ public record VendorExchange(
         responseHeaders = responseHeaders == null ? List.of() : List.copyOf(responseHeaders);
         signals = signals == null || signals.isEmpty() ? Set.of() : Set.copyOf(signals);
         bodyNotes = bodyNotes == null ? List.of() : List.copyOf(bodyNotes);
+        if (reached == null) {
+            reached = httpStatus != null ? Reached.YES : Reached.CANNOT_SAY;
+        }
+        if ((httpStatus != null) != (reached == Reached.YES)) {
+            throw new IllegalArgumentException("A request reached the service for certain when a response arrived, and only then.");
+        }
     }
 
     /**
@@ -109,25 +130,25 @@ public record VendorExchange(
             merged.addAll(newSignals);
         }
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis,
-                failureType, failureDetail, merged, scenarioId, scenarioNote, bodyNotes);
+                failureType, failureDetail, merged, scenarioId, scenarioNote, bodyNotes, reached);
     }
 
     /** The same exchange marked with the mock scenario that produced it and how it was chosen. */
     public VendorExchange withScenario(String id, String note) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis,
-                failureType, failureDetail, signals, id, note, bodyNotes);
+                failureType, failureDetail, signals, id, note, bodyNotes, reached);
     }
 
     /** The same exchange with the parsed body replaced, for a client that normalises a vendor shape. */
     public VendorExchange withJson(JsonNode newJson) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, newJson, parseError, elapsedMillis,
-                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes);
+                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes, reached);
     }
 
     /** The same exchange reported with a different duration, for a test of the slow threshold. */
     public VendorExchange withElapsedMillis(long millis) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, millis,
-                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes);
+                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes, reached);
     }
 
     /**

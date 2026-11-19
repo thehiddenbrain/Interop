@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.service.error.BadInputException;
 import java.nio.charset.StandardCharsets;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.OnyxFailureType;
+import org.p32h.interop.epa.pave.model.Reached;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Secrets;
@@ -318,18 +319,33 @@ public final class Exchanges {
                 parseError, elapsedMillis, failure, detail, Set.of(), null, null, notes);
     }
 
-    /** Describes a call that got no response inside the read timeout. */
+    /**
+     * Describes a call that got no response inside the read timeout. The connection was open and
+     * the request had gone out, so the service may have received it: whether it did cannot be said.
+     */
     public static VendorExchange timeout(WireRequest request, long elapsedMillis) {
-        return failed(request, elapsedMillis, OnyxFailureType.TIMEOUT, "No response arrived inside the read timeout.");
+        return failed(request, elapsedMillis, OnyxFailureType.TIMEOUT, "No response arrived inside the read timeout.", Reached.CANNOT_SAY);
     }
 
-    /** Describes a call that never reached the service. */
+    /**
+     * Describes a call that never reached the service: the connection could not be opened, or
+     * nothing was sent at all. For a connection that failed after it was opened use {@link #cutOff},
+     * because only this one tells a tester that a write can be sent again.
+     */
     public static VendorExchange unavailable(WireRequest request, long elapsedMillis, String detail) {
-        return failed(request, elapsedMillis, OnyxFailureType.UNAVAILABLE, detail);
+        return failed(request, elapsedMillis, OnyxFailureType.UNAVAILABLE, detail, Reached.NO);
     }
 
-    static VendorExchange failed(WireRequest request, long elapsedMillis, OnyxFailureType type, String detail) {
+    /**
+     * Describes a call whose connection failed after it was opened, with no response. The request
+     * may have gone out before it failed, so whether the service received it cannot be said.
+     */
+    public static VendorExchange cutOff(WireRequest request, long elapsedMillis, String detail) {
+        return failed(request, elapsedMillis, OnyxFailureType.UNAVAILABLE, detail, Reached.CANNOT_SAY);
+    }
+
+    static VendorExchange failed(WireRequest request, long elapsedMillis, OnyxFailureType type, String detail, Reached reached) {
         return new VendorExchange(request, null, List.of(), null, null, null, null, elapsedMillis, type, detail, Set.of(), null, null,
-                List.of());
+                List.of(), reached);
     }
 }

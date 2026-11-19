@@ -21,6 +21,7 @@ import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.pas.MockOnyxPasClient;
 import org.p32h.interop.epa.pave.client.pas.MockSubscriptionClient;
 import org.p32h.interop.epa.pave.client.pas.SubscriptionClient;
+import org.p32h.interop.epa.pave.client.support.Exchanges;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
@@ -39,6 +40,7 @@ import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Protocol;
+import org.p32h.interop.epa.pave.model.Reached;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
@@ -542,24 +544,50 @@ class SubscriptionServiceTest {
     // ---- faults, each rendered in full ----
 
     @Test
-    void aWriteThatCouldNotBeCompletedIsNeverSaidToHaveDeliveredNothing() {
-        // As a live client reports it. A connection that never opened and one that failed after it
-        // opened are both "unreachable", and this tool cannot tell which.
-        RunEnvelope<SubscriptionDetail> create = service(stub(TestExchanges.unavailable(CREATE)), "live", WITH_RECEIVER)
-                .run(CREATE, request().build(), RunOrigin.manual(), null);
+    void aWriteThatCannotHaveReachedTheServiceChangedNothingAndOneThatMayHaveIsLookedUpBeforeItIsSentAgain() {
+        // As a live client reports it: the connection was never opened, so nothing was delivered.
+        VendorExchange refused = TestExchanges.unavailable(CREATE);
+        assertThat(refused.reached()).isEqualTo(Reached.NO);
+        RunEnvelope<SubscriptionDetail> create = service(stub(refused), "live", WITH_RECEIVER).run(CREATE, request().build(), RunOrigin.manual(), null);
         assertThat(create.verdict().outcomeCode()).isEqualTo("UNREACHABLE");
-        assertThat(create.verdict().supporting()).containsExactly("The connection was refused or could not be opened.");
+        assertThat(create.verdict().headline()).isEqualTo("The service could not be reached.");
+        assertThat(create.verdict().supporting()).containsExactly("The connection was refused or could not be opened.",
+                "Nothing was changed: the request did not reach the service.");
         assertThat(create.nextStep().action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
-        assertThat(create.nextStep().headline()).isEqualTo("Next: check the environment. Send again only when the connection never opened.");
-        assertThat(create.nextStep().reason()).isEqualTo("No answer came back, and the verdict says how the connection failed. A connection "
-                + "that never opened delivered nothing. One that failed after it opened may have delivered the request, so list the "
-                + "subscriptions before sending again.");
+        assertThat(create.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+        assertThat(create.nextStep().reason()).isEqualTo("Nothing was changed, because the request did not reach the service. It is safe to "
+                + "send the same request again.");
+
+        // The connection failed after it was opened. The same outcome, and the opposite advice.
+        Map<EpaOperation, String> why = new LinkedHashMap<>();
+        why.put(CREATE, "sending it again without checking could create a second subscription.");
+        why.put(UPDATE, "the list shows whether the change took effect.");
+        why.put(DELETE, "the list shows whether the subscription is gone.");
+        for (Map.Entry<EpaOperation, String> write : why.entrySet()) {
+            VendorExchange broken = Exchanges.cutOff(refused.request(), 12L, "The request could not be completed (IOException).");
+            assertThat(broken.reached()).isEqualTo(Reached.CANNOT_SAY);
+            RunEnvelope<SubscriptionDetail> result = service(stub(broken), "live", WITH_RECEIVER).run(write.getKey(),
+                    (write.getKey() == CREATE ? request() : about(ID)).build(), RunOrigin.manual(), null);
+            assertThat(result.verdict().outcomeCode()).as(write.getKey().name()).isEqualTo("UNREACHABLE");
+            // "Could not be reached" would be a claim this tool cannot back when the request may have arrived.
+            assertThat(result.verdict().headline()).isEqualTo("The connection to the service failed before an answer arrived.");
+            assertThat(result.verdict().supporting()).containsExactly("The request could not be completed (IOException).",
+                    "The service may have received the request and applied it.");
+            assertThat(result.nextStep().headline()).isEqualTo("Next: check the environment, then list the subscriptions before sending again.");
+            // Only a create can leave a second subscription behind.
+            assertThat(result.nextStep().reason()).isEqualTo("The service may have received the request and applied it. List the "
+                    + "subscriptions first: " + write.getValue());
+        }
+
         // A read changes nothing, so it is sent again however the connection failed.
-        RunEnvelope<SubscriptionDetail> read = service(stub(TestExchanges.unavailable(GET)), "live", WITH_RECEIVER)
-                .run(GET, about(ID).build(), RunOrigin.manual(), null);
-        assertThat(read.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
-        assertThat(read.nextStep().reason()).isEqualTo("No answer came back. This is a finding about the environment, not about the "
-                + "subscription.");
+        for (VendorExchange failed : List.of(TestExchanges.unavailable(GET), Exchanges.cutOff(refused.request(), 12L, "The request could not "
+                + "be completed (IOException)."))) {
+            RunEnvelope<SubscriptionDetail> read = service(stub(failed), "live", WITH_RECEIVER).run(GET, about(ID).build(), RunOrigin.manual(), null);
+            assertThat(read.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+            assertThat(read.nextStep().reason()).isEqualTo("No answer came back. This is a finding about the environment, not about the "
+                    + "subscription.");
+            assertThat(read.verdict().supporting()).hasSize(1);
+        }
     }
 
     @Test
@@ -589,14 +617,24 @@ class SubscriptionServiceTest {
         assertThat(serverError.error().kind()).isEqualTo(ErrorKind.VENDOR_ERROR);
         assertThat(serverError.additionalFields()).singleElement().satisfies(field -> assertThat(field.value()).isEqualTo("<html>Unavailable</html>"));
 
-        // As a live client reports it: the delete was sent, and no answer arrived in time.
+        // As a live client reports it: the delete had gone out, and no answer arrived in time.
         RunEnvelope<SubscriptionDetail> timeout = service(stub(TestExchanges.timeout(DELETE)), "live", WITH_RECEIVER)
                 .run(DELETE, about(ID).build(), RunOrigin.manual(), null);
         assertThat(timeout.verdict().headline()).isEqualTo("The service did not answer in time.");
-        assertThat(timeout.verdict().supporting()).contains("The request was sent. Whether the service applied it is not known.");
+        assertThat(timeout.verdict().supporting()).containsExactly("No response arrived inside the read timeout.",
+                "The service may have received the request and applied it.");
         assertThat(timeout.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
         assertThat(timeout.nextStep().headline()).isEqualTo("Next: check the environment, then list the subscriptions before sending again.");
+        assertThat(timeout.nextStep().reason()).isEqualTo("The service may have received the request and applied it. List the subscriptions "
+                + "first: the list shows whether the subscription is gone.");
         assertThat(timeout.detail().responseKind()).isEqualTo(SubscriptionResponseKind.NO_RESPONSE);
+        // A read that timed out changed nothing, so nothing of the kind is said about it.
+        RunEnvelope<SubscriptionDetail> readTimeout = service(stub(TestExchanges.timeout(GET)), "live", WITH_RECEIVER)
+                .run(GET, about(ID).build(), RunOrigin.manual(), null);
+        assertThat(readTimeout.verdict().supporting()).containsExactly("No response arrived inside the read timeout.");
+        assertThat(readTimeout.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+        assertThat(readTimeout.nextStep().reason()).isEqualTo("No usable answer came back. This is a finding about the environment, not "
+                + "about the subscription.");
 
         RunEnvelope<SubscriptionDetail> down = service(stub(TestExchanges.unavailable(GET)), "live", WITH_RECEIVER)
                 .run(GET, request().build(), RunOrigin.manual(), null);
@@ -616,10 +654,10 @@ class SubscriptionServiceTest {
         assertThat(empty.verdict().headline()).isEqualTo("The service answered with no body (HTTP 200).");
         assertThat(empty.error().kind()).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
 
-        assertThat(ledger.records()).extracting(RunRecord::outcome).containsExactly("REJECTED", "REJECTED", "SERVICE_ERROR", "TIMEOUT", "UNREACHABLE",
-                "MALFORMED_RESPONSE", "MALFORMED_RESPONSE");
+        assertThat(ledger.records()).extracting(RunRecord::outcome).containsExactly("REJECTED", "REJECTED", "SERVICE_ERROR", "TIMEOUT", "TIMEOUT",
+                "UNREACHABLE", "MALFORMED_RESPONSE", "MALFORMED_RESPONSE");
         assertThat(ledger.records()).extracting(RunRecord::errorType).containsExactly("BAD_REQUEST", "BAD_REQUEST", "SERVER_ERROR", "TIMEOUT",
-                "UNAVAILABLE", "MALFORMED_RESPONSE", "MALFORMED_RESPONSE");
+                "TIMEOUT", "UNAVAILABLE", "MALFORMED_RESPONSE", "MALFORMED_RESPONSE");
         // A fault is never a subscription state.
         assertThat(ledger.records()).allSatisfy(record -> assertThat(record.coverageCodes()).isEmpty());
     }
