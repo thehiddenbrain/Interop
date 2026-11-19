@@ -55,6 +55,12 @@ final class CodeListLoader {
 
     private static final Pattern SHORT_NUMBER = Pattern.compile("[0-9]{1,4}");
 
+    /** The most characters a cell may have and still be taken for a header when a failure quotes the first row. */
+    private static final int HEADER_LENGTH = 40;
+
+    /** Three or more digits of any script, one after the other: what an identifier, a date or a street number holds and a header does not. */
+    private static final Pattern DIGITS_IN_A_ROW = Pattern.compile("\\p{Nd}{3,}");
+
     private CodeListLoader() {
     }
 
@@ -74,7 +80,8 @@ final class CodeListLoader {
         ColumnMapping columns = ColumnMapping.match(table.headers(), source.columns());
         if (!columns.has(CodeListColumn.CODE)) {
             throw new UnusableCodeListException(source.subject() + " has no column this tool recognises as the procedure code. "
-                    + (source.json() ? "Keys" : "Headers") + " found: " + String.join(", ", table.headers().stream().map(CodeListLoader::header).toList())
+                    + (source.json() ? "Keys" : "Headers") + " found: "
+                    + String.join(", ", table.headers().stream().map(cell -> header(cell, source.json())).toList())
                     + ". " + (source.json() ? "" : otherDelimiter(table.headers(), source.delimiter())
                     + "The first row of the file that is not blank must be the header row. ")
                     + "If one of these holds the code, name it under " + CodeListColumn.CODE.setting() + " in application.yml. A list set there replaces "
@@ -237,9 +244,27 @@ final class CodeListLoader {
         }
     }
 
-    private static String header(String written) {
+    /**
+     * A cell of the first row, or a key, as the failure for a file with no code column shows it.
+     *
+     * <p>That failure is logged, and it exists for the day the setting points at the wrong file.
+     * The wrong file may have no header row at all: its first row may be somebody's record. So a
+     * cell is shown only when it reads as a header. One that holds three or more digits in a row,
+     * or is longer than a header would be, is replaced by a statement of its length: that says a
+     * cell stood there, and that it was no header, without saying what it held. A member ID, a
+     * date of birth and a street address all hold such a run of digits. A cell of letters alone,
+     * such as a name, cannot be told from a header and is still shown.
+     */
+    private static String header(String written, boolean json) {
         String header = CodeListText.clean(written);
-        return header == null ? "(blank)" : CodeListText.show(header);
+        if (header == null) {
+            return "(blank)";
+        }
+        int length = header.codePointCount(0, header.length());
+        if (length > HEADER_LENGTH || DIGITS_IN_A_ROW.matcher(header).find()) {
+            return "(a " + (json ? "key" : "cell") + " that does not read as a header, " + length + " characters)";
+        }
+        return CodeListText.show(header);
     }
 
     /**

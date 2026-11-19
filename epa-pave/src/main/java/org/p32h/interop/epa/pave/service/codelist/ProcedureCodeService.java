@@ -47,7 +47,9 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
             // The framework reports a failed start as a stack trace with this reason at the bottom
             // of it. One line that says it outright is what the person who set codelist.file needs.
             // The message is the loader's own: fixed sentences, the path, and for a file with no
-            // code column the first row of that file. No member data unless the path points at some.
+            // code column the cells of its first row that read as headers. A cell that does not,
+            // which is what an identifier, a date or an address looks like, is given by its length
+            // alone, in case the setting was pointed at a file that holds a member's record.
             log.error("The procedure code list cannot be used, so the application will not start. {}", e.getMessage());
             throw e;
         }

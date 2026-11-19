@@ -475,9 +475,81 @@ class ProcedureCodeServiceLoadingTest {
     @Test
     void aTitleLineAboveTheHeaderRowIsTakenForTheHeaderRowAndShownInTheFailure() {
         // The rule is fixed and is not a search for something that looks like a header.
-        Path file = TestCodeLists.write(directory, "export.csv", "Prior authorization code list 2026\n\nCode,Description\nE0601,CPAP device\n");
+        Path file = TestCodeLists.write(directory, "export.csv", "Prior authorization code list\n\nCode,Description\nE0601,CPAP device\n");
         assertThatThrownBy(() -> TestCodeLists.load(file)).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Headers found: \"Prior authorization code list 2026\".");
+                .hasMessageContaining("Headers found: \"Prior authorization code list\". The first row of the file that is not blank must be "
+                        + "the header row.");
+        // A title with a year in it holds a run of digits, so it is not shown. That it is one
+        // cell, and how long, still says that the first row is not a header row.
+        Path dated = TestCodeLists.write(directory, "dated.csv", "Prior authorization code list 2026\n\nCode,Description\nE0601,CPAP device\n");
+        assertThatThrownBy(() -> TestCodeLists.load(dated)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Headers found: (a cell that does not read as a header, 34 characters). The first row of the file "
+                        + "that is not blank must be the header row.");
+    }
+
+    // ---- a file that is not a code list at all ----
+
+    /** As a member extract might look. Every value is a placeholder: no real member is anywhere in this project. */
+    private static final String MEMBER_ROW = "S123456789,Placeholder-Surname,Given,1970-01-31,F,1200 Placeholder Street,SUB-PLACEHOLDER-000001,"
+            + "Placeholder note that runs on for longer than any header would\n";
+
+    @Test
+    void whenTheFirstRowIsARecordAndNotHeadersItsCellsThatDoNotReadAsHeadersAreNotShown() {
+        // codelist.file pointed by mistake at a file with no header row. The failure lists the
+        // first row, as it must for a real export, and the failure is logged. A member ID, a date
+        // of birth and an address must not get into a log that way.
+        Path file = TestCodeLists.write(directory, "members.csv", MEMBER_ROW + "S987654321,Another-Placeholder,Name,1980-12-01,M,,,\n");
+        assertThatThrownBy(() -> TestCodeLists.load(file)).isInstanceOf(UnusableCodeListException.class)
+                .hasMessage("The code list file " + file + " has no column this tool recognises as the procedure code. "
+                        + "Headers found: (a cell that does not read as a header, 10 characters), \"Placeholder-Surname\", \"Given\", "
+                        + "(a cell that does not read as a header, 10 characters), \"F\", "
+                        + "(a cell that does not read as a header, 23 characters), (a cell that does not read as a header, 22 characters), "
+                        + "(a cell that does not read as a header, 62 characters). "
+                        + "The first row of the file that is not blank must be the header row. "
+                        + "If one of these holds the code, name it under codelist.columns.code in application.yml. A list set there replaces the built-in names for the column.")
+                .hasMessageNotContaining("S123456789").hasMessageNotContaining("1970-01-31").hasMessageNotContaining("Placeholder Street")
+                .hasMessageNotContaining("SUB-PLACEHOLDER").hasMessageNotContaining("Placeholder note");
+    }
+
+    @Test
+    void aCellIsShownWhenItReadsAsAHeaderAndTheLineIsDrawnAtThreeDigitsInARowAndAtFortyCharacters() {
+        String forty = "A header of exactly forty characters xxx";
+        assertThat(forty).hasSize(40);
+        Path file = TestCodeLists.write(directory, "edge.csv", "Proc 12,Rate 1 2 3,Tier-2b,Q1-22,Plan 123,\"  ABC1234  \"," + forty + "," + forty + "x,"
+                + "\u00A0 Ref\u00A0,\n1,2,3,4,5,6,7,8,9,\n");
+        assertThatThrownBy(() -> TestCodeLists.load(file)).isInstanceOf(UnusableCodeListException.class)
+                // Two digits, or digits with something between them, are still a header: "Tier-2b", "Q1-22".
+                .hasMessageContaining("Headers found: \"Proc 12\", \"Rate 1 2 3\", \"Tier-2b\", \"Q1-22\", "
+                        // Three in a row are not, wherever they stand in the cell. The length given is that
+                        // of the cell without the white space around it: seven for the one written in quotes.
+                        + "(a cell that does not read as a header, 8 characters), (a cell that does not read as a header, 7 characters), "
+                        // Forty characters are shown, forty-one are not.
+                        + "\"" + forty + "\", (a cell that does not read as a header, 41 characters), "
+                        // A cell that is shown is shown without the white space around it, and a blank cell is still called blank.
+                        + "\"Ref\", (blank). ");
+    }
+
+    @Test
+    void theHintAboutTheDelimiterIsStillGivenWhenTheOneCellItRestsOnIsNotShown() {
+        // The whole row was read as one cell because the file is separated by semicolons. The cell
+        // holds a member ID, so it is not shown, and the hint does not need it to be.
+        Path file = TestCodeLists.write(directory, "members.csv", "S123456789;Placeholder-Surname;1970-01-31\n");
+        assertThatThrownBy(() -> TestCodeLists.load(file)).isInstanceOf(UnusableCodeListException.class)
+                .hasMessageContaining("Headers found: (a cell that does not read as a header, 41 characters). The header row was read as one "
+                        + "cell, and it holds a semicolon. If that is what separates the cells of this file, set codelist.delimiter to \";\". ")
+                .hasMessageNotContaining("S123456789").hasMessageNotContaining("1970-01-31");
+    }
+
+    @Test
+    void theKeysOfAJsonFileThatIsNotACodeListAreHeldToTheSameRule() {
+        // Records filed under an identifier: the keys are data, and are no more shown than the cells of a first row are.
+        Path file = TestCodeLists.write(directory, "members.json", "[{\"S123456789\":\"Placeholder-Surname\",\"name\":\"Given\","
+                + "\"born 1970-01-31\":true}]");
+        assertThatThrownBy(() -> TestCodeLists.load(file)).isInstanceOf(UnusableCodeListException.class)
+                .hasMessage("The code list file " + file + " has no column this tool recognises as the procedure code. "
+                        + "Keys found: (a key that does not read as a header, 10 characters), \"name\", "
+                        + "(a key that does not read as a header, 15 characters). "
+                        + "If one of these holds the code, name it under codelist.columns.code in application.yml. A list set there replaces the built-in names for the column.");
     }
 
     @Test
