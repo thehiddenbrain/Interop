@@ -4,19 +4,45 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**Spine 0 complete.** Next: Spine 1, freeze the shared contracts.
+**Spine 1 written and building. Not yet frozen.** An independent contract review is running: six
+reviewers, each reading the shared types from the seat of one downstream owner. The freeze, and
+the Wave A fan-out, follow once their findings are applied.
 
 | Step | State |
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
-| Spine 1: shared contracts frozen | next |
-| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | not started |
+| Spine 1: shared contracts | written, build green, under review, not frozen |
+| Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | briefs written, not started |
 | Spine 2: integrate Wave A. V2 PHI audit | not started |
-| Spine 3: CRD reference vertical | not started |
+| Spine 3: CRD reference vertical | not started. The 14 scenario files are drafted; nothing reads them yet |
 | Wave B: B1 PAS and subscriptions, B2 DTR | not started |
 | Spine 4: integrate Wave B, chain, cross-protocol tests. V3 guardrail audit | not started |
 | Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | not started |
 | Spine 5: clean build twice, fresh-clone build, push, pull request | not started |
+
+### What Spine 1 contains
+
+- Enums: `CrdOutcome` (no member for a clinical refusal), `LookupStatus`, `AuthRequirement`,
+  `EnvironmentKind`, `EpaOperation` (each knowing whether it is a write), `OnyxFailureType`, and
+  the supporting ones listed in the plan below.
+- The result envelope every protocol returns, `RunEnvelope`, with the authorization outcome
+  (`VerdictView`) and the test result (`ExpectationView`) as separate parts.
+- `TrackedJson`, `Shown` and `AdditionalField`: the mechanism behind "nothing silently dropped"
+  and behind telling absent, null and empty apart on screen.
+- `Expectations`: expected versus actual, which cannot pass with both sides empty.
+- `RunRecord`: the ledger line, with no component that could hold member data or wire JSON.
+- `OperationGateway` and `PreparedCall`: the only way a client can be given a target, so an
+  unguarded production write does not compile.
+- `ExchangeExecutor`: the one live HTTP path, classifying timeouts, refused connections, HTTP
+  errors and unreadable bodies.
+- `ApiExceptionHandler`: the one error shape.
+- All configuration properties records, bound from `application.yml`.
+
+### Not done at this commit
+
+- Nothing calls a vendor yet. There are no clients, no controllers except the fallback error
+  controller, and no frontend.
+- The contracts may still change as a result of the review.
 
 ## The plan, written before any feature code
 

@@ -1,0 +1,23 @@
+package com.thehiddenbrain.interop.epa.pave.model;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+/**
+ * One row of the determination grid: a standard code and what it means.
+ *
+ * @param label      what the row is, for example "Prior authorization"
+ * @param code       the code as returned, or null when none was returned
+ * @param display    the meaning of the code, or "Unrecognised code: X" when the tool does not know it
+ * @param system     the code system or the element the code came from
+ * @param recognised false when the code is outside what the tool knows. Still shown, never hidden
+ * @param presence   whether the element was returned at all
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public record DeterminationRow(String label, String code, String display, String system, boolean recognised,
+                               Presence presence) {
+
+    /** A row for an element the response did not carry. */
+    public static DeterminationRow notReturned(String label, String system) {
+        return new DeterminationRow(label, null, null, system, true, Presence.ABSENT);
+    }
+}

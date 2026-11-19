@@ -1,0 +1,22 @@
+package com.thehiddenbrain.interop.epa.pave.model;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.List;
+
+/**
+ * The answer to one provider lookup.
+ *
+ * @param attention reasons a found provider still needs a look, such as being out of network
+ * @param message   one plain sentence for the confirmation strip
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public record ProviderLookupResult(LookupStatus status, String npi, ProviderDetail provider, List<String> attention,
+                                   List<LookupField> fields, List<AdditionalField> additionalFields, WireView wire,
+                                   ErrorView error, String message) {
+
+    public ProviderLookupResult {
+        attention = attention == null ? List.of() : List.copyOf(attention);
+        fields = fields == null ? List.of() : List.copyOf(fields);
+        additionalFields = additionalFields == null ? List.of() : List.copyOf(additionalFields);
+    }
+}

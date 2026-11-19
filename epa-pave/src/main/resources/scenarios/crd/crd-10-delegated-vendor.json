@@ -1,0 +1,127 @@
+{
+  "id": "crd-10-delegated-vendor",
+  "number": 10,
+  "label": "Delegated vendor routing",
+  "description": "Prior authorization is needed and the request routes to a delegated utilization management vendor, named in the detail list.",
+  "sentinelMemberId": "P32H-DELEG",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "AUTH_REQUIRED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "covered": "covered",
+      "pa-needed": "auth-needed",
+      "doc-needed": "no-doc"
+    },
+    "delegatedVendor": "Evolent"
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "assumption": "The code the live service uses to name the delegated vendor in the detail list is not known. This file uses the code delegated-vendor under a placeholder code system.",
+  "response": {
+    "cards": [
+      {
+        "uuid": "card-delegated-vendor",
+        "summary": "Prior authorization is required and is managed by Evolent",
+        "detail": "Submit the prior authorization request to Evolent.",
+        "indicator": "warning",
+        "source": {
+          "label": "Placeholder payer",
+          "url": "https://example.org/p32h-placeholder/payer"
+        }
+      }
+    ],
+    "systemActions": [
+      {
+        "type": "update",
+        "description": "Coverage information added to the order",
+        "resource": {
+          "resourceType": "ServiceRequest",
+          "id": "service-request-1",
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information",
+              "extension": [
+                {
+                  "url": "coverage",
+                  "valueReference": {
+                    "reference": "Coverage/coverage-1"
+                  }
+                },
+                {
+                  "url": "covered",
+                  "valueCode": "covered"
+                },
+                {
+                  "url": "pa-needed",
+                  "valueCode": "auth-needed"
+                },
+                {
+                  "url": "doc-needed",
+                  "valueCode": "no-doc"
+                },
+                {
+                  "url": "detail",
+                  "extension": [
+                    {
+                      "url": "code",
+                      "valueCodeableConcept": {
+                        "coding": [
+                          {
+                            "system": "https://example.org/p32h-placeholder/coverage-detail",
+                            "code": "delegated-vendor",
+                            "display": "Delegated utilization management vendor"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "url": "value",
+                      "valueString": "Evolent"
+                    }
+                  ]
+                },
+                {
+                  "url": "detail",
+                  "extension": [
+                    {
+                      "url": "code",
+                      "valueCodeableConcept": {
+                        "coding": [
+                          {
+                            "system": "https://example.org/p32h-placeholder/coverage-detail",
+                            "code": "program",
+                            "display": "Utilization management program"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "url": "value",
+                      "valueString": "Advanced imaging"
+                    }
+                  ]
+                },
+                {
+                  "url": "date",
+                  "valueDate": "2026-01-15"
+                },
+                {
+                  "url": "coverage-assertion-id",
+                  "valueString": "assertion-delegated-vendor"
+                }
+              ]
+            }
+          ],
+          "status": "draft",
+          "intent": "order",
+          "subject": {
+            "reference": "Patient/patient-1"
+          }
+        }
+      }
+    ]
+  }
+}

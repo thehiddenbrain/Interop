@@ -1,0 +1,86 @@
+{
+  "id": "crd-08-coverage-inactive",
+  "number": 8,
+  "label": "Coverage inactive on date of service",
+  "description": "The member is known but has no active coverage on the date of service.",
+  "sentinelMemberId": "P32H-INACTIVE",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "COVERAGE_INACTIVE",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "covered": "not-covered"
+    }
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "assumption": "How the live service signals inactive coverage is not known. This file models covered=not-covered with a reason coded coverage-inactive under a placeholder code system.",
+  "response": {
+    "cards": [
+      {
+        "uuid": "card-coverage-inactive",
+        "summary": "Coverage is not active on the date of service",
+        "indicator": "warning",
+        "source": {
+          "label": "Placeholder payer",
+          "url": "https://example.org/p32h-placeholder/payer"
+        }
+      }
+    ],
+    "systemActions": [
+      {
+        "type": "update",
+        "description": "Coverage information added to the order",
+        "resource": {
+          "resourceType": "ServiceRequest",
+          "id": "service-request-1",
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information",
+              "extension": [
+                {
+                  "url": "coverage",
+                  "valueReference": {
+                    "reference": "Coverage/coverage-1"
+                  }
+                },
+                {
+                  "url": "covered",
+                  "valueCode": "not-covered"
+                },
+                {
+                  "url": "reason",
+                  "valueCodeableConcept": {
+                    "coding": [
+                      {
+                        "system": "https://example.org/p32h-placeholder/coverage-reason",
+                        "code": "coverage-inactive",
+                        "display": "Coverage inactive on date of service"
+                      }
+                    ],
+                    "text": "Coverage inactive on date of service"
+                  }
+                },
+                {
+                  "url": "date",
+                  "valueDate": "2026-01-15"
+                },
+                {
+                  "url": "coverage-assertion-id",
+                  "valueString": "assertion-coverage-inactive"
+                }
+              ]
+            }
+          ],
+          "status": "draft",
+          "intent": "order",
+          "subject": {
+            "reference": "Patient/patient-1"
+          }
+        }
+      }
+    ]
+  }
+}

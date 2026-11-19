@@ -5,17 +5,31 @@ spring:
     # Mock is the default and needs no configuration, no credentials and no network.
     # Start with --spring.profiles.active=live to call the real services.
     default: mock
+  servlet:
+    multipart:
+      # A vendor collection carries sample bodies and saved responses, so it can be several megabytes.
+      max-file-size: 25MB
+      max-request-size: 30MB
 
 server:
   # Deliberately not 8080. The existing tools on this programme use 8080 and this one is meant to
   # run beside them. 8057 is the regulation number, so it is easy to remember and unlikely to clash.
   port: 8057
+  servlet:
+    session:
+      cookie:
+        # Browsers share cookies between ports on one host. The default cookie name would collide
+        # with any other tool on localhost and each would keep discarding the other's session.
+        name: PAVESESSION
+  error:
+    whitelabel:
+      enabled: false
 
 epa:
   name: "PAVE"              # shown in the tab title, the masthead and /api/mode
   version: "1.0.0"
   target: onyx              # onyx | nehen
-  mode: mock                # mock | live, drives the UI badge
+  mode: mock                # mock | live, drives the UI badge. Follows the Spring profile; do not set by hand
 
 config-store:
   directory: "./config-store"
@@ -25,13 +39,17 @@ config-store:
 tracking:
   enabled: true
   directory: "./run-history"
-  record-member-id: false
-  record-npi: true
+  record-member-id: false     # mock overrides to true
+  record-npi: true            # an NPI is not PHI
+  salt-file: ""               # blank: installation-salt inside the config store directory
+  slow-threshold-ms: 0        # 0: use onyx.read-timeout-ms
 
 codelist:
-  file: ""
-  format: auto
+  file: ""                    # blank: the bundled placeholder list
+  format: auto                # auto | csv | json
   delimiter: ","
+  # Candidate header names per column are listed under codelist.columns. The defaults are in
+  # CodelistProperties; override a column here only when an export uses a header none of them match.
 
 app:
   scenario-dir: ""
@@ -42,12 +60,13 @@ app:
 onyx:
   crd: { url: "" }
   dtr: { url: "" }
-  pas: { url: "" }
+  pas: { url: "", attachment-mode: fhir }     # fhir | x12-275
   subscription: { url: "", callback-url: "" }
   connect-timeout-ms: 5000
   read-timeout-ms: 15000
   auth: { enabled: false, token-url: "", client-id: "", client-secret: "", scopes: "" }
+  variables: {}
 
 lookup:
-  member:   { url: "", enabled: true, connect-timeout-ms: 3000, read-timeout-ms: 5000 }
-  provider: { url: "", enabled: true, connect-timeout-ms: 3000, read-timeout-ms: 5000 }
+  member:   { url: "", enabled: true, connect-timeout-ms: 3000, read-timeout-ms: 5000, headers: {} }
+  provider: { url: "", enabled: true, connect-timeout-ms: 3000, read-timeout-ms: 5000, headers: {} }

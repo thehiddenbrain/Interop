@@ -1,0 +1,19 @@
+{
+  "id": "crd-14-empty",
+  "number": 14,
+  "label": "Empty response, no determination",
+  "description": "The service answers successfully and returns no cards and no coverage information. It has said nothing: this is not the same as answering that prior authorization is not required.",
+  "sentinelMemberId": "P32H-EMPTY",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "NO_DETERMINATION",
+    "errorType": "NONE",
+    "httpStatus": 200
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "response": {
+    "cards": []
+  }
+}

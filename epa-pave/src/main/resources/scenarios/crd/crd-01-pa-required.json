@@ -1,0 +1,83 @@
+{
+  "id": "crd-01-pa-required",
+  "number": 1,
+  "label": "Prior authorization required",
+  "description": "The payer answers that prior authorization is needed for the service and that no documentation is wanted.",
+  "sentinelMemberId": "P32H-PA-REQ",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "AUTH_REQUIRED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "covered": "covered",
+      "pa-needed": "auth-needed",
+      "doc-needed": "no-doc"
+    }
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "response": {
+    "cards": [
+      {
+        "uuid": "card-pa-required",
+        "summary": "Prior authorization is required for this service",
+        "detail": "Submit a prior authorization request before the service is performed.",
+        "indicator": "warning",
+        "source": {
+          "label": "Placeholder payer",
+          "url": "https://example.org/p32h-placeholder/payer"
+        }
+      }
+    ],
+    "systemActions": [
+      {
+        "type": "update",
+        "description": "Coverage information added to the order",
+        "resource": {
+          "resourceType": "ServiceRequest",
+          "id": "service-request-1",
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information",
+              "extension": [
+                {
+                  "url": "coverage",
+                  "valueReference": {
+                    "reference": "Coverage/coverage-1"
+                  }
+                },
+                {
+                  "url": "covered",
+                  "valueCode": "covered"
+                },
+                {
+                  "url": "pa-needed",
+                  "valueCode": "auth-needed"
+                },
+                {
+                  "url": "doc-needed",
+                  "valueCode": "no-doc"
+                },
+                {
+                  "url": "date",
+                  "valueDate": "2026-01-15"
+                },
+                {
+                  "url": "coverage-assertion-id",
+                  "valueString": "assertion-pa-required"
+                }
+              ]
+            }
+          ],
+          "status": "draft",
+          "intent": "order",
+          "subject": {
+            "reference": "Patient/patient-1"
+          }
+        }
+      }
+    ]
+  }
+}

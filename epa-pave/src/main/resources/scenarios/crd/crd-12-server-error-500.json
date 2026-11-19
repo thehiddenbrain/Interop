@@ -1,0 +1,30 @@
+{
+  "id": "crd-12-server-error-500",
+  "number": 12,
+  "label": "Onyx fails with HTTP 500",
+  "description": "The service fails while handling the request. This is a finding about the environment.",
+  "sentinelMemberId": "P32H-ERR500",
+  "behavior": "respond",
+  "httpStatus": 500,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "SERVICE_ERROR",
+    "errorType": "SERVER_ERROR",
+    "httpStatus": 500
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "exception",
+        "details": {
+          "text": "An unexpected error occurred while evaluating the request."
+        },
+        "diagnostics": "An unexpected error occurred while evaluating the request.",
+        "expression": []
+      }
+    ]
+  }
+}

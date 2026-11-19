@@ -1,0 +1,14 @@
+{
+  "id": "crd-13-timeout",
+  "number": 13,
+  "label": "No response inside the read timeout",
+  "description": "The service accepts the request and does not answer inside the read timeout. The mock reports the timeout after this file's delay and does not wait for the full configured timeout.",
+  "sentinelMemberId": "P32H-TIMEOUT",
+  "behavior": "timeout",
+  "delayMillis": 400,
+  "expect": {
+    "outcome": "TIMEOUT",
+    "errorType": "TIMEOUT"
+  },
+  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service."
+}
