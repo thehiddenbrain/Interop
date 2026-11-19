@@ -1,0 +1,312 @@
+{
+  "resourceType": "Parameters",
+  "id": "package-1",
+  "vendorTraceId": "trace-1",
+  "parameter": [
+    {
+      "name": "PackageBundle",
+      "vendorParameterNote": "kept",
+      "resource": {
+        "resourceType": "Bundle",
+        "id": "bundle-1",
+        "type": "collection",
+        "timestamp": "2026-01-15T09:30:00Z",
+        "entry": [
+          {
+            "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/everything",
+            "vendorEntryFlag": true,
+            "resource": {
+              "resourceType": "Questionnaire",
+              "id": "everything",
+              "meta": {
+                "versionId": "7",
+                "profile": [
+                  "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-std-questionnaire"
+                ]
+              },
+              "contained": [
+                {
+                  "resourceType": "ValueSet",
+                  "id": "vs-contained",
+                  "status": "active",
+                  "expansion": {
+                    "contains": [
+                      {
+                        "system": "s",
+                        "code": "c1",
+                        "display": "Contained one"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "extension": [
+                {
+                  "url": "http://hl7.org/fhir/StructureDefinition/cqf-library",
+                  "valueCanonical": "https://example.org/p32h-placeholder/Library/everything-logic"
+                },
+                {
+                  "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-launchContext",
+                  "extension": [
+                    {
+                      "url": "name",
+                      "valueCoding": {
+                        "code": "patient"
+                      }
+                    },
+                    {
+                      "url": "type",
+                      "valueCode": "Patient"
+                    }
+                  ]
+                }
+              ],
+              "url": "https://example.org/p32h-placeholder/Questionnaire/everything",
+              "version": "3.0.0",
+              "name": "Everything",
+              "title": "Everything questionnaire (placeholder)",
+              "derivedFrom": [
+                "https://example.org/p32h-placeholder/Questionnaire/base"
+              ],
+              "status": "active",
+              "date": "2026-01-01",
+              "publisher": "Placeholder payer",
+              "description": "Exercises every part of the designed view.",
+              "vendorQuestionnaireField": "kept",
+              "item": [
+                {
+                  "linkId": "g1",
+                  "text": "First group",
+                  "type": "group",
+                  "required": false,
+                  "repeats": false,
+                  "item": [
+                    {
+                      "linkId": "q1",
+                      "text": "First question",
+                      "type": "boolean",
+                      "required": true,
+                      "vendorNestedItemField": "kept"
+                    },
+                    {
+                      "linkId": "q2",
+                      "prefix": "1.2",
+                      "text": "Second question",
+                      "type": "choice",
+                      "required": true,
+                      "repeats": true,
+                      "readOnly": false,
+                      "answerValueSet": "#vs-contained",
+                      "extension": [
+                        {
+                          "url": "http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl",
+                          "valueCodeableConcept": {
+                            "coding": [
+                              {
+                                "system": "http://hl7.org/fhir/questionnaire-item-control",
+                                "code": "drop-down"
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "enableBehavior": "all",
+                      "enableWhen": [
+                        {
+                          "question": "q1",
+                          "operator": "=",
+                          "answerBoolean": true,
+                          "vendorEnableWhenField": 1
+                        }
+                      ],
+                      "answerOption": [
+                        {
+                          "valueCoding": {
+                            "system": "s",
+                            "code": "a",
+                            "display": "Option A",
+                            "vendorCodingField": "kept"
+                          },
+                          "initialSelected": true,
+                          "vendorOptionField": "kept"
+                        },
+                        {
+                          "valueCoding": {
+                            "system": "s",
+                            "code": "b",
+                            "display": "Option B"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "linkId": "g2",
+                      "text": "Inner group",
+                      "type": "group",
+                      "item": [
+                        {
+                          "linkId": "q3",
+                          "text": "Third question",
+                          "type": "integer",
+                          "initial": [
+                            {
+                              "valueInteger": 3
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "linkId": "d1",
+                  "text": "Thank you",
+                  "type": "display"
+                },
+                {
+                  "linkId": "q4",
+                  "text": "Fourth question",
+                  "type": "slider",
+                  "enableWhen": [
+                    {
+                      "question": "q3",
+                      "operator": "~",
+                      "answerInteger": 3
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "fullUrl": "https://example.org/p32h-placeholder/Library/everything-logic",
+            "resource": {
+              "resourceType": "Library",
+              "id": "everything-logic",
+              "url": "https://example.org/p32h-placeholder/Library/everything-logic",
+              "version": "3.0.0",
+              "name": "EverythingLogic",
+              "title": "Everything logic (placeholder)",
+              "status": "active",
+              "type": {
+                "coding": [
+                  {
+                    "code": "logic-library"
+                  }
+                ]
+              },
+              "content": [
+                {
+                  "contentType": "text/cql",
+                  "data": "bGlicmFyeQ=="
+                },
+                {
+                  "contentType": "application/elm+json",
+                  "url": "https://example.org/p32h-placeholder/elm/everything.json"
+                }
+              ]
+            }
+          },
+          {
+            "resource": {
+              "resourceType": "ValueSet",
+              "id": "vs-1",
+              "url": "https://example.org/p32h-placeholder/ValueSet/vs-1",
+              "status": "active",
+              "compose": {
+                "include": [
+                  {
+                    "system": "s",
+                    "version": "1",
+                    "concept": [
+                      {
+                        "code": "a",
+                        "display": "Option A"
+                      },
+                      {
+                        "code": "b"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "resource": {
+              "resourceType": "QuestionnaireResponse",
+              "id": "qr-1",
+              "questionnaire": "https://example.org/p32h-placeholder/Questionnaire/everything|3.0.0",
+              "status": "in-progress",
+              "subject": {
+                "reference": "Patient/patient-1",
+                "display": "Placeholder member"
+              },
+              "author": {
+                "reference": "Practitioner/practitioner-1"
+              },
+              "authored": "2026-01-15T09:30:00-05:00",
+              "extension": [
+                {
+                  "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+                  "valueString": "assertion-1"
+                }
+              ],
+              "vendorResponseField": "kept",
+              "item": [
+                {
+                  "linkId": "g1",
+                  "text": "First group",
+                  "item": [
+                    {
+                      "linkId": "q1",
+                      "text": "First question",
+                      "answer": [
+                        {
+                          "valueBoolean": true,
+                          "vendorAnswerField": "kept"
+                        }
+                      ]
+                    },
+                    {
+                      "linkId": "q2",
+                      "answer": [
+                        {
+                          "valueCoding": {
+                            "system": "s",
+                            "code": "b",
+                            "display": "Option B"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "resource": {
+              "resourceType": "Basic",
+              "id": "other-1",
+              "vendorThing": "x"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Outcome",
+      "resource": {
+        "resourceType": "OperationOutcome",
+        "issue": [
+          {
+            "severity": "information",
+            "code": "informational",
+            "diagnostics": "One questionnaire applies."
+          }
+        ]
+      }
+    }
+  ]
+}
