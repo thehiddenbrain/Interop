@@ -22,8 +22,11 @@ public class FallbackErrorController implements ErrorController {
     @RequestMapping("${server.error.path:${error.path:/error}}")
     public ResponseEntity<ErrorView> error(HttpServletRequest request) {
         Object code = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
-        HttpStatus status = code instanceof Integer value && HttpStatus.resolve(value) != null
-                ? HttpStatus.resolve(value) : HttpStatus.INTERNAL_SERVER_ERROR;
+        // With no error recorded on the request, nothing failed: somebody asked for this address
+        // directly, and there is nothing here for them. That is a 404, not a fault of the tool.
+        HttpStatus status = code == null ? HttpStatus.NOT_FOUND
+                : code instanceof Integer value && HttpStatus.resolve(value) != null ? HttpStatus.resolve(value)
+                : HttpStatus.INTERNAL_SERVER_ERROR;
         ErrorView body;
         if (status == HttpStatus.NOT_FOUND) {
             body = ErrorView.of(ErrorKind.NOT_FOUND, "There is nothing at this address.",
