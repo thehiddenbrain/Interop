@@ -4,8 +4,10 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
@@ -14,6 +16,7 @@ import org.p32h.interop.epa.pave.config.LookupProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.postman.PostmanFiles;
 import org.p32h.interop.epa.pave.postman.PostmanRequest;
 import org.p32h.interop.epa.pave.postman.VariableResolver;
@@ -141,13 +144,78 @@ public final class ConfigFixture {
         return store.uploadCollection(resource, PostmanFiles.bytes(resource)).collection();
     }
 
+    /** One request of a collection written in a test, built up call by call. */
+    public static final class Item {
+        private final String name;
+        private final String method;
+        private final String url;
+        private final List<String> headers = new ArrayList<>();
+        private final List<String> script = new ArrayList<>();
+        private String body;
+
+        private Item(String name, String method, String url) {
+            this.name = name;
+            this.method = method;
+            this.url = url;
+        }
+
+        public Item header(String headerName, String value) {
+            headers.add("{\"key\": " + quoted(headerName) + ", \"value\": " + quoted(value) + "}");
+            return this;
+        }
+
+        public Item body(String raw) {
+            this.body = raw;
+            return this;
+        }
+
+        /** Adds one line to the request's own pre-request script. */
+        public Item script(String line) {
+            script.add(quoted(line));
+            return this;
+        }
+
+        String json() {
+            StringBuilder request = new StringBuilder("{\"method\": " + quoted(method) + ", \"header\": [" + String.join(", ", headers) + "], "
+                    + "\"url\": " + quoted(url));
+            if (body != null) {
+                request.append(", \"body\": {\"mode\": \"raw\", \"raw\": ").append(quoted(body)).append("}");
+            }
+            String events = script.isEmpty() ? "" : "\"event\": [{\"listen\": \"prerequest\", \"script\": {\"exec\": ["
+                    + String.join(", ", script) + "]}}], ";
+            return "{\"name\": " + quoted(name) + ", " + events + "\"request\": " + request + "}, \"response\": []}";
+        }
+    }
+
+    public static Item item(String name, String method, String url) {
+        return new Item(name, method, url);
+    }
+
+    /** The item list of a collection: these requests, at the top level, in this order. */
+    public static String items(Item... items) {
+        return "[" + String.join(", ", java.util.Arrays.stream(items).map(Item::json).toList()) + "]";
+    }
+
+    /** The variable list of a collection: names and values in turn. */
+    public static String variables(String... keysAndValues) {
+        List<String> entries = new ArrayList<>();
+        for (int i = 0; i < keysAndValues.length; i += 2) {
+            entries.add("{\"key\": " + quoted(keysAndValues[i]) + ", \"value\": " + quoted(keysAndValues[i + 1]) + "}");
+        }
+        return "[" + String.join(", ", entries) + "]";
+    }
+
+    private static String quoted(String text) {
+        return JsonSafe.mapper().writeValueAsString(text);
+    }
+
     /** A collection written in the test itself. */
     public StoredCollection collectionOf(String name, String itemsJson) {
         return collectionOf(name, itemsJson, "[]");
     }
 
     public StoredCollection collectionOf(String name, String itemsJson, String variablesJson) {
-        String json = "{\"info\": {\"name\": \"" + name + "\", \"schema\": "
+        String json = "{\"info\": {\"name\": " + quoted(name) + ", \"schema\": "
                 + "\"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\"}, \"variable\": " + variablesJson
                 + ", \"item\": " + itemsJson + "}";
         return store.uploadCollection(name + ".json", json.getBytes(java.nio.charset.StandardCharsets.UTF_8)).collection();
@@ -157,11 +225,18 @@ public final class ConfigFixture {
     public StoredEnvironment environmentOf(String name, EnvironmentKind kind, String... keysAndValues) {
         StringBuilder values = new StringBuilder();
         for (int i = 0; i < keysAndValues.length; i += 2) {
-            values.append(i == 0 ? "" : ", ").append("{\"key\": \"").append(keysAndValues[i]).append("\", \"value\": \"")
-                    .append(keysAndValues[i + 1]).append("\", \"enabled\": true}");
+            values.append(i == 0 ? "" : ", ").append("{\"key\": ").append(quoted(keysAndValues[i])).append(", \"value\": ")
+                    .append(quoted(keysAndValues[i + 1])).append(", \"enabled\": true}");
         }
-        String json = "{\"name\": \"" + name + "\", \"values\": [" + values + "]}";
+        String json = "{\"name\": " + quoted(name) + ", \"values\": [" + values + "]}";
         return store.uploadEnvironment(name + ".json", json.getBytes(java.nio.charset.StandardCharsets.UTF_8), kind, true).environment();
+    }
+
+    /** As {@link #environmentOf}, and made the active one. */
+    public StoredEnvironment activeEnvironmentOf(String name, EnvironmentKind kind, String... keysAndValues) {
+        StoredEnvironment environment = environmentOf(name, kind, keysAndValues);
+        store.activate(environment.name());
+        return environment;
     }
 
     /** A reference to the request with the given name in a stored collection. */

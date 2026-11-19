@@ -443,8 +443,16 @@ public class ConfigStoreGateway implements OperationGateway {
             }
         }
         String property = fallbackProperty(operation);
-        return Target.none(property == null ? "An unmapped request has no target of its own. It is sent by naming the request."
-                : "No collection request is mapped to " + operation.label() + ", and " + property + " is not set.");
+        if (property == null) {
+            return Target.none("An unmapped request has no target of its own. It is sent by naming the request.");
+        }
+        // A request that is a sample of a failure is mapped, and is not what a call uses unasked.
+        String mapped = firstMapped(snapshot, operation, true) == null ? "No collection request is mapped to " + operation.label()
+                : "The only collection requests mapped to " + operation.label() + " are samples of an error, which are used only "
+                + "when one is chosen";
+        return Target.none(operation == EpaOperation.CRD_DISCOVERY
+                ? mapped + ", " + property + " is not set, and no CRD hook request is mapped to derive it from."
+                : mapped + ", and " + property + " is not set.");
     }
 
     /**
