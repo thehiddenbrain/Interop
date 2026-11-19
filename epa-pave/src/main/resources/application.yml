@@ -67,6 +67,10 @@ logging:
     # and a browser sends this tool the cookies every other tool on localhost has set.
     org.apache.catalina.webresources.AbstractFileResourceSet: ERROR
     org.apache.tomcat.util.http.parser.Cookie: WARN
+    # When a method of the exception handler itself fails, the framework writes that failure with
+    # its message at WARN, and the message can quote the request. The original exception then goes
+    # on to the outermost filter, which logs its types and frames under a reference.
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: ERROR
 
 epa:
   name: "PAVE"              # shown in the tab title, the masthead and /api/mode

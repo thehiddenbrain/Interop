@@ -175,6 +175,8 @@ class ServerErrorPagesTest {
                 .isEqualTo(org.springframework.boot.logging.LogLevel.ERROR);
         assertThat(loggingSystem.getLoggerConfiguration("org.apache.tomcat.util.http.parser.Cookie").getEffectiveLevel())
                 .isEqualTo(org.springframework.boot.logging.LogLevel.WARN);
+        assertThat(loggingSystem.getLoggerConfiguration("org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver")
+                .getEffectiveLevel()).isEqualTo(org.springframework.boot.logging.LogLevel.ERROR);
     }
 
     @Test
