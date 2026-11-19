@@ -287,6 +287,28 @@ class CrdConformanceCheckerTest {
                 .detail()).contains("name different vendors").contains("Evolent, Carelon");
     }
 
+    @Test
+    void aVendorCellWithNoLetterOrDigitInItIsNoRoutingAndIsNeverPrintedAsNull() {
+        // A dash for "none", as a list may write it. The real code list service serves such a cell
+        // as no vendor at all. This directory hands it over as written, as another one might.
+        codeList.row("95810", AuthRequirement.REQUIRED, "Medicare", "-");
+        // The service names no vendor either. The two agree on routing, so nothing is said.
+        assertThat(check(200, response(action(1, code("pa-needed", "auth-needed"))), "Medicare", "95810")).isEmpty();
+        // The service names one. The list has taken no position on routing, and the finding says that.
+        assertThat(notCompared(check(200, response(action(1, code("pa-needed", "auth-needed") + "," + vendor("eviCore"))), "Medicare", "95810"))
+                .detail()).isEqualTo("The service routes 95810 to eviCore. The code list names no vendor for the code (rows for Medicare), "
+                        + "so the routing could not be compared.");
+
+        // Beside a row that does name a vendor, the dash is not a second vendor for the list to disagree with itself about.
+        codeList.row("70553", AuthRequirement.REQUIRED, "Medicare", "Evolent").row("70553", AuthRequirement.REQUIRED, "Medicare", " -- ");
+        assertThat(check(200, response(action(1, code("pa-needed", "auth-needed") + "," + vendor("Evolent"))), "Medicare", "70553")).isEmpty();
+        assertThat(check(200, response(action(1, code("pa-needed", "auth-needed") + "," + vendor("Carelon"))), "Medicare", "70553")).singleElement()
+                .satisfies(f -> {
+                    assertThat(f.kind()).isEqualTo(FindingKind.CODE_LIST_DISAGREES_ON_VENDOR);
+                    assertThat(f.codeListSays()).isEqualTo("The code list routes this code to Evolent (rows for Medicare).");
+                });
+    }
+
     // ---- the placeholder list, which must never read as the P32H list ----
 
     @Test

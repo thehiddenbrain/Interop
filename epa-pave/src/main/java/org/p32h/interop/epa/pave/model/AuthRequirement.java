@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.model;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * What the procedure code list says about prior authorization for one code.
@@ -14,16 +15,38 @@ public enum AuthRequirement {
     NOT_REQUIRED,
     UNKNOWN;
 
-    private static final Set<String> YES = Set.of("required", "yes", "y", "true", "t", "1", "pa", "pa required", "auth required",
-            "authorization required", "prior auth required", "prior authorization required", "needed", "auth needed");
-    private static final Set<String> NO = Set.of("not required", "no", "n", "false", "f", "0", "no pa", "pa not required", "no auth",
-            "auth not required", "authorization not required", "no prior auth", "prior auth not required",
-            "prior authorization not required", "not needed", "none");
+    // The spellings are kept in pairs. Where a way of saying yes is read, the same words with "no"
+    // before them or "not" inside them are read as no, and the other way round. A list written
+    // "Prior Auth" and "No Prior Auth" would otherwise have only one of its two answers read, and
+    // the half that was read would look like the whole list. The "requires" forms and "none" stand
+    // alone: how a list would write their opposite is not known, and a cell this reader does not
+    // know is served as not stated and listed by the self-check, so nothing is lost by waiting.
+    private static final Set<String> YES = Set.of("required", "yes", "y", "true", "t", "1", "needed",
+            "pa", "auth", "authorization", "prior auth", "prior authorization",
+            "pa required", "auth required", "authorization required", "prior auth required", "prior authorization required",
+            "pa needed", "auth needed",
+            "requires pa", "requires auth", "requires prior auth", "requires prior authorization");
+    private static final Set<String> NO = Set.of("not required", "no", "n", "false", "f", "0", "not needed", "none",
+            "no pa", "no auth", "no authorization", "no prior auth", "no prior authorization",
+            "pa not required", "auth not required", "authorization not required", "prior auth not required",
+            "prior authorization not required",
+            "no pa required", "no auth required", "no authorization required", "no prior auth required",
+            "no prior authorization required",
+            "pa not needed", "auth not needed");
+
+    /**
+     * What stands between two words of a cell: white space, an underscore or a hyphen, and the
+     * three spaces a spreadsheet writes that the usual white space test does not count, the
+     * no-break space, the figure space and the narrow no-break space. A cell holding one of those
+     * reads "Not Required" on screen, and has to be read as that here.
+     */
+    private static final Pattern BETWEEN_WORDS = Pattern.compile("[\\s\\u00A0\\u2007\\u202F_-]+");
 
     /**
      * Reads the flag from the text of a list cell or a JSON value: the common spellings of yes and
-     * no, in any case, with spaces, underscores and hyphens treated alike. Anything else, a blank
-     * included, is UNKNOWN. It is never a guess, and never REQUIRED or NOT_REQUIRED by default.
+     * no, in any case, with white space, the no-break spaces a spreadsheet writes, underscores and
+     * hyphens treated alike. Anything else, a blank included, is UNKNOWN. It is never a guess, and
+     * never REQUIRED or NOT_REQUIRED by default.
      *
      * <p>This is the one reader for both the CSV and the JSON form of the list. It is declared as
      * the JSON reader so that a number is read by its meaning, 1 for yes and 0 for no, and never as
@@ -34,7 +57,7 @@ public enum AuthRequirement {
         if (Texts.blank(text)) {
             return UNKNOWN;
         }
-        String key = text.strip().toLowerCase(Locale.ROOT).replaceAll("[\\s_-]+", " ");
+        String key = key(text);
         if (YES.contains(key)) {
             return REQUIRED;
         }
@@ -49,7 +72,16 @@ public enum AuthRequirement {
         if (Texts.blank(text)) {
             return false;
         }
-        String key = text.strip().toLowerCase(Locale.ROOT).replaceAll("[\\s_-]+", " ");
+        String key = key(text);
         return YES.contains(key) || NO.contains(key) || key.equals("unknown");
+    }
+
+    /**
+     * The form a cell is looked up in: lower case, one plain space between its words and none
+     * around it. The gaps are replaced before the ends are trimmed, because the usual trim does
+     * not take a no-break space off the end of a cell.
+     */
+    private static String key(String text) {
+        return BETWEEN_WORDS.matcher(text.toLowerCase(Locale.ROOT)).replaceAll(" ").strip();
     }
 }

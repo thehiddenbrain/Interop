@@ -80,12 +80,44 @@ class ProcedureCodeServiceRowsTest {
     }
 
     @Test
+    void aListThatWritesPriorAuthAndNoPriorAuthHasBothOfItsAnswersRead() {
+        // With only one of the pair read, such a list had every "no" row read and no "yes" row, and
+        // the picker showed half of what it says.
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,Prior Auth\nA1,Prior Auth\nA2,No Prior Auth\n"
+                + "A3,Prior Authorization\nA4,No Prior Authorization\nA5,Requires PA\nA6,No PA Required\nA7,Auth\nA8,No Auth\n");
+        for (String code : new String[] {"A1", "A3", "A5", "A7"}) {
+            assertThat(only(service, code).authRequired()).as(code).isEqualTo(AuthRequirement.REQUIRED);
+        }
+        for (String code : new String[] {"A2", "A4", "A6", "A8"}) {
+            assertThat(only(service, code).authRequired()).as(code).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        }
+        // The cell is still kept beside what was read from it.
+        assertThat(only(service, "A1").authRequiredSource()).isEqualTo("Prior Auth");
+        assertThat(service.selfCheck().statingAuthRequirement()).isEqualTo(8);
+        assertThat(service.selfCheck().warnings()).isEmpty();
+    }
+
+    @Test
+    void aFlagWithANoBreakSpaceInsideItIsReadAndTheCellIsServedAsWritten() {
+        // It reads "Not Required" on screen. The space in it is the kind a spreadsheet writes, and so is the one after "Yes".
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA Required\nA1,Not\u00A0Required\nA2,Prior\u202FAuth\u2007Required\n"
+                + "A3,Yes\u00A0\n");
+        assertThat(only(service, "A1").authRequired()).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        // Nothing inside the cell is touched: what is served is what the list holds.
+        assertThat(only(service, "A1").authRequiredSource()).isEqualTo("Not\u00A0Required");
+        assertThat(only(service, "A2").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(only(service, "A3").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(service.selfCheck().statingAuthRequirement()).isEqualTo(3);
+        assertThat(service.selfCheck().warnings()).isEmpty();
+    }
+
+    @Test
     void textThatIsNotAYesOrANoStaysUnknownWithItsSourceAndIsListedForSomeoneToDecide() {
         ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA Required\n"
-                + "A1,See policy\nA2,See policy\nA3,X\nA4,2\nA5,Yes*\nA6,No PA Required\nA7,-\nA8,Not\u00A0Required\nA9,See policy\nB1,Yes\nB2,No\n");
+                + "A1,See policy\nA2,See policy\nA3,X\nA4,2\nA5,Yes*\nA6,Requires Authorization\nA7,-\nA8,Not\u200BRequired\nA9,See policy\nB1,Yes\nB2,No\n");
 
-        Map<String, String> unread = Map.of("A1", "See policy", "A3", "X", "A4", "2", "A5", "Yes*", "A6", "No PA Required", "A7", "-",
-                "A8", "Not\u00A0Required");
+        Map<String, String> unread = Map.of("A1", "See policy", "A3", "X", "A4", "2", "A5", "Yes*", "A6", "Requires Authorization", "A7", "-",
+                "A8", "Not\u200BRequired");
         unread.forEach((code, cell) -> {
             ProcedureCode row = only(service, code);
             // Never a guess: not "probably yes" for Yes*, and not "no" for a dash.
@@ -94,11 +126,12 @@ class ProcedureCodeServiceRowsTest {
         });
         assertThat(service.selfCheck().statingAuthRequirement()).isEqualTo(2);
         // Each distinct value once, with its rows, the most frequent first. The cell that looks
-        // like "Not Required" shows the no-break space that keeps it from being read as one.
+        // like "NotRequired" shows the zero width space inside it, which is not a space and keeps
+        // it from being read.
         assertThat(service.selfCheck().warnings()).containsExactly("The prior authorization column holds text this tool does not read as a "
-                + "yes or a no: \"See policy\" (3 rows), \"X\" (1 row), \"2\" (1 row), \"Yes*\" (1 row), \"No PA Required\" (1 row), \"-\" (1 row) "
-                + "and \"Not<U+00A0>Required\" (1 row). Those rows are served as not stated, never as not required. Decide what each "
-                + "value means, then correct the export or have the spelling added.");
+                + "yes or a no: \"See policy\" (3 rows), \"X\" (1 row), \"2\" (1 row), \"Yes*\" (1 row), \"Requires Authorization\" (1 row), "
+                + "\"-\" (1 row) and \"Not<U+200B>Required\" (1 row). Those rows are served as not stated, never as not required. Decide "
+                + "what each value means, then correct the export or have the spelling added.");
     }
 
     @Test

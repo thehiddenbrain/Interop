@@ -202,8 +202,11 @@ public final class CrdConformanceChecker {
 
         Set<String> listVendors = new LinkedHashSet<>();
         rows.forEach(row -> {
-            if (Texts.present(row.delegatedVendor())) {
-                listVendors.add(DelegatedVendors.canonical(row.delegatedVendor()));
+            // Null for a blank cell, and also for one with no letter or digit in it, such as a dash
+            // written for "none". Neither names a vendor, so neither is a routing to compare.
+            String vendor = DelegatedVendors.canonical(row.delegatedVendor());
+            if (vendor != null) {
+                listVendors.add(vendor);
             }
         });
         if (listVendors.size() == 1) {
