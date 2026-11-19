@@ -104,28 +104,32 @@ public final class SubscriptionVerdicts {
     /**
      * What the tester should do next, tied to what the response said.
      *
-     * @param subscriptionId the id the run is about, handed on so a later step does not retype it
-     * @param followsRunId   the run a later step should be linked to. Null when that is not known
-     * @param namesReceiver  false when a create or an update sent a subscription with no endpoint
+     * @param subscriptionId  the id the run is about, handed on so a later step does not retype it
+     * @param followsRunId    the run a later step should be linked to. Null when that is not known
+     * @param callbackProblem why a create or an update sent a subscription with no url to call
+     *                        back, in plain words with what to do about it. Null when it named
+     *                        one, and for a call that sends no subscription
+     * @param ownBody         true when the body that was sent is the tester's own, so the setting
+     *                        this tool reads its receiver from had no part in it
      */
     public static NextStepView nextStep(SubscriptionReading reading, VendorExchange exchange, EpaOperation operation, String subscriptionId,
-                                        String followsRunId, boolean namesReceiver) {
+                                        String followsRunId, String callbackProblem, boolean ownBody) {
         SubscriptionOutcome outcome = reading.outcome();
         Map<String, List<String>> carry = new LinkedHashMap<>();
         carry.put(NextStepView.CARRY_SUBSCRIPTION_ID, Texts.present(subscriptionId) ? List.of(subscriptionId) : List.of());
         carry.put(NextStepView.CARRY_RUN_ID, Texts.present(followsRunId) ? List.of(followsRunId) : List.of());
 
         return switch (outcome) {
-            case CREATED -> !namesReceiver
-                    ? new NextStepView(NextAction.OPEN_CONFIG, "Next: set " + SubscriptionRequestBuilder.CALLBACK_PROPERTY + ", then update this "
-                    + "subscription or create another. Until then, follow a request with an inquiry.",
-                    "The subscription was created without a url to call back, so no notification can reach this tool.", carry)
-                    : new NextStepView(NextAction.START_PAS, "Next: submit a prior authorization request. When its status changes, the "
-                    + "service notifies the receiver this subscription names.",
+            // Worded as what a subscription does, not as what this one names: a body of the tester's
+            // own that could not be read may name no receiver, and that is then not known here.
+            case CREATED -> Texts.present(callbackProblem) ? noReceiver("created", callbackProblem, ownBody, carry)
+                    : new NextStepView(NextAction.START_PAS, "Next: submit a prior authorization request. The service notifies a "
+                    + "subscription's receiver when the status of a request changes.",
                     "The subscription exists. A notification about a request arrives only after a request is submitted.", carry);
             case READ, LISTED -> new NextStepView(NextAction.FLOW_ENDS, "Nothing follows from a read. Record this result.",
                     "The call read what the service holds and changed nothing.", carry);
-            case UPDATED -> new NextStepView(NextAction.FLOW_ENDS, "The update is done. Record this result.",
+            case UPDATED -> Texts.present(callbackProblem) ? noReceiver("updated", callbackProblem, ownBody, carry)
+                    : new NextStepView(NextAction.FLOW_ENDS, "The update is done. Record this result.",
                     "The service accepted the new state of the subscription.", carry);
             case DELETED -> new NextStepView(NextAction.FLOW_ENDS, "The subscription is gone. Record this result.",
                     "The service accepted the delete, so there is nothing further to do with this subscription.", carry);
@@ -140,21 +144,53 @@ public final class SubscriptionVerdicts {
                             + "could create a second subscription.", carry)
                     : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
                     "No usable answer came back. This is a finding about the environment, not about the subscription.", carry);
-            case UNREACHABLE -> new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
-                    "The service was not reached, so it received nothing. This is a finding about the environment, not about the "
-                            + "subscription.", carry);
+            // Not "it received nothing": a connection that never opened and one that failed after
+            // it opened are both reported as unreachable, and only the first delivered nothing.
+            case UNREACHABLE -> operation.write() && leftThisMachine(exchange)
+                    ? new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment. Send again only when the connection "
+                    + "never opened.", "No answer came back, and the verdict says how the connection failed. A connection that never "
+                    + "opened delivered nothing. One that failed after it opened may have delivered the request, so list the "
+                    + "subscriptions before sending again.", carry)
+                    : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                    "No answer came back. This is a finding about the environment, not about the subscription.", carry);
         };
+    }
+
+    /**
+     * The step when a subscription now exists with no url to call back. Sending the tester on to
+     * wait for a notification would be sending them to wait for something that cannot come. Where
+     * the fix lies depends on who wrote the body: the setting this tool reads its receiver from,
+     * or the body the tester supplied, which that setting never touches.
+     *
+     * @param done            "created" or "updated"
+     * @param callbackProblem why no url was named and what to do about it, said in the reason
+     */
+    private static NextStepView noReceiver(String done, String callbackProblem, boolean ownBody, Map<String, List<String>> carry) {
+        String reason = "The subscription was " + done + " without a url to call back, so no notification can reach this tool. "
+                + callbackProblem;
+        return ownBody
+                ? new NextStepView(NextAction.FIX_REQUEST, "Next: add channel.endpoint to the body you supplied, then update this "
+                + "subscription or create another. Until then, follow a request with an inquiry.", reason, carry)
+                : new NextStepView(NextAction.OPEN_CONFIG, "Next: set " + SubscriptionRequestBuilder.CALLBACK_PROPERTY + " to an address the "
+                + "service can reach, then update this subscription or create another. Until then, follow a request with an inquiry.",
+                reason, carry);
     }
 
     /**
      * True when a create, an update or a delete really left this machine and no usable answer came
      * back. The service may have applied it all the same. Never true on the mock profile, where
-     * nothing is sent, nor when the service was not reached.
+     * nothing is sent. An unreachable service is worded on its own, because whether anything was
+     * delivered then depends on how the connection failed.
      */
     private static boolean mayHaveBeenApplied(SubscriptionOutcome outcome, VendorExchange exchange, EpaOperation operation) {
         boolean noUsableAnswer = outcome == SubscriptionOutcome.TIMEOUT || outcome == SubscriptionOutcome.SERVICE_ERROR
                 || outcome == SubscriptionOutcome.MALFORMED_RESPONSE;
-        return operation.write() && noUsableAnswer && exchange.request() != null && exchange.request().sent();
+        return operation.write() && noUsableAnswer && leftThisMachine(exchange);
+    }
+
+    /** False on the mock profile and for a blocked write, where no attempt to reach the service was made. */
+    private static boolean leftThisMachine(VendorExchange exchange) {
+        return exchange.request() != null && exchange.request().sent();
     }
 
     /** The next step when the service answered with a 4xx status, which does not always mean the body is at fault. */

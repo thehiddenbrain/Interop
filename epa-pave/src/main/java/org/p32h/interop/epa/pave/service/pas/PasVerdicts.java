@@ -260,20 +260,32 @@ public final class PasVerdicts {
                             + "checking could create a second request.", carry)
                     : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
                     "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
-            case UNREACHABLE -> new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
-                    "The service was not reached, so it received nothing. This is a finding about the environment, not about the member "
-                            + "or the code.", carry);
+            // Not "it received nothing": a connection that never opened and one that failed after
+            // it opened are both reported as unreachable, and only the first delivered nothing.
+            case UNREACHABLE -> operation == EpaOperation.PAS_SUBMIT && leftThisMachine(exchange)
+                    ? new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment. Send again only when the connection "
+                    + "never opened.", "No answer came back, and the verdict says how the connection failed. A connection that never "
+                    + "opened delivered nothing. One that failed after it opened may have delivered the submission, so ask for its "
+                    + "status before sending again.", carry)
+                    : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                    "No answer came back. This is a finding about the environment, not about the member or the code.", carry);
         };
     }
 
     /**
      * True when a submission really left this machine and no usable answer came back. The payer
      * may hold the request all the same, which a tester must know before sending it a second time.
-     * Never true on the mock profile, where nothing is sent, nor when the service was not reached.
+     * Never true on the mock profile, where nothing is sent. An unreachable service is worded on
+     * its own, because whether anything was delivered then depends on how the connection failed.
      */
     private static boolean mayHaveBeenReceived(PasOutcome outcome, VendorExchange exchange, EpaOperation operation) {
         boolean noUsableAnswer = outcome == PasOutcome.TIMEOUT || outcome == PasOutcome.SERVICE_ERROR || outcome == PasOutcome.MALFORMED_RESPONSE;
-        return operation == EpaOperation.PAS_SUBMIT && noUsableAnswer && exchange.request() != null && exchange.request().sent();
+        return operation == EpaOperation.PAS_SUBMIT && noUsableAnswer && leftThisMachine(exchange);
+    }
+
+    /** False on the mock profile and for a blocked write, where no attempt to reach the service was made. */
+    private static boolean leftThisMachine(VendorExchange exchange) {
+        return exchange.request() != null && exchange.request().sent();
     }
 
     /**

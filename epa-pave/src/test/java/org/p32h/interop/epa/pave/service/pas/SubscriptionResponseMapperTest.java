@@ -282,6 +282,18 @@ class SubscriptionResponseMapperTest {
         expected.put("get|" + list(one), SubscriptionOutcome.LISTED);
         expected.put("get|" + outcome, SubscriptionOutcome.UNRECOGNISED_RESPONSE);
         expected.put("get|" + other, SubscriptionOutcome.UNRECOGNISED_RESPONSE);
+        // A success status beside a severity code that says the call failed is not a write that was done.
+        for (String severity : List.of("error", "fatal")) {
+            String failed = "{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"information\",\"code\":\"informational\"},"
+                    + "{\"severity\":\"" + severity + "\",\"code\":\"invalid\"}]}";
+            expected.put("create|" + failed, SubscriptionOutcome.UNRECOGNISED_RESPONSE);
+            expected.put("update|" + failed, SubscriptionOutcome.UNRECOGNISED_RESPONSE);
+            expected.put("delete|" + failed, SubscriptionOutcome.UNRECOGNISED_RESPONSE);
+        }
+        // A warning is a report on a call that went through, and the wording beside a code decides nothing.
+        String warned = "{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"warning\",\"code\":\"informational\","
+                + "\"diagnostics\":\"Placeholder: the request failed with an error.\"}]}";
+        expected.put("create|" + warned, SubscriptionOutcome.CREATED);
         Map<String, EpaOperation> operations = Map.of("create", EpaOperation.SUBSCRIPTION_CREATE, "update", EpaOperation.SUBSCRIPTION_UPDATE,
                 "delete", EpaOperation.SUBSCRIPTION_DELETE, "get", EpaOperation.SUBSCRIPTION_GET);
         expected.forEach((key, wanted) -> {
@@ -297,6 +309,13 @@ class SubscriptionResponseMapperTest {
         assertThat(unread.additionalFields()).containsExactly(new AdditionalField("error", Presence.VALUE, "\"placeholder gateway page\""));
         assertThat(read(EpaOperation.SUBSCRIPTION_DELETE, 204, null, ID).detail().responseNote())
                 .isEqualTo("The response has no body. For this call that is a normal answer.");
+        // The contradiction is said in so many words, and the issue that makes it is still rendered.
+        SubscriptionReading contradicted = read(EpaOperation.SUBSCRIPTION_CREATE, 200,
+                "{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"error\",\"code\":\"invalid\"}]}", null);
+        assertThat(contradicted.detail().responseNote()).isEqualTo("The service answered with a success status and with an OperationOutcome "
+                + "whose severity says the call failed. The two contradict each other, so whether the call was applied is not known.");
+        assertThat(contradicted.detail().issues()).singleElement().satisfies(issue -> assertThat(issue.code().value()).isEqualTo("invalid"));
+        assertThat(read(EpaOperation.SUBSCRIPTION_CREATE, 200, outcome, null).detail().responseNote()).isNull();
     }
 
     @Test
