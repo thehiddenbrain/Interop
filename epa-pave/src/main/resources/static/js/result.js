@@ -248,7 +248,7 @@ export function additionalFieldsTable(fields) {
     return table(['Path', 'Presence', 'Value as returned'], fields.map(field => [
         code(field.path),
         field.presence === 'VALUE' ? el('span', {class: 'quiet small'}, 'value') : presenceMark(field.presence),
-        field.presence === 'VALUE' && field.value !== undefined ? code(field.value) : null
+        field.value !== undefined && field.value !== null ? code(field.value) : null
     ]), {class: 'additional'});
 }
 
@@ -344,16 +344,16 @@ function bodyBlock(body, label, copyLabel) {
 // configuration, fix the test data, or report the environment. A kind this page does not know
 // is shown under its own name.
 const ERROR_KINDS = {
-    VALIDATION: {label: 'A problem with what was submitted. Nothing was sent.', form: 'plain'},
-    CONFIGURATION: {label: 'The tool is not configured to send this. Nothing was sent.', form: 'plain'},
-    BLOCKED: {label: 'Refused by the production guardrail. Nothing was sent.', form: 'blocked'},
-    VENDOR_REJECTED: {label: 'The service rejected the request.', form: 'fault'},
-    VENDOR_ERROR: {label: 'The service failed. A fault in the environment.', form: 'fault'},
-    TIMEOUT: {label: 'The service did not answer in time. A fault in the environment.', form: 'fault'},
-    UNREACHABLE: {label: 'The service could not be reached. A fault in the environment.', form: 'fault'},
-    MALFORMED_RESPONSE: {label: 'The service answered with something that could not be read.', form: 'fault'},
-    NOT_FOUND: {label: 'Not found in this tool.', form: 'plain'},
-    INTERNAL: {label: 'A failure of this tool, not of the service.', form: 'fault'}
+    VALIDATION: {label: 'A problem with what was submitted', form: 'plain'},
+    CONFIGURATION: {label: 'About the configuration of this tool, not about the request', form: 'plain'},
+    BLOCKED: {label: 'Refused by the production guardrail', form: 'blocked'},
+    VENDOR_REJECTED: {label: 'The service rejected the request', form: 'fault'},
+    VENDOR_ERROR: {label: 'A fault in the environment: the service failed', form: 'fault'},
+    TIMEOUT: {label: 'A fault in the environment: no answer in time', form: 'fault'},
+    UNREACHABLE: {label: 'A fault in the environment: the service could not be reached', form: 'fault'},
+    MALFORMED_RESPONSE: {label: 'A fault in the environment: the answer could not be read', form: 'fault'},
+    NOT_FOUND: {label: 'Not found in this tool', form: 'plain'},
+    INTERNAL: {label: 'A failure of this tool, not of the service', form: 'fault'}
 };
 
 /** The error panel, for the error of a run and for an error answered in place of a result. */
@@ -362,7 +362,7 @@ export function errorPanel(error) {
     const panel = el('div', {class: 'error-panel error-panel--' + (known ? known.form : 'plain') + ' error-panel--' + token(error.kind || 'none')});
     if (error.kind) {
         panel.append(el('p', {class: 'error-panel__kind'}, known ? known.label : ['Error kind ', code(error.kind)],
-            typeof error.httpStatus === 'number' ? [' The service answered HTTP ', el('strong', null, String(error.httpStatus)), '.'] : null));
+            typeof error.httpStatus === 'number' ? [', HTTP ', el('strong', null, String(error.httpStatus))] : null));
     }
     panel.append(el('p', {class: 'error-panel__title'}, error.title));
     if (error.action) {

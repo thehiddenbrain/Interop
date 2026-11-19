@@ -40,7 +40,8 @@ export function createCaseContext() {
     const codes = codeList(changed);
 
     const node = el('div', {class: 'case'},
-        el('fieldset', {class: 'case-group'}, el('legend', null, 'Member'), el('div', {class: 'field-grid'}, member.nodes)),
+        el('fieldset', {class: 'case-group'}, el('legend', null, 'Member'),
+            el('div', {class: 'field-grid field-grid--three'}, member.nodes)),
         el('fieldset', {class: 'case-group'}, el('legend', null, 'Ordering provider'),
             el('div', {class: 'field-grid field-grid--three'}, provider.nodes)),
         codes.node);

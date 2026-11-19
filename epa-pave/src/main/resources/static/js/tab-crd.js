@@ -32,16 +32,15 @@ function mount(target, application) {
     controls.hookSelect = el('input', {type: 'radio', name: 'crd-hook', id: 'crd-hook-select', value: 'order-select'});
     controls.date = textField({label: 'Date of service', field: 'dateOfService', placeholder: 'YYYY-MM-DD'});
     controls.scenarioSlot = el('div', {class: 'field--wide'});
-    controls.expected = selectField({label: 'Expected outcome', field: 'expected', wide: true,
-        hint: 'Optional. Without one the run is recorded as unverified.'});
+    controls.expected = selectField({label: 'Expected outcome (optional)', field: 'expected'});
     controls.assertions = el('div', {class: 'assertions'});
-    controls.expectedText = el('p', {class: 'small field--wide', id: 'crd-expected-sent'});
+    controls.expectedText = el('p', {class: 'small', id: 'crd-expected-sent'});
     controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
     controls.note = textField({label: 'Note', field: 'note', wide: true});
     controls.problem = el('div', {class: 'crd-problem'});
     controls.send = el('button', {type: 'submit', class: 'button button--primary'}, 'Send CRD request');
     controls.preview = button('Show the request', showPreview);
-    controls.discover = button('Discover services', discover);
+    controls.discover = button('Discover the CDS services this environment offers', discover, {class: 'button--text'});
 
     const form = el('form', {class: 'case-pane', noValidate: true, attrs: {'aria-label': 'The case and the CRD request'}},
         el('div', {class: 'case-pane__scroll'},
@@ -57,15 +56,18 @@ function mount(target, application) {
                     controls.date.node,
                     controls.testerRef.node,
                     controls.scenarioSlot,
-                    controls.expected.node,
-                    el('details', {class: 'fold field--wide'},
-                        el('summary', null, 'Assert standard codes as well'),
-                        controls.assertions),
-                    controls.expectedText,
-                    controls.note.node))),
+                    controls.note.node),
+                el('p', null, controls.discover))),
+        // What the tester expects is the last thing set before sending, so it sits with the
+        // button and is in view however far the case above it has been scrolled.
         el('div', {class: 'case-pane__actions'},
+            controls.expected.node,
+            el('details', {class: 'fold'},
+                el('summary', null, 'Assert standard codes as well'),
+                controls.assertions),
+            controls.expectedText,
             controls.problem,
-            el('div', {class: 'button-row'}, controls.send, controls.preview, controls.discover)));
+            el('div', {class: 'button-row'}, controls.send, controls.preview)));
     form.addEventListener('submit', event => {
         event.preventDefault();
         send();
@@ -274,7 +276,7 @@ async function send() {
     } else if (answer.kind === 'form') {
         // A form problem is marked at the fields. The result of the earlier run stays where it is.
         refuseForm(answer.body);
-        readout.status.textContent = 'Not sent. ' + answer.body.title;
+        readout.status.textContent = answer.body.title;
     } else {
         refused(answer);
     }
@@ -283,7 +285,7 @@ async function send() {
 /** An answer that is neither a result nor a form problem: the tool would not or could not do it. */
 function refused(answer) {
     fill(readout.refusal, errorPanel(answer.body));
-    readout.status.textContent = 'Not sent. ' + answer.body.title;
+    readout.status.textContent = answer.body.title;
     if (answer.kind === 'conflict') {
         // The usual cause is that the configuration changed under this screen. Reading the mode
         // again redraws every tab if it did, and then the tester can send again.
@@ -300,6 +302,8 @@ function showResult(envelope) {
     fill(readout.result, node);
     readout.result.closest('.readout').scrollTop = 0;
     readout.status.textContent = 'Result received. ' + envelope.verdict.headline + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
+    // A result has arrived under the configuration now in force, so a notice about the change has done its work.
+    app.clearNotices();
     app.ledgerReceipt(envelope.ledger);
     app.chain.onResult(envelope);
 }
@@ -335,7 +339,7 @@ async function showPreview() {
     setBusy(false, controls.preview);
     if (answer.kind === 'form') {
         refuseForm(answer.body);
-        readout.status.textContent = 'The request could not be built. ' + answer.body.title;
+        readout.status.textContent = answer.body.title;
         return;
     }
     if (answer.kind !== 'ok') {
@@ -454,8 +458,9 @@ function drawEmptyState() {
 /* ---------- when the configuration changes ---------- */
 
 function onConfigChange() {
+    // The request shown was built for the configuration that is gone. A refusal stays: it is
+    // usually the very answer that said the configuration had changed, and it says what to do.
     clear(readout.preview);
-    clear(readout.refusal);
     const result = readout.result.querySelector('.result');
     if (result && !result.querySelector('.result__stale')) {
         // The result stays, because the tester may still be reading it. It is marked, so it is

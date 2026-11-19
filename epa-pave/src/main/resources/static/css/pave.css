@@ -137,7 +137,7 @@ code, pre, .literal {
 
 .literal {
     color: var(--ink-strong);
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
 }
 
 .visually-hidden {
@@ -489,8 +489,13 @@ main {
 .field {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
     min-width: 0;
+}
+
+/* The ring of a focused field sits close to it, so it does not run into the label above. */
+.field input:focus-visible, .field select:focus-visible, .code-entry input:focus-visible {
+    outline-offset: 0;
 }
 
 .field > label, .field__label {
@@ -526,6 +531,7 @@ main {
 .field input::placeholder, .code-entry input::placeholder {
     color: var(--ink-soft);
     opacity: 1;
+    font-size: var(--text-small);
 }
 
 .field input[type="file"] {
@@ -547,6 +553,10 @@ main {
 .field--invalid input[type="file"], fieldset.field--invalid > div {
     outline: 3px solid var(--ink-strong);
     outline-offset: 2px;
+}
+
+.field-grid .field--invalid {
+    grid-column: 1 / -1;
 }
 
 .field__error {
@@ -993,7 +1003,24 @@ legend, .case-legend {
     vertical-align: top;
     padding: 5px 12px 5px 0;
     border-bottom: 1px solid var(--rule);
+    overflow-wrap: break-word;
+}
+
+/* Where a cell can hold text of any length with nowhere to break, the columns are fixed and the text breaks inside them. */
+.grid.additional, .grid.wire__headers {
+    table-layout: fixed;
+}
+
+.grid.additional td, .grid.wire__headers td, .grid.additional .literal, .grid.wire__headers .literal {
     overflow-wrap: anywhere;
+}
+
+.wire__headers th:first-child {
+    width: 34%;
+}
+
+.literal--id {
+    font-size: var(--text-small);
 }
 
 .grid th:last-child, .grid td:last-child {
@@ -1100,9 +1127,13 @@ legend, .case-legend {
     display: flex;
     flex-direction: column;
     gap: var(--gap-2);
-    padding: 10px var(--gap-5) 10px 0;
+    padding: 8px var(--gap-5) 12px 0;
     border-top: 1px solid var(--ink-strong);
     background: var(--white);
+}
+
+.case-pane__actions > :empty {
+    display: none;
 }
 
 .case, .case-slot {
@@ -1120,7 +1151,7 @@ legend, .case-legend {
 /* The line between the case, which every protocol tab shares, and what this tab adds to it. */
 .case-pane__own {
     padding-top: var(--gap-3);
-    border-top: 1px solid var(--ink-strong);
+    border-top: 1px solid var(--rule);
 }
 
 .field-grid {
@@ -1395,12 +1426,22 @@ legend, .case-legend {
     width: 16%;
 }
 
-.additional td:first-child {
+.additional th:first-child {
     width: 42%;
 }
 
-.additional td:nth-child(2) {
+.additional th:nth-child(2) {
     width: 12%;
+}
+
+/* A severity or an issue code is one word. It is never broken across two lines. */
+.issues td:nth-child(1), .issues td:nth-child(2) {
+    white-space: nowrap;
+    overflow-wrap: normal;
+}
+
+.issues td:nth-child(1) .literal, .issues td:nth-child(2) .literal {
+    overflow-wrap: normal;
 }
 
 .raw-body {
@@ -1597,38 +1638,44 @@ details.fold > :not(summary) {
 
 .chain-bar {
     display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(0, 1.2fr) auto;
+    grid-template-columns: minmax(0, 3fr) minmax(250px, 1fr);
     align-items: start;
     gap: var(--gap-5);
-    padding-top: 7px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--rule);
+    padding-top: 6px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--ink-strong);
+    font-size: var(--text-small);
 }
 
 .chain-bar__lead {
     grid-column: 1 / -1;
+    font-size: var(--text);
 }
 
 .chain-stages {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--gap-5);
+    gap: var(--gap-4);
     list-style: none;
     padding: 0;
 }
 
 .chain-stage {
-    display: flex;
-    flex-direction: column;
     min-width: 0;
-    padding-left: var(--gap-3);
+    padding-left: var(--gap-2);
     border-left: 1px solid var(--line);
-    font-size: var(--text-small);
 }
 
 .chain-stage__name {
-    font: 600 var(--text)/1.3 var(--font-display);
+    display: block;
+    font: 600 var(--text-small)/1.4 var(--font-display);
     color: var(--ink-strong);
+}
+
+.chain-bar__side {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
 /* The stage the journey calls for now is the one drawn heavy. */
@@ -1644,19 +1691,17 @@ details.fold > :not(summary) {
     color: var(--ink-soft);
 }
 
-.chain-bar__next {
-    display: flex;
-    flex-direction: column;
-    font-size: var(--text-small);
-}
-
 .chain-bar__next-label {
     color: var(--ink-soft);
 }
 
 .chain-bar__next-headline {
-    font: 600 var(--text)/1.3 var(--font-display);
+    font-weight: 600;
     color: var(--ink-strong);
+}
+
+.chain-runs {
+    min-width: 860px;
 }
 
 .chain-view {
@@ -1755,6 +1800,24 @@ details.fold > :not(summary) {
     font: 700 1.5rem/1.2 var(--font-display);
 }
 
+.suite-head__stop {
+    font-weight: 600;
+    color: var(--ink-strong);
+    padding-left: var(--gap-3);
+    border-left: 4px solid var(--ink-strong);
+}
+
+.facts-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 0 var(--gap-6);
+    align-items: start;
+}
+
+.suite-preview .grid td:nth-child(2) {
+    white-space: nowrap;
+}
+
 .suite-progress {
     display: flex;
     flex-wrap: wrap;
@@ -1807,12 +1870,73 @@ details.fold > :not(summary) {
     color: var(--white);
 }
 
-.suite-results {
-    min-width: 1080px;
+.suites {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-4);
+    padding-top: var(--gap-3);
 }
 
-.suite-results .literal--id {
-    font-size: var(--text-small);
+.suites__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: var(--gap-6);
+    padding-bottom: var(--gap-4);
+    border-bottom: 1px solid var(--ink-strong);
+}
+
+.suites__start, .suites__held {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    min-width: 0;
+}
+
+.suites__held {
+    padding-left: var(--gap-5);
+    border-left: 1px solid var(--rule);
+}
+
+.suites__controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.4fr);
+    gap: var(--gap-2) var(--gap-4);
+    align-items: start;
+}
+
+.suite-run {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-5);
+    padding-bottom: 48px;
+}
+
+/* The columns are fixed, so the table always fits the window and a long sentence wraps inside its own cell. */
+.suite-results {
+    table-layout: fixed;
+}
+
+.suite-results th:nth-child(1) { width: 3.5%; }
+.suite-results th:nth-child(2) { width: 8%; }
+.suite-results th:nth-child(3) { width: 9%; }
+.suite-results th:nth-child(4) { width: 13.5%; }
+.suite-results th:nth-child(5) { width: 17%; }
+.suite-results th:nth-child(6) { width: 9.5%; }
+.suite-results th:nth-child(7) { width: 7%; }
+.suite-results th:nth-child(8) { width: 11.5%; }
+
+.suite-results--compared th:nth-child(4) { width: 11.5%; }
+.suite-results--compared th:nth-child(5) { width: 14.5%; }
+.suite-results--compared th:nth-child(8) { width: 10.5%; }
+.suite-results--compared th:nth-child(9) { width: 13%; }
+
+.suite-run-id {
+    margin-top: 2px;
+}
+
+/* A case whose outcome or result differs from the run it is compared with. */
+.suite-row--changed > td:first-child {
+    border-left: 4px solid var(--ink-strong);
 }
 
 .suite-status--unsent {

@@ -124,8 +124,7 @@ async function poll(announceSame) {
         app.clearNotices();
     }
     if (changed && before) {
-        notice('The configuration changed. ' + environmentSentence(answer.body)
-            + ' Every tab now shows it. A result still on screen was produced before the change.');
+        notice('The configuration changed. ' + environmentSentence(answer.body) + ' Every tab now shows it.');
         for (const entry of state.mounted.values()) {
             if (entry.tab.onConfigChange) {
                 entry.tab.onConfigChange(answer.body, before);

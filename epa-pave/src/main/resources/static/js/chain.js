@@ -8,7 +8,7 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, facts, table, heading, copyButton, millis, when, token} from './dom.js';
-import {outcome, stamp, slowFlag} from './marks.js';
+import {outcome, stamp, slowFlag, toneMark} from './marks.js';
 import {errorPanel} from './result.js';
 
 const PROTOCOL_TABS = ['crd', 'dtr', 'pas'];
@@ -21,8 +21,7 @@ export function createChain(app, bar) {
     const follow = el('input', {type: 'checkbox', id: 'chain-follow'});
     const control = el('div', {class: 'case-group'},
         el('label', {class: 'choice', htmlFor: 'chain-follow'}, follow, 'Run as part of a chain'),
-        el('span', {class: 'field__hint'},
-            'A chain gives the journey of this case through CRD, DTR and PAS one id in the ledger. The first run starts it.'));
+        el('span', {class: 'field__hint'}, 'One id in the ledger for the journey of this case through CRD, DTR and PAS.'));
     follow.addEventListener('change', draw);
 
     async function refresh() {
@@ -59,11 +58,12 @@ export function createChain(app, bar) {
         fill(bar, el('div', {class: 'chain-bar'},
             el('ol', {class: 'chain-stages'}, (view.stages || []).map(stage => el('li', {class: 'chain-stage chain-stage--' + token(stage.state)},
                 el('span', {class: 'chain-stage__name'}, stage.name),
-                el('span', {class: 'chain-stage__state'}, stage.latest ? [outcome(stage.stateLine, stage.latest.tone)] : stage.stateLine)))),
-            el('div', {class: 'chain-bar__next'},
-                el('span', {class: 'chain-bar__next-label'}, 'Next step'),
-                el('span', {class: 'chain-bar__next-headline'}, view.nextHeadline || 'The latest run did not state one.')),
-            actions()));
+                el('span', {class: 'chain-stage__state'}, stage.latest ? [toneMark(stage.latest.tone), ' '] : null, stage.stateLine)))),
+            el('div', {class: 'chain-bar__side'},
+                el('p', {class: 'chain-bar__next'},
+                    el('span', {class: 'chain-bar__next-label'}, 'Next step '),
+                    el('span', {class: 'chain-bar__next-headline'}, view.nextHeadline || 'The latest run did not state one.')),
+                actions())));
     }
 
     function actions() {
@@ -160,15 +160,18 @@ function stageSection(stage) {
 }
 
 function runTable(runs) {
-    return table(['When', 'Ran', 'Outcome', 'Test result', {text: 'Elapsed', class: 'num'}, 'HTTP', 'Findings', 'Run'], runs.map(run => [
-        [when(run.timestamp), run.latestOfItsKind === false ? el('div', {class: 'small quiet'}, 'Run again since') : null],
-        [run.what, run.scenarioId ? el('div', {class: 'small quiet'}, 'scenario ', code(run.scenarioId)) : null],
-        [outcome(run.outcomeLabel, run.tone), run.expected ? el('div', {class: 'small quiet'}, 'expected ', code(run.expected)) : null],
-        stamp(run.result),
-        {class: 'num', node: [millis(run.elapsedMillis), run.slow ? [' ', slowFlag()] : null]},
-        run.httpStatus === undefined || run.httpStatus === null ? el('span', {class: 'presence presence--none'}, 'none') : String(run.httpStatus),
-        run.findings && run.findings.length > 0 ? el('ul', {class: 'plain-list'}, run.findings.map(kind => el('li', null, code(kind))))
-            : el('span', {class: 'quiet'}, 'none'),
-        code(run.runId)
-    ]), {class: 'chain-runs'});
+    const none = text => el('span', {class: 'presence presence--none'}, text);
+    return el('div', {class: 'table-scroll'}, table(
+        ['When', 'Ran', 'Outcome', 'Expected', 'Test result', {text: 'Elapsed', class: 'num'}, 'Findings', 'Run'], runs.map(run => [
+            [when(run.timestamp), run.latestOfItsKind === false ? el('div', {class: 'small'}, el('span', {class: 'flag'}, 'run again since')) : null],
+            [run.what, run.scenarioId ? el('div', {class: 'small quiet'}, 'scenario ', code(run.scenarioId)) : null],
+            [outcome(run.outcomeLabel, run.tone),
+                el('div', {class: 'small quiet'}, typeof run.httpStatus === 'number' ? 'HTTP ' + run.httpStatus : 'no HTTP status')],
+            run.expected ? code(run.expected) : none('nothing declared'),
+            stamp(run.result),
+            {class: 'num', node: [millis(run.elapsedMillis), run.slow ? [' ', slowFlag()] : null]},
+            run.findings && run.findings.length > 0 ? el('ul', {class: 'plain-list'}, run.findings.map(kind => el('li', null, code(kind))))
+                : el('span', {class: 'quiet'}, 'none'),
+            [code(run.runId, 'literal--id'), ' ', copyButton('Copy', () => run.runId)]
+        ]), {class: 'chain-runs'}));
 }

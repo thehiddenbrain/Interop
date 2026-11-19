@@ -107,7 +107,13 @@ export function markFieldErrors(roots, fieldErrors) {
         }
     }
     if (first) {
-        first.focus();
+        // The field is brought into view whole, label and message included, before it takes the
+        // focus. Focus alone would scroll only the input to the edge of the pane.
+        const field = first.closest('[data-field]');
+        if (field && field.scrollIntoView) {
+            field.scrollIntoView({block: 'center'});
+        }
+        first.focus({preventScroll: true});
     }
     return unplaced;
 }

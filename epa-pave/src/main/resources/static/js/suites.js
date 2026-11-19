@@ -54,23 +54,30 @@ export function createSuites(app) {
     const templateLink = el('a', {download: 'pave-suite-template.csv', href: '#'}, 'Download a suite file template (CSV)');
     const testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
     const compare = selectField({label: 'Compare with an earlier run', field: 'compareWith', options: [{value: '', label: 'No comparison'}],
-        hint: 'Each case then shows what it produced last time, and whether that changed.'});
+        hint: 'Each case then shows what it produced last time.'});
     const start = button('Run suite', startRun, {class: 'button--primary', disabled: true});
     const problem = el('div');
     const previewBox = el('div', {class: 'suite-preview', aria: {live: 'polite'}});
     const earlier = el('div', {class: 'suite-earlier'});
-    const runBox = el('div', {class: 'readout', role: 'region', tabIndex: 0, aria: {label: 'The suite run on screen'}});
+    const runBox = el('div', {class: 'suite-run'});
 
-    const form = el('div', {class: 'case-pane'}, el('div', {class: 'case-pane__scroll'},
-        el('div', {class: 'case-group'},
-            el('h2', {class: 'case-legend'}, 'Run a suite'),
+    // The results table needs the whole width of the window, so this view is one column: what to
+    // run and the runs the tool holds side by side at the top, the open run beneath them.
+    const form = el('div', {class: 'suites__start'},
+        el('h2', {class: 'case-legend'}, 'Run a suite'),
+        el('div', {class: 'suites__controls'},
             el('div', {class: 'field', dataset: {field: 'file'}},
-                el('label', {htmlFor: 'suite-file'}, 'Suite file, CSV or JSON'), file),
-            el('p', {class: 'small'}, templateLink),
-            previewBox),
-        el('div', {class: 'case-group'}, testerRef.node, compare.node, problem, el('div', {class: 'button-row'}, start)),
-        el('div', {class: 'case-group case-pane__own'}, el('h2', {class: 'case-legend'}, 'Suite runs the tool holds'), earlier)));
-    const node = el('div', {class: 'workbench'}, form, runBox);
+                el('label', {htmlFor: 'suite-file'}, 'Suite file, CSV or JSON'), file,
+                el('span', {class: 'small'}, templateLink)),
+            testerRef.node,
+            compare.node),
+        previewBox,
+        problem,
+        el('div', {class: 'button-row'}, start));
+    const node = el('div', {class: 'suites'},
+        el('div', {class: 'suites__top'}, form,
+            el('div', {class: 'suites__held'}, el('h2', {class: 'case-legend'}, 'Suite runs the tool holds'), earlier)),
+        runBox);
 
     templateLink.addEventListener('click', () => {
         // Made when asked for, from text held in this file. Nothing is fetched and nothing leaves the machine.
@@ -153,6 +160,7 @@ export function createSuites(app) {
         start.disabled = false;
         if (answer.kind === 'ok') {
             show(answer.body);
+            runBox.scrollIntoView({block: 'start'});
             loadEarlier();
             return;
         }
@@ -211,6 +219,9 @@ export function createSuites(app) {
         drawRun();
         if (run.counts.notRecorded > 0) {
             app.ledgerProblem('A suite run has runs the ledger did not keep.');
+        } else if (run.counts.done > 0) {
+            // The suite view carries no count of today's runs, so the indicator says recorded and no more.
+            app.ledgerReceipt({recorded: true});
         }
         if (run.state === 'RUNNING') {
             follow();
@@ -234,7 +245,7 @@ export function createSuites(app) {
         if (!run) {
             fill(runBox, el('div', {class: 'empty-state'},
                 el('p', {class: 'empty-state__lead'}, 'No suite run is open.'),
-                el('p', null, 'Choose a suite file on the left. The tool says what it would run and what is wrong with the file before anything is sent. '
+                el('p', null, 'Choose a suite file above. The tool says what it would run and what is wrong with the file before anything is sent. '
                     + 'Then choose "Run suite", or open one of the runs the tool still holds.')));
             return;
         }
@@ -251,18 +262,21 @@ export function createSuites(app) {
                 el('span', {class: 'suite-progress__count', role: 'status', aria: {live: 'polite'}},
                     count(counts.done) + ' of ' + count(counts.total) + ' cases done'),
                 running ? button('Stop suite', stop, {class: 'button--quiet'}) : null),
-            run.stopReason ? el('p', {class: 'notice'}, run.stopReason) : null);
+            run.stopReason ? el('p', {class: 'suite-head__stop'}, run.stopReason) : null);
 
-        const about = facts([
-            ['Suite run', [code(run.suiteRunId), ' ', copyButton('Copy suite run id', () => run.suiteRunId)]],
-            ['File', [run.name, run.format ? ' (' + run.format + ')' : null]],
-            ['Ran against', [environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment',
-                ', ', run.mode, ' profile, target ', run.target]],
-            ['Started', when(run.startedAt)],
-            ['Finished', run.finishedAt ? when(run.finishedAt) : (running ? 'still running' : null)],
-            ['Tester reference', run.testerRef || null],
-            ['Compared with', run.comparedWith ? code(run.comparedWith) : null]
-        ], 'facts--ruled');
+        const about = el('div', {class: 'facts-pair'},
+            facts([
+                ['Suite run', [code(run.suiteRunId), ' ', copyButton('Copy suite run id', () => run.suiteRunId)]],
+                ['File', [run.name, run.format ? ' (' + run.format + ')' : null]],
+                ['Ran against', [environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment',
+                    ', ', run.mode, ' profile, target ', run.target]]
+            ], 'facts--ruled'),
+            facts([
+                ['Started', when(run.startedAt)],
+                ['Finished', run.finishedAt ? when(run.finishedAt) : (running ? 'still running' : null)],
+                ['Tester reference', run.testerRef || el('span', {class: 'presence presence--none'}, 'none given')],
+                ['Compared with', run.comparedWith ? code(run.comparedWith) : null]
+            ], 'facts--ruled'));
 
         const notes = run.notes && run.notes.length > 0 ? el('ul', {class: 'note-list'}, run.notes.map(text => el('li', null, text))) : null;
 
@@ -299,16 +313,16 @@ export function createSuites(app) {
 
     function resultsSection(rows, total) {
         const compared = Boolean(run.comparedWith);
-        const headings = [{text: 'Row', class: 'num'}, 'Case', 'Runs', 'Expected', 'Outcome', 'Test result', {text: 'Elapsed', class: 'num'}, 'Findings', 'Status'];
+        const headings = [{text: 'Row', class: 'num'}, 'Case', 'Runs', 'Expected', 'Outcome', 'Test result', {text: 'Elapsed', class: 'num'}, 'Findings'];
         if (compared) {
             headings.push('Last time');
         }
-        headings.push('Run');
+        headings.push('Where the case stands, and its run');
         const body = rows.map(row => resultRow(row, compared));
         return el('section', {class: 'result__section'},
             heading(3, filter ? 'Results: ' + filter.label : 'Results', filter ? rows.length + ' of ' + total : total),
             rows.length === 0 ? el('p', {class: 'quiet'}, 'No case matches this count.')
-                : el('div', {class: 'table-scroll'}, el('table', {class: 'grid suite-results'},
+                : el('div', {class: 'table-scroll'}, el('table', {class: 'grid suite-results' + (compared ? ' suite-results--compared' : '')},
                     el('thead', null, el('tr', null, headings.map(item => typeof item === 'string'
                         ? el('th', {scope: 'col'}, item) : el('th', {scope: 'col', class: item.class}, item.text)))),
                     el('tbody', null, body))));
@@ -316,32 +330,47 @@ export function createSuites(app) {
 
     function resultRow(row, compared) {
         const none = text => el('span', {class: 'presence presence--none'}, text);
+        const sent = Boolean(row.outcome);
         const cells = [
             {class: 'num', node: String(row.row)},
             code(row.caseId),
             row.what || none('not stated'),
-            row.expected ? code(row.expected) : none('none declared'),
-            row.outcomeLabel ? outcome(row.outcomeLabel, row.tone) : none('no outcome'),
+            row.expected ? breakable(row.expected) : none('none declared'),
+            sent ? outcome(row.outcomeLabel || row.outcome, row.tone) : none('no outcome'),
             row.result ? stamp(row.result) : none('not compared'),
-            {class: 'num', node: typeof row.elapsedMillis === 'number' ? [millis(row.elapsedMillis), row.slow ? [' ', slowFlag()] : null] : none('no call')},
-            row.findings && row.findings.length > 0 ? el('ul', {class: 'plain-list'}, row.findings.map(kind => el('li', null, code(kind)))) : el('span', {class: 'quiet'}, 'none'),
-            [el('div', {class: row.status && row.status !== 'COMPLETED' ? 'suite-status suite-status--unsent' : 'suite-status'}, row.statusLine),
-                row.reason ? el('div', {class: 'small'}, row.reason) : null,
-                (row.notes || []).map(text => el('div', {class: 'small quiet'}, text)),
-                (row.notRecorded || []).map(text => el('div', {class: 'ledger--missing small'}, el('strong', null, 'NOT recorded. '), text))]
+            {class: 'num', node: typeof row.elapsedMillis === 'number' ? [millis(row.elapsedMillis), row.slow ? el('div', null, slowFlag()) : null] : none('no call')},
+            row.findings && row.findings.length > 0 ? el('ul', {class: 'plain-list'}, row.findings.map(kind => el('li', null, breakable(kind)))) : el('span', {class: 'quiet'}, 'none')
         ];
         if (compared) {
             cells.push(row.previousOutcome === undefined && row.previousResult === undefined
                 ? none('not in the earlier run')
-                : [row.previousOutcomeLabel || (row.previousOutcome ? code(row.previousOutcome) : none('no outcome')),
-                    row.previousResult ? [' ', stamp(row.previousResult)] : null,
+                : [row.previousOutcomeLabel || (row.previousOutcome ? breakable(row.previousOutcome) : none('no outcome')),
+                    row.previousResult ? el('div', null, stamp(row.previousResult)) : null,
                     row.changed === true ? el('div', null, el('span', {class: 'flag'}, 'changed')) : null]);
         }
+        // A row that was not sent says so here in the server's sentence, with the reason. It has no
+        // outcome and no test result, so it cannot be read as a failure.
         // Until the Runs view exists the run id is text to copy. Seam: make it a link to History, Runs, by run id.
-        cells.push(row.runIds && row.runIds.length > 0
-            ? el('ul', {class: 'plain-list'}, row.runIds.map(id => el('li', null, code(id, 'literal--id'), ' ', copyButton('Copy', () => id))))
-            : none('no run'));
+        cells.push([
+            el('div', {class: row.status && row.status !== 'COMPLETED' ? 'suite-status suite-status--unsent' : 'suite-status'}, row.statusLine),
+            row.reason ? el('div', null, row.reason) : null,
+            (row.notes || []).map(text => el('div', {class: 'small quiet'}, text)),
+            (row.notRecorded || []).map(text => el('div', {class: 'ledger--missing small'}, el('strong', null, 'NOT recorded. '), text)),
+            (row.runIds || []).map(id => el('div', {class: 'suite-run-id'}, code(id, 'literal--id'), ' ', copyButton('Copy', () => id)))
+        ]);
         return tableRow({cells, class: row.changed === true ? 'suite-row suite-row--changed' : 'suite-row'});
+    }
+
+    /** A code that may be broken after an underscore when its column is narrow. The text itself is unchanged. */
+    function breakable(text) {
+        const node = code('');
+        String(text).split('_').forEach((part, index, parts) => {
+            node.append(part + (index < parts.length - 1 ? '_' : ''));
+            if (index < parts.length - 1) {
+                node.append(el('wbr'));
+            }
+        });
+        return node;
     }
 
     /** The response times of the calls the service answered: the figures, and the ranges as plain bars. */
