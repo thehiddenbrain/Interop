@@ -180,6 +180,10 @@ public final class DtrVerdicts {
                 line.append(" The package arrived with answers for ").append(arrived).append(" of them.");
             }
         }
+        if (questionnaire.arrivedWith() != null && questionnaire.kind() == QuestionnaireKind.ADAPTIVE) {
+            // The guides have the first next-question call send the response the package carries, so the tester is told there is one.
+            line.append(" The package carries the response to start it from.");
+        }
         return line.toString();
     }
 

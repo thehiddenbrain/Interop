@@ -257,6 +257,10 @@ class DtrServiceTest {
         assertThat(adaptive.detail().questionnaires().get(0).kind()).isEqualTo(QuestionnaireKind.ADAPTIVE);
         assertThat(adaptive.verdict().supporting()).anySatisfy(line -> assertThat(line).startsWith("Lumbar spine MRI criteria, adaptive "
                 + "(placeholder): adaptive, because it carries the questionnaireAdaptive extension set to a url.")
+                .endsWith("It holds no questions of its own: the service asks them one step at a time. The package carries the response "
+                        + "to start it from."));
+        // A package that carries no such response does not say it does.
+        assertThat(fetch("P32H-DTR-LOOPERR").verdict().supporting()).anySatisfy(line -> assertThat(line)
                 .endsWith("It holds no questions of its own: the service asks them one step at a time."));
         assertThat(adaptive.nextStep().action()).isEqualTo(NextAction.ANSWER_NEXT_QUESTION);
         assertThat(adaptive.nextStep().headline()).isEqualTo("Next: start the adaptive questionnaire with next-question.");
@@ -1884,6 +1888,29 @@ class DtrServiceTest {
         assertThat(completed.at("/item/0/answer/0/valueString").asString()).isEqualTo("Medical genetics");
         assertThat(completed.at("/item/3/answer/0/valueCoding/code").asString()).isEqualTo("no");
         assertThat(answerSet(result.detail().form())).containsOnlyKeys("gen-1", "gen-2", "gen-3", "gen-4");
+        // Which coverage and order it is for stays as the payer wrote it, and nothing is added beside it.
+        assertThat(completed.get("extension")).hasSize(2).isEqualTo(JsonSafe.parse(fetched.detail().questionnaireResponses().get(0).json())
+                .node().get("extension"));
+        // The answers that arrived still say they were pre-populated, with no author. The one the tester gave says a person gave it.
+        for (int arrived = 0; arrived < 3; arrived++) {
+            assertThat(completed.at("/item/" + arrived + "/answer/0/extension/0/extension")).as("item " + arrived).hasSize(1);
+            assertThat(completed.at("/item/" + arrived + "/answer/0/extension/0/extension/0/valueCode").asString()).isEqualTo("auto");
+        }
+        assertThat(completed.at("/item/3/answer/0/extension/0/extension/0/valueCode").asString()).isEqualTo("manual");
+        assertThat(completed.at("/item/3/answer/0/extension/0/extension/1/extension/0/valueReference/reference").asString())
+                .isEqualTo("Practitioner/practitioner-1");
+        assertThat(result.detail().questionnaireResponses().get(0).items()).extracting(item -> item.origins().get(0).source().value())
+                .containsExactly("auto", "auto", "auto", "manual");
+
+        // The tester changes an answer that arrived pre-populated. It becomes an override, by a named person, and the others stay.
+        RunEnvelope<DtrDetail> changed = service().runResponse(responding(fetched, "P32H-DTR-PREPOP", DtrAnswerInput.of("gen-4", "no"),
+                DtrAnswerInput.of("gen-1", "Oncology")).questionnaireResponse(fetched.detail().questionnaireResponses().get(0).json()).build(),
+                RunOrigin.manual());
+        assertThat(changed.detail().questionnaireResponses().get(0).items()).extracting(item -> item.origins().get(0).source().value())
+                .containsExactly("override", "auto", "auto", "manual");
+        assertThat(changed.detail().questionnaireResponses().get(0).items().get(0).origins().get(0).author().value())
+                .isEqualTo("Practitioner/practitioner-1");
+        assertThat(changed.additionalFields()).isEmpty();
     }
 
     @Test

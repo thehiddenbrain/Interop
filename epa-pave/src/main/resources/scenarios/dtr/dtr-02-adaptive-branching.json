@@ -320,6 +320,20 @@
                     "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse-adapt"
                   ]
                 },
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-coverage",
+                    "valueReference": {
+                      "reference": "Coverage/coverage-1"
+                    }
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+                    "valueReference": {
+                      "reference": "ServiceRequest/service-request-1"
+                    }
+                  }
+                ],
                 "contained": [
                   {
                     "resourceType": "Questionnaire",
