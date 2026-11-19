@@ -77,8 +77,9 @@ public final class CrdOutcomeRules {
      * The outcome of the whole call.
      *
      * @param extensionOutcomes the outcome of each coverage information extension found, in order
+     * @param unansweredOrders  how many of the orders sent no answer is for
      */
-    public static CrdOutcome overall(VendorExchange exchange, List<CrdOutcome> extensionOutcomes) {
+    public static CrdOutcome overall(VendorExchange exchange, List<CrdOutcome> extensionOutcomes, int unansweredOrders) {
         OnyxFailureType failure = exchange.failureType();
         if (failure == OnyxFailureType.TIMEOUT) {
             return CrdOutcome.TIMEOUT;
@@ -108,7 +109,11 @@ public final class CrdOutcomeRules {
             return CrdOutcome.NO_DETERMINATION;
         }
         CrdOutcome first = extensionOutcomes.get(0);
-        // When services in one order get different answers, none of them is chosen to stand for the order.
-        return extensionOutcomes.stream().allMatch(first::equals) ? first : CrdOutcome.MIXED;
+        // When the codes in one order get different answers, none of them is chosen to stand for
+        // the order. A code that got no answer counts as exactly that, so an answer for one code
+        // can never be read as the answer for another that the service said nothing about.
+        boolean alike = extensionOutcomes.stream().allMatch(first::equals)
+                && (unansweredOrders == 0 || first == CrdOutcome.NO_DETERMINATION);
+        return alike ? first : CrdOutcome.MIXED;
     }
 }

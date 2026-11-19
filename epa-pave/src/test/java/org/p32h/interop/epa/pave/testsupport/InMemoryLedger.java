@@ -2,9 +2,11 @@ package org.p32h.interop.epa.pave.testsupport;
 
 import org.p32h.interop.epa.pave.model.LedgerHealth;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
+import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.service.RunLedger;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +16,9 @@ import java.util.Optional;
  *
  * <p>It applies no tracking policy: a draft is stored exactly as given, so a test can assert on
  * what a service handed to the ledger. The policy itself is tested against the real ledger.
+ *
+ * <p>A query applies every filter of {@link RunQuery}, as the real ledger does. A fake that
+ * returned everything would let a caller that queries under the wrong key pass its tests.
  */
 public final class InMemoryLedger implements RunLedger {
 
@@ -62,9 +67,52 @@ public final class InMemoryLedger implements RunLedger {
 
     @Override
     public List<RunRecord> query(RunQuery query) {
-        List<RunRecord> out = new ArrayList<>(records);
-        java.util.Collections.reverse(out);
-        return out;
+        List<RunRecord> out = new ArrayList<>();
+        for (int i = records.size() - 1; i >= 0; i--) {
+            RunRecord record = records.get(i);
+            if (accepts(query, record)) {
+                out.add(record);
+            }
+        }
+        int limit = query == null || query.limit() == null ? 0 : query.limit();
+        return limit > 0 && out.size() > limit ? new ArrayList<>(out.subList(0, limit)) : out;
+    }
+
+    private boolean accepts(RunQuery query, RunRecord record) {
+        if (query == null) {
+            return true;
+        }
+        LocalDate day = record.timestamp() == null || record.timestamp().length() < 10 ? null
+                : LocalDate.parse(record.timestamp().substring(0, 10));
+        if (query.from() != null && (day == null || day.isBefore(query.from()))) {
+            return false;
+        }
+        if (query.to() != null && (day == null || day.isAfter(query.to()))) {
+            return false;
+        }
+        if (query.protocol() != null && query.protocol() != record.protocol()) {
+            return false;
+        }
+        if (query.operation() != null && query.operation() != record.operation()) {
+            return false;
+        }
+        if (query.result() != null && query.result() != record.result()) {
+            return false;
+        }
+        if (query.outcome() != null && !query.outcome().equals(record.outcome())) {
+            return false;
+        }
+        if (query.chainId() != null && !query.chainId().equals(record.chainId())) {
+            return false;
+        }
+        if (query.suiteRunId() != null && !query.suiteRunId().equals(record.suiteRunId())) {
+            return false;
+        }
+        if (query.correlationKey() != null) {
+            String stored = record.correlation().get(query.correlationKey());
+            return stored != null && matches(stored, query.correlationValue());
+        }
+        return true;
     }
 
     @Override
@@ -88,5 +136,10 @@ public final class InMemoryLedger implements RunLedger {
     @Override
     public String tokenFor(String identifier) {
         return identifier;
+    }
+
+    @Override
+    public boolean matches(String stored, String identifier) {
+        return stored != null && identifier != null && MemberIds.noSpace(stored).equals(MemberIds.noSpace(identifier));
     }
 }

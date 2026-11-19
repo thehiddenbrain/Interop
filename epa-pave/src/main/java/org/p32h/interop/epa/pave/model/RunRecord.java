@@ -30,6 +30,8 @@ import java.util.Map;
  * @param memberId         the member ID in its no-space form
  * @param targetSource     where the url came from: the name of the collection request that was
  *                         used, or null when it came from the fallback layer or nothing is configured
+ * @param attachmentMode   for a PAS submission that carries supporting documentation, how it
+ *                         travelled: fhir or x12-275
  * @param correlation      identifiers that tie runs together, keyed by the CORR constants
  * @param findings         {@link FindingKind} names raised on this run
  * @param unrecordedInputs names of things this run sent that cannot be rebuilt from this line and
@@ -42,7 +44,7 @@ import java.util.Map;
 @JsonPropertyOrder({"recordType", "runId", "timestamp", "protocol", "operation", "target", "profile", "environment",
         "environmentKind", "scenarioId", "procedureCodes", "lineOfBusiness", "outcome", "coverageCodes",
         "delegatedVendor", "httpStatus", "elapsedMillis", "errorType", "expected", "result", "note", "testerRef",
-        "chainId", "suiteRunId", "caseId", "replayOfRunId", "hook", "targetSource", "memberId", "memberToken",
+        "chainId", "suiteRunId", "caseId", "replayOfRunId", "hook", "attachmentMode", "targetSource", "memberId", "memberToken",
         "memberIdLast4", "npi",
         "dateOfService", "correlation", "findings", "unrecordedInputs", "slow"})
 public record RunRecord(
@@ -73,6 +75,7 @@ public record RunRecord(
         @JsonInclude(JsonInclude.Include.NON_NULL) String caseId,
         @JsonInclude(JsonInclude.Include.NON_NULL) String replayOfRunId,
         @JsonInclude(JsonInclude.Include.NON_NULL) String hook,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String attachmentMode,
         @JsonInclude(JsonInclude.Include.NON_NULL) String targetSource,
         @JsonInclude(JsonInclude.Include.NON_NULL) String memberId,
         @JsonInclude(JsonInclude.Include.NON_NULL) String memberToken,
@@ -96,9 +99,16 @@ public record RunRecord(
     public static final String CORR_SUBSCRIPTION_ID = "subscriptionId";
     /** An authorization number the service returned. The ledger tokenises it when it tokenises member IDs. */
     public static final String CORR_AUTHORIZATION_REF = "authorizationRef";
-    /** The run a notification or an inquiry belongs to. */
+    /**
+     * The earlier run this one follows from: the submission for an inquiry or a notification, the
+     * package fetch for a later DTR step.
+     */
     public static final String CORR_RUN_ID = "correlatedRunId";
-    /** The canonical url of a questionnaire a run fetched or answered. */
+    /** The run that created the subscription a notification arrived on. */
+    public static final String CORR_SUBSCRIPTION_RUN_ID = "subscriptionRunId";
+    /** The id of the ClaimResponse a submission or an inquiry returned, which a notification may name. */
+    public static final String CORR_CLAIM_RESPONSE_ID = "claimResponseId";
+    /** The canonical url of each questionnaire a run fetched or answered. Several are joined with a space. */
     public static final String CORR_QUESTIONNAIRE = "questionnaire";
 
     /** The request body was loaded from a collection and edited by hand. It is not kept. */
@@ -113,6 +123,8 @@ public record RunRecord(
     public static final String INPUT_CHOSEN_REQUEST = "chosen-request";
     /** The run used something an earlier step produced, such as questionnaire answers, which the ledger does not hold. */
     public static final String INPUT_PRIOR_STEP = "prior-step";
+    /** The line records something that arrived, such as a notification, so there is nothing to send again. */
+    public static final String INPUT_INBOUND = "inbound";
 
     public RunRecord {
         // Boxed, not primitive, because Jackson 3 refuses to bind a missing property to a primitive
@@ -130,6 +142,15 @@ public record RunRecord(
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    /**
+     * Prints what identifies the run and nothing else. A draft holds the real member ID, the date
+     * of service and, for PAS, a real authorization number.
+     */
+    @Override
+    public String toString() {
+        return "RunRecord[" + runId + ", " + protocol + ", " + operation + ", " + outcome + "]";
     }
 
     public Builder toBuilder() {
@@ -160,6 +181,7 @@ public record RunRecord(
         b.caseId = caseId;
         b.replayOfRunId = replayOfRunId;
         b.hook = hook;
+        b.attachmentMode = attachmentMode;
         b.targetSource = targetSource;
         b.memberId = memberId;
         b.memberToken = memberToken;
@@ -200,6 +222,7 @@ public record RunRecord(
         private String caseId;
         private String replayOfRunId;
         private String hook;
+        private String attachmentMode;
         private String targetSource;
         private String memberId;
         private String memberToken;
@@ -356,6 +379,11 @@ public record RunRecord(
             return this;
         }
 
+        public Builder attachmentMode(String value) {
+            this.attachmentMode = value;
+            return this;
+        }
+
         public Builder targetSource(String value) {
             this.targetSource = value;
             return this;
@@ -417,7 +445,7 @@ public record RunRecord(
             return new RunRecord(TYPE_RUN, runId, timestamp, protocol, operation, target, profile, environment,
                     environmentKind, scenarioId, procedureCodes, lineOfBusiness, outcome, coverageCodes, delegatedVendor,
                     httpStatus, elapsedMillis, errorType, expected, result, note, testerRef, chainId, suiteRunId, caseId,
-                    replayOfRunId, hook, targetSource, memberId, memberToken, memberIdLast4, npi, dateOfService, correlation,
+                    replayOfRunId, hook, attachmentMode, targetSource, memberId, memberToken, memberIdLast4, npi, dateOfService, correlation,
                     findings, unrecordedInputs, slow);
         }
 

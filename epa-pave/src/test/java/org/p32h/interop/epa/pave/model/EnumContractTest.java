@@ -113,13 +113,40 @@ class EnumContractTest {
         assertThat(EpaOperation.SUBSCRIPTION_GET.fallbackPath()).isEqualTo("/Subscription/{id}");
         assertThat(EpaOperation.SUBSCRIPTION_UPDATE.fallbackPath()).isEqualTo("/Subscription/{id}");
         assertThat(EpaOperation.SUBSCRIPTION_DELETE.fallbackPath()).isEqualTo("/Subscription/{id}");
-        // A notification is inbound, so there is nowhere for the tool to send one.
+        // A notification is inbound, and a questionnaire response is completed inside the tool,
+        // so there is nowhere for the tool to send either.
         assertThat(EpaOperation.SUBSCRIPTION_NOTIFICATION.fallbackPath()).isNull();
+        assertThat(EpaOperation.DTR_RESPONSE.fallbackPath()).isNull();
         assertThat(EpaOperation.MEMBER_LOOKUP.fallbackPath()).isNull();
         assertThat(EpaOperation.PROVIDER_LOOKUP.fallbackPath()).isNull();
         assertThat(EpaOperation.UNMAPPED.fallbackPath()).isNull();
         // The service id is not known, so it is never a literal in a path.
         assertThat(EpaOperation.CRD_ORDER_SIGN.fallbackPath()).contains("{{");
+    }
+
+    @Test
+    void exactlyTwoOperationsNeverLeaveTheTool() {
+        for (EpaOperation operation : EpaOperation.values()) {
+            boolean stays = operation == EpaOperation.SUBSCRIPTION_NOTIFICATION || operation == EpaOperation.DTR_RESPONSE;
+            assertThat(operation.outbound()).as(operation.name()).isEqualTo(!stays);
+        }
+        assertThat(EpaOperation.DTR_RESPONSE.protocol()).isEqualTo(Protocol.DTR);
+        assertThat(EpaOperation.DTR_RESPONSE.write()).isFalse();
+    }
+
+    @Test
+    void anOperationThatNeverLeavesTheToolIsJudgedAsAWriteIfARequestIsEverPointedAtOne() {
+        // An operator can remap a vendor's sample request to anything. A request detected as a
+        // notification and sent as a POST must not pass as a read: nothing is known about what
+        // posting it to a vendor url would do.
+        for (EpaOperation operation : new EpaOperation[] {EpaOperation.SUBSCRIPTION_NOTIFICATION, EpaOperation.DTR_RESPONSE}) {
+            for (String method : new String[] {"POST", "PUT", "PATCH", "DELETE", "", null}) {
+                assertThat(operation.writesWith(method)).as(operation + " with " + method).isTrue();
+            }
+            for (String method : new String[] {"GET", "HEAD", "OPTIONS"}) {
+                assertThat(operation.writesWith(method)).as(operation + " with " + method).isFalse();
+            }
+        }
     }
 
     @Test

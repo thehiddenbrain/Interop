@@ -11,6 +11,8 @@ import org.p32h.interop.epa.pave.model.crd.CardLinkView;
 import org.p32h.interop.epa.pave.model.crd.CardView;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
+import org.p32h.interop.epa.pave.model.crd.CrdResponseKind;
+import org.p32h.interop.epa.pave.service.run.RunSupport;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -33,7 +35,13 @@ public final class CrdVerdicts {
     public static VerdictView verdict(CrdReading reading, VendorExchange exchange) {
         CrdOutcome outcome = reading.outcome();
         List<CoverageInformationView> coverage = reading.detail().coverageInformation();
+        boolean named = reading.several();
         List<String> supporting = new ArrayList<>();
+        // First, so a canned answer is never mistaken for an answer about the member and code on the form.
+        String scenario = RunSupport.scenarioLine(exchange);
+        if (scenario != null) {
+            supporting.add(scenario);
+        }
         // A switch expression with no default: adding an outcome without wording it here does not compile.
         String headline = switch (outcome) {
             case AUTH_REQUIRED -> "Prior authorization is required.";
@@ -42,7 +50,8 @@ public final class CrdVerdicts {
             case PERFORMER_AUTH -> "The performing provider must obtain prior authorization.";
             case DOCUMENTATION_REQUIRED -> {
                 for (CoverageInformationView view : coverage) {
-                    supporting.add("Prior authorization: " + (view.paNeeded().code() == null ? "not stated" : lower(view.paNeeded().display())) + ".");
+                    supporting.add(prefix(view, named) + "Prior authorization: "
+                            + (view.paNeeded().code() == null ? "not stated" : lower(view.paNeeded().display())) + ".");
                 }
                 yield "Documentation is required.";
             }
@@ -58,12 +67,12 @@ public final class CrdVerdicts {
                 supporting.add("This is a finding about the test data, not about the environment.");
                 yield "The service does not recognise this provider.";
             }
-            case AUTH_NOT_STATED -> "The service says the service is covered but does not say whether prior authorization is required.";
+            case AUTH_NOT_STATED -> "The payer says this is covered but does not say whether prior authorization is required.";
             case UNRECOGNISED_CODE -> {
                 for (CoverageInformationView view : coverage) {
                     for (CodedValue value : List.of(view.covered(), view.paNeeded(), view.docNeeded())) {
                         if (value.code() != null && !value.recognised()) {
-                            supporting.add(value.display() + ".");
+                            supporting.add(prefix(view, named) + value.display() + ".");
                         }
                     }
                 }
@@ -71,53 +80,68 @@ public final class CrdVerdicts {
             }
             case MIXED -> {
                 for (CoverageInformationView view : coverage) {
-                    supporting.add(Texts.orElse(view.appliesTo().orNull(), view.foundAt()) + ": " + lower(view.outcome().label()) + ".");
+                    // An answer that could not be tied to a requested code is said to be exactly that,
+                    // so nobody reads it as the answer for the code beside it.
+                    boolean untied = view.procedureCodes().isEmpty() && !reading.requestedCodes().isEmpty();
+                    supporting.add(view.subject() + ": " + lower(view.outcome().label()) + "."
+                            + (untied ? " This tool could not tie this answer to one of the codes that were asked about." : ""));
                 }
-                yield "The services in this order received different answers.";
+                for (String label : reading.unanswered()) {
+                    supporting.add(label + ": no answer was returned for this code. That is not an answer that prior "
+                            + "authorization is not required.");
+                }
+                yield "The codes in this order did not all receive the same answer.";
             }
             case NO_DETERMINATION -> {
                 supporting.add("This is not the same as an answer that prior authorization is not required. The service has said nothing either way.");
                 yield "The service answered but returned no determination.";
             }
-            case REJECTED -> "The service rejected the request" + status(exchange) + ".";
+            case REJECTED -> "The service did not accept the request as sent" + status(exchange) + ".";
             case SERVICE_ERROR -> "The service failed" + status(exchange) + ".";
             case TIMEOUT -> "The service did not answer in time.";
             case UNREACHABLE -> "The service could not be reached.";
-            case MALFORMED_RESPONSE -> "The service answered with a body that could not be read" + status(exchange) + ".";
+            case MALFORMED_RESPONSE -> reading.detail().responseKind() == CrdResponseKind.NO_BODY
+                    ? "The service answered with no body" + status(exchange) + "."
+                    : "The service answered with a body that could not be read" + status(exchange) + ".";
         };
         if (outcome.fault() && Texts.present(exchange.failureDetail())) {
             supporting.add(exchange.failureDetail());
         }
-        if (!outcome.fault() && outcome != CrdOutcome.MIXED) {
-            supporting.addAll(facets(coverage));
+        if (!outcome.fault()) {
+            if (named && outcome != CrdOutcome.MIXED) {
+                supporting.add("This is the answer for each of: "
+                        + String.join(", ", coverage.stream().map(CoverageInformationView::subject).distinct().toList()) + ".");
+            }
+            supporting.addAll(facets(coverage, named));
         }
         return VerdictView.of(outcome, headline, dedupe(supporting));
     }
 
     /** What the codes say beyond the headline: the vendor, the documentation, the information wanted. */
-    private static List<String> facets(List<CoverageInformationView> coverage) {
+    private static List<String> facets(List<CoverageInformationView> coverage, boolean named) {
         List<String> out = new ArrayList<>();
         for (CoverageInformationView view : coverage) {
+            String prefix = prefix(view, named);
             if (Texts.present(view.delegatedVendor())) {
-                out.add("It routes to the delegated vendor " + view.delegatedVendor() + ".");
+                out.add(prefix + "It routes to the delegated vendor " + view.delegatedVendor() + ".");
             }
             if (view.satisfiedPaId().hasValue()) {
-                out.add("Existing authorization: " + view.satisfiedPaId().value() + ".");
+                out.add(prefix + "Existing authorization: " + view.satisfiedPaId().value() + ".");
             }
-            if (view.docNeeded().code() != null && !view.docNeeded().is("no-doc")) {
+            if (wantsDocumentation(view)) {
                 StringBuilder sentence = new StringBuilder(view.docNeeded().display());
                 List<String> purposes = view.docPurpose().stream().filter(p -> p.code() != null).map(p -> lower(p.display())).toList();
                 if (!purposes.isEmpty()) {
                     sentence.append(": ").append(String.join(", ", purposes));
                 }
-                out.add(sentence + ".");
+                out.add(prefix + sentence + ".");
             }
             List<String> wanted = view.infoNeeded().stream().filter(i -> i.code() != null).map(i -> lower(i.display())).toList();
             if (!wanted.isEmpty()) {
-                out.add("The payer needs to know: " + String.join("; ", wanted) + ".");
+                out.add(prefix + "The payer needs to know: " + String.join("; ", wanted) + ".");
             }
             if (view.questionnaires().stream().anyMatch(Shown::hasValue)) {
-                out.add("A payer questionnaire is named for this service.");
+                out.add(prefix + "A payer questionnaire is named for this service.");
             }
         }
         return out;
@@ -127,30 +151,49 @@ public final class CrdVerdicts {
      * What the tester should do next, tied to what the response said. The chain uses this to offer
      * the next step, and to say when the journey ends, which is itself a finding worth recording.
      */
-    public static NextStepView nextStep(CrdReading reading) {
+    public static NextStepView nextStep(CrdReading reading, VendorExchange exchange) {
         CrdOutcome outcome = reading.outcome();
         List<CoverageInformationView> coverage = reading.detail().coverageInformation();
-        Map<String, String> carry = new LinkedHashMap<>();
-        String questionnaire = coverage.stream().flatMap(v -> v.questionnaires().stream()).filter(Shown::hasValue).map(Shown::value)
-                .findFirst().orElse(null);
+
+        // Everything the next step starts from. Nothing is reduced to its first value here: a
+        // response can name several questionnaires, and which one to open is the next step's choice.
+        List<String> questionnaires = new ArrayList<>();
+        List<String> assertionIds = new ArrayList<>();
+        List<String> orders = new ArrayList<>();
+        List<String> vendors = new ArrayList<>();
+        for (CoverageInformationView view : coverage) {
+            view.questionnaires().stream().filter(Shown::hasValue).map(Shown::value).forEach(q -> addOnce(questionnaires, q));
+            if (wantsDocumentation(view) || view.questionnaires().stream().anyMatch(Shown::hasValue)) {
+                // Only from the answers DTR is for, so the first value is the one DTR needs.
+                if (view.coverageAssertionId().hasValue()) {
+                    addOnce(assertionIds, view.coverageAssertionId().value());
+                }
+                if (view.appliesTo().hasValue()) {
+                    addOnce(orders, view.appliesTo().value());
+                }
+            }
+            if (Texts.present(view.delegatedVendor())) {
+                addOnce(vendors, view.delegatedVendor());
+            }
+        }
         CardLinkView dtrLink = reading.detail().cards().stream().map(CardView::links).flatMap(List::stream)
                 .filter(link -> "smart".equalsIgnoreCase(link.type().orNull())).findFirst().orElse(null);
-        if (questionnaire != null) {
-            carry.put("questionnaire", questionnaire);
-        }
+        Map<String, List<String>> carry = new LinkedHashMap<>();
+        carry.put(NextStepView.CARRY_PROCEDURE_CODES, reading.requestedCodes());
+        carry.put(NextStepView.CARRY_QUESTIONNAIRE, questionnaires);
+        carry.put(NextStepView.CARRY_COVERAGE_ASSERTION_ID, assertionIds);
+        carry.put(NextStepView.CARRY_ORDER, orders);
         if (dtrLink != null) {
-            if (dtrLink.url().hasValue()) {
-                carry.put("dtrLinkUrl", dtrLink.url().value());
-            }
-            if (dtrLink.appContext().hasValue()) {
-                carry.put("dtrAppContext", dtrLink.appContext().value());
-            }
+            // The first SMART link only, so the url and the appContext carried belong to one link.
+            carry.put(NextStepView.CARRY_DTR_LINK_URL, dtrLink.url().hasValue() ? List.of(dtrLink.url().value()) : List.of());
+            carry.put(NextStepView.CARRY_DTR_APP_CONTEXT,
+                    dtrLink.appContext().hasValue() ? List.of(dtrLink.appContext().value()) : List.of());
         }
-        if (Texts.present(reading.delegatedVendor())) {
-            carry.put("delegatedVendor", reading.delegatedVendor());
-        }
-        boolean documentationWanted = coverage.stream().anyMatch(v -> v.docNeeded().code() != null && !v.docNeeded().is("no-doc"));
-        boolean dtrOffered = questionnaire != null || dtrLink != null;
+        carry.put(NextStepView.CARRY_DELEGATED_VENDOR, vendors);
+
+        boolean documentationWanted = coverage.stream().anyMatch(CrdVerdicts::wantsDocumentation);
+        boolean dtrOffered = !questionnaires.isEmpty() || dtrLink != null;
+        String vendor = vendors.isEmpty() ? null : String.join(" and ", vendors);
 
         return switch (outcome) {
             case DOCUMENTATION_REQUIRED -> dtrOffered
@@ -162,8 +205,8 @@ public final class CrdVerdicts {
                     ? new NextStepView(NextAction.START_DTR, "Next: answer the payer's questionnaire in DTR.",
                     "Prior authorization is required and the response names a questionnaire or a DTR link.", carry)
                     : new NextStepView(NextAction.START_PAS, "Next: submit the prior authorization request in PAS.",
-                    Texts.present(reading.delegatedVendor())
-                            ? "Prior authorization is required and routes to " + reading.delegatedVendor() + "."
+                    vendor != null
+                            ? "Prior authorization is required and routes to " + vendor + "."
                             : "Prior authorization is required and no documentation is asked for first.", carry);
             case NO_AUTH_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
                     "The payer answered that prior authorization is not required, so there is nothing to submit.", carry);
@@ -182,16 +225,51 @@ public final class CrdVerdicts {
                     "The service does not recognise the member. The environment answered normally.", carry);
             case PROVIDER_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the NPI against the test data.",
                     "The service does not recognise the provider. The environment answered normally.", carry);
-            case REJECTED -> new NextStepView(NextAction.FIX_REQUEST, "Next: read the issues below and correct the request.",
-                    "The service refused the request as it was sent.", carry);
+            case REJECTED -> notAccepted(exchange, carry);
             case SERVICE_ERROR, TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> new NextStepView(NextAction.CHECK_ENVIRONMENT,
                     "Next: check the environment, then send again.",
                     "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
             case NO_DETERMINATION, AUTH_NOT_STATED, UNRECOGNISED_CODE, MIXED -> new NextStepView(NextAction.REVIEW,
                     "Next: read the response detail below. This tool cannot say what should happen next.",
-                    outcome == CrdOutcome.MIXED ? "The services in the order got different answers, so each needs its own next step."
+                    outcome == CrdOutcome.MIXED ? "The codes in this order did not all receive the same answer, so each needs its own next step."
                             : "The response does not carry an authorization answer this tool can act on.", carry);
         };
+    }
+
+    /**
+     * The next step when the service answered with a 4xx status. The body is not always at fault:
+     * the same outcome covers credentials that were not accepted and an address that does not
+     * exist, and sending the tester to correct the request for either would waste their time.
+     */
+    private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry) {
+        int status = exchange.httpStatus() == null ? 0 : exchange.httpStatus();
+        if (status == 401 || status == 403) {
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials on the Config tab.",
+                    "The service answered HTTP " + status + ", which means it did not accept the credentials this tool sent, or none "
+                            + "were sent. The request itself may be fine.", carry);
+        }
+        if (status == 404) {
+            return new NextStepView(NextAction.OPEN_CONFIG,
+                    "Next: check the CRD url and the service id on the Config tab. Discovery lists the services this environment offers.",
+                    "The service answered HTTP 404 and did not say the member or the provider is unknown, so the address is the "
+                            + "likely cause.", carry);
+        }
+        return new NextStepView(NextAction.FIX_REQUEST, "Next: read the issues below and correct the request.",
+                "The service did not accept the request as it was sent.", carry);
+    }
+
+    static boolean wantsDocumentation(CoverageInformationView view) {
+        return view.docNeeded().code() != null && !view.docNeeded().is("no-doc");
+    }
+
+    private static String prefix(CoverageInformationView view, boolean named) {
+        return named ? view.subject() + ": " : "";
+    }
+
+    private static void addOnce(List<String> values, String value) {
+        if (!values.contains(value)) {
+            values.add(value);
+        }
     }
 
     private static String status(VendorExchange exchange) {

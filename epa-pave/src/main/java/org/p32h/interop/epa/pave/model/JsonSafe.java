@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.MissingNode;
@@ -20,33 +21,52 @@ import tools.jackson.databind.node.MissingNode;
 public final class JsonSafe {
 
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
+    private static final JsonMapper NO_REPEATED_KEYS = JsonMapper.builder().enable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).build();
 
     private JsonSafe() {
     }
 
-    /** The result of parsing text that may not be JSON at all. Exactly one of node and error is set. */
-    public record Parsed(JsonNode node, String error) {
+    /**
+     * The result of parsing text that may not be JSON at all. Exactly one of node and error is set.
+     *
+     * @param repeatedKeys true when an object in the text carries the same key more than once. The
+     *                     node then holds only the last value of that key, so the caller should say so
+     */
+    public record Parsed(JsonNode node, String error, boolean repeatedKeys) {
 
         public boolean ok() {
             return node != null;
         }
     }
 
-    /** Parses text without throwing. Blank text is reported as an error, not as an empty document. */
+    /**
+     * Parses text without throwing. Blank text is reported as an error, not as an empty document.
+     * One leading byte order mark is skipped: a file or a response saved as UTF-8 with a mark is
+     * valid JSON to the person who saved it, and rejecting it at line 1 column 1 explains nothing.
+     */
     public static Parsed parse(String text) {
+        if (text != null && !text.isEmpty() && text.charAt(0) == '\uFEFF') {
+            text = text.substring(1);
+        }
         if (Texts.blank(text)) {
-            return new Parsed(null, "The body is empty.");
+            return new Parsed(null, "The body is empty.", false);
         }
         try {
             JsonNode node = MAPPER.readTree(text);
             if (node == null || node.isMissingNode()) {
-                return new Parsed(null, "The body is empty.");
+                return new Parsed(null, "The body is empty.", false);
             }
-            return new Parsed(node, null);
+            boolean repeated = false;
+            try {
+                NO_REPEATED_KEYS.readTree(text);
+            } catch (JacksonException duplicate) {
+                repeated = true;
+            }
+            return new Parsed(node, null, repeated);
         } catch (JacksonException e) {
             // The original message can quote the source text, which may be member data. Only the
             // position is kept.
-            return new Parsed(null, "The body is not valid JSON" + position(e) + ".");
+            return new Parsed(null, "The body is not valid JSON" + position(e) + ".", false);
         }
     }
 

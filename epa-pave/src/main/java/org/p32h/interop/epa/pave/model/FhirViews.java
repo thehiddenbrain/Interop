@@ -25,7 +25,8 @@ public final class FhirViews {
         String system = coding.presentText("system");
         String code = coding.presentText("code");
         String display = coding.presentText("display");
-        String coded = code == null ? null : (system == null ? code : system + "|" + code);
+        // Every part that was read is printed. A system with no code is still shown, as "system|".
+        String coded = system == null ? code : system + "|" + (code == null ? "" : code);
         String text = display != null && coded != null ? display + " (" + coded + ")" : Texts.firstPresent(display, coded);
         return text == null ? Shown.empty() : Shown.of(text);
     }

@@ -16,6 +16,19 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AdditionalField(String path, Presence presence, String value) {
 
+    /**
+     * A body that could not be parsed at all, shown as received. Without this the raw text would sit
+     * only in the wire view, which is collapsed by default.
+     */
+    public static AdditionalField unparsedBody(String raw) {
+        return new AdditionalField("(body, not JSON)", Presence.VALUE, raw);
+    }
+
+    /** Something a tester should know about the body as a whole, such as a key that appears twice. */
+    public static AdditionalField bodyNote(String message) {
+        return new AdditionalField("(body)", Presence.VALUE, message);
+    }
+
     /** Prints the path and presence, never the value, which can be member data. */
     @Override
     public String toString() {

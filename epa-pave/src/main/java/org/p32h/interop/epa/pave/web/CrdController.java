@@ -7,12 +7,14 @@ import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.ScenarioSummary;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
 import org.p32h.interop.epa.pave.service.crd.CrdDiscovery;
-import org.p32h.interop.epa.pave.service.crd.CrdPreview;
 import org.p32h.interop.epa.pave.service.crd.CrdRunRequest;
 import org.p32h.interop.epa.pave.service.crd.CrdService;
+import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.scenario.Scenario;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,6 +23,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 /**
  * The CRD endpoints. A completed call answers 200 even when the service returned a fault, because
  * the tester needs to see the request that caused it: the fault is described in the body.
+ *
+ * <p>The session's production unlock is read here and handed to the service. It is never a
+ * request parameter or part of the posted body, so nothing a browser sends can stand in for it.
  */
 @RequestMapping("/api/crd")
 public class CrdController {
@@ -46,13 +51,13 @@ public class CrdController {
     }
 
     @PostMapping
-    public RunEnvelope<CrdDetail> run(@RequestBody CrdRunRequest request) {
-        return service.run(request, RunOrigin.manual());
+    public ResponseEntity<RunEnvelope<CrdDetail>> run(@RequestBody CrdRunRequest request, HttpServletRequest http) {
+        return RunResponses.of(service.run(request, RunOrigin.manual(), SessionUnlock.from(http)));
     }
 
     @PostMapping("/preview")
-    public CrdPreview preview(@RequestBody CrdRunRequest request) {
-        return service.preview(request);
+    public RequestPreview preview(@RequestBody CrdRunRequest request, HttpServletRequest http) {
+        return service.preview(request, SessionUnlock.from(http));
     }
 
     @GetMapping("/discover")

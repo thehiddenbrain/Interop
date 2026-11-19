@@ -112,7 +112,7 @@ class RunRecordTest {
         RunRecord record = minimal().target("onyx").profile("mock").environment("E", EnvironmentKind.UAT).scenarioId("s")
                 .procedureCodes(List.of("1")).lineOfBusiness("Commercial").coverageCodes(List.of("a=b")).delegatedVendor("Evolent")
                 .httpStatus(200).elapsedMillis(7).errorType(OnyxFailureType.TIMEOUT).expected("x").note("n").testerRef("t")
-                .chainId("c").suiteRunId("su").caseId("ca").replayOfRunId("r").hook("order-sign")
+                .chainId("c").suiteRunId("su").caseId("ca").replayOfRunId("r").hook("order-sign").attachmentMode("x12-275")
                 .targetSource("order-sign Happy Path").memberId("S123456789")
                 .memberToken("tok").memberIdLast4("6789").npi("1234567893").dateOfService("2026-02-01")
                 .correlation(Map.of("k", "v")).findings(List.of("SLOW_RESPONSE"))

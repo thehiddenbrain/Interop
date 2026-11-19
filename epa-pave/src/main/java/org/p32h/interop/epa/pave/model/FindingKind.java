@@ -12,6 +12,13 @@ public enum FindingKind {
     CODE_LIST_DISAGREES_ON_AUTH,
     /** The procedure code list and the service disagree on the delegated vendor. */
     CODE_LIST_DISAGREES_ON_VENDOR,
+    /**
+     * The code list could not be compared with the service for a code, and the finding says why.
+     * Without this, a result with no disagreement would read as agreement when nothing was compared.
+     */
+    CODE_LIST_NOT_COMPARED,
+    /** A notification arrived that matches no subscription this tool knows of. It is recorded and shown, never dropped. */
+    UNMATCHED_NOTIFICATION,
     /** The call completed but took longer than the configured threshold. */
     SLOW_RESPONSE,
     /**

@@ -38,9 +38,11 @@ public interface OperationGateway {
      *   <li>For CDS Hooks discovery with none of the above: the url of a mapped CRD hook request cut
      *       at {@code /cds-services}.</li>
      * </ol>
-     * {@code SUBSCRIPTION_NOTIFICATION} has no outbound target. Asking for one is a programming
-     * error and throws {@link IllegalArgumentException}: a sample notification is delivered to this
-     * tool's own receiver and nowhere else.
+     * An operation that is not
+     * {@linkplain org.p32h.interop.epa.pave.model.EpaOperation#outbound() outbound} has no target.
+     * Asking for one is a programming error and throws {@link IllegalArgumentException}: a sample
+     * notification is delivered to this tool's own receiver and nowhere else, and a questionnaire
+     * response completed in the tool is sent nowhere at all.
      *
      * <h4>The method</h4>
      * The method of the collection request, or the operation's default for a fallback target.
@@ -55,6 +57,17 @@ public interface OperationGateway {
      * unresolved placeholder, with one exception: {@code SUBSCRIPTION_GET} from the fallback layer
      * with no {@code id} drops the trailing segment and lists subscriptions. The template keeps the
      * token; the display and send forms hold the substituted url.
+     *
+     * <p><b>A url value that was supplied is never ignored.</b> If the chosen url has no token for
+     * it, the call is refused with {@link BadInputException}, because sending it would address
+     * something other than what the caller named. One case is bridged, since a vendor collection
+     * usually writes the subscription id as a placeholder: for {@code SUBSCRIPTION_GET},
+     * {@code SUBSCRIPTION_UPDATE} and {@code SUBSCRIPTION_DELETE}, when {@code id} is supplied and
+     * the url has no {@code {id}} or {@code :id} token, the id is bound to the
+     * {@code {{placeholder}}} that forms the path segment after {@code Subscription/}, ahead of
+     * every other layer. If that segment is a literal other than the id, the call is refused with
+     * {@link BadInputException} naming both. A stale id left in an uploaded environment can
+     * therefore never redirect a delete to another subscription.
      *
      * <h4>The guardrail</h4>
      * The same on both profiles. The call is a write when any of these is a write for the method

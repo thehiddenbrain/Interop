@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.crd;
 
+import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.p32h.interop.epa.pave.client.crd.OnyxCrdConventions;
 import org.p32h.interop.epa.pave.model.AdditionalField;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
@@ -23,7 +24,6 @@ import org.p32h.interop.epa.pave.model.crd.CrdResponseKind;
 import org.p32h.interop.epa.pave.model.crd.SubExtensionView;
 import org.p32h.interop.epa.pave.model.crd.SuggestionView;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -40,15 +40,42 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>The same reading is applied to a success, a 400, a 500 and an OperationOutcome. A fault
  * response is not reduced to its status: it often carries the most useful detail of a session.
+ *
+ * <p>A response answers orders, and the tester asked about procedure codes. Each answer is tied to
+ * the requested codes it is for, from what the request carried, and a requested code that no
+ * answer is tied to is reported as unanswered. Nothing is tied by assumption: see {@link #attribute}.
  */
 public final class CrdResponseMapper {
 
+    /** One coverage information extension as found, before it is tied to a requested code. */
+    private static final class Found {
+        private final CoverageInformationView view;
+        /** The codes on the resource the extension sat on, when the response echoed them. */
+        private final List<String> echoedCodes;
+
+        private Found(CoverageInformationView view, List<String> echoedCodes) {
+            this.view = view;
+            this.echoedCodes = echoedCodes;
+        }
+    }
+
+    /** Reads a response to a request whose orders are not known. No code is then said to be unanswered. */
     public CrdReading read(VendorExchange exchange) {
+        return read(exchange, List.of());
+    }
+
+    /**
+     * @param sentOrders the orders the request carried, in the order sent. Empty when they are not known
+     */
+    public CrdReading read(VendorExchange exchange, List<SentOrder> sentOrders) {
+        List<SentOrder> orders = sentOrders == null ? List.of() : List.copyOf(sentOrders);
         List<CardView> cards = new ArrayList<>();
         List<ActionView> systemActions = new ArrayList<>();
-        List<CoverageInformationView> coverage = new ArrayList<>();
+        List<Found> found = new ArrayList<>();
         List<IssueView> issues = List.of();
-        List<AdditionalField> additional = List.of();
+        // The body as received when it could not be parsed, and anything worth knowing about the
+        // body as a whole, come first so they are not lost below a long list.
+        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
         Presence cardsPresence = Presence.ABSENT;
         Presence actionsPresence = Presence.ABSENT;
         CrdResponseKind kind;
@@ -64,8 +91,8 @@ public final class CrdResponseMapper {
                 note = "The response has no body.";
             } else {
                 kind = CrdResponseKind.NOT_JSON;
-                note = "The body could not be read as JSON, so it is shown exactly as received in the wire view. "
-                        + Texts.orElse(exchange.parseError(), "");
+                note = ("The body could not be read as JSON. It is shown exactly as received under the fields that were returned "
+                        + "but not interpreted, and in the wire view. " + Texts.orElse(exchange.parseError(), "")).strip();
             }
         } else {
             TrackedJson tracked = TrackedJson.of(json);
@@ -76,19 +103,23 @@ public final class CrdResponseMapper {
                 issues = OperationOutcomes.issues(root);
             } else if (root.isObject()) {
                 kind = CrdResponseKind.CDS_HOOKS;
-                cardsPresence = root.presence("cards");
+                TrackedJson.Node cardsNode = root.child("cards");
+                cardsPresence = cardsNode.presence();
+                statedByTheView(cardsNode);
                 int index = 0;
-                for (TrackedJson.Node card : root.children("cards")) {
+                for (TrackedJson.Node card : cardsNode.elements()) {
                     if (card.isObject()) {
-                        cards.add(card(card, index, coverage));
+                        cards.add(card(card, index, found));
                     }
                     index++;
                 }
-                actionsPresence = root.presence("systemActions");
+                TrackedJson.Node actionsNode = root.child("systemActions");
+                actionsPresence = actionsNode.presence();
+                statedByTheView(actionsNode);
                 index = 0;
-                for (TrackedJson.Node action : root.children("systemActions")) {
+                for (TrackedJson.Node action : actionsNode.elements()) {
                     if (action.isObject()) {
-                        systemActions.add(action(action, "systemActions[" + index + "]", coverage));
+                        systemActions.add(action(action, "systemActions[" + index + "]", found));
                     }
                     index++;
                 }
@@ -96,47 +127,133 @@ public final class CrdResponseMapper {
                 kind = CrdResponseKind.OTHER_JSON;
                 note = "The body is JSON but is not an object, so none of it could be interpreted. All of it is listed below.";
             }
-            additional = tracked.unconsumed();
+            additional.addAll(tracked.unconsumed());
         }
 
-        Map<String, List<String>> codes = new LinkedHashMap<>();
+        List<CoverageInformationView> coverage = new ArrayList<>();
+        boolean[] answered = new boolean[orders.size()];
+        for (Found one : found) {
+            List<String> codes = new ArrayList<>();
+            List<String> labels = new ArrayList<>();
+            for (int index : attribute(one, orders)) {
+                answered[index] = true;
+                SentOrder order = orders.get(index);
+                if (Texts.present(order.code()) && !codes.contains(order.code())) {
+                    codes.add(order.code());
+                }
+                if (!labels.contains(order.label())) {
+                    labels.add(order.label());
+                }
+            }
+            String subject = labels.isEmpty() ? Texts.orElse(one.view.appliesTo().orNull(), one.view.foundAt())
+                    : String.join(", ", labels);
+            coverage.add(one.view.attributedTo(codes, subject));
+        }
+        // Only a response that answered something can leave an order unanswered. One that carries
+        // no coverage information at all, or is a fault, has its own outcome for the whole call.
+        List<String> unanswered = new ArrayList<>();
+        if (!coverage.isEmpty()) {
+            for (int i = 0; i < orders.size(); i++) {
+                if (!answered[i]) {
+                    unanswered.add(orders.get(i).label());
+                }
+            }
+        }
+
         Set<String> vendors = new LinkedHashSet<>();
         List<CrdOutcome> outcomes = new ArrayList<>();
         for (CoverageInformationView view : coverage) {
             outcomes.add(view.outcome());
-            addCode(codes, CrdCodes.COVERED, view.covered());
-            addCode(codes, CrdCodes.PA_NEEDED, view.paNeeded());
-            addCode(codes, CrdCodes.DOC_NEEDED, view.docNeeded());
-            view.docPurpose().forEach(value -> addCode(codes, CrdCodes.DOC_PURPOSE, value));
-            view.infoNeeded().forEach(value -> addCode(codes, CrdCodes.INFO_NEEDED, value));
-            if (view.satisfiedPaId().hasValue()) {
-                add(codes, CrdCodes.SATISFIED_PA_ID, view.satisfiedPaId().value());
-            }
             if (Texts.present(view.delegatedVendor())) {
                 vendors.add(view.delegatedVendor());
-                add(codes, CrdCodes.DELEGATED_VENDOR, view.delegatedVendor());
+            }
+        }
+        List<String> requested = new ArrayList<>();
+        for (SentOrder order : orders) {
+            if (Texts.present(order.code()) && !requested.contains(order.code())) {
+                requested.add(order.code());
             }
         }
         CrdDetail detail = new CrdDetail(kind, note, cardsPresence, cards, actionsPresence, systemActions, coverage, issues,
                 List.of(), true);
-        return new CrdReading(detail, CrdOutcomeRules.overall(exchange, outcomes), codes,
+        return new CrdReading(detail, CrdOutcomeRules.overall(exchange, outcomes, unanswered.size()), requested, unanswered,
                 vendors.isEmpty() ? null : String.join("; ", vendors), additional);
     }
 
-    private static void addCode(Map<String, List<String>> codes, String element, CodedValue value) {
-        if (value != null && Texts.present(value.code())) {
-            add(codes, element, value.code());
+    /**
+     * Which of the orders sent an answer is for, as positions in the list. Three things can say so,
+     * tried in this order, and nothing else is taken as evidence:
+     * <ol>
+     *   <li>the answer sits on a resource whose reference is the reference of an order sent</li>
+     *   <li>that resource carries a code that is the code of an order sent, which covers a service
+     *       that gives resources its own ids</li>
+     *   <li>the answer sits on no resource at all and exactly one order was sent, so there is
+     *       nothing else it could be about</li>
+     * </ol>
+     * An answer on a resource that names some other order or some other code is for none of them.
+     * It is still shown, under the name of the resource it applies to.
+     */
+    private static List<Integer> attribute(Found found, List<SentOrder> orders) {
+        List<Integer> out = new ArrayList<>();
+        if (orders.isEmpty()) {
+            return out;
+        }
+        String appliesTo = found.view.appliesTo().orNull();
+        if (Texts.present(appliesTo)) {
+            for (int i = 0; i < orders.size(); i++) {
+                if (sameResource(appliesTo, orders.get(i).reference())) {
+                    out.add(i);
+                }
+            }
+            if (!out.isEmpty()) {
+                return out;
+            }
+        }
+        if (!found.echoedCodes.isEmpty()) {
+            for (int i = 0; i < orders.size(); i++) {
+                String code = orders.get(i).code();
+                if (code != null && found.echoedCodes.stream().anyMatch(code::equalsIgnoreCase)) {
+                    out.add(i);
+                }
+            }
+            return out;
+        }
+        if (Texts.blank(appliesTo) && orders.size() == 1) {
+            out.add(0);
+        }
+        return out;
+    }
+
+    /** True when two references name one resource. One written without its type matches on the id alone. */
+    private static boolean sameResource(String one, String other) {
+        if (Texts.blank(one) || Texts.blank(other)) {
+            return false;
+        }
+        if (one.equals(other)) {
+            return true;
+        }
+        boolean oneTyped = one.contains("/");
+        boolean otherTyped = other.contains("/");
+        if (oneTyped == otherTyped) {
+            return false;
+        }
+        String typed = oneTyped ? one : other;
+        String bare = oneTyped ? other : one;
+        return typed.substring(typed.lastIndexOf('/') + 1).equals(bare);
+    }
+
+    /**
+     * The view says for itself whether these two arrays were absent, null or empty, so a null or an
+     * empty one is not listed a second time among the fields nobody interpreted. Anything else in
+     * that place, such as a string where the array should be, is left to be listed.
+     */
+    private static void statedByTheView(TrackedJson.Node node) {
+        if (node.raw().isNull() || (node.isArray() && node.raw().isEmpty())) {
+            node.consume();
         }
     }
 
-    private static void add(Map<String, List<String>> codes, String element, String value) {
-        List<String> values = codes.computeIfAbsent(element, key -> new ArrayList<>());
-        if (!values.contains(value)) {
-            values.add(value);
-        }
-    }
-
-    private CardView card(TrackedJson.Node card, int index, List<CoverageInformationView> coverage) {
+    private CardView card(TrackedJson.Node card, int index, List<Found> coverage) {
         String path = "cards[" + index + "]";
         TrackedJson.Node source = card.child("source");
         Shown topic = source.child("topic").exists() ? FhirViews.coding(source.child("topic")) : Shown.absent();
@@ -180,36 +297,39 @@ public final class CrdResponseMapper {
                 topic, card.shown("selectionBehavior"), links, suggestions, overrideReasons);
     }
 
-    private ActionView action(TrackedJson.Node action, String path, List<CoverageInformationView> coverage) {
+    private ActionView action(TrackedJson.Node action, String path, List<Found> coverage) {
         TrackedJson.Node resource = action.child("resource");
         Shown resourceType = Shown.absent();
-        Shown resourceId = action.shown("resourceId");
+        Shown resourceLogicalId = Shown.absent();
+        List<AdditionalField> rest = List.of();
         if (resource.isObject()) {
-            resourceType = resource.shown("resourceType");
-            if (!resourceId.hasValue()) {
-                resourceId = resource.shown("id");
-            } else {
-                resource.shown("id");
-            }
             resourceExtensions(resource, path + ".resource", coverage);
+            resourceType = resource.shown("resourceType");
+            resourceLogicalId = resource.shown("id");
+            // Whatever else the resource holds, such as an echoed order, is shown with the action
+            // and so does not crowd the list of fields nobody anticipated.
+            rest = resource.remainder();
         }
-        return new ActionView(path, action.shown("type"), action.shown("description"), resourceType, resourceId);
+        return new ActionView(path, action.shown("type"), action.shown("description"), resourceType, action.shown("resourceId"),
+                resourceLogicalId, rest);
     }
 
     /** Coverage information on a FHIR resource: its extension array, each entry carrying the extension url. */
-    private void resourceExtensions(TrackedJson.Node resource, String path, List<CoverageInformationView> coverage) {
+    private void resourceExtensions(TrackedJson.Node resource, String path, List<Found> coverage) {
         String type = JsonSafe.presentText(resource.raw(), "resourceType");
         String id = JsonSafe.presentText(resource.raw(), "id");
-        Shown appliesTo = type == null && id == null ? Shown.absent() : Shown.of(type != null && id != null ? type + "/" + id : Texts.firstPresent(type, id));
-        extensionArray(resource.child("extension"), path + ".extension", appliesTo, coverage);
+        // A resource with no id cannot be referred to, so it names nothing an answer could apply to.
+        Shown appliesTo = id == null ? Shown.absent() : Shown.of(type == null ? id : type + "/" + id);
+        extensionArray(resource.child("extension"), path + ".extension", appliesTo, SentOrder.codes(resource.raw()), coverage);
     }
 
-    private void extensionArray(TrackedJson.Node array, String path, Shown appliesTo, List<CoverageInformationView> coverage) {
+    private void extensionArray(TrackedJson.Node array, String path, Shown appliesTo, List<String> echoedCodes, List<Found> coverage) {
         int index = 0;
         for (TrackedJson.Node extension : array.elements()) {
             if (isCoverageInformation(extension)) {
                 extension.text("url");
-                coverage.add(coverageInformation(extension.children("extension"), path + "[" + index + "]", appliesTo));
+                coverage.add(new Found(coverageInformation(extension.children("extension"), path + "[" + index + "]", appliesTo),
+                        echoedCodes));
             }
             index++;
         }
@@ -221,9 +341,9 @@ public final class CrdResponseMapper {
      * a FHIR-style array, an object whose values are extension objects or arrays of them, and an
      * object keyed by the extension url whose value is the list of sub-extensions.
      */
-    private void cardExtension(TrackedJson.Node extension, String path, List<CoverageInformationView> coverage) {
+    private void cardExtension(TrackedJson.Node extension, String path, List<Found> coverage) {
         if (extension.isArray()) {
-            extensionArray(extension, path, Shown.absent(), coverage);
+            extensionArray(extension, path, Shown.absent(), List.of(), coverage);
             return;
         }
         if (!extension.isObject()) {
@@ -234,16 +354,17 @@ public final class CrdResponseMapper {
             TrackedJson.Node value = property.getValue();
             if (isCoverageInformation(value)) {
                 value.text("url");
-                coverage.add(coverageInformation(value.children("extension"), propertyPath, Shown.absent()));
+                coverage.add(new Found(coverageInformation(value.children("extension"), propertyPath, Shown.absent()), List.of()));
             } else if (value.isArray()) {
                 boolean anyTyped = value.elements().stream().anyMatch(CrdResponseMapper::isCoverageInformation);
                 if (anyTyped) {
-                    extensionArray(value, propertyPath, Shown.absent(), coverage);
+                    extensionArray(value, propertyPath, Shown.absent(), List.of(), coverage);
                 } else if (namesCoverageInformation(property.getKey()) && looksLikeSubExtensions(value)) {
-                    coverage.add(coverageInformation(value.elements(), propertyPath, Shown.absent()));
+                    coverage.add(new Found(coverageInformation(value.elements(), propertyPath, Shown.absent()), List.of()));
                 }
             } else if (value.isObject() && namesCoverageInformation(property.getKey()) && value.child("extension").isArray()) {
-                coverage.add(coverageInformation(value.children("extension"), propertyPath + ".extension", Shown.absent()));
+                coverage.add(new Found(coverageInformation(value.children("extension"), propertyPath + ".extension", Shown.absent()),
+                        List.of()));
             }
         }
     }
@@ -371,7 +492,8 @@ public final class CrdResponseMapper {
         }
 
         CrdOutcome outcome = CrdOutcomeRules.forExtension(covered, paNeeded, docNeeded, infoNeeded, coverageInactive);
-        return new CoverageInformationView(foundAt, appliesTo, outcome, covered, paNeeded, docNeeded, docPurpose, infoNeeded,
+        // Which requested codes the answer is for is worked out afterwards, once every answer is known.
+        return new CoverageInformationView(foundAt, appliesTo, List.of(), null, outcome, covered, paNeeded, docNeeded, docPurpose, infoNeeded,
                 satisfiedPaId, coverageRef, assertionId, date, questionnaires, reasons, details, vendor, vendorBasis, other);
     }
 

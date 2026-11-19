@@ -195,6 +195,10 @@ public class ScenarioRepository {
 
         ScenarioStep main = root.has("behavior") || root.has("response") || root.has("responseText") || root.has("httpStatus")
                 ? parseStep(root, "the scenario") : null;
+        if (main != null) {
+            // The top-level expect block is the claim of the scenario as a whole, kept on the scenario.
+            main = new ScenarioStep(main.behavior(), main.httpStatus(), main.delayMillis(), main.body(), null);
+        }
         Map<String, ScenarioStep> steps = new LinkedHashMap<>();
         for (Map.Entry<String, JsonNode> step : JsonSafe.properties(JsonSafe.child(root, "steps"))) {
             steps.put(step.getKey(), parseStep(step.getValue(), "step \"" + step.getKey() + "\""));
@@ -249,7 +253,7 @@ public class ScenarioRepository {
                 body = JsonSafe.pretty(node.get("response"));
             }
         }
-        return new ScenarioStep(behavior, status, delay == null ? 0L : delay, body);
+        return new ScenarioStep(behavior, status, delay == null ? 0L : delay, body, parseExpect(JsonSafe.child(node, "expect")));
     }
 
     private static ScenarioExpect parseExpect(JsonNode node) {

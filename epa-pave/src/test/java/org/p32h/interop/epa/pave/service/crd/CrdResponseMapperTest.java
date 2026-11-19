@@ -2,16 +2,20 @@ package org.p32h.interop.epa.pave.service.crd;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.p32h.interop.epa.pave.model.AdditionalField;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Shown;
+import org.p32h.interop.epa.pave.model.Expectations;
+import org.p32h.interop.epa.pave.model.crd.ActionView;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
 import org.p32h.interop.epa.pave.model.crd.CrdResponseKind;
 import org.p32h.interop.epa.pave.testsupport.TestExchanges;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CrdResponseMapperTest {
@@ -42,6 +46,27 @@ class CrdResponseMapperTest {
         return reading.additionalFields().stream().map(AdditionalField::path).toList();
     }
 
+    /** The codes of the one answer in a reading, or none when it holds no answer. */
+    private static Map<String, List<String>> codes(CrdReading reading) {
+        List<CoverageInformationView> coverage = reading.detail().coverageInformation();
+        assertThat(coverage.size()).isLessThanOrEqualTo(1);
+        return coverage.isEmpty() ? Map.of() : CrdReading.codes(coverage.get(0));
+    }
+
+    /** One system action per entry: the id of the order it answers and the pa-needed code it gives. */
+    private static String answers(String... idThenCode) {
+        StringBuilder actions = new StringBuilder();
+        for (int i = 0; i < idThenCode.length; i += 2) {
+            actions.append(i == 0 ? "" : ",").append("{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"")
+                    .append(idThenCode[i]).append("\",\"extension\":[{\"url\":\"").append(EXT).append("\",\"extension\":[")
+                    .append(code("pa-needed", idThenCode[i + 1])).append("]}]}}");
+        }
+        return "{\"systemActions\":[" + actions + "]}";
+    }
+
+    private static final List<SentOrder> TWO_ORDERS = List.of(new SentOrder("ServiceRequest/service-request-1", "95810"),
+            new SentOrder("ServiceRequest/service-request-2", "95811"));
+
     // ---- the distinction this tool exists for ----
 
     @Test
@@ -54,7 +79,7 @@ class CrdResponseMapperTest {
         for (CrdReading reading : List.of(absent, explicitNull, empty, noValue)) {
             assertThat(reading.outcome()).isEqualTo(CrdOutcome.AUTH_NOT_STATED);
             assertThat(reading.outcome()).isNotEqualTo(CrdOutcome.NO_AUTH_REQUIRED);
-            assertThat(reading.codes()).doesNotContainKey("pa-needed");
+            assertThat(codes(reading)).doesNotContainKey("pa-needed");
         }
         // And the screen can still tell the four apart.
         assertThat(only(absent).paNeeded().presence()).isEqualTo(Presence.ABSENT);
@@ -75,7 +100,7 @@ class CrdResponseMapperTest {
     void anExtensionWithNoSubExtensionsAtAllSaysNothing() {
         CrdReading reading = read(systemAction(""));
         assertThat(reading.outcome()).isEqualTo(CrdOutcome.NO_DETERMINATION);
-        assertThat(reading.codes()).isEmpty();
+        assertThat(codes(reading)).isEmpty();
     }
 
     @Test
@@ -97,8 +122,121 @@ class CrdResponseMapperTest {
         CrdReading nullCards = read("{\"cards\":null}");
         assertThat(nullCards.detail().cardsPresence()).isEqualTo(Presence.NULL);
         assertThat(nullCards.outcome()).isEqualTo(CrdOutcome.NO_DETERMINATION);
-        assertThat(paths(nullCards)).containsExactly("cards");
+        // The view states for itself that cards was null or empty, so neither is listed a second time.
+        assertThat(paths(nullCards)).isEmpty();
+        assertThat(paths(emptyCards)).isEmpty();
+        // Something else in that place is not what the view states, so it stays listed.
+        CrdReading textCards = read("{\"cards\":\"none\",\"systemActions\":{}}");
+        assertThat(textCards.detail().cardsPresence()).isEqualTo(Presence.VALUE);
+        assertThat(textCards.additionalFields()).containsExactly(new AdditionalField("cards", Presence.VALUE, "\"none\""),
+                new AdditionalField("systemActions", Presence.EMPTY, "{}"));
     }
+
+    // ---- which code an answer is for ----
+
+    @Test
+    void anAnswerIsTiedToTheCodeOfTheOrderItSitsOn() {
+        CrdReading reading = mapper.read(TestExchanges.crd(200, answers("service-request-1", "auth-needed", "service-request-2", "no-auth")),
+                TWO_ORDERS);
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.MIXED);
+        assertThat(reading.requestedCodes()).containsExactly("95810", "95811");
+        assertThat(reading.unanswered()).isEmpty();
+        assertThat(reading.detail().coverageInformation()).extracting(CoverageInformationView::subject).containsExactly("95810", "95811");
+        assertThat(reading.detail().coverageInformation().get(1).procedureCodes()).containsExactly("95811");
+        // Each answer keeps its own codes, named by its code, in the ledger and for an expectation.
+        assertThat(reading.ledgerCodes()).containsExactly("95810: pa-needed=auth-needed", "95811: pa-needed=no-auth");
+        assertThat(reading.answers()).containsExactly(Expectations.Answer.of("95810", Map.of("pa-needed", List.of("auth-needed"))),
+                Expectations.Answer.of("95811", Map.of("pa-needed", List.of("no-auth"))));
+
+        // The two codes swapping answers is a different ledger line, so a replay can say what changed.
+        CrdReading swapped = mapper.read(TestExchanges.crd(200, answers("service-request-1", "no-auth", "service-request-2", "auth-needed")),
+                TWO_ORDERS);
+        assertThat(swapped.outcome()).isEqualTo(CrdOutcome.MIXED);
+        assertThat(swapped.ledgerCodes()).containsExactly("95810: pa-needed=no-auth", "95811: pa-needed=auth-needed");
+    }
+
+    @Test
+    void aCodeThatReceivedNoAnswerIsNeverGivenTheAnswerOfAnother() {
+        // Two codes were asked about and the service answered only the first, with no-auth. Reporting
+        // "not required" for the order would turn the silence about the second code into an answer.
+        CrdReading reading = mapper.read(TestExchanges.crd(200, answers("service-request-1", "no-auth")), TWO_ORDERS);
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.MIXED);
+        assertThat(reading.outcome()).isNotEqualTo(CrdOutcome.NO_AUTH_REQUIRED);
+        assertThat(reading.unanswered()).containsExactly("95811");
+        assertThat(reading.several()).isTrue();
+        assertThat(reading.ledgerCodes()).containsExactly("95810: pa-needed=no-auth", "95811: (no answer)");
+        assertThat(reading.answers()).containsExactly(Expectations.Answer.of("95810", Map.of("pa-needed", List.of("no-auth"))),
+                Expectations.Answer.missing("95811"));
+
+        // An answer that says nothing for one code, and no answer for the other, are alike: nothing was determined.
+        CrdReading nothing = mapper.read(TestExchanges.crd(200,
+                "{\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-1\","
+                        + "\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[{\"url\":\"date\",\"valueDate\":\"2026-01-15\"}]}]}}]}"), TWO_ORDERS);
+        assertThat(nothing.outcome()).isEqualTo(CrdOutcome.NO_DETERMINATION);
+        assertThat(nothing.unanswered()).containsExactly("95811");
+    }
+
+    @Test
+    void aServiceThatUsesItsOwnIdsIsStillTiedThroughTheCodeItEchoes() {
+        String body = "{\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"vendor-77\","
+                + "\"code\":{\"coding\":[{\"system\":\"s\",\"code\":\"95811\"}]},\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":["
+                + code("pa-needed", "auth-needed") + "]}]}}]}";
+        CrdReading reading = mapper.read(TestExchanges.crd(200, body), TWO_ORDERS);
+        CoverageInformationView view = only(reading);
+        assertThat(view.procedureCodes()).containsExactly("95811");
+        assertThat(view.subject()).isEqualTo("95811");
+        assertThat(view.appliesTo().value()).isEqualTo("ServiceRequest/vendor-77");
+        assertThat(reading.unanswered()).containsExactly("95810");
+        // The echoed code is not read into a slot, so it is shown with the rest of the resource.
+        assertThat(reading.detail().systemActions().get(0).resource()).extracting(AdditionalField::path)
+                .contains("systemActions[0].resource.code.coding[0].code");
+    }
+
+    @Test
+    void anAnswerForAnOrderThatWasNotSentIsShownAndTiedToNoRequestedCode() {
+        // The answer names another order and echoes no code. It is not assumed to be about the one code asked.
+        List<SentOrder> one = List.of(new SentOrder("ServiceRequest/service-request-1", "95810"));
+        CrdReading reading = mapper.read(TestExchanges.crd(200, answers("some-other-order", "no-auth")), one);
+        CoverageInformationView view = only(reading);
+        assertThat(view.procedureCodes()).isEmpty();
+        assertThat(view.subject()).isEqualTo("ServiceRequest/some-other-order");
+        assertThat(reading.unanswered()).containsExactly("95810");
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.MIXED);
+
+        // The same for a resource that echoes a code nobody asked about.
+        String otherCode = "{\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\","
+                + "\"code\":{\"coding\":[{\"code\":\"99999\"}]},\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":["
+                + code("pa-needed", "no-auth") + "]}]}}]}";
+        assertThat(mapper.read(TestExchanges.crd(200, otherCode), one).unanswered()).containsExactly("95810");
+    }
+
+    @Test
+    void anAnswerOnNoResourceIsForTheOnlyCodeAskedAndForNoneWhenSeveralWereAsked() {
+        String onCard = "{\"cards\":[{\"summary\":\"s\",\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[" + code("pa-needed", "no-auth")
+                + "]}]}]}";
+        CrdReading single = mapper.read(TestExchanges.crd(200, onCard), List.of(new SentOrder("ServiceRequest/service-request-1", "95810")));
+        assertThat(single.outcome()).isEqualTo(CrdOutcome.NO_AUTH_REQUIRED);
+        assertThat(only(single).procedureCodes()).containsExactly("95810");
+        assertThat(single.several()).isFalse();
+        assertThat(single.ledgerCodes()).containsExactly("pa-needed=no-auth");
+
+        CrdReading several = mapper.read(TestExchanges.crd(200, onCard), TWO_ORDERS);
+        assertThat(several.outcome()).isEqualTo(CrdOutcome.MIXED);
+        assertThat(only(several).procedureCodes()).isEmpty();
+        assertThat(only(several).subject()).isEqualTo("cards[0].extension[0]");
+        assertThat(several.unanswered()).containsExactly("95810", "95811");
+    }
+
+    @Test
+    void whenTheRequestIsNotKnownAnswersAreNamedByWhatTheyApplyToAndNothingIsCalledUnanswered() {
+        CrdReading reading = read(answers("service-request-1", "auth-needed", "service-request-2", "auth-needed"));
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.AUTH_REQUIRED);
+        assertThat(reading.requestedCodes()).isEmpty();
+        assertThat(reading.unanswered()).isEmpty();
+        assertThat(reading.detail().coverageInformation()).extracting(CoverageInformationView::subject)
+                .containsExactly("ServiceRequest/service-request-1", "ServiceRequest/service-request-2");
+    }
+
 
     // ---- codes ----
 
@@ -128,7 +266,7 @@ class CrdResponseMapperTest {
         assertThat(view.coverageAssertionId().value()).isEqualTo("a-1");
         assertThat(view.reasons()).extracting(Shown::value).containsExactly("Because [Gold card (s|gold-card)]");
         assertThat(view.otherSubExtensions()).isEmpty();
-        assertThat(reading.codes()).containsEntry("doc-purpose", List.of("withpa", "retain"));
+        assertThat(codes(reading)).containsEntry("doc-purpose", List.of("withpa", "retain"));
         // info-needed outranks the authorization code: the payer cannot answer yet.
         assertThat(reading.outcome()).isEqualTo(CrdOutcome.INFORMATION_NEEDED);
     }
@@ -141,7 +279,7 @@ class CrdResponseMapperTest {
         assertThat(paNeeded.code()).isEqualTo("auth-maybe");
         assertThat(paNeeded.display()).isEqualTo("Unrecognised code: auth-maybe");
         assertThat(reading.outcome()).isEqualTo(CrdOutcome.UNRECOGNISED_CODE);
-        assertThat(reading.codes()).containsEntry("pa-needed", List.of("auth-maybe"));
+        assertThat(codes(reading)).containsEntry("pa-needed", List.of("auth-maybe"));
         // A code that differs only by case is not the standard code.
         assertThat(read(systemAction(code("pa-needed", "No-Auth"))).outcome()).isEqualTo(CrdOutcome.UNRECOGNISED_CODE);
     }
@@ -193,7 +331,8 @@ class CrdResponseMapperTest {
                 .containsExactly(CrdOutcome.AUTH_REQUIRED, CrdOutcome.NO_AUTH_REQUIRED);
         assertThat(reading.detail().coverageInformation()).extracting(v -> v.appliesTo().value())
                 .containsExactly("ServiceRequest/service-request-1", "ServiceRequest/service-request-2");
-        assertThat(reading.codes()).containsEntry("pa-needed", List.of("auth-needed", "no-auth"));
+        // The codes of the two answers are kept apart, never pooled into one list.
+        assertThat(reading.answers()).extracting(a -> a.codes().get("pa-needed")).containsExactly(List.of("auth-needed"), List.of("no-auth"));
         // The same answer for every service is that answer, not MIXED.
         assertThat(read(body.replace("\"no-auth\"", "\"auth-needed\"")).outcome()).isEqualTo(CrdOutcome.AUTH_REQUIRED);
     }
@@ -242,7 +381,11 @@ class CrdResponseMapperTest {
                 "cards[0].vendorScore",
                 "cards[0].source.vendorSourceId",
                 "cards[0].links[0].vendorLinkFlag",
-                "systemActions[0].vendorActionNote",
+                "systemActions[0].vendorActionNote");
+        // What the resource of an action holds beyond its coverage information is shown with that
+        // action, so an echoed order does not fill the list of fields nobody anticipated.
+        List<AdditionalField> rest = reading.detail().systemActions().get(0).resource();
+        assertThat(rest).extracting(AdditionalField::path).containsExactlyInAnyOrder(
                 "systemActions[0].resource.status",
                 "systemActions[0].resource.vendorResourceField",
                 "systemActions[0].resource.extension[0].id",
@@ -251,9 +394,9 @@ class CrdResponseMapperTest {
                 "systemActions[0].resource.extension[1].url",
                 "systemActions[0].resource.extension[1].valueString");
         // The three kinds of nothing keep their own presence.
-        assertThat(reading.additionalFields()).filteredOn(f -> f.path().endsWith("vendorResourceField")).singleElement()
+        assertThat(rest).filteredOn(f -> f.path().endsWith("vendorResourceField")).singleElement()
                 .satisfies(f -> assertThat(f.presence()).isEqualTo(Presence.NULL));
-        assertThat(reading.additionalFields()).filteredOn(f -> f.path().endsWith("vendorSubField")).singleElement()
+        assertThat(rest).filteredOn(f -> f.path().endsWith("vendorSubField")).singleElement()
                 .satisfies(f -> assertThat(f.presence()).isEqualTo(Presence.EMPTY));
         // An unknown part of a detail entry is shown in the designed view, since the detail list must be shown in full.
         assertThat(only(reading).otherSubExtensions()).singleElement().satisfies(o -> assertThat(o.url()).isEqualTo("detail.vendorPart"));
@@ -284,14 +427,45 @@ class CrdResponseMapperTest {
         assertThat(card.overrideReasons().get(0).value()).isEqualTo("Reason one (s|r1)");
         assertThat(card.suggestions().get(0).isRecommended().value()).isEqualTo("true");
         assertThat(card.suggestions().get(0).actions()).hasSize(2);
-        assertThat(card.suggestions().get(0).actions().get(0).resourceType().value()).isEqualTo("Task");
-        assertThat(card.suggestions().get(0).actions().get(0).resourceId().value()).isEqualTo("t1");
-        assertThat(card.suggestions().get(0).actions().get(1).resourceId().value()).isEqualTo("ServiceRequest/x");
+        ActionView create = card.suggestions().get(0).actions().get(0);
+        assertThat(create.resourceType().value()).isEqualTo("Task");
+        // The id of the resource carried and the action's own resourceId are two fields, kept in two slots.
+        assertThat(create.resourceLogicalId().value()).isEqualTo("t1");
+        assertThat(create.resourceId()).isEqualTo(Shown.absent());
+        ActionView delete = card.suggestions().get(0).actions().get(1);
+        assertThat(delete.resourceId().value()).isEqualTo("ServiceRequest/x");
+        assertThat(delete.resourceLogicalId()).isEqualTo(Shown.absent());
+        ActionView both = read("{\"systemActions\":[{\"type\":\"update\",\"resourceId\":\"ServiceRequest/a\",\"resource\":{\"resourceType\":"
+                + "\"ServiceRequest\",\"id\":\"b\"}}]}").detail().systemActions().get(0);
+        assertThat(both.resourceId().value()).isEqualTo("ServiceRequest/a");
+        assertThat(both.resourceLogicalId().value()).isEqualTo("b");
         // A card with none of the optional fields reports each as not returned, not as blank.
         var bare = read("{\"cards\":[{\"summary\":\"only\"}]}").detail().cards().get(0);
         assertThat(bare.detail()).isEqualTo(Shown.absent());
         assertThat(bare.sourceLabel()).isEqualTo(Shown.absent());
         assertThat(bare.links()).isEmpty();
+    }
+
+    @Test
+    void anEmptyListIsToldApartFromAListThatWasNotSent() {
+        // Both give an empty list in the view. Only the one that was sent appears among the returned fields.
+        CrdReading sentEmpty = read("{\"cards\":[{\"summary\":\"s\",\"links\":[],\"suggestions\":[]}]}");
+        assertThat(sentEmpty.detail().cards().get(0).links()).isEmpty();
+        assertThat(sentEmpty.additionalFields()).containsExactly(new AdditionalField("cards[0].links", Presence.EMPTY, "[]"),
+                new AdditionalField("cards[0].suggestions", Presence.EMPTY, "[]"));
+        CrdReading notSent = read("{\"cards\":[{\"summary\":\"s\"}]}");
+        assertThat(notSent.detail().cards().get(0).links()).isEmpty();
+        assertThat(notSent.additionalFields()).isEmpty();
+    }
+
+    @Test
+    void aKeyThatAppearsTwiceInTheBodyIsPointedOut() {
+        CrdReading reading = read("{\"cards\":[{\"summary\":\"s\",\"indicator\":\"info\",\"indicator\":\"warning\"}]}");
+        assertThat(reading.detail().cards().get(0).indicator().value()).isEqualTo("warning");
+        assertThat(reading.additionalFields()).singleElement().satisfies(note -> {
+            assertThat(note.path()).isEqualTo("(body)");
+            assertThat(note.value()).contains("repeats a key").contains("wire view");
+        });
     }
 
     @Test
@@ -348,11 +522,13 @@ class CrdResponseMapperTest {
         assertThat(truncated.outcome()).isEqualTo(CrdOutcome.MALFORMED_RESPONSE);
         assertThat(truncated.detail().responseKind()).isEqualTo(CrdResponseKind.NOT_JSON);
         assertThat(truncated.detail().responseNote()).contains("wire view").contains("not valid JSON");
-        assertThat(truncated.additionalFields()).isEmpty();
+        // The text as received is on the result itself, not only in the wire view, which is collapsed by default.
+        assertThat(truncated.additionalFields()).containsExactly(new AdditionalField("(body, not JSON)", Presence.VALUE, "{\"cards\": ["));
 
         CrdReading html500 = mapper.read(TestExchanges.crd(502, "<html>Bad Gateway</html>"));
         assertThat(html500.outcome()).isEqualTo(CrdOutcome.SERVICE_ERROR);
         assertThat(html500.detail().responseKind()).isEqualTo(CrdResponseKind.NOT_JSON);
+        assertThat(html500.additionalFields()).extracting(AdditionalField::value).containsExactly("<html>Bad Gateway</html>");
     }
 
     @Test
@@ -378,7 +554,8 @@ class CrdResponseMapperTest {
         assertThat(timeout.detail().responseKind()).isEqualTo(CrdResponseKind.NO_RESPONSE);
         CrdReading unreachable = mapper.read(TestExchanges.unavailable(EpaOperation.CRD_ORDER_SIGN));
         assertThat(unreachable.outcome()).isEqualTo(CrdOutcome.UNREACHABLE);
-        assertThat(unreachable.codes()).isEmpty();
+        assertThat(unreachable.answers()).isEmpty();
+        assertThat(unreachable.additionalFields()).isEmpty();
     }
 
     // ---- vendor conventions ----

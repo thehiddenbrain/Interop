@@ -29,6 +29,10 @@ public final class CrdCodes {
     /** Not a sub-extension. The name under which a recognised delegated vendor is offered to expectations. */
     public static final String DELEGATED_VENDOR = "delegated-vendor";
 
+    /** The element names a declared expectation may assert on for CRD, in the spelling the response uses. */
+    public static final java.util.List<String> EXPECTATION_ELEMENTS =
+            java.util.List.of(COVERED, PA_NEEDED, DOC_NEEDED, DOC_PURPOSE, INFO_NEEDED, SATISFIED_PA_ID, DELEGATED_VENDOR);
+
     private static final Map<String, Map<String, String>> VALUE_SETS = new LinkedHashMap<>();
 
     static {

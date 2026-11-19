@@ -15,8 +15,8 @@ import java.time.LocalDate;
  *                         storage policy before comparing, so this is never a token
  * @param limit            the most records to return, newest first. Null or zero for no limit
  */
-public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, TestResult result, String outcome, String chainId,
-                       String suiteRunId, String correlationKey, String correlationValue, Integer limit) {
+public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, EpaOperation operation, TestResult result, String outcome,
+                       String chainId, String suiteRunId, String correlationKey, String correlationValue, Integer limit) {
 
     public static RunQuery all() {
         return builder().build();
@@ -53,6 +53,7 @@ public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, TestResu
         private LocalDate from;
         private LocalDate to;
         private Protocol protocol;
+        private EpaOperation operation;
         private TestResult result;
         private String outcome;
         private String chainId;
@@ -76,6 +77,12 @@ public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, TestResu
 
         public Builder protocol(Protocol value) {
             this.protocol = value;
+            return this;
+        }
+
+        /** Only runs of this operation, for example the run that created a subscription and not every read of it. */
+        public Builder operation(EpaOperation value) {
+            this.operation = value;
             return this;
         }
 
@@ -111,7 +118,7 @@ public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, TestResu
         }
 
         public RunQuery build() {
-            return new RunQuery(from, to, protocol, result, outcome, chainId, suiteRunId, correlationKey, correlationValue, limit);
+            return new RunQuery(from, to, protocol, operation, result, outcome, chainId, suiteRunId, correlationKey, correlationValue, limit);
         }
     }
 }

@@ -66,7 +66,9 @@ public final class TrackedJson {
             return;
         }
         Presence presence = JsonSafe.presence(node);
-        String value = presence == Presence.VALUE ? node.toString() : null;
+        // An empty string, an empty array and an empty object are all EMPTY, and they are different
+        // findings, so the JSON text is kept for them as well as for a value.
+        String value = presence == Presence.VALUE || presence == Presence.EMPTY ? node.toString() : null;
         out.add(new AdditionalField(path.isEmpty() ? "(root)" : path, presence, value));
     }
 
@@ -111,16 +113,15 @@ public final class TrackedJson {
         }
 
         /**
-         * The elements of this array. An empty array is marked consumed, because the view that
-         * asked for its elements is the view that reports it as empty. Anything that is not an
-         * array yields no elements and stays unconsumed, so it appears in the additional fields.
+         * The elements of this array. Navigation only: nothing is consumed, not even an empty array.
+         * An empty array therefore appears in the additional fields unless the view that asked for
+         * its elements states the emptiness itself and calls {@link #consume()}. That is what keeps
+         * "links": [] apart from no links at all without a presence beside every list in every view.
+         * Anything that is not an array yields no elements and stays unconsumed.
          */
         public List<Node> elements() {
             List<Node> out = new ArrayList<>();
             if (node.isArray()) {
-                if (node.isEmpty()) {
-                    consumed.add(pointer);
-                }
                 int index = 0;
                 for (JsonNode element : node) {
                     out.add(new Node(element, pointer + "/" + index, path + "[" + index + "]"));
@@ -155,36 +156,71 @@ public final class TrackedJson {
             return child(field).shown();
         }
 
-        /** Reads this scalar as text for the view and marks it consumed. Null when there is no scalar. */
+        /**
+         * Reads this scalar as text, for a value used in logic or as a key. It is consumed only when
+         * a value comes back. An object, an array, an explicit null or a missing node yields null and
+         * is left unconsumed, so it still appears in the additional fields: a read that returns
+         * nothing must not make the field disappear. A value that is put on screen goes through
+         * {@link #shown()}, which keeps null and empty.
+         */
         public String text() {
-            consume();
-            return JsonSafe.text(node);
+            String value = JsonSafe.text(node);
+            if (value != null) {
+                consume();
+            }
+            return value;
         }
 
         public String text(String field) {
             return child(field).text();
         }
 
-        /** As {@link #text()}, with blank treated as no value. */
+        /** As {@link #text()}, with blank treated as no value. A blank string is left unconsumed. */
         public String presentText() {
-            consume();
-            return JsonSafe.presentText(node);
+            String value = JsonSafe.presentText(node);
+            if (value != null) {
+                consume();
+            }
+            return value;
         }
 
         public String presentText(String field) {
             return child(field).presentText();
         }
 
+        /** An integer, consumed only when the node holds one. */
         public Integer integer(String field) {
             Node child = child(field);
-            child.consume();
-            return JsonSafe.integer(child.node);
+            Integer value = JsonSafe.integer(child.node);
+            if (value != null) {
+                child.consume();
+            }
+            return value;
         }
 
+        /** A boolean, consumed only when the node holds one. */
         public Boolean bool(String field) {
             Node child = child(field);
-            child.consume();
-            return JsonSafe.bool(child.node);
+            Boolean value = JsonSafe.bool(child.node);
+            if (value != null) {
+                child.consume();
+            }
+            return value;
+        }
+
+        /**
+         * Everything beneath this node that no view has read, handed to the caller and marked
+         * consumed. For a view that shows "the rest of this resource" beside the parts it
+         * understood, so those leaves are shown where they belong and do not crowd the list of
+         * fields nobody anticipated.
+         */
+        public List<AdditionalField> remainder() {
+            List<AdditionalField> out = new ArrayList<>();
+            if (!node.isMissingNode()) {
+                walk(node, pointer, path, out);
+                consumed.add(pointer);
+            }
+            return out;
         }
 
         /**

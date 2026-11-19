@@ -4,24 +4,26 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**Spine 1 written, reviewed in part, building. Not yet frozen.** Six reviewers are reading the
-shared types, each from the seat of one downstream owner. Two have reported and every finding of
-theirs is applied (see "Changes made after the contract review" in `DECISIONS.md`). Four are
-still running. The freeze and the Wave A fan-out follow the last report.
+**Spine 1 written and reviewed. Five of six reviews are applied. Not yet frozen.** Six reviewers
+read the shared types, each from the seat of one downstream owner. The findings of four are
+applied in full (see the two "Changes made after" sections of `DECISIONS.md`). The fifth
+(frontend, chain and suites) has reported and is being applied. The sixth (will this survive a
+green build) is still running. The freeze and the Wave A fan-out follow it.
 
-While the review runs, the integrator has started the CRD vertical's pure logic, which has no
-dependency on Wave A: the scenario loader, the mock client, the response mapper and the outcome
-rules. It is not wired into a service or a controller yet.
+While the review ran, the integrator built the CRD vertical against fakes, ahead of Wave A:
+scenarios, mock and live clients, request builder, response mapper, outcome rules, verdicts,
+conformance checker, service and controller. It is tested but not yet wired as Spring beans,
+because the gateway, the ledger and the code list arrive with Wave A.
 
 | Step | State |
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
-| Spine 1: shared contracts | written, build green, 2 of 6 reviews applied, not frozen |
+| Spine 1: shared contracts | written, build green, 5 of 6 reviews in, 4 applied, not frozen |
 | Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | briefs written, not started |
 | Spine 2: integrate Wave A. V2 PHI audit | not started |
-| Spine 3: CRD reference vertical | in progress: scenarios, mock client, mapper, outcome rules done and tested. Request builder, validation, service, controller, live client tests to do |
+| Spine 3: CRD reference vertical | built and tested against fakes (332 tests in the build). To do after Wave A: wire as beans, controller tests, raw send |
 | Wave B: B1 PAS and subscriptions, B2 DTR | not started |
-| Spine 4: integrate Wave B, chain, raw send, cross-protocol tests. V3 guardrail audit | not started |
+| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | not started |
 | Wave C: C1 frontend, C2 docs and scripts, C3 verification V1 to V7 | not started |
 | Spine 5: clean build twice, fresh-clone build, push, pull request | not started |
 
@@ -45,9 +47,13 @@ rules. It is not wired into a service or a controller yet.
 
 ### Not done at this commit
 
-- Nothing calls a vendor yet. There are no clients, no controllers except the fallback error
-  controller, and no frontend.
-- The contracts may still change as a result of the review.
+- Nothing runs end to end in the application yet. `CrdService` and `CrdController` are not Spring
+  beans, so `POST /api/crd` does not exist in the running application. `GET /api/mode` does not
+  exist yet either.
+- No ledger, no code list, no lookup, no Postman configuration layer: those are Wave A.
+- No PAS, no DTR, no frontend.
+- Nothing has been run against Onyx. Every test runs against the mock or a fake.
+- The contracts may still change as a result of the last review.
 
 ## The plan, written before any feature code
 

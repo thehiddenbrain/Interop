@@ -37,7 +37,7 @@ class RedactionTest {
         WireResponse response = new WireResponse(200, List.of(), BODY, 10L, true, null);
         WireView wire = new WireView(request, response, MemberIds.forms(MEMBER_ID));
         VendorExchange exchange = new VendorExchange(request, 200, List.of(), BODY, JsonSafe.parse(BODY).node(), null, 5,
-                OnyxFailureType.NONE, null, Set.of(), null);
+                OnyxFailureType.NONE, null, Set.of(), null, null, List.of());
         for (Object value : new Object[] {request, response, wire, exchange}) {
             assertThat(value.toString()).as(value.getClass().getSimpleName()).doesNotContain(SURNAME).doesNotContain(MEMBER_ID);
         }
@@ -92,9 +92,33 @@ class RedactionTest {
         RunEnvelope<String> envelope = RunEnvelope.<String>builder().runId("run-1").protocol(Protocol.CRD)
                 .operation(EpaOperation.CRD_ORDER_SIGN)
                 .verdict(VerdictView.of(CrdOutcome.NO_AUTH_REQUIRED, "Prior authorization is not required.", List.of()))
-                .expectation(Expectations.assess(null, CrdOutcome.NO_AUTH_REQUIRED, null, CrdOutcome.values()))
+                .expectation(Expectations.assess(null, CrdOutcome.NO_AUTH_REQUIRED, null, CrdOutcome.values(), List.of()))
                 .nextStep(NextStepView.of(NextAction.FLOW_ENDS, "The flow ends here.", "No authorization is needed."))
                 .ledger(new LedgerReceipt(true, record, null, 1)).detail(BODY).build();
         assertThat(envelope.toString()).doesNotContain(SURNAME);
+    }
+
+    @Test
+    void aLedgerDraftDoesNotPrintTheMemberIdOrAnAuthorizationNumber() {
+        // The draft a service hands the ledger holds the real member ID, and a receipt and a case
+        // outcome print the record they hold, so one log statement on any of them would leak it.
+        RunRecord draft = RunRecord.builder().runId("run-1").timestamp("2026-01-05T10:15:30.000-05:00").protocol(Protocol.PAS)
+                .operation(EpaOperation.PAS_SUBMIT).outcome("APPROVED").result(TestResult.UNVERIFIED).memberId(MEMBER_ID)
+                .dateOfService("2026-02-03").npi("1234567893")
+                .correlation(java.util.Map.of(RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER-0001")).build();
+        assertThat(draft.toString()).isEqualTo("RunRecord[run-1, PAS, PAS_SUBMIT, APPROVED]");
+        assertThat(new LedgerReceipt(true, draft, null, 1).toString()).doesNotContain(MEMBER_ID).doesNotContain("PA-PLACEHOLDER-0001")
+                .doesNotContain("2026-02-03");
+    }
+
+    @Test
+    void aNextStepPrintsTheNamesOfWhatItCarriesAndNeverTheValues() {
+        NextStepView step = new NextStepView(NextAction.START_PAS, "Next: submit.", "Because.", java.util.Map.of(
+                NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of("{\"answer\":\"" + SURNAME + "\"}"),
+                NextStepView.CARRY_CLAIM_ID, List.of("PA-PLACEHOLDER-0001")));
+        assertThat(step.toString()).doesNotContain(SURNAME).doesNotContain("PA-PLACEHOLDER-0001")
+                .contains(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE).contains("START_PAS");
+        assertThat(step.first(NextStepView.CARRY_CLAIM_ID)).isEqualTo("PA-PLACEHOLDER-0001");
+        assertThat(step.first(NextStepView.CARRY_ORDER)).isNull();
     }
 }

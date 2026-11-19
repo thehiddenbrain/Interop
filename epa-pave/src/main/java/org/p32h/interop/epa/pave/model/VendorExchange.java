@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -12,15 +13,22 @@ import tools.jackson.databind.JsonNode;
  * <p>Clients return this for every outcome. A vendor fault is described here, never thrown, so the
  * tester always gets to see the request that caused it.
  *
+ * <p>The constructor refuses combinations that would describe something that cannot have happened,
+ * such as "no failure" with no response. Without that check an exchange built with nothing set
+ * would read as a successful empty answer, and an empty answer is exactly what must never be
+ * invented.
+ *
  * @param request         the request as built
  * @param httpStatus      the HTTP status, or null when no response arrived
  * @param responseBody    the body as received, or null when there was none
  * @param json            the body parsed as JSON, or null when it is absent or not JSON
  * @param parseError      why a body that was present could not be parsed, or null
- * @param failureType     NONE unless the call failed at the transport or HTTP level
+ * @param failureType     NONE unless the call failed at the transport or HTTP level. Never null
  * @param failureDetail   a short description of a transport failure. Never contains request data
  * @param signals         vendor-specific findings recognised by the client layer
  * @param scenarioId      the mock scenario that answered, or null when the answer came from a real service
+ * @param scenarioNote    how that scenario came to be the one that answered, in plain words, or null
+ * @param bodyNotes       things a tester should know about the body as a whole, such as a repeated key
  */
 public record VendorExchange(
         WireRequest request,
@@ -33,12 +41,27 @@ public record VendorExchange(
         OnyxFailureType failureType,
         String failureDetail,
         Set<VendorSignal> signals,
-        String scenarioId) {
+        String scenarioId,
+        String scenarioNote,
+        List<String> bodyNotes) {
 
     public VendorExchange {
+        if (failureType == null) {
+            throw new IllegalArgumentException("An exchange must say whether the call failed.");
+        }
+        boolean noResponse = failureType == OnyxFailureType.TIMEOUT || failureType == OnyxFailureType.UNAVAILABLE;
+        if (noResponse && (httpStatus != null || responseBody != null)) {
+            throw new IllegalArgumentException("A call that got no response cannot carry a status or a body.");
+        }
+        if (!noResponse && httpStatus == null) {
+            throw new IllegalArgumentException("A call that got a response must carry its status.");
+        }
+        if (failureType == OnyxFailureType.MALFORMED_RESPONSE && json != null) {
+            throw new IllegalArgumentException("A malformed response cannot also carry a parsed body.");
+        }
         responseHeaders = responseHeaders == null ? List.of() : List.copyOf(responseHeaders);
-        failureType = failureType == null ? OnyxFailureType.NONE : failureType;
         signals = signals == null || signals.isEmpty() ? Set.of() : Set.copyOf(signals);
+        bodyNotes = bodyNotes == null ? List.of() : List.copyOf(bodyNotes);
     }
 
     /** True when a response arrived with a success status and a readable body. */
@@ -57,19 +80,33 @@ public record VendorExchange(
             merged.addAll(newSignals);
         }
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, json, parseError, elapsedMillis,
-                failureType, failureDetail, merged, scenarioId);
+                failureType, failureDetail, merged, scenarioId, scenarioNote, bodyNotes);
     }
 
-    /** The same exchange marked with the mock scenario that produced it. */
-    public VendorExchange withScenarioId(String id) {
+    /** The same exchange marked with the mock scenario that produced it and how it was chosen. */
+    public VendorExchange withScenario(String id, String note) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, json, parseError, elapsedMillis,
-                failureType, failureDetail, signals, id);
+                failureType, failureDetail, signals, id, note, bodyNotes);
     }
 
     /** The same exchange with the parsed body replaced, for a client that normalises a vendor shape. */
     public VendorExchange withJson(JsonNode newJson) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, newJson, parseError, elapsedMillis,
-                failureType, failureDetail, signals, scenarioId);
+                failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes);
+    }
+
+    /**
+     * The fields every mapper adds to its additional fields before anything it found itself: the
+     * body as received when it could not be parsed, and each note about the body. They are what
+     * keeps an unreadable body, or a quirk of a readable one, out of the wire view alone.
+     */
+    public List<AdditionalField> bodyFields() {
+        List<AdditionalField> out = new ArrayList<>();
+        if (json == null && responseBody != null) {
+            out.add(AdditionalField.unparsedBody(responseBody));
+        }
+        bodyNotes.forEach(note -> out.add(AdditionalField.bodyNote(note)));
+        return out;
     }
 
     /** The response half of the wire view. */

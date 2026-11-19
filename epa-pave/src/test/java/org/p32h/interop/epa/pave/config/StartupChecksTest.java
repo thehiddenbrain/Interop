@@ -10,9 +10,13 @@ import org.springframework.mock.env.MockEnvironment;
 class StartupChecksTest {
 
     private static StartupChecks checks(String mode, String target, String... profiles) {
+        return checks(mode, target, OnyxProperties.defaults(), profiles);
+    }
+
+    private static StartupChecks checks(String mode, String target, OnyxProperties onyx, String... profiles) {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles(profiles);
-        return new StartupChecks(EpaProperties.of(Map.of("mode", mode, "target", target)), environment);
+        return new StartupChecks(EpaProperties.of(Map.of("mode", mode, "target", target)), onyx, environment);
     }
 
     @Test
@@ -35,6 +39,20 @@ class StartupChecksTest {
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("Exactly one");
         assertThatThrownBy(() -> checks("mock", "onyx", "staging").afterPropertiesSet())
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("Exactly one");
+    }
+
+    @Test
+    void acceptsTheTwoAttachmentModesAndRefusesAnythingElse() {
+        for (String mode : new String[] {"fhir", "x12-275"}) {
+            assertThatCode(() -> checks("mock", "onyx", OnyxProperties.of(Map.of("pas.attachment-mode", mode)), "mock")
+                    .afterPropertiesSet()).as(mode).doesNotThrowAnyException();
+        }
+        // Free text that binds without complaint would only be found at the first submission, if at all.
+        for (String mode : new String[] {"x12_275", "X12-275", "FHIR", "x12", ""}) {
+            assertThatThrownBy(() -> checks("mock", "onyx", OnyxProperties.of(Map.of("pas.attachment-mode", mode)), "mock")
+                    .afterPropertiesSet()).as("[" + mode + "]").isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("onyx.pas.attachment-mode");
+        }
     }
 
     @Test

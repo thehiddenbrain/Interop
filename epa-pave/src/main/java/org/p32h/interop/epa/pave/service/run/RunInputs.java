@@ -4,7 +4,6 @@ import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.Expectations;
 import org.p32h.interop.epa.pave.model.FieldError;
-import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.Npi;
@@ -16,6 +15,7 @@ import org.p32h.interop.epa.pave.service.error.ValidationException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -85,9 +85,13 @@ public final class RunInputs {
         return this;
     }
 
-    /** A declared expectation must be something this operation can be checked against. */
-    public RunInputs expectation(String expected, OutcomeCode[] vocabulary) {
-        for (String problem : Expectations.problems(expected, vocabulary)) {
+    /**
+     * A declared expectation must be something this operation can be checked against: outcomes it
+     * can produce and elements it returns. A misspelt one is refused here, before sending, because
+     * afterwards it could only be reported as a failed test with a misleading reason.
+     */
+    public RunInputs expectation(String expected, OutcomeCode[] vocabulary, Collection<String> elements) {
+        for (String problem : Expectations.problems(expected, vocabulary, elements)) {
             errors.add(new FieldError("expected", problem));
         }
         return this;
@@ -101,17 +105,6 @@ public final class RunInputs {
     public RunInputs scenario(String scenarioId, EpaProperties epa) {
         if (Texts.present(scenarioId) && !epa.mock()) {
             errors.add(new FieldError("scenarioId", "A scenario can be chosen on the mock profile only. On live the answer comes from the service."));
-        }
-        return this;
-    }
-
-    /** A body the tester edited must be JSON. */
-    public RunInputs rawBody(String rawBody) {
-        if (rawBody != null) {
-            JsonSafe.Parsed parsed = JsonSafe.parse(rawBody);
-            if (!parsed.ok()) {
-                errors.add(new FieldError("rawBody", parsed.error() + " Correct the body and send again."));
-            }
         }
         return this;
     }

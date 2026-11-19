@@ -30,13 +30,16 @@ public interface RunLedger {
      *   <li>the correlation entry {@link RunRecord#CORR_AUTHORIZATION_REF}: follows the member ID
      *       policy, since an authorization number identifies a member's request</li>
      * </ul>
+     * Every other correlation entry, including a run id, a claim id the tool minted, a
+     * ClaimResponse id and a subscription id, is written as given.
      * The receipt holds the record as actually written.
      */
     LedgerReceipt record(RunRecord draft);
 
     /**
      * Runs matching the query, newest first, each with its latest note applied. A correlation
-     * filter is given the raw identifier; the ledger applies its storage policy before comparing.
+     * filter is given the raw identifier and matches a stored value in either form, as
+     * {@link #matches} does.
      */
     List<RunRecord> query(RunQuery query);
 
@@ -55,8 +58,16 @@ public interface RunLedger {
     /**
      * The form the ledger writes for a member-linked identifier under the current policy: the
      * identifier with whitespace removed when recording member IDs is configured, otherwise its
-     * salted token. To match an incoming identifier against a stored one, compare the stored value
-     * with this and never with the raw identifier, so the match works under either policy.
+     * salted token.
      */
     String tokenFor(String identifier);
+
+    /**
+     * True when a stored value is this identifier in either form the ledger can have written: the
+     * identifier with whitespace removed, or its token. Lines are never rewritten, and a pended
+     * authorization can be notified days after it was submitted, so a line written under one policy
+     * must still match after the policy has changed. A correlation filter in {@link #query} matches
+     * the same way.
+     */
+    boolean matches(String stored, String identifier);
 }

@@ -19,11 +19,17 @@ public class StartupChecks implements InitializingBean {
 
     private static final List<String> TARGETS = List.of("onyx", "nehen");
 
+    /** The two ways supporting documentation can travel with a prior authorization request. */
+    public static final String ATTACHMENT_FHIR = "fhir";
+    public static final String ATTACHMENT_X12_275 = "x12-275";
+
     private final EpaProperties epa;
+    private final OnyxProperties onyx;
     private final Environment environment;
 
-    public StartupChecks(EpaProperties epa, Environment environment) {
+    public StartupChecks(EpaProperties epa, OnyxProperties onyx, Environment environment) {
         this.epa = epa;
+        this.onyx = onyx;
         this.environment = environment;
     }
 
@@ -43,6 +49,13 @@ public class StartupChecks implements InitializingBean {
         }
         if (epa.target() == null || !TARGETS.contains(epa.target().toLowerCase(java.util.Locale.ROOT))) {
             throw new IllegalStateException("epa.target is '" + epa.target() + "'. It must be one of " + TARGETS + ".");
+        }
+        // Free text here would be found at the first submission, if at all. A misspelt mode is
+        // refused now, where the person who typed it is looking.
+        String mode = onyx.pas().attachmentMode();
+        if (!ATTACHMENT_FHIR.equals(mode) && !ATTACHMENT_X12_275.equals(mode)) {
+            throw new IllegalStateException("onyx.pas.attachment-mode is '" + mode + "'. It must be '" + ATTACHMENT_FHIR + "' or '"
+                    + ATTACHMENT_X12_275 + "'.");
         }
     }
 }

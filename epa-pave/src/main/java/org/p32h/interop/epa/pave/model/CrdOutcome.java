@@ -26,13 +26,13 @@ public enum CrdOutcome implements OutcomeCode {
     PROVIDER_NOT_FOUND("The service does not recognise this provider", Tone.DATA, false),
     AUTH_NOT_STATED("The service did not state whether prior authorization is required", Tone.NO_ANSWER, false),
     UNRECOGNISED_CODE("The service returned a code this tool does not recognise", Tone.NO_ANSWER, false),
-    MIXED("The services in this order received different answers", Tone.ACTION, false),
+    MIXED("The codes in this order did not all receive the same answer", Tone.ACTION, false),
     NO_DETERMINATION("The service returned no determination", Tone.NO_ANSWER, false),
-    REJECTED("The service rejected the request", Tone.FAULT, true),
+    REJECTED("The service did not accept the request as sent", Tone.FAULT, true),
     SERVICE_ERROR("The service failed", Tone.FAULT, true),
     TIMEOUT("The service did not answer in time", Tone.FAULT, true),
     UNREACHABLE("The service could not be reached", Tone.FAULT, true),
-    MALFORMED_RESPONSE("The service answered with a body that could not be read", Tone.FAULT, true);
+    MALFORMED_RESPONSE("The service answered with no body, or with a body that could not be read", Tone.FAULT, true);
 
     private final String label;
     private final Tone tone;

@@ -6,6 +6,8 @@ public enum NextAction {
     START_DTR,
     /** Answer the next adaptive question. */
     ANSWER_NEXT_QUESTION,
+    /** Answer the questionnaire that was loaded and submit the response. */
+    SUBMIT_RESPONSE,
     /** Submit the prior authorization request. */
     START_PAS,
     /** Ask for the status of a pended authorization. */

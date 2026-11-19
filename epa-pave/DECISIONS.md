@@ -125,12 +125,15 @@ own outcome code, so a tester can declare "I expect a timeout" and so that "no d
 (the service answered and said nothing) is never used for "no answer arrived".
 
 **D-017. Expectations.**
-An expectation is an outcome code, or one or more `name=code` assertions against the standard
-codes, separated by semicolons. All must hold. A blank expectation is `unverified` and can never
-pass. A code assertion fails when the response did not carry that element, and one with a blank
-value is rejected, so two empty sides cannot match. A code assertion holds when the code is among
-the values returned for that element. An expectation the tool cannot read is rejected with a 422
-before sending; if one reaches the comparison anyway it is a `fail` with the reason, never a pass.
+An expectation is one or more terms separated by semicolons, and all must hold. A term is an
+outcome code, a `name=code` assertion against the standard codes, or the same assertion about one
+answer only, written `subject: name=code` (for example `95810: pa-needed=auth-needed`). A blank
+expectation is `unverified` and can never pass. A code assertion fails when the response did not
+carry that element, and one with a blank value is rejected, so two empty sides cannot match. An
+expectation the tool cannot read is rejected with a 422 before sending; if one reaches the
+comparison anyway it is a `fail` with the reason, never a pass.
+Amended after the contract review, see D-055: the codes of different answers are never pooled, and
+an element name must be one the operation returns.
 
 **D-018. Status codes beyond 200 and 422.**
 Section 18 defines 200 and 422. Three more are used so the browser can tell states apart without
@@ -356,3 +359,118 @@ became `org.p32h` and every other segment was kept. The root package is
 `org.p32h.interop.epa.pave` and the group is `org.p32h.interop.epa`. The directory, the project
 name, the jar name `epa-pave-1.0.0.jar` and the port are unchanged. If a shorter package was
 meant, such as `org.p32h.epa.pave` or `org.p32h.pave`, it is one mechanical rename.
+
+
+## Changes made after the second half of the contract review
+
+The CRD seat and the PAS and DTR seat reported after the first set of changes. Each finding was
+checked against the code before it was applied. These are the ones that changed a contract.
+
+**D-054. An answer is tied to the procedure code it is for, and never by assumption.**
+A CRD response answers orders, and a tester asks about procedure codes. The request builder reports
+each order it sent with its code (and the same list is read out of a tester's own body). An answer
+is tied to a requested code when it sits on the order that was sent, or on a resource that echoes
+that code, or, when it sits on no resource at all, when exactly one order was sent. Nothing else is
+taken as evidence. A requested code that no answer is tied to is reported as unanswered: it counts
+as "no determination" for that code, so the order as a whole is `MIXED`, the verdict names the
+code, the grid shows it as not returned and the test result cannot pass on the other code's answer.
+The safer reading was chosen over the convenient one: an answer on a card, attached to no order,
+is not assumed to cover every code in an order of several.
+
+**D-055. Codes of different answers are never pooled.**
+`Expectations` compares each answer separately. A `name=code` term with no subject holds only when
+every answer carries the code, and something asked about and left unanswered satisfies no code
+term. Any-match stays inside one answer, which `doc-purpose` and `info-needed` need. An element
+name outside the ones the operation returns is a validation error that lists the valid names; it
+is matched ignoring case and compared under the response's spelling.
+
+**D-056. The ledger's coverage codes carry their subject when there is more than one.**
+A run with one answer writes `pa-needed=no-auth` as before. A run with several writes
+`95810: pa-needed=auth-needed`, and an unanswered code is written `95811: (no answer)`, so a replay
+in which two codes swap answers no longer writes an identical line.
+
+**D-057. The mock answers every order it is sent.**
+A scenario file holds the answer for one order. When a request carries several, the mock repeats
+that answer for each, and the result says it did. Otherwise every mock run with two codes would
+report the second as unanswered and testers would learn to ignore the finding that matters most on
+live. A scenario that puts its answer on the card (scenario 3) is not repeated, so with several
+codes it shows what an untied answer looks like.
+
+**D-058. A typed read that returns nothing consumes nothing.**
+`TrackedJson.text`, `presentText`, `integer` and `bool` mark a field as used only when they return
+a value. Asking for the elements of an array never marks it. An empty array therefore appears
+among the returned fields unless the view states the emptiness itself, which keeps `"links": []`
+apart from no links at all without a presence flag beside every list. An empty string, array and
+object keep their JSON text so they can be told apart.
+
+**D-059. What a resource holds beyond what the tool reads is shown with its action.**
+An action's resource is listed in full beside the action (`ActionView.resource`), so an echoed
+order does not fill the list of fields nobody anticipated. The action's own `resourceId` and the id
+of the resource it carries are two slots.
+
+**D-060. When the code list was not compared, the result says so.**
+`CODE_LIST_NOT_COMPARED` is raised, with the reason, wherever the comparison could not be made:
+no row for the code, no row under the member's line, the member's line not known and only named
+lines listed, rows that disagree, a side that takes no position, no answer tied to the code, or
+routing one side does not state. No finding now means the two were compared and agree. With no
+line of business known, only rows that state no line are used: choosing a named line's row would
+be a guess about the member.
+
+**D-061. A body the tester supplies is sent as written.**
+It is no longer checked for JSON before its placeholders are resolved, because a vendor sample
+with an unquoted placeholder is not JSON until then. If it is still not JSON afterwards it is sent
+anyway, which a negative test needs, and the result carries a note saying so. A blank body means
+none was supplied.
+
+**D-062. A refused production write is a result, not only an error.**
+The service catches the refusal, records the attempt and returns the usual result shape: the
+verdict says nothing was sent, the test result is `unverified`, the next step is to unlock or
+switch, the wire view shows where the request would have gone marked as not sent, and the ledger
+receipt is included. The controller answers 403 with that result as the body. A preview of a
+blocked write still shows the target and says it is blocked, without building the body.
+CRD passes the session's unlock too: a hook is a read, but a tester can point a run at any
+collection request and the gateway judges that request for what it is.
+
+**D-063. Operations that never leave the tool.**
+`DTR_RESPONSE` was added for the step that completes a questionnaire inside the tool, so that step
+has its own ledger line and is not recorded as a call that was never made. It and
+`SUBSCRIPTION_NOTIFICATION` are not outbound: the gateway refuses to prepare a call for either, a
+replay or a suite reports them as not runnable, and if a collection request detected as one is ever
+pointed at a url it is judged as a write for every method that can change state.
+
+**D-064. A url value that was supplied is never ignored.**
+If the chosen url has no token for it the call is refused. For the three subscription operations
+that take an id, the id is bound to the `{{placeholder}}` after `Subscription/` ahead of every
+other layer, so an id left in an uploaded environment cannot redirect a delete.
+
+**D-065. A scenario step answers only its own call.**
+A step name the scenario file does not define is refused with a validation error naming the
+scenario and the step. It is not answered with the main step, which would answer an inquiry with
+the submission's response. A step can carry its own `expect` block.
+
+**D-066. The exchange refuses states that cannot have happened.**
+`VendorExchange` requires a failure type, a status for every call that got a response, and no
+status or body for one that did not. An exchange built with nothing set used to read as a
+successful empty answer.
+
+**D-067. Outcome wording.**
+`REJECTED` reads "The service did not accept the request as sent" and the next step follows the
+status: 401 and 403 point at the credentials, 404 without a not-found finding points at the url and
+discovery, anything else at the request. A response with no body is described as that, not as a
+body that could not be read. `MIXED` is worded about codes, not services.
+
+**D-068. Which mock scenario answered is stated under the verdict.**
+The first supporting line of a mock result names the scenario and how it came to be the one,
+including when it was the default because nothing was chosen and no sentinel matched.
+
+**D-069. One set of resource builders and one request shape for the three protocols.**
+`service/run/CaseResources` builds the Patient, Coverage, Practitioner, PractitionerRole,
+ServiceRequest and insurer, with the local ids as constants. Each protocol's request record
+implements `RunRequest`, and `RunSupport` fills the ledger draft and the list of unrecorded inputs
+from it. In a chained run DTR must send the order and coverage CRD sent, and PAS must build its
+items from the same codes and systems, so copies would be a correctness risk.
+
+**D-070. `onyx.pas.attachment-mode` is checked at startup.**
+Only `fhir` and `x12-275` are accepted. A PAS submission that carries documentation records the
+mode it used.
+

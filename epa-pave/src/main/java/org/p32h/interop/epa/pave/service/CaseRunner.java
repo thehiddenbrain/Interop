@@ -18,8 +18,9 @@ public interface CaseRunner {
      * Runs the case. Never throws: a refused production write becomes {@code BLOCKED}, a missing
      * url or an unresolved placeholder becomes {@code NOT_CONFIGURED}, invalid inputs become
      * {@code INVALID}, and a case whose inputs are not kept becomes {@code NOT_RUNNABLE}, each with
-     * the reason. A case never carries a production unlock, so a write against a production
-     * environment is always reported as blocked.
+     * the reason. An operation that is not outbound, such as a notification that was received, has
+     * nothing to send again and is {@code NOT_RUNNABLE}. A case never carries a production unlock,
+     * so a write against a production environment is always reported as blocked.
      *
      * <p>Replay must not call this for a ledger record that lists any
      * {@link org.p32h.interop.epa.pave.model.RunRecord#unrecordedInputs()}: such a run

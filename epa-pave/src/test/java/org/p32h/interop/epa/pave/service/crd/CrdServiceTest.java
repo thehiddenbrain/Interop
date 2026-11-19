@@ -15,6 +15,7 @@ import org.p32h.interop.epa.pave.model.AuthRequirement;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
+import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.model.FieldError;
@@ -27,6 +28,7 @@ import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.model.ResolvedUrl;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
@@ -36,10 +38,14 @@ import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
+import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.config.RequestRef;
+import org.p32h.interop.epa.pave.service.config.TestPreparedCalls;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
+import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import org.p32h.interop.epa.pave.testsupport.FakeCodeList;
@@ -95,7 +101,7 @@ class CrdServiceTest {
     }
 
     private RunEnvelope<CrdDetail> run(String memberId) {
-        return service().run(request(memberId).build(), RunOrigin.manual());
+        return service().run(request(memberId).build(), RunOrigin.manual(), null);
     }
 
     // ---- the result answers the four questions ----
@@ -103,7 +109,7 @@ class CrdServiceTest {
     @Test
     void aRunReturnsTheVerdictTheTestResultTheNextStepAndTheLedgerReceipt() {
         RunEnvelope<CrdDetail> result = service().run(request("P32H-PA-REQ").expected("AUTH_REQUIRED").testerRef("QA-17")
-                .note("first run").chainId("chain-1").build(), RunOrigin.manual());
+                .note("first run").chainId("chain-1").build(), RunOrigin.manual(), null);
 
         // What happened.
         assertThat(result.verdict().headline()).isEqualTo("Prior authorization is required.");
@@ -129,7 +135,7 @@ class CrdServiceTest {
     @Test
     void theLedgerRecordCarriesEveryFieldTheSpecificationListsAsAlways() {
         gateway.environment("Onyx Sandbox", EnvironmentKind.SANDBOX);
-        service().run(request("P32H-DELEG").expected("AUTH_REQUIRED").testerRef("QA-17").note("routing check").build(), RunOrigin.manual());
+        service().run(request("P32H-DELEG").expected("AUTH_REQUIRED").testerRef("QA-17").note("routing check").build(), RunOrigin.manual(), null);
         RunRecord record = ledger.only();
 
         assertThat(record.runId()).startsWith("run-");
@@ -164,8 +170,8 @@ class CrdServiceTest {
 
     @Test
     void noAuthAndAnEmptyResponseGiveTwoDifferentScreensAndTwoDifferentLedgerRows() {
-        RunEnvelope<CrdDetail> noAuth = service().run(request("P32H-NO-AUTH").expected("NO_AUTH_REQUIRED").build(), RunOrigin.manual());
-        RunEnvelope<CrdDetail> empty = service().run(request("P32H-EMPTY").expected("NO_AUTH_REQUIRED").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> noAuth = service().run(request("P32H-NO-AUTH").expected("NO_AUTH_REQUIRED").build(), RunOrigin.manual(), null);
+        RunEnvelope<CrdDetail> empty = service().run(request("P32H-EMPTY").expected("NO_AUTH_REQUIRED").build(), RunOrigin.manual(), null);
 
         // Two screens.
         assertThat(noAuth.verdict().headline()).isEqualTo("Prior authorization is not required.");
@@ -206,19 +212,21 @@ class CrdServiceTest {
         assertThat(emptyRecord.errorType()).isEqualTo("NONE");
         assertThat(noAuthRecord.httpStatus()).isEqualTo(200);
         assertThat(emptyRecord.httpStatus()).isEqualTo(200);
-        assertThat(emptyRecord.findings()).contains("REQUIRED_ELEMENT_MISSING");
-        assertThat(noAuthRecord.findings()).isEmpty();
+        assertThat(emptyRecord.findings()).containsExactly("REQUIRED_ELEMENT_MISSING");
+        // The code list in this test has no row for the code, and the result says the two were not
+        // compared. No finding at all would have read as agreement.
+        assertThat(noAuthRecord.findings()).containsExactly("CODE_LIST_NOT_COMPARED");
     }
 
     @Test
     void theAuthorizationOutcomeAndTheTestResultAreReportedSeparately() {
         // The tester expects "not covered", and that is what comes back: a stop for the provider, a pass for the test.
-        RunEnvelope<CrdDetail> result = service().run(request("P32H-NOCOV").expected("NOT_COVERED").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> result = service().run(request("P32H-NOCOV").expected("NOT_COVERED").build(), RunOrigin.manual(), null);
         assertThat(result.verdict().tone()).isEqualTo(Tone.STOP);
         assertThat(result.verdict().headline()).isEqualTo("This service is not a covered benefit.");
         assertThat(result.expectation().result()).isEqualTo(TestResult.PASS);
         // And the reverse: a clean "not required" that the tester did not expect is a failed test.
-        RunEnvelope<CrdDetail> surprise = service().run(request("P32H-NO-AUTH").expected("AUTH_REQUIRED").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> surprise = service().run(request("P32H-NO-AUTH").expected("AUTH_REQUIRED").build(), RunOrigin.manual(), null);
         assertThat(surprise.verdict().tone()).isEqualTo(Tone.CLEAR);
         assertThat(surprise.expectation().result()).isEqualTo(TestResult.FAIL);
         // With no expectation the run is unverified, never passed.
@@ -227,12 +235,141 @@ class CrdServiceTest {
 
     @Test
     void aCodeAssertionIsCheckedAgainstTheStandardCodes() {
-        assertThat(service().run(request("P32H-DOC-DTR").expected("pa-needed=auth-needed; doc-needed=clinical").build(), RunOrigin.manual())
+        assertThat(service().run(request("P32H-DOC-DTR").expected("pa-needed=auth-needed; doc-needed=clinical").build(), RunOrigin.manual(), null)
                 .expectation().result()).isEqualTo(TestResult.PASS);
-        assertThat(service().run(request("P32H-DELEG").expected("delegated-vendor=Evolent").build(), RunOrigin.manual())
+        assertThat(service().run(request("P32H-DELEG").expected("delegated-vendor=Evolent").build(), RunOrigin.manual(), null)
                 .expectation().result()).isEqualTo(TestResult.PASS);
-        assertThat(service().run(request("P32H-DELEG").expected("delegated-vendor=eviCore").build(), RunOrigin.manual())
+        assertThat(service().run(request("P32H-DELEG").expected("delegated-vendor=eviCore").build(), RunOrigin.manual(), null)
                 .expectation().result()).isEqualTo(TestResult.FAIL);
+    }
+
+    // ---- an order of several codes ----
+
+    @Test
+    void anOrderOfTwoCodesGetsAnAnswerForEachAndEveryPartOfTheResultNamesTheCode() {
+        codeList.row("95810", AuthRequirement.REQUIRED, "Medicare", null).row("E0601", AuthRequirement.NOT_REQUIRED, "Medicare", null);
+        RunEnvelope<CrdDetail> result = service().run(request("P32H-PA-REQ")
+                .procedureCodes(List.of(CodeInput.of("95810"), CodeInput.of("E0601"))).expected("AUTH_REQUIRED; pa-needed=auth-needed").build(),
+                RunOrigin.manual(), null);
+
+        assertThat(result.verdict().headline()).isEqualTo("Prior authorization is required.");
+        assertThat(result.verdict().supporting()).contains("This is the answer for each of: 95810, E0601.");
+        assertThat(result.verdict().supporting().get(0)).startsWith("Mock scenario crd-01-pa-required answered")
+                .contains("repeated here for each of the 2 orders sent");
+        assertThat(result.detail().coverageInformation()).extracting(v -> v.subject()).containsExactly("95810", "E0601");
+        // Every row of the grid says which code it is about.
+        assertThat(result.determination()).extracting(DeterminationRow::subject).containsOnly("95810", "E0601");
+        assertThat(result.determination()).filteredOn(r -> r.label().equals("Prior authorization")).extracting(DeterminationRow::subject)
+                .containsExactly("95810", "E0601");
+        assertThat(result.expectation().result()).isEqualTo(TestResult.PASS);
+        assertThat(result.expectation().explanation()).contains("every answer carried pa-needed=auth-needed (95810, E0601)");
+        assertThat(result.nextStep().carry()).containsEntry("procedureCodes", List.of("95810", "E0601"));
+        // The code list is compared code by code: it agrees on the first and disagrees on the second.
+        assertThat(result.findings()).filteredOn(f -> f.kind() == FindingKind.CODE_LIST_DISAGREES_ON_AUTH).extracting(Finding::subject)
+                .containsExactly("E0601");
+
+        RunRecord record = ledger.only();
+        assertThat(record.procedureCodes()).containsExactly("95810", "E0601");
+        assertThat(record.coverageCodes()).contains("95810: pa-needed=auth-needed", "E0601: pa-needed=auth-needed");
+    }
+
+    @Test
+    void aCodeTheServiceLeftUnansweredIsNeverReportedWithTheAnswerOfTheOther() {
+        // The service answers the first of two codes with no-auth and says nothing about the second.
+        String partial = "{\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-1\","
+                + "\"extension\":[{\"url\":\"http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information\",\"extension\":["
+                + "{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"}]}]}}]}";
+        RunEnvelope<CrdDetail> result = service(stub(TestExchanges.crd(200, partial)), "mock", Map.of()).run(request("S123456789")
+                .procedureCodes(List.of(CodeInput.of("95810"), CodeInput.of("E0601"))).expected("NO_AUTH_REQUIRED").build(), RunOrigin.manual(), null);
+
+        assertThat(result.verdict().outcomeCode()).isEqualTo("MIXED");
+        assertThat(result.verdict().headline()).isEqualTo("The codes in this order did not all receive the same answer.");
+        assertThat(result.verdict().supporting()).contains("95810: prior authorization is not required.",
+                "E0601: no answer was returned for this code. That is not an answer that prior authorization is not required.");
+        // The tester expected "not required" for the order. That is not what came back, so the test fails.
+        assertThat(result.expectation().result()).isEqualTo(TestResult.FAIL);
+        assertThat(result.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        // The unanswered code has its own rows in the grid, marked as not returned.
+        assertThat(result.determination()).filteredOn(r -> "E0601".equals(r.subject())).extracting(DeterminationRow::presence)
+                .containsExactly(Presence.ABSENT, Presence.ABSENT);
+        assertThat(result.determination()).filteredOn(r -> "95810".equals(r.subject()) && r.label().equals("Prior authorization"))
+                .extracting(DeterminationRow::code).containsExactly("no-auth");
+        assertThat(ledger.only().outcome()).isEqualTo("MIXED");
+        assertThat(ledger.only().coverageCodes()).containsExactly("95810: covered=covered", "95810: pa-needed=no-auth", "E0601: (no answer)");
+    }
+
+    // ---- the production guardrail ----
+
+    private static ProdWriteBlockedException blockedWrite() {
+        return new ProdWriteBlockedException(EpaOperation.PAS_SUBMIT, new EnvironmentRef("Onyx Production", EnvironmentKind.PROD),
+                "Writes to the production environment Onyx Production are blocked.", "Unlock writes on the Config tab, or switch environment.",
+                new ResolvedUrl("{{baseUrl}}/Claim/$submit", "https://onyx.example.invalid/Claim/$submit",
+                        "https://onyx.example.invalid/Claim/$submit", List.of(), List.of(), "PAS submit sample"), "POST", "PAS submit sample");
+    }
+
+    @Test
+    void aWriteTheGuardrailRefusesIsRecordedAndReturnedAsAResultThatSaysNothingWasSent() {
+        // A CRD hook is a read, but a tester can point the run at any collection request, and the
+        // gateway judges that request for what it is.
+        gateway.failing(blockedWrite());
+        AtomicInteger calls = new AtomicInteger();
+        OnyxCrdClient counting = new OnyxCrdClient() {
+            @Override
+            public VendorExchange hook(PreparedCall call, ResolvedText body, MockSelection selection) {
+                calls.incrementAndGet();
+                return TestExchanges.crd(200, "{\"cards\":[]}");
+            }
+
+            @Override
+            public VendorExchange discover(PreparedCall call) {
+                return TestExchanges.crd(200, "{}");
+            }
+        };
+        RunEnvelope<CrdDetail> result = service(counting, "live", Map.of()).run(request("S12345678   01").expected("AUTH_REQUIRED")
+                .testerRef("QA-17").build(), RunOrigin.manual(), null);
+
+        assertThat(calls.get()).isZero();
+        assertThat(RunSupport.isBlocked(result)).isTrue();
+        assertThat(result.verdict().tone()).isEqualTo(Tone.BLOCKED);
+        assertThat(result.verdict().outcomeCode()).isEqualTo("BLOCKED");
+        assertThat(result.verdict().headline()).startsWith("Nothing was sent.");
+        // Not a pass and not a fail: the service said nothing.
+        assertThat(result.expectation().result()).isEqualTo(TestResult.UNVERIFIED);
+        assertThat(result.expectation().expected()).isEqualTo("AUTH_REQUIRED");
+        assertThat(result.nextStep().action()).isEqualTo(NextAction.UNLOCK_OR_SWITCH);
+        assertThat(result.error().kind()).isEqualTo(ErrorKind.BLOCKED);
+        // Where it would have gone is shown, marked as not sent, with both forms of the member ID.
+        assertThat(result.wire().request().sent()).isFalse();
+        assertThat(result.wire().request().url()).isEqualTo("https://onyx.example.invalid/Claim/$submit");
+        assertThat(result.wire().request().method()).isEqualTo("POST");
+        assertThat(result.wire().request().body()).isNull();
+        assertThat(result.wire().response()).isNull();
+        assertThat(result.wire().memberId().sent()).isEqualTo("S1234567801");
+        assertThat(result.environment().name()).isEqualTo("Onyx Production");
+
+        // The attempt has its line, and the result carries the receipt so the tester is told.
+        assertThat(result.ledger().recorded()).isTrue();
+        RunRecord record = ledger.only();
+        assertThat(record.runId()).isEqualTo(result.runId());
+        assertThat(record.outcome()).isEqualTo("BLOCKED");
+        assertThat(record.errorType()).isEqualTo(RunRecord.ERROR_BLOCKED);
+        assertThat(record.result()).isEqualTo(TestResult.UNVERIFIED);
+        assertThat(record.environment()).isEqualTo("Onyx Production");
+        assertThat(record.environmentKind()).isEqualTo(EnvironmentKind.PROD);
+        assertThat(record.targetSource()).isEqualTo("PAS submit sample");
+        assertThat(record.httpStatus()).isNull();
+        assertThat(record.memberId()).isEqualTo("S1234567801");
+        assertThat(record.procedureCodes()).containsExactly("95810");
+        assertThat(record.testerRef()).isEqualTo("QA-17");
+    }
+
+    @Test
+    void theSessionsUnlockIsHandedToTheGatewayAndNothingElseDecidesWhetherItHolds() {
+        ProdUnlock unlock = TestPreparedCalls.unlock("Onyx Production", 0L);
+        service().run(request("P32H-NO-AUTH").build(), RunOrigin.manual(), unlock);
+        assertThat(gateway.lastIntent().unlock()).isSameAs(unlock);
+        service().run(request("P32H-NO-AUTH").build(), RunOrigin.manual(), null);
+        assertThat(gateway.lastIntent().unlock()).isNull();
     }
 
     // ---- not found, faults ----
@@ -269,10 +406,10 @@ class CrdServiceTest {
         assertThat(timeout.error().httpStatus()).isNull();
         assertThat(timeout.verdict().headline()).isEqualTo("The service did not answer in time.");
         OnyxCrdClient unreachable = stub(TestExchanges.unavailable(EpaOperation.CRD_ORDER_SIGN));
-        RunEnvelope<CrdDetail> down = service(unreachable, "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> down = service(unreachable, "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(down.error().kind()).isEqualTo(ErrorKind.UNREACHABLE);
         OnyxCrdClient garbled = stub(TestExchanges.crd(200, "{\"cards\": ["));
-        RunEnvelope<CrdDetail> malformed = service(garbled, "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> malformed = service(garbled, "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(malformed.error().kind()).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
         // The raw bytes are kept for the screen even though they could not be parsed.
         assertThat(malformed.wire().response().body()).isEqualTo("{\"cards\": [");
@@ -315,7 +452,8 @@ class CrdServiceTest {
                 "member.dateOfBirth");
         assertInvalid(service, request("S123456789").expected("APPROVED").build(), "expected");
         assertInvalid(service, request("S123456789").hook("order-dispatch").build(), "hook");
-        assertInvalid(service, request("S123456789").rawBody("{not json").build(), "rawBody");
+        // A misspelt element name is refused here. Sent, it could only come back as a failed test with a false reason.
+        assertInvalid(service, request("S123456789").expected("pa_needed=no-auth").build(), "expected");
 
         assertThat(calls.get()).isZero();
         assertThat(ledger.records()).isEmpty();
@@ -324,7 +462,7 @@ class CrdServiceTest {
 
     @Test
     void everyProblemWithTheFormIsReportedAtOnce() {
-        assertThatThrownBy(() -> service().run(CrdRunRequest.builder().dateOfService("tomorrow").build(), RunOrigin.manual()))
+        assertThatThrownBy(() -> service().run(CrdRunRequest.builder().dateOfService("tomorrow").build(), RunOrigin.manual(), null))
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::field)
                         .containsExactly("member.memberId", "provider.npi", "procedureCodes", "dateOfService"));
     }
@@ -333,13 +471,13 @@ class CrdServiceTest {
     void aScenarioCannotBeForcedOnLive() {
         assertInvalid(service(mockClient, "live", Map.of()), request("S123456789").scenarioId("crd-02-no-auth").build(), "scenarioId");
         // On mock the same request runs and answers from the chosen scenario, whatever the member.
-        RunEnvelope<CrdDetail> forced = service().run(request("P32H-PA-REQ").scenarioId("crd-02-no-auth").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> forced = service().run(request("P32H-PA-REQ").scenarioId("crd-02-no-auth").build(), RunOrigin.manual(), null);
         assertThat(forced.verdict().outcomeCode()).isEqualTo("NO_AUTH_REQUIRED");
         assertThat(ledger.only().scenarioId()).isEqualTo("crd-02-no-auth");
     }
 
     private void assertInvalid(CrdService service, CrdRunRequest request, String field) {
-        assertThatThrownBy(() -> service.run(request, RunOrigin.manual()))
+        assertThatThrownBy(() -> service.run(request, RunOrigin.manual(), null))
                 .as("expected a validation error on " + field)
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::field).contains(field));
     }
@@ -373,7 +511,7 @@ class CrdServiceTest {
 
     @Test
     void theRecordHandedToTheLedgerHoldsNoMemberDataAndNoWireJson() {
-        service().run(request("P32H-DOC-DTR").build(), RunOrigin.manual());
+        service().run(request("P32H-DOC-DTR").build(), RunOrigin.manual(), null);
         String line = JsonSafe.mapper().writeValueAsString(ledger.only());
         assertThat(line).doesNotContain(SURNAME).doesNotContain("Given").doesNotContain("1970-01-31").doesNotContain("female")
                 .doesNotContain("SUB-PLACEHOLDER-1").doesNotContain("resourceType").doesNotContain("hookInstance")
@@ -382,11 +520,11 @@ class CrdServiceTest {
 
     @Test
     void aRunFromASuiteOrAReplayCarriesItsOrigin() {
-        service().run(request("P32H-NO-AUTH").build(), new RunOrigin("suite-1", "case-7", "run-earlier"));
+        service().run(request("P32H-NO-AUTH").build(), new RunOrigin("suite-1", "case-7", "run-earlier"), null);
         assertThat(ledger.only().suiteRunId()).isEqualTo("suite-1");
         assertThat(ledger.only().caseId()).isEqualTo("case-7");
         assertThat(ledger.only().replayOfRunId()).isEqualTo("run-earlier");
-        service().run(request("P32H-NO-AUTH").build(), null);
+        service().run(request("P32H-NO-AUTH").build(), null, null);
         assertThat(ledger.last().suiteRunId()).isNull();
     }
 
@@ -397,7 +535,7 @@ class CrdServiceTest {
         codeList.failing(new IllegalStateException("code list exploded"));
         CrdRunRequest request = request("P32H-NO-AUTH")
                 .procedureCodes(List.of(new CodeInput("95810", "http://www.ama-assn.org/go/cpt", null))).build();
-        assertThatThrownBy(() -> service().run(request, RunOrigin.manual())).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service().run(request, RunOrigin.manual(), null)).isInstanceOf(IllegalStateException.class);
         // The service was called, so the run happened and is recorded as a failure of the tool.
         assertThat(ledger.only().outcome()).isEqualTo("TOOL_ERROR");
         assertThat(ledger.only().result()).isEqualTo(TestResult.UNVERIFIED);
@@ -417,7 +555,7 @@ class CrdServiceTest {
 
     @Test
     void aSpacedMemberIdIsSentWithoutSpacesAndBothFormsAreShown() {
-        RunEnvelope<CrdDetail> result = service().run(request("S12345678   01").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> result = service().run(request("S12345678   01").build(), RunOrigin.manual(), null);
         assertThat(result.wire().memberId().typed()).isEqualTo("S12345678   01");
         assertThat(result.wire().memberId().sent()).isEqualTo("S1234567801");
         assertThat(result.wire().memberId().changed()).isTrue();
@@ -426,7 +564,7 @@ class CrdServiceTest {
         assertThat(result.wire().request().body()).doesNotContain("S12345678   01");
         assertThat(ledger.only().memberId()).isEqualTo("S1234567801");
         // An unspaced id goes through the same path unchanged.
-        RunEnvelope<CrdDetail> unspaced = service().run(request("S123456789").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> unspaced = service().run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(unspaced.wire().memberId().changed()).isFalse();
         assertThat(unspaced.wire().memberId().sent()).isEqualTo("S123456789");
     }
@@ -446,7 +584,7 @@ class CrdServiceTest {
 
     @Test
     void orderSelectIsSentAsItsOwnOperationWithItsSelections() {
-        RunEnvelope<CrdDetail> result = service().run(request("P32H-NO-AUTH").hook("order-select").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> result = service().run(request("P32H-NO-AUTH").hook("order-select").build(), RunOrigin.manual(), null);
         assertThat(result.operation()).isEqualTo(EpaOperation.CRD_ORDER_SELECT);
         assertThat(gateway.lastIntent().operation()).isEqualTo(EpaOperation.CRD_ORDER_SELECT);
         JsonNode sent = JsonSafe.parse(result.wire().request().body()).node();
@@ -458,7 +596,7 @@ class CrdServiceTest {
     @Test
     void theTestersOwnBodyIsSentAsWrittenAndTheLedgerSaysTheBodyWasNotKept() {
         String body = "{\"hook\":\"order-sign\",\"context\":{\"patientId\":\"P32H-NO-AUTH\"},\"vendorSampleField\":true}";
-        RunEnvelope<CrdDetail> result = service().run(CrdRunRequest.builder().rawBody(body).build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> result = service().run(CrdRunRequest.builder().rawBody(body).build(), RunOrigin.manual(), null);
 
         assertThat(result.wire().request().body()).isEqualTo(body);
         // The form held no member, so the sentinel typed into the body selected the scenario.
@@ -474,14 +612,46 @@ class CrdServiceTest {
     }
 
     @Test
+    void aBodyThatIsNotJsonIsStillSentAsWrittenAndTheResultSaysSo() {
+        // Sending a malformed body is a negative case a tester is entitled to try.
+        RunEnvelope<CrdDetail> result = service().run(CrdRunRequest.builder().rawBody("{\"hook\": \"order-sign\",").build(),
+                RunOrigin.manual(), null);
+        assertThat(result.wire().request().body()).isEqualTo("{\"hook\": \"order-sign\",");
+        assertThat(result.detail().requestNotes()).singleElement().satisfies(note ->
+                assertThat(note).contains("not valid JSON").contains("sent exactly as written"));
+        assertThat(ledger.only().unrecordedInputs()).containsExactly(RunRecord.INPUT_BODY);
+    }
+
+    @Test
+    void aBodyWhosePlaceholdersOnlyResolveIntoJsonIsAccepted() {
+        // Unquoted, as a vendor sample writes a number. It is not JSON until the value is filled in.
+        String body = "{\"hook\":\"order-sign\",\"context\":{\"encounterNumber\":{{encounterNumber}}}}";
+        RunEnvelope<CrdDetail> result = service().run(CrdRunRequest.builder().rawBody(body).variables(Map.of("encounterNumber", "42")).build(),
+                RunOrigin.manual(), null);
+        assertThat(result.wire().request().body()).isEqualTo("{\"hook\":\"order-sign\",\"context\":{\"encounterNumber\":42}}");
+        assertThat(result.detail().requestNotes()).isEmpty();
+    }
+
+    @Test
+    void theCodesInATestersOwnBodyAreTheOnesRecordedAndTiedToTheAnswers() {
+        String body = "{\"hook\":\"order-sign\",\"context\":{\"patientId\":\"P32H-NO-AUTH\",\"draftOrders\":{\"resourceType\":\"Bundle\",\"entry\":["
+                + "{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-1\",\"code\":{\"coding\":[{\"code\":\"70553\"}]}}}]}}}";
+        RunEnvelope<CrdDetail> result = service().run(CrdRunRequest.builder().rawBody(body)
+                .procedureCodes(List.of(CodeInput.of("95810"))).build(), RunOrigin.manual(), null);
+        // The form still held another code. What went out is what is recorded.
+        assertThat(ledger.only().procedureCodes()).containsExactly("70553");
+        assertThat(result.detail().coverageInformation().get(0).procedureCodes()).containsExactly("70553");
+    }
+
+    @Test
     void aBodyThatStillHoldsAPlaceholderIsRefusedAndNotRecorded() {
         assertThatThrownBy(() -> service().run(CrdRunRequest.builder().rawBody("{\"hook\":\"order-sign\",\"fhirServer\":\"{{fhirServer}}\"}").build(),
-                RunOrigin.manual())).isInstanceOfSatisfying(UnresolvedVariablesException.class,
+                RunOrigin.manual(), null)).isInstanceOfSatisfying(UnresolvedVariablesException.class,
                 e -> assertThat(e.variables()).containsExactly("fhirServer"));
         assertThat(ledger.records()).isEmpty();
         // Typed for this run, it resolves, and the ledger notes that a run value was used.
         service().run(CrdRunRequest.builder().rawBody("{\"hook\":\"order-sign\",\"fhirServer\":\"{{fhirServer}}\"}")
-                .variables(Map.of("fhirServer", "https://ehr.example.invalid/fhir")).build(), RunOrigin.manual());
+                .variables(Map.of("fhirServer", "https://ehr.example.invalid/fhir")).build(), RunOrigin.manual(), null);
         assertThat(ledger.only().unrecordedInputs()).containsExactly(RunRecord.INPUT_BODY, RunRecord.INPUT_RUN_VALUES);
     }
 
@@ -489,7 +659,7 @@ class CrdServiceTest {
     void theLedgerNamesEveryInputItCouldNotKeep() {
         service().run(request("P32H-NO-AUTH").memberOverrides(List.of("lastName")).providerOverrides(List.of("firstName"))
                 .variables(Map.of("fhirServer", "https://ehr.example.invalid/fhir")).request(new RequestRef("col-1", "req-2")).build(),
-                RunOrigin.manual());
+                RunOrigin.manual(), null);
         assertThat(ledger.only().unrecordedInputs()).containsExactly(RunRecord.INPUT_MEMBER_DETAILS, RunRecord.INPUT_PROVIDER_DETAILS,
                 RunRecord.INPUT_RUN_VALUES, RunRecord.INPUT_CHOSEN_REQUEST);
         assertThat(gateway.lastIntent().request()).isEqualTo(new RequestRef("col-1", "req-2"));
@@ -515,28 +685,28 @@ class CrdServiceTest {
     void aRequestWithAPreRequestScriptIsFlaggedOnTheResultAndInTheLedger() {
         gateway.url(EpaOperation.CRD_ORDER_SIGN, "https://onyx.example.invalid/cds-services/x").fromRequest("order-sign Happy Path", true);
         RunEnvelope<CrdDetail> result = run("P32H-NO-AUTH");
-        assertThat(result.findings()).extracting(Finding::kind).containsExactly(FindingKind.PRE_REQUEST_SCRIPT_NOT_RUN);
-        assertThat(result.findings().get(0).subject()).isEqualTo("order-sign Happy Path");
-        assertThat(ledger.only().findings()).containsExactly("PRE_REQUEST_SCRIPT_NOT_RUN");
+        Finding script = result.findings().stream().filter(f -> f.kind() == FindingKind.PRE_REQUEST_SCRIPT_NOT_RUN).findFirst().orElseThrow();
+        assertThat(script.subject()).isEqualTo("order-sign Happy Path");
+        assertThat(ledger.only().findings()).contains("PRE_REQUEST_SCRIPT_NOT_RUN");
     }
 
     @Test
     void aCallThatCompletesButIsSlowIsFlaggedAndATimeoutIsNot() {
         VendorExchange slow = new VendorExchange(TestExchanges.crd(200, "{\"cards\":[]}").request(), 200, List.of(), "{\"cards\":[]}",
                 JsonSafe.parse("{\"cards\":[]}").node(), null, 16000L, org.p32h.interop.epa.pave.model.OnyxFailureType.NONE, null,
-                java.util.Set.of(), null);
-        RunEnvelope<CrdDetail> result = service(stub(slow), "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual());
+                java.util.Set.of(), null, null, List.of());
+        RunEnvelope<CrdDetail> result = service(stub(slow), "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(result.timing().elapsedMillis()).isEqualTo(16000L);
         assertThat(result.timing().thresholdMillis()).isEqualTo(15000L);
         assertThat(result.timing().slow()).isTrue();
         assertThat(result.findings()).extracting(Finding::kind).contains(FindingKind.SLOW_RESPONSE);
         assertThat(ledger.only().slow()).isTrue();
 
-        RunEnvelope<CrdDetail> configured = service(stub(slow), "mock", Map.of("slow-threshold-ms", "20000")).run(request("S123456789").build(), RunOrigin.manual());
+        RunEnvelope<CrdDetail> configured = service(stub(slow), "mock", Map.of("slow-threshold-ms", "20000")).run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(configured.timing().slow()).isFalse();
 
         RunEnvelope<CrdDetail> timedOut = service(stub(TestExchanges.timeout(EpaOperation.CRD_ORDER_SIGN)), "mock", Map.of())
-                .run(request("S123456789").build(), RunOrigin.manual());
+                .run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(timedOut.timing().slow()).isFalse();
         assertThat(timedOut.findings()).extracting(Finding::kind).doesNotContain(FindingKind.SLOW_RESPONSE);
     }
@@ -547,7 +717,7 @@ class CrdServiceTest {
         RunEnvelope<CrdDetail> result = run("P32H-NO-AUTH");
         Finding finding = result.findings().stream().filter(f -> f.kind() == FindingKind.CODE_LIST_DISAGREES_ON_AUTH).findFirst().orElseThrow();
         assertThat(finding.subject()).isEqualTo("95810");
-        assertThat(finding.codeListSays()).isEqualTo("The code list says prior authorization is required for Medicare.");
+        assertThat(finding.codeListSays()).isEqualTo("The code list says prior authorization is required (rows for Medicare).");
         assertThat(finding.serviceSays()).isEqualTo("The service answered pa-needed=no-auth.");
         assertThat(finding.detail()).isEqualTo("One of them is wrong, and this tool cannot tell which.");
         // A finding is not a failure of the call, and it does not change the verdict or the test result.
@@ -560,15 +730,28 @@ class CrdServiceTest {
 
     @Test
     void aPreviewShowsTheRequestWithoutSendingOrRecordingIt() {
-        CrdPreview preview = service().preview(request("S12345678   01").build());
+        RequestPreview preview = service().preview(request("S12345678   01").build(), null);
         assertThat(preview.operation()).isEqualTo(EpaOperation.CRD_ORDER_SIGN);
         assertThat(preview.method()).isEqualTo("POST");
         assertThat(preview.url().configured()).isFalse();
         assertThat(preview.memberId().sent()).isEqualTo("S1234567801");
         assertThat(JsonSafe.parse(preview.body()).node().get("hook").asString()).isEqualTo("order-sign");
         assertThat(preview.notes()).isNotEmpty();
+        assertThat(preview.blocked()).isNull();
         assertThat(ledger.records()).isEmpty();
-        assertThatThrownBy(() -> service().preview(request(" ").build())).isInstanceOf(ValidationException.class);
+        assertThatThrownBy(() -> service().preview(request(" ").build(), null)).isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void aPreviewOfABlockedWriteStillShowsWhereItWouldGoAndSaysItIsBlocked() {
+        gateway.failing(blockedWrite());
+        RequestPreview preview = service().preview(request("P32H-PA-REQ").build(), null);
+        assertThat(preview.blocked()).isEqualTo("Writes to the production environment Onyx Production are blocked. "
+                + "Unlock writes on the Config tab, or switch environment.");
+        assertThat(preview.url().template()).isEqualTo("{{baseUrl}}/Claim/$submit");
+        assertThat(preview.method()).isEqualTo("POST");
+        assertThat(preview.body()).isNull();
+        assertThat(ledger.records()).isEmpty();
     }
 
     @Test
@@ -579,6 +762,8 @@ class CrdServiceTest {
         assertThat(discovery.services().get(0).id().value()).startsWith("placeholder-");
         assertThat(discovery.error()).isNull();
         assertThat(discovery.wire().request().sent()).isFalse();
+        // On mock the list is a placeholder, and the result says so where the tester will see it.
+        assertThat(discovery.note()).contains("placeholder services").contains("Nothing left this machine");
         assertThat(gateway.lastIntent().operation()).isEqualTo(EpaOperation.CRD_DISCOVERY);
         assertThat(ledger.records()).isEmpty();
 
@@ -590,6 +775,7 @@ class CrdServiceTest {
             assertThat(p.template().value()).isEqualTo("Patient/{{context.patientId}}");
         });
         assertThat(fromService.additionalFields()).extracting(f -> f.path()).containsExactly("services[0].usageRequirements", "vendorField");
+        assertThat(fromService.note()).isNull();
     }
 
     private static OnyxCrdClient stub(VendorExchange exchange) {

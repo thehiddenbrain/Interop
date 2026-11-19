@@ -144,8 +144,12 @@ public final class Exchanges {
         } else {
             failure = OnyxFailureType.NONE;
         }
+        List<String> notes = parsed != null && parsed.ok() && parsed.repeatedKeys()
+                ? List.of("The body repeats a key inside one object. Only the last value of a repeated key is shown here. "
+                        + "The body as received is in the wire view.")
+                : List.of();
         return new VendorExchange(request, status, responseHeaders, text, parsed != null && parsed.ok() ? parsed.node() : null,
-                parseError, elapsedMillis, failure, detail, Set.of(), null);
+                parseError, elapsedMillis, failure, detail, Set.of(), null, null, notes);
     }
 
     /** Describes a call that got no response inside the read timeout. */
@@ -159,7 +163,8 @@ public final class Exchanges {
     }
 
     static VendorExchange failed(WireRequest request, long elapsedMillis, OnyxFailureType type, String detail) {
-        return new VendorExchange(request, null, List.of(), null, null, null, elapsedMillis, type, detail, Set.of(), null);
+        return new VendorExchange(request, null, List.of(), null, null, null, elapsedMillis, type, detail, Set.of(), null, null,
+                List.of());
     }
 
     private static String redactCredential(String value) {

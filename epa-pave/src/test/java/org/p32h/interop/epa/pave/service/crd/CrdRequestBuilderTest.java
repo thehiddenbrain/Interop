@@ -1,5 +1,7 @@
 package org.p32h.interop.epa.pave.service.crd;
 
+import org.p32h.interop.epa.pave.client.crd.SentOrder;
+import org.p32h.interop.epa.pave.service.run.CaseResources;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.p32h.interop.epa.pave.model.AuthRequirement;
@@ -134,11 +136,11 @@ class CrdRequestBuilderTest {
         assertThat(json.at("/prefetch/patient").has("gender")).isFalse();
         assertThat(built.notes()).anySatisfy(n -> assertThat(n).contains("The coverage status \"Termed\" is not one this tool can map"));
         assertThat(built.notes()).anySatisfy(n -> assertThat(n).contains("The gender \"X\" is not one this tool can map"));
-        assertThat(CrdRequestBuilder.coverageStatus("ACTIVE")).isEqualTo("active");
-        assertThat(CrdRequestBuilder.coverageStatus("canceled")).isEqualTo("cancelled");
-        assertThat(CrdRequestBuilder.coverageStatus("inactive")).isNull();
-        assertThat(CrdRequestBuilder.gender("male")).isEqualTo("male");
-        assertThat(CrdRequestBuilder.gender(" ")).isNull();
+        assertThat(CaseResources.coverageStatus("ACTIVE")).isEqualTo("active");
+        assertThat(CaseResources.coverageStatus("canceled")).isEqualTo("cancelled");
+        assertThat(CaseResources.coverageStatus("inactive")).isNull();
+        assertThat(CaseResources.gender("male")).isEqualTo("male");
+        assertThat(CaseResources.gender(" ")).isNull();
     }
 
     @Test
@@ -166,14 +168,45 @@ class CrdRequestBuilderTest {
         JsonNode entries = JsonSafe.parse(built.json()).node().at("/context/draftOrders/entry");
         assertThat(entries.at("/0/resource/code/coding/0/system").asString()).isEqualTo("urn:stated-by-the-tester");
         assertThat(entries.at("/1/resource/code/coding/0/system").asString()).isEqualTo("urn:from-the-code-list");
-        assertThat(entries.at("/2/resource/code/coding/0/system").asString()).isEqualTo(CrdRequestBuilder.CPT);
-        assertThat(entries.at("/3/resource/code/coding/0/system").asString()).isEqualTo(CrdRequestBuilder.CPT);
-        assertThat(entries.at("/4/resource/code/coding/0/system").asString()).isEqualTo(CrdRequestBuilder.HCPCS);
+        assertThat(entries.at("/2/resource/code/coding/0/system").asString()).isEqualTo(CaseResources.CPT);
+        assertThat(entries.at("/3/resource/code/coding/0/system").asString()).isEqualTo(CaseResources.CPT);
+        assertThat(entries.at("/4/resource/code/coding/0/system").asString()).isEqualTo(CaseResources.HCPCS);
         // A code whose format decides nothing is sent without a system, and that is stated.
         assertThat(entries.at("/5/resource/code/coding/0").has("system")).isFalse();
         assertThat(built.notes()).contains("The coding system for 95810 was taken from its format: CPT.",
                 "No coding system could be worked out for XYZ, so it was sent without one.");
         assertThat(built.notes()).noneMatch(n -> n.contains("70553"));
+    }
+
+    @Test
+    void theBuilderReportsEachOrderItSentWithTheCodeOnIt() {
+        // This list is what lets an answer be tied to its code, so it must match the body exactly.
+        CrdRunRequest request = request().procedureCodes(List.of(CodeInput.of(" 95810 "), CodeInput.of("E0601"))).build();
+        CrdRequestBuilder.Built built = new CrdRequestBuilder(null).build(request, "h", NOTHING_SET);
+        assertThat(built.orders()).containsExactly(new SentOrder("ServiceRequest/service-request-1", "95810"),
+                new SentOrder("ServiceRequest/service-request-2", "E0601"));
+        // Reading the orders back out of the body gives the same list, which is the path a tester's own body takes.
+        assertThat(SentOrder.fromBody(built.json())).isEqualTo(built.orders());
+        JsonNode entries = JsonSafe.parse(built.json()).node().at("/context/draftOrders/entry");
+        assertThat(entries.at("/1/resource/id").asString()).isEqualTo("service-request-2");
+        assertThat(entries.at("/1/resource/code/coding/0/code").asString()).isEqualTo("E0601");
+    }
+
+    @Test
+    void theOrdersOfATestersOwnBodyAreReadWithoutAssumingItsShape() {
+        assertThat(SentOrder.fromBody(null)).isEmpty();
+        assertThat(SentOrder.fromBody("not json")).isEmpty();
+        assertThat(SentOrder.fromBody("{\"hook\":\"order-sign\"}")).isEmpty();
+        // A vendor's ids, an order with no code, an order with no id and an entry that is not a resource.
+        String body = "{\"context\":{\"draftOrders\":{\"entry\":[{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"abc\","
+                + "\"code\":{\"coding\":[{\"code\":\"70553\"},{\"code\":\"ignored-second\"}]}}},"
+                + "{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"no-code\"}},"
+                + "{\"resource\":{\"resourceType\":\"MedicationRequest\",\"medicationCodeableConcept\":{\"coding\":[{\"code\":\"J1745\"}]}}},"
+                + "{\"fullUrl\":\"x\"},\"text\"]}}}";
+        assertThat(SentOrder.fromBody(body)).containsExactly(new SentOrder("ServiceRequest/abc", "70553"),
+                new SentOrder("ServiceRequest/no-code", null), new SentOrder(null, "J1745"));
+        assertThat(new SentOrder("ServiceRequest/no-code", null).label()).isEqualTo("ServiceRequest/no-code");
+        assertThat(new SentOrder("ServiceRequest/abc", "70553").label()).isEqualTo("70553");
     }
 
     @Test

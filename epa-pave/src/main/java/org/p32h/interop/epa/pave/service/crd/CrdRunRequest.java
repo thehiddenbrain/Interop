@@ -4,26 +4,17 @@ import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.service.config.RequestRef;
+import org.p32h.interop.epa.pave.service.run.RunRequest;
 import java.util.List;
 import java.util.Map;
 
 /**
  * What the CRD tab posts for one run.
  *
- * <p>The member and provider are sent exactly as the form shows them, so what the tester sees is
- * what goes out. The two override lists name the fields the tester typed or changed by hand; the
- * ledger then records that the run used details a fresh lookup would not reproduce.
+ * <p>The fields every protocol shares are described on {@link RunRequest}. CRD adds two.
  *
- * @param hook              order-sign or order-select. Blank means order-sign
- * @param memberOverrides   names of member fields typed or changed by hand
- * @param providerOverrides names of provider fields typed or changed by hand
- * @param dateOfService     ISO date, or blank to send none
- * @param includePrefetch   false to send the request without prefetch. Null means true
- * @param scenarioId        a mock scenario to answer from. Refused on live
- * @param expected          what the tester expects, or blank for none
- * @param request           a specific collection request to send to, or null for the default
- * @param rawBody           a body the tester edited, sent in place of the one the tool would build
- * @param variables         placeholder values typed for this run
+ * @param hook            order-sign or order-select. Blank means order-sign
+ * @param includePrefetch false to send the request without prefetch. Null means true
  */
 public record CrdRunRequest(
         String hook,
@@ -41,7 +32,7 @@ public record CrdRunRequest(
         String chainId,
         RequestRef request,
         String rawBody,
-        Map<String, String> variables) {
+        Map<String, String> variables) implements RunRequest {
 
     public static final String ORDER_SIGN = "order-sign";
     public static final String ORDER_SELECT = "order-select";

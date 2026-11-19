@@ -158,13 +158,30 @@ class ScenarioRepositoryTest {
     }
 
     @Test
-    void namedStepsAreReadAndFallBackToTheMainStep() {
+    void namedStepsAreReadAndAnUndefinedNameIsNotAnsweredByTheMainStep() {
         Scenario scenario = ScenarioRepository.parse("x.json", "{\"id\":\"a\",\"label\":\"L\",\"number\":1,\"httpStatus\":200,\"response\":{\"a\":1},"
                 + "\"steps\":{\"inquire\":{\"httpStatus\":202,\"response\":{\"b\":2}},\"notify\":{\"behavior\":\"unavailable\"}}}");
         assertThat(scenario.step("inquire").httpStatus()).isEqualTo(202);
         assertThat(scenario.step("notify").behavior()).isEqualTo(ScenarioBehavior.UNAVAILABLE);
-        assertThat(scenario.step("unknown")).isSameAs(scenario.main());
+        // An inquiry against a scenario that defines no inquiry must not get the submission's answer.
+        assertThat(scenario.step("unknown")).isNull();
         assertThat(scenario.step(null)).isSameAs(scenario.main());
+    }
+
+    @Test
+    void aStepCanClaimItsOwnOutcomeApartFromTheScenarioAsAWhole() {
+        // A scenario whose calls each have their own answer: the submission pends and the inquiry approves.
+        Scenario scenario = ScenarioRepository.parse("x.json", "{\"id\":\"a\",\"label\":\"L\",\"number\":1,\"httpStatus\":200,\"response\":{},"
+                + "\"expect\":{\"outcome\":\"PENDED\"},"
+                + "\"steps\":{\"inquire\":{\"httpStatus\":200,\"response\":{},\"expect\":{\"outcome\":\"APPROVED\",\"httpStatus\":200}},"
+                + "\"plain\":{\"httpStatus\":200,\"response\":{}}}}");
+        assertThat(scenario.expect().outcome()).isEqualTo("PENDED");
+        assertThat(scenario.main().expect()).isNull();
+        assertThat(scenario.step("inquire").expect().outcome()).isEqualTo("APPROVED");
+        assertThat(scenario.step("inquire").expect().httpStatus()).isEqualTo(200);
+        assertThat(scenario.step("plain").expect()).isNull();
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", "{\"id\":\"a\",\"label\":\"L\",\"number\":1,\"httpStatus\":200,"
+                + "\"steps\":{\"inquire\":{\"httpStatus\":200,\"expect\":{\"codes\":{}}}}}")).hasMessageContaining("no outcome");
     }
 
     @Test

@@ -18,6 +18,7 @@ public class ProdWriteBlockedException extends RuntimeException {
     private final String action;
     private final ResolvedUrl target;
     private final String method;
+    private final String requestName;
 
     public ProdWriteBlockedException(EpaOperation operation, EnvironmentRef environment, String reason, String action) {
         this(operation, environment, reason, action, null, null);
@@ -30,12 +31,19 @@ public class ProdWriteBlockedException extends RuntimeException {
      */
     public ProdWriteBlockedException(EpaOperation operation, EnvironmentRef environment, String reason, String action,
                                      ResolvedUrl target, String method) {
+        this(operation, environment, reason, action, target, method, null);
+    }
+
+    /** @param requestName the collection request the target came from, or null */
+    public ProdWriteBlockedException(EpaOperation operation, EnvironmentRef environment, String reason, String action,
+                                     ResolvedUrl target, String method, String requestName) {
         super(reason);
         this.operation = operation;
         this.environment = environment;
         this.action = action;
         this.target = target;
         this.method = method;
+        this.requestName = requestName;
     }
 
     public EpaOperation operation() {
@@ -59,5 +67,10 @@ public class ProdWriteBlockedException extends RuntimeException {
     /** The method it would have been sent with, or null. */
     public String method() {
         return method;
+    }
+
+    /** The collection request the target came from, or null. */
+    public String requestName() {
+        return requestName;
     }
 }

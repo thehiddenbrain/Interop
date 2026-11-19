@@ -30,7 +30,7 @@ class TrackedJsonTest {
                 new AdditionalField("a", Presence.VALUE, "1"),
                 new AdditionalField("b.c[0]", Presence.VALUE, "true"),
                 new AdditionalField("b.c[1].d", Presence.NULL, null),
-                new AdditionalField("e", Presence.EMPTY, null));
+                new AdditionalField("e", Presence.EMPTY, "\"\""));
     }
 
     @Test
@@ -62,10 +62,24 @@ class TrackedJsonTest {
     }
 
     @Test
-    void anEmptyArrayTheViewAskedForIsNotReportedAgain() {
+    void anEmptyArrayIsReportedUnlessTheViewStatesTheEmptinessItself() {
+        // Asking for the elements of an empty array is navigation. If it consumed, "links": [] and
+        // no links at all would give the same view and the same additional fields.
         TrackedJson tracked = tracked("{\"cards\":[],\"links\":[]}");
         assertThat(tracked.root().children("cards")).isEmpty();
-        assertThat(tracked.unconsumed()).containsExactly(new AdditionalField("links", Presence.EMPTY, null));
+        assertThat(tracked.root().children("links")).isEmpty();
+        assertThat(tracked.unconsumed()).containsExactly(new AdditionalField("cards", Presence.EMPTY, "[]"),
+                new AdditionalField("links", Presence.EMPTY, "[]"));
+        // A view that says "the cards array was empty" itself marks it as stated.
+        tracked.root().child("cards").consume();
+        assertThat(paths(tracked)).containsExactly("links");
+    }
+
+    @Test
+    void theThreeKindsOfEmptyKeepTheirJsonTextSoTheyCanBeToldApart() {
+        TrackedJson tracked = tracked("{\"a\":\"\",\"b\":[],\"c\":{}}");
+        assertThat(tracked.unconsumed()).containsExactly(new AdditionalField("a", Presence.EMPTY, "\"\""),
+                new AdditionalField("b", Presence.EMPTY, "[]"), new AdditionalField("c", Presence.EMPTY, "{}"));
     }
 
     @Test
@@ -116,6 +130,48 @@ class TrackedJsonTest {
         assertThat(tracked.root().bool("flag")).isTrue();
         assertThat(tracked.root().presentText("name")).isEqualTo("padded");
         assertThat(paths(tracked)).containsExactly("left");
+    }
+
+    @Test
+    void aTypedReadThatReturnsNothingLeavesTheFieldToBeReported() {
+        // Each of these reads comes back null. If it consumed anyway, the field would be in the
+        // wire view only: absent from the designed view and from the additional fields alike.
+        TrackedJson wrongType = tracked("{\"summary\":{\"text\":\"Needs auth\",\"lang\":\"en\"},\"count\":\"three\",\"ratio\":1.5,"
+                + "\"flag\":\"yes\",\"list\":[1]}");
+        assertThat(wrongType.root().text("summary")).isNull();
+        assertThat(wrongType.root().presentText("summary")).isNull();
+        assertThat(wrongType.root().integer("count")).isNull();
+        assertThat(wrongType.root().integer("ratio")).isNull();
+        assertThat(wrongType.root().bool("flag")).isNull();
+        assertThat(wrongType.root().text("list")).isNull();
+        assertThat(paths(wrongType)).containsExactly("summary.text", "summary.lang", "count", "ratio", "flag", "list[0]");
+
+        TrackedJson nulls = tracked("{\"a\":null,\"b\":null,\"c\":null,\"d\":null}");
+        assertThat(nulls.root().text("a")).isNull();
+        assertThat(nulls.root().presentText("b")).isNull();
+        assertThat(nulls.root().integer("c")).isNull();
+        assertThat(nulls.root().bool("d")).isNull();
+        assertThat(nulls.unconsumed()).extracting(AdditionalField::presence).containsOnly(Presence.NULL).hasSize(4);
+
+        // An empty string is a value to text() and no value to presentText(), which leaves it visible as EMPTY.
+        TrackedJson empties = tracked("{\"a\":\"\",\"b\":\"  \"}");
+        assertThat(empties.root().presentText("a")).isNull();
+        assertThat(empties.root().presentText("b")).isNull();
+        assertThat(paths(empties)).containsExactly("a", "b");
+        assertThat(empties.root().text("a")).isEmpty();
+        assertThat(paths(empties)).containsExactly("b");
+    }
+
+    @Test
+    void theRestOfASubtreeCanBeHandedToAViewAndIsThenNotReportedAgain() {
+        TrackedJson tracked = tracked("{\"resource\":{\"id\":\"1\",\"status\":\"draft\",\"subject\":{\"reference\":\"Patient/p\"}},\"other\":2}");
+        TrackedJson.Node resource = tracked.root().child("resource");
+        resource.shown("id");
+        assertThat(resource.remainder()).containsExactly(new AdditionalField("resource.status", Presence.VALUE, "\"draft\""),
+                new AdditionalField("resource.subject.reference", Presence.VALUE, "\"Patient/p\""));
+        assertThat(paths(tracked)).containsExactly("other");
+        assertThat(resource.remainder()).isEmpty();
+        assertThat(tracked.root().child("absent").remainder()).isEmpty();
     }
 
     @Test

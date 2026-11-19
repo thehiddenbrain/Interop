@@ -25,6 +25,30 @@ class JsonSafeTest {
     }
 
     @Test
+    void aLeadingByteOrderMarkIsSkipped() {
+        // A response, a scenario file or a Postman export saved as UTF-8 with a byte order mark is still JSON.
+        JsonSafe.Parsed parsed = JsonSafe.parse("\uFEFF{\"cards\":[]}");
+        assertThat(parsed.ok()).isTrue();
+        assertThat(parsed.node().has("cards")).isTrue();
+        assertThat(JsonSafe.parse("\uFEFF").ok()).isFalse();
+        assertThat(JsonSafe.parse("\uFEFF   ").error()).isEqualTo("The body is empty.");
+    }
+
+    @Test
+    void aRepeatedKeyIsReportedAndDoesNotFailTheParse() {
+        // The parser keeps the last value. The first exists only in the raw text, so the fact is recorded.
+        JsonSafe.Parsed repeated = JsonSafe.parse("{\"indicator\":\"info\",\"indicator\":\"warning\"}");
+        assertThat(repeated.ok()).isTrue();
+        assertThat(repeated.repeatedKeys()).isTrue();
+        assertThat(JsonSafe.text(repeated.node(), "indicator")).isEqualTo("warning");
+        JsonSafe.Parsed nested = JsonSafe.parse("{\"a\":{\"b\":1,\"b\":2}}");
+        assertThat(nested.repeatedKeys()).isTrue();
+        // The same name in two different objects is not a repeat.
+        assertThat(JsonSafe.parse("{\"a\":{\"id\":1},\"b\":{\"id\":2}}").repeatedKeys()).isFalse();
+        assertThat(JsonSafe.parse("{\"cards\":[").repeatedKeys()).isFalse();
+    }
+
+    @Test
     void aParseErrorNeverQuotesTheSourceText() {
         JsonSafe.Parsed parsed = JsonSafe.parse("{\"lastName\": \"Placeholder-Surname\", oops}");
         assertThat(parsed.ok()).isFalse();

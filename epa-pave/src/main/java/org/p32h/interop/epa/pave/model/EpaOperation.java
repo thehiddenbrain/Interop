@@ -23,6 +23,13 @@ public enum EpaOperation {
     CRD_DISCOVERY(Protocol.CRD, "CDS Hooks discovery", "GET", false, "/cds-services"),
     DTR_QUESTIONNAIRE_PACKAGE(Protocol.DTR, "DTR questionnaire package", "POST", false, "/Questionnaire/$questionnaire-package"),
     DTR_NEXT_QUESTION(Protocol.DTR, "DTR next question", "POST", false, "/Questionnaire/$next-question"),
+    /**
+     * Answering a questionnaire inside the tool: completing a static questionnaire, or finding that
+     * a required question was left unanswered. Nothing is sent to the vendor for this step, so the
+     * gateway never hands out a target for it. It exists so the step has its own line in the ledger
+     * and is not recorded as a call that was never made.
+     */
+    DTR_RESPONSE(Protocol.DTR, "DTR questionnaire response", "POST", false, null),
     PAS_SUBMIT(Protocol.PAS, "PAS submit", "POST", true, "/Claim/$submit"),
     PAS_INQUIRE(Protocol.PAS, "PAS inquire", "POST", false, "/Claim/$inquire"),
     SUBSCRIPTION_CREATE(Protocol.SUBSCRIPTION, "Subscription create", "POST", true, "/Subscription"),
@@ -83,6 +90,15 @@ public enum EpaOperation {
     }
 
     /**
+     * False for the two operations that never leave the tool: an inbound notification and a
+     * questionnaire response completed locally. The gateway refuses to prepare a call for either,
+     * and neither can be run again by a replay or a suite.
+     */
+    public boolean outbound() {
+        return this != SUBSCRIPTION_NOTIFICATION && this != DTR_RESPONSE;
+    }
+
+    /**
      * Whether sending this operation with the given HTTP method must be treated as a write.
      *
      * <p>The answer depends on the method that will actually go out, not only on the operation's
@@ -97,6 +113,9 @@ public enum EpaOperation {
      *       sent as DELETE is a delete</li>
      *   <li>an unmapped request is a write unless its method cannot change state, and so is a call
      *       with no method at all</li>
+     *   <li>an operation that is not outbound is judged like an unmapped request. The tool never
+     *       sends one, so if a collection request detected as one were ever pointed at a vendor
+     *       url, nothing is known about what it would do there</li>
      * </ul>
      * Wherever the direction of the error is uncertain, the answer is "write", because wrongly
      * blocking a read costs a click and wrongly allowing a write costs a real authorization.
@@ -105,13 +124,14 @@ public enum EpaOperation {
         if (write) {
             return true;
         }
+        boolean unknownEffect = this == UNMAPPED || !outbound();
         String normalised = method == null ? "" : method.strip().toUpperCase(Locale.ROOT);
         if (normalised.isEmpty()) {
-            return this == UNMAPPED;
+            return unknownEffect;
         }
         if (normalised.equals("GET") || normalised.equals("HEAD") || normalised.equals("OPTIONS")) {
             return false;
         }
-        return this == UNMAPPED || !normalised.equals(defaultMethod);
+        return unknownEffect || !normalised.equals(defaultMethod);
     }
 }

@@ -7,6 +7,7 @@ import org.p32h.interop.epa.pave.model.WireHeader;
 import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
+import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioSelection;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioStep;
 import java.util.List;
@@ -51,11 +52,13 @@ public class MockExchanges {
         Exchanges.requireSendable(call, body, gateway == null ? null : gateway.getIfAvailable());
         ScenarioStep step = selection.scenario().step(stepName);
         if (step == null) {
-            throw new IllegalStateException("Scenario " + selection.scenario().id() + " has no step for this call"
-                    + (stepName == null ? "." : ": " + stepName + "."));
+            // A tester's choice of scenario does not fit the call they made. That is theirs to
+            // correct, so it is a validation error that names both, not an internal failure.
+            throw ValidationException.of("scenarioId", "Scenario " + selection.scenario().id() + " has no answer for "
+                    + (stepName == null ? "this call" : "the step \"" + stepName + "\"") + ". Choose a scenario that covers it.");
         }
-        String note = "Mock profile. Answered from scenario " + selection.scenario().id() + ", " + selection.how()
-                + ". Nothing left this machine.";
+        String note = "Mock profile. Answered from scenario " + selection.scenario().id()
+                + (stepName == null ? "" : ", step \"" + stepName + "\"") + ", " + selection.how() + ". Nothing left this machine.";
         WireRequest request = Exchanges.wireRequest(call, body, options, false, note);
 
         long started = System.nanoTime();
@@ -71,7 +74,7 @@ public class MockExchanges {
             case TIMEOUT -> Exchanges.timeout(request, elapsed);
             case UNAVAILABLE -> Exchanges.unavailable(request, elapsed, "The connection was refused or could not be opened.");
         };
-        return exchange.withScenarioId(selection.scenario().id());
+        return exchange.withScenario(selection.scenario().id(), selection.how());
     }
 
     private void pause(long millis) {

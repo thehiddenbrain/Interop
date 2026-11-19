@@ -14,9 +14,12 @@ import java.util.List;
  * @param services         one entry per service the response listed
  * @param additionalFields everything in the response the designed view did not use
  * @param error            set when discovery failed
+ * @param note             on the mock profile, the sentence saying the list is a placeholder and
+ *                         nothing was sent. Null when the answer came from a real service
  */
+@com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
 public record CrdDiscovery(ResolvedUrl url, List<Service> services, List<AdditionalField> additionalFields, WireView wire,
-                           ErrorView error) {
+                           ErrorView error, String note) {
 
     /**
      * One CDS service.

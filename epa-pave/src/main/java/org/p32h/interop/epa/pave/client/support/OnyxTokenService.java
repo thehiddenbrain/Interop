@@ -89,10 +89,16 @@ public class OnyxTokenService {
     private final Clock clock;
     private Cached cached;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public OnyxTokenService(OnyxProperties onyx, OperationGateway gateway, RestClient.Builder builder, Clock clock) {
+        this(onyx, gateway, RestClients.withTimeouts(builder, onyx.connectTimeoutMs(), onyx.readTimeoutMs()), clock);
+    }
+
+    /** For tests, which bind the client to a mock server. */
+    OnyxTokenService(OnyxProperties onyx, OperationGateway gateway, RestClient client, Clock clock) {
         this.onyx = onyx;
         this.gateway = gateway;
-        this.client = RestClients.withTimeouts(builder, onyx.connectTimeoutMs(), onyx.readTimeoutMs());
+        this.client = client;
         this.clock = clock;
     }
 

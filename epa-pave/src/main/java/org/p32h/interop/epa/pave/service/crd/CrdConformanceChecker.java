@@ -1,7 +1,6 @@
 package org.p32h.interop.epa.pave.service.crd;
 
 import org.p32h.interop.epa.pave.model.AuthRequirement;
-import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.DelegatedVendors;
 import org.p32h.interop.epa.pave.model.Finding;
 import org.p32h.interop.epa.pave.model.FindingKind;
@@ -25,6 +24,9 @@ import java.util.Set;
  * the code list and the service disagree the finding states both positions and blames neither,
  * since either side can be the one that is wrong. That disagreement is the single most useful
  * thing this tool reports: it is the question the programme exists to answer.
+ *
+ * <p>When the two could not be compared for a code, that is a finding too, with the reason. A
+ * result with no disagreement must mean the two agree, never that nothing was looked at.
  */
 public final class CrdConformanceChecker {
 
@@ -36,17 +38,15 @@ public final class CrdConformanceChecker {
     }
 
     /**
-     * @param codes          the procedure codes that were asked about, in the order they were sent
      * @param lineOfBusiness the member's line of business, or null when it is not known
      * @param dateOfService  the date of service, or null
      */
-    public List<Finding> check(CrdReading reading, VendorExchange exchange, List<CodeInput> codes, String lineOfBusiness,
-                               LocalDate dateOfService) {
+    public List<Finding> check(CrdReading reading, VendorExchange exchange, String lineOfBusiness, LocalDate dateOfService) {
         List<Finding> findings = new ArrayList<>();
         List<CoverageInformationView> coverage = reading.detail().coverageInformation();
 
         for (CoverageInformationView view : coverage) {
-            String where = Texts.orElse(view.appliesTo().orNull(), view.foundAt());
+            String where = view.subject();
             outsideValueSet(findings, where, CrdCodes.COVERED, view.covered());
             outsideValueSet(findings, where, CrdCodes.PA_NEEDED, view.paNeeded());
             outsideValueSet(findings, where, CrdCodes.DOC_NEEDED, view.docNeeded());
@@ -71,11 +71,20 @@ public final class CrdConformanceChecker {
                             + "action, on a card or on a suggestion. There is no determination to check.", null, null, null));
         }
 
-        if (codeList != null && exchange.ok() && !coverage.isEmpty() && codes != null) {
-            for (int i = 0; i < codes.size(); i++) {
-                CoverageInformationView view = viewFor(coverage, i);
-                if (view != null && codes.get(i) != null && Texts.present(codes.get(i).code())) {
-                    compareWithCodeList(findings, codes.get(i).code().strip(), view, lineOfBusiness, dateOfService);
+        // The code list is compared with a response that answered something. A fault, or a response
+        // with no coverage information, already has its own finding and outcome for the whole call.
+        if (codeList != null && exchange.ok() && !coverage.isEmpty()) {
+            for (String code : reading.requestedCodes()) {
+                List<ProcedureCode> rows = rowsToCompare(findings, code, lineOfBusiness, dateOfService);
+                if (rows.isEmpty()) {
+                    continue;
+                }
+                List<CoverageInformationView> answers = coverage.stream().filter(v -> v.procedureCodes().contains(code)).toList();
+                if (answers.isEmpty()) {
+                    notCompared(findings, code, "The response carries no answer this tool could tie to " + code + ".");
+                }
+                for (CoverageInformationView view : answers) {
+                    compareWithCodeList(findings, code, view, rows);
                 }
             }
         }
@@ -83,36 +92,40 @@ public final class CrdConformanceChecker {
     }
 
     /**
-     * The coverage information that answers the code at this position. Each code is sent as
-     * {@code service-request-N}, so an answer attached to that id is the answer for that code. A
-     * single answer with no such id is taken to cover the whole order. Anything else cannot be
-     * paired with a code and is not compared.
+     * The code list rows that can speak for this code and this member. Empty, with a finding that
+     * says why, when there are none.
+     *
+     * <p>Lines of business are never conflated. When the member's line is known, the rows are the
+     * ones for that line and the ones that state no line. When it is not known, only rows that
+     * state no line can be used: picking a named line's row would be a guess about the member.
      */
-    private static CoverageInformationView viewFor(List<CoverageInformationView> coverage, int index) {
-        String wanted = "ServiceRequest/service-request-" + (index + 1);
-        for (CoverageInformationView view : coverage) {
-            if (wanted.equals(view.appliesTo().orNull())) {
-                return view;
+    private List<ProcedureCode> rowsToCompare(List<Finding> findings, String code, String lineOfBusiness, LocalDate dateOfService) {
+        String onDate = dateOfService == null ? "" : " on " + dateOfService;
+        if (Texts.present(lineOfBusiness)) {
+            List<ProcedureCode> rows = codeList.rowsFor(code, lineOfBusiness, dateOfService);
+            if (rows.isEmpty()) {
+                List<String> otherLines = lines(codeList.rowsFor(code, null, dateOfService));
+                notCompared(findings, code, otherLines.isEmpty()
+                        ? "The code list has no row for " + code + onDate + "."
+                        : "The code list has no row for " + code + " under " + lineOfBusiness.strip() + onDate + ". It lists the code "
+                        + "under: " + String.join(", ", otherLines) + ". A row for another line of business is not this member's answer.");
             }
+            return rows;
         }
-        if (coverage.size() == 1 && !coverage.get(0).appliesTo().hasValue()) {
-            return coverage.get(0);
+        List<ProcedureCode> every = codeList.rowsFor(code, null, dateOfService);
+        List<ProcedureCode> unnamed = every.stream().filter(row -> Texts.blank(row.lineOfBusiness())).toList();
+        if (every.isEmpty()) {
+            notCompared(findings, code, "The code list has no row for " + code + onDate + ".");
+        } else if (unnamed.isEmpty()) {
+            notCompared(findings, code, "The member's line of business is not known, and the code list has " + code + " only under "
+                    + "named lines: " + String.join(", ", lines(every)) + ". Choosing one of them would be a guess about the member.");
         }
-        return null;
+        return unnamed;
     }
 
-    private void compareWithCodeList(List<Finding> findings, String code, CoverageInformationView view, String lineOfBusiness,
-                                     LocalDate dateOfService) {
-        if (Texts.present(lineOfBusiness) && !codeList.statesLine(lineOfBusiness)) {
-            // The list does not know this line at all, so it has no position to compare. Comparing
-            // against another line's rows would conflate lines of business.
-            return;
-        }
-        List<ProcedureCode> rows = codeList.rowsFor(code, lineOfBusiness, dateOfService);
-        if (rows.isEmpty()) {
-            return;
-        }
-        String line = Texts.present(lineOfBusiness) ? " for " + lineOfBusiness.strip() : "";
+    private void compareWithCodeList(List<Finding> findings, String code, CoverageInformationView view, List<ProcedureCode> rows) {
+        List<String> rowLines = lines(rows);
+        String line = rowLines.isEmpty() ? " (rows that state no line of business)" : " (rows for " + String.join(", ", rowLines) + ")";
 
         Set<AuthRequirement> stated = new LinkedHashSet<>();
         rows.forEach(row -> {
@@ -121,8 +134,18 @@ public final class CrdConformanceChecker {
             }
         });
         Boolean serviceRequires = serviceRequiresAuth(view.paNeeded());
-        // Compared only when both sides take a position. A list that does not say is not a "no".
-        if (stated.size() == 1 && serviceRequires != null) {
+        // Compared only when both sides take a position. A list that does not say is not a "no",
+        // and neither is a service that does not say. Each of those is reported as not compared.
+        if (stated.isEmpty()) {
+            notCompared(findings, code, "The code list does not say whether " + code + " needs prior authorization" + line + ".");
+        } else if (stated.size() > 1) {
+            notCompared(findings, code, "The code list rows for " + code + " disagree with each other on prior authorization" + line
+                    + ", so the list has no single position to compare.");
+        } else if (serviceRequires == null) {
+            notCompared(findings, code, "The service's answer for " + code + " does not say whether prior authorization is needed ("
+                    + (view.paNeeded().code() == null ? "pa-needed was not returned" : "pa-needed=" + view.paNeeded().code())
+                    + "), so there is nothing to compare with the code list.");
+        } else {
             boolean listRequires = stated.contains(AuthRequirement.REQUIRED);
             if (listRequires != serviceRequires) {
                 findings.add(new Finding(FindingKind.CODE_LIST_DISAGREES_ON_AUTH,
@@ -157,7 +180,31 @@ public final class CrdConformanceChecker {
                         "The code list routes this code to " + listVendor + line + ".",
                         "The service routes it to " + view.delegatedVendor() + "."));
             }
+        } else if (listVendors.size() > 1) {
+            notCompared(findings, code, "The code list rows for " + code + " name different vendors" + line + ": "
+                    + String.join(", ", listVendors) + ". The list has no single routing to compare.");
+        } else if (Texts.present(view.delegatedVendor())) {
+            // The list naming no vendor may mean the review is done in house, or only that the
+            // list has no vendor column. Either way it has taken no position, so nothing is blamed.
+            notCompared(findings, code, "The service routes " + code + " to " + view.delegatedVendor() + ". The code list names no "
+                    + "vendor for the code" + line + ", so the routing could not be compared.");
         }
+    }
+
+    private static void notCompared(List<Finding> findings, String code, String reason) {
+        findings.add(new Finding(FindingKind.CODE_LIST_NOT_COMPARED,
+                "The code list was not compared with the service for " + code, reason, code, null, null));
+    }
+
+    /** The lines of business a set of rows names, as written in the list, without repeats. Empty when none names one. */
+    private static List<String> lines(List<ProcedureCode> rows) {
+        List<String> out = new ArrayList<>();
+        for (ProcedureCode row : rows) {
+            if (Texts.present(row.lineOfBusiness()) && !out.contains(row.lineOfBusiness().strip())) {
+                out.add(row.lineOfBusiness().strip());
+            }
+        }
+        return out;
     }
 
     /** Whether the service's answer amounts to "authorization is needed", or null when it takes no position. */

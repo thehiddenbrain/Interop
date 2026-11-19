@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.crd.MockOnyxCrdClient;
+import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
@@ -14,6 +15,7 @@ import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
 import org.p32h.interop.epa.pave.model.crd.CrdResponseKind;
 import org.p32h.interop.epa.pave.service.config.TestPreparedCalls;
 import org.p32h.interop.epa.pave.service.scenario.Scenario;
@@ -43,6 +45,28 @@ class CrdScenarioDeterminationTest {
 
     private CrdReading read(String sentinelMemberId) {
         return mapper.read(call(null, sentinelMemberId, "1234567893"));
+    }
+
+    /** The codes of the one answer a single-order scenario gives, or none when it gives no answer. */
+    private static Map<String, List<String>> codes(CrdReading reading) {
+        List<CoverageInformationView> coverage = reading.detail().coverageInformation();
+        assertThat(coverage.size()).isLessThanOrEqualTo(1);
+        return coverage.isEmpty() ? Map.of() : CrdReading.codes(coverage.get(0));
+    }
+
+    private static TestResult assess(String expected, CrdReading reading) {
+        return Expectations.assess(expected, reading.outcome(), reading.answers(), CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS)
+                .result();
+    }
+
+    /** A request body carrying one order for each code, as the request builder writes them. */
+    private static String orders(String... procedureCodes) {
+        StringBuilder entries = new StringBuilder();
+        for (int i = 0; i < procedureCodes.length; i++) {
+            entries.append(i == 0 ? "" : ",").append("{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-")
+                    .append(i + 1).append("\",\"code\":{\"coding\":[{\"code\":\"").append(procedureCodes[i]).append("\"}]}}}");
+        }
+        return "{\"hook\":\"order-sign\",\"context\":{\"draftOrders\":{\"resourceType\":\"Bundle\",\"entry\":[" + entries + "]}}}";
     }
 
     @Test
@@ -79,12 +103,57 @@ class CrdScenarioDeterminationTest {
             assertThat(exchange.failureType().name()).as(what + " error type").isEqualTo(scenario.expect().errorType());
             assertThat(exchange.httpStatus()).as(what + " status").isEqualTo(scenario.expect().httpStatus());
             scenario.expect().codes().forEach((element, code) ->
-                    assertThat(reading.codes().get(element)).as(what + " " + element).isNotNull().contains(code));
+                    assertThat(codes(reading).get(element)).as(what + " " + element).isNotNull().contains(code));
             assertThat(reading.delegatedVendor()).as(what + " vendor").isEqualTo(scenario.expect().delegatedVendor());
-            // The claim, declared as an expectation, must pass through the same comparison a tester's would.
-            assertThat(Expectations.assess(scenario.expect().outcome(), reading.outcome(), reading.codes(), CrdOutcome.values()).result())
-                    .as(what + " as an expectation").isEqualTo(TestResult.PASS);
+            // The claim, declared as an expectation, must pass through the same comparison a tester's would:
+            // the outcome, and every code the file claims, as one declared expectation.
+            StringBuilder declared = new StringBuilder(scenario.expect().outcome());
+            scenario.expect().codes().forEach((element, code) -> declared.append("; ").append(element).append("=").append(code));
+            assertThat(assess(declared.toString(), reading)).as(what + " as the expectation " + declared).isEqualTo(TestResult.PASS);
+            // Which scenario answered, and how it was chosen, travels on the exchange for the result to state.
+            assertThat(exchange.scenarioId()).as(what).isEqualTo(scenario.id());
+            assertThat(exchange.scenarioNote()).as(what).isEqualTo("chosen in the scenario selector");
         }
+    }
+
+    @Test
+    void theMockAnswersEveryOrderItIsSentAndSaysThatItRepeatedTheAnswer() {
+        // The scenario file answers one order. A real service answers each order, so with two
+        // codes the mock gives two answers, each tied to its own code, and the result says how.
+        VendorExchange exchange = client.hook(TestPreparedCalls.unconfigured(EpaOperation.CRD_ORDER_SIGN),
+                ResolvedText.plain(orders("95810", "95811")), MockSelection.of("crd-01-pa-required", null, null));
+        CrdReading reading = mapper.read(exchange, SentOrder.fromBody(orders("95810", "95811")));
+
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.AUTH_REQUIRED);
+        assertThat(reading.unanswered()).isEmpty();
+        assertThat(reading.detail().coverageInformation()).extracting(CoverageInformationView::subject).containsExactly("95810", "95811");
+        assertThat(reading.detail().coverageInformation()).extracting(v -> v.appliesTo().value())
+                .containsExactly("ServiceRequest/service-request-1", "ServiceRequest/service-request-2");
+        assertThat(exchange.scenarioNote()).contains("repeated here for each of the 2 orders sent");
+        assertThat(exchange.responseBody()).contains("service-request-2");
+
+        // One order is answered from the file exactly as written.
+        VendorExchange single = client.hook(TestPreparedCalls.unconfigured(EpaOperation.CRD_ORDER_SIGN),
+                ResolvedText.plain(orders("95810")), MockSelection.of("crd-01-pa-required", null, null));
+        assertThat(single.scenarioNote()).isEqualTo("chosen in the scenario selector");
+        assertThat(single.responseBody()).doesNotContain("service-request-2");
+    }
+
+    @Test
+    void anAnswerOnTheCardItselfCannotBeTiedToOneOfSeveralCodesAndIsNotAssumedToCoverThem() {
+        // Scenario 3 puts its coverage information on the card, attached to no order. With one
+        // code there is nothing else it could be about. With two, saying which would be a guess.
+        CrdReading one = mapper.read(client.hook(TestPreparedCalls.unconfigured(EpaOperation.CRD_ORDER_SIGN),
+                ResolvedText.plain(orders("95810")), MockSelection.of("crd-03-pa-satisfied", null, null)), SentOrder.fromBody(orders("95810")));
+        assertThat(one.outcome()).isEqualTo(CrdOutcome.AUTH_SATISFIED);
+        assertThat(one.detail().coverageInformation().get(0).procedureCodes()).containsExactly("95810");
+
+        CrdReading two = mapper.read(client.hook(TestPreparedCalls.unconfigured(EpaOperation.CRD_ORDER_SIGN),
+                ResolvedText.plain(orders("95810", "95811")), MockSelection.of("crd-03-pa-satisfied", null, null)),
+                SentOrder.fromBody(orders("95810", "95811")));
+        assertThat(two.outcome()).isEqualTo(CrdOutcome.MIXED);
+        assertThat(two.detail().coverageInformation().get(0).procedureCodes()).isEmpty();
+        assertThat(two.unanswered()).containsExactly("95810", "95811");
     }
 
     @Test
@@ -104,8 +173,9 @@ class CrdScenarioDeterminationTest {
         assertThat(empty.outcome()).isEqualTo(CrdOutcome.NO_DETERMINATION);
         assertThat(noAuth.outcome().label()).isNotEqualTo(empty.outcome().label());
 
-        assertThat(noAuth.codes()).containsEntry("pa-needed", List.of("no-auth"));
-        assertThat(empty.codes()).isEmpty();
+        assertThat(codes(noAuth)).containsEntry("pa-needed", List.of("no-auth"));
+        assertThat(codes(empty)).isEmpty();
+        assertThat(empty.answers()).isEmpty();
         assertThat(noAuth.ledgerCodes()).contains("pa-needed=no-auth");
         assertThat(empty.ledgerCodes()).isEmpty();
 
@@ -117,10 +187,11 @@ class CrdScenarioDeterminationTest {
         assertThat(empty.detail().systemActionsPresence()).isEqualTo(Presence.ABSENT);
 
         // A tester who expects "no authorization" must not see a pass when the service said nothing.
-        assertThat(Expectations.assess("NO_AUTH_REQUIRED", noAuth.outcome(), noAuth.codes(), CrdOutcome.values()).result()).isEqualTo(TestResult.PASS);
-        assertThat(Expectations.assess("NO_AUTH_REQUIRED", empty.outcome(), empty.codes(), CrdOutcome.values()).result()).isEqualTo(TestResult.FAIL);
-        assertThat(Expectations.assess("pa-needed=no-auth", empty.outcome(), empty.codes(), CrdOutcome.values()).result()).isEqualTo(TestResult.FAIL);
-        assertThat(Expectations.assess("NO_DETERMINATION", noAuth.outcome(), noAuth.codes(), CrdOutcome.values()).result()).isEqualTo(TestResult.FAIL);
+        assertThat(assess("NO_AUTH_REQUIRED", noAuth)).isEqualTo(TestResult.PASS);
+        assertThat(assess("pa-needed=no-auth", noAuth)).isEqualTo(TestResult.PASS);
+        assertThat(assess("NO_AUTH_REQUIRED", empty)).isEqualTo(TestResult.FAIL);
+        assertThat(assess("pa-needed=no-auth", empty)).isEqualTo(TestResult.FAIL);
+        assertThat(assess("NO_DETERMINATION", noAuth)).isEqualTo(TestResult.FAIL);
     }
 
     @Test
@@ -163,7 +234,8 @@ class CrdScenarioDeterminationTest {
         assertThat(exchange.request().note()).contains("crd-13-timeout").contains("sentinel member ID P32H-TIMEOUT");
         CrdReading reading = mapper.read(exchange);
         assertThat(reading.detail().responseKind()).isEqualTo(CrdResponseKind.NO_RESPONSE);
-        assertThat(reading.codes()).isEmpty();
+        assertThat(reading.answers()).isEmpty();
+        assertThat(reading.ledgerCodes()).isEmpty();
     }
 
     @Test
@@ -182,7 +254,7 @@ class CrdScenarioDeterminationTest {
         assertThat(reading.delegatedVendor()).isEqualTo("Evolent");
         assertThat(reading.detail().coverageInformation().get(0).delegatedVendorBasis()).isEqualTo("the detail code \"delegated-vendor\"");
         assertThat(reading.detail().coverageInformation().get(0).details()).hasSize(2);
-        assertThat(reading.codes()).containsEntry("delegated-vendor", List.of("Evolent"));
+        assertThat(codes(reading)).containsEntry("delegated-vendor", List.of("Evolent"));
         assertThat(reading.ledgerCodes()).doesNotContain("delegated-vendor=Evolent");
     }
 
@@ -193,14 +265,14 @@ class CrdScenarioDeterminationTest {
         assertThat(reading.detail().cards().get(0).links().get(0).type().value()).isEqualTo("smart");
         assertThat(reading.detail().coverageInformation().get(0).questionnaires()).hasSize(1);
         assertThat(reading.detail().coverageInformation().get(0).questionnaires().get(0).value()).endsWith("/Questionnaire/sleep-study-criteria");
-        assertThat(reading.codes()).containsEntry("doc-purpose", List.of("withpa"));
+        assertThat(codes(reading)).containsEntry("doc-purpose", List.of("withpa"));
     }
 
     @Test
     void theSatisfiedAuthorizationIdentifierIsReadButKeptOutOfTheLedgerCodes() {
         CrdReading reading = read("P32H-PA-SAT");
         assertThat(reading.detail().coverageInformation().get(0).satisfiedPaId().value()).isEqualTo("PA-PLACEHOLDER-0001");
-        assertThat(reading.codes()).containsEntry("satisfied-pa-id", List.of("PA-PLACEHOLDER-0001"));
+        assertThat(codes(reading)).containsEntry("satisfied-pa-id", List.of("PA-PLACEHOLDER-0001"));
         assertThat(reading.ledgerCodes()).noneMatch(code -> code.contains("PA-PLACEHOLDER-0001"));
     }
 }

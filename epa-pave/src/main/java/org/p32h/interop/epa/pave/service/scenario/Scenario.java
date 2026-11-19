@@ -37,9 +37,13 @@ public record Scenario(String id, int number, String label, String description, 
                 expect == null ? null : expect.outcome());
     }
 
-    /** The named step, or the main step when there is no step of that name. Null when neither exists. */
+    /**
+     * The step for a call: the main step when no name is given, otherwise the step of that name.
+     * A name the file does not define yields null. It does not fall back to the main step, because
+     * answering an inquiry with the submission's response would be an answer to a question that
+     * was not asked.
+     */
     public ScenarioStep step(String name) {
-        ScenarioStep named = name == null ? null : steps.get(name);
-        return named != null ? named : main;
+        return name == null ? main : steps.get(name);
     }
 }

@@ -1,10 +1,10 @@
 package org.p32h.interop.epa.pave.service.crd;
 
+import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.crd.OnyxCrdClient;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.AdditionalField;
-import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EpaOperation;
@@ -13,15 +13,16 @@ import org.p32h.interop.epa.pave.model.ExpectationView;
 import org.p32h.interop.epa.pave.model.Expectations;
 import org.p32h.interop.epa.pave.model.Finding;
 import org.p32h.interop.epa.pave.model.IsoDates;
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
 import org.p32h.interop.epa.pave.model.MemberIdForms;
-import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
+import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.TestResult;
@@ -37,13 +38,15 @@ import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.config.CallIntent;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
+import org.p32h.interop.epa.pave.service.config.ProdUnlock;
+import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
+import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -52,8 +55,10 @@ import java.util.UUID;
  * <p>The order is fixed and is the pattern the other protocols follow:
  * <ol>
  *   <li>validate the form: a bad form is refused before anything is sent or recorded</li>
- *   <li>ask the gateway where the call goes: a missing url or placeholder is refused before sending</li>
- *   <li>build the body, or take the tester's edited one</li>
+ *   <li>ask the gateway where the call goes: a missing url or placeholder is refused before
+ *       sending. A write the production guardrail refuses is not an error to the tester: it is
+ *       recorded and returned as a result that says nothing was sent</li>
+ *   <li>build the body, or take the tester's own one</li>
  *   <li>call the service through the client, which never throws for a vendor fault</li>
  *   <li>read the response, check it, word the verdict, compare with the expectation</li>
  *   <li><b>write the ledger record</b></li>
@@ -82,67 +87,79 @@ public class CrdService {
         this.conformance = new CrdConformanceChecker(codeList);
     }
 
-    public RunEnvelope<CrdDetail> run(CrdRunRequest request, RunOrigin origin) {
+    /**
+     * @param unlock the session's production unlock, or null. A CRD hook is a read, but a tester can
+     *               point the run at any collection request, and the gateway judges that request
+     *               for what it is. A suite run or a replay always passes null
+     */
+    public RunEnvelope<CrdDetail> run(CrdRunRequest request, RunOrigin origin, ProdUnlock unlock) {
         validate(request);
         String hook = CrdRequestBuilder.hook(request);
         EpaOperation operation = operation(hook);
-        boolean ownBody = request.rawBody() != null;
-        MemberIdForms memberId = MemberIds.forms(request.member() == null ? null : request.member().memberId());
-        String npi = request.provider() == null ? null : Texts.trimToNull(request.provider().npi());
+        boolean ownBody = RunSupport.ownBody(request);
+        MemberIdForms memberId = RunSupport.memberId(request);
 
-        PreparedCall call = gateway.prepare(CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()));
+        PreparedCall call;
+        try {
+            call = gateway.prepare(intent(operation, request, unlock));
+        } catch (ProdWriteBlockedException refusal) {
+            return support.blocked(operation, refusal, request, origin);
+        }
 
         ResolvedText body;
-        List<String> requestNotes;
+        List<String> requestNotes = new ArrayList<>();
+        List<SentOrder> orders;
         if (ownBody) {
             body = call.resolve(request.rawBody());
-            requestNotes = List.of();
+            orders = SentOrder.fromBody(body.value());
+            // The tester's body is sent as written, valid or not: a malformed body is a negative
+            // case they are entitled to send. They are told, so it cannot happen unnoticed.
+            JsonSafe.Parsed parsed = JsonSafe.parse(body.value());
+            if (body.resolved() && !parsed.ok()) {
+                requestNotes.add("The body you supplied is not valid JSON once its placeholders are filled in. It was sent exactly "
+                        + "as written. " + parsed.error());
+            }
         } else {
             CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), call::resolve);
             body = ResolvedText.plain(built.json());
-            requestNotes = built.notes();
+            requestNotes.addAll(built.notes());
+            orders = built.orders();
         }
 
-        VendorExchange exchange = client.hook(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), npi));
+        VendorExchange exchange = client.hook(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), RunSupport.npi(request)));
 
         // From here on the call has been made, so whatever happens next the run is recorded.
-        RunRecord.Builder draft = support.draft(operation, call, exchange, origin)
-                .hook(hook)
-                .procedureCodes(codes(request))
-                .lineOfBusiness(request.member() == null ? null : Texts.trimToNull(request.member().lineOfBusiness()))
-                .expected(Texts.trimToNull(request.expected()))
-                .note(Texts.trimToNull(request.note()))
-                .testerRef(Texts.trimToNull(request.testerRef()))
-                .chainId(Texts.trimToNull(request.chainId()))
-                .memberId(Texts.trimToNull(memberId.sent()))
-                .npi(npi)
-                .dateOfService(Texts.trimToNull(request.dateOfService()))
-                .unrecordedInputs(unrecordedInputs(request));
+        RunRecord.Builder draft = support.fill(support.draft(operation, call, exchange, origin), request).hook(hook);
+        if (ownBody) {
+            // The codes that went out are the ones in the tester's body, not the ones left on the form.
+            draft.procedureCodes(orders.stream().map(SentOrder::code).filter(Texts::present).distinct().toList());
+        }
         try {
-            return interpret(request, operation, call, exchange, draft, requestNotes, !ownBody, memberId);
+            return interpret(request, operation, call, exchange, draft, requestNotes, orders, !ownBody, memberId);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened, so it gets its line before the failure is reported.
-            support.record(draft.outcome(RunSupport.OUTCOME_TOOL_ERROR).result(TestResult.UNVERIFIED).build());
+            support.record(draft.outcome(RunOutcome.TOOL_ERROR).result(TestResult.UNVERIFIED).build());
             throw e;
         }
     }
 
     private RunEnvelope<CrdDetail> interpret(CrdRunRequest request, EpaOperation operation, PreparedCall call, VendorExchange exchange,
-                                             RunRecord.Builder draft, List<String> requestNotes, boolean builtByTool,
-                                             MemberIdForms memberId) {
-        CrdReading reading = mapper.read(exchange);
+                                             RunRecord.Builder draft, List<String> requestNotes, List<SentOrder> orders,
+                                             boolean builtByTool, MemberIdForms memberId) {
+        CrdReading reading = mapper.read(exchange, orders);
         CrdOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
 
-        List<Finding> findings = new ArrayList<>(conformance.check(reading, exchange, request.procedureCodes(),
+        List<Finding> findings = new ArrayList<>(conformance.check(reading, exchange,
                 request.member() == null ? null : request.member().lineOfBusiness(), IsoDates.parse(request.dateOfService())));
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
 
         VerdictView verdict = CrdVerdicts.verdict(reading, exchange);
-        ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.codes(), CrdOutcome.values());
-        NextStepView nextStep = CrdVerdicts.nextStep(reading);
+        ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.answers(), CrdOutcome.values(),
+                CrdCodes.EXPECTATION_ELEMENTS);
+        NextStepView nextStep = CrdVerdicts.nextStep(reading, exchange);
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
         ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;
@@ -150,8 +167,11 @@ public class CrdService {
         Map<String, String> correlation = new LinkedHashMap<>();
         reading.detail().coverageInformation().stream().map(CoverageInformationView::satisfiedPaId).filter(Shown::hasValue)
                 .findFirst().ifPresent(id -> correlation.put(RunRecord.CORR_AUTHORIZATION_REF, id.value()));
-        reading.detail().coverageInformation().stream().flatMap(v -> v.questionnaires().stream()).filter(Shown::hasValue)
-                .findFirst().ifPresent(q -> correlation.put(RunRecord.CORR_QUESTIONNAIRE, q.value()));
+        List<String> questionnaires = reading.detail().coverageInformation().stream().flatMap(v -> v.questionnaires().stream())
+                .filter(Shown::hasValue).map(Shown::value).distinct().toList();
+        if (!questionnaires.isEmpty()) {
+            correlation.put(RunRecord.CORR_QUESTIONNAIRE, String.join(" ", questionnaires));
+        }
 
         RunRecord record = draft
                 .outcome(outcome)
@@ -184,15 +204,21 @@ public class CrdService {
                 .build();
     }
 
-    /** What the request would be, without sending it. */
-    public CrdPreview preview(CrdRunRequest request) {
+    /** What the request would be, without sending it. Nothing is recorded. */
+    public RequestPreview preview(CrdRunRequest request, ProdUnlock unlock) {
         validate(request);
         EpaOperation operation = operation(CrdRequestBuilder.hook(request));
-        PreparedCall call = gateway.prepare(CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()));
-        MemberIdForms memberId = MemberIds.forms(request.member() == null ? null : request.member().memberId());
+        MemberIdForms memberId = RunSupport.memberId(request);
+        MemberIdForms shown = memberId.typed().isEmpty() ? null : memberId;
+        PreparedCall call;
+        try {
+            call = gateway.prepare(intent(operation, request, unlock));
+        } catch (ProdWriteBlockedException refusal) {
+            return RequestPreview.blocked(operation, refusal, shown);
+        }
         String body;
         List<String> notes;
-        if (request.rawBody() != null) {
+        if (RunSupport.ownBody(request)) {
             ResolvedText resolved = call.resolve(request.rawBody());
             body = resolved.resolved() ? resolved.display() : request.rawBody();
             notes = resolved.resolved() ? List.of()
@@ -202,8 +228,7 @@ public class CrdService {
             body = built.json();
             notes = built.notes();
         }
-        return new CrdPreview(operation, call.method(), call.url(), call.environment(), call.requestName(), call.scripted(), body, notes,
-                memberId.typed().isEmpty() ? null : memberId);
+        return RequestPreview.of(operation, call, body, notes, shown);
     }
 
     /** Calls CDS Hooks discovery and lists the services the environment offers. Not a test run, so it is not recorded. */
@@ -211,7 +236,7 @@ public class CrdService {
         PreparedCall call = gateway.prepare(CallIntent.of(EpaOperation.CRD_DISCOVERY));
         VendorExchange exchange = client.discover(call);
         List<CrdDiscovery.Service> services = new ArrayList<>();
-        List<AdditionalField> additional = List.of();
+        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
         if (exchange.json() != null) {
             TrackedJson tracked = TrackedJson.of(exchange.json());
             for (TrackedJson.Node service : tracked.root().children("services")) {
@@ -225,9 +250,14 @@ public class CrdService {
                 services.add(new CrdDiscovery.Service(service.shown("id"), service.shown("hook"), service.shown("title"),
                         service.shown("description"), prefetch));
             }
-            additional = tracked.unconsumed();
+            additional.addAll(tracked.unconsumed());
         }
-        return new CrdDiscovery(call.url(), services, additional, exchange.wire(null), support.faultView(exchange, List.of()));
+        return new CrdDiscovery(call.url(), services, additional, exchange.wire(null), support.faultView(exchange, List.of()),
+                exchange.request() == null || exchange.request().sent() ? null : exchange.request().note());
+    }
+
+    private static CallIntent intent(EpaOperation operation, CrdRunRequest request, ProdUnlock unlock) {
+        return CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()).withUnlock(unlock);
     }
 
     private void validate(CrdRunRequest request) {
@@ -235,10 +265,10 @@ public class CrdService {
         String hook = CrdRequestBuilder.hook(request);
         inputs.require(CrdRunRequest.ORDER_SIGN.equals(hook) || CrdRunRequest.ORDER_SELECT.equals(hook), "hook",
                 "The hook must be order-sign or order-select.");
-        if (request.rawBody() != null) {
+        if (RunSupport.ownBody(request)) {
             // The tester's own body carries the member, the provider and the codes, so the form's
-            // copies are optional. Whatever the form does hold is still checked.
-            inputs.rawBody(request.rawBody());
+            // copies are optional. Whatever the form does hold is still checked. The body itself is
+            // not checked here: it may hold placeholders that only resolve into JSON later.
             if (request.member() != null && Texts.present(request.member().memberId())) {
                 inputs.member(request.member());
             }
@@ -249,7 +279,7 @@ public class CrdService {
             inputs.member(request.member()).provider(request.provider()).codes(request.procedureCodes());
         }
         inputs.date("dateOfService", request.dateOfService())
-                .expectation(request.expected(), CrdOutcome.values())
+                .expectation(request.expected(), CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS)
                 .scenario(request.scenarioId(), epa)
                 .throwIfInvalid();
     }
@@ -258,67 +288,48 @@ public class CrdService {
         return CrdRunRequest.ORDER_SELECT.equals(hook) ? EpaOperation.CRD_ORDER_SELECT : EpaOperation.CRD_ORDER_SIGN;
     }
 
-    private static List<String> codes(CrdRunRequest request) {
-        return request.procedureCodes().stream().filter(Objects::nonNull).map(CodeInput::code).filter(Texts::present)
-                .map(String::strip).toList();
-    }
-
-    /** The things this run sent that its ledger line will not hold, so replay can refuse it honestly. */
-    private static List<String> unrecordedInputs(CrdRunRequest request) {
-        List<String> inputs = new ArrayList<>();
-        if (request.rawBody() != null) {
-            inputs.add(RunRecord.INPUT_BODY);
-        }
-        if (!request.memberOverrides().isEmpty()) {
-            inputs.add(RunRecord.INPUT_MEMBER_DETAILS);
-        }
-        if (!request.providerOverrides().isEmpty()) {
-            inputs.add(RunRecord.INPUT_PROVIDER_DETAILS);
-        }
-        if (!request.variables().isEmpty()) {
-            inputs.add(RunRecord.INPUT_RUN_VALUES);
-        }
-        if (request.request() != null) {
-            inputs.add(RunRecord.INPUT_CHOSEN_REQUEST);
-        }
-        return inputs;
-    }
-
     /**
      * The determination grid: the standard codes and what they mean. When the response carried no
      * coverage information the two elements that would have answered are still listed, as not
-     * returned, so an empty answer looks different from a "no" at a glance.
+     * returned, so an empty answer looks different from a "no" at a glance. The same is done for
+     * each code that was asked about and left unanswered.
      */
     static List<DeterminationRow> determination(CrdReading reading) {
         List<DeterminationRow> rows = new ArrayList<>();
         List<CoverageInformationView> coverage = reading.detail().coverageInformation();
         if (coverage.isEmpty()) {
-            rows.add(DeterminationRow.notReturned("Covered", CrdCodes.COVERED));
-            rows.add(DeterminationRow.notReturned("Prior authorization", CrdCodes.PA_NEEDED));
+            rows.add(DeterminationRow.notReturned(null, "Covered", CrdCodes.COVERED));
+            rows.add(DeterminationRow.notReturned(null, "Prior authorization", CrdCodes.PA_NEEDED));
             return rows;
         }
-        boolean several = coverage.size() > 1;
+        boolean named = reading.several();
         for (CoverageInformationView view : coverage) {
-            String prefix = several ? Texts.orElse(view.appliesTo().orNull(), view.foundAt()) + ": " : "";
-            rows.add(row(prefix + "Covered", CrdCodes.COVERED, view.covered()));
-            rows.add(row(prefix + "Prior authorization", CrdCodes.PA_NEEDED, view.paNeeded()));
-            rows.add(row(prefix + "Documentation", CrdCodes.DOC_NEEDED, view.docNeeded()));
-            view.docPurpose().forEach(value -> rows.add(row(prefix + "Documentation purpose", CrdCodes.DOC_PURPOSE, value)));
-            view.infoNeeded().forEach(value -> rows.add(row(prefix + "Information needed", CrdCodes.INFO_NEEDED, value)));
+            // Two answers for one code are told apart by where each sat, so their rows do not merge.
+            boolean twin = coverage.stream().filter(other -> other.subject().equals(view.subject())).count() > 1;
+            String subject = named ? view.subject() + (twin ? " (" + view.foundAt() + ")" : "") : null;
+            rows.add(row(subject, "Covered", CrdCodes.COVERED, view.covered()));
+            rows.add(row(subject, "Prior authorization", CrdCodes.PA_NEEDED, view.paNeeded()));
+            rows.add(row(subject, "Documentation", CrdCodes.DOC_NEEDED, view.docNeeded()));
+            view.docPurpose().forEach(value -> rows.add(row(subject, "Documentation purpose", CrdCodes.DOC_PURPOSE, value)));
+            view.infoNeeded().forEach(value -> rows.add(row(subject, "Information needed", CrdCodes.INFO_NEEDED, value)));
             if (view.satisfiedPaId().presence() != Presence.ABSENT) {
-                rows.add(new DeterminationRow(prefix + "Existing authorization", view.satisfiedPaId().orNull(), null,
+                rows.add(new DeterminationRow(subject, "Existing authorization", view.satisfiedPaId().orNull(), null,
                         CrdCodes.SATISFIED_PA_ID, true, view.satisfiedPaId().presence()));
             }
             if (Texts.present(view.delegatedVendor())) {
-                rows.add(new DeterminationRow(prefix + "Delegated vendor", view.delegatedVendor(),
+                rows.add(new DeterminationRow(subject, "Delegated vendor", view.delegatedVendor(),
                         "Recognised from " + view.delegatedVendorBasis(), CrdCodes.DETAIL, true, Presence.VALUE));
             }
+        }
+        for (String label : reading.unanswered()) {
+            rows.add(DeterminationRow.notReturned(label, "Covered", CrdCodes.COVERED));
+            rows.add(DeterminationRow.notReturned(label, "Prior authorization", CrdCodes.PA_NEEDED));
         }
         return rows;
     }
 
-    private static DeterminationRow row(String label, String element, CodedValue value) {
-        return new DeterminationRow(label, value.code(), value.display(), element, value.recognised(), value.presence());
+    private static DeterminationRow row(String subject, String label, String element, CodedValue value) {
+        return new DeterminationRow(subject, label, value.code(), value.display(), element, value.recognised(), value.presence());
     }
 
     private static void addIfPresent(List<Finding> findings, Finding finding) {
