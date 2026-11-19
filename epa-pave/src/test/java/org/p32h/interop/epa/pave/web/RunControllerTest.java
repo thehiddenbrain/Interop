@@ -292,6 +292,14 @@ class RunControllerTest {
     }
 
     @Test
+    void whatWasTypedIntoANoteIsNotPrintedWithTheRequest() {
+        // A note is free text, so a request that is logged one day must not take the note with it.
+        assertThat(new RunController.NoteRequest("Placeholder-Surname rang about this one", "QA-17").toString())
+                .isEqualTo("NoteRequest[note given, testerRef given]");
+        assertThat(new RunController.NoteRequest(null, null).toString()).isEqualTo("NoteRequest[note not given, testerRef not given]");
+    }
+
+    @Test
     void aNoteOnARunThatDoesNotExistIs404() throws Exception {
         mvc.perform(post("/api/runs/run-404/note").contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"a note\"}"))
                 .andExpect(status().isNotFound())

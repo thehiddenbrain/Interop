@@ -60,6 +60,8 @@ import org.springframework.stereotype.Component;
  * <p>A replay never carries a production unlock, so a write against a production environment
  * comes back blocked. Against any other environment a write is sent again as a read is, which
  * submits or changes something a second time, and the report says how many of those there were.
+ * It also says how many runs went to another environment or profile than the first time, because
+ * a difference in those can come from the move and not from the service.
  */
 @Component
 public class RunReplay {

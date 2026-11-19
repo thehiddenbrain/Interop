@@ -32,7 +32,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
  * The read side of the ledger: what a query returns and in what order, how a note reaches the run
@@ -398,6 +401,32 @@ class JsonlRunLedgerQueryTest {
         assertThat(receipt.record().runId()).isEqualTo("run-1");
         assertThat(receipt.record().note()).isEqualTo("as recorded");
         assertThat(ledger.find("run-1").orElseThrow().note()).isEqualTo("as recorded");
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aNoteIsFreeTextSoNothingPrintsOrLogsOneWhetherItWasKeptOrNot(CapturedOutput output) throws IOException {
+        // The one thing on a line that nobody can vet: a tester can type anything here, a name included.
+        String typed = "Placeholder-Surname rang about this one";
+        JsonlRunLedger ledger = ledger(home, clock);
+        ledger.record(draft("run-1", clock).build());
+
+        LedgerReceipt kept = ledger.addNote("run-1", typed, "QA-17");
+        clock.advance(Duration.ofDays(1));
+        Files.createDirectory(dayFile(home, ELEVENTH));
+        LedgerReceipt lost = ledger.addNote("run-1", typed + ", twice", "QA-17");
+
+        assertThat(kept.recorded()).isTrue();
+        assertThat(lost.recorded()).isFalse();
+        // It is on the line, because that is where a note is kept, and nowhere else.
+        assertThat(lines(dayFile(home, TENTH)).get(1)).contains(typed);
+        assertThat(output.getAll()).contains("A ledger write failed for " + dayFile(home, ELEVENTH)).doesNotContain("Placeholder-Surname");
+        assertThat(new LedgerLines.NoteLine(LedgerLines.TYPE_NOTE, "run-1", "2026-03-10T11:00:00-04:00", typed, "QA-17").toString())
+                .isEqualTo("NoteLine[run-1]");
+        assertThat(kept.toString()).doesNotContain("Placeholder-Surname");
+        assertThat(lost.message()).doesNotContain("Placeholder-Surname");
+        assertThat(ledger.query(RunQuery.all()).toString()).doesNotContain("Placeholder-Surname");
+        assertThat(LedgerLines.parse(bytes(dayFile(home, TENTH))).toString()).doesNotContain("Placeholder-Surname");
     }
 
     // ---- find ----
