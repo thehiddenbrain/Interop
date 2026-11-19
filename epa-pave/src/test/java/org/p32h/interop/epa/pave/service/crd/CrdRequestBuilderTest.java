@@ -179,6 +179,32 @@ class CrdRequestBuilderTest {
     }
 
     @Test
+    void aNameWhereTheCodeListShouldHoldACodingSystemIsNotSentAsOneAndTheRequestNotesSayWhatWasDone() {
+        // An export that writes a name where the system belongs. A FHIR coding system is a uri, so
+        // the name must not become the system of the order.
+        FakeCodeList list = new FakeCodeList().row(ProcedureCode.builder().code("95810").system("CPT").build())
+                .row(ProcedureCode.builder().code("E0601").system("Durable equipment").build());
+        CrdRunRequest request = request().procedureCodes(List.of(CodeInput.of("95810"), CodeInput.of("E0601"),
+                new CodeInput("95810", "CPT", null))).build();
+        CrdRequestBuilder.Built built = new CrdRequestBuilder(list).build(request, "h", NOTHING_SET);
+        JsonNode entries = JsonSafe.parse(built.json()).node().at("/context/draftOrders/entry");
+
+        // A label the tool knows goes out as the uri it uses for it.
+        assertThat(entries.at("/0/resource/code/coding/0/system").asString()).isEqualTo(CaseResources.CPT);
+        // Anything else is not sent, and the format of the code decides.
+        assertThat(entries.at("/1/resource/code/coding/0/system").asString()).isEqualTo(CaseResources.HCPCS);
+        // What the tester typed is theirs to send, a label included.
+        assertThat(entries.at("/2/resource/code/coding/0/system").asString()).isEqualTo("CPT");
+        // Each of the first two is explained beside the request. Nothing is said about the third.
+        assertThat(built.notes()).filteredOn(n -> n.contains("95810") || n.contains("E0601")).containsExactly(
+                "The code list gives the coding system for 95810 as the label \"CPT\", which is not a uri. The uri this tool uses for CPT "
+                        + "was sent in its place: http://www.ama-assn.org/go/cpt.",
+                "The code list gives the coding system for E0601 as \"Durable equipment\". That is not a uri, and it is not a label this "
+                        + "tool knows, so it was not sent as the system.",
+                "The coding system for E0601 was taken from its format: HCPCS Level II.");
+    }
+
+    @Test
     void theBuilderReportsEachOrderItSentWithTheCodeOnIt() {
         // This list is what lets an answer be tied to its code, so it must match the body exactly.
         CrdRunRequest request = request().procedureCodes(List.of(CodeInput.of(" 95810 "), CodeInput.of("E0601"))).build();
