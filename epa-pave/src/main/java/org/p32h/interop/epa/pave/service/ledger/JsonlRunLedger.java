@@ -11,7 +11,6 @@ import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
-import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.ledger.DayFiles.DayFile;
 import java.io.IOException;
@@ -35,7 +34,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -78,9 +76,6 @@ public class JsonlRunLedger implements RunLedger {
 
     /** The key under which a directory that could not be listed is counted among what could not be read. */
     private static final String LISTING = "(the directory)";
-
-    /** An id that is safe to repeat in a message. Anything else was not minted by this tool. */
-    private static final Pattern PLAIN_ID = Pattern.compile("[A-Za-z0-9._-]{1,80}");
 
     private final Clock clock;
     private final boolean enabled;
@@ -585,9 +580,7 @@ public class JsonlRunLedger implements RunLedger {
 
     @Override
     public LedgerReceipt addNote(String runId, String note, String testerRef) {
-        RunRecord known = find(runId).orElseThrow(() -> new NotFoundException(
-                runId != null && PLAIN_ID.matcher(runId.strip()).matches() ? "There is no run with id " + runId.strip() + "."
-                        : "There is no run with that id."));
+        RunRecord known = find(runId).orElseThrow(() -> RunIds.notFound(runId));
         if (note == null && testerRef == null) {
             throw ValidationException.of("note", "Give a note, a tester reference or both. Nothing was changed.");
         }
