@@ -73,12 +73,14 @@ final class LookupOutcomes {
                                 + words.byHand() + ".", null, List.of(), List.of(), null);
                 yield new Ending(LookupStatus.FAULT, message, error);
             }
-            case MALFORMED_RESPONSE -> exchange.responseBody() == null
-                    ? fault(ErrorKind.MALFORMED_RESPONSE, words.api() + " answered HTTP " + status + " with an empty body, so there is "
-                            + "nothing to read a " + words.record() + " from.",
-                    "An empty answer does not say whether the " + words.identifier() + " is unknown, so this is not reported as not "
-                            + "found. If this API answers an unknown " + words.identifier() + " this way, the mapping has to be told so. "
-                            + "Until then, " + words.byHand() + ".", exchange, tracked)
+            // No body at all and a body of nothing but white space are told apart in the words only. Neither holds a record.
+            case MALFORMED_RESPONSE -> Texts.blank(exchange.responseBody())
+                    ? fault(ErrorKind.MALFORMED_RESPONSE, words.api() + " answered HTTP " + status + " with "
+                            + (exchange.responseBody() == null ? "an empty body" : "a blank body") + ", so there is nothing to read a "
+                            + words.record() + " from.",
+                    "An answer with nothing in it does not say whether the " + words.identifier() + " is unknown, so this is not "
+                            + "reported as not found. If this API answers an unknown " + words.identifier() + " this way, the mapping "
+                            + "has to be told so. Until then, " + words.byHand() + ".", exchange, tracked)
                     : fault(ErrorKind.MALFORMED_RESPONSE, words.api() + " answered HTTP " + status + " with a body that is not JSON.",
                     "The body is shown exactly as received under the returned fields. " + words.byHandSentence()
                             + " Report it as a defect in the service.", exchange, tracked);

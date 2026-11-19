@@ -48,7 +48,8 @@ import tools.jackson.databind.JsonNode;
  *   <li>{@code response}: the body as JSON, in whatever shape the API might send. It goes through
  *       the same mapping as a live response. Or {@code responseText}: a body that is deliberately
  *       not JSON, as text</li>
- *   <li>{@code description} and {@code basis}: what the file is for, and that it is synthetic</li>
+ *   <li>{@code description}, {@code basis} and {@code assumption}: what the file is for, that it
+ *       is synthetic, and anything it assumes about the live service</li>
  *   <li>{@code expect}: what the file claims to produce. A test drives every file through the
  *       mock client and fails when a file stops producing its claim</li>
  * </ul>
@@ -69,6 +70,15 @@ public class LookupFixtures {
      */
     public record Fixture(String identifier, String source, String description, ScenarioBehavior behavior, Integer httpStatus,
                           String body, boolean json) {
+
+        /**
+         * Prints the file name only. A fixture is synthetic, but it holds a member ID and a response
+         * body, and no type that holds those prints them.
+         */
+        @Override
+        public String toString() {
+            return "Fixture[" + source + "]";
+        }
     }
 
     static final String MEMBERS = "classpath*:fixtures/members/*.json";
@@ -137,7 +147,8 @@ public class LookupFixtures {
             try {
                 fixture = parse(file.getKey(), file.getValue(), identifierKey);
             } catch (IllegalArgumentException e) {
-                // The message is this class's own and names the file and the rule. It quotes nothing from the file but its keys.
+                // Every exception caught here is thrown by parse, below, and says which rule the file broke. None quotes
+                // anything from the file but its keys, so the message is safe to pass on beside the file name.
                 throw new IllegalStateException("Lookup fixture " + file.getKey() + ": " + e.getMessage());
             }
             String key = identifierKey.equals(MEMBER_KEY) ? memberKey(fixture.identifier()) : fixture.identifier();

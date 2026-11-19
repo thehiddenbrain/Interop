@@ -31,8 +31,9 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * The lookup endpoints as a browser sees them: 200 for every lookup that was really asked, with
- * how it ended in the body, and 422 only for an identifier refused before any lookup. The real
- * services, mock clients, fixtures and mappings are behind the controller.
+ * how it ended in the body, and 422 only for a request refused before any lookup, because its
+ * identifier cannot be one or its address cannot be taken at its word. The real services, mock
+ * clients, fixtures and mappings are behind the controller.
  */
 class LookupControllerTest {
 
@@ -285,6 +286,34 @@ class LookupControllerTest {
             String body = mvc.perform(get(URI.create(one.getKey()))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             assertThat(JsonSafe.parse(body).node().at("/memberId/typed").asString()).as(one.getKey()).isEqualTo(one.getValue());
         }
+    }
+
+    @Test
+    void aLookupIsOnlyMadeForAnAddressWrittenTheWayTheApiGuardReadsIt() throws Exception {
+        MockMvc mvc = mvc();
+        // The framework finds the controller for every one of these. The filter that keeps other pages
+        // away from the API reads the address as written and takes none of them for an API request,
+        // so a lookup answered here would be one that nobody checked.
+        for (String address : List.of("/%61pi/members/P32H-PA-REQ", "/ap%69/members/P32H-PA-REQ", "/%61%70%69/members/P32H-PA-REQ",
+                "/api;x=1/members/P32H-PA-REQ")) {
+            mvc.perform(get(URI.create(address))).andExpect(status().isUnprocessableContent())
+                    .andExpect(jsonPath("$.kind").value("VALIDATION"))
+                    .andExpect(jsonPath("$.title").value("This lookup cannot be made as it was addressed. Nothing was sent."))
+                    .andExpect(jsonPath("$.fieldErrors[0].field").value("memberId"))
+                    .andExpect(jsonPath("$.fieldErrors[0].message").value(org.hamcrest.Matchers.startsWith("The address is not written the way")))
+                    // The refusal says nothing about the member, not even the ID that was asked for.
+                    .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("P32H-PA-REQ"))));
+        }
+        mvc.perform(get(URI.create("/%61pi/providers/1234567893"))).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("npi"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value(org.hamcrest.Matchers.startsWith("The address is not written the way")));
+        assertThat(asked).isEmpty();
+
+        // Written as /api/, the address is one the guard has read, and what follows may be encoded.
+        String body = mvc.perform(get(URI.create("/api/%6Dembers/P32H-PA-REQ"))).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString();
+        assertThat(JsonSafe.parse(body).node().get("status").asString()).isEqualTo("FOUND");
+        assertThat(asked).containsExactly("member");
     }
 
     @Test

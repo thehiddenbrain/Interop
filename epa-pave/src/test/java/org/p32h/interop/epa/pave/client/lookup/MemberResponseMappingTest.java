@@ -843,7 +843,16 @@ class MemberResponseMappingTest {
                     + " with an empty body, so there is nothing to read a member from.");
             assertThat(empty.error().kind()).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
             assertThat(empty.error().action()).contains("not reported as not found");
+            assertThat(empty.additionalFields()).isEmpty();
         }
+
+        // A body of nothing but white space holds no record either. It is called blank, not empty, and is still on screen as received.
+        MemberLookupResult blank = map(200, " \n ");
+        assertThat(blank.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(blank.message()).isEqualTo("The member API answered HTTP 200 with a blank body, so there is nothing to read a member from.");
+        assertThat(blank.error().kind()).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
+        assertThat(blank.error().action()).contains("not reported as not found");
+        assertThat(blank.additionalFields()).containsExactly(AdditionalField.unparsedBody(" \n "));
     }
 
     @Test
