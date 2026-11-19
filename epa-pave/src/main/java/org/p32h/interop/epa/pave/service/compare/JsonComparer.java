@@ -1,0 +1,980 @@
+package org.p32h.interop.epa.pave.service.compare;
+
+import java.math.BigDecimal;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.p32h.interop.epa.pave.model.Shown;
+import org.p32h.interop.epa.pave.model.compare.Difference;
+import org.p32h.interop.epa.pave.model.compare.DifferenceGroup;
+import org.p32h.interop.epa.pave.model.compare.DifferenceKind;
+import org.p32h.interop.epa.pave.service.compare.Values.JsonType;
+import tools.jackson.databind.JsonNode;
+
+/**
+ * Compares two JSON documents, the one this tool built and the one a tester supplied, and
+ * explains each difference.
+ *
+ * <p>It knows JSON and the general shapes of FHIR: a resource states its type, a Bundle holds
+ * entries, an id is a label, and a reference points at a resource by that label. It knows nothing
+ * about any one kind of document. What an element is, and which part it plays, it asks of the
+ * {@link Glossary}; which objects have free keys and which strings are references it is told by
+ * the {@link CompareRules}.
+ *
+ * <p>The rules it applies:
+ * <ul>
+ *   <li>Objects are compared key by key. A key only one document has is one difference for
+ *       everything beneath it, never one per leaf.</li>
+ *   <li>Absent, null and empty are three different things, and each is worded as what it is.</li>
+ *   <li>Two scalars are equal when they have the same JSON type and the same value. A string
+ *       against a number is a different type even when the two read the same.</li>
+ *   <li>The same number written with a different precision is reported as written differently:
+ *       neither as equal nor as a different value.</li>
+ *   <li>Lists are matched as {@link ArrayMatcher} describes.</li>
+ *   <li>The members of an object whose keys are free are matched by key. What is left is matched
+ *       by resource type under another key, and then a resource with the one Bundle that holds
+ *       one of its type, each only when nothing else could be meant.</li>
+ *   <li>Two resources of different types are not compared beneath: they are one difference. The
+ *       one exception is a resource against a Bundle that holds exactly one resource of that
+ *       type, which is how the answer to a FHIR search carries it: the wrapping is one
+ *       difference, and the two resources are then compared with each other.</li>
+ *   <li>When two matched resources have different ids, that is one difference, a label. A
+ *       reference that differs only because it follows such a pair is counted on that difference
+ *       and not listed. A reference that differs for any other reason is listed.</li>
+ *   <li>A reference that is the same text in both documents is not a difference. Where the two
+ *       documents label the resource it names differently, a note says that the text points at
+ *       the resource in one document only.</li>
+ *   <li>A reference that differs and names a type and id its document carries more than once is
+ *       listed, never counted as following a pair, and a note names the resources it can mean.</li>
+ *   <li>An absolute url is followed to a resource of its own document only by the full url of an
+ *       entry, or when it is on the server the document names: on any other server the same type
+ *       and id can be another resource.</li>
+ *   <li>A caller that built a resource of its document from a resource of the other can say so,
+ *       and the two are then compared with each other whatever keys they sit under.</li>
+ * </ul>
+ * Differences come back in the document order of the tool's document. What only the other
+ * document has follows its neighbours.
+ *
+ * <p>The comparison never goes deeper than {@link #MAX_DEPTH} levels. Where it stops it says so
+ * in a note, because a comparison that quietly skipped a subtree would report two documents as
+ * closer than they are.
+ */
+public final class JsonComparer {
+
+    /** The deepest level compared. The top of the document is level one. */
+    public static final int MAX_DEPTH = 64;
+
+    /**
+     * What a comparison found.
+     *
+     * @param notes what a reader should know about the comparison as a whole
+     */
+    public record Result(List<Difference> differences, List<String> notes) {
+
+        public Result {
+            differences = List.copyOf(differences);
+            notes = List.copyOf(notes);
+        }
+
+        /** Prints the counts and never a difference's values. */
+        @Override
+        public String toString() {
+            return "Result[differences=" + differences.size() + ", notes=" + notes.size() + "]";
+        }
+    }
+
+    /** How the group of a difference is decided. */
+    private enum Grouping {
+        /** By the role of the element: a difference in a value. */
+        ROLE,
+        /** A difference in shape, which is part of how a request is built whatever the element is. */
+        STRUCTURE
+    }
+
+    private static final String BUNDLE = "Bundle";
+
+    private final CompareRules rules;
+    private final Glossary glossary;
+
+    public JsonComparer(CompareRules rules, Glossary glossary) {
+        this.rules = rules == null ? CompareRules.none() : rules;
+        this.glossary = glossary == null ? Glossary.NONE : glossary;
+    }
+
+    /**
+     * @param tool  the document this tool built
+     * @param yours the document it is compared with
+     */
+    public Result compare(JsonNode tool, JsonNode yours) {
+        return compare(tool, yours, Map.of());
+    }
+
+    /**
+     * @param builtFrom the JSON Pointer of a resource in the tool's document to the JSON Pointer of
+     *                  the resource in the other document it was built from. Where both are
+     *                  members of an object whose keys are free, the two are compared with each
+     *                  other whatever their keys: matching by key would compare the tool's
+     *                  resource with another one that happens to sit under the same key
+     */
+    public Result compare(JsonNode tool, JsonNode yours, Map<String, String> builtFrom) {
+        if (tool == null || yours == null) {
+            throw new IllegalArgumentException("A comparison needs two documents.");
+        }
+        Run run = new Run(tool, yours, builtFrom == null ? Map.of() : Map.copyOf(builtFrom));
+        run.walk(Place.root(), tool, yours, null, null, null);
+        return run.finish();
+    }
+
+    /**
+     * One place in the comparison: where it is written for people, where it is in each document,
+     * and how the glossary knows it.
+     */
+    private record Place(String path, String toolPointer, String yourPointer, String document, String fhir, int depth) {
+
+        static Place root() {
+            return new Place("", "", "", "", null, 1);
+        }
+
+        /**
+         * The glossary paths take the key as the path shows it, quoted when it holds a dot, so a
+         * key such as {@code context.patientId} at the top is never taken for the element of that
+         * name inside {@code context}.
+         */
+        Place key(String key, boolean freeKey) {
+            String shown = Paths.display(key);
+            return new Place(Paths.join(path, shown), Paths.member(toolPointer, key), Paths.member(yourPointer, key),
+                    Paths.join(document, freeKey ? "*" : shown), fhir == null ? null : fhir + "." + shown, depth + 1);
+        }
+
+        /** Two members of a free-keyed object that hold the same resource type under different keys. */
+        Place matchedByType(String resourceType, String toolKey, String yourKey) {
+            return new Place(path + "[" + resourceType + "]", Paths.member(toolPointer, toolKey), Paths.member(yourPointer, yourKey),
+                    Paths.join(document, "*"), null, depth + 1);
+        }
+
+        Place element(String label, int toolIndex, int yourIndex) {
+            return new Place(path + "[" + label + "]", toolIndex < 0 ? null : Paths.element(toolPointer, toolIndex),
+                    yourIndex < 0 ? null : Paths.element(yourPointer, yourIndex), document, fhir, depth + 1);
+        }
+
+        /** The same place, known to be a resource of this type: the glossary then sees the type alone. */
+        Place resource(String resourceType) {
+            return new Place(path, toolPointer, yourPointer, document, resourceType, depth);
+        }
+
+        /**
+         * The same place, where one document holds its resource inside an entry of a Bundle. The
+         * path stays the one of the bare resource, and the pointer on the wrapped side goes into
+         * the entry, so a screen marks the resource itself in both texts.
+         */
+        Place insideEntry(boolean yoursIsWrapped, int entry) {
+            String wrapped = Paths.member(Paths.element(Paths.member(yoursIsWrapped ? yourPointer : toolPointer, "entry"), entry), "resource");
+            return new Place(path, yoursIsWrapped ? toolPointer : wrapped, yoursIsWrapped ? wrapped : yourPointer, document, fhir, depth);
+        }
+
+        Place onlyInTool() {
+            return new Place(path, toolPointer, null, document, fhir, depth);
+        }
+
+        Place onlyInYours() {
+            return new Place(path, null, yourPointer, document, fhir, depth);
+        }
+
+        ElementPath element() {
+            return new ElementPath(document, fhir);
+        }
+
+        String shownPath() {
+            return path.isEmpty() ? "(the whole request)" : path;
+        }
+    }
+
+    /** What a slot in the list of differences is waiting for. */
+    private enum Pending { NOTHING, PAIR_ID, REFERENCE, REFERENCE_LIST }
+
+    /**
+     * One position in the list of differences. A difference that depends on which resources turn
+     * out to be matched, and those are known only once the whole document has been walked, keeps
+     * its position here and is filled in at the end.
+     */
+    private static final class Slot {
+        private final Pending pending;
+        private final Place at;
+        private final JsonNode tool;
+        private final JsonNode yours;
+        private final List<Difference> ready = new ArrayList<>();
+        private String bareType;
+        private boolean fullUrl;
+        private JsonNode toolOwner;
+        private JsonNode yourOwner;
+
+        private Slot(Pending pending, Place at, JsonNode tool, JsonNode yours) {
+            this.pending = pending;
+            this.at = at;
+            this.tool = tool;
+            this.yours = yours;
+        }
+    }
+
+    /** Two resources that were compared with each other, as each document's index knows them. */
+    private record Pair(ResourceIndex.Resource tool, ResourceIndex.Resource yours) {
+
+        /**
+         * True when the two documents really give the resource a different label of the kind a
+         * reference in this form uses: its id, or the full url of its entry. Only then can such a
+         * reference differ because it follows the label. A urn that differs only in letter case
+         * from another names the same entry, whatever the ids of the two resources are.
+         */
+        boolean labelledDifferently(ReferenceText.Form form) {
+            boolean ids = !java.util.Objects.equals(tool.id(), yours.id());
+            boolean fullUrls = !ResourceIndex.sameUrl(tool.fullUrl(), yours.fullUrl());
+            return switch (form) {
+                case RELATIVE, BARE -> ids;
+                case URN -> fullUrls;
+                case ABSOLUTE -> ids || fullUrls;
+                default -> false;
+            };
+        }
+    }
+
+    /** One reference that differs only because it follows a matched pair of resources. */
+    private record Follower(Slot slot, Place at, JsonNode tool, JsonNode yours) {
+
+        /** Prints the place and never the two texts, which are part of the documents. */
+        @Override
+        public String toString() {
+            return "Follower[" + at.shownPath() + "]";
+        }
+    }
+
+    /**
+     * One reference that is the same text in both documents. The same text is the same reference
+     * only where both documents label the resource alike, and that is known once every pair is.
+     */
+    private record SameText(String path, ReferenceText text) { }
+
+    /**
+     * What was found about each matched pair, by the tool's resource of the pair. Resources are
+     * kept by identity, since two can be equal and distinct, and in the order they were first met,
+     * so the same two documents always give the same answer.
+     */
+    private static final class ByResource<T> {
+        private final Map<JsonNode, List<T>> byResource = new IdentityHashMap<>();
+        private final List<JsonNode> order = new ArrayList<>();
+
+        private void add(JsonNode toolResource, T found) {
+            List<T> list = byResource.get(toolResource);
+            if (list == null) {
+                list = new ArrayList<>();
+                byResource.put(toolResource, list);
+                order.add(toolResource);
+            }
+            list.add(found);
+        }
+
+        private List<T> of(JsonNode toolResource) {
+            return byResource.getOrDefault(toolResource, List.of());
+        }
+
+        private List<JsonNode> resources() {
+            return order;
+        }
+    }
+
+    /** One comparison. Nothing here outlives the call, so the comparer itself holds no state. */
+    private final class Run {
+
+        private final ResourceIndex toolIndex;
+        private final ResourceIndex yourIndex;
+        private final Map<String, String> builtFrom;
+        private final List<Slot> slots = new ArrayList<>();
+        /** The tool's resource to the resource it was compared with. By identity: two resources can be equal and distinct. */
+        private final Map<JsonNode, JsonNode> pairs = new IdentityHashMap<>();
+        private final List<SameText> sameTexts = new ArrayList<>();
+        /** The type and id of each resource a listed reference could not be told apart from another, in each document. */
+        private final Set<String> ambiguousInTool = new HashSet<>();
+        private final Set<String> ambiguousInYours = new HashSet<>();
+        private String depthFirstPath;
+        private int depthPlaces;
+
+        private Run(JsonNode tool, JsonNode yours, Map<String, String> builtFrom) {
+            this.builtFrom = builtFrom;
+            this.toolIndex = ResourceIndex.of(tool, rules);
+            this.yourIndex = ResourceIndex.of(yours, rules);
+        }
+
+        // ---- the walk ----
+
+        /**
+         * @param key        the key the two nodes sit under, or null for the top and for list elements
+         * @param toolParent the object or list that holds the tool's node, or null at the top
+         */
+        private void walk(Place at, JsonNode tool, JsonNode yours, String key, JsonNode toolParent, JsonNode yourParent) {
+            JsonType type = JsonType.of(tool);
+            if (type != JsonType.of(yours)) {
+                add(at, DifferenceKind.DIFFERENT_TYPE, tool, yours, Grouping.STRUCTURE, null, Wording.differentType(tool, yours), null);
+                return;
+            }
+            switch (type) {
+                case OBJECT -> objects(at, tool, yours);
+                case ARRAY -> arrays(at, tool, yours, key, toolParent, yourParent);
+                case STRING -> strings(at, tool, yours, key, toolParent, yourParent);
+                case NUMBER -> numbers(at, tool, yours);
+                case BOOLEAN -> {
+                    if (tool.booleanValue() != yours.booleanValue()) {
+                        add(at, DifferenceKind.DIFFERENT_VALUE, tool, yours, Grouping.ROLE, null, Wording.differentBoolean(tool.booleanValue()), null);
+                    }
+                }
+                case NULL -> {
+                    // Two explicit nulls are the same thing.
+                }
+            }
+        }
+
+        private void objects(Place here, JsonNode tool, JsonNode yours) {
+            String toolType = ResourceIndex.resourceType(tool);
+            String yourType = ResourceIndex.resourceType(yours);
+            if (toolType != null && yourType != null && !toolType.equals(yourType)) {
+                int inYours = BUNDLE.equals(yourType) ? onlyEntryOf(yours, toolType) : -1;
+                int inTool = BUNDLE.equals(toolType) ? onlyEntryOf(tool, yourType) : -1;
+                if (inYours >= 0 || inTool >= 0) {
+                    boolean yoursIsWrapped = inYours >= 0;
+                    add(here, DifferenceKind.DIFFERENT_VALUE, tool, yours, Grouping.STRUCTURE, null,
+                            Wording.wrappedInBundle(yoursIsWrapped, yoursIsWrapped ? toolType : yourType), null);
+                    walk(here.insideEntry(yoursIsWrapped, yoursIsWrapped ? inYours : inTool),
+                            yoursIsWrapped ? tool : tool.get("entry").get(inTool).get("resource"),
+                            yoursIsWrapped ? yours.get("entry").get(inYours).get("resource") : yours, null, null, null);
+                    return;
+                }
+                add(here, DifferenceKind.DIFFERENT_VALUE, tool, yours, Grouping.STRUCTURE, null, Wording.differentResources(toolType, yourType), null);
+                return;
+            }
+            if (toolType != null && yourType != null) {
+                pairs.put(tool, yours);
+            }
+            String resourceType = toolType != null ? toolType : yourType;
+            Place at = resourceType == null ? here : here.resource(resourceType);
+            if (tool.isEmpty() && yours.isEmpty()) {
+                return;
+            }
+            if (tool.isEmpty() || yours.isEmpty()) {
+                add(at, DifferenceKind.DIFFERENT_VALUE, tool, yours, Grouping.STRUCTURE, null, Wording.emptiness(tool, yours), null);
+                return;
+            }
+            if (at.depth() >= MAX_DEPTH) {
+                depthReached(at);
+                return;
+            }
+            if (rules.freeKeyedAt(at.document())) {
+                freeKeyed(at, tool, yours);
+                return;
+            }
+            for (Map.Entry<String, JsonNode> member : tool.properties()) {
+                String key = member.getKey();
+                JsonNode other = yours.get(key);
+                if (other == null) {
+                    only(true, at.key(key, false), member.getValue(), Grouping.STRUCTURE, Wording.onlyMember(true, member.getValue()));
+                } else {
+                    walk(at.key(key, false), member.getValue(), other, key, tool, yours);
+                }
+            }
+            for (Map.Entry<String, JsonNode> member : yours.properties()) {
+                if (tool.get(member.getKey()) == null) {
+                    only(false, at.key(member.getKey(), false), member.getValue(), Grouping.STRUCTURE, Wording.onlyMember(false, member.getValue()));
+                }
+            }
+        }
+
+        /** The position of the only entry of a Bundle that holds a resource of this type, or -1 when there is none or more than one. */
+        private int onlyEntryOf(JsonNode bundle, String resourceType) {
+            int found = -1;
+            JsonNode entries = bundle.get("entry");
+            for (int i = 0; entries != null && entries.isArray() && i < entries.size(); i++) {
+                if (resourceType.equals(ResourceIndex.resourceType(entries.get(i).get("resource")))) {
+                    if (found >= 0) {
+                        return -1;
+                    }
+                    found = i;
+                }
+            }
+            return found;
+        }
+
+        /**
+         * Pairs a resource that is left on one side with a Bundle that is left under another key on
+         * the other side, when that Bundle is the only one left there that holds exactly one
+         * resource of the type and no bare resource of the type is left there. A FHIR search
+         * answers with such a Bundle, so the two are the same content in two shapes, under two
+         * keys. Anything less certain is left unpaired: which one is meant would be a guess.
+         *
+         * @param bare      the object whose bare resources are looked at, in its own order of keys
+         * @param paired    receives the key on the bare side and the key of the Bundle it was paired with
+         * @param pairedBack the same, the other way round
+         */
+        private void pairWithBundles(JsonNode bare, JsonNode wrapping, Map<String, List<String>> bareLeft, Map<String, List<String>> wrappingLeft,
+                                     Map<String, String> paired, Map<String, String> pairedBack) {
+            List<String> bundles = wrappingLeft.getOrDefault(BUNDLE, List.of());
+            for (Map.Entry<String, JsonNode> member : bare.properties()) {
+                String key = member.getKey();
+                String type = ResourceIndex.resourceType(member.getValue());
+                List<String> sameType = type == null || BUNDLE.equals(type) ? null : bareLeft.get(type);
+                if (sameType == null || sameType.size() != 1 || !sameType.get(0).equals(key) || paired.containsKey(key)
+                        || wrappingLeft.containsKey(type)) {
+                    continue;
+                }
+                String found = null;
+                int candidates = 0;
+                for (String bundleKey : bundles) {
+                    if (!pairedBack.containsKey(bundleKey) && onlyEntryOf(wrapping.get(bundleKey), type) >= 0) {
+                        found = bundleKey;
+                        candidates++;
+                    }
+                }
+                if (candidates == 1) {
+                    paired.put(key, found);
+                    pairedBack.put(found, key);
+                }
+            }
+        }
+
+        /**
+         * An object whose keys are free. Members are matched by key first. What is left on both
+         * sides is matched by resource type when exactly one member of that type is left on each
+         * side, and reported as the same content under a different key. A resource still left is
+         * then matched with the one Bundle that holds it, as {@link #pairWithBundles} describes.
+         */
+        private void freeKeyed(Place at, JsonNode tool, JsonNode yours) {
+            // First the pairs the caller knows: a resource of the tool's and the one it was built from.
+            Map<String, String> renamed = new HashMap<>();
+            Map<String, String> renamedFrom = new HashMap<>();
+            Map<String, String> yourKeyByPointer = new HashMap<>();
+            for (Map.Entry<String, JsonNode> member : yours.properties()) {
+                yourKeyByPointer.put(Paths.member(at.yourPointer(), member.getKey()), member.getKey());
+            }
+            Set<String> builtFromPairs = new HashSet<>();
+            for (Map.Entry<String, JsonNode> member : tool.properties()) {
+                String yourKey = yourKeyByPointer.get(builtFrom.get(Paths.member(at.toolPointer(), member.getKey())));
+                if (yourKey != null && !yourKey.equals(member.getKey()) && !renamedFrom.containsKey(yourKey)
+                        && ResourceIndex.resourceType(member.getValue()) != null && ResourceIndex.resourceType(member.getValue())
+                        .equals(ResourceIndex.resourceType(yours.get(yourKey)))) {
+                    renamed.put(member.getKey(), yourKey);
+                    renamedFrom.put(yourKey, member.getKey());
+                    builtFromPairs.add(member.getKey());
+                }
+            }
+            // Then by key, among the members neither of those pairs took.
+            java.util.function.Predicate<String> byKey = key -> tool.get(key) != null && yours.get(key) != null && !renamed.containsKey(key)
+                    && !renamedFrom.containsKey(key);
+            Map<String, List<String>> toolLeft = new LinkedHashMap<>();
+            Map<String, List<String>> yourLeft = new HashMap<>();
+            for (Map.Entry<String, JsonNode> member : tool.properties()) {
+                String type = ResourceIndex.resourceType(member.getValue());
+                if (!byKey.test(member.getKey()) && !renamed.containsKey(member.getKey()) && type != null) {
+                    toolLeft.computeIfAbsent(type, k -> new ArrayList<>()).add(member.getKey());
+                }
+            }
+            for (Map.Entry<String, JsonNode> member : yours.properties()) {
+                String type = ResourceIndex.resourceType(member.getValue());
+                if (!byKey.test(member.getKey()) && !renamedFrom.containsKey(member.getKey()) && type != null) {
+                    yourLeft.computeIfAbsent(type, k -> new ArrayList<>()).add(member.getKey());
+                }
+            }
+            for (Map.Entry<String, List<String>> left : toolLeft.entrySet()) {
+                List<String> theirs = yourLeft.get(left.getKey());
+                if (left.getValue().size() == 1 && theirs != null && theirs.size() == 1) {
+                    renamed.put(left.getValue().get(0), theirs.get(0));
+                    renamedFrom.put(theirs.get(0), left.getValue().get(0));
+                }
+            }
+            pairWithBundles(tool, yours, toolLeft, yourLeft, renamed, renamedFrom);
+            pairWithBundles(yours, tool, yourLeft, toolLeft, renamedFrom, renamed);
+            for (Map.Entry<String, JsonNode> member : tool.properties()) {
+                String key = member.getKey();
+                if (byKey.test(key)) {
+                    walk(at.key(key, true), member.getValue(), yours.get(key), key, tool, yours);
+                } else if (renamed.containsKey(key)) {
+                    String yourKey = renamed.get(key);
+                    String toolType = ResourceIndex.resourceType(member.getValue());
+                    // Where one side wraps its resource in a Bundle, the pair is named after the resource and not after the wrapper.
+                    String type = BUNDLE.equals(toolType) ? ResourceIndex.resourceType(yours.get(yourKey)) : toolType;
+                    Place matched = at.matchedByType(type, key, yourKey);
+                    String sentence = Wording.differentKey(type, key, yourKey) + (builtFromPairs.contains(key) ? Wording.builtFrom() : "");
+                    slots.add(ready(difference(matched.resource(type), DifferenceKind.DIFFERENT_KEY, Shown.of(key), Shown.of(yourKey), null,
+                            null, Grouping.STRUCTURE, null, sentence, null)));
+                    walk(matched, member.getValue(), yours.get(yourKey), key, tool, yours);
+                } else {
+                    only(true, at.key(key, true), member.getValue(), Grouping.STRUCTURE, Wording.onlyKey(true, key, member.getValue()));
+                }
+            }
+            for (Map.Entry<String, JsonNode> member : yours.properties()) {
+                String key = member.getKey();
+                if (!byKey.test(key) && !renamedFrom.containsKey(key)) {
+                    only(false, at.key(key, true), member.getValue(), Grouping.STRUCTURE, Wording.onlyKey(false, key, member.getValue()));
+                }
+            }
+        }
+
+        private void arrays(Place at, JsonNode tool, JsonNode yours, String key, JsonNode toolParent, JsonNode yourParent) {
+            if (tool.isEmpty() && yours.isEmpty()) {
+                return;
+            }
+            if (tool.isEmpty() || yours.isEmpty()) {
+                add(at, DifferenceKind.DIFFERENT_VALUE, tool, yours, Grouping.STRUCTURE, null, Wording.emptiness(tool, yours), null);
+                return;
+            }
+            if (at.depth() >= MAX_DEPTH) {
+                depthReached(at);
+                return;
+            }
+            if (rules.referenceAt(at.document()) && allStrings(tool) && allStrings(yours)) {
+                Slot slot = new Slot(Pending.REFERENCE_LIST, at, tool, yours);
+                slot.bareType = rules.bareTypeAt(at.document());
+                slots.add(slot);
+                return;
+            }
+            boolean bundle = "entry".equals(key) && BUNDLE.equals(ResourceIndex.resourceType(toolParent))
+                    && BUNDLE.equals(ResourceIndex.resourceType(yourParent));
+            ArrayMatcher.Plan plan = ArrayMatcher.plan(bundle, tool, yours, rules);
+            if (plan.rule() == ArrayMatcher.Rule.SCALARS) {
+                scalars(at, tool, yours);
+                return;
+            }
+            boolean extraOnBothSides = plan.unmatchedOnBothSides();
+            for (ArrayMatcher.Match match : plan.matches()) {
+                Place element = at.element(match.label(), match.toolIndex(), match.yourIndex());
+                if (match.paired()) {
+                    walk(element, tool.get(match.toolIndex()), yours.get(match.yourIndex()), null, tool, yours);
+                    continue;
+                }
+                boolean inTool = match.toolIndex() >= 0;
+                JsonNode value = inTool ? tool.get(match.toolIndex()) : yours.get(match.yourIndex());
+                String sentence = switch (plan.rule()) {
+                    case BUNDLE_ENTRY -> Wording.onlyEntry(inTool, value);
+                    case URL -> Wording.onlyKeyed(inTool, "url", match.keyed(), extraOnBothSides);
+                    case SYSTEM -> Wording.onlyKeyed(inTool, "system", match.keyed(), extraOnBothSides);
+                    case TYPE -> Wording.onlyKeyed(inTool, "type", match.keyed(), extraOnBothSides);
+                    default -> Wording.onlyPosition(inTool);
+                };
+                only(inTool, element, value, Grouping.STRUCTURE, sentence);
+            }
+        }
+
+        private boolean allStrings(JsonNode array) {
+            for (JsonNode element : array) {
+                if (!element.isString()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * Two lists of scalars: equal when they are the same list. The same values in another
+         * order is one difference. Otherwise each value one list has and the other lacks is one.
+         */
+        private void scalars(Place at, JsonNode tool, JsonNode yours) {
+            Map<String, Deque<Integer>> yourPositions = new HashMap<>();
+            for (int j = 0; j < yours.size(); j++) {
+                yourPositions.computeIfAbsent(scalarKey(yours.get(j)), k -> new ArrayDeque<>()).add(j);
+            }
+            int[] partner = new int[tool.size()];
+            Arrays.fill(partner, -1);
+            boolean[] taken = new boolean[yours.size()];
+            boolean inOrder = true;
+            boolean complete = tool.size() == yours.size();
+            for (int i = 0; i < tool.size(); i++) {
+                Deque<Integer> same = yourPositions.get(scalarKey(tool.get(i)));
+                if (same == null || same.isEmpty()) {
+                    complete = false;
+                    continue;
+                }
+                partner[i] = same.poll();
+                taken[partner[i]] = true;
+                inOrder &= partner[i] == i;
+            }
+            if (complete && !inOrder) {
+                add(at, DifferenceKind.DIFFERENT_ORDER, tool, yours, Grouping.ROLE, null, Wording.differentOrder(), null);
+            }
+            for (int i = 0; i < tool.size(); i++) {
+                if (partner[i] < 0) {
+                    only(true, at.element(String.valueOf(i), i, -1), tool.get(i), Grouping.ROLE, Wording.onlyValue(true));
+                } else if (!Values.text(tool.get(i)).equals(Values.text(yours.get(partner[i])))) {
+                    // The key treats 1 and 1.0 as one number, so what is left here is how it was written.
+                    add(at.element(String.valueOf(i), i, partner[i]), DifferenceKind.WRITTEN_DIFFERENTLY, tool.get(i), yours.get(partner[i]),
+                            Grouping.ROLE, null, Wording.writtenDifferently(), null);
+                }
+            }
+            for (int j = 0; j < yours.size(); j++) {
+                if (!taken[j]) {
+                    only(false, at.element(String.valueOf(j), -1, j), yours.get(j), Grouping.ROLE, Wording.onlyValue(false));
+                }
+            }
+        }
+
+        /** What makes two scalars the same value: the JSON type, and the number or the text. */
+        private String scalarKey(JsonNode node) {
+            JsonType type = JsonType.of(node);
+            // stripTrailingZeros gives equal numbers one form without ever writing out a large exponent.
+            String value = type == JsonType.NUMBER ? node.decimalValue().stripTrailingZeros().toString() : Values.text(node);
+            return type.wire() + ":" + value;
+        }
+
+        private void strings(Place at, JsonNode tool, JsonNode yours, String key, JsonNode toolParent, JsonNode yourParent) {
+            String toolText = Values.text(tool);
+            String yourText = Values.text(yours);
+            if (toolText.equals(yourText)) {
+                // Not a difference in the text. Whether it points at the same thing in both is looked at once every pair is known.
+                if (key != null && ((key.equals("reference") && at.fhir() != null) || rules.referenceAt(at.document()))) {
+                    sameTexts.add(new SameText(at.shownPath(), ReferenceText.parse(toolText, rules.bareTypeAt(at.document()))));
+                }
+                return;
+            }
+            if (key != null) {
+                if (key.equals("id") && pairs.get(toolParent) == yourParent) {
+                    Slot slot = new Slot(Pending.PAIR_ID, at, tool, yours);
+                    slot.toolOwner = toolParent;
+                    slots.add(slot);
+                    return;
+                }
+                boolean fullUrl = key.equals("fullUrl") && at.fhir() != null;
+                if (fullUrl || (key.equals("reference") && at.fhir() != null) || rules.referenceAt(at.document())) {
+                    Slot slot = new Slot(Pending.REFERENCE, at, tool, yours);
+                    slot.bareType = rules.bareTypeAt(at.document());
+                    slot.fullUrl = fullUrl;
+                    // A full url is the address of the resource in its own entry, so that is what it points at.
+                    slot.toolOwner = fullUrl ? toolParent.get("resource") : null;
+                    slot.yourOwner = fullUrl ? yourParent.get("resource") : null;
+                    slots.add(slot);
+                    return;
+                }
+            }
+            add(at, DifferenceKind.DIFFERENT_VALUE, tool, yours, Grouping.ROLE, null, Wording.differentText(toolText, yourText), null);
+        }
+
+        private void numbers(Place at, JsonNode tool, JsonNode yours) {
+            BigDecimal toolNumber = tool.decimalValue();
+            BigDecimal yourNumber = yours.decimalValue();
+            if (toolNumber.compareTo(yourNumber) != 0) {
+                add(at, DifferenceKind.DIFFERENT_VALUE, tool, yours, Grouping.ROLE, null, Wording.differentNumber(), null);
+            } else if (!Values.text(tool).equals(Values.text(yours))) {
+                add(at, DifferenceKind.WRITTEN_DIFFERENTLY, tool, yours, Grouping.ROLE, null, Wording.writtenDifferently(), null);
+            }
+        }
+
+        private void depthReached(Place at) {
+            if (depthFirstPath == null) {
+                depthFirstPath = at.shownPath();
+            }
+            depthPlaces++;
+        }
+
+        // ---- differences ----
+
+        private void only(boolean inTool, Place at, JsonNode value, Grouping grouping, String sentence) {
+            String resourceType = ResourceIndex.resourceType(value);
+            Place place = inTool ? at.onlyInTool() : at.onlyInYours();
+            add(resourceType == null ? place : place.resource(resourceType), inTool ? DifferenceKind.ONLY_IN_TOOL : DifferenceKind.ONLY_IN_YOURS,
+                    inTool ? value : null, inTool ? null : value, grouping, null, sentence, null);
+        }
+
+        private void add(Place at, DifferenceKind kind, JsonNode tool, JsonNode yours, Grouping grouping, DifferenceGroup forced,
+                         String explanation, Integer following) {
+            slots.add(ready(difference(at, kind, tool, yours, grouping, forced, explanation, following)));
+        }
+
+        private Slot ready(Difference difference) {
+            Slot slot = new Slot(Pending.NOTHING, null, null, null);
+            slot.ready.add(difference);
+            return slot;
+        }
+
+        private Difference difference(Place at, DifferenceKind kind, JsonNode tool, JsonNode yours, Grouping grouping,
+                                      DifferenceGroup forced, String explanation, Integer following) {
+            return difference(at, kind, Values.shown(tool), Values.shown(yours), Values.type(tool), Values.type(yours), grouping, forced,
+                    explanation, following);
+        }
+
+        /**
+         * @param forced the group, when the engine knows it from the shape of FHIR whatever the
+         *               glossary says: an id of a matched resource is a label, and a reference
+         *               that points elsewhere is part of how the request is built
+         */
+        private Difference difference(Place at, DifferenceKind kind, Shown toolValue, Shown yourValue, String toolType, String yourType,
+                                      Grouping grouping, DifferenceGroup forced, String explanation, Integer following) {
+            ElementPath element = at.element();
+            Glossary.Entry entry = glossary.describe(element);
+            DifferenceGroup group;
+            if (forced != null) {
+                group = forced;
+            } else if (entry == null) {
+                group = DifferenceGroup.NOT_CLASSIFIED;
+            } else if (grouping == Grouping.STRUCTURE) {
+                group = DifferenceGroup.BUILD;
+            } else {
+                group = entry.role() == null ? DifferenceGroup.NOT_CLASSIFIED : entry.role().group();
+            }
+            String text = explanation;
+            String remark = glossary.remark(element, kind, toolValue, yourValue);
+            if (remark != null && !remark.isBlank()) {
+                text += " " + remark.strip();
+            }
+            if (group == DifferenceGroup.NOT_CLASSIFIED) {
+                text += Wording.notClassified(entry != null);
+            }
+            return new Difference(at.shownPath(), at.toolPointer(), at.yourPointer(), kind, kind.label(), group, toolValue, yourValue,
+                    toolType, yourType, entry == null ? null : entry.what(), text, following);
+        }
+
+        // ---- labels and references, once every pair is known ----
+
+        private Result finish() {
+            ByResource<Follower> followers = new ByResource<>();
+            Map<JsonNode, Slot> idSlots = new IdentityHashMap<>();
+            for (Slot slot : slots) {
+                switch (slot.pending) {
+                    case PAIR_ID -> idSlots.put(slot.toolOwner, slot);
+                    case REFERENCE -> reference(slot, followers);
+                    case REFERENCE_LIST -> referenceList(slot, followers);
+                    case NOTHING -> {
+                        // Already a difference.
+                    }
+                }
+            }
+            for (Map.Entry<JsonNode, Slot> id : idSlots.entrySet()) {
+                Slot slot = id.getValue();
+                int following = followers.of(id.getKey()).size();
+                slot.ready.add(difference(slot.at, DifferenceKind.DIFFERENT_VALUE, slot.tool, slot.yours, Grouping.ROLE, DifferenceGroup.LABELS,
+                        Wording.differentIds(ResourceIndex.resourceType(id.getKey()), following), following));
+            }
+            // A pair whose ids agree can still be labelled differently, by the full urls of its
+            // entries. There is then no id difference to carry the count, so the first reference
+            // that follows the pair is listed and carries it.
+            for (JsonNode resource : followers.resources()) {
+                if (!idSlots.containsKey(resource)) {
+                    Follower first = followers.of(resource).get(0);
+                    int others = followers.of(resource).size() - 1;
+                    first.slot().ready.add(difference(first.at(), DifferenceKind.DIFFERENT_VALUE, first.tool(), first.yours(), Grouping.ROLE,
+                            DifferenceGroup.LABELS, Wording.differentLabels(ResourceIndex.resourceType(resource), others), others));
+                }
+            }
+            List<Difference> differences = new ArrayList<>();
+            slots.forEach(slot -> differences.addAll(slot.ready));
+            List<String> notes = new ArrayList<>();
+            if (depthFirstPath != null) {
+                notes.add(Wording.depthReached(MAX_DEPTH, depthFirstPath, depthPlaces));
+            }
+            sameTextAnotherTarget(notes);
+            duplicated(toolIndex, true, ambiguousInTool, notes);
+            duplicated(yourIndex, false, ambiguousInYours, notes);
+            return new Result(differences, notes);
+        }
+
+        private void ambiguous(List<ResourceIndex.Resource> targets, Set<String> into) {
+            if (targets.size() > 1) {
+                into.add(targets.get(0).type() + "/" + targets.get(0).id());
+            }
+        }
+
+        /**
+         * A note for each type and id a document carries more than once, where a reference that
+         * differs between the two documents names it. Where every reference to it is the same in
+         * both, the two documents agree and there is nothing to explain.
+         */
+        private void duplicated(ResourceIndex index, boolean tool, Set<String> named, List<String> notes) {
+            for (Map.Entry<String, List<ResourceIndex.Resource>> same : index.duplicated().entrySet()) {
+                if (named.contains(same.getKey())) {
+                    notes.add(Wording.duplicated(tool, same.getValue().get(0).type(), same.getValue().stream().map(ResourceIndex.Resource::path).toList()));
+                }
+            }
+        }
+
+        /**
+         * A reference that is the same text in both documents is no difference in the text, and so
+         * is not listed. It is still not the same reference when the two documents label the
+         * resource differently: the text then points at the resource in one document and past it
+         * in the other. Left unsaid, a renamed id whose references were not renamed with it would
+         * read as a label and nothing more.
+         */
+        private void sameTextAnotherTarget(List<String> notes) {
+            Map<JsonNode, JsonNode> toolOf = new IdentityHashMap<>();
+            pairs.forEach((toolResource, yourResource) -> toolOf.put(yourResource, toolResource));
+            ByResource<String> onlyInTool = new ByResource<>();
+            ByResource<String> onlyInYours = new ByResource<>();
+            for (SameText same : sameTexts) {
+                List<ResourceIndex.Resource> toolTargets = toolIndex.resolve(same.text());
+                List<ResourceIndex.Resource> yourTargets = yourIndex.resolve(same.text());
+                for (ResourceIndex.Resource target : toolTargets) {
+                    JsonNode partner = pairs.get(target.node());
+                    if (partner != null && yourTargets.stream().noneMatch(other -> other.node() == partner)) {
+                        onlyInTool.add(target.node(), same.path());
+                    }
+                }
+                for (ResourceIndex.Resource target : yourTargets) {
+                    JsonNode partner = toolOf.get(target.node());
+                    if (partner != null && toolTargets.stream().noneMatch(other -> other.node() == partner)) {
+                        onlyInYours.add(partner, same.path());
+                    }
+                }
+            }
+            for (JsonNode resource : onlyInTool.resources()) {
+                notes.add(Wording.sameTextAnotherTarget(true, ResourceIndex.resourceType(resource), onlyInTool.of(resource)));
+            }
+            for (JsonNode resource : onlyInYours.resources()) {
+                notes.add(Wording.sameTextAnotherTarget(false, ResourceIndex.resourceType(resource), onlyInYours.of(resource)));
+            }
+        }
+
+        /** The first of the tool's resources whose partner is among the other request's, with that partner. Null when there is none. */
+        private Pair pair(List<ResourceIndex.Resource> toolTargets, List<ResourceIndex.Resource> yourTargets) {
+            for (ResourceIndex.Resource toolTarget : toolTargets) {
+                JsonNode partner = pairs.get(toolTarget.node());
+                for (ResourceIndex.Resource yourTarget : yourTargets) {
+                    if (partner != null && yourTarget.node() == partner) {
+                        return new Pair(toolTarget, yourTarget);
+                    }
+                }
+            }
+            return null;
+        }
+
+        private List<ResourceIndex.Resource> own(JsonNode resource, ResourceIndex index) {
+            ResourceIndex.Resource known = index.at(resource);
+            return known == null ? List.of() : List.of(known);
+        }
+
+        private void reference(Slot slot, ByResource<Follower> followers) {
+            ReferenceText toolText = ReferenceText.parse(Values.text(slot.tool), slot.bareType);
+            ReferenceText yourText = ReferenceText.parse(Values.text(slot.yours), slot.bareType);
+            List<ResourceIndex.Resource> toolTargets = slot.fullUrl ? own(slot.toolOwner, toolIndex) : toolIndex.resolve(toolText);
+            List<ResourceIndex.Resource> yourTargets = slot.fullUrl ? own(slot.yourOwner, yourIndex) : yourIndex.resolve(yourText);
+            if (!slot.fullUrl && (toolTargets.size() > 1 || yourTargets.size() > 1)) {
+                // Which of the resources it means cannot be told, so it cannot be said to follow a renamed pair.
+                ambiguous(toolTargets, ambiguousInTool);
+                ambiguous(yourTargets, ambiguousInYours);
+                slot.ready.add(difference(slot.at, DifferenceKind.DIFFERENT_VALUE, slot.tool, slot.yours, Grouping.ROLE, DifferenceGroup.BUILD,
+                        Wording.ambiguousReference(toolTargets.size() > 1, yourTargets.size() > 1), null));
+                return;
+            }
+            Pair pair = pair(toolTargets, yourTargets);
+            boolean sameForm = toolText.sameFormAs(yourText);
+            if (pair != null && sameForm && pair.labelledDifferently(toolText.form())) {
+                followers.add(pair.tool().node(), new Follower(slot, slot.at, slot.tool, slot.yours));
+            } else if (pair != null && !sameForm) {
+                slot.ready.add(difference(slot.at, DifferenceKind.WRITTEN_DIFFERENTLY, slot.tool, slot.yours, Grouping.ROLE, DifferenceGroup.BUILD,
+                        Wording.referenceForms(toolText, yourText), null));
+            } else if (pair != null || slot.fullUrl || (!toolText.recognised() && !yourText.recognised())) {
+                // Not explained by a relabelling, and not a pointer at something else: it is compared as the text it is.
+                slot.ready.add(difference(slot.at, DifferenceKind.DIFFERENT_VALUE, slot.tool, slot.yours, Grouping.ROLE, null,
+                        Wording.differentText(Values.text(slot.tool), Values.text(slot.yours)), null));
+            } else {
+                slot.ready.add(difference(slot.at, DifferenceKind.DIFFERENT_VALUE, slot.tool, slot.yours, Grouping.ROLE, DifferenceGroup.BUILD,
+                        Wording.referenceElsewhere(toolText, toolTargets, yourText, yourTargets), null));
+            }
+        }
+
+        /**
+         * Two lists of references. An element of one is the counterpart of an element of the
+         * other when the two are the same text, or when they point at a matched pair of resources
+         * in the same form.
+         */
+        private void referenceList(Slot slot, ByResource<Follower> followers) {
+            JsonNode tool = slot.tool;
+            JsonNode yours = slot.yours;
+            int[] partner = new int[tool.size()];
+            Arrays.fill(partner, -1);
+            boolean[] taken = new boolean[yours.size()];
+            Map<String, Deque<Integer>> sameText = new HashMap<>();
+            for (int j = 0; j < yours.size(); j++) {
+                sameText.computeIfAbsent(Values.text(yours.get(j)), k -> new ArrayDeque<>()).add(j);
+            }
+            for (int i = 0; i < tool.size(); i++) {
+                Deque<Integer> same = sameText.get(Values.text(tool.get(i)));
+                if (same != null && !same.isEmpty()) {
+                    partner[i] = same.poll();
+                    taken[partner[i]] = true;
+                    sameTexts.add(new SameText(slot.at.element(String.valueOf(i), i, partner[i]).shownPath(),
+                            ReferenceText.parse(Values.text(tool.get(i)), slot.bareType)));
+                }
+            }
+            // What is left of the other list, by the resource each element points at and the form it is written in.
+            Map<JsonNode, Deque<Integer>> yourByTarget = new IdentityHashMap<>();
+            Map<JsonNode, ResourceIndex.Resource> yourResources = new IdentityHashMap<>();
+            ReferenceText[] yourTexts = new ReferenceText[yours.size()];
+            for (int j = 0; j < yours.size(); j++) {
+                yourTexts[j] = ReferenceText.parse(Values.text(yours.get(j)), slot.bareType);
+                // A reference that can mean either of two resources is never taken to follow one of them.
+                List<ResourceIndex.Resource> targets = yourIndex.resolve(yourTexts[j]);
+                if (!taken[j]) {
+                    ambiguous(targets, ambiguousInYours);
+                }
+                if (!taken[j] && targets.size() == 1) {
+                    for (ResourceIndex.Resource target : targets) {
+                        yourByTarget.computeIfAbsent(target.node(), k -> new ArrayDeque<>()).add(j);
+                        yourResources.put(target.node(), target);
+                    }
+                }
+            }
+            for (int i = 0; i < tool.size(); i++) {
+                if (partner[i] >= 0) {
+                    continue;
+                }
+                ReferenceText toolText = ReferenceText.parse(Values.text(tool.get(i)), slot.bareType);
+                List<ResourceIndex.Resource> toolTargets = toolIndex.resolve(toolText);
+                ambiguous(toolTargets, ambiguousInTool);
+                for (ResourceIndex.Resource target : toolTargets.size() == 1 ? toolTargets : List.<ResourceIndex.Resource>of()) {
+                    JsonNode counterpart = pairs.get(target.node());
+                    Deque<Integer> candidates = counterpart == null ? null : yourByTarget.get(counterpart);
+                    Integer found = null;
+                    while (candidates != null && !candidates.isEmpty() && found == null) {
+                        int j = candidates.poll();
+                        if (!taken[j] && toolText.sameFormAs(yourTexts[j])) {
+                            found = j;
+                        }
+                    }
+                    if (found != null) {
+                        partner[i] = found;
+                        taken[found] = true;
+                        Place element = slot.at.element(String.valueOf(i), i, found);
+                        if (new Pair(target, yourResources.get(counterpart)).labelledDifferently(toolText.form())) {
+                            followers.add(target.node(), new Follower(slot, element, tool.get(i), yours.get(found)));
+                        } else {
+                            // The same resource under the same labels, so the two texts differ in something that is not a label.
+                            slot.ready.add(difference(element, DifferenceKind.DIFFERENT_VALUE, tool.get(i), yours.get(found), Grouping.ROLE, null,
+                                    Wording.differentText(Values.text(tool.get(i)), Values.text(yours.get(found))), null));
+                        }
+                        break;
+                    }
+                }
+            }
+            boolean complete = tool.size() == yours.size();
+            boolean inOrder = true;
+            for (int i = 0; i < tool.size(); i++) {
+                complete &= partner[i] >= 0;
+                inOrder &= partner[i] == i;
+            }
+            if (complete && !inOrder) {
+                slot.ready.add(difference(slot.at, DifferenceKind.DIFFERENT_ORDER, tool, yours, Grouping.ROLE, null, Wording.differentOrder(), null));
+            }
+            for (int i = 0; i < tool.size(); i++) {
+                if (partner[i] < 0) {
+                    slot.ready.add(difference(slot.at.element(String.valueOf(i), i, -1), DifferenceKind.ONLY_IN_TOOL, tool.get(i), null,
+                            Grouping.STRUCTURE, DifferenceGroup.BUILD, Wording.onlyReference(true), null));
+                }
+            }
+            for (int j = 0; j < yours.size(); j++) {
+                if (!taken[j]) {
+                    slot.ready.add(difference(slot.at.element(String.valueOf(j), -1, j), DifferenceKind.ONLY_IN_YOURS, null, yours.get(j),
+                            Grouping.STRUCTURE, DifferenceGroup.BUILD, Wording.onlyReference(false), null));
+                }
+            }
+        }
+    }
+}

@@ -29,6 +29,7 @@ import org.p32h.interop.epa.pave.model.Timing;
 import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
+import org.p32h.interop.epa.pave.model.compare.RequestComparison;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
@@ -38,6 +39,7 @@ import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
+import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
@@ -236,6 +238,28 @@ public class CrdService {
             notes = built.notes();
         }
         return RequestPreview.of(operation, call, body, notes, shown);
+    }
+
+    /**
+     * Compares the request a tester pasted, in {@code rawBody}, with the one this tool builds for
+     * the same case, and explains each difference. The answer says where the two differ and never
+     * which of them the service expects.
+     *
+     * <p>Nothing is sent and nothing is recorded. The gateway is asked only to fill in
+     * placeholders and never to prepare a call, so a comparison works with no url configured and
+     * can never be taken for a run. A pair that cannot be compared field by field is still an
+     * answer and says why. Only a form that is not valid is refused.
+     */
+    public RequestComparison compare(CrdRunRequest request) {
+        if (!RunSupport.ownBody(request)) {
+            throw ValidationException.of("rawBody", "Paste the request to compare with the one this tool builds.");
+        }
+        if (CrdRequestComparer.tooLarge(request.rawBody())) {
+            throw ValidationException.of("rawBody", "The pasted request is larger than 2 MB, which is more than this tool compares.");
+        }
+        // The same checks a run with its own body gets: whatever the form holds is checked, and the body is not.
+        validate(request);
+        return new CrdRequestComparer(builder).compare(request, template -> gateway.resolve(template, request.variables()));
     }
 
     /** Calls CDS Hooks discovery and lists the services the environment offers. Not a test run, so it is not recorded. */

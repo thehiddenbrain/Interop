@@ -8,6 +8,7 @@ import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.ScenarioList;
+import org.p32h.interop.epa.pave.model.compare.RequestComparison;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
 import org.p32h.interop.epa.pave.service.crd.CrdCodes;
 import org.p32h.interop.epa.pave.service.crd.CrdDiscovery;
@@ -54,6 +55,17 @@ public class CrdController {
     @PostMapping("/preview")
     public RequestPreview preview(@RequestBody CrdRunRequest request, HttpServletRequest http) {
         return service.preview(request, SessionUnlock.from(http));
+    }
+
+    /**
+     * Compares the request pasted into {@code rawBody} with the one this tool builds for the same
+     * case. It answers 200 whenever the question could be answered, including with "these two
+     * cannot be compared field by field". Nothing is sent, nothing is recorded and no production
+     * unlock is read, because no call is prepared.
+     */
+    @PostMapping("/compare")
+    public RequestComparison compare(@RequestBody CrdRunRequest request) {
+        return service.compare(request);
     }
 
     @GetMapping("/discover")
