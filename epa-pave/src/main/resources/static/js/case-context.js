@@ -13,9 +13,10 @@
 // no recent members, no history of what was typed, no lookup kept. A reload starts with an empty
 // case.
 
-import {el, button, code} from './dom.js';
+import {el} from './dom.js';
 import {textField, markFieldErrors, unmark} from './forms.js';
 import {createLookup} from './lookup.js';
+import {createCodePicker} from './code-picker.js';
 
 // The fields of a member and of a provider that the form shows and sends. A request carries
 // exactly what is on screen, so a field is sent only if it is listed here and holds something.
@@ -41,11 +42,16 @@ const PROVIDER_FIELDS = [
     {name: 'organizationName', label: 'Organization'}
 ];
 
-const CODE_SEPARATORS = /[\s,;|]+/;
-
 export function createCaseContext() {
     const listeners = [];
-    const changed = () => listeners.forEach(listener => listener());
+    let codes = null;
+    const changed = () => {
+        // What the code list says about a code depends on the line of business, so the codes hear of a change to it first.
+        if (codes) {
+            codes.lineChanged();
+        }
+        listeners.forEach(listener => listener());
+    };
     let epochSeen = null;
 
     // Hidden while it shows nothing, so that it takes no room among the things the tab shows.
@@ -66,7 +72,8 @@ export function createCaseContext() {
         prefix: 'provider', fields: PROVIDER_FIELDS, changed, panelChanged,
         subject: 'provider', identifier: 'NPI', address: '/api/providers/', record: 'provider', refusedAs: 'npi'
     });
-    const codes = codeList(changed);
+    codes = createCodePicker({lineOfBusiness: () => member.get('lineOfBusiness'), changed});
+    codes.checkList();
     detail.append(member.lookup.panel, provider.lookup.panel);
 
     const node = el('div', {class: 'case'},
@@ -352,98 +359,6 @@ function group(spec) {
         madeBefore() {
             lookup.madeBefore('This lookup was made before the configuration changed. The environment now active has not been asked: '
                 + 'look the ' + spec.subject + ' up again.');
-        }
-    };
-}
-
-function codeList(changed) {
-    let entries = [];
-    const list = el('ul', {class: 'code-list', aria: {label: 'Procedure codes in this case'}});
-    const entry = el('input', {
-        type: 'text', id: 'case-code-entry', autocomplete: 'off', spellcheck: false, class: 'literal-input',
-        placeholder: 'type a code, press Enter', aria: {describedby: 'case-code-hint'}
-    });
-    const add = button('Add code', () => { commit(); entry.focus(); }, {class: 'button--quiet'});
-    const node = el('div', {class: 'case-group field', dataset: {field: 'procedureCodes'}},
-        el('label', {htmlFor: 'case-code-entry', class: 'case-legend'}, 'Procedure codes'),
-        list,
-        el('div', {class: 'code-entry'}, entry, add),
-        el('span', {class: 'visually-hidden', id: 'case-code-hint'},
-            'Type a code and press Enter to add it. Several can be pasted at once, separated by commas or spaces.'));
-
-    entry.addEventListener('keydown', event => {
-        if (event.key === 'Enter') {
-            // Enter adds the code. It must not send the request the tester is still composing.
-            event.preventDefault();
-            commit();
-        } else if (event.key === 'Backspace' && entry.value === '' && entries.length > 0) {
-            entries = entries.slice(0, -1);
-            draw();
-        }
-    });
-
-    /** Moves whatever is typed in the entry box into the list. */
-    function commit() {
-        const typed = entry.value.split(CODE_SEPARATORS).map(part => part.trim()).filter(part => part.length > 0);
-        if (typed.length === 0) {
-            return;
-        }
-        for (const value of typed) {
-            addEntry({code: value});
-        }
-        entry.value = '';
-        draw();
-    }
-
-    function addEntry(candidate) {
-        if (!candidate || !candidate.code || entries.some(existing => existing.code === candidate.code)) {
-            return;
-        }
-        const kept = {code: String(candidate.code)};
-        if (candidate.system) {
-            kept.system = candidate.system;
-        }
-        if (candidate.description) {
-            kept.description = candidate.description;
-        }
-        entries = entries.concat([kept]);
-    }
-
-    function draw() {
-        list.replaceChildren(...entries.map(item => {
-            const remove = el('button', {
-                type: 'button', class: 'code-chip__remove', title: 'Remove ' + item.code, aria: {label: 'Remove ' + item.code},
-                on: {click: () => { entries = entries.filter(other => other !== item); draw(); entry.focus(); }}
-            }, 'x');
-            return el('li', {class: 'code-chip'}, code(item.code),
-                item.description ? el('span', {class: 'quiet small'}, item.description) : null, remove);
-        }));
-        changed();
-    }
-
-    return {
-        node,
-        values() {
-            // A code still sitting in the entry box is part of what the tester means to send. It is
-            // moved into the list first, so that the list on screen is the list that goes out.
-            commit();
-            return entries.map(item => ({...item}));
-        },
-        /** The codes in the list as it stands, without touching what is being typed. */
-        shown() {
-            return entries.map(item => ({...item}));
-        },
-        add(candidate) {
-            addEntry(candidate);
-            draw();
-        },
-        replace(candidates) {
-            entries = [];
-            for (const candidate of candidates || []) {
-                addEntry(typeof candidate === 'string' ? {code: candidate} : candidate);
-            }
-            entry.value = '';
-            draw();
         }
     };
 }
