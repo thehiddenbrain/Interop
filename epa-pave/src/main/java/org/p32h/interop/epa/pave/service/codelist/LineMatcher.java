@@ -17,9 +17,10 @@ import org.p32h.interop.epa.pave.model.Texts;
  * separated by a comma, a semicolon, a slash or a bar, belongs to each. An alias maps a name as
  * the member API gives it to the names the list uses.
  *
- * <p>Nothing here is fuzzy. "Medicare" is not "Medicare Advantage", and neither is a prefix of
- * anything: THP Medicare and Medicaid and HPHC Commercial have different lists and different
- * logic, and a row offered under the wrong one is a wrong answer that looks like a right one.
+ * <p>Nothing here is fuzzy. "Medicare" is not "Medicare Advantage", and a name is never matched by
+ * its beginning or by a part of it: THP Medicare and Medicaid and HPHC Commercial have different
+ * lists and different logic, and a row offered under the wrong one is a wrong answer that looks
+ * like a right one.
  */
 final class LineMatcher {
 
