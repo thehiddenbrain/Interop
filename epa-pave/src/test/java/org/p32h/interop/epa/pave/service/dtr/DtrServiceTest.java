@@ -48,6 +48,7 @@ import org.p32h.interop.epa.pave.model.dtr.DtrResponseKind;
 import org.p32h.interop.epa.pave.model.dtr.FormStateView;
 import org.p32h.interop.epa.pave.model.dtr.QuestionRef;
 import org.p32h.interop.epa.pave.model.dtr.QuestionnaireKind;
+import org.p32h.interop.epa.pave.model.dtr.QuestionnaireResponseView;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
@@ -299,9 +300,14 @@ class DtrServiceTest {
 
         // Two screens.
         assertThat(empty.verdict().headline()).isEqualTo("The service answered but returned no questionnaire.");
-        assertThat(empty.verdict().supporting()).contains("This is not the same as an answer that no documentation is needed. The service "
-                + "has said nothing either way.");
+        assertThat(empty.verdict().supporting()).contains("The package holds 1 bundle and no questionnaire in it. The DTR guide does not "
+                + "provide for that: a package bundle starts with its questionnaire.", "This tool reports what arrived. It does not turn an "
+                + "empty package into an answer that no documentation is needed.");
         assertThat(empty.verdict().tone()).isEqualTo(Tone.NO_ANSWER);
+        assertThat(empty.nextStep().headline()).isEqualTo("Next: read the response detail below, and check it against what CRD said about "
+                + "documentation for this order.");
+        assertThat(empty.nextStep().reason()).isEqualTo("The service returned no questionnaire. This tool does not take that as an answer "
+                + "that no documentation is needed, so it cannot say what should happen next.");
         assertThat(askedNothing.verdict().headline()).isEqualTo("The response is complete and no question was asked.");
         assertThat(askedNothing.verdict().tone()).isEqualTo(Tone.CLEAR);
 
@@ -338,6 +344,51 @@ class DtrServiceTest {
         assertThat(List.of(emptyRecord.httpStatus(), askedNothingRecord.httpStatus())).containsOnly(200);
         assertThat(emptyRecord.nextAction()).isEqualTo("REVIEW");
         assertThat(askedNothingRecord.nextAction()).isEqualTo("START_PAS");
+    }
+
+    @Test
+    void aPackageWithNoBundleInItIsTheAnswerTheGuideDefinesAndIsStillReportedAsAnEmptyPackage() {
+        RunEnvelope<DtrDetail> none = service().runPackage(DtrFixtures.packageRequest("P32H-DTR-NOBUNDLE").expected("NOTHING_REQUIRED").build(),
+                RunOrigin.manual(), null);
+        assertThat(none.verdict().outcomeCode()).isEqualTo("NO_QUESTIONNAIRE");
+        assertThat(none.verdict().headline()).isEqualTo("The service answered but returned no questionnaire.");
+        // The result says what the guide makes of this shape, and that the tool does not make it for the tester.
+        assertThat(none.verdict().supporting()).contains("The DTR guide, from STU 2.1.0 on, has a service return no package bundle when no "
+                + "questionnaire needs to be completed.", "This tool reports what arrived. It does not turn an empty package into an answer "
+                + "that no documentation is needed.");
+        assertThat(none.verdict().supporting()).noneMatch(line -> line.contains("a package bundle starts with its questionnaire"));
+        assertThat(none.detail().bundles()).isEmpty();
+        assertThat(none.detail().responseNote()).isEqualTo("The package arrived as a Parameters resource holding: operationOutcome "
+                + "(OperationOutcome).");
+        // What the service sent beside it is read into the designed view, and it is not a fault.
+        assertThat(none.detail().issues()).singleElement().satisfies(issue -> {
+            assertThat(issue.severity().value()).isEqualTo("information");
+            assertThat(issue.detailsText().value()).isEqualTo("No questionnaire needs to be completed for this order.");
+        });
+        assertThat(none.error()).isNull();
+        assertThat(none.additionalFields()).isEmpty();
+        // It is never the answer that nothing is required: the expectation fails, and the journey stops for a person to look.
+        assertThat(none.expectation().result()).isEqualTo(TestResult.FAIL);
+        assertThat(none.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(none.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
+        assertThat(ledger.last().outcome()).isEqualTo("NO_QUESTIONNAIRE");
+        assertThat(ledger.last().coverageCodes()).isEmpty();
+
+        // A questionnaire that was asked for by name and did not come back is named, not left to be noticed.
+        String wanted = "https://example.org/p32h-placeholder/Questionnaire/wanted";
+        RunEnvelope<DtrDetail> asked = service().runPackage(DtrFixtures.packageRequest("P32H-DTR-NOBUNDLE").questionnaires(List.of(wanted))
+                .build(), RunOrigin.manual(), null);
+        assertThat(asked.verdict().outcomeCode()).isEqualTo("NO_QUESTIONNAIRE");
+        assertThat(asked.verdict().supporting()).contains("Asked for and not returned: " + wanted + ".");
+
+        // An OperationOutcome by itself under a success status holds no questionnaire either. It is not the shape the guide
+        // defines for that answer, so the result does not say it is.
+        RunEnvelope<DtrDetail> bare = service(stub(DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 200,
+                "{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"warning\",\"code\":\"processing\"}]}")), "mock", Map.of())
+                .runPackage(DtrFixtures.packageRequest("S123456789").build(), RunOrigin.manual(), null);
+        assertThat(bare.verdict().outcomeCode()).isEqualTo("NO_QUESTIONNAIRE");
+        assertThat(bare.verdict().supporting()).noneMatch(line -> line.contains("The DTR guide"))
+                .contains("This tool reports what arrived. It does not turn an empty package into an answer that no documentation is needed.");
     }
 
     @Test
@@ -1035,20 +1086,28 @@ class DtrServiceTest {
 
     @Test
     void whatEachStepSendsIsTheResponseSoFarWithTheNewAnswerInIt() {
-        RunEnvelope<DtrDetail> first = next(fetchAdaptive());
-        // The first request carries the questionnaire from the package inside a new response, and no answer.
+        RunEnvelope<DtrDetail> fetched = fetchAdaptive();
+        // The package says which response it carries for the questionnaire, so the screen does not have to work it out.
+        QuestionnaireResponseView carried = fetched.detail().questionnaireResponses().get(0);
+        assertThat(fetched.detail().questionnaires().get(0).arrivedWith()).isEqualTo(carried.foundAt())
+                .isEqualTo("parameter[0].resource.entry[1].resource");
+
+        RunEnvelope<DtrDetail> first = next(fetched);
+        // The first request is the response the package carried for the questionnaire, exactly as it arrived, with no answer.
         JsonNode firstSent = JsonSafe.parse(first.wire().request().body()).node();
+        assertThat(firstSent).isEqualTo(JsonSafe.parse(carried.json()).node());
         assertThat(firstSent.get("resourceType").asString()).isEqualTo("QuestionnaireResponse");
         assertThat(firstSent.get("status").asString()).isEqualTo("in-progress");
         assertThat(firstSent.get("questionnaire").asString()).isEqualTo("#lumbar-mri-adaptive");
-        assertThat(firstSent.at("/contained/0/url").asString()).isEqualTo("https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive");
-        assertThat(firstSent.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        // The questionnaire inside it has no url of its own. What it is derived from is what ties it to the one in the package.
+        assertThat(firstSent.at("/contained/0").has("url")).isFalse();
+        assertThat(firstSent.at("/contained/0/derivedFrom/0").asString()).isEqualTo(MRI);
         assertThat(firstSent.has("item")).isFalse();
         assertThat(first.wire().request().headers()).extracting(h -> h.name() + ": " + h.value()).contains("Content-Type: application/fhir+json");
         assertThat(first.wire().request().note()).contains("step \"first-question\"");
         assertThat(first.detail().bodyBuiltByTool()).isTrue();
-        // The member is named by the local id of the Patient resource. The member ID is not in the request, and is not shown as sent.
-        assertThat(firstSent.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
+        assertThat(first.detail().requestNotes()).noneMatch(note -> note.contains("derived from"));
+        // The member ID is not in the request, and is not shown as sent.
         assertThat(first.wire().request().body()).doesNotContain("P32H-DTR-ADAPT");
         assertThat(first.wire().memberId()).isNull();
 
@@ -1060,6 +1119,67 @@ class DtrServiceTest {
         assertThat(secondSent.at("/item/0/answer/0/valueCoding/display").asString()).isEqualTo("Yes");
         assertThat(second.wire().request().note()).contains("step \"therapy-weeks\"");
         assertThat(gateway.lastIntent().operation()).isEqualTo(EpaOperation.DTR_NEXT_QUESTION);
+    }
+
+    @Test
+    void aCompleteResponseThatNamesNoQuestionnaireOfThePackageIsHandedOnButNotCountedAndTheResultSaysWhy() {
+        RunEnvelope<DtrDetail> fetched = fetchAdaptive();
+        String elsewhere = "https://example.org/p32h-placeholder/Questionnaire/another";
+        String inside = "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"q\",%s"
+                + "\"status\":\"active\"}],\"questionnaire\":\"#q\",\"status\":\"completed\"}";
+
+        // The service completes a response whose questionnaire is derived from one the package does not hold.
+        RunEnvelope<DtrDetail> other = service(stub(DtrFixtures.answered(EpaOperation.DTR_NEXT_QUESTION, 200,
+                inside.formatted("\"derivedFrom\":[\"" + elsewhere + "\"],"))), "mock", Map.of())
+                .runNextQuestion(following(fetched, "P32H-DTR-ADAPT").build(), RunOrigin.manual(), null);
+        assertThat(other.verdict().outcomeCode()).isEqualTo("NOTHING_REQUIRED");
+        assertThat(other.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(other.nextStep().headline()).isEqualTo("Next: check which questionnaire this response answers before going on to PAS.");
+        assertThat(other.nextStep().reason()).isEqualTo("This response is complete, but it says it answers " + elsewhere + ", which is not a "
+                + "questionnaire of the package this step follows. The package holds: " + MRI + ". This tool does not count a response "
+                + "towards a questionnaire it does not name, so it does not offer PAS.");
+        // It is still handed on, and its line names what the response itself names.
+        assertThat(other.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE)).hasSize(1);
+        assertThat(ledger.last().nextAction()).isEqualTo("REVIEW");
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, elsewhere)
+                .containsEntry(RunRecord.CORR_RUN_ID, fetched.runId());
+
+        // One whose questionnaire says neither what it is derived from nor what its own url is names nothing at all.
+        RunEnvelope<DtrDetail> unnamed = service(stub(DtrFixtures.answered(EpaOperation.DTR_NEXT_QUESTION, 200, inside.formatted(""))),
+                "mock", Map.of()).runNextQuestion(following(fetched, "P32H-DTR-ADAPT").build(), RunOrigin.manual(), null);
+        assertThat(unnamed.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(unnamed.nextStep().reason()).startsWith("This response is complete, but it does not say which questionnaire it answers. "
+                + "The package holds: " + MRI + ".");
+        // The response that was sent named the questionnaire, so the line still does.
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, MRI);
+    }
+
+    @Test
+    void whenThePackageCarriesNoResponseTheFirstStepPutsTheQuestionnaireInsideANewOne() {
+        RunEnvelope<DtrDetail> fetched = fetch("P32H-DTR-LOOPERR");
+        assertThat(fetched.detail().questionnaireResponses()).isEmpty();
+        assertThat(fetched.detail().questionnaires().get(0).arrivedWith()).isNull();
+
+        RunEnvelope<DtrDetail> first = service().runNextQuestion(following(fetched, "P32H-DTR-LOOPERR").build(), RunOrigin.manual(), null);
+        JsonNode firstSent = JsonSafe.parse(first.wire().request().body()).node();
+        String canonical = "https://example.org/p32h-placeholder/Questionnaire/knee-arthroscopy-adaptive|1.0.0";
+        assertThat(firstSent.get("resourceType").asString()).isEqualTo("QuestionnaireResponse");
+        assertThat(firstSent.get("status").asString()).isEqualTo("in-progress");
+        assertThat(firstSent.get("questionnaire").asString()).isEqualTo("#knee-arthroscopy-adaptive");
+        // The questionnaire goes inside as the package returned it, and says which questionnaire is being completed.
+        assertThat(firstSent.at("/contained/0/url").asString()).isEqualTo("https://example.org/p32h-placeholder/Questionnaire/knee-arthroscopy-adaptive");
+        assertThat(firstSent.at("/contained/0/derivedFrom/0").asString()).isEqualTo(canonical);
+        assertThat(first.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("The copy of the questionnaire inside the "
+                + "QuestionnaireResponse was marked as derived from " + canonical));
+        assertThat(firstSent.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        assertThat(firstSent.has("item")).isFalse();
+        // The member is named by the local id of the Patient resource. The member ID is not in the request, and is not shown as sent.
+        assertThat(firstSent.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
+        assertThat(first.wire().request().body()).doesNotContain("P32H-DTR-LOOPERR");
+        assertThat(first.wire().memberId()).isNull();
+        // Its line names the questionnaire of the package, like the line of the fetch it follows.
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, canonical)
+                .containsEntry(RunRecord.CORR_RUN_ID, fetched.runId());
     }
 
     @Test

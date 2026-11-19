@@ -230,7 +230,7 @@ public class DtrService {
 
         String runId = RunStamps.newRunId();
         String packageRun = DtrHandoff.first(request.carry(), NextStepView.CARRY_RUN_ID);
-        String answering = DtrHandoff.answeredBy(sent);
+        String answering = first(OnyxDtrConventions.completes(sent));
         Map<String, String> known = correlation(packageRun, listOf(answering));
         // The questionnaire and the answers so far came from earlier steps and are not on the line,
         // so the line alone can never rebuild this request.
@@ -239,8 +239,8 @@ public class DtrService {
         Interpreted read;
         try {
             DtrReading reading = mapper.readNextQuestion(exchange, sent);
-            // The questionnaire as the service returned it, else the one that was sent.
-            String answered = reading.canonicals().isEmpty() ? answering : reading.canonicals().get(0);
+            // The questionnaire being completed as the response that came back names it, else as the one that was sent did.
+            String answered = Texts.orElse(first(OnyxDtrConventions.completes(QuestionnaireJson.findResponse(exchange.json()))), answering);
             DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), answered, request.carry());
             read = interpret(operation, request, call, exchange, reading, handoff, correlation(packageRun, listOf(answered)));
         } catch (RuntimeException e) {
@@ -307,7 +307,7 @@ public class DtrService {
         DtrReading reading = assembled.reading();
         String runId = RunStamps.newRunId();
         String packageRun = DtrHandoff.first(request.carry(), NextStepView.CARRY_RUN_ID);
-        String canonical = QuestionnaireJson.canonical(posted.questionnaire());
+        String canonical = completing(posted, assembled.response());
         List<String> questionnaires = listOf(canonical);
         DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), canonical, request.carry());
 
@@ -612,6 +612,22 @@ public class DtrService {
                     .toList()));
         }
         return correlation;
+    }
+
+    /**
+     * The canonical url of the questionnaire a response step is completing. A response from the
+     * adaptive loop says which through the questionnaire inside it. A conventional form is the
+     * questionnaire of the package itself, named by its own url, so that its line carries the same
+     * name as the package fetch it came from.
+     */
+    private static String completing(DtrAnswers.Posted posted, JsonNode response) {
+        String own = QuestionnaireJson.canonical(posted.questionnaire());
+        boolean inside = QuestionnaireJson.containedQuestionnaire(response) != null;
+        return inside || own == null ? first(OnyxDtrConventions.completes(response)) : own;
+    }
+
+    private static String first(List<String> canonicals) {
+        return canonicals.isEmpty() ? null : canonicals.get(0);
     }
 
     private static List<String> listOf(String canonical) {

@@ -206,6 +206,18 @@ public final class QuestionnaireJson {
         return version == null ? url : url + "|" + version;
     }
 
+    /** The canonical urls a questionnaire says it is derived from, in the order it states them. Empty when it states none. */
+    public static List<String> derivedFrom(JsonNode questionnaire) {
+        List<String> out = new ArrayList<>();
+        for (JsonNode entry : JsonSafe.elements(questionnaire, "derivedFrom")) {
+            String canonical = JsonSafe.presentText(entry);
+            if (canonical != null && !out.contains(canonical)) {
+                out.add(canonical);
+            }
+        }
+        return out;
+    }
+
     /**
      * True when a canonical that was asked for names this questionnaire: by its url alone, or by
      * its url and version. A canonical that names a version is not matched by another version.

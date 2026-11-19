@@ -333,6 +333,16 @@ public final class DtrRequestBuilder {
             notes.add("The questionnaire arrived with no id, so the copy inside the QuestionnaireResponse was given the id " + id
                     + " to be referred to by.");
         }
+        String canonical = QuestionnaireJson.canonical(questionnaire);
+        if (canonical != null && !QuestionnaireJson.derivedFrom(copy).contains(canonical)) {
+            // The guides tie an adaptive response to the questionnaire being completed by the derivedFrom of the questionnaire
+            // inside it. It goes first, so that it is read before anything the questionnaire was itself derived from.
+            ArrayNode derivedFrom = JSON.arrayNode().add(canonical);
+            JsonSafe.elements(copy, "derivedFrom").forEach(derivedFrom::add);
+            copy.set("derivedFrom", derivedFrom);
+            notes.add("The copy of the questionnaire inside the QuestionnaireResponse was marked as derived from " + canonical
+                    + ", which is how the DTR and SDC guides tie an adaptive response to the questionnaire being completed.");
+        }
         ArrayNode contained = response.get("contained") instanceof ArrayNode existing ? existing : response.putArray("contained");
         contained.add(copy);
         response.put("questionnaire", "#" + id);

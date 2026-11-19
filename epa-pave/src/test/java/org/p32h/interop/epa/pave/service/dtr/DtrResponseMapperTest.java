@@ -446,6 +446,42 @@ class DtrResponseMapperTest {
                 "https://example.org/p32h-placeholder/Questionnaire/a", "https://example.org/p32h-placeholder/Questionnaire/b");
         assertThat(reading.ledgerCodes()).containsExactly("questionnaires=2", "questionnaire[1]: questionnaire-kind=static",
                 "questionnaire[1]: questions=2", "questionnaire[2]: questionnaire-kind=static", "questionnaire[2]: questions=2");
+        // Each questionnaire says which response the package carries for it, so the step that answers it knows where to start.
+        assertThat(reading.detail().questionnaires().get(0).arrivedWith()).isNull();
+        assertThat(reading.detail().questionnaires().get(1).arrivedWith()).isEqualTo("entry[2].resource")
+                .isEqualTo(reading.detail().questionnaireResponses().get(0).foundAt());
+    }
+
+    @Test
+    void aResponseThatCarriesItsQuestionnaireInsideItselfIsTiedByWhatThatQuestionnaireIsDerivedFrom() {
+        String adaptive = "{\"resourceType\":\"Questionnaire\",\"url\":\"https://example.org/p32h-placeholder/Questionnaire/adaptive\","
+                + "\"version\":\"2.0\",\"title\":\"Adaptive\",\"extension\":[{\"url\":\"http://hl7.org/fhir/uv/sdc/StructureDefinition/"
+                + "sdc-questionnaire-questionnaireAdaptive\",\"valueUrl\":\"https://example.org/p32h-placeholder/fhir\"}]}";
+        String other = "{\"resourceType\":\"Questionnaire\",\"url\":\"https://example.org/p32h-placeholder/Questionnaire/other\","
+                + "\"title\":\"Other\",\"item\":[{\"linkId\":\"q1\",\"type\":\"boolean\"}]}";
+        String draft = "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"inside\","
+                + "%s\"status\":\"active\"}],\"questionnaire\":\"#inside\",\"status\":\"in-progress\"}";
+        String bundle = "{\"resourceType\":\"Bundle\",\"type\":\"collection\",\"entry\":[{\"resource\":" + other + "},{\"resource\":"
+                + adaptive + "},{\"resource\":%s}]}";
+
+        // The shape the guides publish: no url of its own, and derived from the questionnaire being completed.
+        DtrReading derived = readPackage(bundle.formatted(draft.formatted(
+                "\"derivedFrom\":[\"https://example.org/p32h-placeholder/Questionnaire/adaptive|2.0\"],")));
+        assertThat(derived.detail().questionnaires()).extracting(QuestionnaireView::subject).containsExactly("Other", "Adaptive");
+        assertThat(derived.detail().questionnaires().get(0).arrivedWith()).isNull();
+        assertThat(derived.detail().questionnaires().get(1).arrivedWith()).isEqualTo("entry[2].resource");
+        // The questionnaire inside the response is not a questionnaire of the package, and is not counted as one.
+        assertThat(derived.ledgerCodes()).contains("questionnaires=2");
+        // Nothing of it is lost: what the package step does not interpret is listed as returned.
+        assertThat(derived.additionalFields()).extracting(field -> field.path()).contains("entry[2].resource.contained[0].derivedFrom[0]");
+
+        // Derived from a questionnaire the package does not hold: tied to neither.
+        DtrReading elsewhere = readPackage(bundle.formatted(draft.formatted(
+                "\"derivedFrom\":[\"https://example.org/p32h-placeholder/Questionnaire/elsewhere\"],")));
+        assertThat(elsewhere.detail().questionnaires()).extracting(QuestionnaireView::arrivedWith).containsOnlyNulls();
+        // Saying nothing about where it comes from, among two questionnaires: tied to neither. Nothing is guessed.
+        DtrReading unnamed = readPackage(bundle.formatted(draft.formatted("")));
+        assertThat(unnamed.detail().questionnaires()).extracting(QuestionnaireView::arrivedWith).containsOnlyNulls();
     }
 
     // ---- a fault is read with the same care as a success ----

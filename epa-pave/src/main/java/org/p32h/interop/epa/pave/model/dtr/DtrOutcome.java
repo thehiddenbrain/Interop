@@ -10,9 +10,11 @@ import org.p32h.interop.epa.pave.model.Tone;
  * <p>Three pairs are kept apart on purpose, because each pair looks alike on a screen that only
  * shows "nothing came back":
  * <ul>
- *   <li>{@link #NO_QUESTIONNAIRE} is the service answering and sending no questionnaire. It has
- *       said nothing. {@link #NOTHING_REQUIRED} is the service saying the response is complete
- *       without asking a question. That is an answer.</li>
+ *   <li>{@link #NO_QUESTIONNAIRE} is the service answering and sending no questionnaire. From
+ *       STU 2.1.0 the DTR guide has a service answer that way when none needs to be completed,
+ *       and this tool still reports it as what arrived, an empty package, and never as an answer
+ *       that no documentation is needed. {@link #NOTHING_REQUIRED} is the service saying through
+ *       the adaptive loop that the response is complete without asking a question.</li>
  *   <li>{@link #RESPONSE_COMPLETED} needs every required question that is enabled to have an
  *       answer. {@link #REQUIRED_UNANSWERED} is its own outcome and is never reported as
  *       complete, whatever status the service put on the response.</li>

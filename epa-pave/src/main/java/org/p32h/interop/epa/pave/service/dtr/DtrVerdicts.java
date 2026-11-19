@@ -92,7 +92,17 @@ public final class DtrVerdicts {
                 yield "The package does not hold every questionnaire that was asked for.";
             }
             case NO_QUESTIONNAIRE -> {
-                supporting.add("This is not the same as an answer that no documentation is needed. The service has said nothing either way.");
+                detail.notReturned().forEach(canonical -> supporting.add("Asked for and not returned: " + canonical + "."));
+                int bundles = detail.bundles().size();
+                if (bundles > 0) {
+                    supporting.add("The package holds " + count(bundles, "bundle") + " and no questionnaire in " + (bundles == 1 ? "it" : "them")
+                            + ". The DTR guide does not provide for that: a package bundle starts with its questionnaire.");
+                } else if (detail.responseKind() == DtrResponseKind.PARAMETERS) {
+                    supporting.add("The DTR guide, from STU 2.1.0 on, has a service return no package bundle when no questionnaire needs to "
+                            + "be completed.");
+                }
+                supporting.add("This tool reports what arrived. It does not turn an empty package into an answer that no documentation is "
+                        + "needed.");
                 yield "The service answered but returned no questionnaire.";
             }
             case MALFORMED_QUESTIONNAIRE -> {
@@ -117,8 +127,8 @@ public final class DtrVerdicts {
             }
             case RESPONSE_COMPLETED -> "The questionnaire response is complete.";
             case NOTHING_REQUIRED -> {
-                supporting.add("That is an answer. It is not the same as a package that holds no questionnaire, where the service has "
-                        + "said nothing.");
+                supporting.add("That is an answer the service gave through the loop. A package that holds no questionnaire is a different "
+                        + "result, and is reported as an empty package.");
                 yield "The response is complete and no question was asked.";
             }
             case RESPONSE_NOT_COMPLETE -> "The questionnaire response is not complete.";
@@ -234,8 +244,9 @@ public final class DtrVerdicts {
                     "The request asked for questionnaires by canonical url and the package does not hold all of them. The ones it does "
                             + "hold can still be answered.", carry);
             case NO_QUESTIONNAIRE -> new NextStepView(NextAction.REVIEW,
-                    "Next: read the response detail below. This tool cannot say what should happen next.",
-                    "The service returned no questionnaire. That is not an answer that no documentation is needed.", carry);
+                    "Next: read the response detail below, and check it against what CRD said about documentation for this order.",
+                    "The service returned no questionnaire. This tool does not take that as an answer that no documentation is needed, so "
+                            + "it cannot say what should happen next.", carry);
             case MALFORMED_QUESTIONNAIRE -> new NextStepView(NextAction.REVIEW,
                     "Next: read the problems listed with this result and report them as a defect in the service.",
                     "What the service sent cannot be used as a questionnaire, so there is nothing to answer.", carry);
@@ -248,11 +259,11 @@ public final class DtrVerdicts {
                             ? "The service asked nothing more and did not report the response as complete, so the loop can neither continue "
                             + "nor end."
                             : "The status of the response is not one this tool acts on, so it cannot tell whether the loop continues.", carry);
-            case RESPONSE_COMPLETED -> !remaining.isEmpty() ? anotherRemains(handoff, remaining, carry) : new NextStepView(NextAction.START_PAS,
+            case RESPONSE_COMPLETED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry) : new NextStepView(NextAction.START_PAS,
                     "Next: submit the prior authorization request in PAS. The completed questionnaire response goes with it.",
                     adaptive ? "The service reported the response as completed, and every required question that is enabled has an answer."
                             : "Every required question that is enabled has an answer.", carry);
-            case NOTHING_REQUIRED -> !remaining.isEmpty() ? anotherRemains(handoff, remaining, carry) : new NextStepView(NextAction.START_PAS,
+            case NOTHING_REQUIRED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry) : new NextStepView(NextAction.START_PAS,
                     "Next: submit the prior authorization request in PAS. The completed questionnaire response goes with it.",
                     "The response is complete without a question having been asked, so there is no documentation to collect first.", carry);
             case RESPONSE_NOT_COMPLETE -> adaptive
@@ -279,12 +290,26 @@ public final class DtrVerdicts {
     }
 
     /**
-     * The step after a response that is complete while another questionnaire of the same package
-     * is not. Each questionnaire is answered its own way and this step does not know which way the
-     * others are, so it names them and leaves the choice of step to the tester. It never offers
-     * PAS: the request would go without part of the documentation the payer asked for.
+     * The step after a response that is complete while a questionnaire of the same package has no
+     * completed response that names it. Each questionnaire is answered its own way and this step
+     * does not know which way the others are, so it names them and leaves the choice of step to the
+     * tester. It never offers PAS: the request would go without part of the documentation the
+     * payer asked for.
+     *
+     * <p>A complete response that names none of the questionnaires of the package is a different
+     * finding, and is worded as one: nothing more may need answering, but this tool cannot tell.
      */
-    private static NextStepView anotherRemains(DtrHandoff handoff, List<String> remaining, Map<String, List<String>> carry) {
+    private static NextStepView anotherRemains(DtrHandoff handoff, String completed, List<String> remaining,
+                                               Map<String, List<String>> carry) {
+        if (completed != null && !handoff.counts(completed)) {
+            List<String> named = DtrHandoff.answeredBy(completed);
+            String says = named.isEmpty() ? "it does not say which questionnaire it answers"
+                    : "it says it answers " + named.get(0) + ", which is not a questionnaire of the package this step follows";
+            return new NextStepView(NextAction.REVIEW, "Next: check which questionnaire this response answers before going on to PAS.",
+                    "This response is complete, but " + says + ". The package holds: " + String.join(", ", handoff.questionnaires())
+                            + ". This tool does not count a response towards a questionnaire it does not name, so it does not offer PAS.",
+                    carry);
+        }
         boolean one = remaining.size() == 1;
         return new NextStepView(NextAction.REVIEW,
                 "Next: answer the other " + (one ? "questionnaire" : "questionnaires") + " of this package before going on to PAS: "

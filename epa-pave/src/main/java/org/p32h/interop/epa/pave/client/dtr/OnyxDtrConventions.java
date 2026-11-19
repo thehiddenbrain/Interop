@@ -15,12 +15,14 @@ import java.util.Set;
 import tools.jackson.databind.JsonNode;
 
 /**
- * ASSUMPTIONS ABOUT THE VENDOR, ALL IN ONE FILE.
+ * EVERYTHING THIS TOOL TAKES THE VENDOR TO DO IN DTR, ALL IN ONE FILE.
  *
- * <p>The Da Vinci DTR guide and the SDC guide it builds on could not be fetched while this was
- * written, and nothing here has been observed from the live service. Every rule below therefore
- * comes from the builder's knowledge of those guides, or is an assumption about what the vendor
- * does where the guides leave it open. Each rule reads a coded value or the structure of a
+ * <p>Nothing here has been observed from the live service, and which version of the Da Vinci DTR
+ * guide it follows is not known. Each rule below says where it comes from. "READ" means it was
+ * read in the guides themselves: the HL7 packages hl7.fhir.us.davinci-dtr 2.2.0-ballot and
+ * hl7.fhir.uv.sdc 4.0.0-ballot, and the specification page of the DTR guide as published for
+ * STU 2.0.1 and STU 2.1.0. "ASSUMPTION" means the guides leave it open, or differ between
+ * versions, and this tool had to choose. Each rule reads a coded value or the structure of a
  * resource, never wording, and each is deliberately narrow: when a response does not match a
  * rule, nothing is inferred and the response is shown in full.
  *
@@ -33,10 +35,16 @@ public final class OnyxDtrConventions {
     public static final String FHIR_JSON = "application/fhir+json";
 
     /**
-     * ASSUMPTION: the input parameter names of {@code $questionnaire-package}, as the builder
-     * recalls them from the DTR guide. The coverage and each order travel as resources, anything
-     * an order refers to travels as {@code referenced}, a questionnaire is named by its canonical
-     * url, and the coverage assertion id CRD returned travels as {@code context}.
+     * READ: the input parameter names of {@code $questionnaire-package}. The coverage and each
+     * order travel as resources, a questionnaire is named by its canonical url as a
+     * {@code valueCanonical}, and the coverage assertion id CRD returned travels as {@code context},
+     * a {@code valueString}. The 2.2.0-ballot parameters profile requires the coverage and at least
+     * one of order, questionnaire and context. The guide also defines {@code changedsince}, for a
+     * client that kept an earlier response. This tool keeps none and does not send it.
+     *
+     * <p>{@code referenced}, for what an order refers to, is named by the specification page of
+     * every version read. The 2.2.0-ballot parameters profile does not list it. ASSUMPTION: the
+     * live service takes it, so no reference in an order is left pointing at nothing.
      */
     public static final String PARAM_COVERAGE = "coverage";
     public static final String PARAM_ORDER = "order";
@@ -45,18 +53,19 @@ public final class OnyxDtrConventions {
     public static final String PARAM_CONTEXT = "context";
 
     /**
-     * ASSUMPTION: the adaptive loop is finished when the QuestionnaireResponse comes back with this
-     * status, and continues while it comes back with {@link #STATUS_IN_PROGRESS}. What the live
-     * service names its completion status is not confirmed. Any other status, including the other
-     * codes FHIR defines, is reported as one this tool cannot act on.
+     * READ: only the payer can say an adaptive response is complete, and it does so by returning
+     * it with no further question and its status set to complete. The guides write "complete". The
+     * FHIR code is {@code completed}, and that is what is matched. ASSUMPTION: the loop continues
+     * while the response comes back {@link #STATUS_IN_PROGRESS}. Any other status, including the
+     * other codes FHIR defines, is reported as one this tool cannot act on.
      */
     public static final String STATUS_COMPLETED = "completed";
     public static final String STATUS_IN_PROGRESS = "in-progress";
 
     /**
-     * ASSUMPTION: the id given to the questionnaire a first QuestionnaireResponse carries inside
-     * itself, when the questionnaire arrived with no id of its own. A contained resource is
-     * referred to by its id, so it has to have one.
+     * This tool's own choice: the id given to the questionnaire a first QuestionnaireResponse
+     * carries inside itself, when the questionnaire arrived with no id of its own. A contained
+     * resource is referred to by its id, so it has to have one.
      */
     public static final String CONTAINED_QUESTIONNAIRE_ID = "adaptive-questionnaire";
 
@@ -99,11 +108,16 @@ public final class OnyxDtrConventions {
     }
 
     /**
-     * ASSUMPTION: {@code next-question} takes the QuestionnaireResponse itself as its request body,
-     * which FHIR allows for an operation whose one input is a resource. A service may instead
-     * expect it wrapped in a Parameters resource under {@code questionnaire-response}. Which of the
-     * two the live service takes is not confirmed. A tester who needs the other shape sends the
-     * vendor's sample body from the collection. Either shape is read when it comes back.
+     * READ: the guides do not agree on the body of {@code next-question}. SDC defines one input,
+     * a QuestionnaireResponse named {@code questionnaire-response}, and one output named
+     * {@code return}. DTR 2.0.1 uses that operation as it is. For an operation whose one input is
+     * a resource, FHIR lets the resource be posted by itself. DTR 2.2.0-ballot defines a
+     * Parameters resource in both directions instead, with the response under
+     * {@code questionnaire-response-in} going out and {@code questionnaire-response-out} coming
+     * back.
+     *
+     * <p>ASSUMPTION: the live service takes the QuestionnaireResponse by itself. Which shape it
+     * takes is not confirmed. Any of these shapes is read when it comes back.
      *
      * @param questionnaireResponse the QuestionnaireResponse so far
      * @return the body to send
@@ -113,12 +127,12 @@ public final class OnyxDtrConventions {
     }
 
     /**
-     * ASSUMPTION: a QuestionnaireResponse that carries its questionnaire inside itself is one from
-     * the adaptive loop, whatever the questionnaire inside it is marked as. That is the shape the
-     * SDC guide gives an adaptive response, and a response to a conventional form names its
-     * questionnaire by canonical url. It matters because only the service can say that a response
-     * from the loop is finished: this tool must not call one complete because the questions asked
-     * so far happen to be answered.
+     * READ: an adaptive questionnaire lives inside its QuestionnaireResponse and nowhere else, and
+     * a response to a conventional form names its questionnaire by canonical url. ASSUMPTION: so a
+     * response that carries its questionnaire inside itself is one from the adaptive loop, whatever
+     * the questionnaire inside it is marked as. It matters because only the service can say that a
+     * response from the loop is finished: this tool must not call one complete because the
+     * questions asked so far happen to be answered.
      */
     public static boolean fromTheLoop(JsonNode questionnaireResponse) {
         return questionnaireResponse != null && QuestionnaireJson.containedQuestionnaire(questionnaireResponse) != null;
@@ -127,18 +141,68 @@ public final class OnyxDtrConventions {
     /**
      * What kind a questionnaire is, and what on it decided that.
      *
-     * @param basis one plain sentence, shown beside the kind
+     * @param basis            one plain sentence, shown beside the kind
+     * @param nextQuestionBase the url the questionnaireAdaptive extension holds, or null when it
+     *                         holds none. READ: the guide makes it the base address next-question is
+     *                         called on for this questionnaire
      */
-    public record Kind(QuestionnaireKind kind, String basis) {
+    public record Kind(QuestionnaireKind kind, String basis, String nextQuestionBase) {
     }
 
     /**
-     * ASSUMPTION: an adaptive questionnaire is marked the way the SDC guide marks one, by the
-     * {@code questionnaireAdaptive} extension holding true or the url of the next-question
-     * endpoint, or by declaring an adaptive questionnaire profile in {@code meta.profile}. A
-     * questionnaire with no such marker that holds items is a conventional form, which is what the
-     * published profile says an unmarked questionnaire is. How the live service marks an adaptive
-     * questionnaire has not been observed.
+     * READ: the address the guide gives next-question for a questionnaire whose adaptive marker
+     * holds a url, as STU 2.1.0 and later write it. STU 2.0.1 writes it without the resource type,
+     * and for a marker that is only true it gives the payer's own base address, which this tool
+     * cannot know from the questionnaire.
+     */
+    public static String nextQuestionAddress(String base) {
+        return base.replaceAll("/+$", "") + "/Questionnaire/$next-question";
+    }
+
+    /**
+     * Every canonical url that names the questionnaire a QuestionnaireResponse answers, the one
+     * that says most first. Empty when the response names none in any of these ways.
+     *
+     * <p>READ: a response from the adaptive loop carries its questionnaire inside itself, and that
+     * questionnaire states in {@code derivedFrom} the canonical url of the questionnaire being
+     * completed. The DTR guide says so of the response a package carries for an adaptive
+     * questionnaire, and the SDC profile gives the questionnaire inside no url of its own at all.
+     * So what the questionnaire inside is derived from comes first, then its own url when it has
+     * one. A response that carries no questionnaire names one by canonical url.
+     *
+     * <p>ASSUMPTION: the live service does one of these. A service that ties the two only by giving
+     * the questionnaire inside the url of the one in the package is matched by the second entry.
+     */
+    public static List<String> completes(JsonNode questionnaireResponse) {
+        List<String> out = new ArrayList<>();
+        if (!QuestionnaireJson.isType(questionnaireResponse, "QuestionnaireResponse")) {
+            return out;
+        }
+        JsonNode inside = QuestionnaireJson.containedQuestionnaire(questionnaireResponse);
+        if (inside != null) {
+            out.addAll(QuestionnaireJson.derivedFrom(inside));
+            String own = QuestionnaireJson.canonical(inside);
+            if (own != null && !out.contains(own)) {
+                out.add(own);
+            }
+            return out;
+        }
+        String named = JsonSafe.presentText(questionnaireResponse, "questionnaire");
+        // A local reference such as #q1 names something inside the response and is not a canonical url.
+        if (named != null && !named.startsWith("#")) {
+            out.add(named);
+        }
+        return out;
+    }
+
+    /**
+     * READ: an adaptive questionnaire carries the SDC {@code questionnaireAdaptive} extension,
+     * holding true or the base url next-question is called on. DTR 2.0.1 speaks of both, its later
+     * versions only of the url, and the 2.2.0-ballot profiles allow nothing else. In a package it
+     * declares the profile dtr-questionnaire-adapt-search and holds no items, inside a response it
+     * declares dtr-questionnaire-adapt, and a conventional form declares dtr-std-questionnaire.
+     * ASSUMPTION: a questionnaire with no marker at all that holds items is a conventional form.
+     * How the live service marks an adaptive questionnaire has not been observed.
      *
      * <p>When the markers contradict each other, or there is no marker and no item, nothing settles
      * the kind and none is picked.
@@ -147,6 +211,7 @@ public final class OnyxDtrConventions {
         List<String> saysAdaptive = new ArrayList<>();
         List<String> saysStatic = new ArrayList<>();
         boolean unreadableMarker = false;
+        String base = null;
         for (JsonNode extension : JsonSafe.elements(questionnaire, "extension")) {
             String url = JsonSafe.presentText(extension, "url");
             if (url == null || !normalise(url).endsWith(ADAPTIVE_EXTENSION)) {
@@ -160,6 +225,7 @@ public final class OnyxDtrConventions {
                 saysStatic.add("its questionnaireAdaptive extension is set to false");
             } else if (endpoint != null) {
                 saysAdaptive.add("it carries the questionnaireAdaptive extension set to a url");
+                base = Texts.orElse(base, endpoint);
             } else {
                 unreadableMarker = true;
             }
@@ -179,29 +245,34 @@ public final class OnyxDtrConventions {
         int items = QuestionnaireJson.items(questionnaire).size();
         if (!saysAdaptive.isEmpty() && !saysStatic.isEmpty()) {
             return new Kind(QuestionnaireKind.UNDETERMINED, "Undetermined, because its markers contradict each other: "
-                    + saysAdaptive.get(0) + ", and " + saysStatic.get(0) + ".");
+                    + saysAdaptive.get(0) + ", and " + saysStatic.get(0) + ".", base);
         }
         if (!saysAdaptive.isEmpty()) {
-            return new Kind(QuestionnaireKind.ADAPTIVE, "Adaptive, because " + saysAdaptive.get(0) + ".");
+            return new Kind(QuestionnaireKind.ADAPTIVE, "Adaptive, because " + saysAdaptive.get(0) + ".", base);
         }
         if (!saysStatic.isEmpty()) {
-            return new Kind(QuestionnaireKind.STATIC, "Static, because " + saysStatic.get(0) + ".");
+            return new Kind(QuestionnaireKind.STATIC, "Static, because " + saysStatic.get(0) + ".", null);
         }
         if (unreadableMarker) {
             return new Kind(QuestionnaireKind.UNDETERMINED, "Undetermined, because its questionnaireAdaptive extension holds a value "
-                    + "that is neither true, false nor a url.");
+                    + "that is neither true, false nor a url.", null);
         }
         if (items > 0) {
             return new Kind(QuestionnaireKind.STATIC, "Static, because it carries no adaptive marker and holds " + items
-                    + (items == 1 ? " item" : " items") + " of its own at the top level.");
+                    + (items == 1 ? " item" : " items") + " of its own at the top level.", null);
         }
         return new Kind(QuestionnaireKind.UNDETERMINED, "Undetermined, because it carries no adaptive marker and no items, so nothing "
-                + "says how it is meant to be answered.");
+                + "says how it is meant to be answered.", null);
     }
 
     /**
-     * ASSUMPTION: an unknown member or provider arrives as a FHIR OperationOutcome whose issue code
-     * is {@code not-found}, and the issue says which by naming the element in {@code expression},
+     * READ: when the package operation fails, the 2.2.0-ballot definition has the service answer
+     * with an OperationOutcome and no Parameters resource. The draft of the guide that follows it
+     * adds that a coverage or a context the service cannot find is answered with a 4xx status.
+     * Neither says which issue code is used, or how the issue names what was not found.
+     *
+     * <p>ASSUMPTION: an unknown member or provider arrives as an issue whose code is
+     * {@code not-found}, and the issue says which by naming the element in {@code expression},
      * {@code location} or a {@code details} coding. This is the rule the CRD client assumes too. It
      * is restated here, not shared, so that DTR can be corrected by itself when the real behaviour
      * of each operation is known. An issue that is not-found but names neither is not classified.

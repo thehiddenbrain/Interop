@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.NextStepView;
@@ -194,7 +195,13 @@ class DtrRequestBuilderTest {
         assertThat(sent.get("questionnaire").asString()).isEqualTo("#adaptive-questionnaire");
         assertThat(sent.at("/contained/0/id").asString()).isEqualTo("adaptive-questionnaire");
         assertThat(sent.at("/contained/0/url").asString()).isEqualTo("https://example.org/p32h-placeholder/Questionnaire/no-id");
-        assertThat(first.notes()).singleElement().satisfies(note -> assertThat(note).contains("was given the id adaptive-questionnaire"));
+        // The guides tie an adaptive response to the questionnaire being completed by what the questionnaire inside it is derived from.
+        assertThat(sent.at("/contained/0/derivedFrom")).hasSize(1);
+        assertThat(sent.at("/contained/0/derivedFrom/0").asString()).isEqualTo("https://example.org/p32h-placeholder/Questionnaire/no-id");
+        assertThat(first.notes()).hasSize(2).anySatisfy(note -> assertThat(note).contains("was given the id adaptive-questionnaire"))
+                .anySatisfy(note -> assertThat(note).isEqualTo("The copy of the questionnaire inside the QuestionnaireResponse was marked as "
+                        + "derived from https://example.org/p32h-placeholder/Questionnaire/no-id, which is how the DTR and SDC guides tie an "
+                        + "adaptive response to the questionnaire being completed."));
         // The member is named by the local id of the Patient resource, never by the member ID.
         assertThat(sent.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
         assertThat(first.json()).doesNotContain("S123456789");
@@ -202,6 +209,32 @@ class DtrRequestBuilderTest {
         assertThat(sent.has("item")).isFalse();
         // The body sent is the response itself, and the same response is what the changes are worked out from.
         assertThat(json(first.json())).isEqualTo(first.response());
+    }
+
+    @Test
+    void theCopyInsideAFirstResponseNamesTheQuestionnaireBeingCompletedBeforeAnythingItWasItselfDerivedFrom() {
+        String base = "https://example.org/p32h-placeholder/Questionnaire/base";
+        String canonical = "https://example.org/p32h-placeholder/Questionnaire/derived|2.0";
+        String questionnaire = "{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"url\":\"https://example.org/p32h-placeholder/"
+                + "Questionnaire/derived\",\"version\":\"2.0\",\"derivedFrom\":[\"" + base + "\"]}";
+        JsonNode sent = builder.buildNextQuestion(DtrAnswers.read(questionnaire, null, List.of()), null, DtrFixtures.CLOCK).response();
+        // Nothing the payer stated is taken away: its own derivedFrom follows the questionnaire being completed.
+        assertThat(sent.at("/contained/0/derivedFrom")).hasSize(2);
+        assertThat(sent.at("/contained/0/derivedFrom/0").asString()).isEqualTo(canonical);
+        assertThat(sent.at("/contained/0/derivedFrom/1").asString()).isEqualTo(base);
+        assertThat(OnyxDtrConventions.completes(sent)).containsExactly(canonical, base);
+
+        // A questionnaire that already says it is derived from itself is left as it is, with no note about it.
+        String already = "{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"url\":\"" + base + "\",\"derivedFrom\":[\"" + base + "\"]}";
+        DtrRequestBuilder.LoopBody unchanged = builder.buildNextQuestion(DtrAnswers.read(already, null, List.of()), null, DtrFixtures.CLOCK);
+        assertThat(unchanged.response().at("/contained/0/derivedFrom")).hasSize(1);
+        assertThat(unchanged.notes()).noneMatch(note -> note.contains("derived from"));
+
+        // A questionnaire with no url cannot be named, so nothing is made up for it.
+        DtrRequestBuilder.LoopBody unnamed = builder.buildNextQuestion(DtrAnswers.read("{\"resourceType\":\"Questionnaire\",\"id\":\"q\"}",
+                null, List.of()), null, DtrFixtures.CLOCK);
+        assertThat(unnamed.response().at("/contained/0").has("derivedFrom")).isFalse();
+        assertThat(OnyxDtrConventions.completes(unnamed.response())).isEmpty();
     }
 
     @Test

@@ -2,7 +2,7 @@
   "id": "dtr-02-adaptive-branching",
   "number": 2,
   "label": "Adaptive sequence, a later question depends on an earlier answer",
-  "description": "The package holds one adaptive questionnaire with no questions of its own. Each next-question call returns the questions so far. Answering yes to the first question brings one follow-up, answering no brings a different one, and changing the first answer afterwards makes the earlier follow-up disappear.",
+  "description": "The package holds one adaptive questionnaire with no questions of its own, and the response to start it from. Each next-question call returns the questions so far. Answering yes to the first question brings one follow-up, answering no brings a different one, and changing the first answer afterwards makes the earlier follow-up disappear.",
   "sentinelMemberId": "P32H-DTR-ADAPT",
   "behavior": "respond",
   "httpStatus": 200,
@@ -19,7 +19,7 @@
     }
   },
   "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
-  "assumption": "How the live service marks an adaptive questionnaire, what next-question takes and returns, and what it names its completion status are not confirmed. This file models the questionnaireAdaptive extension, a QuestionnaireResponse returned with the questionnaire so far contained in it, the status in-progress while questions remain and completed at the end. It also models a service that returns the answers it was sent and drops the answer to a question it no longer asks.",
+  "assumption": "What the live service does at each of these points is not confirmed. This file models what the DTR and SDC guides publish: the questionnaire in the package declares the adaptive search profile, holds no items and carries the questionnaireAdaptive extension as a url; the package carries a QuestionnaireResponse to start from, whose questionnaire is contained in it, has no url of its own and is derived from the one in the package; each next-question answer is that response with the questions so far in the contained questionnaire; the status is in-progress while questions remain and completed at the end. It also models a service that returns the answers it was sent and drops the answer to a question it no longer asks, which the guides do not define.",
   "nextQuestion": {
     "rule": "The step is chosen from the answers in the QuestionnaireResponse that was sent. Each entry lists linkIds with the answer each must have: a code or a value, (any) for any answer at all, or (none) for no answer. The first entry that fits, in the order written, names the step. Answers that fit no entry are refused.",
     "select": [
@@ -294,7 +294,7 @@
                 "id": "lumbar-mri-adaptive",
                 "meta": {
                   "profile": [
-                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt-search"
                   ]
                 },
                 "extension": [
@@ -308,6 +308,45 @@
                 "name": "LumbarMriAdaptive",
                 "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
                 "status": "active"
+              }
+            },
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/QuestionnaireResponse/lumbar-mri-draft",
+              "resource": {
+                "resourceType": "QuestionnaireResponse",
+                "id": "lumbar-mri-draft",
+                "meta": {
+                  "profile": [
+                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse-adapt"
+                  ]
+                },
+                "contained": [
+                  {
+                    "resourceType": "Questionnaire",
+                    "id": "lumbar-mri-adaptive",
+                    "meta": {
+                      "profile": [
+                        "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+                      ]
+                    },
+                    "extension": [
+                      {
+                        "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                        "valueUrl": "https://example.org/p32h-placeholder/fhir"
+                      }
+                    ],
+                    "derivedFrom": [
+                      "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+                    ],
+                    "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+                    "status": "active"
+                  }
+                ],
+                "questionnaire": "#lumbar-mri-adaptive",
+                "status": "in-progress",
+                "subject": {
+                  "reference": "Patient/patient-1"
+                }
               }
             }
           ]
@@ -335,14 +374,20 @@
           {
             "resourceType": "Questionnaire",
             "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
                 "valueUrl": "https://example.org/p32h-placeholder/fhir"
               }
             ],
-            "url": "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive",
-            "version": "1.0.0",
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
             "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
             "status": "active",
             "item": [
@@ -394,14 +439,20 @@
           {
             "resourceType": "Questionnaire",
             "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
                 "valueUrl": "https://example.org/p32h-placeholder/fhir"
               }
             ],
-            "url": "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive",
-            "version": "1.0.0",
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
             "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
             "status": "active",
             "item": [
@@ -460,14 +511,20 @@
           {
             "resourceType": "Questionnaire",
             "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
                 "valueUrl": "https://example.org/p32h-placeholder/fhir"
               }
             ],
-            "url": "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive",
-            "version": "1.0.0",
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
             "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
             "status": "active",
             "item": [
@@ -525,14 +582,20 @@
           {
             "resourceType": "Questionnaire",
             "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
                 "valueUrl": "https://example.org/p32h-placeholder/fhir"
               }
             ],
-            "url": "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive",
-            "version": "1.0.0",
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
             "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
             "status": "active",
             "item": [
@@ -590,14 +653,20 @@
           {
             "resourceType": "Questionnaire",
             "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
                 "valueUrl": "https://example.org/p32h-placeholder/fhir"
               }
             ],
-            "url": "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive",
-            "version": "1.0.0",
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
             "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
             "status": "active",
             "item": [
@@ -662,14 +731,20 @@
           {
             "resourceType": "Questionnaire",
             "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
                 "valueUrl": "https://example.org/p32h-placeholder/fhir"
               }
             ],
-            "url": "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive",
-            "version": "1.0.0",
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
             "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
             "status": "active",
             "item": [
@@ -734,14 +809,20 @@
           {
             "resourceType": "Questionnaire",
             "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
                 "valueUrl": "https://example.org/p32h-placeholder/fhir"
               }
             ],
-            "url": "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive",
-            "version": "1.0.0",
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
             "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
             "status": "active",
             "item": [

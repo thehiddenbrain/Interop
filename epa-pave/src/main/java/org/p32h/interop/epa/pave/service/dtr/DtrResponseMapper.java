@@ -213,14 +213,11 @@ public final class DtrResponseMapper {
     private QuestionnaireView packaged(TrackedJson.Node node, int position, Walk walk) {
         JsonNode raw = node.raw();
         JsonNode answered = null;
+        String arrivedWith = null;
         for (TrackedJson.Node response : walk.responses) {
-            String names = JsonSafe.presentText(response.raw(), "questionnaire");
-            // A response that names no questionnaire is taken to answer the only one in the
-            // package. One that names another questionnaire is never tied to this one.
-            boolean forThis = names != null ? QuestionnaireJson.names(names, raw)
-                    : walk.questionnaires.size() == 1 && walk.responses.size() == 1;
-            if (forThis) {
+            if (carriedFor(response.raw(), raw, walk)) {
                 answered = response.raw();
+                arrivedWith = response.path();
                 break;
             }
         }
@@ -236,7 +233,22 @@ public final class DtrResponseMapper {
                     + "with no answers for it.";
         }
         return questionnaire(node, position, node.path(), EnableWhenEvaluator.evaluate(raw, answers),
-                answered == null ? Map.of() : QuestionnaireJson.answers(answered), basis);
+                answered == null ? Map.of() : QuestionnaireJson.answers(answered), basis, arrivedWith);
+    }
+
+    /**
+     * True when a response of a package is the one it carries for this questionnaire. A response
+     * that names a questionnaire, by canonical url or through the questionnaire inside it, is tied
+     * to the one it names and to no other. One that names none at all is taken to answer the only
+     * questionnaire in the package.
+     */
+    private static boolean carriedFor(JsonNode response, JsonNode questionnaire, Walk walk) {
+        List<String> named = OnyxDtrConventions.completes(response);
+        if (!named.isEmpty()) {
+            return named.stream().anyMatch(canonical -> QuestionnaireJson.names(canonical, questionnaire));
+        }
+        // A local reference that leads to nothing which names a questionnaire is still a statement about which one, so it is not tied.
+        return JsonSafe.presentText(response, "questionnaire") == null && walk.questionnaires.size() == 1 && walk.responses.size() == 1;
     }
 
     /** The answers a questionnaire starts with by its own account: initial values, and options it marks as selected. */
@@ -335,7 +347,7 @@ public final class DtrResponseMapper {
                 if (questionnaireNode != null) {
                     Form evaluated = EnableWhenEvaluator.evaluate(rawQuestionnaire, QuestionnaireJson.answers(rawResponse));
                     questionnaire = questionnaire(questionnaireNode, 1, questionnaireNode.path(), evaluated, Map.of(),
-                            "The conditions were evaluated against the answers in the QuestionnaireResponse the service returned.");
+                            "The conditions were evaluated against the answers in the QuestionnaireResponse the service returned.", null);
                     form = formState(evaluated, rawResponse, response.status(), progress == Progress.COMPLETED, List.of(),
                             changes(sent, rawQuestionnaire, rawResponse));
                 } else {
@@ -367,7 +379,7 @@ public final class DtrResponseMapper {
     public DtrReading describeResponse(JsonNode questionnaire, JsonNode response, Form evaluated, QuestionnaireKind answeredAs,
                                        Progress progress, boolean builtHere, List<String> notes) {
         QuestionnaireView questionnaireView = questionnaire(TrackedJson.of(questionnaire).root(), 1, "As posted with the request", evaluated,
-                Map.of(), "The conditions were evaluated against the answers given.");
+                Map.of(), "The conditions were evaluated against the answers given.", null);
         QuestionnaireResponseView responseView = response(TrackedJson.of(response).root(),
                 builtHere ? "Put together by this tool" : "As the service last returned it");
         FormStateView form = formState(evaluated, response, responseView.status(),
@@ -469,7 +481,7 @@ public final class DtrResponseMapper {
     // ---- the views ----
 
     private QuestionnaireView questionnaire(TrackedJson.Node node, int position, String foundAt, Form form,
-                                            Map<String, List<JsonNode>> prepopulated, String answersBasis) {
+                                            Map<String, List<JsonNode>> prepopulated, String answersBasis, String arrivedWith) {
         JsonNode raw = node.raw();
         node.text("resourceType");
         Shown id = node.shown("id");
@@ -497,7 +509,7 @@ public final class DtrResponseMapper {
         return new QuestionnaireView(position, foundAt, subject, id, url, version, QuestionnaireJson.canonical(raw), name, title, status,
                 date, publisher, description, profiles, derivedFrom, kind.kind(), kind.basis(), questions.size(),
                 (int) questions.stream().filter(state -> state.item().required()).count(), items, extensions, contained,
-                QuestionnaireJson.problems(raw), answersBasis, JsonSafe.compact(raw));
+                QuestionnaireJson.problems(raw), answersBasis, arrivedWith, JsonSafe.compact(raw));
     }
 
     private List<ItemView> items(TrackedJson.Node parent, String prefix, Form form, Map<String, List<JsonNode>> prepopulated) {
