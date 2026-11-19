@@ -36,7 +36,11 @@ public record PasReading(PasDetail detail, PasOutcome outcome, SentClaim sent, L
 
     /** True when the result holds more than one decision to tell apart. Each is then named by its subject wherever it is shown. */
     public boolean several() {
-        return decisions().size() > 1;
+        return several(detail.claimResponses());
+    }
+
+    private static boolean several(List<ClaimResponseView> claimResponses) {
+        return claimResponses.stream().mapToInt(response -> response.decisions().size()).sum() > 1;
     }
 
     /**
@@ -86,10 +90,19 @@ public record PasReading(PasDetail detail, PasOutcome outcome, SentClaim sent, L
      * is left out: it is not a code and has its own place on the record.
      */
     public List<String> ledgerCodes() {
-        boolean named = several();
-        boolean severalResponses = detail.claimResponses().size() > 1;
+        return ledgerCodes(detail.claimResponses());
+    }
+
+    /**
+     * The same codes for ClaimResponses that did not arrive as the answer to a call, such as the
+     * ones a notification carries, so a decision is written to the ledger the same way however it
+     * reached this tool.
+     */
+    public static List<String> ledgerCodes(List<ClaimResponseView> claimResponses) {
+        boolean named = several(claimResponses);
+        boolean severalResponses = claimResponses.size() > 1;
         List<String> out = new ArrayList<>();
-        for (ClaimResponseView response : detail.claimResponses()) {
+        for (ClaimResponseView response : claimResponses) {
             if (response.outcome().code() != null) {
                 out.add((severalResponses ? response.foundAt() + ": " : "") + PasCodes.CLAIM_OUTCOME + "=" + response.outcome().code());
             }
@@ -126,12 +139,17 @@ public record PasReading(PasDetail detail, PasOutcome outcome, SentClaim sent, L
      * the response carries none.
      */
     public String authorizationRef() {
-        for (ClaimResponseView response : detail.claimResponses()) {
+        return authorizationRef(detail.claimResponses());
+    }
+
+    /** As {@link #authorizationRef()}, for ClaimResponses that arrived some other way than as the answer to a call. */
+    public static String authorizationRef(List<ClaimResponseView> claimResponses) {
+        for (ClaimResponseView response : claimResponses) {
             if (response.preAuthRef().hasValue()) {
                 return response.preAuthRef().value();
             }
         }
-        for (ClaimResponseView response : detail.claimResponses()) {
+        for (ClaimResponseView response : claimResponses) {
             List<ReviewActionView> actions = new ArrayList<>(response.reviewActions());
             for (PasItemView item : response.items()) {
                 actions.addAll(item.reviewActions());
@@ -148,7 +166,12 @@ public record PasReading(PasDetail detail, PasOutcome outcome, SentClaim sent, L
 
     /** The id of the first ClaimResponse that has one, which a later notification may name. Null when there is none. */
     public String claimResponseId() {
-        return detail.claimResponses().stream().map(ClaimResponseView::id).filter(Shown::hasValue).map(Shown::value).findFirst().orElse(null);
+        return claimResponseId(detail.claimResponses());
+    }
+
+    /** As {@link #claimResponseId()}, for ClaimResponses that arrived some other way than as the answer to a call. */
+    public static String claimResponseId(List<ClaimResponseView> claimResponses) {
+        return claimResponses.stream().map(ClaimResponseView::id).filter(Shown::hasValue).map(Shown::value).findFirst().orElse(null);
     }
 
     private static void put(Map<String, List<String>> codes, String element, List<String> values) {
