@@ -99,9 +99,8 @@ class ProcedureCodeServiceLoadingTest {
     void aPathWithNoFileBehindItFailsAtStartupAndNamesThePath() {
         Path missing = directory.resolve("not-there.csv");
         assertThatThrownBy(() -> TestCodeLists.load(missing)).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(missing.toString())
-                .hasMessageContaining("does not exist")
-                .hasMessageContaining("codelist.file");
+                .hasMessage("The code list file " + missing + " does not exist. Set codelist.file to the path of the export, or leave "
+                        + "it blank to use the bundled placeholder list.");
         // Also when the format is stated, so the name was never needed to decide it.
         assertThatThrownBy(() -> TestCodeLists.load(directory.resolve("not-there.dat"), Map.of("format", "csv")))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("not-there.dat").hasMessageContaining("does not exist");
@@ -110,9 +109,36 @@ class ProcedureCodeServiceLoadingTest {
     @Test
     void aRelativePathIsNamedInFullSoItIsClearWhereTheToolLooked() {
         assertThatThrownBy(() -> withSettings(Map.of("file", "no-such-directory/codes.csv"))).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(Path.of("no-such-directory/codes.csv").toAbsolutePath().normalize().toString())
-                // The value as configured is in the message too, so it can be found in application.yml.
-                .hasMessageContaining("\"no-such-directory/codes.csv\"");
+                // Where the tool looked, and the value as configured, so it can be found in application.yml.
+                .hasMessageStartingWith("The code list file " + Path.of("no-such-directory/codes.csv").toAbsolutePath().normalize()
+                        + " (codelist.file is \"no-such-directory/codes.csv\") does not exist.");
+    }
+
+    @Test
+    void aPathThisSystemCannotUseFailsAtStartupAndShowsWhatWasConfigured() {
+        // No file system takes a NUL character in a name, so this is refused before anything is looked for.
+        assertThatThrownBy(() -> withSettings(Map.of("file", "codes\0.csv"))).isInstanceOf(UnusableCodeListException.class)
+                .hasMessage("codelist.file is \"codes<U+0000>.csv\", which is not a path this system can use.");
+    }
+
+    @Test
+    void everyRefusalIsOfTheOneTypeWhoseMessagesTheLoaderWroteItself() {
+        // The service logs the message of this type as it stands. It may do that only because no
+        // message of the type is ever taken from a file system or a parser.
+        assertThatThrownBy(() -> TestCodeLists.load(directory.resolve("not-there.csv"))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThatThrownBy(() -> withSettings(Map.of("format", "xml"))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThatThrownBy(() -> withSettings(Map.of("delimiter", ""))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThatThrownBy(() -> TestCodeLists.load(TestCodeLists.write(directory, "broken.json", "[{"))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThatThrownBy(() -> TestCodeLists.load(TestCodeLists.write(directory, "nocode.csv", "A,B\n1,2\n"))).isExactlyInstanceOf(UnusableCodeListException.class);
+        assertThat(new UnusableCodeListException("x")).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void aBundledListThatIsNotInTheApplicationIsSaidToBeMissing() {
+        assertThat(CodeListLoader.bundled(CodeListLoader.PLACEHOLDER)).isNotEmpty();
+        assertThatThrownBy(() -> CodeListLoader.bundled("codelist/no-such-list.csv")).isInstanceOf(UnusableCodeListException.class)
+                .hasMessage("The bundled placeholder code list is missing from the application (codelist/no-such-list.csv). "
+                        + "Set codelist.file to a code list, or rebuild the application.");
     }
 
     @Test

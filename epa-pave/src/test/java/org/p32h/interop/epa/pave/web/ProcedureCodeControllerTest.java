@@ -182,6 +182,10 @@ class ProcedureCodeControllerTest {
         }
         // The one of those that is in a description finds its row.
         assertThat(codes(json(mvc(), get("/api/procedure-codes").param("q", "22\" wide")))).containsExactly("E2601");
+        // The query echoed is the query searched: a no-break space pasted beside the code is not part of either.
+        JsonNode pasted = json(mvc(), get("/api/procedure-codes").param("q", "\u00A0E0601\u00A0"));
+        assertThat(pasted.get("query").stringValue()).isEqualTo("E0601");
+        assertThat(codes(pasted)).containsExactly("E0601");
     }
 
     // ---- GET /api/procedure-codes/self-check ----

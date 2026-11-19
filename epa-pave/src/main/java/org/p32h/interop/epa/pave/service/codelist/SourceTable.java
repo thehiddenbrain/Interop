@@ -9,12 +9,11 @@ import java.util.List;
  * one set of rules finds the columns and reads the rows of both.
  *
  * @param format   csv or json
- * @param rowWord  what a row's position counts, for a message: a line of a CSV file, an entry of a JSON list
  * @param headers  the header cells or the keys, as written, in the order first seen
  * @param rows     the rows that hold something
  * @param warnings what was noticed about the file's structure while it was read
  */
-record SourceTable(String format, String rowWord, List<String> headers, List<Row> rows, List<String> warnings) {
+record SourceTable(String format, List<String> headers, List<Row> rows, List<String> warnings) {
 
     static final String CSV = "csv";
     static final String JSON = "json";
@@ -26,7 +25,7 @@ record SourceTable(String format, String rowWord, List<String> headers, List<Row
     }
 
     /**
-     * @param at    the line the row starts on, or its place in the list, counting from one
+     * @param at    where the row is, counting from one: the line of a CSV file it starts on, or its place in a JSON list
      * @param cells the cells by header position. Null where the row has no such cell. May be
      *              shorter or longer than the headers: a row is never padded or cut
      */
@@ -42,13 +41,14 @@ record SourceTable(String format, String rowWord, List<String> headers, List<Row
         }
     }
 
-    /** "line 7" or "entry 7". */
-    String where(int at) {
-        return rowWord + " " + at;
+    boolean json() {
+        return JSON.equals(format);
     }
 
-    /** "lines 3, 9 and 12", or "line 3" for one. */
+    /** Where rows are, as a message says it: "line 3", "lines 3, 9 and 12", "entry 3", "entries 3 and 9". */
     String where(List<Integer> at) {
-        return rowWord + (at.size() == 1 ? " " : "s ") + CodeListText.numbers(at);
+        String one = json() ? "entry" : "line";
+        String several = json() ? "entries" : "lines";
+        return (at.size() == 1 ? one : several) + " " + CodeListText.numbers(at);
     }
 }

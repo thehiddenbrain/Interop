@@ -208,6 +208,15 @@ class JsonCodeListTest {
     }
 
     @Test
+    void aValueUnderABlankKeyIsReportedBecauseNoColumnCanBeFoundForIt() {
+        ProcedureCodeService service = TestCodeLists.json(directory, "[{\"code\":\"A1\",\"pa\":\"Y\",\"\":\"stray\"},{\"code\":\"A2\",\"pa\":\"N\",\" \":null},"
+                + "{\"code\":\"A3\",\"pa\":\"N\",\"\":\"again\"}]");
+        assertThat(service.selfCheck().rowCount()).isEqualTo(3);
+        assertThat(service.selfCheck().unrecognisedColumns()).isEmpty();
+        assertThat(service.selfCheck().warnings()).containsExactly("A key that is blank holds something on entries 1 and 3. It was not read.");
+    }
+
+    @Test
     void aKeyWrittenTwiceInOneObjectIsReportedBecauseOnlyOneValueSurvives() {
         ProcedureCodeService service = TestCodeLists.json(directory, "[{\"code\":\"A1\",\"auth required\":\"Y\",\"auth required\":\"N\"}]");
         assertThat(service.selfCheck().warnings()).containsExactly("An object in the file has the same key more than once. Only the last value "

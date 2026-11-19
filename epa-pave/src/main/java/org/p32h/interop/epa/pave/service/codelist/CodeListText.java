@@ -80,6 +80,15 @@ final class CodeListText {
      * is not read as a yes is otherwise a puzzle with no way in.
      */
     static String show(String value) {
+        return quote(value, SHOWN_LENGTH);
+    }
+
+    /** As {@link #show}, with nothing cut: for a setting, which has to be found again in a configuration file. */
+    static String quote(String value) {
+        return quote(value, Integer.MAX_VALUE);
+    }
+
+    private static String quote(String value, int length) {
         if (value == null) {
             return "(nothing)";
         }
@@ -88,7 +97,7 @@ final class CodeListText {
         for (int i = 0; i < value.length(); ) {
             int codePoint = value.codePointAt(i);
             i += Character.charCount(codePoint);
-            if (shown == SHOWN_LENGTH) {
+            if (shown == length) {
                 out.append("...");
                 break;
             }

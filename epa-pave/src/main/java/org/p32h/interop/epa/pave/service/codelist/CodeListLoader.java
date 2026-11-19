@@ -29,7 +29,7 @@ import org.p32h.interop.epa.pave.model.Texts;
  * Loads the procedure code list, once, at startup.
  *
  * <p>Two kinds of trouble are kept apart. A list that cannot be what the operator meant to point
- * at is refused, with an {@link IllegalStateException} that names the file and stops the
+ * at is refused, with an {@link UnusableCodeListException} that names the file and stops the
  * application: a path with no file behind it, a format that cannot be told, a file with no column
  * for the code. A list that can be read but has something odd in it is loaded as it is, and the
  * oddity is written into the self-check as a warning with the rows it concerns.
@@ -44,8 +44,11 @@ final class CodeListLoader {
     /** The synthetic list bundled with the tool, used when {@code codelist.file} is blank. */
     static final String PLACEHOLDER = "codelist/placeholder-codes.csv";
 
-    /** Far above any code list, and low enough that a wrong path fails with a sentence and not by running out of memory. */
-    static final long MAX_BYTES = 64L * 1024 * 1024;
+    /**
+     * Several times the size of the real export, which has some seven thousand rows, and low
+     * enough that a wrong path fails with a sentence and not by running out of memory.
+     */
+    static final long MAX_BYTES = 20L * 1024 * 1024;
 
     private static final char REPLACEMENT = '\uFFFD';
 
@@ -62,12 +65,12 @@ final class CodeListLoader {
         Decoded decoded = decode(source);
         SourceTable table = source.json() ? JsonCodeList.read(decoded.text(), source.subject()) : CsvCodeList.read(decoded.text(), source.delimiter());
         if (table.headers().isEmpty()) {
-            throw new IllegalStateException(source.subject() + (source.json() ? " has no rows: the list in it holds no object with keys."
+            throw new UnusableCodeListException(source.subject() + (source.json() ? " has no rows: the list in it holds no object with keys."
                     : " is empty. Its first row that is not blank must name the columns."));
         }
         ColumnMapping columns = ColumnMapping.match(table.headers(), source.columns());
         if (!columns.has(CodeListColumn.CODE)) {
-            throw new IllegalStateException(source.subject() + " has no column this tool recognises as the procedure code. "
+            throw new UnusableCodeListException(source.subject() + " has no column this tool recognises as the procedure code. "
                     + (source.json() ? "Keys" : "Headers") + " found: " + String.join(", ", table.headers().stream().map(CodeListLoader::header).toList())
                     + ". " + (source.json() ? "" : "The first row of the file that is not blank must be the header row. ")
                     + "If one of these holds the code, add it to " + CodeListColumn.CODE.setting() + " in application.yml.");
@@ -102,7 +105,7 @@ final class CodeListLoader {
     private static String format(String configured) {
         String format = configured == null ? "" : configured.strip().toLowerCase(Locale.ROOT);
         if (!format.equals("auto") && !format.equals(SourceTable.CSV) && !format.equals(SourceTable.JSON)) {
-            throw new IllegalStateException("codelist.format is " + CodeListText.show(configured) + ". It must be auto, csv or json.");
+            throw new UnusableCodeListException("codelist.format is " + CodeListText.show(configured) + ". It must be auto, csv or json.");
         }
         return format;
     }
@@ -120,7 +123,7 @@ final class CodeListLoader {
             return '\t';
         }
         if (text.length() != 1 || text.charAt(0) == '"') {
-            throw new IllegalStateException("codelist.delimiter is " + CodeListText.show(configured) + ". It must be the one character "
+            throw new UnusableCodeListException("codelist.delimiter is " + CodeListText.show(configured) + ". It must be the one character "
                     + "that separates the cells of the file, such as a comma, a semicolon or a bar, or the word tab. It cannot be "
                     + "a double quote.");
         }
@@ -144,15 +147,20 @@ final class CodeListLoader {
      * get the placeholder back, not a startup failure about a file they never saw.
      */
     private static Source placeholder() {
-        try (InputStream in = CodeListLoader.class.getClassLoader().getResourceAsStream(PLACEHOLDER)) {
+        return new Source("classpath:" + PLACEHOLDER, "The bundled placeholder code list", true, false, ',',
+                CodelistProperties.defaults().columns(), bundled(PLACEHOLDER));
+    }
+
+    /** The bytes of a file packaged with the application. */
+    static byte[] bundled(String resource) {
+        try (InputStream in = CodeListLoader.class.getClassLoader().getResourceAsStream(resource)) {
             if (in == null) {
-                throw new IllegalStateException("The bundled placeholder code list is missing from the application (" + PLACEHOLDER
+                throw new UnusableCodeListException("The bundled placeholder code list is missing from the application (" + resource
                         + "). Set codelist.file to a code list, or rebuild the application.");
             }
-            return new Source("classpath:" + PLACEHOLDER, "The bundled placeholder code list", true, false, ',',
-                    CodelistProperties.defaults().columns(), in.readAllBytes());
+            return in.readAllBytes();
         } catch (IOException e) {
-            throw new IllegalStateException("The bundled placeholder code list (" + PLACEHOLDER + ") could not be read.");
+            throw new UnusableCodeListException("The bundled placeholder code list (" + resource + ") could not be read.");
         }
     }
 
@@ -161,15 +169,17 @@ final class CodeListLoader {
         try {
             path = Path.of(configured.strip()).toAbsolutePath().normalize();
         } catch (InvalidPathException e) {
-            throw new IllegalStateException("codelist.file is " + CodeListText.show(configured) + ", which is not a path this system can use.");
+            throw new UnusableCodeListException("codelist.file is " + CodeListText.quote(configured) + ", which is not a path this system can use.");
         }
         String subject = "The code list file " + path;
-        String setting = " (codelist.file is " + CodeListText.show(configured) + ")";
+        // A relative path is resolved against the directory the tool was started in. Both forms
+        // are given then: the one to look for on disk, and the one to look for in application.yml.
+        String setting = path.toString().equals(configured.strip()) ? "" : " (codelist.file is " + CodeListText.quote(configured) + ")";
         String lower = path.getFileName() == null ? "" : path.getFileName().toString().toLowerCase(Locale.ROOT);
         boolean json;
         if (format.equals("auto")) {
             if (!lower.endsWith(".csv") && !lower.endsWith(".json")) {
-                throw new IllegalStateException(subject + setting + " ends in neither .csv nor .json, so its format cannot be told "
+                throw new UnusableCodeListException(subject + setting + " ends in neither .csv nor .json, so its format cannot be told "
                         + "from its name. Set codelist.format to csv or json.");
             }
             json = lower.endsWith(".json");
@@ -178,20 +188,20 @@ final class CodeListLoader {
         }
         try {
             if (Files.isDirectory(path)) {
-                throw new IllegalStateException(subject + setting + " is a directory, not a file. Set codelist.file to the export itself.");
+                throw new UnusableCodeListException(subject + setting + " is a directory, not a file. Set codelist.file to the export itself.");
             }
             long size = Files.size(path);
             if (size > MAX_BYTES) {
-                throw new IllegalStateException(subject + setting + " is " + size + " bytes, which is more than this tool reads as a "
+                throw new UnusableCodeListException(subject + setting + " is " + size + " bytes, which is more than this tool reads as a "
                         + "code list (" + MAX_BYTES + " bytes). Check that codelist.file points at the code list.");
             }
             return new Source(path.toString(), subject, false, json, delimiter, columns, Files.readAllBytes(path));
         } catch (NoSuchFileException e) {
-            throw new IllegalStateException(subject + setting + " does not exist. Set codelist.file to the path of the export, or "
+            throw new UnusableCodeListException(subject + setting + " does not exist. Set codelist.file to the path of the export, or "
                     + "leave it blank to use the bundled placeholder list.");
         } catch (IOException e) {
             // The exception's own message is not passed on. Which file it was is all that is needed.
-            throw new IllegalStateException(subject + setting + " could not be read. Check that it is a file and that the account "
+            throw new UnusableCodeListException(subject + setting + " could not be read. Check that it is a file and that the account "
                     + "running this tool may read it.");
         }
     }
@@ -206,7 +216,7 @@ final class CodeListLoader {
         if (bytes.length >= 2 && ((bytes[0] == (byte) 0xFF && bytes[1] == (byte) 0xFE) || (bytes[0] == (byte) 0xFE && bytes[1] == (byte) 0xFF))) {
             // Read as UTF-8 this would be every other character a mark and no header anyone could
             // recognise. The byte order mark says what the file is, so say that and stop.
-            throw new IllegalStateException(source.subject() + " starts with a UTF-16 or UTF-32 byte order mark, and this tool reads "
+            throw new UnusableCodeListException(source.subject() + " starts with a UTF-16 or UTF-32 byte order mark, and this tool reads "
                     + "UTF-8. Save the list as UTF-8 (in a spreadsheet, CSV UTF-8) and start again.");
         }
         try {
@@ -340,7 +350,7 @@ final class CodeListLoader {
                 List<Integer> holding = table.rows().stream().filter(row -> CodeListText.clean(row.cell(position)) != null)
                         .map(SourceTable.Row::at).toList();
                 if (!holding.isEmpty()) {
-                    out.add((SourceTable.JSON.equals(table.format()) ? "A key that is blank" : "Column " + (position + 1) + " has no name in the header row and")
+                    out.add((table.json() ? "A key that is blank" : "Column " + (position + 1) + " has no name in the header row and")
                             + " holds something on " + table.where(holding) + ". It was not read.");
                 }
             }

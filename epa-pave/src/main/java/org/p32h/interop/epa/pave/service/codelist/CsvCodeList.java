@@ -21,7 +21,7 @@ final class CsvCodeList {
         List<String> warnings = new ArrayList<>();
         content.problems().forEach(problem -> warnings.add(problem.message()));
         if (header == null) {
-            return new SourceTable(SourceTable.CSV, "line", List.of(), List.of(), warnings);
+            return new SourceTable(SourceTable.CSV, List.of(), List.of(), warnings);
         }
         int width = header.cells().size();
         List<Integer> shortRows = content.shortRows().stream().map(CsvRecord::line).toList();
@@ -45,7 +45,7 @@ final class CsvCodeList {
                     + ". If that was not meant, a double quote on that line is not closed and the lines after it were read into the cell.");
         }
         List<SourceTable.Row> rows = content.rows().stream().map(record -> new SourceTable.Row(record.line(), record.cells())).toList();
-        return new SourceTable(SourceTable.CSV, "line", header.cells(), rows, warnings);
+        return new SourceTable(SourceTable.CSV, header.cells(), rows, warnings);
     }
 
     private static String lines(List<Integer> lines) {

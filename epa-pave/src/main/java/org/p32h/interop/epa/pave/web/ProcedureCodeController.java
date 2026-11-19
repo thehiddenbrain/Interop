@@ -64,7 +64,7 @@ public class ProcedureCodeController {
     public Answer search(@RequestParam(name = "q", required = false) String q, @RequestParam(name = "lob", required = false) String lob) {
         int limit = app.autocompleteLimit();
         CodeSearch found = codes.find(q, lob, limit);
-        return new Answer(Texts.trimToNull(q), Texts.trimToNull(lob), found.narrowed(), found.notice(), found.otherLines(), limit,
+        return new Answer(found.query(), Texts.trimToNull(lob), found.narrowed(), found.notice(), found.otherLines(), limit,
                 found.matched(), found.codes());
     }
 

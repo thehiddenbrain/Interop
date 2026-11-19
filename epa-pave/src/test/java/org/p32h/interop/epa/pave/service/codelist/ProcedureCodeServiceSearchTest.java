@@ -58,8 +58,13 @@ class ProcedureCodeServiceSearchTest {
         // A code is matched from its start only. "0601" is inside E0601 and is not a match for it.
         assertThat(service.search("0601", null, 25)).isEmpty();
         assertThat(service.search("no such thing", null, 25)).isEmpty();
-        // White space around what was typed is not part of the query.
+        // White space around what was typed is not part of the query, and the answer says what was searched.
         assertThat(rows(service.search("  e06 ", null, 25))).containsExactly("r4");
+        assertThat(service.find("  e06 ", null, 25).query()).isEqualTo("e06");
+        assertThat(service.find("\u00A0E06\u00A0", null, 25).query()).isEqualTo("E06");
+        assertThat(service.find("Face  Mask", null, 25).query()).isEqualTo("Face  Mask");
+        assertThat(service.find("  ", null, 25).query()).isNull();
+        assertThat(service.find(null, null, 25).query()).isNull();
     }
 
     @Test
