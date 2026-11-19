@@ -182,6 +182,10 @@ class ProcedureCodeControllerTest {
         }
         // The one of those that is in a description finds its row.
         assertThat(codes(json(mvc(), get("/api/procedure-codes").param("q", "22\" wide")))).containsExactly("E2601");
+        // The query echoed is the query searched: a no-break space pasted beside the code is not part of either.
+        JsonNode pasted = json(mvc(), get("/api/procedure-codes").param("q", "\u00A0E0601\u00A0"));
+        assertThat(pasted.get("query").stringValue()).isEqualTo("E0601");
+        assertThat(codes(pasted)).containsExactly("E0601");
     }
 
     // ---- GET /api/procedure-codes/self-check ----
@@ -239,6 +243,32 @@ class ProcedureCodeControllerTest {
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.kind").value("VALIDATION"))
                     .andExpect(jsonPath("$.title").value("This endpoint does not accept POST."));
+        }
+    }
+
+    @Test
+    void aDefectBehindEitherEndpointLeavesAsAReferenceAndNeverAsItsOwnMessage() throws Exception {
+        // Neither endpoint has a failure of its own to report, so the one thing left to show is
+        // what a browser gets if the code behind them is wrong: the shared shape, and no detail.
+        ProcedureCodeService broken = new ProcedureCodeService(CodelistProperties.defaults()) {
+            @Override
+            public org.p32h.interop.epa.pave.service.codelist.CodeSearch find(String query, String lineOfBusiness, int limit) {
+                throw new IllegalStateException("text of a cell, which must not reach the browser");
+            }
+
+            @Override
+            public org.p32h.interop.epa.pave.model.CodeListSelfCheck selfCheck() {
+                throw new IllegalStateException("text of a cell, which must not reach the browser");
+            }
+        };
+        MockMvc mvc = TestMvc.standalone(new ProcedureCodeController(broken, AppProperties.defaults()));
+        for (String path : new String[] {"/api/procedure-codes?q=95810", "/api/procedure-codes/self-check"}) {
+            String body = mvc.perform(get(path)).andExpect(status().isInternalServerError())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.kind").value("INTERNAL"))
+                    .andExpect(jsonPath("$.reference").isNotEmpty())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(body).as(path).doesNotContain("text of a cell").doesNotContain("IllegalStateException");
         }
     }
 }

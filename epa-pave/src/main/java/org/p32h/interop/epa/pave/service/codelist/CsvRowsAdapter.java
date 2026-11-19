@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.codelist;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.p32h.interop.epa.pave.service.suite.CsvRows;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class CsvRowsAdapter implements CsvRows {
 
+    /** The most quoting problems named one by one. A file with the same mistake on every line has as many as it has lines. */
+    static final int PROBLEMS_NAMED = 10;
+
     private final CsvReader reader;
 
     /** A suite file is comma separated, whatever delimiter the code list is configured with. */
@@ -35,7 +39,12 @@ public class CsvRowsAdapter implements CsvRows {
     @Override
     public Table read(String text) {
         CsvContent content = reader.read(text);
-        List<String> problems = content.problems().stream().map(CsvProblem::message).toList();
+        List<String> problems = new ArrayList<>();
+        content.problems().stream().limit(PROBLEMS_NAMED).forEach(problem -> problems.add(problem.message()));
+        if (content.problems().size() > PROBLEMS_NAMED) {
+            int more = content.problems().size() - PROBLEMS_NAMED;
+            problems.add("The quoting is wrong in " + more + " more " + (more == 1 ? "place" : "places") + " further down the file.");
+        }
         if (content.records().isEmpty()) {
             return new Table(List.of(), List.of(), problems);
         }

@@ -144,7 +144,7 @@ class ProcedureCodeServiceRowsTest {
         assertThat(service.selfCheck().unrecognisedColumns()).containsExactly("Requires Authorization?");
         assertThat(service.selfCheck().warnings()).containsExactly("No column was recognised as the prior authorization flag, so no row says "
                 + "whether prior authorization is required and nothing can be compared with the service on that point. If the file has "
-                + "such a column, add its header to codelist.columns.auth-required.");
+                + "such a column, name its header under codelist.columns.auth-required.");
     }
 
     // ---- the vendor ----
@@ -169,7 +169,7 @@ class ProcedureCodeServiceRowsTest {
         assertThat(service.selfCheck().namingVendor()).isEqualTo(6);
         assertThat(service.selfCheck().warnings()).containsExactly(
                 "No column was recognised as the prior authorization flag, so no row says whether prior authorization is required and "
-                        + "nothing can be compared with the service on that point. If the file has such a column, add its header to "
+                        + "nothing can be compared with the service on that point. If the file has such a column, name its header under "
                         + "codelist.columns.auth-required.",
                 "The delegated vendor column holds cells that name no vendor: \"-\" (1 row), \"--\" (1 row) and \"?\" (1 row). "
                         + "Those rows are served as naming no vendor.",
@@ -320,6 +320,34 @@ class ProcedureCodeServiceRowsTest {
         assertThat(row.authRequiredSource()).isEqualTo("Yes");
     }
 
+    @Test
+    void aCodeThatMayHaveLostItsLeadingZerosIsReportedAndServedAsWritten() {
+        // A spreadsheet that takes 00100 for a number saves it as 100. Which code was meant is not
+        // this tool's to decide, so nothing is put back. It is said, with the codes.
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA\n100,Y\n1999,N\n00100,Y\n99213,N\nE0601,N\n7,Y\n100,N\n0450,N\n");
+        assertThat(service.rowsFor("100", null, null)).hasSize(2);
+        assertThat(service.rowsFor("00100", null, null)).singleElement().satisfies(row -> assertThat(row.code()).isEqualTo("00100"));
+        assertThat(service.selfCheck().rowCount()).isEqualTo(8);
+        assertThat(service.selfCheck().warnings()).containsExactly("The code column holds codes that are all digits and shorter than five "
+                + "digits: \"100\" (2 rows), \"1999\" (1 row), \"7\" (1 row) and \"0450\" (1 row). If they are meant to be five digit codes, "
+                + "their leading zeros were lost on the way, which is what a spreadsheet does to a code it takes for a number. They are "
+                + "served as written.");
+        // Five digits, or a letter anywhere, and nothing is said.
+        assertThat(TestCodeLists.csv(directory, "Code,PA\n00100,Y\n99213,N\nE0601,N\n0001F,N\nA1,Y\n").selfCheck().warnings()).isEmpty();
+    }
+
+    @Test
+    void aCodeWithASpaceOrAnUnseenCharacterInsideItIsReportedBecauseNobodyWillTypeIt() {
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA,Notes\nE 0601,Y,r1\nE06\u200B01,N,r2\nE0601,N,r3\n");
+        // Served as written: the two odd codes are their own codes, and only the clean one is found by typing it.
+        assertThat(service.search("E0601", null, 10)).extracting(ProcedureCode::notes).containsExactly("r3");
+        assertThat(service.rowsFor("E0601", null, null)).extracting(ProcedureCode::notes).containsExactly("r3");
+        assertThat(service.rowsFor("E 0601", null, null)).extracting(ProcedureCode::notes).containsExactly("r1");
+        assertThat(service.selfCheck().warnings()).containsExactly("The code column holds codes with a space or an unseen character inside "
+                + "them: \"E 0601\" (1 row) and \"E06<U+200B>01\" (1 row). They are served as written, so a tester who types the code without "
+                + "it will not find the row.");
+    }
+
     // ---- rows of the wrong width, and quoting that went wrong ----
 
     @Test
@@ -363,8 +391,36 @@ class ProcedureCodeServiceRowsTest {
         assertThat(only(service, "A3").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
         assertThat(only(service, "A4").description()).isEqualTo("quoted, again");
         assertThat(only(service, "A2").description()).isEqualTo("\"never closed");
-        assertThat(service.selfCheck().warnings()).singleElement().asString()
-                .startsWith("The double quote that opens a cell on line 3 has no closing quote that ends the cell.");
+        assertThat(service.selfCheck().warnings()).containsExactly("1 double quote opens a cell and has no closing quote that ends it: "
+                + "line 3. It was read as an ordinary character, so that row may not be what the file meant. A cell that starts with a "
+                + "double quote must end with one, and a double quote inside it is written twice.");
+    }
+
+    @Test
+    void theSameMistakeOnManyLinesIsOneWarningThatListsTheLines() {
+        // An export written by joining strings gets its quoting wrong on every row that needs any.
+        // Seven thousand warnings would bury everything else the self-check has to say.
+        StringBuilder csv = new StringBuilder("Code,Description,PA\n");
+        for (int i = 1; i <= 15; i++) {
+            csv.append("U").append(i).append(",\"never closed,Y\n");
+        }
+        for (int i = 1; i <= 12; i++) {
+            csv.append("S").append(i).append(",\"a \"marked\" word\",N\n");
+        }
+        ProcedureCodeService service = TestCodeLists.csv(directory, csv.toString());
+
+        assertThat(service.selfCheck().rowCount()).isEqualTo(27);
+        assertThat(service.selfCheck().warnings()).containsExactly(
+                "15 double quotes open a cell and have no closing quote that ends it: lines 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 and 5 more. "
+                        + "Each was read as an ordinary character, so those rows may not be what the file meant. A cell that starts "
+                        + "with a double quote must end with one, and a double quote inside it is written twice.",
+                "On 12 lines text follows the closing double quote of a cell: lines 17, 18, 19, 20, 21, 22, 23, 24, 25, 26 and 2 more. "
+                        + "The cells were kept as written, but the rows may not be what the file meant. Inside a quoted cell a double "
+                        + "quote is written twice.");
+        // Every row is still its own row, with its own flag.
+        assertThat(only(service, "U15").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(only(service, "S1").authRequired()).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        assertThat(only(service, "S12").description()).isEqualTo("a \"marked\" word\"");
     }
 
     @Test
@@ -373,8 +429,9 @@ class ProcedureCodeServiceRowsTest {
         assertThat(only(service, "E2601").description()).isEqualTo("Cushion, 22\" wide\"");
         assertThat(only(service, "E2601").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
         assertThat(service.selfCheck().rowCount()).isEqualTo(2);
-        assertThat(service.selfCheck().warnings()).singleElement().asString()
-                .startsWith("On line 2 text follows the closing double quote of a cell.");
+        assertThat(service.selfCheck().warnings()).containsExactly("On 1 line text follows the closing double quote of a cell: line 2. "
+                + "The cell was kept as written, but the row may not be what the file meant. Inside a quoted cell a double quote is "
+                + "written twice.");
     }
 
     @Test
