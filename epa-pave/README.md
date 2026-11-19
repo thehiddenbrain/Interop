@@ -1210,18 +1210,21 @@ as not done is repeated below.
   proxy. The Gradle cache already held the dependencies, so how long a first download takes was not
   measured.
 - **Fresh clone:** the branch was cloned into a new directory, twice, and `./gradlew clean build`
-  ran in each: 1,844 tests passed, 2 skipped, 0 failed, both times. The clone was made from a local copy of the branch,
-  because the `epa-pave` branch on GitHub did not yet hold this work; `git clone` from GitHub
-  itself was not run.
+  ran in each: 1,844 tests passed, 2 skipped, 0 failed, both times. After a newcomer's reading
+  of this README was answered, a third fresh clone built the same way (1,846 tests, 2 skipped, 0
+  failed). The clones were made from a local copy of the branch. `git clone --branch epa-pave`
+  from GitHub was run too, on 2026-11-19: it gave commit `44c7760`, whose `epa-pave/` holds no
+  README, `run.sh`, `run.cmd` or `samples/` (see step 2).
 - **`run.sh`** was started from another directory with the jar missing: it built the jar, started on
   the mock profile on port 8057, `curl -s localhost:8057/api/mode` answered as shown in step 5, and
   it was stopped. `./run.sh live` was started the same way on another port and stopped. Its refusal
   of Java 8 and of an unknown profile was checked.
 - **Every `curl` example under [Endpoints](#endpoints)** was run against the second fresh clone,
-  started with `./run.sh` on port 8057, in order, and answered the status in its comment: 63
-  examples, none different. `./run.sh mock --codelist.file=samples/codelist/sample-code-list.csv`
+  started with `./run.sh` on port 8057, in order, and answered the status in its comment: 66
+  examples, none different, on the third clone. `./run.sh mock --codelist.file=samples/codelist/sample-code-list.csv`
   and `./run.sh mock --server.port=8091` were run too.
 - **Observed on the running tool, as quoted above:** the production guardrail (floor, unlock, a
   second session, switching), the host and origin checks, the receiver, the ledger contents, the
-  lookups and the code list self-check.
+  lookups, the code list self-check, `POST /api/raw` sending no saved body, a key in a url shown
+  as written, `{{$randomInt}}` refused, and an unresolved url ignored on mock and refused on live.
 - **Not checked:** the screens, `run.cmd`, STS, a credentialed mirror, a token server, Onyx.
