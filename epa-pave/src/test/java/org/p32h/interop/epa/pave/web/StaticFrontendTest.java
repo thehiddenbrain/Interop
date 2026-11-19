@@ -119,8 +119,9 @@ class StaticFrontendTest {
         assertThat(page.getStatus()).isEqualTo(200);
         assertThat(page.getContentType()).startsWith("text/html");
         assertThat(page.getContentAsString()).contains("<title>PAVE");
-        // An edited file must show on refresh, and the page must carry the policy that keeps vendor text inert.
-        assertThat(page.getHeader("Cache-Control")).isEqualTo("no-cache");
+        // Nothing this tool serves is kept by the browser, so an edited file shows on refresh (D-127), and the page
+        // must carry the policy that keeps vendor text inert.
+        assertThat(page.getHeader("Cache-Control")).isEqualTo("no-store");
         assertThat(page.getHeader("Content-Security-Policy")).contains("script-src 'self'");
 
         List<Source> scripts = sources(".js");
