@@ -179,13 +179,67 @@ class DestinationGuardrailTest {
             byte[] again = ("{\"name\": \"pave-sandbox-2\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + SANDBOX + "\"}, "
                     + "{\"key\": \"callbackUrl\", \"value\": \"" + callback + "\"}]}").getBytes(StandardCharsets.UTF_8);
             assertThatThrownBy(() -> fixture.store.uploadEnvironment("env.json", again, EnvironmentKind.SANDBOX, true)).as(profile)
-                    .isInstanceOf(ValidationException.class).hasMessageContaining("belongs to the production environment \"vendor-live\"");
+                    .isInstanceOf(ValidationException.class).hasMessage("This environment was declared as sandbox, and its address "
+                            + "https://callback.example.invalid/api/pas/notifications is an address of the production environment "
+                            + "\"vendor-live\", or lies above or beneath one. It was not stored.");
         }
         assertThat(ProductionDestinations.notACall("callbackUrl")).isTrue();
         assertThat(ProductionDestinations.notACall("OAuth2TokenURL")).isTrue();
         assertThat(ProductionDestinations.notACall("baseUrl")).isFalse();
         assertThat(ProductionDestinations.notACall("pasBaseUrl")).isFalse();
         assertThat(ProductionDestinations.notACall("fhirServer")).isFalse();
+    }
+
+    @Test
+    void aSecretOfAProductionEnvironmentIsNeverShownOrKeptAsPartOfItsAddress() throws IOException {
+        for (String profile : PROFILES) {
+            Path shared = directory.resolve("secret-" + profile);
+            ConfigFixture fixture = ConfigFixture.on(shared).mode(profile).allowProdWrites().build();
+            fixture.store.uploadEnvironment("p.json", ("{\"name\": \"prod-secret-path\", \"values\": [{\"key\": \"baseUrl\", \"value\": "
+                    + "\"http://127.0.0.1:18473/{{tenantKey}}/live\"}, {\"key\": \"tenantKey\", \"value\": \"ZZTENANTKEY-51\", \"type\": "
+                    + "\"secret\"}]}").getBytes(StandardCharsets.UTF_8), EnvironmentKind.PROD, false);
+            fixture.store.uploadEnvironment("h.json", ("{\"name\": \"prod-secret-host\", \"values\": [{\"key\": \"baseUrl\", \"value\": "
+                    + "\"https://{{gatewayHost}}/fhir\"}, {\"key\": \"gatewayHost\", \"value\": \"zzhost-52.example.invalid\", \"type\": "
+                    + "\"secret\"}]}").getBytes(StandardCharsets.UTF_8), EnvironmentKind.PROD, false);
+
+            // The path ends before the secret, which errs toward production. The host built from a secret, and the secret
+            // whose own value is a host, are listed and not shown.
+            ConfigViews.ProductionDestinationView hidden = new ConfigViews.ProductionDestinationView("prod-secret-host", "an address whose "
+                    + "host is built from a secret of the environment, not shown", true);
+            assertThat(fixture.service.environments().productionDestinations()).as(profile).containsExactly(
+                    new ConfigViews.ProductionDestinationView("prod-secret-path", "http://127.0.0.1:18473", true), hidden, hidden);
+            assertThat(fixture.service.effective(null).productionDestinations().toString()).as(profile)
+                    .doesNotContain("ZZTENANTKEY-51").doesNotContain("zzhost-52");
+            String state = Files.readString(shared.resolve(ConfigStore.STATE_FILE));
+            assertThat(state).as(profile).doesNotContain("ZZTENANTKEY-51").doesNotContain("zzhost-52")
+                    .contains("\"destination\" : \"http://127.0.0.1:18473\"");
+
+            // Both are still judged by: a sandbox cannot take either address.
+            for (String address : List.of("http://127.0.0.1:18473/other", "https://zzhost-52.example.invalid/fhir")) {
+                byte[] copy = ("{\"name\": \"copy\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + address + "\"}]}")
+                        .getBytes(StandardCharsets.UTF_8);
+                assertThatThrownBy(() -> fixture.store.uploadEnvironment("copy.json", copy, EnvironmentKind.SANDBOX, true)).as(profile)
+                        .isInstanceOf(ValidationException.class);
+            }
+        }
+    }
+
+    @Test
+    void anAudienceOrAPortalAddressOfProductionDoesNotMakeItsWholeHostProduction() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = on(profile).allowProdWrites().build();
+            fixture.environmentOf("vendor-live-aud", EnvironmentKind.PROD, "baseUrl", LIVE, "audience", "http://127.0.0.1:18471",
+                    "tokenAudience", "http://127.0.0.1:18471/", "portalUrl", "http://127.0.0.1:18471/", "docsUrl", "http://127.0.0.1:18471/docs");
+            assertThat(fixture.service.environments().productionDestinations()).as(profile)
+                    .containsExactly(new ConfigViews.ProductionDestinationView("vendor-live-aud", LIVE, true));
+            // A sandbox on the same host under another path is stored, and writes to it go.
+            fixture.environmentOf("sbx-on-prod-host", EnvironmentKind.SANDBOX, "baseUrl", "http://127.0.0.1:18471/sandbox");
+            fixture.store.activate("sbx-on-prod-host");
+            fixture.collection(org.p32h.interop.epa.pave.postman.PostmanFiles.VENDOR_COLLECTION);
+            assertThat(fixture.gateway.prepare(submit()).url().value()).as(profile).isEqualTo("http://127.0.0.1:18471/sandbox/Claim/$submit");
+        }
+        assertThat(ProductionDestinations.notACall("audience")).isTrue();
+        assertThat(ProductionDestinations.notACall("developerPortalUrl")).isTrue();
     }
 
     // ------------------------------------------------------------------------------------------
@@ -279,8 +333,9 @@ class DestinationGuardrailTest {
                 for (EnvironmentKind kind : List.of(EnvironmentKind.SANDBOX, EnvironmentKind.UAT)) {
                     assertThatThrownBy(() -> fixture.store.uploadEnvironment("env.json", file, kind, true)).as(profile)
                             .isInstanceOfSatisfying(ValidationException.class, e -> {
-                                assertThat(e.getMessage()).isEqualTo("This environment was declared as " + kind.wire() + ", and one of "
-                                        + "its addresses belongs to the production environment \"vendor-live-two\". It was not stored.");
+                                assertThat(e.getMessage()).isEqualTo("This environment was declared as " + kind.wire() + ", and its "
+                                        + "address " + LIVE_TWO + " is an address of the production environment \"vendor-live-two\", or "
+                                        + "lies above or beneath one. It was not stored.");
                                 assertThat(e.fieldErrors().get(0).field()).isEqualTo("kind");
                             });
                 }
@@ -368,7 +423,7 @@ class DestinationGuardrailTest {
                 for (boolean confirmed : new boolean[] {false, true}) {
                     assertThatThrownBy(() -> fixture.store.uploadEnvironment("copy.json", copy, EnvironmentKind.SANDBOX, confirmed))
                             .as(profile + " " + form).isInstanceOf(ValidationException.class)
-                            .hasMessageContaining("belongs to the production environment \"vendor-live-two\"");
+                            .hasMessageContaining("is an address of the production environment \"vendor-live-two\"");
                 }
             }
             // At write, as a literal of a collection: from the other production environment unlocked, and from a sandbox.

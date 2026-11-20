@@ -490,16 +490,23 @@ public class ConfigStore {
      */
     private static void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
-        for (org.p32h.interop.epa.pave.postman.UrlNormal.Destination destination : ProductionDestinations.of(parsed,
-                ProductionDestinations.urlForming(before.collections()))) {
-            owners.addAll(before.productionOverlaps(destination));
+        String shown = null;
+        for (ProductionDestinations.Found found : ProductionDestinations.of(parsed, ProductionDestinations.urlForming(before.collections()))) {
+            List<String> overlapping = before.productionOverlaps(found.destination());
+            if (!overlapping.isEmpty() && shown == null && !found.secret()) {
+                shown = found.destination().shown();
+            }
+            owners.addAll(overlapping);
         }
         if (owners.isEmpty()) {
             return;
         }
         String named = owners.stream().map(owner -> "\"" + oneLine(owner) + "\"").collect(java.util.stream.Collectors.joining(" and "));
-        throw new ValidationException("This environment was declared as " + kind.wire() + ", and one of its addresses belongs to the "
-                + "production environment " + named + ". It was not stored.", List.of(new FieldError("kind", "An address that this "
+        // The address is quoted only when no secret is part of it, and only as far as the first secret.
+        String address = shown == null ? "one of its addresses" : "its address " + oneLine(shown);
+        throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + address + " is an address of the "
+                + "production environment" + (owners.size() > 1 ? "s " : " ") + named + ", or lies above or beneath one. It was not stored.",
+                List.of(new FieldError("kind", "An address that this "
                 + "installation knows as production stays production, even after its environment is deleted. If this environment is "
                 + "production, upload it with the kind prod. If it is not, point its variables at the " + kind.wire()
                 + " service and upload it again.")));
@@ -684,6 +691,10 @@ public class ConfigStore {
         // production forgettable. Scheme, host, port and path only: never a query or user information.
         ArrayNode known = root.putArray("productionDestinations");
         for (ConfigSnapshot.KnownDestination destination : snapshot.remembered()) {
+            if (destination.secret()) {
+                // Built from a secret of the environment, which this file must not hold.
+                continue;
+            }
             ObjectNode entry = known.addObject();
             entry.put("environment", destination.environment());
             entry.put("destination", destination.destination().shown());

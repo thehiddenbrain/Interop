@@ -314,7 +314,9 @@ public class ConfigService {
         List<ConfigViews.ProductionDestinationView> views = new ArrayList<>();
         for (ConfigSnapshot.KnownDestination known : snapshot.remembered()) {
             StoredEnvironment stored = snapshot.byName(known.environment());
-            views.add(new ConfigViews.ProductionDestinationView(known.environment(), known.destination().shown(),
+            // A destination whose host or port is built from a secret is listed without it.
+            views.add(new ConfigViews.ProductionDestinationView(known.environment(), known.secret()
+                    ? "an address whose host is built from a secret of the environment, not shown" : known.destination().shown(),
                     stored != null && stored.kind() == org.p32h.interop.epa.pave.model.EnvironmentKind.PROD));
         }
         return views;

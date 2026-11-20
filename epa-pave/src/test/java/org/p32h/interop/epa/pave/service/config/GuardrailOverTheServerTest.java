@@ -197,7 +197,7 @@ class GuardrailOverTheServerTest {
         HttpResponse<String> relabelled = upload("/api/config/environments", "live2.json", environment("vendor-live-two", liveTwo),
                 "kind", "sandbox", "acknowledgeNotProd", "true");
         assertThat(relabelled.statusCode()).isEqualTo(422);
-        assertThat(relabelled.body()).contains("belongs to the production environment \\\"vendor-live-two\\\"");
+        assertThat(relabelled.body()).contains("is an address of the production environment \\\"vendor-live-two\\\"");
         assertThat(json("GET", "/api/config/environments", null, null).body()).contains("\"productionDestinations\"")
                 .contains("{\"environment\":\"vendor-live-two\",\"destination\":\"" + liveTwo + "\",\"stored\":false}");
 

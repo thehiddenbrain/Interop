@@ -458,8 +458,8 @@ class ConfigStoreTest {
         for (boolean acknowledged : new boolean[] {false, true}) {
             assertThatThrownBy(() -> fixture.store.uploadEnvironment("live.json", file, EnvironmentKind.SANDBOX, acknowledged))
                     .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.getMessage()).isEqualTo("This environment was "
-                            + "declared as sandbox, and one of its addresses belongs to the production environment \"Payer Live\". It was "
-                            + "not stored."));
+                            + "declared as sandbox, and its address https://api.example.invalid/fhir is an address of the production "
+                            + "environment \"Payer Live\", or lies above or beneath one. It was not stored."));
         }
         assertThat(fixture.store.snapshot().active().kind()).isEqualTo(EnvironmentKind.PROD);
 

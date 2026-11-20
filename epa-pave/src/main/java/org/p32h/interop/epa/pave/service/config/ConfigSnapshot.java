@@ -35,8 +35,8 @@ record ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String a
         Set<String> urlForming = ProductionDestinations.urlForming(collections);
         for (StoredEnvironment environment : environments) {
             if (environment.kind() == EnvironmentKind.PROD) {
-                for (UrlNormal.Destination destination : ProductionDestinations.of(environment.content(), urlForming)) {
-                    all.add(new KnownDestination(environment.name(), destination));
+                for (ProductionDestinations.Found found : ProductionDestinations.of(environment.content(), urlForming)) {
+                    all.add(new KnownDestination(environment.name(), found.destination(), found.secret()));
                 }
             }
         }
@@ -52,8 +52,21 @@ record ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String a
      *
      * @param environment the production environment it belongs or belonged to
      * @param destination scheme, host, port and base path
+     * @param secret      true when a secret of that environment is part of its host or port. It is
+     *                    judged by while it is known, never shown, and never written to the store,
+     *                    so it is forgotten at a restart once its environment is gone
      */
-    record KnownDestination(String environment, UrlNormal.Destination destination) {
+    record KnownDestination(String environment, UrlNormal.Destination destination, boolean secret) {
+
+        KnownDestination(String environment, UrlNormal.Destination destination) {
+            this(environment, destination, false);
+        }
+
+        /** Prints the environment only: the destination can be one built from a secret. */
+        @Override
+        public String toString() {
+            return "KnownDestination[" + environment + (secret ? ", secret" : "") + "]";
+        }
     }
 
     /** The production environments, stored or remembered, whose destinations cover this one. Empty when none does. */

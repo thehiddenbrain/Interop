@@ -882,8 +882,9 @@ class ProductionGuardrailTest {
             for (boolean acknowledged : new boolean[] {false, true}) {
                 assertThatThrownBy(() -> fixture.store.uploadEnvironment("production.json", file, EnvironmentKind.SANDBOX, acknowledged))
                         .as(profile).isInstanceOf(ValidationException.class)
-                        .hasMessage("This environment was declared as sandbox, and one of its addresses belongs to the production "
-                                + "environment \"Onyx Production\". It was not stored.");
+                        .hasMessageStartingWith("This environment was declared as sandbox, and its address ")
+                        .hasMessageEndingWith(" is an address of the production environment \"Onyx Production\", or lies above or "
+                                + "beneath one. It was not stored.");
             }
 
             // The refused upload changed nothing: it is still production, and still blocked.

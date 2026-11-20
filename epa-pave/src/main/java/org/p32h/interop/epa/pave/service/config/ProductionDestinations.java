@@ -31,6 +31,12 @@ import org.p32h.interop.epa.pave.postman.VariableResolver;
  * other environment they are compared with those, so that production cannot be uploaded again
  * under a sandbox's kind. Nothing from outside the environment is used: not the operating system,
  * whose values are secrets, and not a value typed for a run.
+ *
+ * <p>A secret of the environment never becomes part of an address that is shown or kept. Where a
+ * secret sits in the path, the address ends before the segment that holds it, which is broader
+ * and so errs toward production. Where a secret sits in the host or the port, the address is used
+ * for judging while that environment is stored and is marked as secret, so that no view shows it
+ * and the store never writes it down.
  */
 final class ProductionDestinations {
 
@@ -40,16 +46,34 @@ final class ProductionDestinations {
     private ProductionDestinations() {
     }
 
-    /** Words that name an address requests are not sent to as calls. */
+    /**
+     * Words that name an address requests are not sent to as calls: a callback, an authentication
+     * endpoint, the audience a token is issued for, a page for people to read.
+     */
     private static final Set<String> NOT_A_CALL = Set.of("callback", "callbacks", "notification", "notifications", "notify",
-            "webhook", "webhooks", "redirect", "token", "oauth", "oauth2", "auth", "login", "issuer", "jwks", "sso", "idp", "openid");
+            "webhook", "webhooks", "redirect", "token", "oauth", "oauth2", "auth", "login", "issuer", "jwks", "sso", "idp", "openid",
+            "audience", "aud", "authority", "realm", "scope", "scopes", "docs", "doc", "documentation", "portal", "homepage", "website",
+            "help", "support", "logo", "terms", "privacy");
+
+    /** Stands in for the text of a secret, so that where a secret starts in a value is known exactly. */
+    private static final char SECRET_MARK = '\u0001';
+
+    /**
+     * One destination of an environment.
+     *
+     * @param destination scheme, host, port and base path
+     * @param secret      true when a secret of the environment is part of the host or the port, so
+     *                    the destination may be used for judging and is never shown or kept
+     */
+    record Found(UrlNormal.Destination destination, boolean secret) {
+    }
 
     /**
      * @param urlForming the names of variables that a collection request puts where its url names
      *                   its scheme, host and port. Such a variable is a destination whatever its name says
      */
-    static List<UrlNormal.Destination> of(PostmanEnvironment environment, Set<String> urlForming) {
-        Set<UrlNormal.Destination> found = new LinkedHashSet<>();
+    static List<Found> of(PostmanEnvironment environment, Set<String> urlForming) {
+        Set<Found> found = new LinkedHashSet<>();
         if (environment == null) {
             return List.of();
         }
@@ -64,12 +88,59 @@ final class ProductionDestinations {
             if (value == null || !ProductionSigns.looksLikeUrl(value)) {
                 continue;
             }
-            UrlNormal.Destination destination = UrlNormal.destination(value);
+            // A secret whose own value is an address is judged by and never shown or kept, like a
+            // host built from one.
+            UrlNormal.Destination whole = variable.secret() ? UrlNormal.destination(value) : null;
+            Found destination = variable.secret() ? (whole == null ? null : new Found(whole, true)) : withoutSecrets(resolved, value);
             if (destination != null) {
                 found.add(destination);
             }
         }
         return new ArrayList<>(found);
+    }
+
+    /** The destinations alone, for comparing with the addresses another environment would use. */
+    static List<UrlNormal.Destination> destinations(PostmanEnvironment environment, Set<String> urlForming) {
+        return of(environment, urlForming).stream().map(Found::destination).toList();
+    }
+
+    /**
+     * The destination of a resolved value with every secret left out of it: the path ends before
+     * the segment where the first secret starts, and a secret in the host or the port marks the
+     * whole destination as secret.
+     */
+    private static Found withoutSecrets(Resolution resolved, String value) {
+        StringBuilder marked = new StringBuilder();
+        for (Resolution.Piece piece : resolved.pieces()) {
+            marked.append(piece.kind() == Resolution.Kind.SECRET ? String.valueOf(SECRET_MARK) : piece.send());
+        }
+        String text = marked.toString();
+        if (text.indexOf(SECRET_MARK) < 0) {
+            UrlNormal.Destination destination = UrlNormal.destination(value);
+            return destination == null ? null : new Found(destination, false);
+        }
+        int markedEnd = authorityEnd(text);
+        boolean inHost = text.substring(0, markedEnd).indexOf(SECRET_MARK) >= 0;
+        String path = text.substring(markedEnd);
+        int mark = path.indexOf(SECRET_MARK);
+        if (mark >= 0) {
+            int slash = path.lastIndexOf('/', mark);
+            path = slash < 0 ? "" : path.substring(0, slash);
+        }
+        // With a secret in the host, the host is read from the value as sent; it is never shown.
+        String authority = inHost ? value.substring(0, authorityEnd(value)) : text.substring(0, markedEnd);
+        UrlNormal.Destination destination = UrlNormal.destination(authority + path);
+        return destination == null ? null : new Found(destination, inHost);
+    }
+
+    /** Where the scheme and the authority of a url end: the first slash, question mark or hash after {@code ://}, or the end. */
+    private static int authorityEnd(String url) {
+        int scheme = url.indexOf("://");
+        int at = scheme < 0 ? 0 : scheme + 3;
+        while (at < url.length() && "/?#".indexOf(url.charAt(at)) < 0) {
+            at++;
+        }
+        return at;
     }
 
     /**
