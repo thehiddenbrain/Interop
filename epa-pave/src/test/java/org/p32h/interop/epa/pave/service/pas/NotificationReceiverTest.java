@@ -124,6 +124,32 @@ class NotificationReceiverTest {
         return submitted.ledger().record().correlation().get(RunRecord.CORR_CLAIM_RESPONSE_ID);
     }
 
+    // ---- a credential of the address to call back ----
+
+    @Test
+    void aNotificationThatRepeatsACredentialOfTheAddressToCallBackShowsItsMaskEverywhere() {
+        gateway.variable("receiverToken", "placeholder-receiver-token-777777");
+        NotificationReceiver masking = new NotificationReceiver(gateway, support, ledgerProvider(), scenarios);
+        masking.callbackAddress(OnyxProperties.of(Map.of("subscription.callback-url",
+                "https://pave.example.invalid/api/pas/notifications/{{receiverToken}}?access_token=placeholder-literal-cb-888888&tenant=t1")));
+        String body = bundle(status(SUBSCRIPTION, "event-notification"), NotificationJson.claimResponse("cr-echo-1", null, "A1",
+                "\"disposition\":\"echo placeholder-literal-cb-888888 and placeholder-receiver-token-777777\""));
+        NotificationView view = masking.receive(NotificationReceiver.Inbound.of(body));
+
+        String shown = JsonSafe.mapper().writeValueAsString(view);
+        assertThat(shown).doesNotContain("placeholder-literal-cb-888888").doesNotContain("placeholder-receiver-token-777777")
+                .contains(org.p32h.interop.epa.pave.model.Secrets.mask("access_token"))
+                .contains(org.p32h.interop.epa.pave.model.Secrets.mask("receiverToken"));
+        assertThat(view.payloadNotes()).contains("2 places in this payload are masked because they repeat a credential of the address this "
+                + "tool gives the service to call back. What is shown is therefore not exactly what was received.");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.records())).doesNotContain("placeholder-literal-cb")
+                .doesNotContain("placeholder-receiver-token");
+        // The receiver built without the address masks nothing, and says nothing about masking.
+        NotificationView plain = receiver.receive(NotificationReceiver.Inbound.of(body));
+        assertThat(plain.payload()).contains("placeholder-literal-cb-888888");
+        assertThat(plain.payloadNotes()).noneMatch(note -> note.contains("masked"));
+    }
+
     // ---- correlation ----
 
     @Test

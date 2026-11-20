@@ -129,8 +129,9 @@ public class CrdService {
                 unreadableOnMock = epa.mock();
             }
         } else {
-            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), call::resolve);
-            body = ResolvedText.plain(built.json());
+            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads);
+            body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             orders = built.orders();
             incomplete = built.incomplete();
@@ -279,8 +280,9 @@ public class CrdService {
         } else {
             // A real id, so a preview sent as the tester's own body is a valid request. The note says it is not the one a run sends.
             String hookInstance = UUID.randomUUID().toString();
-            CrdRequestBuilder.Built built = builder.build(request, hookInstance, call::resolve);
-            body = built.json();
+            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads);
+            body = reads.shown(built.json());
             notes = new ArrayList<>(built.notes());
             notes.add("The hookInstance " + hookInstance + " was made for this preview. A new one is made each time the request is sent.");
         }

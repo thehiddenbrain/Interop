@@ -171,6 +171,70 @@ public final class CaseResources {
      *
      * @param variables resolves text holding placeholders, as a prepared call does
      */
+    /**
+     * Resolves variables for a builder and remembers each secret one it reads, so that the body
+     * built from them can be shown with every such value masked.
+     *
+     * <p>A body this tool builds is otherwise shown exactly as it is sent, and so is taken to hold
+     * no secret: the wire view then shows a secret variable the builder wrote into it, and a
+     * service that repeats that value is shown repeating it everywhere. {@link #body} gives the
+     * shown form its masks and names the secret variables it used, which is what lets the
+     * response be searched for them, as it is for a secret resolved into a collection's body.
+     */
+    public static Reads reading(Function<String, ResolvedText> variables) {
+        return new Reads(variables);
+    }
+
+    /** See {@link #reading}. Used for one body. */
+    public static final class Reads implements Function<String, ResolvedText> {
+
+        private final Function<String, ResolvedText> variables;
+        private final Map<String, String> secrets = new java.util.LinkedHashMap<>();
+        private final List<org.p32h.interop.epa.pave.model.VariableUse> uses = new java.util.ArrayList<>();
+
+        private Reads(Function<String, ResolvedText> variables) {
+            this.variables = variables;
+        }
+
+        @Override
+        public ResolvedText apply(String template) {
+            ResolvedText resolved = variables == null ? null : variables.apply(template);
+            if (resolved == null || !resolved.resolved() || resolved.value() == null) {
+                return resolved;
+            }
+            for (org.p32h.interop.epa.pave.model.VariableUse use : resolved.variables()) {
+                // Only a read of one variable alone tells its value apart from the text around it.
+                if (use.secret() && template != null && template.strip().equals("{{" + use.name() + "}}") && !secrets.containsKey(use.name())) {
+                    secrets.put(use.name(), resolved.value());
+                    uses.add(use);
+                }
+            }
+            return resolved;
+        }
+
+        /** The built body, sent as built and shown with each secret value this builder read masked. */
+        public ResolvedText body(String json) {
+            if (json == null || secrets.isEmpty()) {
+                return ResolvedText.plain(json);
+            }
+            String shown = json;
+            for (Map.Entry<String, String> secret : secrets.entrySet()) {
+                if (secret.getValue().isEmpty()) {
+                    continue;
+                }
+                String written = JsonNodeFactory.instance.stringNode(secret.getValue()).toString();
+                String escaped = written.substring(1, written.length() - 1);
+                shown = shown.replace(escaped, org.p32h.interop.epa.pave.model.Secrets.mask(secret.getKey()));
+            }
+            return new ResolvedText(json, shown, json, uses, List.of());
+        }
+
+        /** The built body as it may be shown, for a preview. */
+        public String shown(String json) {
+            return body(json).display();
+        }
+    }
+
     public static String value(Function<String, ResolvedText> variables, String name) {
         ResolvedText resolved = variables == null ? null : variables.apply("{{" + name + "}}");
         return resolved != null && resolved.resolved() ? Texts.trimToNull(resolved.value()) : null;
