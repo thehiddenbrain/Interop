@@ -11,6 +11,7 @@ import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButt
 import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {outcome, stamp, slowFlag} from './marks.js';
 import {errorPanel} from './result.js';
+import {runLink, suiteRunsLink} from './history-common.js';
 
 const POLL_MILLIS = 1000;
 
@@ -30,7 +31,7 @@ const TEMPLATE = [
 const COUNT_FILTERS = [
     ['passed', 'Passed', row => row.status === 'COMPLETED' && row.result === 'pass'],
     ['failed', 'Failed', row => row.status === 'COMPLETED' && row.result === 'fail'],
-    ['unverified', 'Unverified', row => row.status === 'COMPLETED' && row.result !== 'pass' && row.result !== 'fail'],
+    ['unverified', 'Unverified', row => row.status === 'COMPLETED' && row.result === 'unverified'],
     ['blocked', 'Blocked', row => row.status === 'BLOCKED'],
     ['invalid', 'Not valid', row => row.status === 'INVALID'],
     ['notConfigured', 'Not configured', row => row.status === 'NOT_CONFIGURED'],
@@ -43,7 +44,8 @@ const COUNT_FILTERS = [
     ['notRecorded', 'Runs NOT recorded', row => (row.notRecorded || []).length > 0]
 ];
 
-export function createSuites(app) {
+export function createSuites(app, context) {
+    const health = context.health;
     let run = null;            // the suite run on screen, with its rows
     let filter = null;         // {key, label, test} or null for every row
     let timer = null;
@@ -56,9 +58,13 @@ export function createSuites(app) {
     const compare = selectField({label: 'Compare with an earlier run', field: 'compareWith', options: [{value: '', label: 'No comparison'}],
         hint: 'Each case then shows what it produced last time.'});
     const start = button('Run suite', startRun, {class: 'button--primary', disabled: true});
+    // Why Run suite cannot be chosen now, beside it, so a greyed button is never left unexplained.
+    const startWhy = el('span', {class: 'small quiet suites__why'});
+    let previewRunnable = false;
     const problem = el('div', {aria: {live: 'polite'}});
-    const previewBox = el('div', {class: 'suite-preview', aria: {live: 'polite'}});
-    const earlier = el('div', {class: 'suite-earlier', aria: {live: 'polite'}});
+    // The preview and the list are long and redrawn whole, so they are not live regions. What changed is announced in a sentence.
+    const previewBox = el('div', {class: 'suite-preview'});
+    const earlier = el('div', {class: 'suite-earlier'});
     const runBox = el('div', {class: 'suite-run'});
 
     // The results table needs the whole width of the window, so this view is one column: what to
@@ -73,7 +79,7 @@ export function createSuites(app) {
             compare.node),
         previewBox,
         problem,
-        el('div', {class: 'button-row'}, start));
+        el('div', {class: 'button-row'}, start, startWhy));
     const node = el('div', {class: 'suites'},
         el('div', {class: 'suites__top'}, form,
             el('div', {class: 'suites__held'}, el('h2', {class: 'case-legend'}, 'Suite runs the tool holds'), earlier)),
@@ -94,7 +100,8 @@ export function createSuites(app) {
         clearFieldErrors(form);
         clear(problem);
         clear(previewBox);
-        start.disabled = true;
+        previewRunnable = false;
+        drawStart();
         if (file.files.length === 0) {
             return;
         }
@@ -116,7 +123,9 @@ export function createSuites(app) {
         const rowProblems = seen.rowProblems || [];
         const kinds = seen.kinds || [];
         const columns = seen.columns || [];
-        start.disabled = !seen.runnable;
+        previewRunnable = Boolean(seen.runnable);
+        drawStart();
+        context.announce('File read. ' + seen.headline);
         fill(previewBox,
             el('p', {class: 'suite-preview__headline'}, seen.headline),
             problems.length > 0 ? el('div', {class: 'form-problem'},
@@ -144,6 +153,14 @@ export function createSuites(app) {
 
     /* ---------- starting, following and stopping a run ---------- */
 
+    /** Run suite is offered when a file that can run has been read and no suite run is under way. */
+    function drawStart() {
+        const busy = Boolean(run) && run.state === 'RUNNING';
+        start.disabled = busy || !previewRunnable;
+        startWhy.textContent = busy ? 'A suite is running. Stop it, or wait for it to finish, before starting another.'
+            : (!previewRunnable && file.files.length > 0 ? 'This file cannot be run as it is: see above.' : '');
+    }
+
     async function startRun() {
         clearFieldErrors(form);
         clear(problem);
@@ -162,8 +179,9 @@ export function createSuites(app) {
         data.append('configEpoch', String(app.epoch()));
         start.disabled = true;
         const answer = await api.postForm('/api/suites', data);
-        start.disabled = false;
+        drawStart();
         if (answer.kind === 'ok') {
+            context.announce('Suite started. ' + (answer.body.headline || ''));
             show(answer.body);
             runBox.scrollIntoView({block: 'start'});
             loadEarlier();
@@ -202,7 +220,7 @@ export function createSuites(app) {
                 fill(runBox, errorPanel(brief.body));
                 return;
             }
-            if (brief.body.counts.done !== lastDone || brief.body.state !== 'RUNNING') {
+            if (brief.body.counts.done !== lastDone || brief.body.state !== 'RUNNING' || brief.body.headline !== run.headline) {
                 await open(run.suiteRunId, true);
             } else {
                 follow();
@@ -218,21 +236,31 @@ export function createSuites(app) {
             return;
         }
         const kept = keepFilter ? filter : null;
+        const wasRunning = Boolean(run) && run.suiteRunId === answer.body.suiteRunId && run.state === 'RUNNING';
         run = answer.body;
         filter = kept;
         lastDone = run.counts.done;
         drawRun();
+        if (wasRunning && run.state !== 'RUNNING') {
+            context.announce(run.counts.notRecorded > 0
+                ? run.headline + ' ' + notRecordedSentence(run.counts.notRecorded) : run.headline);
+        }
         if (run.counts.notRecorded > 0) {
             app.ledgerProblem('A suite run has runs the ledger did not keep.');
-        } else if (run.counts.done > 0) {
-            // The suite view carries no count of today's runs, so the indicator says recorded and no more.
-            app.ledgerReceipt({recorded: true});
+        } else if (run.counts.done > 0 && health) {
+            // The suite view carries no count of today's runs. The ledger's own health answer does, and it updates the indicator.
+            health.refresh();
         }
+        // The list of runs the tool holds is read with the run, so its line for this run and the heading say the same.
+        loadEarlier();
         if (run.state === 'RUNNING') {
             follow();
-        } else {
-            loadEarlier();
         }
+    }
+
+    function notRecordedSentence(number) {
+        return count(number) + (number === 1 ? ' run of this suite was NOT recorded' : ' runs of this suite were NOT recorded')
+            + ' in the ledger, so History does not hold ' + (number === 1 ? 'it' : 'them') + '.';
     }
 
     async function stop() {
@@ -247,6 +275,7 @@ export function createSuites(app) {
     /* ---------- the run on screen ---------- */
 
     function drawRun() {
+        drawStart();
         if (!run) {
             fill(runBox, el('div', {class: 'empty-state'},
                 el('p', {class: 'empty-state__lead'}, 'No suite run is open.'),
@@ -260,8 +289,15 @@ export function createSuites(app) {
         const running = run.state === 'RUNNING';
         const visible = filter ? rows.filter(filter.test) : rows;
 
+        const unrecorded = counts.notRecorded > 0;
         const head = el('div', {class: 'suite-head'},
-            el('h2', {class: 'suite-head__headline', aria: {live: 'polite'}}, run.headline),
+            el('h2', {class: 'suite-head__headline'}, run.headline),
+            // Said as loudly as the headline: a suite whose runs were not kept cannot be traced afterwards from History.
+            unrecorded ? el('div', {class: 'ledger ledger--missing suite-head__unrecorded'},
+                el('p', {class: 'ledger__state'}, notRecordedSentence(counts.notRecorded)),
+                el('p', null, 'The results below are on this page only, and only until the tool restarts. '
+                    + 'Export them as CSV now if you need them. A run id below that was not recorded opens no run. '
+                    + 'Each row quotes what the ledger said.')) : null,
             el('div', {class: 'suite-progress'},
                 el('progress', {max: counts.total, value: counts.done, aria: {label: 'Cases done'}}),
                 el('span', {class: 'suite-progress__count', role: 'status', aria: {live: 'polite'}},
@@ -274,7 +310,11 @@ export function createSuites(app) {
 
         const about = el('div', {class: 'facts-pair'},
             facts([
-                ['Suite run', [code(run.suiteRunId), ' ', copyButton('Copy suite run id', () => run.suiteRunId)]],
+                ['Suite run', [code(run.suiteRunId), ' ', copyButton('Copy suite run id', () => run.suiteRunId),
+                    el('div', {class: 'small'}, unrecorded
+                        ? [suiteRunsLink(run.suiteRunId, 'List the runs of it the ledger kept'), ', if any: '
+                            + count(counts.notRecorded) + ' were not kept and are not there']
+                        : [suiteRunsLink(run.suiteRunId, 'List its runs in Runs'), ', where the ledger keeps them after a restart'])]],
                 ['File', [run.name, run.format ? ' (' + run.format + ')' : null]],
                 ['Ran against', [environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment',
                     ', ', run.mode, ' profile, target ', run.target]]
@@ -344,7 +384,7 @@ export function createSuites(app) {
             {class: 'num', node: String(row.row)},
             code(row.caseId),
             row.what || none('not stated'),
-            row.expected ? code(row.expected) : none('none declared'),
+            row.expected ? expectedWords(row.expected) : none('none declared'),
             sent ? outcome(row.outcomeLabel || row.outcome, row.tone) : none('no outcome'),
             row.result ? stamp(row.result) : none('not compared'),
             {class: 'num', node: typeof row.elapsedMillis === 'number'
@@ -361,15 +401,44 @@ export function createSuites(app) {
         }
         // A row that was not sent says so here in the server's sentence, with the reason. It has no
         // outcome and no test result, so it cannot be read as a failure.
-        // Until the Runs view exists the run id is text to copy. Seam: make it a link to History, Runs, by run id.
         cells.push([
             el('div', {class: row.status && row.status !== 'COMPLETED' ? 'suite-status suite-status--unsent' : 'suite-status'}, row.statusLine),
             row.reason ? el('div', null, row.reason) : null,
             (row.notes || []).map(text => el('div', {class: 'small quiet'}, text)),
             (row.notRecorded || []).map(text => el('div', {class: 'ledger--missing small'}, el('strong', null, 'NOT recorded. '), text)),
-            (row.runIds || []).map(id => el('div', {class: 'suite-run-id'}, code(id, 'literal--id'), ' ', copyButton('Copy', () => id)))
+            runIdsOf(row)
         ]);
         return tableRow({cells, class: row.changed === true ? 'suite-row suite-row--changed' : 'suite-row'});
+    }
+
+    /**
+     * What a row declared, in the server's words when the declaration is exactly one outcome code
+     * that every protocol words alike, with the code beneath. A row carries no protocol, so a code
+     * two protocols word differently, or a declaration with more in it, is shown as written.
+     */
+    function expectedWords(expected) {
+        const vocabulary = context.vocabulary ? context.vocabulary() : null;
+        const option = vocabulary ? vocabulary.outcomeChoices(null).find(choice => choice.code === expected) : null;
+        return option && option.label ? [el('span', {class: 'history-expected'}, option.label), el('div', {class: 'small'}, code(expected))] : code(expected);
+    }
+
+    /**
+     * The run ids of a row. When the ledger kept none of them they are not links, because each
+     * would open "There is no run with that id". When it kept some, the row says that some links
+     * lead nowhere: the answer does not say which runs those were.
+     */
+    function runIdsOf(row) {
+        const ids = row.runIds || [];
+        const missing = (row.notRecorded || []).length;
+        if (missing === 0) {
+            return ids.map(id => el('div', {class: 'suite-run-id'}, runLink(id), ' ', copyButton('Copy', () => id)));
+        }
+        if (missing >= ids.length) {
+            return ids.map(id => el('div', {class: 'suite-run-id'}, code(id, 'literal--id'), ' ',
+                el('span', {class: 'small quiet'}, 'not in History'), ' ', copyButton('Copy', () => id)));
+        }
+        return [ids.map(id => el('div', {class: 'suite-run-id'}, runLink(id), ' ', copyButton('Copy', () => id))),
+            el('div', {class: 'small quiet'}, count(missing) + ' of these ' + count(ids.length) + ' runs were not recorded, and a link to one of those opens no run.')];
     }
 
     /** The response times of the calls the service answered: the figures, and the ranges as plain bars. */
@@ -382,7 +451,8 @@ export function createSuites(app) {
         const figure = (label, value) => [label, typeof value === 'number' ? millis(value) : el('span', {class: 'presence presence--none'}, 'no call answered')];
         return el('section', {class: 'result__section'},
             heading(3, 'Response time'),
-            el('p', {class: 'quiet'}, count(timing.answered) + ' calls answered, ' + count(timing.timedOut) + ' timed out, '
+            el('p', {class: 'quiet'}, count(timing.answered) + (timing.answered === 1 ? ' call answered, ' : ' calls answered, ')
+                + count(timing.timedOut) + ' timed out, '
                 + count(timing.slow) + ' slower than the threshold of ' + millis(timing.thresholdMillis) + '.'),
             el('div', {class: 'timing'},
                 facts([figure('Fastest', timing.minMillis), figure('Median', timing.medianMillis), figure('90th percentile', timing.p90Millis),
@@ -409,12 +479,13 @@ export function createSuites(app) {
             value: item.suiteRunId, label: item.name + ', ' + whenText(item.startedAt) + ': ' + item.headline
         }))));
         if (runs.length === 0) {
-            fill(earlier, el('p', {class: 'quiet'}, 'None yet. The tool holds its latest suite runs until it restarts; every case stays in the ledger.'));
+            fill(earlier, el('p', {class: 'quiet'}, 'None since the tool started. The tool holds its latest ten suite runs only until it restarts. '
+                + 'Every case of an earlier suite run is still in the ledger: on Runs, give its suite run id in the Suite run id filter.'));
             return;
         }
         fill(earlier, el('ul', {class: 'suite-list'}, runs.map(item => el('li', null,
             button(item.name, () => open(item.suiteRunId, false), {class: 'button--text'}),
-            el('div', {class: 'small quiet'}, when(item.startedAt)),
+            el('div', {class: 'small quiet'}, when(item.startedAt), ' ', suiteRunsLink(item.suiteRunId, 'its runs')),
             el('div', {class: 'small'}, item.headline)))));
     }
 

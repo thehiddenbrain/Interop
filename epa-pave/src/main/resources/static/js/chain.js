@@ -10,6 +10,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, facts, tableRow, heading, copyButton, millis, when, token} from './dom.js';
 import {outcome, stamp, slowFlag, toneMark} from './marks.js';
 import {errorPanel} from './result.js';
+import {runLink, chainRunsLink} from './history-common.js';
 
 const PROTOCOL_TABS = ['crd', 'dtr', 'pas'];
 
@@ -69,7 +70,7 @@ export function createChain(app, bar) {
                     el('span', {class: 'chain-bar__next-label'}, 'Next step '),
                     el('span', {class: 'chain-bar__next-headline'}, view.nextHeadline || 'The latest run did not state one.')),
                 // Whose journey this is, as the ledger shows it, so a case changed on screen is not taken for the case of the chain.
-                el('p', {class: 'quiet'}, 'Chain for ', view.member ? ['member ', code(view.member)] : 'a member the ledger does not show',
+                el('p', {class: 'quiet'}, 'Chain for ', view.member ? ['the member recorded as ', code(view.member)] : 'a member the ledger does not show',
                     view.procedureCodes && view.procedureCodes.length > 0
                         ? [', ', view.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null, '.'),
                 follow.checked ? null : el('p', null, el('strong', null, 'Paused.'),
@@ -144,7 +145,9 @@ export function chainView(chain) {
                 ['Next step', chain.nextHeadline ? el('strong', null, chain.nextHeadline) : 'The latest run did not state one.'],
                 ['Journey', chain.ended ? 'Ended: the latest run said the journey is complete.' : 'Open: the latest run did not end the journey.'],
                 ['Chain', [code(chain.chainId), ' ', copyButton('Copy chain id', () => chain.chainId)]],
-                ['Member', chain.member ? code(chain.member) : el('span', {class: 'presence presence--none'}, 'not stated')]
+                // As the ledger shows it: the member ID when recording it is on, otherwise a token, which is not the ID.
+                ['Member, as recorded', chain.member ? code(chain.member) : el('span', {class: 'presence presence--none'}, 'not stated')],
+                ['Its runs', chainRunsLink(chain.chainId, 'List them in Runs')]
             ], 'facts--ruled'),
             facts([
                 ['Procedure codes', chain.procedureCodes && chain.procedureCodes.length > 0
@@ -198,10 +201,9 @@ function runTable(runs) {
                 stamp(run.result),
                 {class: 'num', node: [millis(run.elapsedMillis), run.slow ? el('div', null, slowFlag()) : null]}
             ]}),
-            // Seam: when the Runs view exists, the run id here becomes a link to it.
             tableRow({class: 'chain-run__more', cells: [{colSpan: headings.length, node: [
                 run.latestOfItsKind === false ? [el('span', {class: 'flag'}, 'run again since'), ' '] : null,
-                el('span', {class: 'quiet small'}, 'Run '), code(run.runId, 'literal--id'), ' ', copyButton('Copy', () => run.runId),
+                el('span', {class: 'quiet small'}, 'Run '), runLink(run.runId), ' ', copyButton('Copy', () => run.runId),
                 el('span', {class: 'quiet small'}, typeof run.httpStatus === 'number' ? ' HTTP ' + run.httpStatus : ' no HTTP status',
                     run.scenarioId ? [', scenario ', code(run.scenarioId)] : null, '.'),
                 findings.length > 0

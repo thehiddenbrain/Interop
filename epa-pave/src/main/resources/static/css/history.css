@@ -1,1 +1,388 @@
 /* history: the rules of one part of the interface, kept apart from pave.css so that two people can work on two parts at once. */
+
+/* ---------- the Runs view ---------- */
+
+.history-runs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+    padding-top: var(--gap-3);
+    padding-bottom: 48px;
+}
+
+/* A run id that opens the run. The literal inside keeps its own face; the underline says it goes somewhere. */
+.history-link .literal {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+
+.history-about {
+    max-width: 110ch;
+    padding-top: var(--gap-2);
+    color: var(--ink-soft);
+}
+
+/* The state of the ledger. Healthy is one quiet line under a hairline; a fault wears the heavy frame (ledger--missing). */
+.history-health__ok {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--gap-4);
+    padding-bottom: var(--gap-2);
+    border-bottom: 1px solid var(--rule);
+}
+
+.history-health__alarm {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+}
+
+.history-health__state {
+    font: 700 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.history-filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    padding-bottom: var(--gap-3);
+    border-bottom: 1px solid var(--ink-strong);
+}
+
+.history-filters__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: var(--gap-2) var(--gap-3);
+    align-items: start;
+}
+
+/* The buttons take the last two cells of the row the filters are on, and wrap under them when there is no room. */
+.history-filters__buttons {
+    grid-column: span 2;
+    flex-wrap: nowrap;
+    align-self: start;
+    margin-top: 19px;
+}
+
+.history-status {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.history-status__count {
+    font-size: var(--text-large);
+}
+
+.history-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--gap-2) var(--gap-6);
+    align-items: start;
+}
+
+.history-actions:empty {
+    display: none;
+}
+
+.history-actions__item {
+    display: flex;
+    align-items: baseline;
+    gap: var(--gap-3);
+}
+
+.history-actions__item > .button {
+    flex: none;
+}
+
+/* What a replay of a date range will do, said before anything is sent. */
+.history-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 110ch;
+    padding: var(--gap-2) 0 var(--gap-2) var(--gap-3);
+    border-left: 4px solid var(--ink-strong);
+}
+
+.history-replay-slot:empty {
+    display: none;
+}
+
+/*
+ * Ten columns of codes, words and identifiers. Below the width at which each still has room the
+ * table keeps that width and scrolls sideways in its own frame; the page never does.
+ */
+.history-table {
+    min-width: 1180px;
+}
+
+.history-table th:nth-child(1) { width: 13%; }
+.history-table th:nth-child(2) { width: 10%; }
+.history-table th:nth-child(3) { width: 9%; }
+.history-table th:nth-child(4) { width: 17%; }
+.history-table th:nth-child(5) { width: 11%; }
+.history-table th:nth-child(8) { width: 11%; }
+.history-table th:nth-child(9) { width: 6%; }
+
+/*
+ * A failed test result is marked at the row's edge as well as in its stamp, so a list of failures
+ * can be scanned. Every first cell carries the same left padding, so the mark sits in it and the
+ * dates of failed and other rows line up.
+ */
+.history-row > td:first-child {
+    padding-left: 10px;
+}
+
+.history-row--fail > td:first-child {
+    box-shadow: inset 4px 0 0 var(--magenta);
+}
+
+/* A date, and a time of day, are each read as one value, so neither is broken across lines. */
+.history-when__part {
+    white-space: nowrap;
+}
+
+.history-when__day {
+    display: block;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+}
+
+/*
+ * Codes such as DOCUMENTATION_REQUIRED break only at their joints (dom.js puts a break chance after
+ * each underscore), never inside a word, in the tables of this tab.
+ */
+.history-table .literal, .suite-results .literal, .history-replay__table .literal {
+    overflow-wrap: normal;
+}
+
+.history-expected {
+    color: var(--ink-strong);
+}
+
+/* The dates of the ledger are UTC days: said once, beside the date fields. */
+.history-utc-note {
+    max-width: 110ch;
+    color: var(--ink-soft);
+}
+
+/* A filter chip says in words what choosing it does. */
+.filter__remove {
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid var(--line);
+    font-size: var(--text-small);
+}
+
+.history-status__count:focus {
+    outline-offset: 2px;
+}
+
+/* A line replay refuses as it stands: the reason takes the place of the button. */
+.history-run__refused {
+    max-width: 110ch;
+    padding-left: var(--gap-3);
+    border-left: 1px solid var(--line);
+}
+
+/* The state of the ledger on Chains and Suite runs, shown only when it is in trouble. */
+.history-health-brief:empty {
+    display: none;
+}
+
+.history-health-brief {
+    padding-top: var(--gap-3);
+}
+
+/* Why Run suite cannot be chosen now, beside the greyed button. */
+.suites__why {
+    align-self: center;
+}
+
+/* The not-recorded statement of a suite run stands beside its headline with the same weight. */
+.suite-head__unrecorded .ledger__state {
+    font: 700 var(--text-large)/1.3 var(--font-display);
+}
+
+/* ---------- one run ---------- */
+
+.history-run {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-5);
+    padding-top: var(--gap-3);
+    padding-bottom: 48px;
+    max-width: 1500px;
+}
+
+.history-run__head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.history-run__title {
+    font: 700 1.5rem/1.2 var(--font-display);
+}
+
+.history-run__when {
+    font: 400 var(--text-large)/1.2 var(--font-body);
+    color: var(--ink-soft);
+}
+
+/* The four questions side by side, as one ruled row: the answer to each is read before anything else. */
+.history-run__answers {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid var(--ink-strong);
+    border-bottom: 1px solid var(--ink-strong);
+}
+
+.history-run__answer {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding: var(--gap-3) var(--gap-4) var(--gap-3) 0;
+}
+
+.history-run__answer + .history-run__answer {
+    padding-left: var(--gap-4);
+    border-left: 1px solid var(--rule);
+}
+
+.history-run__question {
+    font: 600 var(--text)/1.3 var(--font-display);
+    color: var(--ink-soft);
+}
+
+.history-run__answer .outcome__label {
+    font: 600 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.history-run__facts > section, .history-run__section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.history-run__section {
+    max-width: 110ch;
+}
+
+.history-note {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 80ch;
+}
+
+.history-note textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--white);
+    color: var(--ink-strong);
+    font: 400 var(--text)/1.4 var(--font-body);
+    resize: vertical;
+}
+
+.history-note .field:not(.field--wide) {
+    max-width: 320px;
+}
+
+.history-loaded {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--gap-2) var(--gap-4);
+    padding-left: var(--gap-3);
+    border-left: 1px solid var(--line);
+}
+
+/* ---------- what a replay found ---------- */
+
+.history-replay {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    padding-top: var(--gap-2);
+    border-top: 1px solid var(--ink-strong);
+}
+
+.history-replay__table {
+    min-width: 900px;
+}
+
+.history-replay__side + .history-replay__side {
+    margin-top: 4px;
+}
+
+.history-replay__headline {
+    font: 700 1.375rem/1.25 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.history-replay__headline-note {
+    font: 400 var(--text)/1.3 var(--font-body);
+    color: var(--ink-soft);
+}
+
+/* A replay whose answer changed is the one to read, so it carries the heavy rule at its edge. */
+.history-replay__status--changed {
+    padding-left: var(--gap-2);
+    border-left: 4px solid var(--ink-strong);
+}
+
+.history-replay__status--unsent {
+    color: var(--ink-soft);
+}
+
+.history-replay__one, .history-replay__new {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 110ch;
+}
+
+.history-replay__diff {
+    max-width: 900px;
+}
+
+@media (max-width: 1180px) {
+    .history-run__answers {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .history-run__answer:nth-child(3) {
+        padding-left: 0;
+        border-left: 0;
+        border-top: 1px solid var(--rule);
+    }
+
+    .history-run__answer:nth-child(4) {
+        border-top: 1px solid var(--rule);
+    }
+
+    .history-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* A chain in the list: the member first, kept whole, then the chain's headline, read as one line of text. */
+.chain-row__open.button {
+    display: block;
+    text-align: left;
+}
+
+.chain-row__open .literal {
+    white-space: nowrap;
+    font-weight: 600;
+}
