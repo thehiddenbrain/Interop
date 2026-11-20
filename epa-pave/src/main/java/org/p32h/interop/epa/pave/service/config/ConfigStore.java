@@ -517,18 +517,25 @@ public class ConfigStore {
         // The address is quoted only when no secret is part of it, and only as far as the first secret.
         // One the client cannot read is quoted as the file writes it, since this tool's own
         // reading of it is not an address the file holds.
-        String address;
-        if (quoted == null) {
-            address = "one of its addresses is an address of the production environment";
-        } else if (!quoted.destination().readable() && quoted.written() != null) {
-            address = "its address \"" + UrlNormal.asWritten(quoted.written()) + "\", in the variable \"" + oneLine(quoted.variable())
+        String production = "production environment" + (owners.size() > 1 ? "s " : " ") + named;
+        ProductionDestinations.Found shown = quoted;
+        String said;
+        if (shown == null) {
+            said = "one of its addresses is an address of the " + production + ", or lies above or beneath one.";
+        } else if (!shown.destination().readable() && shown.written() != null) {
+            said = "its address \"" + UrlNormal.asWritten(shown.written()) + "\", in the variable \"" + oneLine(shown.variable())
                     + "\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is an address of the "
-                    + "production environment";
+                    + production + ", or lies above or beneath one.";
+        } else if (before.remembered().stream().anyMatch(known -> known.destination().everyPortAndPath()
+                && known.destination().covers(shown.destination()))) {
+            said = "its address " + oneLine(shown.destination().shown()) + " is on the host of the " + production + ". That "
+                    + "production environment has an address this tool cannot read the way the HTTP client reads it, so every port and "
+                    + "every path of its host is taken as production.";
         } else {
-            address = "its address " + oneLine(quoted.destination().shown()) + " is an address of the production environment";
+            said = "its address " + oneLine(shown.destination().shown()) + " is an address of the " + production
+                    + ", or lies above or beneath one.";
         }
-        throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + address
-                + (owners.size() > 1 ? "s " : " ") + named + ", or lies above or beneath one. It was not stored.",
+        throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + said + " It was not stored.",
                 List.of(new FieldError("kind", "An address that this "
                 + "installation knows as production stays production, even after its environment is deleted. If this environment is "
                 + "production, upload it with the kind prod. If it is not, point its variables at the " + kind.wire()

@@ -65,6 +65,8 @@ class NonAsciiEscapeGuardrailTest {
                         .withRunValues(Map.of("crdOrderSignServiceId", hidden)))).as(profile + " " + hidden)
                         .isInstanceOf(BadInputException.class)
                         .hasMessageContaining("CRD order-sign was not sent: the path of its url holds a percent-escape of a byte above 0x7F (")
+                        .hasMessageContaining("), the form an overlong or look-alike separator is written in and one a FHIR path never needs, "
+                                + "which came from")
                         .hasMessageContaining("which came from the variable \"crdOrderSignServiceId\" (typed for this run)")
                         .hasMessageNotContaining(hidden);
             }

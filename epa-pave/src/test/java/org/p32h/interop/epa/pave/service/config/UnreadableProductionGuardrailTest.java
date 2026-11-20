@@ -145,6 +145,11 @@ class UnreadableProductionGuardrailTest {
                             EnvironmentKind.SANDBOX, true)).as(profile + " " + spelling + " " + plain).isInstanceOf(ValidationException.class)
                             .hasMessageContaining("\"Legacy Prod\"");
                 }
+                assertThatThrownBy(() -> fixture.store.uploadEnvironment("s.json", environment("UP plain", "baseUrl",
+                        "http://127.0.0.1:18747/other"), EnvironmentKind.SANDBOX, true)).as(spelling).hasMessage("This environment was "
+                        + "declared as sandbox, and its address http://127.0.0.1:18747/other is on the host of the production environment "
+                        + "\"Legacy Prod\". That production environment has an address this tool cannot read the way the HTTP client reads "
+                        + "it, so every port and every path of its host is taken as production. It was not stored.");
                 // The sandbox stored before is told why, and its writes to that host are refused.
                 assertThat(fixture.service.environments().environments()).filteredOn(view -> view.name().equals("Audit Sandbox"))
                         .singleElement().satisfies(view -> assertThat(view.addressWarnings()).containsExactly("This environment is on the "
