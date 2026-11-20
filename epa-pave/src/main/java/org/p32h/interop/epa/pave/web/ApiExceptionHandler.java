@@ -134,7 +134,8 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorView> notFound(NotFoundException e) {
-        return respond(HttpStatus.NOT_FOUND, ErrorView.of(ErrorKind.NOT_FOUND, e.getMessage(), "Check the identifier and try again."));
+        return respond(HttpStatus.NOT_FOUND, ErrorView.of(ErrorKind.NOT_FOUND, e.getMessage(),
+                org.p32h.interop.epa.pave.model.Texts.orElse(e.action(), "Check the identifier and try again.")));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -331,6 +332,9 @@ public class ApiExceptionHandler {
     }
 
     private static ResponseEntity<ErrorView> respond(HttpStatus status, ErrorView body) {
-        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(body);
+        // Every refusal is worded for the call that was made, in one place: a 422 of the form, and as
+        // much a 403 of an unlock or a 409 of a preview, which would otherwise speak of a send.
+        ErrorView worded = status.is4xxClientError() ? CallWording.word(body, CallWording.current()) : body;
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(worded);
     }
 }

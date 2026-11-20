@@ -264,7 +264,7 @@ class ConfigServiceTest {
         assertThat(fixture.service.activate("Onyx Production", unlock).writeAccess().writesAllowed()).isFalse();
 
         assertThatThrownBy(() -> fixture.service.activate("No such environment", null)).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no uploaded environment with that name.");
+                .hasMessage("The environment is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read.");
         assertThat(fixture.service.removeEnvironment("Onyx Production").wasActive()).isTrue();
         assertThat(fixture.service.environments().active()).isNull();
         assertThatThrownBy(() -> fixture.service.removeEnvironment("Onyx Production")).isInstanceOf(NotFoundException.class);
@@ -410,9 +410,9 @@ class ConfigServiceTest {
         assertThat(byPath.pathVariables()).containsExactly(new ConfigViews.PathVariableView("id", "saved-subscription-7"));
 
         assertThatThrownBy(() -> fixture.service.request("no-such-collection", "r-000000000000")).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no uploaded collection with that id.");
+                .hasMessage("The collection is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read.");
         assertThatThrownBy(() -> fixture.service.request(vendor.id(), "r-000000000000")).isInstanceOf(NotFoundException.class)
-                .hasMessage("The collection \"Onyx Sandbox ePA\" has no request with that id.");
+                .hasMessage("That request of the collection \"Onyx Sandbox ePA\" is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read.");
     }
 
     @Test
@@ -446,12 +446,13 @@ class ConfigServiceTest {
         assertThat(corrected.request().detectedOperation()).isEqualTo(EpaOperation.PAS_INQUIRE);
         assertThat(corrected.request().correctedOperation()).isEqualTo(EpaOperation.UNMAPPED);
         assertThat(corrected.request().effectiveOperation()).isEqualTo(EpaOperation.UNMAPPED);
-        assertThat(corrected.notes()).containsExactly("The request is now mapped to Unmapped request. Detection proposed PAS inquire.");
+        assertThat(corrected.notes()).containsExactly("The request is now not mapped to any operation, so it is sent only as written, from the "
+                + "Config tab. Detection proposed PAS inquire.");
 
         MappingChanged again = fixture.service.correctMapping(vendor.id(), inquiry, EpaOperation.UNMAPPED);
         assertThat(again.changed()).isFalse();
         assertThat(again.epoch()).isEqualTo(corrected.epoch());
-        assertThat(again.notes()).containsExactly("The mapping already was Unmapped request. Nothing changed.");
+        assertThat(again.notes()).containsExactly("The request already was not mapped to any operation. Nothing changed.");
 
         MappingChanged back = fixture.service.correctMapping(vendor.id(), inquiry, EpaOperation.PAS_INQUIRE);
         assertThat(back.request().correctedOperation()).isNull();
@@ -569,6 +570,10 @@ class ConfigServiceTest {
         assertThat(orderSign.requests()).extracting(AvailableRequest::usedByDefault).containsExactly(true, false);
         assertThat(orderSign.requests().get(0).collectionId()).isEqualTo(vendor.id());
         assertThat(orderSign.requests().get(0).collectionName()).isEqualTo("Onyx Sandbox ePA");
+        assertThat(orderSign.defaultRule()).isEqualTo("Of the 2 requests mapped to CRD order-sign, a run that names none uses \"CRD / "
+                + "order-sign Happy Path\" of the collection \"Onyx Sandbox ePA\", because it comes first in the order the collections and "
+                + "their requests are listed. To have another of them used, take off CRD order-sign each request listed above that one, "
+                + "apart from a sample of an error.");
 
         assertThat(row(effective, EpaOperation.PAS_SUBMIT).target().scripted()).isTrue();
         // Nothing in the vendor's collection is an order-select, and that is visible, not silently absent.
@@ -589,6 +594,77 @@ class ConfigServiceTest {
     }
 
     @Test
+    void aRowWithSeveralRequestsSaysWhichOneARunUsesWhyAndHowToHaveAnotherUsed() {
+        ConfigFixture fixture = ConfigFixture.mock(directory.resolve("rule"));
+        fixture.collectionOf("Several", ConfigFixture.items(
+                ConfigFixture.item("order-sign Error", "POST", "https://crd.example.invalid/cds-services/order-sign-crd"),
+                ConfigFixture.item("order-sign Happy Path", "POST", "https://crd.example.invalid/cds-services/order-sign-crd"),
+                ConfigFixture.item("order-sign Other", "POST", "https://crd.example.invalid/cds-services/order-sign-crd"),
+                ConfigFixture.item("order-select Happy Path", "POST", "https://crd.example.invalid/cds-services/order-select-crd"),
+                ConfigFixture.item("inquiry Error", "POST", "https://pas.example.invalid/Claim/$inquire"),
+                ConfigFixture.item("inquiry Error Two", "POST", "https://pas.example.invalid/Claim/$inquire")));
+        Effective effective = fixture.service.effective(null);
+
+        OperationRow sign = row(effective, EpaOperation.CRD_ORDER_SIGN);
+        assertThat(sign.requests()).extracting(AvailableRequest::usedByDefault).containsExactly(false, true, false);
+        assertThat(sign.defaultRule()).isEqualTo("Of the 3 requests mapped to CRD order-sign, a run that names none uses \"order-sign "
+                + "Happy Path\" of the collection \"Several\", because it comes first in the order the collections and their requests are "
+                + "listed, after 1 request whose name contains \"error\" and which is used only when chosen. To have another of them used, "
+                + "take off CRD order-sign each request listed above that one, apart from a sample of an error.");
+        // One request: nothing to choose between, so nothing is said.
+        assertThat(row(effective, EpaOperation.CRD_ORDER_SELECT).requests()).hasSize(1);
+        assertThat(row(effective, EpaOperation.CRD_ORDER_SELECT).defaultRule()).isNull();
+        assertThat(row(effective, EpaOperation.PAS_SUBMIT).defaultRule()).isNull();
+        // Only samples of an error: none is used unasked, and taking one off would not change that.
+        OperationRow inquire = row(effective, EpaOperation.PAS_INQUIRE);
+        assertThat(inquire.requests()).extracting(AvailableRequest::usedByDefault).containsExactly(false, false);
+        assertThat(inquire.defaultRule()).isEqualTo("None of the 2 requests mapped to PAS inquire is used when a run names none: the name "
+                + "of each contains \"error\", so each is taken for a sample of an error, which is used only when it is chosen. To have one "
+                + "used by every run, map to PAS inquire a request whose name does not contain \"error\".");
+
+        // Taking the one in use off moves the run to the next one, and the sentence follows.
+        String collectionId = effective.operations().stream().filter(r -> r.operation() == EpaOperation.CRD_ORDER_SIGN).findFirst()
+                .orElseThrow().requests().get(1).collectionId();
+        fixture.service.correctMapping(collectionId, sign.requests().get(1).request().id(), EpaOperation.UNMAPPED);
+        OperationRow after = row(fixture.service.effective(null), EpaOperation.CRD_ORDER_SIGN);
+        assertThat(after.requests()).extracting(AvailableRequest::usedByDefault).containsExactly(false, true);
+        assertThat(after.defaultRule()).startsWith("Of the 2 requests mapped to CRD order-sign, a run that names none uses \"order-sign Other\"");
+    }
+
+    @Test
+    void aHeaderThatStillNeedsAValueMakesTheOperationUnavailableOnLiveAndIsNotCalledRunnableOnMock() {
+        String items = ConfigFixture.items(ConfigFixture.item("order-sign Happy Path", "POST", "{{baseUrl}}/cds-services/order-sign-crd")
+                .header("Authorization", "Bearer {{client_secret}}").header("X-Trace", "{{traceId}}"));
+        ConfigFixture mock = ConfigFixture.mock(directory.resolve("mock"));
+        mock.collectionOf("Headers", items);
+        mock.activeEnvironmentOf("Review Prod", EnvironmentKind.PROD, "baseUrl", "https://crd.example.invalid");
+        ConfigFixture live = ConfigFixture.live(directory.resolve("live"));
+        live.collectionOf("Headers", items);
+        live.activeEnvironmentOf("Review Prod", EnvironmentKind.PROD, "baseUrl", "https://crd.example.invalid");
+
+        // The url is complete, so only the headers can say the run would be refused.
+        OperationRow liveSign = row(live.service.effective(null), EpaOperation.CRD_ORDER_SIGN);
+        assertThat(liveSign.target().resolved()).isTrue();
+        assertThat(liveSign.unavailable()).isEqualTo("The header Authorization still needs a value for {{client_secret}}, the header X-Trace "
+                + "still needs a value for {{traceId}}, and the active environment is \"Review Prod\". Give each of {{client_secret}}, {{traceId}} "
+                + "a value in an environment on the Config tab, or type them among the values for this run.");
+        // On mock a header with no value is refused too, so the row never says it still runs.
+        OperationRow mockSign = row(mock.service.effective(null), EpaOperation.CRD_ORDER_SIGN);
+        assertThat(mockSign.unavailable()).isNull();
+        assertThat(mockSign.note()).isEqualTo("The header Authorization still needs a value for {{client_secret}}, the header X-Trace "
+                + "still needs a value for {{traceId}}, and the active environment is \"Review Prod\". On the mock profile nothing is sent, "
+                + "but a header with no value is refused before a scenario answers, so a run is refused here too. Give each of "
+                + "{{client_secret}}, {{traceId}} a value in an environment on the Config tab, or type them among the values for this run.");
+        // The preview of the request says the same.
+        assertThat(live.service.resolve(EpaOperation.CRD_ORDER_SIGN, null, Map.of(), Map.of(), null).unavailable())
+                .isEqualTo(liveSign.unavailable());
+        assertThat(mock.service.resolve(EpaOperation.CRD_ORDER_SIGN, null, Map.of(), Map.of(), null).notes()).contains(mockSign.note());
+        // A value for one run supplies a header as it supplies the url.
+        assertThat(live.service.resolve(EpaOperation.CRD_ORDER_SIGN, null, Map.of("client_secret", "placeholder-value", "traceId", "t-1"),
+                Map.of(), null).unavailable()).isNull();
+    }
+
+    @Test
     void aTargetThatStillNeedsAValueSaysWhichAndATokenIsNotCountedAsMissing() {
         ConfigFixture mock = ConfigFixture.on(directory.resolve("mock")).lookup("member.url", "https://lookup.example.invalid/members/{id}").build();
         mock.collection(PostmanFiles.VENDOR_COLLECTION);
@@ -606,7 +682,8 @@ class ConfigServiceTest {
                 + "profile nothing is sent, so this still runs.");
         assertThat(mockInquire.unavailable()).isNull();
         OperationRow liveInquire = row(live.service.effective(null), EpaOperation.PAS_INQUIRE);
-        assertThat(liveInquire.unavailable()).isEqualTo("The url still needs a value for {{baseUrl}}, and no environment is active.");
+        assertThat(liveInquire.unavailable()).isEqualTo("The url still needs a value for {{baseUrl}}, and no environment is active. Give {{baseUrl}} "
+                + "a value in an environment on the Config tab, or type it among the values for this run.");
         assertThat(liveInquire.note()).isNull();
         // The service id comes from the collection's own variable, so only the base is missing.
         TargetView orderSign = row(live.service.effective(null), EpaOperation.CRD_ORDER_SIGN).target();
@@ -830,17 +907,28 @@ class ConfigServiceTest {
                 .startsWith("Subscription delete with the request \"subscription by path variable\" is blocked: no environment is active");
         assertThat(mock.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, null, Map.of("id", "sub 1"), null).blocked()).isNull();
 
-        // A url that still needs a value: said on both profiles, as a reason on live and as a note on mock.
+        // A url that still needs a value: said on both profiles, as a reason on live and as a note on mock. The header X-Trace
+        // has no value either, and a run is refused for that on mock too, so the note does not say the run is still answered.
         Resolved mockToken = mock.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, null, null, null);
         assertThat(mockToken.urlTokens()).containsExactly(new TokenRow("id", false, "saved-subscription-7"));
         assertThat(mockToken.url().unresolved()).containsExactly("id");
         assertThat(mockToken.urlShown()).isEqualTo("https://collection.example.invalid/fhir/Subscription/:id");
         assertThat(mockToken.unavailable()).isNull();
-        assertThat(mockToken.notes()).containsExactly("The url still needs a value for id, and no environment is active. On the mock profile "
-                + "nothing is sent, so the run is still answered from a scenario.");
+        assertThat(mockToken.notes()).containsExactly("The url still needs a value for id, the header X-Trace still needs a value for "
+                + "{{traceId}}, and no environment is active. On the mock profile nothing is sent, but a header with no value is refused "
+                + "before a scenario answers, so a run is refused here too. Give {{traceId}} a value in an environment on the Config tab, "
+                + "or type it among the values for this run.");
         Resolved liveToken = live.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, null, null, null);
-        assertThat(liveToken.unavailable()).isEqualTo("The url still needs a value for id, and no environment is active.");
+        assertThat(liveToken.unavailable()).isEqualTo("The url still needs a value for id, the header X-Trace still needs a value for "
+                + "{{traceId}}, and no environment is active. Give {{traceId}} a value in an environment on the Config tab, or type it among "
+                + "the values for this run.");
         assertThat(liveToken.notes()).isEmpty();
+        // With the header given a value for the run, the url alone is short, and on mock the scenario still answers.
+        assertThat(mock.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, Map.of("traceId", "t-1"), null, null).notes())
+                .containsExactly("The url still needs a value for id, and no environment is active. On the mock profile nothing is sent, "
+                        + "so the run is still answered from a scenario.");
+        assertThat(live.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, Map.of("traceId", "t-1"), null, null).unavailable())
+                .isEqualTo("The url still needs a value for id, and no environment is active.");
     }
 
     @Test

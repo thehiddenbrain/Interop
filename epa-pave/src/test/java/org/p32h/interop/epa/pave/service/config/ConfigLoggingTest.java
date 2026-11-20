@@ -69,9 +69,9 @@ class ConfigLoggingTest {
         ConfigFixture.on(directory).live().build();
 
         String log = output.getAll();
-        assertThat(log).contains("Environment \"Onyx Sandbox\" uploaded as sandbox with 12 variable(s)")
-                .contains("Environment \"Onyx Production\" uploaded as prod with 5 variable(s)")
-                .contains("Collection \"Onyx Sandbox ePA\" uploaded with 13 request(s)")
+        assertThat(log).contains("Environment \"Onyx Sandbox\" uploaded as sandbox, variables 12")
+                .contains("Environment \"Onyx Production\" uploaded as prod, variables 5")
+                .contains("Collection \"Onyx Sandbox ePA\" uploaded, requests 13")
                 .contains("Active environment switched to \"Onyx Sandbox\" (sandbox)")
                 .contains("Active environment switched to \"Onyx Production\" (prod)")
                 .contains("Mapping of one request corrected to UNMAPPED")
@@ -80,7 +80,7 @@ class ConfigLoggingTest {
                 .contains("Production writes were locked again")
                 .contains("Collection \"Keyed\" removed, with its mapping corrections")
                 .contains("Environment \"Onyx Sandbox\" removed")
-                .contains("Configuration store ready at " + directory + ": 1 environment(s), 2 collection(s), active environment: \"Onyx Production\"");
+                .contains("Configuration store ready at " + directory + ": environments 1, collections 2, active environment: \"Onyx Production\"");
         assertThat(log)
                 // Secrets, from every place one can come from.
                 .doesNotContain("hunter2").doesNotContain("placeholder-sandbox-secret").doesNotContain("placeholder-tenant-value")

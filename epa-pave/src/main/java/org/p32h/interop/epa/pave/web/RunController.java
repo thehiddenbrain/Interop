@@ -269,7 +269,7 @@ public class RunController {
 
     private static void refuse(List<FieldError> errors) {
         if (!errors.isEmpty()) {
-            throw new ValidationException("The request has " + errors.size() + " problem(s). Nothing was done.", errors);
+            throw new ValidationException("The request has " + ValidationException.problems(errors.size()) + ". Nothing was done.", errors);
         }
     }
 }

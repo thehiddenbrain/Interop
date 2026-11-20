@@ -10,10 +10,13 @@ package org.p32h.interop.epa.pave.model;
 public enum NextAction {
     /** Answer the payer's questionnaire. */
     START_DTR("Answer the payer's questionnaire (DTR)."),
-    /** Answer the next adaptive question. */
-    ANSWER_NEXT_QUESTION("Answer the next question of the questionnaire (DTR)."),
-    /** Answer the questionnaire that was loaded and submit the response. */
-    SUBMIT_RESPONSE("Answer the questionnaire that was loaded and submit the response (DTR)."),
+    /**
+     * Answer the next adaptive question. The label is the name of the DTR tab's button that does
+     * it, so the next step and the screen give the action one name.
+     */
+    ANSWER_NEXT_QUESTION("Send answers and get the next question"),
+    /** Answer the questionnaire that was loaded and complete the response, named as the DTR tab's button is. */
+    SUBMIT_RESPONSE("Complete the response"),
     /** Submit the prior authorization request. */
     START_PAS("Submit the prior authorization request (PAS)."),
     /** Ask for the status of a pended authorization. */
@@ -42,10 +45,11 @@ public enum NextAction {
     /**
      * The production guardrail refused a write that came from a replay or a suite. Neither ever
      * carries the production unlock, so unlocking cannot help it: the write has to be sent by itself
-     * from its own tab, or the tool pointed at something that is not production.
+     * from its own tab, or the tool pointed at something that is not production. The label does not
+     * say why: the refusal beside it does, and saying it twice reads as two reasons.
      */
     SEND_ON_ITS_OWN("Send this write on its own from its tab, with production writes unlocked there, or point the tool at an "
-            + "environment that is not production. A replay or a suite never carries the production unlock."),
+            + "environment that is not production."),
     /** Look at the response detail: the tool cannot say what should happen next. */
     REVIEW("Look at the response detail. The tool cannot say what should happen next.");
 

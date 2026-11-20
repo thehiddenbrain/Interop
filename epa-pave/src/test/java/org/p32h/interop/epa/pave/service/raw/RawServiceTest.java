@@ -155,6 +155,18 @@ class RawServiceTest {
     }
 
     @Test
+    void aTimeoutAScenarioPlaysSaysItWasPlayedAfterHowLongAndWhatLiveWouldWait() {
+        VendorExchange played = TestExchanges.timeout(EpaOperation.UNMAPPED).withElapsedMillis(400).withScenario("crd-13-timeout", "chosen");
+        RunEnvelope<RawDetail> result = run(stub(played), null, null);
+        assertThat(result.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
+        assertThat(result.error().title()).isEqualTo("A mock scenario played a timeout: the scenario reports giving up after 400 ms, and nothing was waited for. On live "
+                + "this tool waits up to 15000 ms for an answer (onyx.read-timeout-ms) before it gives up.");
+        // Without a scenario, the timeout is a real one and is said as such.
+        assertThat(run(stub(TestExchanges.timeout(EpaOperation.UNMAPPED)), null, null).error().title())
+                .isEqualTo("No response arrived within the read timeout.");
+    }
+
+    @Test
     void aTesterCanDeclareTheOutcomeOrTheHttpStatusTheyExpect() {
         assertThat(run(mockClient, null, "ANSWERED").expectation().result()).isEqualTo(TestResult.PASS);
         assertThat(run(mockClient, null, "http-status=200").expectation().result()).isEqualTo(TestResult.PASS);
@@ -203,6 +215,14 @@ class RawServiceTest {
         assertThat(result.wire().request().sent()).isFalse();
         assertThat(ledger.only().outcome()).isEqualTo("BLOCKED");
         assertThat(ledger.only().targetSource()).isEqualTo("submit Happy Path");
+        // The verdict gives the refusal; the next step says what unlocking or switching achieves for a
+        // request mapped to nothing, and never repeats the refusal or names a protocol tab.
+        assertThat(result.verdict().headline()).contains("so it is blocked");
+        assertThat(result.nextStep().action()).isEqualTo(NextAction.UNLOCK_OR_SWITCH);
+        assertThat(result.nextStep().reason()).isEqualTo("With production writes unlocked in this browser session, where the installation "
+                + "allows them, the request, exactly as written, goes to the production environment; with an environment that is not "
+                + "production active, it goes there instead.");
+        assertThat(result.nextStep().reason()).doesNotContain("so it is blocked").doesNotContain("PAS tab");
 
         RequestPreview preview = service(mockClient).preview(RawRunRequest.of(REF, "{}", Map.of(), null), null);
         assertThat(preview.blocked()).contains("blocked");

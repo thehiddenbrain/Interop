@@ -145,7 +145,7 @@ public class ConfigStore {
         this.strays = strays(loaded);
         if (!strays.isEmpty()) {
             // A count and the directory. The Config tab names each file.
-            log.warn("The configuration store at {} holds {} file(s) that it does not use. They may hold credentials from an upload "
+            log.warn("The configuration store at {} holds files that it does not use: {}. They may hold credentials from an upload "
                     + "that did not finish. The Config tab lists them.", directory, strays.size());
         }
 
@@ -168,7 +168,7 @@ public class ConfigStore {
         long epoch = Math.max(clock.millis(), loaded.epoch() + 1);
         this.current = new ConfigSnapshot(epoch, loaded.environments(), active, loaded.collections(), loaded.remembered());
         // Counts and names only. Never a variable value.
-        log.info("Configuration store ready at {}: {} environment(s), {} collection(s), active environment: {}", directory,
+        log.info("Configuration store ready at {}: environments {}, collections {}, active environment: {}", directory,
                 current.environments().size(), current.collections().size(), active == null ? "none" : "\"" + active + "\"");
     }
 
@@ -308,7 +308,7 @@ public class ConfigStore {
         warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
         // The name, the kind and a count. Never a variable value.
-        log.info("Environment \"{}\" uploaded as {} with {} variable(s){}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
+        log.info("Environment \"{}\" uploaded as {}, variables {}{}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
         return new EnvironmentUpload(stored, previous != null, warnings, current);
     }
@@ -360,7 +360,10 @@ public class ConfigStore {
                     continue;
                 }
                 if (parsed.request(old.request().id()) == null) {
-                    warnings.add("The correction that mapped \"" + old.request().qualifiedName() + "\" to " + old.correction().label()
+                    // "Unmapped request" is the label of no operation, so taking a request off is never said as mapping it.
+                    warnings.add((old.correction() == EpaOperation.UNMAPPED
+                            ? "The correction that took \"" + old.request().qualifiedName() + "\" off every operation"
+                            : "The correction that mapped \"" + old.request().qualifiedName() + "\" to " + old.correction().label())
                             + " was dropped, because the new file has no request with that name in that folder.");
                 } else {
                     corrections.put(old.request().id(), old.correction());
@@ -385,7 +388,7 @@ public class ConfigStore {
         warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
         // The name and counts only. Never a url, a header or a body.
-        log.info("Collection \"{}\" uploaded with {} request(s){}", oneLine(parsed.name()), parsed.requests().size(),
+        log.info("Collection \"{}\" uploaded, requests {}{}", oneLine(parsed.name()), parsed.requests().size(),
                 previous == null ? "" : ", replacing the one of the same name");
         return new CollectionUpload(stored, previous != null, warnings, current);
     }
@@ -399,7 +402,7 @@ public class ConfigStore {
         StoredCollection collection = requireCollection(before, collectionId);
         StoredCollection.Mapped request = collection.request(requestId);
         if (request == null) {
-            throw new NotFoundException("The collection \"" + oneLine(collection.name()) + "\" has no request with that id.");
+            throw NotFoundException.noLongerHeld("That request of the collection \"" + oneLine(collection.name()) + "\"", "collections");
         }
         if (operation == null) {
             throw ValidationException.of("operation", "Choose the operation this request stands for.");
@@ -442,7 +445,7 @@ public class ConfigStore {
     private static StoredEnvironment requireEnvironment(ConfigSnapshot snapshot, String nameOrId) {
         StoredEnvironment environment = snapshot.environment(nameOrId);
         if (environment == null) {
-            throw new NotFoundException("There is no uploaded environment with that name.");
+            throw NotFoundException.noLongerHeld("The environment", "environments");
         }
         return environment;
     }
@@ -450,7 +453,7 @@ public class ConfigStore {
     private static StoredCollection requireCollection(ConfigSnapshot snapshot, String collectionId) {
         StoredCollection collection = snapshot.collection(collectionId);
         if (collection == null) {
-            throw new NotFoundException("There is no uploaded collection with that id.");
+            throw NotFoundException.noLongerHeld("The collection", "collections");
         }
         return collection;
     }

@@ -30,8 +30,15 @@ class NextActionVocabularyTest {
     void theChainViewAndTheServedVocabularyWordAnActionAlike() {
         assertThat(Arrays.stream(NextAction.values())).allSatisfy(action ->
                 assertThat(ChainService.instruction(action)).isEqualTo(NextActionOption.of(action).label()));
-        // A replay or a suite refused on production is never told to unlock.
-        assertThat(NextAction.SEND_ON_ITS_OWN.label()).doesNotStartWith("Unlock")
-                .contains("A replay or a suite never carries the production unlock");
+        // A replay or a suite refused on production is never told to unlock, and the step does not
+        // repeat why: the refusal beside it says that a replay or a suite never carries the unlock.
+        assertThat(NextAction.SEND_ON_ITS_OWN.label()).doesNotStartWith("Unlock").startsWith("Send this write on its own from its tab")
+                .doesNotContain("never carries");
+    }
+
+    @Test
+    void theTwoDtrActionsAreNamedAsTheButtonsOfTheDtrTabAre() {
+        assertThat(NextAction.SUBMIT_RESPONSE.label()).isEqualTo("Complete the response");
+        assertThat(NextAction.ANSWER_NEXT_QUESTION.label()).isEqualTo("Send answers and get the next question");
     }
 }

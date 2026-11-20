@@ -59,6 +59,32 @@ class ModeControllerTest {
     }
 
     @Test
+    void itSaysWhereItListensAndWhatThatMeansForAServiceThatWouldCallTheReceiver() throws Exception {
+        environment.setProperty("server.address", "127.0.0.1");
+        JsonNode local = mode("mock");
+        assertThat(local.get("bindAddress").stringValue()).isEqualTo("127.0.0.1");
+        assertThat(local.get("bindNote").stringValue()).isEqualTo("This tool listens on this machine only (127.0.0.1), so nothing on "
+                + "another machine, a vendor's service included, can call its notification receiver. To let a service call it, set "
+                + "server.address to an address that service can reach, and read the README section on the receiver first.");
+
+        environment.setProperty("server.address", "10.20.30.40");
+        JsonNode one = mode("live");
+        assertThat(one.get("bindAddress").stringValue()).isEqualTo("10.20.30.40");
+        assertThat(one.get("bindNote").stringValue()).isEqualTo("This tool listens on the address 10.20.30.40 only. Whether a service on "
+                + "another machine, a vendor's included, can reach its notification receiver there depends on the network between them, "
+                + "which this tool cannot see.");
+
+        // With no address configured the server listens on every address, and the answer does not invent one.
+        JsonNode every = JsonSafe.parse(TestMvc.standalone(new ModeController(EpaProperties.defaults(), gateway, new MockEnvironment()))
+                .perform(get("/api/mode")).andReturn().getResponse().getContentAsString()).node();
+        assertThat(every.has("bindAddress")).isFalse();
+        assertThat(every.get("bindNote").stringValue()).startsWith("This tool listens on every network address of this machine.");
+        assertThat(ModeController.bindNote("0.0.0.0")).isEqualTo(every.get("bindNote").stringValue());
+        assertThat(ModeController.bindNote("::1")).startsWith("This tool listens on this machine only (::1)");
+        assertThat(ModeController.bindNote("localhost")).startsWith("This tool listens on this machine only (localhost)");
+    }
+
+    @Test
     void thePortIsTheOneTheServerIsListeningOn() throws Exception {
         // Started on a port of the system's choosing, the configured value is 0 and the real one is published at startup.
         environment.setProperty("server.port", "0");

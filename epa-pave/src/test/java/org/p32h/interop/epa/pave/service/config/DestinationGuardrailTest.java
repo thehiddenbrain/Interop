@@ -680,6 +680,15 @@ class DestinationGuardrailTest {
             RequestRef raw = ref(fixture.store.snapshot().collections().get(0), "submit Happy Path");
             assertThat(blocked(fixture, CallIntent.of(EpaOperation.UNMAPPED).withRequest(raw)).action()).as(profile)
                     .contains("send such a write on its own from the Config tab. To test without production");
+            // A call that says it came from a screen is told only what helps a screen, and the raw send is sent again from Config.
+            ProdWriteBlockedException fromScreen = blocked(fixture, CallIntent.of(EpaOperation.UNMAPPED).withRequest(raw)
+                    .withOrigin(RunOrigin.manual()));
+            assertThat(fromScreen.getMessage()).as(profile).contains("production writes are locked for this session");
+            assertThat(fromScreen.action()).as(profile).isEqualTo("To send it, unlock production writes on the Config tab by typing the "
+                    + "environment name, then send it again from the Config tab. To test without production, switch to a sandbox or uat "
+                    + "environment.");
+            assertThat(blocked(fixture, submit().withOrigin(RunOrigin.manual())).action()).as(profile)
+                    .contains("then send it again from the PAS tab.").doesNotContain("replay");
             assertThat(blocked(fixture, CallIntent.of(EpaOperation.UNMAPPED).withRequest(raw).withOrigin(new RunOrigin(null, null, "run-1")))
                     .action()).as(profile).isEqualTo("Nothing was sent, and unlocking does not change this. To send this write to "
                             + "production, send it on its own from the Config tab, with writes unlocked there, or switch to an environment "

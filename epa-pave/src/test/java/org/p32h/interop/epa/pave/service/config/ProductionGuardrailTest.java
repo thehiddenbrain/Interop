@@ -240,7 +240,7 @@ class ProductionGuardrailTest {
             assertThat(refusal.method()).isEqualTo("POST");
             assertThat(refusal.requestName()).isEqualTo("Save draft");
             assertThat(refusal.target().value()).isEqualTo(PRODUCTION_FHIR + "/drafts");
-            assertThat(refusal.getMessage()).as(profile).isEqualTo("Unmapped request with the request \"Save draft\" is blocked: " + LOCKED
+            assertThat(refusal.getMessage()).as(profile).isEqualTo("The request \"Save draft\", sent as written, is blocked: " + LOCKED
                     + " It counts as a write because a request this tool cannot map may change something when it is sent with POST.");
 
             PreparedCall read = fixture.gateway.prepare(CallIntent.of(EpaOperation.UNMAPPED).withRequest(get));
@@ -526,7 +526,7 @@ class ProductionGuardrailTest {
         // A raw request that could change something is a write too.
         StoredCollection extras = live.store.snapshot().collections().get(0);
         assertThat(blocked(live, CallIntent.of(EpaOperation.UNMAPPED).withRequest(ref(extras, "Save draft"))).getMessage())
-                .startsWith("Unmapped request with the request \"Save draft\" is blocked: no environment is active");
+                .startsWith("The request \"Save draft\", sent as written, is blocked: no environment is active");
         // There is nothing to unlock, so no unlock can open this.
         assertThatThrownBy(() -> live.gateway.unlock("anything")).isInstanceOf(BadInputException.class)
                 .hasMessage("There is nothing to unlock: no environment is active.");

@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -258,7 +259,8 @@ class ConfigControllerTest {
 
         mvc.perform(post("/api/config/environments/{name}/activate", "No such environment")).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no uploaded environment with that name."));
+                .andExpect(jsonPath("$.title").value("The environment is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."))
+                .andExpect(jsonPath("$.action").value("Read the list of environments again and choose from it as it is now."));
         assertThat(fixture.gateway.activeEnvironment().name()).isEqualTo("Onyx UAT");
     }
 
@@ -401,10 +403,10 @@ class ConfigControllerTest {
 
         mvc.perform(get("/api/config/collections/{id}/requests/{requestId}", "no-such-collection", orderSign.requestId()))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no uploaded collection with that id."));
+                .andExpect(jsonPath("$.title").value("The collection is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."));
         mvc.perform(get("/api/config/collections/{id}/requests/{requestId}", orderSign.collectionId(), "r-000000000000"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("The collection \"Onyx Sandbox ePA\" has no request with that id."));
+                .andExpect(jsonPath("$.title").value("That request of the collection \"Onyx Sandbox ePA\" is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."));
     }
 
     @Test
@@ -423,7 +425,8 @@ class ConfigControllerTest {
                 .andExpect(jsonPath("$.request.detectedOperation").value("PAS_INQUIRE"))
                 .andExpect(jsonPath("$.request.correctedOperation").value("UNMAPPED"))
                 .andExpect(jsonPath("$.request.effectiveOperation").value("UNMAPPED"))
-                .andExpect(jsonPath("$.notes[0]").value("The request is now mapped to Unmapped request. Detection proposed PAS inquire."));
+                .andExpect(jsonPath("$.notes[0]").value("The request is now not mapped to any operation, so it is sent only as written, "
+                        + "from the Config tab. Detection proposed PAS inquire."));
         mvc.perform(get("/api/config/collections")).andExpect(jsonPath("$.collections[0].requests[4].correctedOperation").value("UNMAPPED"));
 
         // A second store on the same directory is what a restart is.
@@ -470,7 +473,8 @@ class ConfigControllerTest {
         // A misspelt property is named, not dropped.
         mvc.perform(json(put(url), "{\"requestID\": \"" + inquiry.requestId() + "\", \"operation\": \"UNMAPPED\"}"))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.title").value("The request has a field this tool does not know. Nothing was sent."))
+                .andExpect(jsonPath("$.title").value("The request has a field this tool does not know. Nothing was changed."))
+                .andExpect(jsonPath("$.action").value("Correct the marked field and try again."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("requestID"));
         mvc.perform(json(put(url), "not json")).andExpect(status().isUnprocessableContent());
         mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON)).andExpect(status().isUnprocessableContent());
@@ -480,7 +484,7 @@ class ConfigControllerTest {
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.kind").value("NOT_FOUND"));
         mvc.perform(json(put(url), "{\"requestId\": \"r-000000000000\", \"operation\": \"UNMAPPED\"}"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("The collection \"Onyx Sandbox ePA\" has no request with that id."));
+                .andExpect(jsonPath("$.title").value("That request of the collection \"Onyx Sandbox ePA\" is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."));
         // None of the refused corrections changed anything.
         assertThat(fixture.gateway.epoch()).isEqualTo(epoch);
     }
@@ -498,7 +502,8 @@ class ConfigControllerTest {
         mvc.perform(get("/api/config/collections")).andExpect(jsonPath("$.collections", hasSize(0)));
         mvc.perform(delete("/api/config/collections/{id}", id)).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no uploaded collection with that id."));
+                .andExpect(jsonPath("$.title").value("The collection is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."))
+                .andExpect(jsonPath("$.action").value("Read the list of collections again and choose from it as it is now."));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -571,6 +576,8 @@ class ConfigControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.kind").value("BLOCKED"))
                 .andExpect(jsonPath("$.title", startsWith("Production writes cannot be unlocked: an owner has locked this installation against them.")))
+                // An unlock sends nothing, so its refusal says what did not happen to it.
+                .andExpect(jsonPath("$.title", endsWith(" Nothing was changed.")))
                 .andExpect(jsonPath("$.action", startsWith("No unlock is possible from this screen.")));
 
         mvc.perform(get("/api/config/effective").session(session))
@@ -859,7 +866,8 @@ class ConfigControllerTest {
         // A misspelt property is named, at the top and inside the request reference.
         mvc.perform(json(post("/api/config/resolve"), "{\"operation\": \"PAS_SUBMIT\", \"runValues\": {\"baseUrl\": \"x\"}}"))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.title").value("The request has a field this tool does not know. Nothing was sent."))
+                .andExpect(jsonPath("$.title").value("The request has a field this tool does not know. The request is not shown."))
+                .andExpect(jsonPath("$.action").value("Correct the marked field and show the request again."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("runValues"));
         mvc.perform(json(post("/api/config/resolve"), "{\"operation\": \"PAS_SUBMIT\", \"request\": {\"collectionID\": \"x\", \"requestId\": \"y\"}}"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("collectionID"));
@@ -878,7 +886,9 @@ class ConfigControllerTest {
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"));
         mvc.perform(json(post("/api/config/resolve"), "{\"operation\": \"PAS_SUBMIT\", \"request\": {\"collectionId\": \"no-such-collection\", "
                         + "\"requestId\": \"" + submit.requestId() + "\"}}")).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("The collection this request was chosen from is not uploaded. Reload and choose again."));
+                .andExpect(jsonPath("$.title").value("The collection this request was chosen from is not uploaded. Reload and choose again."))
+                .andExpect(jsonPath("$.action").value("Read the list of collections again, for example by reloading the page, and choose "
+                        + "the request from it as it is now."));
     }
 
     @Test

@@ -189,8 +189,8 @@ public class ChainService {
             // "Nothing further" is not a next step, so it is not introduced as one.
             headline = ended ? said + " The journey ends here."
                     : next == null ? said + " The record does not say what should happen next."
-                    : next == NextAction.NOTHING_FURTHER ? said + " " + instruction(next)
-                    : said + " Next: " + lowerFirst(instruction(next));
+                    : next == NextAction.NOTHING_FURTHER ? said + " " + sentence(next)
+                    : said + " Next: " + lowerFirst(sentence(next));
         }
 
         RunRecord first = records.get(0);
@@ -268,15 +268,15 @@ public class ChainService {
             } else if (next == NextAction.NOTHING_FURTHER) {
                 // Done, and said apart from a stage that handed on: this one did not, and it did not end the journey either.
                 state = ChainStageState.DONE;
-                line = "Done: " + said + ". " + instruction(next);
+                line = "Done: " + said + ". " + sentence(next);
             } else {
                 Protocol target = target(next, protocol);
                 if (target == protocol && attention(next)) {
                     state = ChainStageState.NEEDS_ATTENTION;
-                    line = "Needs attention: " + said + ". " + instruction(next);
+                    line = "Needs attention: " + said + ". " + sentence(next);
                 } else if (target == protocol) {
                     state = ChainStageState.IN_PROGRESS;
-                    line = "In progress: " + said + ". " + instruction(next);
+                    line = "In progress: " + said + ". " + sentence(next);
                 } else {
                     state = ChainStageState.DONE;
                     line = "Done: " + said + ".";
@@ -313,7 +313,7 @@ public class ChainService {
             }
             Protocol target = target(next, from);
             if (target == protocol) {
-                return new ChainStage(protocol, name(protocol), ChainStageState.NEXT, "Next: " + lowerFirst(instruction(next)), null, List.of());
+                return new ChainStage(protocol, name(protocol), ChainStageState.NEXT, "Next: " + lowerFirst(sentence(next)), null, List.of());
             }
             if (target != null && STAGES.indexOf(target) > index) {
                 return new ChainStage(protocol, name(protocol), ChainStageState.NOT_NEEDED, "Not needed: " + shortName(from) + " answered \""
@@ -394,6 +394,15 @@ public class ChainService {
      */
     public static String instruction(NextAction action) {
         return action.label();
+    }
+
+    /**
+     * The instruction as the end of a sentence of this view. Some labels are the names of buttons,
+     * such as "Complete the response", and carry no full stop of their own.
+     */
+    private static String sentence(NextAction action) {
+        String label = instruction(action);
+        return label.endsWith(".") ? label : label + ".";
     }
 
     static String name(Protocol protocol) {

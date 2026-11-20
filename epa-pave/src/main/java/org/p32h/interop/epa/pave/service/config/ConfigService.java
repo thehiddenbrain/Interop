@@ -164,7 +164,7 @@ public class ConfigService {
         StoredCollection collection = requireCollection(snapshot, collectionId);
         StoredCollection.Mapped mapped = collection.request(requestId);
         if (mapped == null) {
-            throw new NotFoundException("The collection \"" + collection.name() + "\" has no request with that id.");
+            throw NotFoundException.noLongerHeld("That request of the collection \"" + ConfigStore.oneLine(collection.name()) + "\"", "collections");
         }
         PostmanRequest request = mapped.request();
         List<HeaderView> headers = new ArrayList<>();
@@ -183,12 +183,14 @@ public class ConfigService {
         RequestSummary summary = summary(change.after(), change.collection(), mapped);
         List<String> notes = new ArrayList<>();
         if (!change.changed()) {
-            notes.add("The mapping already was " + mapped.effective().label() + ". Nothing changed.");
+            notes.add("The request already was " + mappedWords(mapped.effective()) + ". Nothing changed.");
         } else if (mapped.correction() == null) {
             notes.add("That is what detection proposed, so the correction was removed and the mapping follows detection again.");
         } else {
-            notes.add("The request is now mapped to " + mapped.effective().label() + ". Detection proposed "
-                    + mapped.detection().operation().label() + ".");
+            notes.add("The request is now " + mappedWords(mapped.effective())
+                    + (mapped.effective() == EpaOperation.UNMAPPED ? ", so it is sent only as written, from the Config tab" : "")
+                    + ". Detection proposed " + (mapped.detection().operation() == EpaOperation.UNMAPPED ? "no operation"
+                    : mapped.detection().operation().label()) + ".");
         }
         if (summary.guardedAsWrite() && !mapped.effective().writesWith(mapped.request().method())) {
             notes.add("This request still counts as a write, because of its name, its url or its method. Mapping it to "
@@ -196,6 +198,11 @@ public class ConfigService {
                     + "writes are unlocked.");
         }
         return new MappingChanged(change.collection().id(), summary, change.changed(), notes, change.epoch());
+    }
+
+    /** What a request is mapped to, in words: "Unmapped request" is the label of no operation, so it is never said as one. */
+    private static String mappedWords(EpaOperation operation) {
+        return operation == EpaOperation.UNMAPPED ? "not mapped to any operation" : "mapped to " + operation.label();
     }
 
     public Removed removeCollection(String collectionId) {
@@ -272,7 +279,7 @@ public class ConfigService {
     private static StoredCollection requireCollection(ConfigSnapshot snapshot, String collectionId) {
         StoredCollection collection = snapshot.collection(collectionId);
         if (collection == null) {
-            throw new NotFoundException("There is no uploaded collection with that id.");
+            throw NotFoundException.noLongerHeld("The collection", "collections");
         }
         return collection;
     }
@@ -341,8 +348,8 @@ public class ConfigService {
                     + "own. Each one is listed here and is sent raw, by naming it.").build();
         }
         CallPlan plan = gateway.describe(snapshot, CallIntent.of(operation).withUnlock(unlock));
-        row.method(plan.method())
-                .requests(mappedTo(operation, snapshot, plan.target().source() == Source.REQUEST ? plan.target().request() : null));
+        StoredCollection.Mapped used = plan.target().source() == Source.REQUEST ? plan.target().request() : null;
+        row.method(plan.method()).requests(mappedTo(operation, snapshot, used)).defaultRule(defaultRule(operation, snapshot, used));
         if (plan.refusal() != null) {
             row.blocked(plan.refusal().reason() + " " + plan.refusal().action()).blockedShort(plan.refusal().brief());
         }
@@ -353,16 +360,70 @@ public class ConfigService {
         }
         TargetView target = target(plan);
         row.target(target);
-        if (!target.resolved()) {
-            String missing = "The url still needs a value for " + braced(target.unresolved()) + ", and "
-                    + (snapshot.active() == null ? "no environment is active" : "the active environment is \"" + snapshot.activeName() + "\"") + ".";
+        // The url's tokens are filled per call and are not counted here, so every name left is a
+        // placeholder an environment or a value for one run can supply.
+        List<String> missing = new ArrayList<>(target.unresolved());
+        String stillNeeds = stillNeeds(plan, target.resolved() ? null : braced(target.unresolved()), missing);
+        if (stillNeeds != null) {
             if (mock) {
-                row.note(missing + " On the mock profile nothing is sent, so this still runs.");
+                row.note(stillNeeds + (headersMissing(plan) ? onMockAHeaderIsRefused(missing)
+                        : " On the mock profile nothing is sent, so this still runs."));
             } else {
-                row.unavailable(missing);
+                row.unavailable(stillNeeds + whereToGive(missing));
             }
         }
         return row.build();
+    }
+
+    /**
+     * Why a run of this plan is refused as things stand for a placeholder with no value, or null
+     * when nothing is missing: the url, given as {@code urlNames}, and every header the call would
+     * carry. A header with no value is refused on both profiles before anything is sent or
+     * answered (see {@code Exchanges.requireSendable}), so a screen that decides from this whether
+     * to offer a form must hear of it as it hears of the url.
+     *
+     * @param urlNames the url's missing names as the sentence gives them, or null when the url is complete
+     * @param names    collects every placeholder named, for the sentence that says where to give them
+     */
+    private static String stillNeeds(CallPlan plan, String urlNames, List<String> names) {
+        List<String> parts = new ArrayList<>();
+        if (urlNames != null) {
+            parts.add("the url still needs a value for " + urlNames);
+        }
+        for (CallPlan.Header header : plan.headers()) {
+            List<String> unresolved = header.header().unresolved();
+            if (Texts.present(header.header().name()) && !unresolved.isEmpty()) {
+                parts.add("the header " + ConfigStore.oneLine(header.header().name()) + " still needs a value for " + braced(unresolved));
+                unresolved.stream().filter(name -> !names.contains(name)).forEach(names::add);
+            }
+        }
+        if (parts.isEmpty()) {
+            return null;
+        }
+        ConfigSnapshot snapshot = plan.snapshot();
+        String sentence = String.join(", ", parts) + ", and "
+                + (snapshot.active() == null ? "no environment is active" : "the active environment is \"" + snapshot.activeName() + "\"") + ".";
+        return Character.toUpperCase(sentence.charAt(0)) + sentence.substring(1);
+    }
+
+    private static boolean headersMissing(CallPlan plan) {
+        return plan.headers().stream().anyMatch(header -> Texts.present(header.header().name()) && !header.header().unresolved().isEmpty());
+    }
+
+    /** Where a placeholder gets a value, naming each, so that it cannot be read as a part of the url filled per call. */
+    private static String whereToGive(List<String> names) {
+        boolean one = names.size() == 1;
+        return " Give " + (one ? "" : "each of ") + braced(names) + " a value in an environment on the Config tab, or type "
+                + (one ? "it" : "them") + " among the values for this run.";
+    }
+
+    /**
+     * The mock profile answers a url that is not complete from a scenario, but it refuses a header
+     * with no value as live does, so a row that said "this still runs" would be untrue.
+     */
+    private static String onMockAHeaderIsRefused(List<String> names) {
+        return " On the mock profile nothing is sent, but a header with no value is refused before a scenario answers, so a run is "
+                + "refused here too." + whereToGive(names);
     }
 
     private static String braced(List<String> names) {
@@ -380,6 +441,57 @@ public class ConfigService {
     }
 
     /** Every request mapped to the operation, in collection order, with the one a call uses by default marked. */
+    /**
+     * Which of several mapped requests a run uses when it names none, said where the choice can be
+     * seen. The rule is the gateway's: the first in the order the collections and their requests are
+     * listed, passing over a request whose name contains "error", which is a sample of a failure and
+     * is used only when it is chosen. There is no action to make a request the one used: taking the
+     * requests above it off the operation does it, so the sentence says that.
+     *
+     * @param used the request a run uses, or null when none of them is used unasked
+     * @return the sentence, or null when one request or none is mapped
+     */
+    private static String defaultRule(EpaOperation operation, ConfigSnapshot snapshot, StoredCollection.Mapped used) {
+        int mapped = 0;
+        int errorSamplesBefore = 0;
+        boolean seen = false;
+        String usedFrom = null;
+        for (StoredCollection collection : snapshot.collections()) {
+            for (StoredCollection.Mapped request : collection.requests()) {
+                if (request.effective() != operation) {
+                    continue;
+                }
+                mapped++;
+                if (request == used) {
+                    seen = true;
+                    usedFrom = collection.name();
+                } else if (!seen && errorSample(request)) {
+                    errorSamplesBefore++;
+                }
+            }
+        }
+        if (mapped < 2) {
+            return null;
+        }
+        String label = operation.label();
+        if (used == null || usedFrom == null) {
+            return "None of the " + mapped + " requests mapped to " + label + " is used when a run names none: the name of each "
+                    + "contains \"error\", so each is taken for a sample of an error, which is used only when it is chosen. To have one "
+                    + "used by every run, map to " + label + " a request whose name does not contain \"error\".";
+        }
+        String before = errorSamplesBefore == 0 ? ""
+                : ", after " + (errorSamplesBefore == 1 ? "1 request whose name contains" : errorSamplesBefore + " requests whose names contain")
+                + " \"error\" and which " + (errorSamplesBefore == 1 ? "is" : "are") + " used only when chosen";
+        return "Of the " + mapped + " requests mapped to " + label + ", a run that names none uses \"" + ConfigStore.oneLine(used.request()
+                .qualifiedName()) + "\" of the collection \"" + ConfigStore.oneLine(usedFrom) + "\", because it comes first in the order "
+                + "the collections and their requests are listed" + before + ". To have another of them used, take off " + label + " each "
+                + "request listed above that one, apart from a sample of an error.";
+    }
+
+    private static boolean errorSample(StoredCollection.Mapped request) {
+        return request.request().name().toLowerCase(java.util.Locale.ROOT).contains("error");
+    }
+
     private List<AvailableRequest> mappedTo(EpaOperation operation, ConfigSnapshot snapshot, StoredCollection.Mapped usedByDefault) {
         List<AvailableRequest> requests = new ArrayList<>();
         for (StoredCollection collection : snapshot.collections()) {
@@ -500,9 +612,18 @@ public class ConfigService {
 
         boolean fromRequest = source != null;
         String incomplete = plan.incomplete();
+        if (plan.url().configured()) {
+            // The url's own words when it alone is short, and the headers added when one is: a run
+            // is refused for a header with no value on both profiles.
+            List<String> missing = new ArrayList<>();
+            String stillNeeds = stillNeeds(plan, plan.url().resolved() ? null : String.join(", ", plan.url().unresolved()), missing);
+            if (stillNeeds != null && headersMissing(plan)) {
+                incomplete = stillNeeds + (epa.mock() ? onMockAHeaderIsRefused(missing) : whereToGive(missing));
+            }
+        }
         List<String> notes = new ArrayList<>(source == null ? List.of() : source.notes());
         if (incomplete != null && epa.mock()) {
-            notes.add(incomplete + " On the mock profile nothing is sent, so the run is still answered from a scenario.");
+            notes.add(headersMissing(plan) ? incomplete : incomplete + " On the mock profile nothing is sent, so the run is still answered from a scenario.");
         }
         return Resolved.builder()
                 .operation(operation)

@@ -8,8 +8,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.p32h.interop.epa.pave.client.crd.MockOnyxCrdClient;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
@@ -206,7 +208,7 @@ class ChainServiceTest {
         assertThat(stage(answering, Protocol.DTR).state()).isEqualTo(ChainStageState.IN_PROGRESS);
         // The DTR outcomes are not registered here, so the code is shown as written, never guessed.
         assertThat(stage(answering, Protocol.DTR).stateLine()).isEqualTo("In progress: QUESTIONNAIRE_LOADED. "
-                + "Answer the questionnaire that was loaded and submit the response (DTR).");
+                + "Complete the response.");
         assertThat(stage(answering, Protocol.PAS).state()).isEqualTo(ChainStageState.NOT_REACHED);
         assertThat(answering.nextStage()).isEqualTo(Protocol.DTR);
 
@@ -541,8 +543,13 @@ class ChainServiceTest {
 
     @Test
     void everyNextActionHasAnInstructionInPlainWords() {
+        // The two DTR actions are named exactly as the DTR tab's buttons, which carry no full stop.
+        Set<NextAction> buttonNames = EnumSet.of(NextAction.SUBMIT_RESPONSE, NextAction.ANSWER_NEXT_QUESTION);
         for (NextAction action : NextAction.values()) {
-            assertThat(ChainService.instruction(action)).as(action.name()).isNotBlank().endsWith(".");
+            assertThat(ChainService.instruction(action)).as(action.name()).isNotBlank();
+            if (!buttonNames.contains(action)) {
+                assertThat(ChainService.instruction(action)).as(action.name()).endsWith(".");
+            }
         }
         // No two actions read the same. "Nothing further" in particular is never worded as the end of a journey.
         assertThat(Arrays.stream(NextAction.values()).map(ChainService::instruction)).doesNotHaveDuplicates();

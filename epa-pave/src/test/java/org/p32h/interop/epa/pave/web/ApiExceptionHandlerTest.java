@@ -97,7 +97,7 @@ class ApiExceptionHandlerTest {
         mvc.perform(get("/throw/validation")).andExpect(status().isUnprocessableContent())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.kind").value("VALIDATION"))
-                .andExpect(jsonPath("$.title").value("The form has 2 problem(s). Nothing was sent."))
+                .andExpect(jsonPath("$.title").value("The form has 2 problems. Nothing was sent."))
                 .andExpect(jsonPath("$.fieldErrors.length()").value(2))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("provider.npi"))
                 .andExpect(jsonPath("$.fieldErrors[0].message").value("This is not a valid NPI: the check digit does not match."))

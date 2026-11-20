@@ -285,7 +285,7 @@ public class RunSupport {
                 .verdict(VerdictView.of(RunOutcome.BLOCKED, "Nothing was sent. " + refusal.getMessage(), noUnlockLine(origin, refusal)))
                 .expectation(Expectations.notCompared(request.expected(), RunOutcome.BLOCKED,
                         "Nothing was sent, so there is nothing to compare with what was expected."))
-                .nextStep(NextStepView.of(action, headline(action, refusal), refusal.getMessage()))
+                .nextStep(NextStepView.of(action, headline(action, refusal), stepReason(action, operation)))
                 .wire(new WireView(attempted, null, memberId.typed().isEmpty() ? null : memberId))
                 .error(ErrorView.of(ErrorKind.BLOCKED, refusal.getMessage() + " Nothing was sent.", refusal.action()))
                 .ledger(receipt)
@@ -302,6 +302,20 @@ public class RunSupport {
             return action.label();
         }
         return Texts.orElse(refusal.action(), "Unlock writes for this session, or switch to an environment that is not production.");
+    }
+
+    /**
+     * What the next step of a blocked run achieves. The verdict and the error panel already give
+     * the refusal in full, so the reason never repeats it. A request sent as written is mapped to
+     * no operation, so its reason speaks of the request and of no tab but the one it came from.
+     */
+    static String stepReason(NextAction action, EpaOperation operation) {
+        String subject = operation == EpaOperation.UNMAPPED ? "the request, exactly as written," : "the write";
+        if (action == NextAction.SEND_ON_ITS_OWN) {
+            return "Sent on its own from a screen, " + subject + " goes out under the production unlock of that browser session.";
+        }
+        return "With production writes unlocked in this browser session, where the installation allows them, " + subject
+                + " goes to the production environment; with an environment that is not production active, it goes there instead.";
     }
 
     /**
@@ -485,7 +499,15 @@ public class RunSupport {
             // No advice to send again here. This panel is the same for a read and for a write, and
             // a write that timed out may have reached the service: the next step, which knows what
             // was sent, says whether to send again or to ask first.
-            case TIMEOUT -> ErrorView.of(ErrorKind.TIMEOUT,
+            case TIMEOUT -> epa.mock() && Texts.present(exchange.scenarioId())
+                    // A scenario plays a timeout at once, so the time beside it is not how long a
+                    // service was waited for: the panel says what was played and what live would wait.
+                    ? ErrorView.of(ErrorKind.TIMEOUT, "A mock scenario played a timeout: the scenario reports giving up after "
+                            + exchange.elapsedMillis() + " ms, and nothing was waited for. On live this tool waits up to " + onyx.readTimeoutMs() + " ms for an answer "
+                            + "(onyx.read-timeout-ms) before it gives up.",
+                    "Nothing was sent: this rehearses what a tester sees when a service does not answer in time. The next step says "
+                            + "whether to send again.")
+                    : ErrorView.of(ErrorKind.TIMEOUT,
                     "No response arrived within the read timeout" + (epa.mock() ? "" : " of " + onyx.readTimeoutMs() + " ms") + ".",
                     "The service may be slow or down. If it repeats, report the environment. The next step says whether to send again.");
             case UNAVAILABLE -> ErrorView.of(ErrorKind.UNREACHABLE,

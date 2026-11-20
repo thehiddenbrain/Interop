@@ -188,12 +188,12 @@ class ExchangeExecutorTest {
     }
 
     @Test
-    void anyOtherIoFailureIsUnavailableAndNamesOnlyTheExceptionType() {
+    void anyOtherIoFailureIsUnavailableAndNamesNeitherTheMessageNorTheExceptionType() {
         server.expect(requestTo(URL)).andRespond(withException(new IOException("stream reset for member S123456789")));
         VendorExchange exchange = post();
         assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.UNAVAILABLE);
         // The exception message can quote the url or data, so it is never copied into the result.
-        assertThat(exchange.failureDetail()).doesNotContain("S123456789").doesNotContain("stream reset");
+        assertThat(exchange.failureDetail()).doesNotContain("S123456789").doesNotContain("stream reset").doesNotContain("IOException");
     }
 
     @Test

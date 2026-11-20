@@ -69,7 +69,7 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
         }
         if (warnings > 0) {
             // A count and nothing else. The warnings themselves are served by the self-check.
-            log.warn("The procedure code list was loaded with {} warning(s). GET /api/procedure-codes/self-check lists them.", warnings);
+            log.warn("The procedure code list was loaded with warnings: {}. GET /api/procedure-codes/self-check lists them.", warnings);
         }
     }
 

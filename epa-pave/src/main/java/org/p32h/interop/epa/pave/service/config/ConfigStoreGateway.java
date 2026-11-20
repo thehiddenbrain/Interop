@@ -567,18 +567,22 @@ public class ConfigStoreGateway implements OperationGateway {
     // Where the call goes
     // ------------------------------------------------------------------------------------------
 
+    /** The advice for a request chosen from a list that has changed since: nobody typed its id, so checking the id helps nobody. */
+    private static final String CHOOSE_AGAIN = "Read the list of collections again, for example by reloading the page, and choose the request "
+            + "from it as it is now.";
+
     private Target target(ConfigSnapshot snapshot, CallIntent intent) {
         EpaOperation operation = intent.operation();
         RequestRef named = intent.request();
         if (named != null) {
             StoredCollection collection = snapshot.collection(named.collectionId());
             if (collection == null) {
-                throw new NotFoundException("The collection this request was chosen from is not uploaded. Reload and choose again.");
+                throw new NotFoundException("The collection this request was chosen from is not uploaded. Reload and choose again.", CHOOSE_AGAIN);
             }
             StoredCollection.Mapped request = collection.request(named.requestId());
             if (request == null) {
                 throw new NotFoundException("The collection \"" + collection.name() + "\" has no request with the id that was chosen. "
-                        + "Reload and choose again.");
+                        + "Reload and choose again.", CHOOSE_AGAIN);
             }
             // A read button can never be pointed at a write request: the request must stand for
             // the operation it is used for. Only a raw send may name any request.
@@ -1099,7 +1103,10 @@ public class ConfigStoreGateway implements OperationGateway {
 
     private Refusal guard(ConfigSnapshot snapshot, CallIntent intent, Target target, String because, UrlForms.Filled filled, Origin origin) {
         StoredEnvironment active = snapshot.active();
-        String what = intent.operation().label() + (target.requestName() == null ? "" : " with the request \"" + target.requestName() + "\"");
+        // A request mapped to nothing is named as itself: "Unmapped request" is the label of no operation.
+        String what = intent.operation() == EpaOperation.UNMAPPED && target.requestName() != null
+                ? "The request \"" + target.requestName() + "\", sent as written,"
+                : intent.operation().label() + (target.requestName() == null ? "" : " with the request \"" + target.requestName() + "\"");
         String why = because == null ? "" : " It counts as a write because " + because + ".";
         boolean complete = filled != null && filled.complete();
 
@@ -1217,6 +1224,14 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "locked for this session. An earlier unlock no longer applies, because the configuration has changed or writes were "
                     + "locked again since." + why, "To send it, unlock production writes on the Config tab by typing the environment name. "
                     + "To test without production, switch to a sandbox or uat environment.");
+        }
+        if (origin != null) {
+            // Nobody holds an unlock, and the call said it came from a screen, so the advice for a
+            // replay or a suite would only send a tester at a raw send looking for a PAS tab.
+            return new Refusal("Blocked: production writes are locked for this session.", what + " is blocked: \"" + active.name()
+                    + "\" is a production environment and production writes are locked for this session." + why, "To send it, unlock "
+                    + "production writes on the Config tab by typing the environment name, then send it again from " + tab(intent)
+                    + ". To test without production, switch to a sandbox or uat environment.");
         }
         // Nobody holds an unlock, so writes are locked for every session. Without an origin the
         // caller can be a screen, a replay or a suite, so the step named is the one that helps each.

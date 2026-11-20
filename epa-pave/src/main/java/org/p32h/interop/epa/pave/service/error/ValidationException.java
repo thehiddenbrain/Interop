@@ -14,7 +14,15 @@ public class ValidationException extends RuntimeException {
     }
 
     public ValidationException(List<FieldError> fieldErrors) {
-        this("The form has " + (fieldErrors == null ? 0 : fieldErrors.size()) + " problem(s). Nothing was sent.", fieldErrors);
+        this("The form has " + problems(fieldErrors == null ? 0 : fieldErrors.size()) + ". Nothing was sent.", fieldErrors);
+    }
+
+    /**
+     * A count of problems in words that agree with it. The sentence after it in a refusal names a
+     * send, and the exception handler rewords it for a preview, a comparison or an upload.
+     */
+    public static String problems(int count) {
+        return count == 1 ? "1 problem" : count + " problems";
     }
 
     public static ValidationException of(String field, String message) {

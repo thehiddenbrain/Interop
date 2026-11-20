@@ -27,6 +27,7 @@ import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLProtocolException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.model.EpaOperation;
@@ -43,6 +44,8 @@ import org.p32h.interop.epa.pave.service.scenario.Scenario;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioSelection;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioStep;
 import org.p32h.interop.epa.pave.testsupport.FakeGateway;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -60,7 +63,8 @@ class ReachedTest {
 
     private static final String URL = "https://onyx.example.invalid/fhir/Claim/$submit";
     private static final ExchangeOptions FHIR = ExchangeOptions.json("application/fhir+json");
-    private static final String TLS = "The TLS handshake failed. On a network with an inspection proxy, check the trust store.";
+    private static final String TLS = "The secure connection could not be set up: the TLS handshake failed. On a network with an "
+            + "inspection proxy, check the trust store.";
 
     private final ExchangeExecutor executor = new ExchangeExecutor();
 
@@ -83,8 +87,8 @@ class ReachedTest {
     void aFailureBeforeAnyOfTheRequestIsWrittenHasNotReachedTheService() {
         Map<Exception, String> before = new LinkedHashMap<>();
         before.put(new ConnectException("Connection refused"), "The connection was refused or could not be opened.");
-        before.put(new UnknownHostException("onyx.example.invalid"), "The host name could not be resolved.");
-        before.put(new UnresolvedAddressException(), "The host name could not be resolved.");
+        before.put(new UnknownHostException("onyx.example.invalid"), "The name of the service's host could not be found.");
+        before.put(new UnresolvedAddressException(), "The name of the service's host could not be found.");
         before.put(new NoRouteToHostException("No route to host"), "There is no network route to the host.");
         before.put(new HttpConnectTimeoutException("HTTP connect timed out"), "The connection attempt timed out before the service was reached.");
         // The handshake comes before the request, so a certificate that is not trusted means nothing was sent.
@@ -95,7 +99,7 @@ class ReachedTest {
             String what = failure.getClass().getSimpleName();
             assertThat(exchange.reached()).as(what).isEqualTo(Reached.NO);
             assertThat(exchange.failureType()).as(what).isEqualTo(OnyxFailureType.UNAVAILABLE);
-            assertThat(exchange.failureDetail()).as(what).isEqualTo(detail);
+            assertThat(exchange.failureDetail()).as(what).isEqualTo(detail).doesNotContain("Exception").doesNotContain("S123456789");
             assertThat(exchange.httpStatus()).as(what).isNull();
         });
     }
@@ -106,20 +110,45 @@ class ReachedTest {
         after.put(new SocketTimeoutException("Read timed out"), "No response arrived inside the read timeout.");
         after.put(new HttpTimeoutException("request timed out"), "No response arrived inside the read timeout.");
         // The connection was there and then it was not. The request may already have been on its way.
-        after.put(new IOException("Connection reset for member S123456789"), "The request could not be completed (ResourceAccessException).");
-        after.put(new SSLException("Connection reset"), "The secure connection failed after it was opened (SSLException).");
-        after.put(new SSLProtocolException("Read timed out"), "The secure connection failed after it was opened (SSLProtocolException).");
+        // Worded for a business tester: no Java class is named, and the exception's message, which quotes a member ID here, never is.
+        String unnamed = "The connection to the service failed before an answer arrived. This tool cannot tell at which point, so the "
+                + "request may have reached the service. A proxy between this machine and the service is a common cause.";
+        String secure = "The secure connection could not be set up, or failed after it was opened. On a network with an inspection "
+                + "proxy, check the trust store.";
+        after.put(new IOException("Connection reset for member S123456789"), unnamed);
+        after.put(new SSLException("Connection reset"), secure);
+        after.put(new SSLProtocolException("Read timed out"), secure);
         // Something this tool has no name for is never taken for "nothing was sent".
-        after.put(new IllegalStateException("unexpected"), "The request could not be completed (IllegalStateException).");
+        after.put(new IllegalStateException("unexpected"), unnamed);
         after.forEach((failure, detail) -> {
             VendorExchange exchange = submitFailingWith(failure);
             String what = failure.getClass().getSimpleName();
             assertThat(exchange.reached()).as(what).isEqualTo(Reached.CANNOT_SAY);
-            assertThat(exchange.failureDetail()).as(what).isEqualTo(detail);
+            assertThat(exchange.failureDetail()).as(what).isEqualTo(detail).doesNotContain("Exception").doesNotContain("S123456789");
             assertThat(exchange.httpStatus()).as(what).isNull();
         });
         assertThat(submitFailingWith(new SocketTimeoutException("Read timed out")).failureType()).isEqualTo(OnyxFailureType.TIMEOUT);
         assertThat(submitFailingWith(new IOException("Connection reset")).failureType()).isEqualTo(OnyxFailureType.UNAVAILABLE);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aFailureTheResultCannotNameLeavesItsTypesAndTheHostInTheLogAndNothingOfTheUrlOrTheMessage(CapturedOutput output) {
+        String url = "https://onyx.example.invalid/fhir/Patient/S123456789?identifier=S123456789";
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(url)).andRespond(request -> {
+            throw new IOException("Connection reset while reading " + url);
+        });
+        VendorExchange exchange = executor.execute(builder.build(), TestPreparedCalls.to(EpaOperation.PAS_SUBMIT, url), ResolvedText.plain("{}"), FHIR);
+        assertThat(exchange.failureDetail()).doesNotContain("Exception").doesNotContain("S123456789");
+        assertThat(output.getAll()).contains("A call to the host onyx.example.invalid failed in a way the result does not name: ")
+                .contains("java.io.IOException").doesNotContain("S123456789").doesNotContain("/fhir/Patient").doesNotContain("Connection reset");
+
+        // A failure the result names in plain words needs no line of its own.
+        int lines = output.getAll().split("A call to the host", -1).length;
+        submitFailingWith(new ConnectException("Connection refused"));
+        assertThat(output.getAll().split("A call to the host", -1).length).isEqualTo(lines);
     }
 
     @Test
