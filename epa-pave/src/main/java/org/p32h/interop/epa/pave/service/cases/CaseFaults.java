@@ -28,12 +28,19 @@ public final class CaseFaults {
     private CaseFaults() {
     }
 
+    /** The sentence for a case held to a configuration that changed before it was sent. */
+    public static final String CONFIGURATION_MOVED = "The configuration was changed after the suite started, and a case is held to the "
+            + "configuration its suite started under, so this one was not sent.";
+
     /**
      * Classifies what a step threw.
      *
-     * @param what the step in plain words, such as "PAS submit", for the sentence of a tool failure
+     * @param what   the step in plain words, such as "PAS submit", for the sentence of a tool failure
+     * @param pinned true when the case is held to the configuration its suite started under, so a
+     *               change of configuration is a change since the suite started and not since a
+     *               screen was drawn
      */
-    public static CaseRun.Interruption classify(RuntimeException e, String what) {
+    public static CaseRun.Interruption classify(RuntimeException e, String what, boolean pinned) {
         if (e instanceof ValidationException validation) {
             return new CaseRun.Interruption(CaseStatus.INVALID, describe(validation.fieldErrors()), null);
         }
@@ -44,7 +51,10 @@ public final class CaseFaults {
             return new CaseRun.Interruption(CaseStatus.NOT_CONFIGURED, "The active configuration has no value for: "
                     + String.join(", ", unresolved.variables()) + ". Set it on the Config tab and run the case again.", null);
         }
-        if (e instanceof EndpointNotConfiguredException || e instanceof ConfigurationChangedException) {
+        if (e instanceof ConfigurationChangedException) {
+            return new CaseRun.Interruption(CaseStatus.NOT_CONFIGURED, pinned ? CONFIGURATION_MOVED : e.getMessage(), null);
+        }
+        if (e instanceof EndpointNotConfiguredException) {
             return new CaseRun.Interruption(CaseStatus.NOT_CONFIGURED, e.getMessage(), null);
         }
         String reference = UUID.randomUUID().toString();
@@ -72,14 +82,35 @@ public final class CaseFaults {
         return labels.size() == 1 ? labels.get(0) + " was sent" : String.join(" and ", labels) + " were sent";
     }
 
+    /**
+     * The field errors of a refused step, each under the name a suite file gives its column, so a
+     * tester is pointed at the cell to change and not at a field of a form they never saw.
+     */
     static String describe(List<FieldError> errors) {
         if (errors == null || errors.isEmpty()) {
             return "The case inputs are not valid.";
         }
         List<String> parts = new ArrayList<>();
         for (FieldError error : errors) {
-            parts.add(error.field() + ": " + error.message());
+            parts.add(column(error.field()) + ": " + error.message());
         }
         return String.join(" ", parts);
+    }
+
+    /** The suite column for a field of a run request. A field no column holds keeps its own name. */
+    static String column(String field) {
+        if (field == null) {
+            return "case";
+        }
+        if (field.startsWith("provider.")) {
+            return "npi";
+        }
+        if (field.startsWith("member.")) {
+            return "memberId";
+        }
+        if (field.startsWith("procedureCodes")) {
+            return "procedureCodes";
+        }
+        return field;
     }
 }

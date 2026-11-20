@@ -44,6 +44,7 @@ class RunCsvTest {
                 .correlation(Map.of(RunRecord.CORR_CLAIM_ID, "claim-1", RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER-0001",
                         RunRecord.CORR_QUESTIONNAIRE, "https://example.org/Questionnaire/q1 https://example.org/Questionnaire/q2"))
                 .findings(List.of("SLOW_RESPONSE", "CODE_LIST_NOT_COMPARED")).unrecordedInputs(List.of(RunRecord.INPUT_RUN_VALUES)).slow(true)
+                .caseExpected("crd: AUTH_REQUIRED; pas: PENDED").caseResult(TestResult.FAIL)
                 .build();
     }
 
@@ -175,6 +176,9 @@ class RunCsvTest {
         expected.put("findings", "SLOW_RESPONSE; CODE_LIST_NOT_COMPARED");
         expected.put("unrecordedInputs", "run-values");
         expected.put("slow", "true");
+        // The result of a chain case as a whole, which its case line gives the last step when the line is read.
+        expected.put("caseExpected", "crd: AUTH_REQUIRED; pas: PENDED");
+        expected.put("caseResult", "fail");
         assertThat(cells).containsExactlyEntriesOf(expected);
         // Nothing in the record was left without an expectation above.
         assertThat(expected.keySet()).containsExactlyElementsOf(RunCsv.header());

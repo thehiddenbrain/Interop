@@ -4,13 +4,11 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.p32h.interop.epa.pave.model.CaseOutcome;
 import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.CaseStatus;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.EpaOperation;
-import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.LookupStatus;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.MemberIds;
@@ -19,21 +17,13 @@ import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.ProviderLookupResult;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
+import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.MemberLookup;
 import org.p32h.interop.epa.pave.service.ProviderLookup;
-import org.p32h.interop.epa.pave.service.error.BadInputException;
-import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
-import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
-import org.p32h.interop.epa.pave.service.error.Faults;
-import org.p32h.interop.epa.pave.service.error.NotFoundException;
-import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
-import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Runs one case from its inputs alone, with no browser, for a suite row and for a replay.
@@ -44,11 +34,13 @@ import org.slf4j.LoggerFactory;
  *
  * <p>It never throws. Each way a case can fail to run has its own status and a reason in words,
  * so a suite table shows why a row has no result, and a write the guardrail refused is reported
- * as blocked and never as a failed test.
+ * as blocked and never as a failed test. A failure of this tool carries the reference it was
+ * logged under, and says that whether a request left before it is not known.
+ *
+ * <p>A chain that stops part way, at a step that was refused, blocked or failed, keeps the steps
+ * it already sent in the outcome, so nothing that went out is ever reported as not sent.
  */
 public class ProtocolCaseRunner implements CaseRunner {
-
-    private static final Logger log = LoggerFactory.getLogger(ProtocolCaseRunner.class);
 
     private final MemberLookup members;
     private final ProviderLookup providers;
@@ -77,73 +69,148 @@ public class ProtocolCaseRunner implements CaseRunner {
         if (spec == null) {
             return new CaseOutcome(null, CaseStatus.INVALID, "There is no case to run.", List.of());
         }
-        List<String> notes = new ArrayList<>();
+        Lookups lookups = new Lookups();
         try {
             if (!spec.unrecognised().isEmpty()) {
                 // A misspelt key would otherwise be dropped, and a case with no "expected" runs unverified without a word.
                 return ended(spec, CaseStatus.INVALID, "The case has keys this tool does not know: "
-                        + String.join(", ", spec.unrecognised().keySet()) + ". Check their spelling.", notes);
+                        + String.join(", ", spec.unrecognised().keySet()) + ". Check their spelling.", lookups, null);
             }
-            CaseStep step;
-            if (spec.chain()) {
-                step = chain;
-                if (step == null) {
-                    return ended(spec, CaseStatus.NOT_RUNNABLE, "This build cannot run a chain from a case.", notes);
-                }
-            } else {
-                EpaOperation operation = spec.operation();
-                if (operation == null) {
-                    return ended(spec, CaseStatus.INVALID, "The case names no operation and is not a chain.", notes);
-                }
-                if (!operation.outbound()) {
-                    return ended(spec, CaseStatus.NOT_RUNNABLE, operation.label() + " records something that arrived or a step completed "
-                            + "inside the tool. There is nothing to send again.", notes);
-                }
-                step = steps.get(operation);
-                if (step == null) {
-                    return ended(spec, CaseStatus.NOT_RUNNABLE, "This build cannot run " + operation.label() + " from a case.", notes);
-                }
+            String cannot = cannotRun(spec);
+            if (cannot != null) {
+                return ended(spec, Texts.present(cannot) && spec.operation() == null && !spec.chain() ? CaseStatus.INVALID
+                        : CaseStatus.NOT_RUNNABLE, cannot, lookups, null);
             }
-            CaseContext context = new CaseContext(spec, member(spec, notes), provider(spec, notes), codes(spec), RunOrigin.of(spec));
-            return completed(spec, step.run(context), notes);
-        } catch (ValidationException e) {
-            return ended(spec, CaseStatus.INVALID, describe(e.fieldErrors()), notes);
-        } catch (BadInputException | NotFoundException e) {
-            return ended(spec, CaseStatus.INVALID, e.getMessage(), notes);
-        } catch (UnresolvedVariablesException e) {
-            return ended(spec, CaseStatus.NOT_CONFIGURED, "The active configuration has no value for: " + String.join(", ", e.variables())
-                    + ". Set it on the Config tab and run the case again.", notes);
-        } catch (EndpointNotConfiguredException | ConfigurationChangedException e) {
-            return ended(spec, CaseStatus.NOT_CONFIGURED, e.getMessage(), notes);
+            CaseStep step = spec.chain() ? chain : steps.get(spec.operation());
+            CaseContext context = new CaseContext(spec, member(spec, lookups), provider(spec, lookups), codes(spec), RunOrigin.of(spec));
+            return completed(spec, step.run(context), lookups);
         } catch (RuntimeException e) {
-            String reference = UUID.randomUUID().toString();
-            // The exception types and frames only. Never its message, and never the case, which holds a member ID.
-            log.error("A case failed inside this tool, reference {}: {}", reference, Faults.describe(e));
-            return ended(spec, CaseStatus.NOT_RUNNABLE, "This tool failed while running the case. Nothing can be said about the service "
-                    + "from this row. Reference " + reference + ".", notes);
+            String what = spec.chain() ? "the chain" : spec.operation() == null ? null : spec.operation().label();
+            CaseRun.Interruption cause = CaseFaults.classify(e, what, spec.configEpoch() != null);
+            return ended(spec, cause.status(), cause.reason(), lookups, cause.faultReference());
         }
     }
 
-    private static CaseOutcome completed(CaseSpec spec, CaseRun run, List<String> notes) {
+    /**
+     * Why this runner cannot run the case at all, in plain words, or null when it can. The same
+     * answer the run gives, so a suite preview can say before anything is sent which rows will not
+     * run and why.
+     */
+    public String cannotRun(CaseSpec spec) {
+        if (spec.chain()) {
+            return chain == null ? "This build cannot run a chain from a case." : null;
+        }
+        EpaOperation operation = spec.operation();
+        if (operation == null) {
+            return "The case names no operation and is not a chain.";
+        }
+        if (!operation.outbound()) {
+            return operation.label() + " records something that arrived or a step completed inside the tool. There is nothing to send again.";
+        }
+        if (steps.containsKey(operation)) {
+            return null;
+        }
+        return switch (operation) {
+            case DTR_NEXT_QUESTION, DTR_RESPONSE -> operation.label() + " answers a questionnaire, and the answers are a person's: a "
+                    + "case does not hold them. Run it from the DTR tab, or run a chain, which stops where a person has to answer.";
+            case SUBSCRIPTION_CREATE, SUBSCRIPTION_GET, SUBSCRIPTION_UPDATE, SUBSCRIPTION_DELETE -> operation.label() + " works on a "
+                    + "subscription this tool holds for a submission, which a case does not set up. Run it from the PAS tab.";
+            case CRD_DISCOVERY -> "This build does not run CRD discovery from a case. Run it from the CRD tab.";
+            case MEMBER_LOOKUP, PROVIDER_LOOKUP -> "A lookup is made for every case already, before its request is built. It is not a "
+                    + "case of its own.";
+            case UNMAPPED -> "A request that is mapped to no operation is sent from the Config tab as it is. A case does not hold its body.";
+            default -> "This build cannot run " + operation.label() + " from a case.";
+        };
+    }
+
+    /** The operations this runner has a step for. */
+    public boolean runs(EpaOperation operation) {
+        return operation != null && steps.containsKey(operation);
+    }
+
+    private static CaseOutcome completed(CaseSpec spec, CaseRun run, Lookups lookups) {
         // Each record comes from its receipt, which carries it whether or not the ledger kept it.
         List<RunRecord> records = new ArrayList<>();
         List<String> notRecorded = new ArrayList<>();
+        List<String> scenarios = new ArrayList<>();
+        boolean several = run.envelopes().size() > 1 || run.interrupted() != null;
         for (RunEnvelope<?> envelope : run.envelopes()) {
             records.add(envelope.ledger().record());
             if (!envelope.ledger().recorded()) {
                 notRecorded.add(envelope.ledger().message());
             }
+            String line = defaultScenario(envelope);
+            if (line != null) {
+                scenarios.add(several && envelope.operation() != null ? envelope.operation().label() + ": " + line : line);
+            }
+        }
+        notRecorded.addAll(run.notRecorded());
+        boolean sent = records.stream().anyMatch(ProtocolCaseRunner::sent);
+        List<String> notes = lookups.notes(sent);
+        notes.addAll(scenarios);
+        if (run.interrupted() != null) {
+            // The steps already sent stay in the outcome with their runs. The case as a whole stopped before a step that was due.
+            CaseRun.Interruption cause = run.interrupted();
+            return new CaseOutcome(spec, cause.status(), cause.reason(), records, notRecorded, notes, null, cause.faultReference());
         }
         RunEnvelope<?> last = run.last();
         if (RunSupport.isBlocked(last)) {
-            // The steps before it ran and are in the outcome. The case as a whole was stopped by the guardrail.
-            return new CaseOutcome(spec, CaseStatus.BLOCKED, last.verdict().headline(), records, notRecorded, notes);
+            String headline = last.verdict() == null ? "The production guardrail refused this write." : last.verdict().headline();
+            // In a chain the steps before the blocked one went out, so the reason says which, and never that nothing was sent.
+            String reason = run.envelopes().size() == 1 ? headline
+                    : CaseFaults.sent(run.envelopes().subList(0, run.envelopes().size() - 1)) + "; "
+                    + (last.operation() == null ? "the next step" : last.operation().label()) + " was blocked by the production "
+                    + "guardrail, so it was not sent.";
+            return new CaseOutcome(spec, CaseStatus.BLOCKED, reason, records, notRecorded, notes);
         }
         return new CaseOutcome(spec, CaseStatus.COMPLETED, run.stopped(), records, notRecorded, notes, run.overall());
     }
 
-    private static CaseOutcome ended(CaseSpec spec, CaseStatus status, String reason, List<String> notes) {
-        return new CaseOutcome(spec, status, reason, List.of(), List.of(), notes);
+    /** True when a record is of a call that went out: anything but a write the guardrail held back. */
+    static boolean sent(RunRecord record) {
+        return record != null && !RunRecord.ERROR_BLOCKED.equals(record.errorType()) && !RunOutcome.BLOCKED.name().equals(record.outcome());
+    }
+
+    /**
+     * The verdict's line saying the default mock scenario answered, or null. Without it a row
+     * shows the default answer as if it were an answer about the member and code of the row.
+     */
+    private static String defaultScenario(RunEnvelope<?> envelope) {
+        if (envelope.verdict() == null || envelope.verdict().supporting() == null) {
+            return null;
+        }
+        for (String line : envelope.verdict().supporting()) {
+            if (line != null && line.startsWith("Mock scenario ") && line.contains(": the default")) {
+                return line;
+            }
+        }
+        return null;
+    }
+
+    private static CaseOutcome ended(CaseSpec spec, CaseStatus status, String reason, Lookups lookups, String faultReference) {
+        // Nothing went out, or nothing is known to have gone out, so no note may say that it did.
+        return new CaseOutcome(spec, status, reason, List.of(), List.of(), lookups.notes(false), null, faultReference);
+    }
+
+    /**
+     * What the lookups of a case found, kept apart from what was then sent. A note is worded
+     * once the case is over, so it never says a request was sent with the ID alone when nothing
+     * was sent at all.
+     */
+    private static final class Lookups {
+        private String member;
+        private String provider;
+
+        List<String> notes(boolean sent) {
+            List<String> notes = new ArrayList<>();
+            if (member != null) {
+                notes.add(member + (sent ? " The request was sent with the member ID alone." : ""));
+            }
+            if (provider != null) {
+                notes.add(provider + (sent ? " The request was sent with the NPI alone." : ""));
+            }
+            return notes;
+        }
     }
 
     /**
@@ -152,7 +219,7 @@ public class ProtocolCaseRunner implements CaseRunner {
      * member ID alone, exactly as a tester would send it with nothing else typed in: nothing is
      * made up to fill the gap, and the result says the lookup gave nothing.
      */
-    private MemberDetail member(CaseSpec spec, List<String> notes) {
+    private MemberDetail member(CaseSpec spec, Lookups lookups) {
         if (Texts.blank(MemberIds.noSpace(spec.memberId()))) {
             return null;
         }
@@ -160,16 +227,16 @@ public class ProtocolCaseRunner implements CaseRunner {
         if (result.status() == LookupStatus.FOUND && result.member() != null) {
             return result.member();
         }
-        notes.add(switch (result.status()) {
-            case NOT_FOUND -> "The member lookup does not know this member ID. The request was sent with the ID alone.";
-            case DISABLED -> "The member lookup is not configured. The request was sent with the member ID alone.";
-            case FAULT -> "The member lookup failed. The request was sent with the member ID alone.";
-            case FOUND -> "The member lookup answered with no member. The request was sent with the member ID alone.";
-        });
+        lookups.member = switch (result.status()) {
+            case NOT_FOUND -> "The member lookup does not know this member ID.";
+            case DISABLED -> "The member lookup is not configured.";
+            case FAULT -> "The member lookup failed.";
+            case FOUND -> "The member lookup answered with no member.";
+        };
         return MemberDetail.builder().memberId(spec.memberId()).build();
     }
 
-    private ProviderDetail provider(CaseSpec spec, List<String> notes) {
+    private ProviderDetail provider(CaseSpec spec, Lookups lookups) {
         if (Texts.blank(spec.npi())) {
             return null;
         }
@@ -177,27 +244,16 @@ public class ProtocolCaseRunner implements CaseRunner {
         if (result.status() == LookupStatus.FOUND && result.provider() != null) {
             return result.provider();
         }
-        notes.add(switch (result.status()) {
-            case NOT_FOUND -> "The provider lookup does not know this NPI. The request was sent with the NPI alone.";
-            case DISABLED -> "The provider lookup is not configured. The request was sent with the NPI alone.";
-            case FAULT -> "The provider lookup failed. The request was sent with the NPI alone.";
-            case FOUND -> "The provider lookup answered with no provider. The request was sent with the NPI alone.";
-        });
+        lookups.provider = switch (result.status()) {
+            case NOT_FOUND -> "The provider lookup does not know this NPI.";
+            case DISABLED -> "The provider lookup is not configured.";
+            case FAULT -> "The provider lookup failed.";
+            case FOUND -> "The provider lookup answered with no provider.";
+        };
         return ProviderDetail.builder().npi(spec.npi().strip()).build();
     }
 
     private static List<CodeInput> codes(CaseSpec spec) {
         return spec.procedureCodes().stream().filter(Texts::present).map(code -> CodeInput.of(code.strip())).toList();
-    }
-
-    private static String describe(List<FieldError> errors) {
-        if (errors == null || errors.isEmpty()) {
-            return "The case inputs are not valid.";
-        }
-        List<String> parts = new ArrayList<>();
-        for (FieldError error : errors) {
-            parts.add(error.field() + ": " + error.message());
-        }
-        return String.join(" ", parts);
     }
 }

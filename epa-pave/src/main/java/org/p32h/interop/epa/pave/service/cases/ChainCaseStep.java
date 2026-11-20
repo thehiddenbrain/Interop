@@ -136,7 +136,7 @@ public final class ChainCaseStep implements CaseStep {
         }
         if (next.action() == NextAction.START_DTR) {
             Map<String, List<String>> carry = handedOn(next.carry(), crdResult);
-            RunEnvelope<?> fetched = step(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, done, () -> dtr.runPackage(
+            RunEnvelope<?> fetched = step(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, context.spec().configEpoch() != null, done, () -> dtr.runPackage(
                     DtrCaseStep.packageRequest(context, expectation.of(Protocol.DTR), chainId, List.of(), carry), context.origin(), null));
             if (cannotGoOn(fetched)) {
                 return null;
@@ -156,7 +156,7 @@ public final class ChainCaseStep implements CaseStep {
 
     private String submit(CaseContext context, ChainExpectation expectation, String chainId, Map<String, List<String>> carry,
                           List<RunEnvelope<?>> done) {
-        RunEnvelope<?> submitted = step(EpaOperation.PAS_SUBMIT, done, () -> pas.runSubmit(
+        RunEnvelope<?> submitted = step(EpaOperation.PAS_SUBMIT, context.spec().configEpoch() != null, done, () -> pas.runSubmit(
                 PasCaseStep.submission(context, expectation.of(Protocol.PAS), chainId, carry), context.origin(), null));
         if (cannotGoOn(submitted)) {
             return null;
@@ -168,17 +168,17 @@ public final class ChainCaseStep implements CaseStep {
      * Makes one step after the first. Whatever it throws ends the chain there, with the steps
      * already sent kept and named: they went out, and saying otherwise would be false.
      */
-    private static RunEnvelope<?> step(EpaOperation operation, List<RunEnvelope<?>> done, Supplier<RunEnvelope<?>> call) {
+    private static RunEnvelope<?> step(EpaOperation operation, boolean pinned, List<RunEnvelope<?>> done, Supplier<RunEnvelope<?>> call) {
         RunEnvelope<?> result;
         try {
             result = call.get();
         } catch (RuntimeException e) {
-            CaseRun.Interruption cause = CaseFaults.classify(e, operation.label());
+            CaseRun.Interruption cause = CaseFaults.classify(e, operation.label(), pinned);
             String reason = cause.faultReference() != null
-                    ? CaseFaults.sent(done) + " and answered. This tool then failed on " + operation.label() + ", so whether that request "
-                    + "left is not known, and nothing can be said about the service from it. Look for it in History before running the "
-                    + "case again. Reference " + cause.faultReference() + "."
-                    : CaseFaults.sent(done) + " and answered. " + operation.label() + " was not sent: " + cause.reason();
+                    ? CaseFaults.sent(done) + "; this tool then failed on " + operation.label() + ", so whether that request left is not "
+                    + "known, and nothing can be said about the service from it. Look for it in History before running the case again. "
+                    + "Reference " + cause.faultReference() + "."
+                    : CaseFaults.sent(done) + "; " + operation.label() + " was not sent. " + cause.reason();
             throw new Interrupted(new CaseRun.Interruption(cause.status(), reason, cause.faultReference()));
         }
         done.add(result);

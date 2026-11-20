@@ -36,11 +36,13 @@ class ChainExpectationTest {
 
     @Test
     void nothingExpectedIsNothingExpectedAndNotAProblem() {
-        for (String blank : new String[] {null, "", "  ", " ; \n ;"}) {
+        for (String blank : new String[] {null, "", "  "}) {
             ChainExpectation expectation = ChainExpectation.parse(blank, outcomes);
             assertThat(expectation.byStep()).isEmpty();
             assertThat(expectation.problems()).isEmpty();
         }
+        // Separators alone read as an expectation and compare nothing, so they are refused before anything is sent.
+        assertThat(ChainExpectation.parse(" ; \n ;", outcomes).problems()).containsExactly(OutcomeCatalogue.NO_TERMS);
     }
 
     @Test
@@ -51,7 +53,9 @@ class ChainExpectationTest {
                 + "Start it with crd:, dtr: or pas:, for example crd: AUTH_REQUIRED; pas: APPROVED.");
         assertThat(expectation.problems().get(1)).startsWith("\"pa-needed=no-auth\" does not say which step");
         assertThat(expectation.problems().get(2)).startsWith("\"xyz: APPROVED\" does not say which step");
-        assertThat(expectation.problems().get(3)).startsWith("\"crd:\" does not say which step");
+        // It names its step and lacks the outcome, which is what it is told.
+        assertThat(expectation.problems().get(3)).isEqualTo("\"crd:\" names the CRD step and no outcome. Write the outcome after the colon, "
+                + "for example crd: AUTH_REQUIRED.");
         // The one part that did name its step is still read.
         assertThat(expectation.of(Protocol.PAS)).isEqualTo("APPROVED");
     }

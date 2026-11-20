@@ -24,6 +24,7 @@ import org.p32h.interop.epa.pave.service.dtr.DtrCodes;
 import org.p32h.interop.epa.pave.service.dtr.DtrService;
 import org.p32h.interop.epa.pave.service.pas.PasCodes;
 import org.p32h.interop.epa.pave.service.pas.PasService;
+import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.p32h.interop.epa.pave.service.suite.CsvRows;
 import org.p32h.interop.epa.pave.service.suite.SuiteFileReader;
 import org.springframework.context.annotation.Bean;
@@ -61,14 +62,14 @@ public class CaseWiring {
      */
     @Bean
     public CaseRunner caseRunner(MemberLookup members, ProviderLookup providers, CrdService crd, DtrService dtr, PasService pas,
-                                 OutcomeCatalogue outcomes) {
+                                 OutcomeCatalogue outcomes, RunSupport support) {
         return new ProtocolCaseRunner(members, providers)
                 .register(EpaOperation.CRD_ORDER_SIGN, new CrdCaseStep(crd, EpaOperation.CRD_ORDER_SIGN))
                 .register(EpaOperation.CRD_ORDER_SELECT, new CrdCaseStep(crd, EpaOperation.CRD_ORDER_SELECT))
                 .register(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, new DtrCaseStep(dtr))
                 .register(EpaOperation.PAS_SUBMIT, new PasCaseStep(pas, EpaOperation.PAS_SUBMIT))
                 .register(EpaOperation.PAS_INQUIRE, new PasCaseStep(pas, EpaOperation.PAS_INQUIRE))
-                .registerChain(new ChainCaseStep(crd, dtr, pas, outcomes));
+                .registerChain(new ChainCaseStep(crd, dtr, pas, outcomes, support));
     }
 
     @Bean
