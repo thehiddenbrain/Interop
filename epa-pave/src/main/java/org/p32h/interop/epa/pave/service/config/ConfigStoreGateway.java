@@ -1218,6 +1218,14 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "locked again since." + why, "To send it, unlock production writes on the Config tab by typing the environment name. "
                     + "To test without production, switch to a sandbox or uat environment.");
         }
+        if (origin != null) {
+            // Nobody holds an unlock, and the call said it came from a screen, so the advice for a
+            // replay or a suite would only send a tester at a raw send looking for a PAS tab.
+            return new Refusal("Blocked: production writes are locked for this session.", what + " is blocked: \"" + active.name()
+                    + "\" is a production environment and production writes are locked for this session." + why, "To send it, unlock "
+                    + "production writes on the Config tab by typing the environment name, then send it again from " + tab(intent)
+                    + ". To test without production, switch to a sandbox or uat environment.");
+        }
         // Nobody holds an unlock, so writes are locked for every session. Without an origin the
         // caller can be a screen, a replay or a suite, so the step named is the one that helps each.
         return new Refusal("Blocked: production writes are locked for this session.", what + " is blocked: \"" + active.name() + "\" is a production environment and production writes are "

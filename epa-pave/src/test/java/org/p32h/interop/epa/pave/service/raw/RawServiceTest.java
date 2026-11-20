@@ -203,6 +203,14 @@ class RawServiceTest {
         assertThat(result.wire().request().sent()).isFalse();
         assertThat(ledger.only().outcome()).isEqualTo("BLOCKED");
         assertThat(ledger.only().targetSource()).isEqualTo("submit Happy Path");
+        // The verdict gives the refusal; the next step says what unlocking or switching achieves for a
+        // request mapped to nothing, and never repeats the refusal or names a protocol tab.
+        assertThat(result.verdict().headline()).contains("so it is blocked");
+        assertThat(result.nextStep().action()).isEqualTo(NextAction.UNLOCK_OR_SWITCH);
+        assertThat(result.nextStep().reason()).isEqualTo("With production writes unlocked in this browser session, where the installation "
+                + "allows them, the request, exactly as written, goes to the production environment; with an environment that is not "
+                + "production active, it goes there instead.");
+        assertThat(result.nextStep().reason()).doesNotContain("so it is blocked").doesNotContain("PAS tab");
 
         RequestPreview preview = service(mockClient).preview(RawRunRequest.of(REF, "{}", Map.of(), null), null);
         assertThat(preview.blocked()).contains("blocked");
