@@ -1,7 +1,9 @@
 package org.p32h.interop.epa.pave.model;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -254,6 +256,20 @@ public final class TrackedJson {
 
         public Presence presence(String field) {
             return child(field).presence();
+        }
+
+        /**
+         * Whether each named child was absent, null, empty or held something, in the order named.
+         * For a view that lists the entries of a repeating element: an empty list on screen cannot
+         * say on its own whether the element was not returned, returned as null or returned empty,
+         * and a screen must say which. Looking does not consume.
+         */
+        public Map<String, Presence> presences(String... fields) {
+            Map<String, Presence> out = new LinkedHashMap<>();
+            for (String field : fields) {
+                out.put(field, presence(field));
+            }
+            return Collections.unmodifiableMap(out);
         }
 
         public boolean isObject() {

@@ -1,9 +1,13 @@
 package org.p32h.interop.epa.pave.model.pas;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * One ClaimResponse as returned: the payer's answer to one prior authorization request.
@@ -29,6 +33,11 @@ import java.util.List;
  * @param extensions        every other extension on the ClaimResponse
  * @param subsetted         true when the ClaimResponse declares the security tag SUBSETTED, by which
  *                          PAS 2.0.1 says it answers only some of the items of the request
+ * @param preAuthPeriod     whether preAuthPeriod itself was not returned, null, empty or held
+ *                          something. Its start and end say what was inside it, and cannot say this
+ * @param lists             for each repeating element of the ClaimResponse ({@code identifier},
+ *                          {@code item}, {@code error}, {@code processNote}, {@code communicationRequest},
+ *                          {@code extension}), whether it was not returned, null, empty or held something
  * @param addItemReviewActions where a review action sat on ClaimResponse.addItem.adjudication, which
  *                          the PAS 2.2.0 ballot defines and 2.0.1 does not. Such an action is listed
  *                          among the fields returned but not interpreted and decides nothing here
@@ -62,9 +71,13 @@ public record ClaimResponseView(
         List<ProcessNoteView> processNotes,
         List<ExtensionView> extensions,
         boolean subsetted,
-        List<String> addItemReviewActions) {
+        List<String> addItemReviewActions,
+        Presence preAuthPeriod,
+        Map<String, Presence> lists) {
 
     public ClaimResponseView {
+        lists = lists == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(lists));
+
         addItemReviewActions = addItemReviewActions == null ? List.of() : List.copyOf(addItemReviewActions);
         identifiers = identifiers == null ? List.of() : List.copyOf(identifiers);
         reviewActions = reviewActions == null ? List.of() : List.copyOf(reviewActions);

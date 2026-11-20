@@ -1,8 +1,12 @@
 package org.p32h.interop.epa.pave.model.dtr;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Shown;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * One item of a questionnaire: a group, a question or a line of display text, with the items
@@ -16,6 +20,9 @@ import java.util.List;
  * @param enabled       whether the answers given enable the item
  * @param enabledReason one plain sentence saying why, or null for an item with no condition whose
  *                      group is enabled
+ * @param lists         for each repeating element of the item ({@code answerOption}, {@code initial},
+ *                      {@code enableWhen}, {@code item}, {@code extension}), whether it was not
+ *                      returned, null, empty or held something
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ItemView(
@@ -37,9 +44,11 @@ public record ItemView(
         ItemEnabled enabled,
         String enabledReason,
         List<ExtensionView> extensions,
-        List<ItemView> items) {
+        List<ItemView> items,
+        Map<String, Presence> lists) {
 
     public ItemView {
+        lists = lists == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(lists));
         answerOptions = answerOptions == null ? List.of() : List.copyOf(answerOptions);
         initial = initial == null ? List.of() : List.copyOf(initial);
         prepopulated = prepopulated == null ? List.of() : List.copyOf(prepopulated);

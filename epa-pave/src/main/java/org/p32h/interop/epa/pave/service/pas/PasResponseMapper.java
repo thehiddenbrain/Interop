@@ -80,7 +80,7 @@ public final class PasResponseMapper {
      * @param authorizedTo   the end of it, or null
      */
     private record ItemRead(PasItemView view, Integer sequence, List<String> traceNumbers, List<Action> actions, String authorizedFrom,
-                            String authorizedTo) {
+                            String authorizedTo, Presence authorizedPeriod) {
     }
 
     /** Where PAS 2.0.1 does not place a review action, said beside one found there. */
@@ -337,7 +337,8 @@ public final class PasResponseMapper {
                 resource.shown("created"), FhirViews.reference(resource.child("insurer")), FhirViews.reference(resource.child("requestor")),
                 outcome, resource.shown("disposition"), resource.shown("preAuthRef"), periodStart, periodEnd, requestShown,
                 requestIdentifier, identifiers, responseActions.stream().map(Action::view).toList(), decision, decisions, itemViews,
-                errors, attachments, notes, extensions, subsetted(resource.raw()), addItemReviewActions(resource));
+                errors, attachments, notes, extensions, subsetted(resource.raw()), addItemReviewActions(resource), period.presence(),
+                resource.presences("identifier", "item", "error", "processNote", "communicationRequest", "extension"));
     }
 
     /**
@@ -475,6 +476,9 @@ public final class PasResponseMapper {
         }
         String from = mine.stream().map(ItemRead::authorizedFrom).filter(Texts::present).findFirst().orElse(null);
         String to = mine.stream().map(ItemRead::authorizedTo).filter(Texts::present).findFirst().orElse(null);
+        // A period that was stated wins over one sent with nothing in it, as its start and end do.
+        Presence period = mine.stream().map(ItemRead::authorizedPeriod).filter(p -> p == Presence.VALUE).findFirst()
+                .orElse(mine.stream().map(ItemRead::authorizedPeriod).filter(p -> p != null).findFirst().orElse(null));
         List<Action> applies;
         DecisionSource source;
         if (states(own)) {
@@ -493,7 +497,7 @@ public final class PasResponseMapper {
         List<String> reasons = source == DecisionSource.NONE ? List.of()
                 : applies.stream().flatMap(action -> action.view().reasonCodes().stream()).distinct().toList();
         return new PasDecision(subject, procedureCode, sequence, mine.isEmpty() ? null : mine.get(0).view().foundAt(), codes, source,
-                PasOutcomeRules.forItem(codes), reasons, errorCodes, numbers, from, to);
+                PasOutcomeRules.forItem(codes), reasons, errorCodes, numbers, from, to, period);
     }
 
     /** True when at least one of the review actions carries a code. */
@@ -540,7 +544,7 @@ public final class PasResponseMapper {
             actions.addAll(onAdjudication);
             adjudications.add(new AdjudicationView(adjudication.path(), FhirViews.concept(adjudication.child("category")),
                     FhirViews.concept(adjudication.child("reason")), money(adjudication.child("amount")), adjudication.shown("value"),
-                    onAdjudication.stream().map(Action::view).toList(), adjudicationExtensions));
+                    onAdjudication.stream().map(Action::view).toList(), adjudicationExtensions, adjudication.presences("extension")));
         }
         List<Shown> noteNumbers = new ArrayList<>();
         for (TrackedJson.Node number : item.children("noteNumber")) {
@@ -548,17 +552,19 @@ public final class PasResponseMapper {
         }
         Integer sequence = JsonSafe.integer(item.raw(), "itemSequence");
         PasItemView view = new PasItemView(item.path(), item.shown("itemSequence"), null, null, onItem.stream().map(Action::view).toList(),
-                adjudications, extensions, noteNumbers);
+                adjudications, extensions, noteNumbers, item.presences("adjudication", "extension", "noteNumber"));
         // Read without consuming: the extension is listed with the item's others as it came.
         String from = null;
         String to = null;
+        Presence period = null;
         for (JsonNode extension : JsonSafe.elements(item.raw(), "extension")) {
             if (OnyxPasConventions.pasExtension(JsonSafe.presentText(extension, "url"), OnyxPasConventions.ITEM_PRE_AUTH_PERIOD)) {
                 from = JsonSafe.presentText(JsonSafe.child(extension, "valuePeriod"), "start");
                 to = JsonSafe.presentText(JsonSafe.child(extension, "valuePeriod"), "end");
+                period = JsonSafe.presence(JsonSafe.child(extension, "valuePeriod"));
             }
         }
-        return new ItemRead(view, sequence, SentClaim.traceNumbers(item.raw()), actions, from, to);
+        return new ItemRead(view, sequence, SentClaim.traceNumbers(item.raw()), actions, from, to, period);
     }
 
     /**

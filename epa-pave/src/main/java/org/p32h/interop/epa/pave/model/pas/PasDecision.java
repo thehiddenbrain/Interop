@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.model.pas;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import java.util.List;
 
@@ -34,18 +35,30 @@ import java.util.List;
  *                      itemPreAuthPeriod extension, where PAS 2.0.1 puts it. Null when not stated
  * @param authorizedTo  the end of that period. Null when not stated
  * @param sourceLabel   where the decision was stated, in words, taken from {@code source}. Null only when the source is null
+ * @param authorizedPeriod what the item's itemPreAuthPeriod extension held as its period: not
+ *                      returned (the extension had no valuePeriod), null, empty or a period. Null when
+ *                      no item of this decision carried the extension at all
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PasDecision(String subject, String procedureCode, Integer sequence, String foundAt, List<CodedValue> reviewActions,
                           DecisionSource source, PasOutcome outcome, List<String> reasonCodes, List<String> errorCodes,
-                          List<String> authorizationNumbers, String authorizedFrom, String authorizedTo, String sourceLabel) {
+                          List<String> authorizationNumbers, String authorizedFrom, String authorizedTo, String sourceLabel,
+                          Presence authorizedPeriod) {
 
     /** A decision with the words for its source taken from the source. */
     public PasDecision(String subject, String procedureCode, Integer sequence, String foundAt, List<CodedValue> reviewActions,
                        DecisionSource source, PasOutcome outcome, List<String> reasonCodes, List<String> errorCodes,
                        List<String> authorizationNumbers, String authorizedFrom, String authorizedTo) {
         this(subject, procedureCode, sequence, foundAt, reviewActions, source, outcome, reasonCodes, errorCodes, authorizationNumbers,
-                authorizedFrom, authorizedTo, null);
+                authorizedFrom, authorizedTo, null, null);
+    }
+
+    /** A decision with the words for its source taken from the source, and what its period was. */
+    public PasDecision(String subject, String procedureCode, Integer sequence, String foundAt, List<CodedValue> reviewActions,
+                       DecisionSource source, PasOutcome outcome, List<String> reasonCodes, List<String> errorCodes,
+                       List<String> authorizationNumbers, String authorizedFrom, String authorizedTo, Presence authorizedPeriod) {
+        this(subject, procedureCode, sequence, foundAt, reviewActions, source, outcome, reasonCodes, errorCodes, authorizationNumbers,
+                authorizedFrom, authorizedTo, null, authorizedPeriod);
     }
 
     public PasDecision {
@@ -70,7 +83,7 @@ public record PasDecision(String subject, String procedureCode, Integer sequence
     /** The same decision under another name, for a result that holds several ClaimResponses. */
     public PasDecision named(String newSubject) {
         return new PasDecision(newSubject, procedureCode, sequence, foundAt, reviewActions, source, outcome, reasonCodes, errorCodes,
-                authorizationNumbers, authorizedFrom, authorizedTo);
+                authorizationNumbers, authorizedFrom, authorizedTo, authorizedPeriod);
     }
 
     /** Prints where it was found and the outcome. The codes and the subject come from a response. */

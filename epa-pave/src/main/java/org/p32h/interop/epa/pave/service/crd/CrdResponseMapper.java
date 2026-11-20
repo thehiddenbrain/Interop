@@ -298,7 +298,7 @@ public final class CrdResponseMapper {
                     actionIndex++;
                 }
                 suggestions.add(new SuggestionView(suggestion.shown("label"), suggestion.shown("uuid"),
-                        suggestion.shown("isRecommended"), actions));
+                        suggestion.shown("isRecommended"), actions, suggestion.presences("actions")));
             }
             suggestionIndex++;
         }
@@ -314,7 +314,8 @@ public final class CrdResponseMapper {
                 source.exists() ? source.shown("label") : Shown.absent(),
                 source.exists() ? source.shown("url") : Shown.absent(),
                 source.exists() ? source.shown("icon") : Shown.absent(),
-                topic, card.shown("selectionBehavior"), links, suggestions, overrideReasons);
+                topic, card.shown("selectionBehavior"), links, suggestions, overrideReasons, source.presence(),
+                card.presences("links", "suggestions", "overrideReasons"));
     }
 
     private ActionView action(TrackedJson.Node action, String path, List<Found> coverage) {

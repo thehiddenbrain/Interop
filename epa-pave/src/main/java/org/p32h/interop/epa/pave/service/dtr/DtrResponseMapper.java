@@ -587,7 +587,8 @@ public final class DtrResponseMapper {
         List<ItemView> children = items(item, path + ".item", form, prepopulated);
         return new ItemView(path, linkId, text, prefix, type, state != null && state.item().question(), required, repeats, readOnly,
                 answerValueSet, options, initial, arrived, behavior, conditions, state == null ? ItemEnabled.UNDETERMINED : state.enabled(),
-                state == null ? null : state.reason(), extensions, children);
+                state == null ? null : state.reason(), extensions, children,
+                item.presences("answerOption", "initial", "enableWhen", "item", "extension"));
     }
 
     private QuestionnaireResponseView response(TrackedJson.Node node, String foundAt) {
