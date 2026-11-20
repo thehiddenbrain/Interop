@@ -15,23 +15,29 @@ import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
-import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.LookupStatus;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.MemberLookupResult;
-import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.ProviderLookupResult;
 import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.MemberLookup;
 import org.p32h.interop.epa.pave.service.ProviderLookup;
 import org.p32h.interop.epa.pave.service.RunLedger;
+import org.p32h.interop.epa.pave.client.dtr.MockOnyxDtrClient;
+import org.p32h.interop.epa.pave.client.pas.MockOnyxPasClient;
+import org.p32h.interop.epa.pave.config.CaseWiring;
+import org.p32h.interop.epa.pave.service.cases.ChainCaseStep;
 import org.p32h.interop.epa.pave.service.cases.CrdCaseStep;
+import org.p32h.interop.epa.pave.service.cases.DtrCaseStep;
+import org.p32h.interop.epa.pave.service.cases.PasCaseStep;
+import org.p32h.interop.epa.pave.service.cases.StepGateway;
+import org.p32h.interop.epa.pave.service.dtr.DtrService;
+import org.p32h.interop.epa.pave.service.pas.PasService;
 import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
 import org.p32h.interop.epa.pave.service.cases.ProtocolCaseRunner;
-import org.p32h.interop.epa.pave.service.crd.CrdCodes;
 import org.p32h.interop.epa.pave.service.crd.CrdService;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
@@ -41,8 +47,8 @@ import org.p32h.interop.epa.pave.testsupport.InMemoryLedger;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 /**
- * A suite service over the real case runner, the real CRD service and the mock scenario files,
- * with fakes for the gateway, the ledger, the code list and the two lookups.
+ * A suite service over the real case runner, the real CRD, DTR and PAS services and the mock
+ * scenario files, with fakes for the gateway, the ledger, the code list and the two lookups.
  */
 public final class SuiteTestBed {
 
@@ -53,7 +59,11 @@ public final class SuiteTestBed {
     private static final AppProperties APP = AppProperties.of(Map.of("mock-latency-enabled", "false"));
 
     public final FakeGateway gateway = FakeGateway.unconfigured();
+    /** The gateway the services and the suite use: the fake, with one step of a chain refused or failed when a test says so. */
+    public final StepGateway steps = new StepGateway(gateway);
     public final InMemoryLedger ledger = new InMemoryLedger();
+    /** The ledger the services write to and the suite reads from. The in-memory one unless a test gives the real one. */
+    public RunLedger store = ledger;
     public final FakeCodeList codeList = new FakeCodeList();
     public final Deque<Runnable> queued = new ArrayDeque<>();
     /** Runs a suite inside start() unless a test asks for the task to be held. */
@@ -74,19 +84,39 @@ public final class SuiteTestBed {
         return HEADER + "\n" + String.join("\n", rows);
     }
 
-    public CaseRunner runner() {
+    /** The runner as the application wires it: every operation a case can run, and the chain, over the mock clients. */
+    public ProtocolCaseRunner runner() {
         EpaProperties epa = EpaProperties.of(Map.of("mode", mode));
-        CrdService crd = new CrdService(epa, gateway, new MockOnyxCrdClient(new ScenarioRepository(APP), new MockExchanges(APP)),
-                codeList, support(epa));
+        RunSupport support = support(epa);
+        ScenarioRepository scenarios = new ScenarioRepository(APP);
+        CrdService crd = new CrdService(epa, steps, new MockOnyxCrdClient(scenarios, new MockExchanges(APP)), codeList, support);
+        DtrService dtr = new DtrService(epa, steps, new MockOnyxDtrClient(scenarios, new MockExchanges(APP)), codeList, support);
+        PasService pas = new PasService(OnyxProperties.defaults(), steps, new MockOnyxPasClient(scenarios, new MockExchanges(APP)), codeList,
+                support, ledgerProvider());
         return new ProtocolCaseRunner(members, providers)
+                .scenarios((protocol, id) -> scenarios.list(protocol.name().toLowerCase(java.util.Locale.ROOT)).stream()
+                        .anyMatch(scenario -> scenario.id().equals(id)))
                 .register(EpaOperation.CRD_ORDER_SIGN, new CrdCaseStep(crd, EpaOperation.CRD_ORDER_SIGN))
-                .register(EpaOperation.CRD_ORDER_SELECT, new CrdCaseStep(crd, EpaOperation.CRD_ORDER_SELECT));
+                .register(EpaOperation.CRD_ORDER_SELECT, new CrdCaseStep(crd, EpaOperation.CRD_ORDER_SELECT))
+                .register(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, new DtrCaseStep(dtr))
+                .register(EpaOperation.PAS_SUBMIT, new PasCaseStep(pas, EpaOperation.PAS_SUBMIT))
+                .register(EpaOperation.PAS_INQUIRE, new PasCaseStep(pas, EpaOperation.PAS_INQUIRE))
+                .registerChain(new ChainCaseStep(crd, dtr, pas, outcomes(), support));
+    }
+
+    /** The outcomes of every protocol, as the application registers them. */
+    public static OutcomeCatalogue outcomes() {
+        return new CaseWiring().outcomeCatalogue();
+    }
+
+    private org.springframework.beans.factory.ObjectProvider<RunLedger> ledgerProvider() {
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("ledger", store);
+        return beans.getBeanProvider(RunLedger.class);
     }
 
     private RunSupport support(EpaProperties epa) {
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("ledger", ledger);
-        return new RunSupport(epa, TrackingProperties.defaults(), OnyxProperties.defaults(), beans.getBeanProvider(RunLedger.class), CLOCK);
+        return new RunSupport(epa, TrackingProperties.defaults(), OnyxProperties.defaults(), ledgerProvider(), CLOCK);
     }
 
     public SuiteService service() {
@@ -112,10 +142,9 @@ public final class SuiteTestBed {
             beans.addBean("runner", wrap.apply(runner()));
         }
         if (withLedger) {
-            beans.addBean("ledger", ledger);
+            beans.addBean("ledger", store);
         }
-        OutcomeCatalogue outcomes = new OutcomeCatalogue().register(Protocol.CRD, CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
-        return new SuiteService(beans.getBeanProvider(CaseRunner.class), beans.getBeanProvider(RunLedger.class), gateway, epa,
-                outcomes, new SuiteFileReader(new CsvRowsAdapter()), support(epa), executor);
+        return new SuiteService(beans.getBeanProvider(CaseRunner.class), beans.getBeanProvider(RunLedger.class), steps, epa,
+                outcomes(), new SuiteFileReader(new CsvRowsAdapter()), support(epa), executor);
     }
 }

@@ -23,9 +23,12 @@ import org.p32h.interop.epa.pave.model.Tone;
  * @param expected       what the row declared, as written. Null when it declared nothing
  * @param outcome        the outcome code of the last step that ran. Null when nothing ran
  * @param outcomeLabel   that outcome in plain words
- * @param result         pass, fail or unverified. Null when nothing was sent, so there is nothing
- *                       to compare: a blocked, invalid, unconfigured or unrunnable case
- * @param elapsedMillis  the time the calls of this case took, added up. Null when no call was made
+ * @param result         pass, fail or unverified: for a chain, the result of the journey as a whole.
+ *                       Null when the case did not complete, so there is nothing to compare: a
+ *                       blocked, invalid, unconfigured or unrunnable case, a chain that stopped part
+ *                       way, or a failure of this tool
+ * @param elapsedMillis  the time the calls of this case that went out took, added up. Null when no
+ *                       call went out
  * @param slow           true when a call of this case completed but took longer than the threshold
  * @param runId          the ledger record that states the result: the last step that ran
  * @param runIds         every ledger record of the case, in order. More than one for a chain
@@ -33,10 +36,23 @@ import org.p32h.interop.epa.pave.model.Tone;
  * @param reason         why the case was blocked, invalid, not configured or not runnable, or why
  *                       a chain stopped where it did
  * @param notes          what a reader should know about how the case was run
- * @param notRecorded    the ledger's own message for each run it did not keep
+ * @param notRecorded    the ledger's own message for each run it did not keep, and for a chain one
+ *                       more when the line holding the result of the case as a whole was not kept
  * @param previousOutcome the outcome the same case had in the suite run this one is compared with
+ * @param previousResult the result the same case had then: for a chain, the result of the case as
+ *                       a whole from its case line. Null for a chain whose earlier run has no case
+ *                       line, because its last step's result is not the case's
  * @param changed        true when the outcome or the result differs from that earlier run. Null
- *                       when there is no comparison, or the earlier run has no such case
+ *                       when there is no comparison, the earlier run has no such case, or a chain's
+ *                       earlier result is not known and its outcome is the same
+ * @param steps          for a chain, each step it sent, in order, with its own outcome and its own
+ *                       result. The case result above is the one for the journey as a whole, so a
+ *                       chain that failed on an early step shows that step here. Empty otherwise
+ * @param faultReference when this tool failed while running the case, the reference it was logged
+ *                       under. Whether a request left before the failure is not known
+ * @param outcomeFault   true when the outcome says the service failed or did not answer, as
+ *                       opposed to a determination. Null when nothing was sent
+ * @param nextStep       what the last step said should happen next, in plain words
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SuiteCaseResult(
@@ -66,13 +82,39 @@ public record SuiteCaseResult(
         String previousOutcome,
         String previousOutcomeLabel,
         TestResult previousResult,
-        Boolean changed) {
+        Boolean changed,
+        List<Step> steps,
+        String faultReference,
+        Boolean outcomeFault,
+        String nextStep) {
 
     public SuiteCaseResult {
+        steps = steps == null ? List.of() : List.copyOf(steps);
         runIds = runIds == null ? List.of() : List.copyOf(runIds);
         findings = findings == null ? List.of() : List.copyOf(findings);
         notes = notes == null ? List.of() : List.copyOf(notes);
         notRecorded = notRecorded == null ? List.of() : List.copyOf(notRecorded);
+    }
+
+    /** True when some of the case's steps went out and the case did not complete or end blocked. */
+    public boolean partlySent() {
+        return !runIds.isEmpty() && status != null && status != CaseStatus.COMPLETED && status != CaseStatus.BLOCKED;
+    }
+
+    /**
+     * One step of a chain row.
+     *
+     * @param what   the operation in plain words
+     * @param result the step's own test result, against the part of the expectation that names it
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Step(String what, String outcome, String outcomeLabel, TestResult result, String runId) {
+
+        /** Prints the step and its result. The outcome comes from a response. */
+        @Override
+        public String toString() {
+            return "Step[" + runId + ", " + result + "]";
+        }
     }
 
     /** Prints the row and its state. The case id, the expectation and the reason are cells of a suite file or quote them. */

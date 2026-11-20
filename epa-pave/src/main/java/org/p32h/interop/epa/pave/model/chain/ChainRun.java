@@ -20,6 +20,8 @@ import org.p32h.interop.epa.pave.model.Tone;
  *                        this was kept, or holding a value this version does not know
  * @param latestOfItsKind false when a later run of the same operation exists in the chain, so
  *                        this one has been run again since
+ * @param caseResult      on the last step of a chain run as a case, the result of the case as a
+ *                        whole, which can differ from this step's own result. Null otherwise
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ChainRun(
@@ -39,7 +41,8 @@ public record ChainRun(
         NextAction nextAction,
         List<String> findings,
         String scenarioId,
-        boolean latestOfItsKind) {
+        boolean latestOfItsKind,
+        TestResult caseResult) {
 
     public ChainRun {
         findings = findings == null ? List.of() : List.copyOf(findings);

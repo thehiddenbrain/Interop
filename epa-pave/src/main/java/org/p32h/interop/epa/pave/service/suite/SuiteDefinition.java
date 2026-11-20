@@ -9,8 +9,13 @@ import java.util.List;
  * @param format   "CSV" or "JSON"
  * @param columns  the columns or keys the file has, as written
  * @param problems what is wrong with the file as a whole. When not empty, nothing can be run
+ * @param skipped  rows left out as comments
  */
-public record SuiteDefinition(String name, String format, List<String> columns, List<SuiteRow> rows, List<String> problems) {
+public record SuiteDefinition(String name, String format, List<String> columns, List<SuiteRow> rows, List<String> problems, int skipped) {
+
+    public SuiteDefinition(String name, String format, List<String> columns, List<SuiteRow> rows, List<String> problems) {
+        this(name, format, columns, rows, problems, 0);
+    }
 
     public SuiteDefinition {
         columns = columns == null ? List.of() : List.copyOf(columns);

@@ -71,6 +71,14 @@ import java.util.Map;
  *                         a fresh lookup, from the INPUT constants. Names only, never values. Empty
  *                         means the line is enough to run the same request again. Replay refuses a
  *                         record that lists any, because re-running it would send something else
+ * @param caseExpected     on the last step of a chain case, what the case as a whole declared, as
+ *                         its case line holds it. Never written on a run line: the ledger applies
+ *                         it when the line is read, as it applies a note. Null otherwise
+ * @param caseResult       on the last step of a chain case, the test result of the case as a whole,
+ *                         which no single step can state: a chain that expected an answer from a
+ *                         step it never reached has failed although every step it made passed.
+ *                         Applied when the line is read, from the case line that names this run.
+ *                         Null otherwise
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.ALWAYS)
@@ -79,7 +87,7 @@ import java.util.Map;
         "delegatedVendor", "httpStatus", "elapsedMillis", "errorType", "expected", "result", "note", "testerRef",
         "chainId", "suiteRunId", "caseId", "replayOfRunId", "hook", "attachmentMode", "nextAction", "targetSource", "memberId",
         "memberToken", "memberIdLast4", "npi",
-        "dateOfService", "correlation", "findings", "unrecordedInputs", "slow"})
+        "dateOfService", "correlation", "findings", "unrecordedInputs", "slow", "caseExpected", "caseResult"})
 public record RunRecord(
         String recordType,
         String runId,
@@ -119,10 +127,19 @@ public record RunRecord(
         @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, String> correlation,
         @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> findings,
         @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> unrecordedInputs,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) Boolean slow) {
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) Boolean slow,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String caseExpected,
+        @JsonInclude(JsonInclude.Include.NON_NULL) TestResult caseResult) {
 
     /** The record type of a run line. Other line types in the same file carry a different value. */
     public static final String TYPE_RUN = "run";
+
+    /**
+     * The record type of a case line: the result of a chain case as a whole, written after its
+     * last step, naming that step's run. It records no call, so it is never counted or listed as a
+     * run; the ledger applies it to the run it names when that run is read.
+     */
+    public static final String TYPE_CASE = "case";
 
     /** Error type of a run the production guardrail refused to send. */
     public static final String ERROR_BLOCKED = "BLOCKED";
@@ -261,6 +278,8 @@ public record RunRecord(
                     || result == null) {
                 throw new IllegalStateException("A run record needs a run id, a timestamp, a protocol, an operation, an outcome and a result.");
             }
+        } else if (TYPE_CASE.equals(recordType) && (Texts.blank(runId) || Texts.blank(timestamp) || result == null)) {
+            throw new IllegalStateException("A case line needs the run id of the last step, a timestamp and a result.");
         }
         // Read before anything else is checked, because a value that holds the member ID is not
         // kept, whatever its shape. Only a draft holds the ID: once the ledger has tokenised it,
@@ -276,6 +295,7 @@ public record RunRecord(
         note = bounded(note, LONGEST_NOTE, NOTE_NOT_KEPT);
         testerRef = bounded(testerRef, LONGEST_TESTER_REF, TESTER_REF_NOT_KEPT);
         expected = bounded(expected, LONGEST_EXPECTED, EXPECTED_NOT_KEPT);
+        caseExpected = bounded(caseExpected, LONGEST_EXPECTED, EXPECTED_NOT_KEPT);
         // These two are written under every configuration, when the member ID itself is not. So
         // neither may hold anything but what the ledger puts there: a keyed hash in hex, and at
         // most four characters. Anything else is dropped, never written.
@@ -478,6 +498,36 @@ public record RunRecord(
     }
 
     /**
+     * The case line of a chain case: its test result as a whole, written once its steps have run.
+     * It holds only what the tool decided and what the suite row declared, never member data.
+     *
+     * @param lastRunId the run id of the last step the case made, which the line is applied to
+     * @param expected  what the case declared for the chain as a whole, or null
+     */
+    public static RunRecord caseLine(String lastRunId, String timestamp, String chainId, String suiteRunId, String caseId,
+                                     String expected, TestResult result) {
+        return new RunRecord(TYPE_CASE, lastRunId, timestamp, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, expected, result, null, null, chainId, suiteRunId, caseId, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null);
+    }
+
+    /** True for a case line, which records the result of a chain case and no call. */
+    public boolean caseLine() {
+        return TYPE_CASE.equals(recordType);
+    }
+
+    /**
+     * This run with the result of its case applied from the case line that names it. Only a run
+     * line takes one, and only the case line's own result and expectation are taken from it.
+     */
+    public RunRecord withCase(RunRecord line) {
+        if (line == null || !line.caseLine() || !TYPE_RUN.equals(recordType) || !runId.equals(line.runId())) {
+            return this;
+        }
+        return toBuilder().caseExpected(line.expected()).caseResult(line.result()).build();
+    }
+
+    /**
      * Prints what identifies the run and nothing else. A draft holds the real member ID, the date
      * of service and, for PAS, a real authorization number.
      */
@@ -526,6 +576,8 @@ public record RunRecord(
         b.findings = findings;
         b.unrecordedInputs = unrecordedInputs;
         b.slow = slow;
+        b.caseExpected = caseExpected;
+        b.caseResult = caseResult;
         return b;
     }
 
@@ -568,6 +620,8 @@ public record RunRecord(
         private List<String> findings = List.of();
         private List<String> unrecordedInputs = List.of();
         private boolean slow;
+        private String caseExpected;
+        private TestResult caseResult;
 
         private Builder() {
         }
@@ -779,13 +833,23 @@ public record RunRecord(
             return this;
         }
 
+        public Builder caseExpected(String value) {
+            this.caseExpected = value;
+            return this;
+        }
+
+        public Builder caseResult(TestResult value) {
+            this.caseResult = value;
+            return this;
+        }
+
         /** Builds the record, refusing one that could not be traced or compared later. */
         public RunRecord build() {
             return new RunRecord(TYPE_RUN, runId, timestamp, protocol, operation, target, profile, environment,
                     environmentKind, scenarioId, procedureCodes, lineOfBusiness, outcome, coverageCodes, delegatedVendor,
                     httpStatus, elapsedMillis, errorType, expected, result, note, testerRef, chainId, suiteRunId, caseId,
                     replayOfRunId, hook, attachmentMode, nextAction, targetSource, memberId, memberToken, memberIdLast4, npi, dateOfService, correlation,
-                    findings, unrecordedInputs, slow);
+                    findings, unrecordedInputs, slow, caseExpected, caseResult);
         }
 
     }

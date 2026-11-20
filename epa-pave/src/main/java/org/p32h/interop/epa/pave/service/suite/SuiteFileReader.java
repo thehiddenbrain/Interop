@@ -85,21 +85,33 @@ public final class SuiteFileReader {
         }
         List<String> header = table.header().stream().map(h -> h == null ? "" : h.strip()).toList();
         List<String> problems = new ArrayList<>();
+        List<String> headerNames = header.stream().filter(h -> !h.isEmpty()).toList();
         if (header.stream().allMatch(String::isEmpty)) {
             problems.add("The first row of the file must name the columns, and it is blank.");
-        } else if (header.stream().noneMatch(h -> SuiteColumns.find(h) != null || SuiteColumns.ignored(h))) {
-            // A first row that names no column this tool knows is a case, not a header. Its cells
-            // would otherwise be quoted back as unknown columns, and a case holds a member ID.
-            return new SuiteTable(SuiteTable.CSV, List.of(), List.of(), List.of("The file has no header row: its first row names no "
-                    + "column this tool knows, so it looks like a case. Add a first row that names the columns, for example "
+        } else if (headerNames.size() == 1 && (headerNames.get(0).contains(";") || headerNames.get(0).contains("\t"))) {
+            // The whole first row arrived as one cell, so the file was saved with another separator. Its cells are not quoted.
+            String separator = headerNames.get(0).contains(";") ? "semicolons" : "tabs";
+            return new SuiteTable(SuiteTable.CSV, List.of(), List.of(), List.of("The file looks separated by " + separator + ", not by "
+                    + "commas: its first row is one cell. In a spreadsheet, save it as \"CSV UTF-8 (Comma delimited)\" and choose it again."));
+        } else if (headerNames.stream().filter(h -> SuiteColumns.find(h) != null || SuiteColumns.ignored(h)).count() * 2 <= headerNames.size()) {
+            // A first row is a header only when most of it reads as one. Otherwise it is taken for a case, and none of its cells is
+            // quoted back: a case holds a member ID, and cells that happen to match column names do not make it a header.
+            return new SuiteTable(SuiteTable.CSV, List.of(), List.of(), List.of("The file has no header row: no more than half of its "
+                    + "first row is a column this tool knows, so it looks like a case. Add a first row that names the columns, for example "
                     + "caseId,protocol,memberId,npi,procedureCodes,expected. The columns this tool knows are: " + SuiteColumns.known() + "."));
         } else if (header.contains("")) {
             problems.add("Column " + (header.indexOf("") + 1) + " has no name in the first row. Every column needs one.");
         }
         List<SourceRow> rows = new ArrayList<>();
         int number = 0;
+        int skipped = 0;
         for (List<String> cells : table.rows()) {
             if (cells.stream().allMatch(Texts::blank)) {
+                continue;
+            }
+            if (!cells.isEmpty() && cells.get(0) != null && cells.get(0).strip().startsWith(SuiteColumns.IGNORED_PREFIX)) {
+                // A row whose first cell starts with # is the tester's comment, as a column named that way is. It is counted, not run.
+                skipped++;
                 continue;
             }
             number++;
@@ -119,7 +131,7 @@ public final class SuiteFileReader {
             }
             rows.add(new SourceRow(number, named, rowProblems));
         }
-        return new SuiteTable(SuiteTable.CSV, header, rows, problems);
+        return new SuiteTable(SuiteTable.CSV, header, rows, problems, skipped);
     }
 
     private SuiteTable readJson(String text) {

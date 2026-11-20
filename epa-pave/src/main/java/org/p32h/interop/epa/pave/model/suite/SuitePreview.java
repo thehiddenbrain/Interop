@@ -20,6 +20,10 @@ import org.p32h.interop.epa.pave.model.EnvironmentRef;
  * @param writes       rows that create or change something on the far side
  * @param writeNote    what happens to those rows against the environment now active
  * @param columns      the columns or keys the file has, as the tool read them
+ * @param cannotRun    rows this build cannot run, each with the reason. Nothing is wrong with what
+ *                     they hold; they will be reported as not runnable and the rest still run
+ * @param cannotRunCount how many rows cannot be run, which can be more than are listed
+ * @param skipped      rows left out as comments, because their first cell starts with #
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SuitePreview(
@@ -39,9 +43,13 @@ public record SuitePreview(
         List<String> columns,
         String mode,
         String target,
-        EnvironmentRef environment) {
+        EnvironmentRef environment,
+        List<RowProblem> cannotRun,
+        int cannotRunCount,
+        int skipped) {
 
     public SuitePreview {
+        cannotRun = cannotRun == null ? List.of() : List.copyOf(cannotRun);
         problems = problems == null ? List.of() : List.copyOf(problems);
         rowProblems = rowProblems == null ? List.of() : List.copyOf(rowProblems);
         kinds = kinds == null ? List.of() : List.copyOf(kinds);

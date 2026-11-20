@@ -19,6 +19,8 @@ import org.p32h.interop.epa.pave.model.EnvironmentRef;
  * @param notes        what a reader should know about the run as a whole
  * @param results      one row per case, in file order. Null in a list of runs, where only the
  *                     summary is given
+ * @param stopping     true while a stop has been asked for and the case being run is finishing.
+ *                     Null otherwise
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SuiteRunView(
@@ -40,7 +42,8 @@ public record SuiteRunView(
         SuiteTiming timing,
         Map<String, Integer> findingCounts,
         List<String> notes,
-        List<SuiteCaseResult> results) {
+        List<SuiteCaseResult> results,
+        Boolean stopping) {
 
     public SuiteRunView {
         findingCounts = findingCounts == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(findingCounts));
@@ -51,7 +54,7 @@ public record SuiteRunView(
     /** The same run without its rows, for a list of runs. */
     public SuiteRunView summary() {
         return new SuiteRunView(suiteRunId, name, format, state, headline, stopReason, startedAt, finishedAt, mode, target,
-                environment, epoch, testerRef, comparedWith, counts, timing, findingCounts, notes, null);
+                environment, epoch, testerRef, comparedWith, counts, timing, findingCounts, notes, null, stopping);
     }
 
     /** Prints the run id and its state. The name, the tester reference and the rows come from the file. */

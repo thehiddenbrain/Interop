@@ -317,6 +317,9 @@ public class JsonlRunLedger implements RunLedger {
         // caller. A run the builder made always passes, and a line of another kind, such as a note
         // read back from a file, would otherwise be copied into a run line or fail half way through.
         Objects.requireNonNull(draft, "draft");
+        if (LedgerLines.isCase(draft)) {
+            return recordCase(draft);
+        }
         if (!LedgerLines.isRun(draft)) {
             throw new IllegalArgumentException("Only a run can be recorded, and this record is not one.");
         }
@@ -339,6 +342,19 @@ public class JsonlRunLedger implements RunLedger {
         }
         Appended appended = append(() -> LedgerLines.runLine(record), true, "This run");
         return new LedgerReceipt(appended.failure() == null, record, appended.failure(), appended.runsToday());
+    }
+
+    /**
+     * Appends the case line of a chain case. It holds the run id of the case's last step, the
+     * chain, the suite and the case, what the case declared and its result: nothing the tracking
+     * policy governs, so it is written as it is. It is not a run and is not counted as one.
+     */
+    private LedgerReceipt recordCase(RunRecord line) {
+        if (!enabled) {
+            return new LedgerReceipt(false, line, "The result of this case was NOT recorded: " + SWITCHED_OFF + ".", null);
+        }
+        Appended appended = append(() -> LedgerLines.caseLine(line), false, "The result of this case");
+        return new LedgerReceipt(appended.failure() == null, line, appended.failure(), appended.runsToday());
     }
 
     /** Appends one line to today's file. Never throws. */
@@ -535,6 +551,7 @@ public class JsonlRunLedger implements RunLedger {
         LocalDate newestFileWithRuns = query.to() == null ? null : query.to().plusDays(1);
         List<RunRecord> matching = new ArrayList<>();
         Map<String, RunRecord> latestNotes = new HashMap<>();
+        Map<String, RunRecord> latestCases = new HashMap<>();
         for (DayFile file : dayFiles()) {
             if (oldestFile != null && file.day().isBefore(oldestFile)) {
                 break;
@@ -548,10 +565,14 @@ public class JsonlRunLedger implements RunLedger {
                     latestNotes.putIfAbsent(line.runId(), line);
                     continue;
                 }
+                if (LedgerLines.isCase(line)) {
+                    latestCases.putIfAbsent(line.runId(), line);
+                    continue;
+                }
                 if (!mayHoldRuns) {
                     continue;
                 }
-                RunRecord run = withNote(line, latestNotes.get(line.runId()));
+                RunRecord run = withNote(line, latestNotes.get(line.runId())).withCase(latestCases.get(line.runId()));
                 if (accepts(query, run, file.day())) {
                     matching.add(run);
                     if (limit > 0 && matching.size() == limit) {
@@ -579,7 +600,9 @@ public class JsonlRunLedger implements RunLedger {
         if (query.operation() != null && query.operation() != run.operation()) {
             return false;
         }
-        if (query.result() != null && query.result() != run.result()) {
+        // The last step of a chain case holds two results: its own and the case's. A filter for
+        // either finds it, so a chain that failed as a whole is among the failed runs.
+        if (query.result() != null && query.result() != run.result() && query.result() != run.caseResult()) {
             return false;
         }
         if (query.outcome() != null && !query.outcome().strip().equalsIgnoreCase(run.outcome())) {
@@ -618,6 +641,7 @@ public class JsonlRunLedger implements RunLedger {
         }
         String wanted = runId.strip();
         RunRecord latestNote = null;
+        RunRecord latestCase = null;
         for (DayFile file : dayFiles()) {
             List<RunRecord> lines = linesOf(file);
             for (int i = lines.size() - 1; i >= 0; i--) {
@@ -625,8 +649,12 @@ public class JsonlRunLedger implements RunLedger {
                 if (!wanted.equals(line.runId())) {
                     continue;
                 }
+                if (LedgerLines.isCase(line)) {
+                    latestCase = latestCase == null ? line : latestCase;
+                    continue;
+                }
                 if (!LedgerLines.isNote(line)) {
-                    return Optional.of(withNote(line, latestNote));
+                    return Optional.of(withNote(line, latestNote).withCase(latestCase));
                 }
                 if (latestNote == null) {
                     latestNote = line;
