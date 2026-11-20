@@ -131,7 +131,8 @@ public final class RunInputs {
     /**
      * The checks every request shares beyond its own fields: no field the tool does not know, a
      * chain id that is blank, a request for a new one, or an id this tool minted, and the free
-     * text a run carries to the ledger within its limits.
+     * text a run carries to the ledger within its limits and free of the member data the request
+     * itself carries ({@link MemberInText}).
      */
     public RunInputs common(RunRequest request) {
         for (String key : request.unrecognised().keySet()) {
