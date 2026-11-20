@@ -128,6 +128,23 @@ export function createCaseContext() {
         },
 
         /**
+         * Puts a member in the case in place of the one there, as when a run is loaded from the
+         * ledger: every detail of the member before goes, typed by hand or not, because it belonged
+         * to that member, and the member ID given is looked up. record.memberId absent or blank
+         * leaves the member empty.
+         */
+        fillMember(record) {
+            member.replace(record && record.memberId ? String(record.memberId) : '');
+            changed();
+        },
+
+        /** As fillMember, for the ordering provider: record.npi, or an empty provider. */
+        fillProvider(record) {
+            provider.replace(record && record.npi ? String(record.npi) : '');
+            changed();
+        },
+
+        /**
          * What a tester should look at before sending, in sentences: what a lookup said about a
          * member or a provider it found, and a lookup that the environment now active did not answer.
          * Each entry is {about, text, reveal}: reveal() brings the lookup that said it into view, where
@@ -400,6 +417,18 @@ function group(spec) {
             if (identifier.value() !== '') {
                 lookup.lookUp(false);
             }
+        },
+
+        /** Empties every detail, typed by hand or not, then puts the identifier in and looks it up. */
+        replace(value) {
+            for (const control of details()) {
+                control.set('');
+                control.given = null;
+                control.touched = false;
+                control.pasted = null;
+                mark(control);
+            }
+            this.setIdentifier(value);
         },
 
         /** Puts a value in one detail with where it came from: origin "pasted" for a value read out of a pasted request. */
