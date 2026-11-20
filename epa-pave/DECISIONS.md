@@ -17,6 +17,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-136, D-140 | The operator named 2.0.1 as the version of the Da Vinci guides to hold the tool to | All three protocols were compared with 2.0.1 by auditors who wrote none of the code and brought in line under four rules (D-140); what is still open is in `PROGRESS.md`. Which version the vendor sandbox follows is still not known |
 | D-143 | The production guardrail judges where a request goes, not only which environment is active | The guardrail audit got writes through to production four ways before this; how it was closed, and what it still cannot see (D-145) |
 | D-141 | A value nobody supplied is never invented, and a request says what it left out | A service that refuses such a request is not at fault, and the result says so |
+| D-190, D-200 | The frontend is merged, built in parts that were each reviewed alone; what the screens still need from the server, and the pass that joins the tabs, are decided and not done | Nobody has used the five tabs together yet; `PROGRESS.md` lists what is open first |
 
 ## Build and environment
 
@@ -2489,3 +2490,114 @@ the rest of a resource. The server is where this is put right (D-200).
 - Left for the server, decided and not done (D-200): the per-item comparison of what was asked with
   what was returned on a PAS response is decided not to be built (D-199); everything else the reviews
   handed to the server is in D-200.
+
+### Decided not to do
+
+**D-199. Decided otherwise in the leftover tasks, the screen tasks and the pass that joins the tabs, each with its reason.**
+The integrator's lists under "Decided otherwise" in the five task files.
+- Restated from earlier entries, and not reopened: the labels of CRD scenarios 3 and 4 (D-174); a
+  resubmission after "attachment required" reuses the claim identifier, and the PAS 2.0.1 claim
+  update is not built (D-133, D-161); a lookup the guardrail refuses stays `FAULT` with the error kind
+  `BLOCKED` (D-146); `Organization.active` is not sent and a coverage status nobody supplied is never
+  "active" (D-141); a mistyped term in a short expectation is quoted back (D-175, item 7);
+  `FieldError.toString` keeps its message (D-174); no endpoint clears the remembered production
+  destinations, a production environment whose address comes from an operating system variable has
+  no destination the tool can remember, and Windows file permissions are whatever the folder gives
+  (D-145, D-174); the session cookie is not a finding (D-174).
+- No comparison, per item of a PAS response, of what was asked with what was returned (the PAS
+  review's R07). Section 21 asks for every item with its adjudication and extensions, and they are
+  shown as returned. Working out "what changed" would match items of two documents by position and
+  call a difference a change, which is a judgement nobody supplied.
+- No endpoint that works out the enabled items of a questionnaire without a run (the DTR review's
+  R02). The sentence that promised it is made true instead: the enabled state of a static
+  questionnaire's items is worked out when the response is completed in this tool.
+- A malformed field on the form still refuses a comparison, because the tool cannot build its own
+  side without it. Only the wording of that refusal changes.
+- No endpoint to make a mapped request the default for an operation (the frame review's FR-04,
+  second half): taking the other requests off the operation already does it, and the effective
+  configuration will say so.
+- No 409 from the mapping and removal endpoints: a 404 that says the item is no longer held is the
+  answer when the configuration moved.
+- The pass that joins the tabs adds no feature and changes no controller, record or service.
+
+### Work decided and not done at the revision of D-201
+
+**D-200. What the screens asked of the server, and the pass that joins the tabs: decided, not done.**
+Three pieces of work were started from the revision of D-201 at the moment it was recorded, and
+none of what follows is on that line. A later entry will say what became of each.
+1. The server, in the three protocols:
+   - The request comparison masks a credential the pasted request carries in both documents and in
+     every difference value, by the rule and mask text the wire view uses, while still comparing the
+     real values; `RequestComparison.maskedNote` says how many places were masked.
+   - Every answer of every protocol endpoint searched whole, on live against a stand-in echoing
+     secrets, for a value not taken from the masked body; each leak fixed with a test.
+   - A subscription: the mock echoes the call back address sent, or none, and the verdict is worded
+     from what the request named and what the service answered. An unmatched notification gives the
+     remedy first (create a subscription from the PAS tab, then deliver the sample again).
+   - Tones checked against the rule that a tone says what the answer means for whoever must act: a
+     completed DTR response, an unmatched notification and a subscription that still needs something
+     are not "nothing further is required".
+   - The DTR verdict keeps its supporting lines to the answer; the lines about information origin,
+     the Practitioner author and the absence of a SMART launch move to notes or findings, each said
+     once.
+   - Sentences made true: the enabled state of a static questionnaire is worked out when the response
+     is completed in this tool; the two DTR next steps use the label of their action; a preview's
+     notes say "would be sent"; a request that never arrived was "built without", not "sent
+     without"; the comparison glossary names the button of the CRD tab, not an API path; no "(s)"
+     in any sentence.
+   - Every next step on mock leads somewhere the mock can answer with the same sentinel (the PAS
+     timeout scenario has no inquiry answer today).
+   - Additions, by these exact names: `RequestComparison.caveat` on every answer, `CaseValue`
+     `sourceLabel`, `GroupCount` `startsOpen`; `QuestionnaireView.kindLabel`,
+     `EnableWhenView.stateLabel`, `DtrDetail.responseNote` for every response kind,
+     `NextStepView.carryLabels`, `values` on each dropped answer (on the result only, never the
+     ledger); `sourceLabel` beside every PAS decision source, `PasDetail.attachmentNote`, and notes
+     on where a subscription value given for one run came from.
+   - The `CaseResources` builders nothing calls are removed with the tests that only exercise them.
+2. The server, outside the three protocols:
+   - A request sent from the collection as it is reads the parsed body through the mask, and one test
+     class searches the whole answer of every endpoint on live for an echoed secret.
+   - "Can this operation be sent" counts every unresolved placeholder of the request (url, headers,
+     body) a run would refuse for, not the url alone, without counting what the form supplies.
+   - A blocked request sent as written gets a next step of its own, and on every blocked result the
+     next step's reason no longer repeats the refusal.
+   - The two halves of D-183 are checked together through the real endpoints on live.
+   - The configuration's not-found answers say the item is no longer held and may have been removed in
+     another window; a request taken off every operation is not "now mapped to Unmapped request".
+   - Counts in words that agree, and a 422 worded for the call made (a preview, a comparison, an
+     unlock, an upload or a lookup is never told "Nothing was sent" or "send again").
+   - A service that cannot be reached is said in plain words, not by a Java class name; a mock
+     timeout says the timeout was played and what the wait would be on live.
+   - Additions, by these exact names: `defaultRule` on an effective row with several requests;
+     `bindAddress` and `bindNote` on `GET /api/mode`; a new enum `FindingGroup`, with `group` and
+     `groupLabel` on every `Finding` and `findingKinds` on the scenarios answer; the labels of
+     `SUBMIT_RESPONSE` and `ANSWER_NEXT_QUESTION` become exactly "Complete the response" and "Send
+     answers and get the next question"; `IssueView.expressionPresent` and `locationPresent`.
+3. The pass that joins the tabs: every request one part made of another's file and every answer of
+   the server no screen reads yet, each accounted for; then the whole tool used on mock at 1366 by 768
+   and 1920 by 1080, with the keyboard for at least one journey: the journey CRD to DTR to PAS with
+   `P32H-DOC-DTR` through the real tabs and found again as one chain in History; one case on every
+   tab; `P32H-NO-AUTH` against `P32H-EMPTY` everywhere; expected against actual on each tab; one
+   action one name and one state one look; the colour key; the live profile with an empty store;
+   production; a ledger that cannot record; a suite, a replay and a date-range replay. Where the join
+   rests on a rule a build can check, a test.
+
+### Joining the parts
+
+**D-201. Decisions made while joining the leftovers and the frontend.**
+This revision is branch `epa-pave` at `7dade28`: the line of D-175 (`33893aa`), the two leftover
+tasks (`seams-protocol` at `150b009`, `seams-platform` at `e8f07b4`) and the frontend
+(`frontend-base-2` at `b7130fd`, which holds the case, the Config tab and the History tab; the frame
+at `94edbc8`; the CRD tab at `6d7303a`; the DTR tab at `81e9092`; the PAS tab at `b7e4e0f`).
+1. Both leftover tasks had reworded the same "not found" sentence of the notification receiver, with
+   the same words. The comment that says why the identifier is not repeated was kept.
+2. Nothing else conflicted. The four frontend branches changed no file in common, and none of them
+   changed a file outside `src/main/resources/static`.
+3. The other task's half of D-183, which the platform finisher handed on as a change still needed in
+   the four protocol services, was already on the protocol branch; the merge holds both halves.
+   Nobody has seen them together.
+4. Accepted by merging: the platform task's one change in a file of the other task (the receiver's
+   sentence, given to it by its task file), and its changed `LookupControllerTest` (D-189).
+5. The merged line built once through the shared build wrapper: 2597 tests, 2595 passed, 2 skipped
+   (the two that need a folder that cannot be written, which a build running as root cannot make),
+   none failed.
