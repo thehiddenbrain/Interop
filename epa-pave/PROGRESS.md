@@ -25,11 +25,42 @@ this section describes. Three pieces of work that the text below records as star
   sentences they reworded (a played timeout, the refusal at the moment of sending, the synthetic code
   list, the hint beside a note) have not been checked again.
 
-**Known and open at this revision, beyond what is listed below:** a note typed with a request sent
-as written from the Config tab is not checked for the member ID its body carries; the answer of an
-unlock does not say that a lock from any browser ends it (the page says so in its own words); the
-heading of the error panel calls a played timeout on mock a fault in the environment. The decisions
-of these three pieces of work are not in `DECISIONS.md` yet.
+- Six lines those two left for each other: a note typed with a request sent as written is checked
+  against the member identifiers of the body it is sent with; the answer of an unlock says that a
+  lock from any browser ends it, and the page shows that sentence; the server gives every error its
+  heading, so a timeout a mock scenario played is no longer headed as a fault in the environment; a
+  masked lookup field was seen to stay out of the case on the live profile against a stand-in.
+  Checked by nobody but its author. The integrator built the line with it: 2720 tests, 2718 passed,
+  2 skipped, none failed.
+
+**The last audits, on revision `9e285a1`** (the line before the six lines above), each by an agent
+that wrote none of the tool:
+
+- V1, the build auditor: a fresh clone of the branch from the remote built from clean twice (2714
+  tests, none failed, 2 skipped), started, and answered on every endpoint of section 18 as the
+  specification and the README say. Its builds went through the shared wrapper, which adds
+  `--offline`; the plain command is the integrator's last gate and has not run. Two minor findings:
+  a request body that repeats a key is accepted and the last value wins; the README's list of
+  statuses leaves out 400, 405, 406, 413 and 415.
+- V5, house style: no tracked file and no commit message breaks the style. **Two major findings
+  about the gate itself, open at this revision:** no test fails if the style task is removed from
+  the build, and its patterns let several forbidden forms through.
+- V7, completeness on screen: every field the auditor added to an answer appeared outside the wire
+  view. **Two blockers and six majors, open at this revision:** a `pa-needed` returned as null is
+  said by a finding to have been "not returned"; an issue's expression returned as null is drawn as
+  "empty"; a key repeated in one object leaves its earlier value on the wire view only; a resource
+  of another kind sent in answer to a CRD hook passes as "no determination"; the source and the
+  lists of a CRD card, the periods of a PAS answer and the headings of empty lists do not tell
+  absent, null and empty apart; a notification larger than what is kept gets no designed view.
+- The walkthrough by a business tester (automated, no click script): on every case it ran, the
+  tester could tell what was expected, what happened, whether it matched and what to do next, and
+  the authorization outcome sat apart from the test result. **Three majors, open at this revision:**
+  "no determination" gives no next step a business tester can act on; completing the questionnaire
+  response inside the tool is marked as if a scenario or the payer had answered; text left in the
+  procedure code box is sent without being shown. It is an automated walkthrough and not a sign-off.
+
+Not run yet: V6 (honesty), and the check of each fix for the second run of V2, V3 and V4 by an
+agent that did not write it. The decisions made since D-228 are not in `DECISIONS.md` yet.
 
 This describes revision `5763c41` on branch `epa-pave`, which is on the remote. It holds the line of
 `7dade28` (the fix wave, the two leftover tasks and the five tabs), the pass that joined the tabs
