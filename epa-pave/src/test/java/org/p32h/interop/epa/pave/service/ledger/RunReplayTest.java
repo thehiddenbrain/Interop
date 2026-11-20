@@ -214,9 +214,15 @@ class RunReplayTest {
         // An authorization number that was kept as it is, as on mock, is an identifier and goes along.
         RunRecord kept = draft("run-2", clock).correlation(Map.of(RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER-0001")).build();
         assertThat(RunReplay.specFor(kept, null).correlation()).containsExactly(Map.entry(RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER-0001"));
-        // Text shaped like a token under any other key is that entry's own value.
-        RunRecord claim = draft("run-3", clock).correlation(Map.of(RunRecord.CORR_CLAIM_ID, token)).build();
-        assertThat(RunReplay.specFor(claim, null).correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, token));
+        // Text shaped like a token under any other key is that entry's own value. This one has no run
+        // of six digits, which the record would not keep under a claim id since the second member data audit.
+        String tokenShaped = "a1b2c3d4".repeat(8);
+        RunRecord claim = draft("run-3", clock).correlation(Map.of(RunRecord.CORR_CLAIM_ID, tokenShaped)).build();
+        assertThat(RunReplay.specFor(claim, null).correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, tokenShaped));
+        // A claim id that reads like a member identifier was written as its length, and is never sent as one.
+        RunRecord refused = draft("run-4", clock).correlation(Map.of(RunRecord.CORR_CLAIM_ID, token)).build();
+        assertThat(refused.correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, "(not recorded, 64 characters)");
+        assertThat(RunReplay.specFor(refused, null).correlation()).isEmpty();
     }
 
     @Test

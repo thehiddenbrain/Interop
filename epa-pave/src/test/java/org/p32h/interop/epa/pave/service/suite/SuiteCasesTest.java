@@ -385,4 +385,21 @@ class SuiteCasesTest {
             assertThat(row.problems().toString()).as(protocol).doesNotContain("Zzlastname").doesNotContain("1961-07-23");
         }
     }
+
+    @Test
+    void aRowWhoseNoteTesterReferenceOrExpectationHoldsItsOwnMemberIdIsRefusedWithoutQuotingIt() {
+        // Found by the second member data audit (F1): a suite row's note was written as typed beside the member token.
+        SuiteDefinition definition = csv("caseId,protocol,memberId,note,testerRef,expected\n"
+                + "TC-1,crd,S12345678   01,called about s1234567801,,\n"
+                + "TC-2,crd,S1234567801,,QA-S12345678-01,\n"
+                + "TC-3,crd,S1234567801,,,S1234567801: covered=covered\n"
+                + "TC-4,crd,S1234567801,second try for ticket 6789,QA-17,NO_AUTH_REQUIRED\n");
+        List<SuiteRow> rows = definition.rows();
+        assertThat(rows.get(0).problems()).containsExactly("The note holds this run's member ID. The ledger keeps it as written and may not "
+                + "hold member data, so leave it out. The row was not run.");
+        assertThat(rows.get(1).problems()).singleElement().asString().startsWith("The tester reference holds this run's member ID.");
+        assertThat(rows.get(2).problems()).singleElement().asString().startsWith("The expectation holds this run's member ID.");
+        assertThat(rows.get(3).problems()).isEmpty();
+        assertThat(String.join(" ", rows.get(0).problems())).doesNotContain("1234567801");
+    }
 }

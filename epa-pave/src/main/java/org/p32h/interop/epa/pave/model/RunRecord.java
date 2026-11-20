@@ -28,15 +28,23 @@ import java.util.Map;
  *       or more canonical addresses (http, https or urn, no query, no fragment, no user, no white
  *       space, an optional {@code |version}) none of whose path segments, urn name or version reads
  *       like an identifier or a date (an OID and a UUID excepted); every other value only as one
- *       identifier token</li>
- *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token, a line of business
- *       is a short label that does not read like an identifier or a date. Which lines the tool
- *       knows is the ledger's to decide, since the record cannot see the code list</li>
- *   <li>a coverage code, a line of business or a correlation value that holds this run's own
- *       member ID is not kept, whatever its shape and however it is punctuated</li>
+ *       identifier token that does not read like an identifier or a date once any UUID in it is set
+ *       aside, so the ids this tool mints are kept and a member ID or a birth date a service put in
+ *       a claim, ClaimResponse or subscription id is not</li>
+ *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token that does not read
+ *       like an identifier or a date, a line of business is a short label that does not either.
+ *       Which lines the tool knows is the ledger's to decide, since the record cannot see the code
+ *       list</li>
+ *   <li>the subject written before a coverage code, and before "(no answer)": each part is held
+ *       to the rule a procedure code is held to, since it is what was typed where a code goes or
+ *       the id of a resource in a body that may be the tester's own</li>
+ *   <li>a procedure code, a coverage code or its subject, a line of business, a correlation value,
+ *       a note, a tester reference or an expectation that holds this run's own member ID is not
+ *       kept, whatever its shape and however it is punctuated</li>
  *   <li>{@code note}, {@code testerRef} and {@code expected}: kept up to {@link #LONGEST_NOTE},
  *       {@link #LONGEST_TESTER_REF} and {@link #LONGEST_EXPECTED} characters. Every way in refuses
- *       a longer one with a message to the tester; this is the last line of defence behind them</li>
+ *       a longer one, and one that holds member data the request carries, with a message to the
+ *       tester; this is the last line of defence behind them</li>
  * </ul>
  * A run line that lacks a run id, a timestamp, a protocol, an operation, an outcome or a result is
  * refused, so an incomplete line fails to read and is counted, and is never taken for a run.
@@ -208,7 +216,13 @@ public record RunRecord(
 
     private static final String TOKEN = "[A-Za-z0-9._\\-:/|+]{1,64}";
     private static final String NAME = "[A-Za-z0-9._-]{1,40}";
-    private static final String ONE_SUBJECT = "[A-Za-z0-9._\\-/\\[\\]]{1,80}";
+    /**
+     * One subject before a code: a procedure code that was asked about or a place in the response,
+     * or the statement this record writes in place of one that read like an identifier, so a
+     * record read back is checked to the same record.
+     */
+    private static final String ONE_SUBJECT = "(?:\\(not a code, \\d{1,9} characters\\)|[A-Za-z0-9._\\-/\\[\\]]{1,80})";
+    private static final java.util.regex.Pattern SUBJECT_ITEM = java.util.regex.Pattern.compile(ONE_SUBJECT);
     private static final String SUBJECT = ONE_SUBJECT + "(?:, " + ONE_SUBJECT + ")*";
     private static final java.util.regex.Pattern CODE_ENTRY =
             java.util.regex.Pattern.compile("(?:(" + SUBJECT + "): )?(" + NAME + ")=(" + TOKEN + ")");
@@ -287,15 +301,15 @@ public record RunRecord(
         String member = alphanumerics(memberId);
         String sought = member.length() >= SHORTEST_MEMBER_ID_SOUGHT ? member : null;
         procedureCodes = procedureCodes == null ? List.of()
-                : procedureCodes.stream().map(code -> kept(PROCEDURE_CODE, code, "not a code")).toList();
+                : procedureCodes.stream().map(code -> procedureCode(code, sought)).toList();
         coverageCodes = coverageCodes == null ? List.of() : coverageCodes.stream().map(entry -> codeEntry(entry, sought)).toList();
         delegatedVendor = knownVendors(delegatedVendor);
         lineOfBusiness = line(lineOfBusiness, sought);
         correlation = checkedCorrelation(correlation, sought);
-        note = bounded(note, LONGEST_NOTE, NOTE_NOT_KEPT);
-        testerRef = bounded(testerRef, LONGEST_TESTER_REF, TESTER_REF_NOT_KEPT);
-        expected = bounded(expected, LONGEST_EXPECTED, EXPECTED_NOT_KEPT);
-        caseExpected = bounded(caseExpected, LONGEST_EXPECTED, EXPECTED_NOT_KEPT);
+        note = typed(note, LONGEST_NOTE, NOTE_NOT_KEPT, sought);
+        testerRef = typed(testerRef, LONGEST_TESTER_REF, TESTER_REF_NOT_KEPT, sought);
+        expected = typed(expected, LONGEST_EXPECTED, EXPECTED_NOT_KEPT, sought);
+        caseExpected = typed(caseExpected, LONGEST_EXPECTED, EXPECTED_NOT_KEPT, sought);
         // These two are written under every configuration, when the member ID itself is not. So
         // neither may hold anything but what the ledger puts there: a keyed hash in hex, and at
         // most four characters. Anything else is dropped, never written.
@@ -303,11 +317,6 @@ public record RunRecord(
         memberIdLast4 = memberIdLast4 != null && LAST_FOUR.matcher(memberIdLast4).matches() ? memberIdLast4 : null;
         findings = findings == null ? List.of() : List.copyOf(findings);
         unrecordedInputs = unrecordedInputs == null ? List.of() : List.copyOf(unrecordedInputs);
-    }
-
-    private static String kept(java.util.regex.Pattern shape, String value, String what) {
-        return value != null && (shape.matcher(value).matches() || statement(what, value)) ? value
-                : "(" + what + ", " + (value == null ? 0 : value.length()) + " characters)";
     }
 
     /**
@@ -382,9 +391,59 @@ public record RunRecord(
         return "(" + what + ", " + (value == null ? 0 : value.length()) + " characters)";
     }
 
-    /** Free text a tester typed, kept up to its limit and otherwise replaced by its length. */
-    private static String bounded(String value, int longest, String what) {
-        return value == null || value.length() <= longest || statement(what, value) ? value : notKept(what, value);
+    /**
+     * Free text a tester typed, kept up to its limit and when it does not hold this run's member
+     * ID, and otherwise replaced by its length. Every way in refuses such text with a message; this
+     * is for whatever reaches the record past them, and for lines written before they did.
+     */
+    private static String typed(String value, int longest, String what, String sought) {
+        if (value == null || statement(what, value)) {
+            return value;
+        }
+        return value.length() <= longest && !holdsMember(value, sought) ? value : notKept(what, value);
+    }
+
+    /**
+     * A procedure code as sent, kept when it has the shape of a code and does not read like an
+     * identifier or a date. The run's own member ID typed where a code goes is the case this is for:
+     * the line would otherwise carry the ID in the clear beside its token.
+     */
+    private static String procedureCode(String code, String sought) {
+        if (statement("not a code", code)) {
+            return code;
+        }
+        return code != null && PROCEDURE_CODE.matcher(code).matches() && !identifying(code, sought) ? code : notKept("not a code", code);
+    }
+
+    /**
+     * The subject written before a code, each of its parts checked as a procedure code is. A
+     * subject is a code that was asked about or a place in the response, and either can carry what
+     * was typed where a code goes or the id a body of the tester's own gave a resource. A part that
+     * reads like an identifier or a date is replaced by its length; a UUID within a place is not.
+     */
+    private static String subject(String given, String sought) {
+        java.util.regex.Matcher item = SUBJECT_ITEM.matcher(given);
+        List<String> parts = new java.util.ArrayList<>();
+        while (item.find()) {
+            String part = item.group();
+            parts.add(statement("not a code", part) || !identifyingPlace(part, sought) ? part : notKept("not a code", part));
+        }
+        return String.join(", ", parts);
+    }
+
+    private static boolean identifyingPlace(String value, String sought) {
+        return holdsMember(value, sought) || IDENTIFIER_OR_DATE.matcher(UUID_SHAPE.matcher(value).replaceAll("")).find();
+    }
+
+    /**
+     * True when an identifier under a correlation key may be someone's identifier or date. A claim
+     * id, a ClaimResponse id and a subscription id come from a service or a notification, and a
+     * line about a notification or a subscription has no member ID to compare with, so the rule
+     * codes are held to applies to each. A UUID inside one is left alone, and so is an OID, since
+     * their runs of digits are what they are made of; that keeps every id this tool mints.
+     */
+    private static boolean identifyingId(String value, String sought) {
+        return !OID_SHAPE.matcher(value).matches() && identifyingPlace(value, sought);
     }
 
     /**
@@ -410,21 +469,26 @@ public record RunRecord(
         }
         java.util.regex.Matcher code = CODE_ENTRY.matcher(entry);
         if (code.matches()) {
-            // The subject and the element name are the tool's own. The code came from the response.
-            return !identifying(code.group(3), sought) ? entry
-                    : (code.group(1) == null ? "" : code.group(1) + ": ") + code.group(2) + "=" + notKept(READS_LIKE_AN_IDENTIFIER, code.group(3));
+            // The element name is the tool's own. The code came from the response, and the subject
+            // is what was typed where a code goes or a place in a body that may be the tester's own.
+            String subject = code.group(1) == null ? "" : subject(code.group(1), sought) + ": ";
+            return subject + code.group(2) + "=" + (!identifying(code.group(3), sought) ? code.group(3)
+                    : notKept(READS_LIKE_AN_IDENTIFIER, code.group(3)));
         }
-        if (NO_ANSWER_ENTRY.matcher(entry).matches() || statement("not a code entry", entry)) {
+        java.util.regex.Matcher unanswered = NO_ANSWER_ENTRY.matcher(entry);
+        if (unanswered.matches()) {
+            return subject(unanswered.group(1), sought) + ": (no answer)";
+        }
+        if (statement("not a code entry", entry)) {
             return entry;
         }
         java.util.regex.Matcher named = NAMED_ENTRY.matcher(entry);
-        if (named.matches() && (statement("not a code", named.group(3)) || statement(READS_LIKE_AN_IDENTIFIER, named.group(3)))) {
-            return entry;
-        }
         if (named.matches()) {
             // The element name is the tool's own. What followed it was not a code, so only its length is kept.
-            return (named.group(1) == null ? "" : named.group(1) + ": ") + named.group(2) + "=(not a code, " + named.group(3).length()
-                    + " characters)";
+            String subject = named.group(1) == null ? "" : subject(named.group(1), sought) + ": ";
+            String value = statement("not a code", named.group(3)) || statement(READS_LIKE_AN_IDENTIFIER, named.group(3)) ? named.group(3)
+                    : notKept("not a code", named.group(3));
+            return subject + named.group(2) + "=" + value;
         }
         return "(not a code entry, " + entry.length() + " characters)";
     }
@@ -487,10 +551,20 @@ public record RunRecord(
                 out.put(key, SPACED_IDENTIFIER.matcher(value).matches() && MemberIds.noSpace(value).length() <= 128
                         ? value : notKept("not recorded", value));
             } else {
-                out.put(key, kept(IDENTIFIER, value, "not recorded"));
+                out.put(key, IDENTIFIER.matcher(value).matches() && !identifyingId(value, sought) ? value : notKept("not recorded", value));
             }
         });
         return java.util.Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * True when this record keeps an identifier as it is under a claim id, ClaimResponse id or
+     * subscription id key of a line that names no member. A value it would not keep is written as
+     * its length, so a notification that carries one cannot be matched to the run that recorded it,
+     * and the receiver says so rather than that no run did.
+     */
+    public static boolean keepsIdentifier(String value) {
+        return value != null && IDENTIFIER.matcher(value).matches() && !identifyingId(value, null);
     }
 
     public static Builder builder() {

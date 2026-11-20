@@ -403,4 +403,57 @@ class LedgerPhiTest {
         assertThat(unkept.ledger().message()).contains("NOT recorded").doesNotContain("P32H-PA-SAT").doesNotContain(SURNAME);
         assertThat(JsonSafe.mapper().writeValueAsString(unkept.ledger())).doesNotContain("P32H-PA-SAT").doesNotContain(AUTHORIZATION);
     }
+
+    @Test
+    void aRunWhoseFreeTextHoldsMemberDataTheRequestCarriesIsRefusedOnThatFieldBeforeAnythingIsSentOrWritten() {
+        // Found by the second member data audit (F1): the note defeated the token on the line beside it.
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        CrdService service = service(mock, ledger);
+        Map<String, List<String>> cases = new java.util.LinkedHashMap<>();
+        cases.put("note", List.of("Called about s123456789 today", "ID S12345 6789", "xxS123456789yy"));
+        cases.put("testerRef", List.of("QA " + SURNAME.toLowerCase(java.util.Locale.ROOT), "QA 01/31/1970", "QA 19700131"));
+        cases.put("expected", List.of(MEMBER_ID + ": covered=covered", GIVEN + ": covered=covered"));
+        cases.forEach((field, values) -> values.forEach(value -> {
+            CrdRunRequest.Builder request = request(MEMBER_ID).scenarioId("crd-04-doc-dtr").note(null).testerRef(null);
+            switch (field) {
+                case "note" -> request.note(value);
+                case "testerRef" -> request.testerRef(value);
+                default -> request.expected(value);
+            }
+            org.p32h.interop.epa.pave.service.error.ValidationException refused = org.assertj.core.api.Assertions.catchThrowableOfType(
+                    org.p32h.interop.epa.pave.service.error.ValidationException.class,
+                    () -> service.run(request.build(), RunOrigin.manual(), null));
+            assertThat(refused).as(value).isNotNull();
+            assertThat(refused.fieldErrors()).as(value).anySatisfy(error -> {
+                assertThat(error.field()).isEqualTo(field);
+                assertThat(error.message()).contains("may not hold member data").contains("Nothing was sent.")
+                        .doesNotContain(MEMBER_ID).doesNotContain(SURNAME).doesNotContain(GIVEN).doesNotContain("1970");
+            });
+        }));
+        org.p32h.interop.epa.pave.service.error.ValidationException named = org.assertj.core.api.Assertions.catchThrowableOfType(
+                org.p32h.interop.epa.pave.service.error.ValidationException.class,
+                () -> service.run(request(MEMBER_ID).note("Spoke to " + GIVEN + " at " + STREET + ", born 1970-01-31, subscriber "
+                        + SUBSCRIBER).build(), RunOrigin.manual(), null));
+        assertThat(named.fieldErrors()).singleElement().satisfies(error -> assertThat(error.message()).isEqualTo("The note holds the "
+                + "member's first name and the member's date of birth and the member's subscriber ID and the member's address. The ledger "
+                + "keeps it as written and may not hold member data, so leave them out. Nothing was sent."));
+        assertThat(Files.exists(dayFile(home, TODAY))).isFalse();
+
+        // Text that names nobody the request carries is kept as typed.
+        RunEnvelope<CrdDetail> kept = service.run(request(MEMBER_ID).scenarioId("crd-04-doc-dtr").note("second try, ticket 6789")
+                .testerRef("QA-17").build(), RunOrigin.manual(), null);
+        assertThat(kept.ledger().recorded()).isTrue();
+        assertThat(onlyLine()).contains("\"note\":\"second try, ticket 6789\"");
+    }
+
+    @Test
+    void theRunsOwnMemberIdTypedAsAProcedureCodeIsNotOnTheLineInTheCodesOrAsTheSubjectOfACoverageCode() {
+        // Found by the second member data audit (F3).
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        service(mock, ledger).run(request(MEMBER_ID).scenarioId("crd-04-doc-dtr").procedureCodes(List.of(new CodeInput(MEMBER_ID, null, null),
+                new CodeInput("95810", null, "Sleep study, attended"))).build(), RunOrigin.manual(), null);
+
+        String line = onlyLine();
+        assertThat(line).doesNotContain(MEMBER_ID).contains("(not a code, 10 characters)").contains("95810");
+    }
 }
