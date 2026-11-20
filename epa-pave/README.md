@@ -7,20 +7,42 @@ provider and a procedure code, runs a case, and sees the answer in plain words, 
 behind it, and the exact request and response. Every run is written to a ledger on disk so it can
 be found, exported and run again.
 
-It is one Spring Boot application with a browser front end, run on the tester's own machine. Out of
-the box it runs on the **mock profile**: every answer comes from synthetic scenario files, nothing
-leaves the machine, and no credential or configuration is needed.
+It is one Spring Boot application with a browser front end of five tabs (CRD, DTR, PAS, History,
+Config), run on the tester's own machine. Out of the box it runs on the **mock profile**: every
+answer comes from synthetic scenario files, nothing leaves the machine, and no credential or
+configuration is needed.
 
-Read "[What this README was checked against](#what-this-readme-was-checked-against)" at the end
-before relying on a sentence here. Where something could not be checked, the section that
-describes it says so.
+## Before you rely on it
+
+- **Nothing here has been run against the vendor's service.** Every result anyone has seen came
+  from the mock profile or from a stand-in server on this machine. Which version of the guides the
+  vendor's sandbox follows is not known; PAVE is held to version 2.0.1 of CRD, DTR and PAS.
+- **The mock answers from files** written for this tool, from the same reading of the guides as the
+  code that reads them. A pass on mock says nothing about the live service.
+- **The wire view carries member data** on the live profile, and so do the lookup results. See
+  [The wire view carries member data](#the-wire-view-carries-member-data).
+- **Secrets can sit in plain text on disk**: an uploaded Postman environment or collection is kept
+  as uploaded in `config-store/`, credentials included; a mirror password goes in
+  `gradle.properties`. See [Secrets](#secrets) for keeping them out of files.
+- **DTR here is not a SMART launch**, and **the notification receiver very likely cannot be reached
+  by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
+- **PAVE has no sign-in** and listens on this machine only. See
+  [Who can reach this tool](#who-can-reach-this-tool).
+- Before PAVE can reach a real service, real values must be filled in: the vendor's Postman
+  environment and collection (uploaded on the Config tab), and, where used, `lookup.member.url`,
+  `lookup.provider.url`, `codelist.file`, `onyx.auth.*` and `onyx.subscription.callback-url` in
+  `src/main/resources/application.yml` or on the command line. Every one is listed under
+  [Open items](#open-items).
+- The screens, the tabs together and the gates that close the build are described as they are on
+  the revision named at the end, with what was not checked. Read
+  "[What this README was checked against](#what-this-readme-was-checked-against)" before relying
+  on a sentence here.
 
 ## First run checklist
 
-Six steps from nothing to a running tool on the mock profile, used through its API: this revision
-has no screens yet (step 6). Each shows the exact command and what
-correct output looks like. The output shown is what these commands printed when this README was
-checked (see the last section for where and on which revision).
+Six steps from nothing to a working screen on the mock profile. Each shows the exact command and
+what correct output looks like. The output shown is what these commands printed when this README
+was checked (see the last section for where and on which revision).
 
 **1. Check that Java 21 is installed.**
 
@@ -48,14 +70,6 @@ ls run.sh
 
 Correct output of the last command is `run.sh`.
 
-**Stop here if it prints `ls: cannot access 'run.sh': No such file or directory`.** That is what
-it printed on 2026-11-19: the `epa-pave` branch on GitHub (then at commit `44c7760`) did not yet
-hold this README, `run.sh`, `run.cmd` or `samples/`. They are on the branch `docs-c2`, which had
-not been merged into `epa-pave` or pushed to GitHub. Until it is, step 4 fails in a clone from
-GitHub. Ask whoever gave you this README for the copy that holds it, clone that with
-`git clone --branch docs-c2 <that copy>`, go into its `epa-pave/` directory, and check
-`ls run.sh` again.
-
 PAVE lives in the `epa-pave/` directory. The application at the root of the repository is a
 different project; leave it alone. Every command below is run from `epa-pave/`.
 
@@ -68,18 +82,19 @@ different project; leave it alone. Every command below is run from `epa-pave/`.
 On Windows: `gradlew.bat clean build`. The first build downloads Gradle 9.5.0 and the
 dependencies, so it needs to reach `services.gradle.org` and Maven Central, or the internal
 mirrors described under [Running on a corporate workstation](#running-on-a-corporate-workstation).
-It runs about 1,850 tests and takes a minute or two. Correct output ends with:
+It runs about 2,600 tests and takes a few minutes. Correct output ends with:
 
 ```
 > Task :verifyParametersFlag
 > Task :check
 > Task :build
 
-BUILD SUCCESSFUL in 1m 24s
-11 actionable tasks: 8 executed, 2 from cache, 1 up-to-date
+BUILD SUCCESSFUL in 3m 2s
+11 actionable tasks: 9 executed, 2 from cache
 ```
 
 The time and the task counts differ from machine to machine. `BUILD SUCCESSFUL` is what matters.
+Two tests are skipped when the build runs as root (see [Limitations](#limitations)).
 
 **4. Start the tool.**
 
@@ -99,8 +114,13 @@ The following 1 profile is active: "mock"
 The bundled placeholder code list is in use. Every row in it is synthetic. Set codelist.file to the real export.
 ...
 Tomcat started on port 8057 (http) with context path '/'
-Started PaveApplication in 18.439 seconds (process running for 20.228)
+Started PaveApplication in 2.157 seconds (process running for 2.611)
 ```
+
+Started from inside the clone, it also prints two warnings, one for `config-store` and one for
+`run-history`: "... lies inside the git working tree ... Check that the tree's .gitignore covers
+it, or start the tool from a directory outside the tree." Both folders are listed in the
+project's `.gitignore`, so in a clone of this branch the warnings need no action.
 
 If it says `Port 8057 was already in use`, something else is on that port: start with
 `./run.sh mock --server.port=8091` and use 8091 in place of 8057 below.
@@ -114,9 +134,9 @@ gradlew.bat bootJar
 java -jar build\libs\epa-pave-1.0.0.jar --spring.profiles.active=mock
 ```
 
-The same two commands, with `./gradlew` and `build/libs/...`, were run on Linux and start PAVE as
-`run.sh` does. Started through `run.cmd`, Ctrl+C is followed by the prompt
-`Terminate batch job (Y/N)?`; answer `Y`.
+The same two commands, with `./gradlew` and `build/libs/...`, start PAVE on Linux as `run.sh`
+does. Started through `run.cmd`, Ctrl+C is followed by the prompt `Terminate batch job (Y/N)?`;
+answer `Y`.
 
 **5. Ask the tool what it is, from a second terminal.**
 
@@ -128,7 +148,7 @@ Correct output (the `epoch` number is the configuration epoch: it differs from o
 next and changes when the configuration changes, but two calls in a row answer the same number):
 
 ```
-{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795129834662,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."}}
+{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795154872618,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."}}
 ```
 
 `"mode":"mock"` is the line to check: nothing you do now reaches a real service.
@@ -137,17 +157,12 @@ next and changes when the configuration changes, but two calls in a row answer t
 
 Open `http://localhost:8057/`.
 
-**This revision has no screens.** They are built on a separate branch that is not merged here. So
-the correct output of this step, on this revision, is not a page: the browser shows this error in
-JSON (HTTP 404):
-
-```
-{"kind":"NOT_FOUND","title":"There is nothing at this address.","action":"Check the path against the endpoint table in the README.","fieldErrors":[],"issues":[]}
-```
-
-That means the tool is running and answering; it has the API and no screens. Everything below that
-uses `curl` works without them. What the screens are meant to show once merged is described,
-unchecked, under [Using the screens](#using-the-screens).
+Correct output is the PAVE page: `PAVE 1.0.0` at the top left; at the top right `Profile mock`,
+`Target onyx`, `Environment none active` and `Ledger 0 runs today (UTC)`; under it a hatched strip
+that begins "Mock profile. Scenario files answer in place of the service."; and the five tabs CRD,
+DTR, PAS, History and Config, with CRD open. The right half of the CRD tab says "Nothing has been
+sent from this tab yet." and lists the member IDs that select each mock scenario. Go on with
+[Using the screens](#using-the-screens).
 
 To stop the tool, press Ctrl+C in the terminal where it runs.
 
@@ -156,24 +171,29 @@ To stop the tool, press Ctrl+C in the terminal where it runs.
 PAVE drives the three Da Vinci operations a provider system would call, against whichever
 environment you point it at, and shows you what went over the wire and what it made of it.
 
-- **CRD**: a CDS Hooks `order-sign` or `order-select` call. The answer is read from the standard
-  coverage information codes (`covered`, `pa-needed`, `doc-needed`, `doc-purpose`, `info-needed`,
-  `satisfied-pa-id` and the delegated vendor), not from card wording. CRD never denies on clinical
-  grounds and nothing in PAVE reads a CRD answer as a denial.
+- **CRD**: a CDS Hooks `order-sign` or `order-select` call, and discovery of the CDS services an
+  environment offers. The answer is read from the standard coverage information codes (`covered`,
+  `pa-needed`, `doc-needed`, `doc-purpose`, `info-needed`, `satisfied-pa-id` and the delegated
+  vendor), not from card wording. CRD never denies on clinical grounds and nothing in PAVE reads a
+  CRD answer as a denial. A CRD request you paste can be compared, element by element, with the
+  one PAVE would build for the same case (added at the operator's request, D-118, D-119).
 - **DTR**: the payer's questionnaire, fetched with `$questionnaire-package`, answered step by step
   through `next-question` for an adaptive questionnaire, and completed into a
-  QuestionnaireResponse that PAS can carry.
-- **PAS**: `Claim/$submit` and `Claim/$inquire`, plus subscriptions (create, read, update, delete)
-  and a receiver for the notifications a payer sends back. PAS can carry a denial and PAVE shows it
-  as one.
+  QuestionnaireResponse that PAS carries.
+- **PAS**: `Claim/$submit` and `Claim/$inquire`, plus subscriptions (create, read, list, update,
+  delete) and a receiver for the notifications a payer sends back. PAS can carry a denial and PAVE
+  shows it as one. There is no claim update and no `$submit-attachment` (D-161).
+- On every protocol a tester can send a request body of their own in place of the one PAVE builds,
+  and any request of the uploaded collection can be sent as it is written (Config tab).
 - Member lookup by member ID, provider lookup by NPI, a procedure code picker backed by the P32H
   code list, a ledger of every run, replay, chains of CRD, DTR and PAS for one case, and suites of
   many cases from one file.
 
 Every result shows two things side by side, and they are different things: the **authorization
-outcome** (what the payer said, for example "The prior authorization is denied") and the **test
-result** (whether that is what you said you expected: pass, fail, or unverified when you declared
-nothing). A case you expect to be denied that comes back denied is a denial **and** a pass.
+outcome** (what the payer said, for example "The prior authorization is denied.") and the **test
+result** (whether that is what you said you expected: Passed, Failed, or Unverified when you
+declared nothing). A case you expect to be denied that comes back denied is a denial **and** a
+pass.
 
 ### What PAVE is not
 
@@ -182,18 +202,27 @@ nothing). A case you expect to be denied that comes back denied is a denial **an
 - **DTR here is the server-side operations, not a SMART launch.** There is no SMART authorization
   server, no launch handshake and no EHR embedding. When you exercise DTR in PAVE you exercise the
   `$questionnaire-package` and `next-question` operations behind a provider-facing SMART launch,
-  not the launch itself. Every DTR result says so. Do not report a DTR run here as a test of the
-  SMART launch.
-- **PAVE does not tell you what the published guides require.** Its request shapes and its reading
-  of responses were written before the guides could be read in the build environment (decisions
-  D-008 and D-130 in `DECISIONS.md`). The operator named version 2.0.1 of the guides as the one to
-  hold the tool to (D-136). On this revision the independent comparison of each protocol with
-  2.0.1 had not reported. It has since reported, on a later commit of the `epa-pave` branch
-  (`44c7760`, in `PROGRESS.md` there): **the tool does not conform to 2.0.1**, with blockers in CRD
-  and PAS and majors in all three (CRD 3 blockers, 14 majors, 9 minors; PAS 9 blockers, 11 majors,
-  6 minors; DTR 8 majors, 6 minors), not fixed at that commit. Among them: CRD calls some codes
-  2.0.1 defines non-conformant, and PAS builds bundles a validating 2.0.1 service would refuse. So
-  a conformance finding from PAVE can be wrong in either direction, and a request PAVE builds can
+  not the launch itself, and you type each answer yourself: no patient record pre-populates
+  anything, and no CQL is run. Every DTR result says so. Do not report a DTR run here as a test of
+  the SMART launch.
+- **PAVE is held to version 2.0.1 of CRD, DTR and PAS**, on the operator's word (D-136); which
+  version the vendor's sandbox follows is not known. The request shapes and the reading of
+  responses were first written without the guides (D-008, D-130), then compared with 2.0.1 by
+  auditors who wrote none of the code, and brought in line (D-140 to D-166; what each comparison
+  found and what was done is in `PROGRESS.md`). What that means on screen:
+  - every conformance finding names the guide and the version it holds the response to, for
+    example "CRD 2.0.1";
+  - content that a later version defines (the 2.2.0 ballot) is read and named with its version,
+    never called wrong;
+  - a value nobody supplied is never invented: the request goes without it, and the result says
+    what was left out and which variable would supply it (finding `REQUEST_INCOMPLETE`, D-141). A
+    service that refuses such a request is not at fault. See
+    [Variables that fill a request](#variables-that-fill-a-request).
+  
+  Limits of that comparison: US Core 3.1.1, SDC 3.0.0, HRex, the subscriptions backport, FHIR R4
+  core and the X12 code lists were not available, so their rules are not checked; the 2.0.1
+  examples were not compiled; requests are checked against hand-written 2.0.1 rules that do not
+  test slices or invariants beyond the few named in `PROGRESS.md`. A request PAVE builds can still
   be refused by a conformant service for reasons that are PAVE's.
 
 ### What a tester must not conclude
@@ -206,10 +235,11 @@ nothing). A case you expect to be denied that comes back denied is a denial **an
 - **"No determination" is not "not required".** CRD scenario 14 (`P32H-EMPTY`) returns no answer at
   all and PAVE says "The service answered but returned no determination." Scenario 2
   (`P32H-NO-AUTH`) returns `pa-needed=no-auth` and PAVE says "Prior authorization is not
-  required." (both observed). They are different
-  outcomes, with different codes in the ledger.
-- **A code list finding on the bundled placeholder list is about synthetic rows.** See
-  [The procedure code list](#the-procedure-code-list).
+  required." They are different outcomes (`NO_DETERMINATION` and `NO_AUTH_REQUIRED`), drawn in
+  different colours, with different codes in the ledger.
+- **A code list finding on the bundled placeholder list is about synthetic rows.** On mock every
+  such finding says the list is the placeholder; on live PAVE does not compare with the
+  placeholder at all. See [The procedure code list](#the-procedure-code-list).
 
 ### The notification receiver will very likely not be reachable
 
@@ -221,12 +251,14 @@ With the defaults, **no vendor can reach the receiver at all**.
 
 What to do then:
 
-- Use **polling**: submit, then inquire with `POST /api/pas/inquire`. Polling needs nothing from
-  the network beyond the outbound call and works on its own.
+- Use **polling**: submit, then inquire (the Inquire call on the PAS tab, or
+  `POST /api/pas/inquire`). Polling needs nothing from the network beyond the outbound call and
+  works on its own.
 - Subscription create, read, update and delete still work, because those are calls PAVE makes.
   Only the notifications coming back are lost.
-- On mock, `POST /api/pas/notifications/sample` delivers a sample notification through the same
-  code a real one reaches, so the receiver's behaviour can be seen without the network.
+- On mock, `POST /api/pas/notifications/sample` (the Notifications call on the PAS tab) delivers a
+  sample notification through the same code a real one reaches, so the receiver's behaviour can be
+  seen without the network.
 - To receive real notifications, someone must give the machine an address the payer can reach and
   open PAVE to it. Read [Who can reach this tool](#who-can-reach-this-tool) before doing that, and
   ask the owner of the installation first.
@@ -242,95 +274,297 @@ payer (see [Limitations](#limitations)).
 | Answers come from | scenario files in `src/main/resources/scenarios/` | the services in the active Postman environment |
 | Members and providers | synthetic fixtures in `src/main/resources/fixtures/` | the member API and the provider directory, when configured |
 | Needs | nothing | an uploaded environment, its credentials, network access |
-| Ledger records the member ID | yes, it is synthetic | no, a salted token and the last four characters, unless configured |
+| Ledger records the member ID | only a `P32H-` sentinel or an `S` and nine or ten digits; anything else as on live | no, a salted token and the last four characters, unless configured |
 | Scenario picker | yes | no: a forced outcome against a real service would be a result that did not come from it |
 
 **Every scenario is synthetic.** Sentinel member IDs select the mock scenario: `P32H-PA-REQ`
 answers "prior authorization required", `P32H-NO-AUTH` answers "not required", `P32H-EMPTY`
-answers with no determination, and so on. The full lists are served by `GET /api/crd/scenarios`,
-`GET /api/dtr/scenarios` and `GET /api/pas/scenarios`, with the outcome each one is meant to
-produce. A run can also name a scenario with `scenarioId`. Mock member fixtures use
-`P32H-...` sentinels and `S123456789`-style placeholders; the placeholder NPI is `1234567893`.
-NPI `9999999995` selects "provider not found".
+answers with no determination, and so on; a sentinel means the same case in every protocol
+(D-154). The CRD, DTR and PAS tabs list them, each with a "Use this member ID" link, and
+`GET /api/crd/scenarios`, `GET /api/dtr/scenarios` and `GET /api/pas/scenarios` serve them with
+the outcome each is meant to produce (14 CRD, 15 DTR and 21 PAS scenario files). A run can also
+name a scenario (the Mock scenario field, or `scenarioId`). Mock member fixtures use `P32H-...`
+sentinels and `S123456789`-style placeholders; the placeholder NPI is `1234567893`. NPI
+`9999999995` selects "provider not found". A damaged scenario file stops the start on mock and
+names the file (D-153).
 
 **Switching** is a restart: stop the tool and start it with `./run.sh live` (or `./run.sh` for
-mock). The mode is shown by `GET /api/mode` (and, once the screens are merged, on every screen;
-this revision has none). The application refuses to start
-when `epa.mode` and the Spring profile disagree, so the badge can never say mock while the wiring is
-live. Both profiles use the same `config-store/` and `run-history/` directories, and every ledger
-line records the profile it ran on.
+mock). The mode is shown on every tab, at the top right (`Profile mock` or `Profile live`), and by
+`GET /api/mode`. The application refuses to start when `epa.mode` and the Spring profile disagree,
+so the screen can never say mock while the wiring is live. Both profiles use the same
+`config-store/` and `run-history/` directories, and every ledger line records the profile it ran
+on.
 
 Starting on live with nothing configured was checked: the tool starts, `GET /api/mode` says
-`"mode":"live"` and that writes are refused because no environment is active, the scenario list
-is empty with the reason, a member lookup answers `DISABLED` ("Member lookup is not configured"),
-and a CRD run answers 409 ("No collection request is mapped to CRD order-sign, and onyx.crd.url is
-not set. Nothing was sent."). **Nothing has been run against Onyx or any real service.**
+`"mode":"live"` and that writes are refused because no environment is active, a member lookup
+answers `DISABLED`, and the CRD, DTR and PAS tabs each hold back their form and say "This tab
+cannot send yet", naming what is missing, with a link to the Config tab. **Nothing has been run
+against Onyx or any real service.**
 
 On mock, a short artificial delay is added to each answer so that the screens behave as they will
 on live. `app.mock-latency-enabled: false` removes it.
 
 ## Using the screens
 
-**Not checked against a screen.** The frontend is being built on its own branch and was not on the
-revision this README was checked on. This section is written from the specification (section 20)
-and from what the endpoints behind each tab do, which was checked. It does not name buttons or
-fields, because none was seen. Expect it to be revised once the screens are merged.
+Open `http://localhost:8057/`. This section takes you through the page as it is on the revision
+named at the end. Words in quotation marks are what the screen says; a button's name is given as
+it reads. Some sentences the server writes are still being reworded, so a line on your screen may
+read a little differently from one quoted here; the buttons, the order and the colours do not
+change with them.
 
-Every tab shows, at the top, the tool name and version and the **active environment with its
-kind**. A production environment is marked so that it reads as production from across the room.
-The browser tab title carries the same two facts: `PAVE 1.0.0 | <environment name>`.
+### What every tab shows
 
-- **CRD.** Pick or type a member, a provider and one or more procedure codes, optionally declare
-  what you expect, and send. The member is looked up when you leave the field (`/api/members/{id}`)
-  and the provider likewise (`/api/providers/{npi}`); found details fill the form and stay
-  editable, and an edit is marked as typed by hand. The code picker (`/api/procedure-codes`) shows
-  what the code list says about each code before you send: `PA`, `No PA`, the vendor name, or
-  nothing when the list does not say. The result (`POST /api/crd`) starts with one sentence in
-  plain words, then the standard codes, then the cards, then anything returned that the tool did
-  not interpret, then the wire view, collapsed.
-- **DTR.** Fetch the questionnaire package (`POST /api/dtr/package`), answer questions, step the
-  adaptive loop (`POST /api/dtr/next-question`) with the question count, the answers so far and the
-  completion status shown at each step, and complete the response (`POST /api/dtr/response`). The
-  completed response is handed on to PAS.
-- **PAS.** Submit (`POST /api/pas/submit`), inquire (`POST /api/pas/inquire`), manage
-  subscriptions, and see notifications as they arrive (`GET /api/pas/notifications`). Writes to a
-  production environment are blocked unless unlocked; see
-  [The production guardrail](#the-production-guardrail).
-- **History.** The ledger (`GET /api/runs`), filtered by date, protocol, outcome and result; one
-  run in full; a note on a run; CSV export; replay; the count of runs recorded today
-  (`GET /api/runs/health`), which is how you notice that tracking has stopped.
-- **Config.** Upload a Postman environment and collection, choose the active environment, see and
-  correct how each request was mapped, unlock production writes for your session, and see
-  everything in force (`GET /api/config/effective`).
+- **The masthead.** `PAVE 1.0.0` on the left. On the right: the profile (`mock` or `live`), the
+  target, the active environment with its kind, and the ledger: how many runs were recorded today,
+  as a link to History. The browser tab title carries the same facts, for example
+  `PAVE 1.0.0 | no environment | mock`.
+- **The strip under it** says where answers come from. On mock it is hatched and begins "Mock
+  profile. Scenario files answer in place of the service." A production environment puts a solid
+  purple banner on every tab that says whether writes are locked, or, once unlocked, "Writes
+  UNLOCKED for this browser session". A UAT environment puts a purple outlined banner on every
+  tab. A sandbox has none.
+- **The ledger indicator** turns into a heavy black frame when runs are not being recorded, for
+  example "Ledger tracking is OFF; latest run here NOT recorded" or "cannot write, runs NOT
+  recorded". Stop and read it before the next run: a run that was not recorded cannot be found,
+  exported or replayed.
+- **Colour key**, at the right under the masthead, says what every colour and mark means. In
+  short: the verdict strip's colour is what the service said (solid cyan for nothing further
+  required, solid orange for something the provider must do, an orange frame for a decision that
+  is not final, solid grey for a no, a dashed frame for no answer, cream for a member or provider
+  the service does not know, a heavy black frame for an environment that failed, a purple frame
+  for a request the guardrail refused). The test result
+  uses green for Passed and magenta for Failed and nothing else. Cream on a form field means it
+  was typed by hand or taken from a pasted request rather than given by a lookup.
+- **The chain bar.** When a case runs as a chain, a bar under the tabs shows its three stages
+  (Coverage requirements (CRD), Documentation (DTR), Prior authorization request (PAS)), what each
+  answered, the next step, and the buttons `Open the whole journey` and `Start a new case`.
 
-Before anything is uploaded, the specification says each protocol tab says what it is missing and
-points to Config; after an upload, each tab offers the requests mapped to its operations, the
-vendor's sample body can be loaded and edited, the resolved url is shown before sending, and a
-request with a pre-request script is marked. The API behind each of these was checked with the
-sample files; how the screens present them was not.
+### The case: the left side of CRD, DTR and PAS
+
+The three protocol tabs share one case, so a member, a provider and the codes typed on one tab are
+on the other two.
+
+- **Member.** Type the member ID and press Enter or `Look up member`. Found details fill the fields
+  below, each marked "from lookup", and stay editable; a field you change is marked as typed by
+  hand. A member ID typed with spaces is sent without them, and both forms are kept. "Not found"
+  is a finding about test data, not a fault, and is worded differently from a lookup that failed.
+- **Ordering provider.** The NPI, with `Look up provider`. The check digit is checked first.
+- **Procedure codes.** Type a code or words of its description; the arrows choose from the code
+  list and Enter adds. Each code shows what the list says about it: `PA`, `No PA`, a vendor name,
+  or nothing when the list does not say. While the bundled list is in use the box says
+  "Placeholder code list in use: its tags are synthetic, not P32H's."
+- **Run as part of a chain** gives the case one id in the ledger across CRD, DTR and PAS.
+- **What to send.** `Built by this tool from the form` (the default) or `A request of my own`: a
+  body you paste, sent exactly as written, with `{{placeholders}}` filled in. The tab says what the
+  ledger keeps of such a run: no member ID, provider or line of business, and no body, so it
+  cannot be replayed from the ledger alone.
+- Below the case, each tab has its own fields: the date of service, a tester reference, a note,
+  on mock a `Mock scenario` chooser ("The member ID decides" by default), and `Expected outcome
+  (optional)`. Leave the expectation empty and the run is Unverified; choose one and the run is
+  Passed or Failed. `Assert standard codes as well` adds expectations on single codes.
+- `Show the request` (on PAS also `Show the inquiry` and the like) shows the request as it would
+  be sent, the url it resolves to and what it leaves out, and sends and records nothing.
+
+On mock, before anything is uploaded, the right side of each protocol tab says what to do and lists
+the member IDs that select each scenario, each with `Use this member ID`. On live with nothing
+configured, each protocol tab holds back its form, says "This tab cannot send yet" with what is
+missing, and links to the Config tab; once an environment and a collection are active the form
+comes back, with no reload.
+
+### Reading a result: the right side, the same on every tab
+
+From the top:
+
+1. **The verdict strip**: one sentence in plain words, in the colour of the outcome, for example
+   "Documentation is required." Beneath it, the lines that support it, and at the foot `mock` when
+   a scenario answered, and the outcome code (`Outcome code DOCUMENTATION_REQUIRED`).
+2. **Test result**, beside the strip: `Passed`, `Failed` or `Unverified`, with `Expected` (what you
+   declared, or "nothing declared") and `Happened`. This is the answer to "did it match", and it is
+   a different fact from the outcome.
+3. **Next step**: what to do now, in one line, with a button where the next step is on another
+   tab, for example `Continue in DTR` after a CRD answer that asks for documentation, `Continue in
+   PAS` after a completed questionnaire, or the PAS tab's own `Send inquiry` after a pended
+   decision. "The flow ends here. Record this result." means there is nothing further to send.
+4. **Ledger**: "Recorded." with today's count, or, in a heavy frame, "NOT recorded" with the reason.
+5. **Response time**, flagged `slow` above the threshold.
+6. **Run**: the run id (`Copy run id`), the operation, the environment and profile, the chain, the
+   tester reference and the note.
+7. **Findings**: things a person should look at, grouped by what they are about (the request this
+   tool sent, the response held to the guide, the code list beside the service, and so on). A
+   finding is not a failure of the call. `REQUEST_INCOMPLETE`, for example, lists what the request
+   went out without because nobody supplied it, and the variable that would supply each.
+8. **Determination**: the standard codes returned, each with its meaning and the element it came
+   from.
+9. **The response detail**: cards and coverage information for CRD, the questionnaire for DTR, the
+   decision for each item for PAS.
+10. **Returned but not interpreted**: everything the service sent that the tool did not use, so
+    nothing is dropped in silence. "not returned", "null", "empty" and "none returned" are four
+    different statements and none is shown as a blank.
+11. **The wire view**, collapsed: the request and the response as they went over the wire. On mock
+    the request reads "not sent". See [The wire view carries member data](#the-wire-view-carries-member-data).
+
+A result made before the configuration changed is marked as such in a heavy frame. A refusal by
+the server (a field it refused, a 409, a blocked write) is shown with its own sentence, beside the
+field or the button it is about.
+
+### The CRD tab
+
+Enter the case, choose the hook (`order-sign` or `order-select`) and, if you like, `Send
+prefetch`, then `Send CRD request`. `Discover the CDS services this environment offers` asks the
+environment what it offers (CDS Hooks discovery).
+
+`A request of my own` also offers `Compare with this tool's request`: it builds PAVE's own request
+for the same case and lists where the two differ, with what each difference means; nothing is sent
+and nothing is recorded. `Fill the form from this request` takes the member, provider and codes
+from the pasted request; where it disagrees with a lookup, the lookup line says so, and `Put your
+request's values in these fields` takes the pasted values, marked "from the pasted request". When
+a collection is mapped, `The vendor's sample` loads the vendor's sample body to compare or edit.
+
+### The DTR tab
+
+What CRD handed on ("Handed on from the CRD result": the codes, the questionnaire it named, the
+coverage assertion, the order) is listed at the top of the DTR fields; without it, the package is
+asked for by the codes of the case or by a questionnaire url you type. Choose `Fetch the
+questionnaire package`. The questions appear on the right under "Answering the questionnaire",
+each with its link id, its type and whether it is required, and "In the response:" for what the
+response holds so far. Answers the payer pre-populated are marked as such; one you change is
+marked as overridden.
+
+- For a static questionnaire, answer and choose `Complete the response`. It sends nothing to the
+  payer: the response is put together inside PAVE, and the result says whether it is complete or
+  which required questions are unanswered.
+- For an adaptive questionnaire, each step sends your answers and gets the next question, with the
+  question count, the answers so far and the completion status at each step.
+- When the response is complete, the next step offers `Continue in PAS`. Change an answer after
+  that and the button is withdrawn until the response is completed again, so PAS never receives
+  answers you have since changed.
+
+### The PAS tab
+
+Choose the call at the top: `Submit`, `Inquire`, `Subscriptions` or `Notifications`.
+
+- **Submit.** The case, a claim identifier (blank: PAVE mints one, or uses the one handed on),
+  diagnosis codes, attachments, then `Send PAS request`. When DTR handed on a completed response,
+  the tab says "The answers completed in DTR will travel with this request.", and `Show the
+  request` names the QuestionnaireResponse in the bundle. The result lists the answers inside the
+  request under "The questionnaire answers in the request built", with the values you typed, and
+  shows the decision for each item: one row per item asked about, read from the review action
+  code only, never from the payer's wording.
+- **Inquire.** `Send inquiry` and `Show the inquiry`, matched by the claim identifier.
+- **Subscriptions.** `Create subscription`, `List subscriptions`, `Read subscription`, `Update
+  subscription`, `Delete subscription`, each with a preview. Create, update and delete are writes.
+- **Notifications.** What the receiver has received, correlated to runs, `Ask the receiver now`,
+  and, on mock, `Deliver a sample notification`. Read [The notification receiver will very likely
+  not be reachable](#the-notification-receiver-will-very-likely-not-be-reachable) first.
+
+On a production environment, a submit and every subscription write are refused until writes are
+unlocked on the Config tab, and the result says "Nothing was sent." with the reason in a purple
+frame. See [The production guardrail](#the-production-guardrail).
+
+### The History tab
+
+- **Runs**: the ledger, newest first, filtered by day, protocol, operation, outcome and result.
+  Above the list: whether tracking is on, how many runs were recorded today and where the file is.
+  `Export runs as CSV` downloads the runs of the chosen days, protocol and result; the tab says
+  which filters the export does not take. Open a run to read it from the ledger in four
+  parts, "What was expected", "What happened", "Did it match" and "What next", then what the line
+  recorded and how it ties to other runs. From there: `Save the note`, `Replay this run`, and `Load this
+  case into the form`, which puts its member, provider and codes back on the three protocol tabs.
+- **Chains**: one row for each case followed through CRD, DTR and PAS. Open one to see its whole
+  journey on one screen: each stage with its runs, and for a stage that did not run, the reason.
+- **Suite runs**: choose a suite file; PAVE says what it would run and what is wrong with the file
+  before anything is sent. `Run suite` runs it, and the result counts the cases by result, for
+  example "Finished: 6 cases. 4 passed, 1 failed, 1 unverified." `Download a suite file template
+  (CSV)` gives the columns.
+
+Days are UTC days, as the ledger files its runs; the tab says so beside each date field.
+
+### The Config tab
+
+Five parts, chosen at the top:
+
+- **In force now**: where the tool is pointed (profile, target, environment, production or not,
+  whether writes are blocked), where uploaded files are kept, and for every operation the address
+  a run would go to, where it comes from and whether it can be sent now. On a production
+  environment this is where writes are unlocked for this browser session: type the active
+  environment's name exactly and choose `Unlock production writes for this session`. With nothing
+  uploaded it walks you through the three steps: upload the environment, make it active, upload
+  the collection.
+- **Environments**: upload a Postman environment, saying whether it is `sandbox`, `uat` or `prod`
+  (the tool never guesses), make one active, remove one.
+- **Collections and mapping**: upload a collection, see which request each operation uses and how
+  it was mapped, change a mapping (`Choose a request`), remove a collection.
+- **Send a request as written**: any request of the collection, sent with its own method, url,
+  headers and body (`Send this request as written`, `Show the request before sending`).
+- **Check this installation**: the ledger, the code list self-check, the tool and where it is
+  pointed, in one place, with `Copy as text for support`. It holds no member data and no secret.
+
+### The journey CRD to DTR to PAS, once
+
+On mock, with nothing uploaded. Each step was walked on the running tool; what the screen said is
+quoted.
+
+1. Open the CRD tab. Type `P32H-DOC-DTR` as the member ID and press Enter: the member fields fill,
+   each marked "from lookup". Type `1234567893` as the NPI and press Enter. In the procedure codes
+   type `E0601`, press the down arrow and Enter. Tick `Run as part of a chain`.
+2. Choose `Send CRD request`. The verdict strip, in orange, says "Documentation is required.";
+   the test result says `Unverified` (nothing was declared); the next step says "Next: complete
+   the payer's documentation in DTR." with the button `Continue in DTR`. The chain bar appears.
+3. Choose `Continue in DTR`. The DTR tab opens with the same member, provider and code, and lists
+   what was handed on from the CRD result, among it the questionnaire CRD named.
+4. Choose `Fetch the questionnaire package`. The strip says "The questionnaire package was loaded
+   with one questionnaire." Four questions appear, three of them required.
+5. Answer them: Yes to the first, `17` for the Epworth score, a symptom, and a note if you like.
+   Choose `Complete the response`. The strip says "The questionnaire response is complete.", and
+   the next step says "Next: submit the prior authorization request in PAS. The completed
+   questionnaire response goes with it." with the button `Continue in PAS`.
+6. Choose `Continue in PAS`. The Submit call is open with the same case, and the tab says the
+   answers completed in DTR will travel with the request. `Show the request` shows the bundle: its
+   notes say the answers "travel in the bundle as QuestionnaireResponse/sleep-study-criteria-draft
+   and are named in the claim's supporting information", and the body holds the score 17.
+7. Choose `Send PAS request`. On mock with this member the default scenario answers: "The prior
+   authorization is approved.", with the authorization number, and the next step "The flow ends
+   here. Record this result." Under "The questionnaire answers in the request built" the four
+   answers are listed, 17 among them.
+8. `Open the whole journey` in the chain bar shows the chain in History: CRD, DTR and PAS, each with
+   its run.
+
+To see the other outcomes, choose a scenario on the PAS tab (for example pended, then `Send
+inquiry` from the next step), or start again with another member ID from the table on the CRD tab.
+Declare an `Expected outcome` before sending to get Passed or Failed in place of Unverified.
+
+What was not checked on the screens, and what they are known to get wrong, is under
+[Limitations](#limitations).
 
 ## The wire view carries member data
 
-The wire view shows the request and the response exactly as they went over the wire. That is the
-point of it, and it means that **on the live profile it shows member data**: the member ID, the
-name, the date of birth, and whatever the payer sent back. The lookup results do the same.
+The wire view shows the request and the response as they went over the wire. That is the point of
+it, and it means that **on the live profile it shows member data**: the member ID, the name, the
+date of birth, and whatever the payer sent back. The lookup results, the case fields filled by a
+lookup (`Show what the lookup returned`), the request preview and a pasted request do the same.
 
 So:
 
-- Do not screenshot or screen share the wire view, a lookup result, or a request body on live
-  unless everyone who can see it may see that member's data. Collapse the wire view first.
+- Do not screenshot or screen share the wire view, a lookup result, a preview or a request body on
+  live unless everyone who can see it may see that member's data. Collapse the wire view first.
 - Do not paste a request or a response into a ledger note, a ticket or a chat. A note is free text
   and is written to disk as typed.
 - On the mock profile every member is synthetic, which is what makes the default safe to demo.
+
+What the wire view hides: credential headers (`Authorization`, `Cookie`, API key headers) show at
+most their scheme, and a secret the request carried that the service sends back (a token, a key,
+a secret variable) is masked wherever it is repeated in the response. The designed view and the
+returned fields of CRD, DTR, PAS, subscriptions and both lookups are read from that masked body
+(D-162, D-179). What it does not catch: a secret sent back re-encoded (percent, base64, another
+case), shorter than six characters, or as a JSON number; and, for a request sent from the
+collection as it is, the "returned but not interpreted" fields are built from the body as
+received, so there the page masks what it can and the server does not (D-196). A credential typed
+into a pasted CRD request is shown as typed by the comparison.
 
 PAVE never writes the wire view to disk: the ledger holds no request or response body, no name,
 date of birth, address, gender or subscriber ID under any setting. Every `/api/` response carries
 `Cache-Control: no-store`, so the browser does not keep member data in its cache either (observed
 on the running tool).
-
-One known gap on this revision: a credential that a service sends back inside a Subscription
-(`channel.header`) is hidden in the designed view but still visible in the wire view. A fix is on a
-follow-up branch.
 
 ## Who can reach this tool
 
@@ -342,35 +576,43 @@ environment is active, reading the ledger, and uploading or deleting configurati
   (decision D-115). Other machines cannot connect at all. The cost is the receiver: no vendor can
   reach `POST /api/pas/notifications` until this is changed.
 - **It answers only to `localhost`**, a loopback address, the bound address, or a host name listed
-  under `app.allowed-hosts` (D-116, D-127). A request addressed to any other name gets 403. This
-  stops a web page served from another name that points at this machine from reading answers.
-  Observed: `Host: other.example.invalid` answered 403, and with
-  `--app.allowed-hosts=pave-box.example.invalid` that name answered 200.
-- **It refuses a change that comes from another site.** A request that changes something and names
-  another origin gets 403 ("This request came from a page that is not part of this tool, so it was
-  not carried out."). A client that names no origin, such as curl or a vendor's server, is let
-  through. The session cookie, which holds the production unlock, is `SameSite=Strict` and
-  `HttpOnly`.
-- **Nothing it serves is stored by the browser** (`Cache-Control: no-store` on every response), and
-  pages load scripts, styles and data from this tool only (a Content-Security-Policy header).
+  under `app.allowed-hosts` (D-116, D-127). A request addressed to any other name gets 403 ("This
+  request was addressed to a host name this tool does not answer to."). This stops a web page
+  served from another name that points at this machine from reading answers.
+- **It refuses a request that comes from another site**, whatever its method (D-148): when the
+  browser says the request is cross-site (`Sec-Fetch-Site`), or, without that header, names
+  another origin, the answer is 403 ("This request came from a page that is not part of this
+  tool, so it was not carried out."). A link from another site still opens the page itself, never
+  an answer of the API. A client that sends neither header, such as curl or a vendor's server, is
+  let through. Observed: `/api/mode` with `Sec-Fetch-Site: cross-site` answered 403, a cross-site
+  navigation to `/` answered 200, and `Host: other.example.invalid` answered 403. The session
+  cookie, which holds the production unlock, is `SameSite=Strict` and `HttpOnly`.
+- **Nothing it serves is stored by the browser** (`Cache-Control: no-store`), pages load scripts,
+  styles and data from this tool only (a Content-Security-Policy header), no other site can frame
+  it, and no address of the tool, which can hold a member ID, is sent to another site as a
+  referrer.
+- **One limit on any request body**: 30MB (`spring.servlet.multipart.max-request-size`), held in
+  memory while it is read and never written to the temporary folder (D-149).
 
 The notification receiver is exempt from the host check, for that exact address only, because a
 vendor addresses it by whatever name it was given. Observed: a POST to `/api/pas/notifications`
-with a foreign `Host` answered 200 with no body and was recorded.
+with a foreign `Host` answered 200 with no body.
 
 **Opening it to the network.** Start with `--server.address=0.0.0.0` (or one interface address)
-and list the name others will use under `app.allowed-hosts`. This was not tried for this README:
-only `app.allowed-hosts` was, on this machine. Then every machine that can reach that
-address can do everything listed above, with nobody signing in. **Do not do this without asking
-whoever owns the installation and whoever owns the environment it points at**, and never with a
-production environment active. If the point is to receive notifications, also set
-`onyx.subscription.callback-url` (or the collection's callback variable) to the address the vendor
-can reach.
+and list the name others will use under `app.allowed-hosts`. This was not tried for this README.
+Then every machine that can reach that address can do everything listed above, with nobody
+signing in, and a browser sends no `Sec-Fetch-Site` to a name served over plain http, so the
+cross-site check rests on `Origin` there (D-148). **Do not do this without asking whoever owns the
+installation and whoever owns the environment it points at**, and never with a production
+environment active. If the point is to receive notifications, also set
+`onyx.subscription.callback-url` (or the collection's call back variable) to the address the
+vendor can reach.
 
 ## Configuration through Postman
 
 No endpoint url, variable or credential is built into PAVE. It reads the Postman files the vendor
 ships. `application.yml` holds behaviour and storage locations; it needs no edits in normal use.
+Everything below can be done on the Config tab; the `curl` lines show the same through the API.
 
 Two sample files show the expected shape, with placeholder hosts ending in `.example.invalid`:
 
@@ -395,13 +637,16 @@ curl -s -X POST localhost:8057/api/config/environments/pave-sample-sandbox-977ed
   you add `-F acknowledgeNotProd=true`, because mislabelling production is the one mistake the
   guardrail cannot recover from. Observed answer: 422, "This environment looks like production and
   was declared as sandbox. It was not stored."
-- Uploading never activates. Activating switches every tab at runtime, with no restart, and drops
-  any production unlock.
+- An environment that is not declared production may not use an address a production
+  environment uses (D-143): its upload is refused, naming the production environment. Declaring
+  it `prod` is the way through.
+- Uploading never activates. Activating switches every tab at runtime, with no restart and no
+  reload, and drops any production unlock.
 - A disabled variable is listed and ignored, as Postman ignores it.
 - Several environments can be held at once. The path takes the environment's name, url-encoded, or
   its id from the upload answer. The id is derived from the name, so the sample's id is always
   `pave-sample-sandbox-977ed8ee`.
-- The active environment is remembered across a restart (observed). `config-store.active-environment`
+- The active environment is remembered across a restart. `config-store.active-environment`
   names one to activate at every start.
 
 ### Uploading a collection
@@ -419,13 +664,17 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
   says why (for example "The name contains "submit", and the url has a $submit segment."). Correct
   a wrong one with `PUT /api/config/collections/{id}/mapping`; the correction is kept across a
   restart. An unmapped request is listed and can be sent with `POST /api/raw`.
-- **`POST /api/raw` does not send the body saved in the collection.** It sends the request's
-  method, url and headers, with placeholders resolved, and a body only when you supply one as
-  `rawBody`. To send the saved body, read it from
-  `GET /api/config/collections/{id}/requests/{requestId}` (the `body` field), edit it if you like,
-  and pass it as `rawBody`. Without `rawBody`, a POST such as `Claim/$submit` goes out with no
-  body, and `POST /api/raw/preview` says so ("No body will be sent, because none was supplied.").
-  Observed with the sample's `submit Happy Path`.
+- **Sending a request as it is written** (Config tab, `Send a request as written`, or
+  `POST /api/raw`) sends the request's method, url and headers with placeholders resolved, and a
+  body: the one supplied for this run as `rawBody`, or else the one saved with the collection
+  request, or none when it has none (D-184). The answer says which, in `bodySource` and a note:
+  "The body is the one saved with the collection request, with its placeholders filled in,
+  because none was supplied for this run." (observed with the sample's `submit Happy Path`). A url
+  part in single braces, such as `{claimId}`, takes its value from `urlValues`; without one the
+  request is refused with 422 and nothing is sent, on both profiles (observed on mock), and so is
+  a url part of `.` or `..`. The vendor's access token goes with it only to a scheme, host and port the
+  configuration names for a vendor operation. PAVE does not interpret the answer: it shows
+  everything that came back and records the run.
 - **Pre-request scripts are never run.** A request that has one is flagged, and every run that
   uses it carries the finding `PRE_REQUEST_SCRIPT_NOT_RUN`, because a value Postman would have
   computed was not computed here. Observed with the sample's `order-sign Happy Path`.
@@ -434,24 +683,52 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
 
 A `{{placeholder}}` is resolved from, in order: a value typed for this run, the active environment,
 the variables of the collection the request came from, then `onyx.variables` in
-`application.yml`. A defined but blank variable counts as not set. When a placeholder cannot be
-resolved the request is **not sent**: the answer is 422 (`"kind":"CONFIGURATION"`) and names the
-variable and the active environment, for example "PAS inquire cannot be sent: the placeholder
-{{baseUrl}} has no value, and the active environment is "Blank Url Sandbox". Nothing was sent."
-(observed on live). `POST /api/config/resolve` shows what a request would become without sending
-it.
+`application.yml`. A defined but blank variable counts as not set. Each value shown on screen says
+where it came from ("Typed for this run", "The active environment", "The collection",
+"application.yml", "An operating system variable", "No value anywhere"). When a placeholder cannot
+be resolved the request is **not sent**: the answer is 422 (`"kind":"CONFIGURATION"`) and names
+the variable and the active environment. `POST /api/config/resolve` (the Config tab's address
+table, "How it resolves") shows what a request would become without sending it, and marks each
+unresolved variable `UNRESOLVED`.
 
-**On mock the url of a CRD, DTR or PAS run is not resolved at all**, because nothing is sent: the
-scenario answers whatever the environment holds. Observed: with `baseUrl` defined but blank, a PAS
-submit, a CRD run and a DTR package request on mock each answered 200 with no finding about the url.
-So on mock, an incomplete environment is found only by asking: `POST /api/config/resolve` marks each
-unresolved variable `UNRESOLVED` with the reason. `POST /api/raw` is the exception: on mock it
-does refuse an unresolved placeholder with 422.
+**On mock the url of a CRD, DTR or PAS run is not resolved**, because nothing is sent: the scenario
+answers whatever the environment holds. Observed: with `baseUrl` defined but blank, a CRD run on
+mock answered 200 with no finding about the url, while `POST /api/config/resolve` marked
+`baseUrl` unresolved. So on mock, an incomplete environment is found only by asking, on the Config
+tab or with `POST /api/config/resolve`. A request sent as it is written is the exception: on mock
+too it refuses an unresolved placeholder or url part with 422.
 
 `{{$guid}}`, `{{$randomUUID}}`, `{{$timestamp}}` and `{{$isoTimestamp}}` are generated. Any other
 dynamic variable, such as `{{$randomInt}}`, is not computed: a request that needs one is refused
 with 422 naming it, and nothing is sent, unless you type a value for it for that run (in
 `variables`, for example `"variables":{"$randomInt":"5"}`). Observed with `POST /api/raw` on mock.
+
+### Variables that fill a request
+
+PAVE never invents a value nobody supplied (D-141). These variables, set in the environment or
+typed for one run, supply what the 2.0.1 guides ask for; without them the request goes out without
+the element and the result's `REQUEST_INCOMPLETE` finding names it and the variable.
+
+| Protocol | Variable | What it supplies |
+| --- | --- | --- |
+| CRD, DTR | `memberIdSystem` | The identifier system of the member ID (the guides require a system on every identifier). PAS reads it too |
+| CRD, DTR | `patientMrn`, `patientMrnSystem` | The member's medical record number and its system, sent as the Patient identifier typed MR. Never filled from the member ID |
+| CRD, DTR, PAS | `payerIdentifier`, `payerIdentifierSystem`, `payerName` | The payer: `Coverage.payor`, and the insurer of a PAS claim |
+| CRD, DTR | `hcpcsSystem` | The system HCPCS codes are sent with on orders. Unset: the CRD 2.0.1 address |
+| CRD, PAS | `fhirServer` | The hook request's `fhirServer`; on PAS the base of full urls |
+| CRD | `crdOrderSignServiceId`, `crdOrderSelectServiceId` | The CDS service ids, read by the operation addresses |
+| DTR | `dtrIntendedUse` | The intended use stated on a QuestionnaireResponse (`withpa`, `withclaim`, `withorder`, `retain-doc`, `OTH`, or `system\|code`). Unset: what CRD handed on, or nothing |
+| DTR | `dtrCoverageExtension` | `qr-context` (2.0.1, the default) or `qr-coverage` (the 2.2.0 ballot form) |
+| PAS | `pasServiceType`, `pasRequestType` | The X12 service type and request type of every item (`Claim.item.category` is required) |
+| PAS | `pasHcpcsSystem` | Overrides the HCPCS system on a claim |
+| PAS | `coverageRelationship` | The member's relationship to the subscriber; `self` names the member as the subscriber |
+| PAS | `pasRequestorType`, `pasRequestingOrgIdentifier`, `pasRequestingOrgIdentifierSystem` | The requesting organization, and the subscription's filter by it |
+| PAS | `claimIdentifierSystem`, `claimType`, `claimPriority`, `attachmentControlNumberSystem` | Parts of the claim |
+| PAS | `subscriptionTopic`, `subscriptionFilter`, `subscriptionStatus`, `subscriptionReason`, `subscriptionChannelType`, `subscriptionPayloadContent`, `subscriptionHeartbeatSeconds`, `subscriptionEnd` | Parts of a subscription. A filter is built only from what was supplied |
+
+Member lookup fields fill the rest when a lookup found them (name, gender, date of birth, coverage
+status and period, plan, subscriber ID), and the provider lookup fills the Practitioner or the
+Organization.
 
 ### Secrets
 
@@ -461,19 +738,24 @@ verbatim in `config-store/`. So:
 - **The upload warns**, naming the variable and the stored file, when a secret variable holds
   literal text.
 - **Secret variables are masked** in every answer that shows configuration: the answer says the
-  secret is set, not what it is. Observed: a variable `apiKey` holding literal text did not appear
-  in the upload answer or in `GET /api/config/effective`. A variable is secret when Postman typed
-  it `secret` or when its name reads as a credential.
-  Redaction is by name, never by matching a value. On the wire view, credential headers
-  (`Authorization`, `Cookie`, API key headers) show at most their scheme.
-- **What masking does not catch.** Because masking goes by the variable's name, a key written
-  inside a url, or held by a variable with an ordinary name, is shown as written, in the upload
-  answer, in `GET /api/config/effective`, in `POST /api/config/resolve` and in the wire view.
-  Observed: an environment whose `baseUrl` was
-  `https://sandbox.onyx.example.invalid/fhir?api_key=LITERALURLKEY999` showed that key in all
-  three answers, while a variable named `apiKey` in the same file was masked. Keep every key in a
-  variable of its own whose name reads as a credential (`apiKey`, `clientSecret`, `token`), typed
-  `secret`, and refer to it from the url or the header.
+  secret is set, not what it is (`[secret apiKey]`). A variable is secret when Postman typed it
+  `secret` or when its name reads as a credential. Redaction is by name, never by matching a
+  value.
+- **A credential typed into a collection** (a header, a query value or a body field whose name
+  reads as a credential) is named at upload and masked wherever the collection is shown (D-147).
+  The collection file on disk keeps the value.
+- **What masking does not catch.** Because masking goes by name, a key written inside a url, or
+  held by a variable with an ordinary name, is shown as written, in the upload answer, in
+  `GET /api/config/effective`, in `POST /api/config/resolve` and in the wire view. Observed: an
+  environment whose `baseUrl` was `https://sandbox.onyx.example.invalid/fhir?api_key=LITERALURLKEY999`
+  showed that key in the upload answer, and so did a variable named `plainThing`, while a
+  variable named `apiKey` in the same file was masked. A credential typed into a path segment or
+  a host of a collection is shown as written too. Keep every key in a variable of its own whose
+  name reads as a credential (`apiKey`, `clientSecret`, `token`), typed `secret`, and refer to it
+  from the url or the header.
+- **The call back address.** In `onyx.subscription.callback-url`, a query parameter whose name
+  reads as a credential, or a secret variable, is masked in the Subscription shown and sent as
+  written; a secret written into its path with no variable is not masked.
 - **Keep the secret out of the file.** Give the variable the value `{{env:PAVE_NAME}}` in Postman,
   export, and set the operating system variable `PAVE_NAME` where PAVE runs. The sample does this:
 
@@ -488,94 +770,115 @@ verbatim in `config-store/`. So:
 
   Only names that start with `PAVE_` are read, so an uploaded file cannot read other variables of
   the PAVE process. A value read this way is always treated as secret. Uploading the sample gives
-  no warning (observed). Reading the variable at send time was tested in the build, not against a
-  real token server.
+  no warning. Reading the variable at send time was tested in the build, not against a real token
+  server.
 - Scalar settings in `application.yml` can also come from the environment through Spring's usual
   mapping, for example `ONYX_AUTH_CLIENT_SECRET` for `onyx.auth.client-secret`.
 - `config-store/` and `run-history/` are listed in `.gitignore`. Never commit `config-store/`: it
-  holds what you uploaded, credentials included.
+  holds what you uploaded, credentials included. PAVE warns at start when either lies inside a git
+  working tree.
 
 **Access tokens.** OAuth2 client credentials are requested when `onyx.auth.enabled` is true. The
 four `onyx.auth` values are resolved like any placeholder, so they can point at the environment's
 variables, for example `--onyx.auth.enabled=true --onyx.auth.token-url={{tokenUrl}}
---onyx.auth.client-id={{clientId}} --onyx.auth.client-secret={{clientSecret}}`. This is how the
-code reads them; it was not run against a token server. A Postman authentication helper in a
+--onyx.auth.client-id={{clientId}} --onyx.auth.client-secret={{clientSecret}}`. The token goes only
+to a scheme, host and port the configuration in force names for a vendor operation without any
+value typed for the run; a call pointed anywhere else goes without it, and the wire view says so
+(D-143, rule 7). This was not run against a token server. A Postman authentication helper in a
 collection is reported and not applied.
 
 ### Environment kinds
 
-| Kind | Banner on screen (not checked) | Writes |
+| Kind | Banner on every tab | Writes |
 | --- | --- | --- |
 | `sandbox` | none | allowed |
-| `uat` | yes | allowed |
-| `prod` | yes, persistent | blocked unless unlocked, and never when the floor forbids it |
+| `uat` | purple outline | allowed |
+| `prod` | solid purple, saying whether writes are locked | blocked unless unlocked, and never when the floor forbids it |
 
 Every ledger line records the kind of the environment it ran under.
 
 ### The production guardrail
 
 A PAS submit against production creates a real prior authorization request against a real member.
-On a `prod` environment:
+**What decides is where a request goes, not only which environment is active** (D-143):
 
+- PAVE remembers the addresses (scheme, host, port and base path) of every environment declared
+  `prod`, also after it is removed and across a restart. A write to one of those addresses is a
+  write to production whatever environment is active and wherever the url came from.
 - **Reads go through**: inquiry, subscription read and list, discovery, the lookups. Observed for
   the inquiry.
-- **Writes are blocked**: PAS submit and subscription create, update and delete. A blocked write
-  answers 403 with a full result saying nothing was sent, and is recorded in the ledger as
-  `BLOCKED`.
+- **Writes are blocked**: PAS submit and subscription create, update and delete, and a request sent
+  as it is written whose method can change something. A blocked write answers 403 with a full
+  result that begins "Nothing was sent.", and is recorded in the ledger as `BLOCKED`. Observed.
 - **The floor.** `config-store.allow-prod-writes` is `false` by default, and while it is false no
   unlock is possible from any screen. Only whoever owns the installation can change it, with a
   restart. Observed: "Production writes cannot be unlocked: an owner has locked this installation
-  against them. Nothing was sent."
+  against them."
 - **The unlock.** With the floor set to `true`, a tester unlocks writes for their own browser
-  session by typing the active environment's name exactly:
+  session on the Config tab by typing the active environment's name exactly, or:
 
   ```
   curl -s -c pave-cookies -b pave-cookies -X POST -H 'Content-Type: application/json' -d '{"action":"unlock","environment":"Exact Environment Name"}' localhost:8057/api/config/writes
   ```
 
-  This was checked with an environment of another name, uploaded as `prod`, with the floor set to
-  `true` on the command line (`--config-store.allow-prod-writes=true`). A wrong name, even in other
-  capitals, answers 422. The unlock lives in server memory, in that session only. It is never
-  written anywhere, so it does not survive a restart (by design; a restart with an unlock held was
-  not tried). Another browser or another tester stays locked (observed). Any change
-  to the configuration, including switching environment, drops it (observed). `{"action":"lock"}`
-  locks again.
-- A replay or a suite never carries an unlock, so a write in a replay or a suite against production
-  is reported as blocked. A deliberate production write is made one at a time.
-- Two further routes were closed during the build (D-125): a write whose url contains "prod" is
-  refused under an environment not declared production unless the uploader confirmed it is not;
-  and a request named like a read that would change something is judged as a write. "Reads as
-  production" means the text `prod` anywhere in the url and nothing cleverer.
+  Checked with an environment uploaded as `prod` and the floor set on the command line
+  (`--config-store.allow-prod-writes=true`): the name in other capitals answered 422; the exact
+  name unlocked, and a submit in that session was sent, while the same submit from another session
+  was blocked ("this call carries no production unlock"). The unlock lives in server memory, in
+  that session only, and is never written anywhere, so it does not survive a restart. Any change
+  to the configuration, including an upload or switching environment, drops it (observed).
+  `{"action":"lock"}` locks again. An unlock is for the environment it names: a write to another
+  production environment's address is refused.
+- **A replay or a suite never carries an unlock**, so a write in a replay or a suite against
+  production is reported as blocked, and its next step says to send that write on its own from its
+  tab (`SEND_ON_ITS_OWN`), not to unlock (D-183). Observed for a replayed PAS submission.
+- **A value typed for one run may not move a write** to another scheme, host, port or base path.
+- **The "not production" acknowledgement** (`acknowledgeNotProd`) covers that environment's own
+  addresses only. "Reads as production" means the text `prod` in its name or a url, and nothing
+  cleverer.
 
-**Not yet audited.** The independent guardrail audit (V3 in the specification) was running when
-this README was written and had not reported. The behaviour above was observed on mock, where the
-guardrail is designed to behave as it does on live (D-021). Live was not tried with a production
-environment.
+What the guardrail does not see (D-145): another DNS name for a production host; a production
+address that comes from an operating system variable, once another environment is active; a
+production address built from a secret, after its environment is removed and the tool restarted.
+No endpoint clears the remembered production addresses: with the tool stopped, edit
+`productionDestinations` in `config-store/store.json`, or remove the store folder.
+
+**Audited once, before the fixes.** The independent guardrail audit (V3) got writes through to
+production four ways on the revision before the fix wave. Each was fixed and the fix attacked by a
+second agent (`PROGRESS.md`). V3 has not run again on this revision. The behaviour above was
+observed on mock, where the guardrail behaves as on live (D-021); on live it was checked by the
+fix's authors against stand-in servers on this machine, not for this README.
 
 ## The test run ledger
 
 Every run, on both profiles, is appended as one JSON line to
-`run-history/runs-YYYY-MM-DD.jsonl` (one file per day; the folder is beside `run.sh` when started
-with it, otherwise in the directory you start from; `tracking.directory` moves it). A line is
-written before the result is shown, then flushed and synced to disk (this was checked by reading
-the code: no test can observe a sync); files are never rewritten. If a write
-fails, the result says so. If the folder cannot be written at startup, the tool refuses to start
-and names the path. `GET /api/runs/health` says whether tracking is alive and how many runs were
-recorded today.
+`run-history/runs-YYYY-MM-DD.jsonl` (one file per UTC day; the folder is beside `run.sh` when
+started with it, otherwise in the directory you start from; `tracking.directory` moves it). A line
+is written before the result is shown, then flushed and synced to disk (this was checked by
+reading the code: no test can observe a sync); files are never rewritten. Files and folders the
+ledger creates are readable by their owner only where the file system allows. If a write fails,
+the result says "NOT recorded" with the reason, and the masthead's ledger indicator turns into a
+heavy frame. If the folder cannot be written at startup, the tool refuses to start and names the
+path. `GET /api/runs/health` (History, and Config, `Check this installation`) says whether
+tracking is alive, how many runs were recorded today, how many writes failed and which files hold
+lines it cannot read.
 
 **A line holds:** run id, time, protocol and operation, target, profile, environment and its kind,
 scenario, procedure codes, line of business, outcome, the standard codes returned, delegated
 vendor, HTTP status, elapsed time, error type, what was expected and the result (pass, fail or
-unverified), note, tester reference, and where they apply the chain, suite and case ids, the hook,
-the next step the result stated, the collection request used, the findings, correlation ids (claim
-id, ClaimResponse id), and the inputs the line does not hold (a hand-edited body, details typed by
-hand, values typed for one run, answers carried from an earlier step), so a replay can refuse what
-it cannot reproduce.
+unverified), note, tester reference, and where they apply the chain, suite and case ids, the run it
+replays or follows, the hook, the next step the result stated, the collection request used, the
+findings, correlation ids (claim id, ClaimResponse id), and the inputs the line does not hold (a
+hand-edited body, details typed by hand, values typed for one run, answers carried from an earlier
+step), so a replay can refuse what it cannot reproduce. A chain case also writes a line of its own
+with its result.
 
 **A line never holds**, under any setting: member first or last name, date of birth, address,
-gender, subscriber ID, or any request or response body. Observed on the running tool: after CRD,
-DTR and PAS runs, one of which sent a member named `Placeholder-Surname` born `1970-01-01`, neither
-the name, the date nor any `resourceType` appeared in the ledger file.
+gender, subscriber ID, or any request or response body. What the service or a tester can fill is
+checked before it is kept (D-151): a code or a line of business that reads like an identifier or a
+date is not kept; a line of business is written only when the code list knows it, otherwise as its
+length; a questionnaire address is kept only in a strict form. The one known gap: a one-word
+surname written where a code belongs is kept, because a single word cannot be told from a code.
 
 **The member ID policy** has two settings:
 
@@ -585,7 +888,8 @@ tracking:
   record-npi: true            # an NPI is not PHI
 ```
 
-- On mock, member IDs are synthetic and are recorded, so runs can be replayed.
+- On mock, a member ID is written in the clear only when it is a `P32H-` sentinel or an `S` and
+  nine or ten digits, so mock runs can be replayed; any other ID is replaced by a token as on live.
 - On live, by default, the member ID is replaced by a salted token (HMAC-SHA-256) and its last four
   characters, so two runs of one member can be matched without the file becoming a roster. The salt
   is created at first start in `config-store/installation-salt`, or wherever `tracking.salt-file`
@@ -596,18 +900,29 @@ tracking:
 - A run whose member ID was not recorded cannot be replayed, and replay says so rather than
   skipping it.
 
-**A note is free text that PAVE cannot vet.** `POST /api/runs/{runId}/note` keeps what you type,
-up to 4,000 characters, and writes it to disk. Do not put member data in it. The tester reference,
-the expectation and a suite's case id are written as given too.
+**A note is free text that PAVE cannot vet.** `Save the note` on a run in History, or
+`POST /api/runs/{runId}/note`, keeps what you type, up to 4,000 characters, and writes it to disk.
+Do not put member data in it. The tester reference (up to 200 characters), the expectation (up to
+1,000) and a suite's case id are written as given too. Over a limit the run is refused with 422,
+which gives the length and quotes nothing.
 
-**Export** with `GET /api/runs/export.csv?from=YYYY-MM-DD&to=YYYY-MM-DD` (both optional): UTF-8 with
-a byte order mark, newest first, one column per field. A cell that starts with `=`, `+`, `-` or `@`
-gets a leading quote so a spreadsheet shows it as text and calculates nothing.
+**The list** (`GET /api/runs`) filters by day, protocol, operation, outcome, result, chain, suite
+run and, through the API, an exact tester reference (`testerRef`). An optional `zone` (an IANA
+zone id such as `America/New_York`) makes the days those of that clock; without it every day is a
+UTC day. The History tab does not offer `testerRef` or `zone` yet.
 
-**Replay** with `POST /api/runs/replay`, by date range or run ids: each run is sent again against
-the configuration in force now and compared with the original (same, changed, not comparable, not
-replayable, blocked, not configured, invalid, error). A replayed submission is a new submission with
-a new claim id. At most 1,000 runs per replay.
+**Export** with `GET /api/runs/export.csv?from=YYYY-MM-DD&to=YYYY-MM-DD` (each optional, with
+`protocol`, `result` and `zone` too): UTF-8 with a byte order mark, newest first, one column per
+field. A cell that starts with `=`, `+`, `-` or `@` gets a leading quote so a spreadsheet shows it
+as text and calculates nothing.
+
+**Replay** with `Replay this run` in History, or `POST /api/runs/replay` by date range or run ids:
+each run is sent again against the configuration in force now and compared with the original
+(same, changed, not comparable, not replayable, blocked, not configured, invalid, error), and each
+entry carries the new run's verdict and next step. A replayed submission is a new submission with
+a new claim id. A replay never carries a production unlock. A step of a chain cannot be replayed by
+itself: to run the journey again, run it as a suite row with the protocol `chain`. A run sent with
+a body of your own cannot be replayed, because the body is not kept. At most 1,000 runs per replay.
 
 ## The procedure code list
 
@@ -618,12 +933,12 @@ P32H export of about 7,000 rows whose header row is not known.
 43 rows, every one marked "Placeholder row. Not from a P32H export." The startup log and the
 self-check both say so.
 
-**What that means for findings, on this revision:** the conformance check compares each CRD answer
-with whatever list is loaded. With the placeholder, a finding such as "the code list disagrees with
-the service" is a statement about synthetic rows, and the finding itself does not yet say that the
-placeholder was used. On mock both sides are synthetic. **On live, with the placeholder still in
-place, ignore code list findings.** A follow-up branch changes this so the finding says so, and so
-that live does not compare with the placeholder at all.
+**What that means for findings** (D-169): on mock, the code list is compared with each CRD answer,
+and every finding it raises says the list is the bundled placeholder, not a P32H list. On live, with
+the placeholder still in place, PAVE does not compare at all: the run carries one
+`CODE_LIST_NOT_COMPARED` finding beside the determination. The picker and the code chips say the
+list is the placeholder while it is in use. A copy of the placeholder file set as `codelist.file`
+counts as a real list: the tool cannot vouch that any file is the P32H list.
 
 **Pointing at the real export.** Set `codelist.file` to its path (a relative path is resolved
 against the directory PAVE starts in) and restart:
@@ -656,7 +971,10 @@ found under the sample's own header (`"code":"CPT/HCPCS"`, `"authRequired":"Prio
   of them match.
 - The flag reads the common spellings of yes and no (`Yes`, `Y`, `No`, `N`, `1`, `0` and others).
   Anything else, and a blank cell, is **not stated**: the picker shows no tag, never "No PA".
-- Dates are read as `2026-01-31`, `1/31/2026` or `20260131`. Anything else is kept as written.
+- Dates are read as `2026-01-31`, `1/31/2026` or `20260131`; a date with a time of day is read as
+  the date written. Anything else is kept as written.
+- A coding system the list gives as a label (CPT, HCPCS Level II and their spellings) is sent as
+  the matching uri, with a note; any other system that is not a uri is not sent, and is noted.
 - A file with no recognisable code column stops startup and names the headers it found. A title
   line above the header row is refused the same way.
 - `codelist.line-of-business-aliases` maps the member API's name for a line of business to the
@@ -685,17 +1003,27 @@ fails on purpose and one declares no expectation. A test runs it through the rea
   starts with `#` is yours and never read. Any other unknown column stops the file, because a
   misspelt `expected` would otherwise turn every row into an unverified one.
 - The file must be UTF-8. In a spreadsheet, save as "CSV UTF-8".
-- `POST /api/suites/preview` says what the tool makes of a file without sending anything.
-- One suite runs at a time. Writes against production are reported as blocked, case by case.
+- `POST /api/suites/preview` (History, Suite runs, on choosing a file) says what the tool makes of
+  a file without sending anything: how many cases can run, and every problem at once.
+- One suite runs at a time. Writes against production are reported as blocked, case by case, and
+  counted apart from failures.
 - A suite is pinned to the configuration it started under. If the configuration changes while it
   runs (an upload, a removal, a switch of environment), it stops and says so, and the cases left
-  are marked as not run. Observed: "The configuration changed while the suite was running."
-- Every case writes its own ledger line. Results can be exported as CSV.
+  are marked as not run ("The configuration changed while the suite was running.", seen on an
+  earlier revision, not again for this one).
+- Every case writes its own ledger line. The summary counts the cases by result, each group
+  labelled ("Passed", "Failed", "Unverified: nothing was declared to compare with", and the groups
+  for blocked, not valid, not configured and not run). Results can be exported as CSV, and a run can
+  be compared with an earlier one of the same file.
+- The tool holds its latest ten suite runs until it restarts; every case stays in the ledger under
+  its suite run id.
 
-**A chain** is one case carried through CRD, DTR and PAS. Start it by sending a run with
-`"chainId":"new"`; the result carries the new chain id, and later runs sent with that id join it.
-`GET /api/chains/{chainId}` shows each step, its outcome and what comes next, read back from the
-ledger. A step can be run again without the ones before it.
+**A chain** is one case carried through CRD, DTR and PAS. On the screens, tick `Run as part of a
+chain` on the CRD tab and follow the next step from tab to tab; through the API, send a run with
+`"chainId":"new"`, and later runs sent with the id the result carries join it. History, Chains, or
+`GET /api/chains/{chainId}`, shows each step, its outcome and what comes next, read back from the
+ledger. A whole chain runs unattended as a suite row with the protocol `chain`, which writes a line
+of its own with the chain's result.
 
 ## Endpoints
 
@@ -704,9 +1032,10 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 - **200** for a completed call, **including one where the service returned a fault**: the fault is
   described in the body, with the request that caused it.
 - **422** when the form failed validation (and for an unknown property in a request body, which is
-  named), and on live (and for `POST /api/raw` on mock too) when a placeholder the request needs
-  has no value (`"kind":"CONFIGURATION"`,
-  naming the variable and the active environment; see [Variables](#variables)).
+  named); on live, and for `POST /api/raw` on mock too, when a placeholder the request needs has
+  no value (`"kind":"CONFIGURATION"`, naming the variable and the active environment; see
+  [Variables](#variables)); and for `POST /api/raw` when a `{part}` of the url has no value in
+  `urlValues` (`"kind":"VALIDATION"`, field `urlValues.<name>`).
 - **403** when the production guardrail blocked a write, or when the request came from another
   site or a host name the tool does not answer to.
 - **409** when no url is configured for an operation, or the configuration changed since the screen
@@ -731,11 +1060,14 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 | GET | `/api/config/effective` | Everything in force, secrets masked |
 | POST | `/api/config/resolve` | What a request would become, without sending it |
 | GET | `/api/members/{memberId}` | Member lookup |
+| GET | `/api/members?memberId=` | The same, with the ID in the query, for an ID that holds a slash or a backslash |
 | GET | `/api/providers/{npi}` | Provider lookup (the NPI check digit is checked first) |
+| GET | `/api/providers?npi=` | The same, with the NPI in the query |
 | GET | `/api/procedure-codes?q=&lob=` | Code type ahead |
 | GET | `/api/procedure-codes/self-check` | What the tool made of the code list |
 | POST | `/api/crd` | Run one CRD call |
 | POST | `/api/crd/preview` | The CRD request, without sending it |
+| POST | `/api/crd/compare` | Compare a pasted CRD request (`rawBody`) with the one this tool builds for the same case. Sends and records nothing |
 | GET | `/api/crd/discover` | CDS Hooks discovery |
 | GET | `/api/crd/scenarios` | CRD scenarios (mock) and the outcome vocabulary |
 | POST | `/api/dtr/package` | `$questionnaire-package` |
@@ -759,19 +1091,19 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 | GET | `/api/pas/notifications?since=` | Notifications received, correlated to runs |
 | POST | `/api/pas/notifications/sample` | Deliver a sample notification (mock only) |
 | GET | `/api/pas/scenarios?for=` | PAS scenarios (mock) and the outcome vocabulary |
-| POST | `/api/raw` | Send one collection request: its method, url and headers, and `rawBody` if given (the saved body is not sent) |
+| POST | `/api/raw` | Send one collection request as it is written: its method, url and headers, and `rawBody` if given, else the saved body; `urlValues` fills `{parts}` of the url |
 | POST | `/api/raw/preview` | The same, without sending it |
-| GET | `/api/runs?from=&to=&protocol=&operation=&result=&outcome=&chainId=&suiteRunId=&limit=` | Query the ledger |
+| GET | `/api/runs?from=&to=&protocol=&operation=&result=&outcome=&chainId=&suiteRunId=&limit=&testerRef=&zone=` | Query the ledger |
 | GET | `/api/runs/{runId}` | One run |
 | POST | `/api/runs/{runId}/note` | Add or change a note |
-| GET | `/api/runs/export.csv?from=&to=` | CSV for sign-off |
-| POST | `/api/runs/replay` | Run again and compare |
+| GET | `/api/runs/export.csv?from=&to=&protocol=&result=&zone=` | CSV for sign-off |
+| POST | `/api/runs/replay` | Run again and compare (`runIds`, or `from` and `to` with an optional `zone`) |
 | GET | `/api/runs/health` | Is tracking alive, runs recorded today |
-| GET | `/api/chains?from=&to=&limit=` | Chains, newest first |
+| GET | `/api/chains?from=&to=&limit=&zone=` | Chains, newest first |
 | GET | `/api/chains/{chainId}` | One chain, step by step |
 | POST | `/api/suites/preview` | What the tool makes of a suite file (multipart: `file`) |
 | POST | `/api/suites` | Start a suite (multipart: `file`, optional `testerRef`, `compareWith`, `configEpoch`); answers 202 |
-| GET | `/api/suites` | Suite runs held in memory |
+| GET | `/api/suites` | Suite runs held in memory (the latest ten, until a restart) |
 | GET | `/api/suites/{suiteRunId}?rows=` | One suite run |
 | POST | `/api/suites/{suiteRunId}/stop` | Stop a running suite |
 | GET | `/api/suites/{suiteRunId}/results.csv` | Suite results as CSV |
@@ -780,12 +1112,13 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 
 Run them in this order from `epa-pave/`, with the tool started by `./run.sh`. They upload the two
 sample Postman files first, and every identifier in them is a placeholder: `P32H-...` sentinels,
-`S123456789`-style member IDs and the NPI `1234567893`. Where an example says `RUN_ID`,
+`S123456789`-style member IDs and the NPIs `1234567893` and `9999999995`. Where an example says `RUN_ID`,
 `CHAIN_ID` or `SUITE_RUN_ID`, put in the id from an earlier answer (`runId` on any run result,
 `chainId` on the chain example, `suiteRunId` on the suite example). Two of them save a CSV file in
 the current directory (`pave-runs.csv`, `suite-results.csv`). Version control does not ignore
-those, so delete them when you are done; on live they hold ledger data. Each was run as written, with
-those three ids put in, against a fresh clone; the status each answered is in the comment above it.
+those, so delete them when you are done; on live they hold ledger data. Each was run as written,
+with those three ids put in, in this order, against a freshly started tool; the status each
+answered is in the comment above it.
 
 <!-- examples:start -->
 
@@ -825,10 +1158,14 @@ Lookups and the code list:
 curl -s localhost:8057/api/members/P32H-PA-REQ
 # 200, FOUND: typed with spaces, sent without them, both forms in the answer
 curl -s 'localhost:8057/api/members/S12345678%20%20%2001'
+# 200, FOUND: the query form
+curl -s 'localhost:8057/api/members?memberId=P32H-PA-REQ'
 # 200, NOT_FOUND
 curl -s localhost:8057/api/members/P32H-NOMEM
 # 200, FOUND
 curl -s localhost:8057/api/providers/1234567893
+# 200, NOT_FOUND: the NPI that selects "provider not found"
+curl -s 'localhost:8057/api/providers?npi=9999999995'
 # 422: the check digit does not match, nothing was looked up
 curl -s localhost:8057/api/providers/1234567890
 # 200
@@ -846,6 +1183,8 @@ curl -s -X POST -H 'Content-Type: application/json' -d '{"member":{"memberId":"P
 curl -s -X POST -H 'Content-Type: application/json' -d '{"member":{"memberId":"P32H-EMPTY"},"provider":{"npi":"1234567893"},"procedureCodes":[{"code":"95810"}],"dateOfService":"2026-03-02"}' localhost:8057/api/crd
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"member":{"memberId":"P32H-PA-REQ"},"provider":{"npi":"1234567893"},"procedureCodes":[{"code":"95810"}]}' localhost:8057/api/crd/preview
+# 200: compares a pasted request with the tool's own for the same case; nothing is sent or recorded
+curl -s -X POST -H 'Content-Type: application/json' -d '{"member":{"memberId":"P32H-PA-REQ"},"provider":{"npi":"1234567893"},"procedureCodes":[{"code":"95810"}],"rawBody":"{\"hook\":\"order-sign\",\"hookInstance\":\"placeholder-hook-instance\",\"context\":{}}"}' localhost:8057/api/crd/compare
 # 200
 curl -s localhost:8057/api/crd/discover
 # 200
@@ -906,16 +1245,16 @@ curl -s localhost:8057/api/pas/notifications
 curl -s 'localhost:8057/api/pas/scenarios?for=submit'
 ```
 
-Sending a collection request (method, url and headers; a body only when you give `rawBody`):
+Sending a collection request as it is written (method, url and headers; `rawBody` if you give one, else the body saved with the request):
 
 ```bash
 # 200: on mock every raw request gets the same fixed answer, which says the mock does not model it
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-6d8194d8fa41"}}' localhost:8057/api/raw
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-6d8194d8fa41"}}' localhost:8057/api/raw/preview
-# 200: "No body will be sent, because none was supplied.", although the saved request has a body
+# 200: the preview names the saved body, "because none was supplied for this run" (bodySource saved)
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-e8574dbaa06d"}}' localhost:8057/api/raw/preview
-# 200: with rawBody, the preview shows the body that would be sent
+# 200: with rawBody, the preview shows that body in place of the saved one (bodySource supplied)
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-e8574dbaa06d"},"rawBody":"{\"resourceType\":\"Bundle\",\"type\":\"collection\"}"}' localhost:8057/api/raw/preview
 ```
 
@@ -924,12 +1263,14 @@ The ledger and chains:
 ```bash
 # 200
 curl -s 'localhost:8057/api/runs?protocol=CRD&limit=5'
+# 200: the days of the range on a clock other than UTC
+curl -s 'localhost:8057/api/runs?from=2026-03-01&to=2026-03-31&zone=America/New_York'
 # 200
 curl -s localhost:8057/api/runs/RUN_ID
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"note":"Checked for ticket T-0001","testerRef":"SAMPLE"}' localhost:8057/api/runs/RUN_ID/note
-# 200: writes pave-runs.csv in the current directory
-curl -s -o pave-runs.csv localhost:8057/api/runs/export.csv
+# 200: writes pave-runs.csv in the current directory, the CRD runs only
+curl -s -o pave-runs.csv 'localhost:8057/api/runs/export.csv?protocol=CRD'
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"runIds":["RUN_ID"]}' localhost:8057/api/runs/replay
 # 200
@@ -979,15 +1320,22 @@ shows what is in force, secrets masked.
 | --- | --- | --- |
 | `spring.profiles.default` | `mock` | The profile when none is given. `./run.sh live` selects `live` |
 | `spring.servlet.multipart.max-file-size` | `25MB` | Largest uploaded file. A collection can be several megabytes |
-| `spring.servlet.multipart.max-request-size` | `30MB` | Largest upload request |
+| `spring.servlet.multipart.max-request-size` | `30MB` | The one limit on any request body, upload or JSON (D-149). A negative value means no limit |
+| `spring.servlet.multipart.file-size-threshold` | `30MB` | Equal to the limit, so no uploaded part is ever written to the temporary folder |
+| `spring.servlet.multipart.resolve-lazily` | `true` | Only an endpoint that takes a file reads a multipart body |
+| `spring.mvc.formcontent.filter.enabled` | `false` | No form body is read for a PUT or a DELETE |
 | `server.port` | `8057` | The port. Not 8080, so PAVE can run beside the tools that use 8080 |
 | `server.address` | `127.0.0.1` | Listen on this machine only. See [Who can reach this tool](#who-can-reach-this-tool) |
 | `server.servlet.session.cookie.name` | `PAVESESSION` | A name of its own, so other tools on localhost do not overwrite PAVE's session |
 | `server.servlet.session.cookie.same-site` | `strict` | The production unlock lives in the session; no other site can borrow it |
 | `server.servlet.session.cookie.http-only` | `true` | No script reads the session cookie |
+| `server.servlet.session.tracking-modes` | `cookie` | The session is never taken from the address |
 | `server.error.whitelabel.enabled` | `false` | No HTML error page; errors are JSON |
 | `logging.level.org.apache.coyote.http11.Http11Processor` | `WARN` | Keeps a refused address, which can hold a member ID, out of the log (D-128) |
 | `logging.level.org.springframework.web.servlet.resource.ResourceHandlerUtils` | `ERROR` | The same, for a path with `../` in it |
+| `logging.level.org.apache.catalina.webresources.AbstractFileResourceSet` | `ERROR` | The same, for a static file path |
+| `logging.level.org.apache.tomcat.util.http.parser.Cookie` | `WARN` | Keeps an unreadable cookie out of the log (D-150) |
+| `logging.level.org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver` | `ERROR` | Keeps request text out of the log when an error is answered (D-150) |
 | `epa.name` | `PAVE` | Shown in the tab title, on screen and by `/api/mode` |
 | `epa.version` | `1.0.0` | The same. A test checks it matches the build |
 | `epa.target` | `onyx` | `onyx` or `nehen`. Recorded and shown; it changes no behaviour (D-031) |
@@ -1038,6 +1386,10 @@ Not in `application.yml` but read when set: `lookup.member.use-onyx-auth` and
 
 The build has to work on a P32H laptop behind the corporate network, where `repo.maven.apache.org`
 and `services.gradle.org` may both be blocked.
+
+The checks quoted in this section were made on an earlier revision, when this README was first
+written (see the last section). `build.gradle`, `settings.gradle`, `gradle.properties` and the
+wrapper have not changed since, and they were not repeated for this revision.
 
 ### Dependencies through an internal mirror
 
@@ -1119,112 +1471,174 @@ Each of these is unknown. PAVE uses an obvious placeholder for it rather than a 
 
 | Open item | What stands in for it | Where the real value goes |
 | --- | --- | --- |
-| The Onyx CRD service id | The Postman variable `crdOrderSignServiceId` (and `crdOrderSelectServiceId`); the sample uses `placeholder-order-sign-service` | The vendor's environment file. `GET /api/crd/discover` lists what the environment offers. Fallback: `onyx.variables` in `application.yml` |
-| Whether the sandbox collection has `order-select` and a `/cds-services` discovery request | Detection reads both by name and by url; neither is in the sample | Upload the vendor's collection and correct with `PUT /api/config/collections/{id}/mapping` |
-| The member API response contract | A tolerant mapping: several spellings per field, any common envelope | `lookup.member.url` in `application.yml`; narrow the tables at the top of `src/main/java/org/p32h/interop/epa/pave/client/lookup/MemberResponseMapping.java` (D-129) |
+| The Onyx CRD service id | The Postman variable `crdOrderSignServiceId` (and `crdOrderSelectServiceId`); the sample uses `placeholder-order-sign-service` | The vendor's environment file. `Discover the CDS services this environment offers` on the CRD tab (`GET /api/crd/discover`) lists what the environment offers. Fallback: `onyx.variables` in `src/main/resources/application.yml` |
+| Whether the sandbox collection has `order-select` and a `/cds-services` discovery request | Detection reads both by name and by url; neither is in the sample | Upload the vendor's collection; correct on the Config tab, `Collections and mapping`, or with `PUT /api/config/collections/{id}/mapping` |
+| The member API response contract | A tolerant mapping: several spellings per field, any common envelope | `lookup.member.url` in `src/main/resources/application.yml`; narrow the tables at the top of `src/main/java/org/p32h/interop/epa/pave/client/lookup/MemberResponseMapping.java` (D-129) |
 | The provider directory response contract | The same | `lookup.provider.url`; `src/main/java/org/p32h/interop/epa/pave/client/lookup/ProviderResponseMapping.java` |
 | How the lookup APIs authenticate | Nothing is assumed | `lookup.member.headers`, `lookup.provider.headers`, or `lookup.*.use-onyx-auth` |
-| The procedure code list header row, flag spellings, date format, line and vendor names | The bundled placeholder list and candidate header lists | `codelist.file`; `codelist.columns.*`; check with `GET /api/procedure-codes/self-check` |
+| The procedure code list header row, flag spellings, date format, time zone, encoding, line and vendor names | The bundled placeholder list and candidate header lists | `codelist.file`; `codelist.columns.*`; check with Config, `Check this installation`, or `GET /api/procedure-codes/self-check` |
 | Client secret or private-key JWT | OAuth2 client credentials | `onyx.auth.*`. For private-key JWT, `requestToken` in `src/main/java/org/p32h/interop/epa/pave/client/support/OnyxTokenService.java` is the one method to replace |
 | The PAS attachment mechanism in use | `fhir` | `onyx.pas.attachment-mode`. `x12-275` names the attachment and sends nothing else |
 | Whether the receiver is reachable from Onyx | Assumed not | `server.address`, `app.allowed-hosts`, `onyx.subscription.callback-url` |
-| Which version of each guide the sandbox follows (D-130, D-136) | 2.0.1 on the operator's word; DTR reads both published shapes of next-question | `wrapInParameter` on a next-question request chooses the wrapped form |
+| Which version of each guide the sandbox follows (D-130, D-136) | 2.0.1 on the operator's word; codes of the 2.2.0 ballot are read and named; DTR reads both published shapes of next-question | `wrapInParameter` on a next-question request chooses the wrapped form; the variable `dtrCoverageExtension` the ballot form of coverage |
 | How Onyx signals an unknown member or provider, inactive coverage and the delegated vendor (D-033) | A rule kept in the client layer, stated in each mock scenario | `src/main/java/org/p32h/interop/epa/pave/client/crd/OnyxCrdConventions.java`, `.../client/pas/OnyxPasConventions.java`, `.../client/dtr/OnyxDtrConventions.java` |
-| PAS profile elements Onyx requires, the shape of `$inquire` it accepts, the review action codes it returns | Defaults sent and named in the request notes | `OnyxPasConventions.java` |
-| What a subscription must name (topic, filter, payload) | A topic under `example.org/p32h-placeholder`, so a default subscription is meant to look wrong | Run values `subscriptionTopic`, `subscriptionFilter` and the others listed in D-133 |
+| Values the guides require that only the payer's or the provider's set-up knows: the payer, the member ID system, the medical record number, the X12 service and request types, the requesting organization (D-141) | Nothing: the request goes without them and names each one left out | The variables under [Variables that fill a request](#variables-that-fill-a-request), in the vendor's environment |
+| What a subscription must name (filter, channel, payload, end) | The topic PAS 2.0.1 defines; a filter only from what was supplied (D-160) | The `subscription...` variables and `pasRequestingOrgIdentifier`, or values typed for the run |
 | The shape of a notification from Onyx | Both published forms are read | Nothing to set; check the first real one |
 | The reference implementation `onyx-crd-harness-1.2.0.zip` (D-001) | Not available; everything was written fresh | Compare its scenario bodies and operation detector with this build if it turns up |
 
 ## Limitations
 
-What is not done, not verified, or known to be wrong on this revision. `PROGRESS.md` is the
-project's own account, but **on this revision it is out of date about this work**: it still says
-that the README, `run.sh`, `run.cmd` and the sample files do not exist, gives the build as 1831
-tests (1,846 now, 2 of them skipped), and lists Wave C2 as not started. Everything else it lists
-as not done is repeated below.
+What is not done, not verified, or known to be wrong on the revision named at the end.
+`PROGRESS.md` is the project's own account and lists each item with the decision behind it; this
+section repeats what a tester or a maintainer needs to know.
 
-- **Nothing has been run against Onyx or any real service.** Every result anyone has seen came from
-  the mock profile or a fake.
-- **No screens on this revision.** The frontend is on its own branch.
-- **Message shapes do not conform to 2.0.1.** On this revision they were unverified: CRD and PAS
-  were written from memory of the guides, and DTR was compared by its own author only. The
-  operator has since supplied the CRD and DTR 2.0.1 packages (`hl7.fhir.us.davinci-crd-2.0.1.tgz`
-  and `hl7.fhir.us.davinci-dtr-2.0.1.tgz`), which removes the reason D-136 gave for comparing CRD
-  and DTR with the 2.2.0 ballot only. The comparison with 2.0.1 reported on a later commit of the
-  `epa-pave` branch: the tool does not conform (see
-  [What PAVE is not](#what-pave-is-not)). None of it is fixed on this revision. This README was not
-  compared with those packages.
-- **The section 27 verification agents** other than the member data audit had not run. The
-  guardrail audit, the fixture audit and the independent review of the integrator's own code (the
-  case runner, suites, the chain, the request guard) were owed.
-- **Code list findings with the placeholder list** do not say that the placeholder was used. On
-  live, ignore them until a real export is loaded.
-- **A secret a service sends back** in a Subscription's `channel.header` is visible in the wire
-  view.
-- **No real vendor Postman export was available.** The sample files and every test file were
-  written by hand to the shape the specification describes. Detection by url is verified only for
-  the standard FHIR operation paths and `/cds-services`.
-- **The notification receiver** does not authenticate its caller, has never been called by a real
-  payer, holds at most 200 notifications in memory (each cut at 128 KiB) and loses them on restart;
-  the ledger lines remain.
-- **In attachment mode `x12-275`** nothing sends the attachment.
-- **DTR:** which version of the guide the sandbox follows is not known and decides the shape of
-  next-question. A response built from nothing states no intended use. The author of an answer is
-  named without a role. `$expand` and `$log-questionnaire-errors` are not implemented. A failure of
-  the tool in the response step answers 500 and writes no ledger line.
-- **A DTR response refers to its order as `ServiceRequest/service-request-1`, and the PAS bundle
-  holds no ServiceRequest**, so that one reference does not resolve inside the submission (D-135).
-- **Lookups** have never met the real member API or provider directory. A member ID containing a
-  slash cannot be looked up. A name returned in one piece cannot fill first and last name.
-- **The ledger** was run on Linux only. That a line is flushed and synced to disk was checked by
-  reading the code, not by a test. Two instances pointed at one ledger folder are not
-  coordinated. A note written after the clock was set back across midnight is on disk and not
-  applied when the run is read.
-- **Comparing a pasted CRD request with the tool's own** (D-119) is not in this revision.
-- **Concurrency in the configuration store** (two uploads or a switch at the same moment) is
-  reasoned about and not tested.
-- **Two notifications arriving at the same moment** at the receiver are not tested.
-- **The receiver stops reading a notification at 8 MiB** (D-133): what lies beyond is not read,
-  and the record says the size is not known. Of what it reads it keeps the first 128 KiB.
-- **Reviewed by nobody but their author:** the chain as a suite case and the wiring of the second
-  wave (PAS and DTR into the application). The independent review of the integrator's own code
-  covered the first wave only.
-- **A key written into a url, or held by a variable with an ordinary name,** is shown as written
-  wherever configuration is shown (see [Secrets](#secrets)).
-- **`POST /api/raw` sends no body unless one is supplied** as `rawBody`; it does not send the body
-  saved in the collection.
-- **On mock, a run does not check that its url resolves.** Use `POST /api/config/resolve`.
+**Gates and checks that have not run**
+
+- **Nothing has been run against Onyx or any real service.** Every live check used a stand-in on a
+  loopback port.
+- Of the verification agents of section 27 of the specification, the member data audit (V2), the
+  guardrail audit (V3) and the fixture audit (V4) ran once, before the fixes, and have not run
+  again; the build audit from a fresh clone (V1), the house style audit (V5), the honesty audit
+  (V6) and the completeness audit on screen (V7) have not run. The house style rules are enforced
+  by the build on every file, which is not the same as the audit.
+- No business tester has used the tool. The journey under
+  [Using the screens](#using-the-screens) was walked by an automated browser, not by a person.
 - **`run.cmd` has not been run.** No Windows machine was available. It was written to do what
   `run.sh` does, and corrected once after a reader found, by reading, that its Java version check
   would have failed on every machine. Quote an argument with an equals sign
   (`run.cmd mock "--server.port=8091"`). If it fails, use the two commands under step 4 of the
   checklist.
+- STS, a mirror that needs credentials and a token server were not tried.
 - **Two tests are skipped** when the build runs as root, because a read-only folder is not
   read-only for root. The same refusals are covered by tests that do run.
 
+**The screens**
+
+- Before anything is uploaded on live, the protocol tabs hold back their form; on mock they offer
+  it, because scenario files answer.
+- Some sentences on screen are the server's and are still being reworded: the DTR verdict carries
+  six to ten supporting lines; a completed DTR response is coloured as "nothing further is
+  required" although its next step is PAS; "This tool shows and hides them as the answers change"
+  is not true of a static questionnaire (its enabled items are worked out when the response is
+  completed); a PAS preview's notes are in the past tense; counts read "(s)"; a service that could
+  not be reached is named by a Java class; a mock timeout answers in about 400 ms under words that
+  say the service timed out.
+- The CRD comparison shows a credential in a pasted request as typed, and omits its caveat when the
+  two requests cannot be compared.
+- PAS: on mock, a subscription created with no call back address is said to call back one the mock
+  made up; an unmatched notification sends the tester after whoever created the subscription; the
+  timeout scenario says to inquire, and an inquiry with the same member is refused. What changed
+  per item between two answers is not shown.
+- Config: an operation is said to "still run" when a header or the body of its request holds a
+  placeholder with no value; which of several mapped requests an operation uses is said only in
+  the page's own words; the Config tab has no field for `urlValues`, so a request whose url holds a
+  `{part}` cannot be sent from it (use `POST /api/raw`).
+- History offers no `testerRef` or `zone` filter, and says every date is a UTC day.
+- The case: when a pasted request disagrees with a lookup, the lookup strip says only "Found."
+- Seen in a browser at 1366 by 768 and, for some states, 1920 by 1080, mostly on mock. At phone
+  width the History runs table and the CRD elements table run past the edge. No screen reader was
+  used, contrast was never measured, 200% zoom was never tried. Behaviour on screen has no test in
+  the build: it was checked by browser scripts kept outside the repository.
+
+**The protocols**
+
+- **Conformance**: checked against 2.0.1 as described under [What PAVE is not](#what-pave-is-not),
+  without US Core 3.1.1, SDC, HRex, the subscriptions backport or the X12 code lists. CRD sends the
+  ordering provider as a Practitioner or an Organization, never both, and never
+  `Organization.active`.
+- **CRD**: a pasted request for another hook is answered comparable, with a note.
+- **DTR**: which version of the guide the sandbox follows decides the shape of next-question and
+  is not known. Only the invariants dtrx-1 and dtrb-1 are evaluated. An answer's author carries no
+  role. `$expand` and `$log-questionnaire-errors` are not implemented. No CQL is run. A failure of
+  the tool in the response step answers 500 and writes no ledger line.
+- **PAS**: no claim update and no `$submit-attachment`; a resubmission reuses the claim id; after
+  "attachment required" the result names the guide's route and nothing builds it. In attachment
+  mode `x12-275` nothing sends the attachment. Mock X12 reason and category codes are
+  placeholders.
+- **The notification receiver** does not authenticate its caller, has never been called by a real
+  payer, holds at most 200 notifications in memory (each cut at 128 KiB, and read no further than
+  8 MiB) and loses them on restart; the ledger lines remain. Two notifications at the same moment
+  are not tested.
+- **The chain**: a DTR package that goes straight on to PAS is driven by no test and no mock
+  scenario. A later step handed only the procedure codes its line already holds is marked not
+  replayable alone. A well-formed chain id the tool never issued is accepted.
+
+**Configuration, the guardrail and secrets**
+
+- No real vendor Postman export was available. The sample files and every test file were written
+  by hand to the shape the specification describes. Detection by url is verified only for the
+  standard FHIR operation paths and `/cds-services`.
+- Concurrency in the configuration store (two uploads or a switch at the same moment) is reasoned
+  about and not tested.
+- The guardrail does not see another DNS name for a production host, or a production address that
+  comes from an operating system variable or a secret (see
+  [The production guardrail](#the-production-guardrail)). How a real FHIR server acts on `//`, `;`,
+  `..;` or an encoded slash inside a path segment was not checked.
+- A key written into a url, or held by a variable with an ordinary name, or typed into a path
+  segment or a host of a collection, is shown as written (see [Secrets](#secrets)). A secret a
+  service sends back re-encoded, shorter than six characters, or as a JSON number, is not masked;
+  for a request sent as it is written, the server does not mask it in the returned fields.
+- **On mock, a CRD, DTR or PAS run does not check that its url resolves.** Use the Config tab or
+  `POST /api/config/resolve`.
+
+**The ledger, lookups, suites, code list, the HTTP edge**
+
+- **The ledger** was run on Linux only. Flush and sync are checked by reading the code. Two
+  instances pointed at one ledger folder are not coordinated. A note written after the clock was
+  set back across midnight is on disk and not applied when the run is read. A run with a body of
+  your own records no member, NPI or line of business, and nothing on its line tells two such runs
+  apart. After the ledger folder was restored, the server kept saying it cannot write until the
+  next write succeeded.
+- **Lookups** have never met the real member API or provider directory. A name returned in one
+  piece cannot fill first and last name. An identifier with an encoded slash in the path form ends
+  as a bare 400; use the query form.
+- **Suites**: whether a code assertion's value is in its value set is not checked before sending. A
+  second suite started while one runs is answered 409 with kind `VALIDATION`.
+- **The code list**: no real P32H export was available, so everything about its shape is assumed.
+  A copy of the placeholder set as `codelist.file` counts as a real list.
+- **Fixtures**: any new top-level key in a scenario file stops the mock start until the loader
+  knows it. The CRD, DTR and PAS scenario files were rewritten after the fixture audit and not
+  audited again.
+- **The HTTP edge**: only Linux, curl, raw sockets and headless Chromium were used. `OPTIONS *`
+  carries none of the tool's headers. A cross-site request that carries neither `Sec-Fetch-Site`
+  nor `Origin` is let through.
+
 ## What this README was checked against
 
-- **Revision:** branch `docs-c2` at the base commit `52469d7` with this README, the run scripts and
-  the samples added. The frontend, the audits and the follow-up branches were not on it.
-- **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0 through the wrapper, behind a TLS-inspecting
-  proxy. The Gradle cache already held the dependencies, so how long a first download takes was not
-  measured.
-- **Fresh clone:** the branch was cloned into a new directory, twice, and `./gradlew clean build`
-  ran in each: 1,844 tests passed, 2 skipped, 0 failed, both times. After a newcomer's reading
-  of this README was answered, a third fresh clone built the same way (1,846 tests, 2 skipped, 0
-  failed). The clones were made from a local copy of the branch. `git clone --branch epa-pave`
-  from GitHub was run too, on 2026-11-19: it gave commit `44c7760`, whose `epa-pave/` holds no
-  README, `run.sh`, `run.cmd` or `samples/` (see step 2).
-- **`run.sh`** was started from another directory with the jar missing: it built the jar, started on
-  the mock profile on port 8057, `curl -s localhost:8057/api/mode` answered as shown in step 5, and
-  it was stopped. `./run.sh live` was started the same way on another port and stopped. Its refusal
-  of Java 8 and of an unknown profile was checked.
-- **Every `curl` example under [Endpoints](#endpoints)** was run against the second fresh clone,
-  started with `./run.sh` on port 8057, in order, and answered the status in its comment: 66
-  examples, none different, on the third clone. `./run.sh mock --codelist.file=samples/codelist/sample-code-list.csv`
-  and `./run.sh mock --server.port=8091` were run too.
-- **Observed on the running tool, as quoted above:** the production guardrail (floor, unlock, a
-  second session, switching), the host and origin checks, the receiver, the ledger contents, the
-  lookups, the code list self-check, `POST /api/raw` sending no saved body, a key in a url shown
-  as written, `{{$randomInt}}` refused, and an unresolved url ignored on mock and refused on live.
-- **Not checked:** the screens, `run.cmd`, STS, a credentialed mirror, a token server, Onyx.
+- **Revision:** branch `docs-2` at the base commit `acfb340` (the server with every audit fix, the
+  five tabs and the pass that joined them), with this README added. Two further server tasks that
+  reword some sentences on screen were in progress elsewhere and were not on it.
+- **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0. On the machine this README was checked on every
+  Gradle command went through a shared wrapper that adds `--offline` and lets two builds run at a
+  time, and a file in the home directory caps the memory Gradle may use. `./gradlew` itself was not
+  run for this revision: its Gradle part was run through that wrapper. The build in step 3 is that
+  run of `clean build`: 2,603 tests, 2 skipped, 0 failed. No fresh clone was built for this
+  revision; `git clone --branch epa-pave` from GitHub was run on 2026-11-20 and gave a checkout
+  that holds `run.sh` (commit `f6f366d`, older than this revision).
+- **`run.sh`** was started from another directory with the jar present, as
+  `./run.sh mock --server.port=8091` (port 8057 was not used on that machine), and printed the
+  lines of step 4 with 8091 in place of 8057; `curl -s localhost:8091/api/mode` answered as step 5
+  shows, with that port. `./run.sh live --server.port=8091` and `./run.sh mock --server.port=8091
+  --codelist.file=samples/codelist/sample-code-list.csv` were run too, and its refusal of an
+  unknown profile. Building the jar from nothing through `run.sh`, and its refusal of a Java older
+  than 21, were checked on an earlier revision and not again (no `run.sh` line changed since).
+- **Every `curl` example under [Endpoints](#endpoints)** was run in order against a freshly started
+  tool on the mock profile, with `localhost:8091` in place of `localhost:8057`, and answered the
+  status in its comment: 70 examples, none different.
+- **The screens** were looked at in headless Chromium at 1366 by 768: every tab on arrival, the
+  journey under [Using the screens](#using-the-screens) from CRD to DTR to PAS with `P32H-DOC-DTR`,
+  the colour key, every part of the Config tab, History's runs, a run, chains and suite runs, and on
+  live with nothing configured the three protocol tabs. What is quoted from them is what they
+  showed. The production banner, the ledger indicator's fault states and the suite summary are
+  described from the report of the pass that joined the tabs, which saw them on the same revision.
+- **Observed on the running tool for this revision, as quoted above:** the production guardrail on
+  mock (the floor, a wrong and a right unlock, a second session, an upload that locks again, a
+  replay refused with `SEND_ON_ITS_OWN`), the host and cross-site checks, the receiver with a
+  foreign host, the lookups in both forms, a request sent as it is written with its saved body, a
+  `{part}` with no value and `{{$randomInt}}` refused, an unresolved url ignored on mock and refused
+  on live, a key in a url shown as written, the code list self-check with the sample file, and on
+  live with nothing configured and against a stand-in CRD service on a loopback port (a pass,
+  `CODE_LIST_NOT_COMPARED`, an extra field shown, the member ID tokenised in the ledger).
+- **Not checked:** `run.cmd`, STS, a mirror (with or without credentials) for this revision, a
+  token server, Onyx, a screen reader, a phone-width screen.
