@@ -63,6 +63,8 @@ class ApiExceptionHandlerTest {
                 case "store" -> throw new org.p32h.interop.epa.pave.service.config.ConfigStoreException(
                         "The configuration store could not write store.json. Nothing was changed.", new java.io.IOException("No space left on device: /srv/secret-path"));
                 case "changed" -> throw new ConfigurationChangedException();
+                case "relocked" -> throw ConfigurationChangedException.writesLockedAgain();
+                case "redrawn" -> throw ConfigurationChangedException.sinceTheScreenWasDrawn();
                 case "unresolved-no-env" -> throw new UnresolvedVariablesException(EpaOperation.PAS_INQUIRE, List.of("baseUrl"), null, "{{baseUrl}}/Claim/$inquire");
                 case "not-configured" -> throw new EndpointNotConfiguredException(EpaOperation.PAS_SUBMIT, "There is no url for PAS submit.");
                 case "blocked" -> throw new ProdWriteBlockedException(EpaOperation.PAS_SUBMIT, new EnvironmentRef("Onyx Production", EnvironmentKind.PROD),
@@ -167,7 +169,21 @@ class ApiExceptionHandlerTest {
     void aConfigurationChangeBetweenPreparingAndSendingIs409AndNothingWasSent() throws Exception {
         mvc.perform(get("/throw/changed")).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.kind").value("CONFIGURATION"))
-                .andExpect(jsonPath("$.title").value("The configuration changed while this request was being prepared. Nothing was sent."));
+                .andExpect(jsonPath("$.title").value("The configuration changed while this request was being prepared. Nothing was sent."))
+                .andExpect(jsonPath("$.action").value("Check which environment is active, then send again."));
+    }
+
+    @Test
+    void aRefusalThatSaysWhatChangedIsShownInItsOwnWords() throws Exception {
+        // Writes locked again between preparing and sending: the general words would send the tester to the environment.
+        mvc.perform(get("/throw/relocked")).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.kind").value("CONFIGURATION"))
+                .andExpect(jsonPath("$.title").value("Production writes were locked again before this write was sent, so it was not sent."))
+                .andExpect(jsonPath("$.action").value("Unlock them on the Config tab by typing the environment name, then send it again."));
+        mvc.perform(get("/throw/redrawn")).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("The configuration changed after this screen was loaded, so the environment shown may "
+                        + "not be the one in force. Nothing was sent."))
+                .andExpect(jsonPath("$.action").value("Reload to see the current environment, then send again."));
     }
 
     @Test

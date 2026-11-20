@@ -226,10 +226,12 @@ class SecondGuardrailAuditOverTheServerTest {
         assertThat(lockedByB.statusCode()).isEqualTo(200);
         TOKEN_RELEASE.countDown();
         HttpResponse<String> prepared = inFlight.get(90, TimeUnit.SECONDS);
-        // Refused at the send as a configuration that is no longer the one it was prepared under. The shared error handler
-        // answers every such refusal with one fixed sentence.
+        // Refused at the send, in the refusal's own words: it is the lock that moved, not the environment.
         assertThat(prepared.statusCode()).isEqualTo(409);
-        assertThat(prepared.body()).contains("\"kind\":\"CONFIGURATION\"").contains("Nothing was sent.");
+        assertThat(prepared.body()).contains("\"kind\":\"CONFIGURATION\"")
+                .contains("\"title\":\"Production writes were locked again before this write was sent, so it was not sent.\"")
+                .contains("\"action\":\"Unlock them on the Config tab by typing the environment name, then send it again.\"")
+                .doesNotContain("The configuration changed while this request was being prepared");
         assertThat(PROD_A.received).as("a write prepared before the lock").isEmpty();
         // A's next write is refused as locked.
         HttpResponse<String> next = json("POST", "/api/pas/submit", submit(null), sessionA);

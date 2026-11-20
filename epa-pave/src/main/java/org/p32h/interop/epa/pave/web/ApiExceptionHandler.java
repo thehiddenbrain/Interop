@@ -110,9 +110,11 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ConfigurationChangedException.class)
     public ResponseEntity<ErrorView> configurationChanged(ConfigurationChangedException e) {
+        // A refusal that knows what changed, such as writes locked again, says so: the general
+        // words would send the tester to check the environment when it is the lock that moved.
         return respond(HttpStatus.CONFLICT, ErrorView.of(ErrorKind.CONFIGURATION,
-                "The configuration changed while this request was being prepared. Nothing was sent.",
-                "Check which environment is active, then send again."));
+                Texts.orElse(e.title(), "The configuration changed while this request was being prepared. Nothing was sent."),
+                Texts.orElse(e.action(), "Check which environment is active, then send again.")));
     }
 
     @ExceptionHandler(ProdWriteBlockedException.class)
