@@ -90,7 +90,7 @@ OpenJDK Runtime Environment (build 21.0.13.0.3+1-1-24.04.1-Ubuntu)
 OpenJDK 64-Bit Server VM (build 21.0.13.0.3+1-1-24.04.1-Ubuntu, mixed mode, sharing)
 ```
 
-Anything older than 21 will not build or run PAVE, and a newer Java alone does not do either: the
+Anything older than 21 will not build or run PAVE, and a newer Java alone does not build it: the
 build asks for a Java 21 toolchain and cannot download one. With only a Java 25 on the machine (a
 simulation on Linux, D-273) `./gradlew classes` stopped with "Cannot find a Java installation on your
 machine ... matching: {languageVersion=21, ...}. Toolchain download repositories have not been
@@ -2081,15 +2081,16 @@ The Problems view shows about 861 errors, which belong to the other application,
 Dashboard lists only that project under `local`. From exactly that state, on Linux, these steps got
 the tool running:
 1. Window, Show View, Other..., type `Git`, select "Git Repositories" under Git, and press Open.
-2. Expand your repository (it reads `<name> [epa-pave] - <the folder of your clone>/.git`), then
-   "Working Tree".
+2. Expand your repository (it reads `> <name> [epa-pave] - <the folder of your clone>/.git`; the `>`
+   means files git does not track, here the ones the Maven import left), then "Working Tree".
 3. Right click the folder `epa-pave` under "Working Tree", then Projects, Import Projects....
 4. "Import Projects from File System or Archive" opens with "Import source:" already ending in
    `/epa-pave` and one row, `epa-pave`, ticked. Press Finish and wait until the status bar is idle. A
    second project appears, `epa-pave [boot] [<name> epa-pave]`: a Gradle project, listed in the
    Gradle Tasks view, with 0 errors and 25 warnings of its own.
-5. Be rid of the second `PaveApplication` entry (next paragraph), then start `epa-pave` from the Boot
-   Dashboard as in step 5.
+5. Be rid of the second `PaveApplication` entry (see "Two `PaveApplication` entries, and how to be
+   rid of one" below), then start `epa-pave` from the Boot Dashboard as in step 5 of this section,
+   "Start it".
 
 The right click menus of the folder `epa-pave` in the Package Explorer and the Project Explorer have
 no entry that does step 3: their "Import..." opens the general Import wizard with nothing filled in.
@@ -2112,7 +2113,8 @@ process) and both proofs holding:
 - **Delete, the lasting way.** Select the Maven project and choose Delete. "Delete Resources" asks
   "Remove project '<name>' from the workspace?" and shows two checkboxes, both unticked: "Delete
   project contents on disk (cannot be undone)" and "Delete 1 nested project". **Leave both
-  unticked** and press OK. The first would delete your clone from the disk, and with it the tool,
+  unticked** and press OK. The first would, by its label, delete your clone from the disk (no run
+ticked it), and with it the tool,
   because the folder `epa-pave` lies inside that project's folder; the second would take the project
   `epa-pave` out of the workspace too. Afterwards only `epa-pave` remains, whole, and the Problems
   view reads "0 errors, 25 warnings, 59 others".
@@ -2162,8 +2164,10 @@ Package Explorer (no `[boot]`) and at the Problems view.
   `?? .settings/`; delete them by hand. Then import `epa-pave`.
 - **The clone shows under Git Repositories, and no project is in the Package Explorer.** A clone is
   not a project: importing its `epa-pave` folder is a step of its own. In the Git Repositories view
-  the repository line shows the branch in brackets; it must read `[epa-pave]`. Then do steps 3 and 4
-  of "Already pressed Finish on the `Interop` row?" above, or step 3 here with that folder.
+  the repository line shows the branch in brackets; it must read `[epa-pave]`. Then import that
+  clone's `epa-pave` folder with step 3 (File, Import, Gradle, Existing Gradle Project). The Git
+  Repositories way, steps 3 and 4 of "Already pressed Finish on the `Interop` row?" above, was seen
+  only with the top folder already imported; with no project at all it was not tried.
 - **The top folder came in as a Maven project, and the Boot Dashboard has no `epa-pave`.** That is
   the wizard's own choice of step 2 (b); see "Already pressed Finish on the `Interop` row?".
 - **Two `PaveApplication` entries, "Port 8057 was already in use."** See "Two `PaveApplication`
@@ -2173,7 +2177,8 @@ Package Explorer (no `[boot]`) and at the Problems view.
   `epa-pave` folder, such as the default branch; check out `epa-pave` (below). The other way round: a
   clone that held `epa-pave` once and was switched to another branch keeps an `epa-pave` folder holding
   only files git ignores (`.classpath`, `.gradle/`, `.project`, `.settings/`, `bin/`). The wizard
-  accepts that folder; what it then imports was not seen. Check the branch first.
+  would likely accept that folder, since it exists (not tried); what it would import was not seen.
+  Check the branch first.
 - **"Cannot find a Java installation on your machine ... matching: {languageVersion=21, ...}".** No
   JDK 21 for Gradle: see "What the machine needs" under step 1. If a JDK 21 is installed and Gradle
   still does not find it, give Gradle its Java home: tick "Override workspace settings" on the Import
@@ -2194,16 +2199,20 @@ Package Explorer (no `[boot]`) and at the Problems view.
   wrapper at a copy of `gradle-9.5.0-bin.zip`), [Dependencies through an internal
   mirror](#dependencies-through-an-internal-mirror) (`internalRepoUrl` in `~/.gradle/gradle.properties`,
   the Gradle user home the Import Preview showed) and [TLS behind an inspection
-  proxy](#tls-behind-an-inspection-proxy). Those sections were checked with Gradle from a terminal; from
-  STS they were not tried.
+  proxy](#tls-behind-an-inspection-proxy). The first two were checked with Gradle from a terminal and
+  the third only in part (see there); from STS none was tried.
 - Red markers before Gradle has fetched the dependencies are normal. If they stay, right click the
   project and choose Gradle, Refresh Gradle Project. It was never needed.
 
 **Seeing the clone and its branch in STS.** Window, Show View, Other..., type `Git`, select "Git
 Repositories", Open. A repository reads `<name> [epa-pave] - <the folder of your clone>/.git`: its
-name, the branch checked out in brackets, and where the clone is; a down arrow and a number after the
+name, the branch checked out in brackets, and where the clone is; a `>` in front means files git does
+not track, such as those a Maven import of the top folder leaves; a down arrow and a number after the
 branch mean it is that many commits behind GitHub. "Working Tree - <the folder of your clone>" lists
-the clone's files, `epa-pave` among them while that branch is checked out. Once a project from the
+the clone's files, `epa-pave` among them while that branch is checked out. If the view lists more
+than one clone of the repository (the operator reported two, one inside the folder of the other, on
+different branches), use the one whose line reads `[epa-pave]` and give the import the `epa-pave`
+folder under its path, not the other's. Once a project from the
 clone is imported, the repository is listed by itself. If the view is empty, "Add an existing local
 Git repository" opens "Add Git Repositories": put the folder of your clone in "Directory:", press
 Search, tick the repository found (it is listed unticked, and "Add" stays greyed out until then), and
@@ -2645,8 +2654,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   examples under [Endpoints](#endpoints) (D-271). On `d089e65`, by agents in the same way, four more
   runs of Spring Tools 5.4.0 on Linux: the clone by its Git import wizard, the import of the wrong
   folder, the state that wizard leaves, and a machine with no JDK 21 and then no network, both
-  simulated; `GET /api/mode` and the two proofs after each start of the tool, in the first and the
-  third of these (the second and the fourth started nothing) (D-273).
+  simulated; `GET /api/mode` after each start of the tool, in the first and the third of these (the
+  second and the fourth started nothing), and the two proofs after every start but the third run's
+  double launch with both projects open (D-273).
 - **Run again on `902e0d9` for this README**, on the jar the integrator built from that revision
   (`merged-902e0d9.jar`), freshly started on the mock profile on port 8194 (port 8057 was not used
   on that machine):

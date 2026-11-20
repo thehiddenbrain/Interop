@@ -28,7 +28,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-270 | Told what the bind means, the operator replied that the tool will be run as a real service one day | Nothing changes now and the tool keeps listening on this machine only. **As delivered it is not fit to be run as a shared or production service**, and the bind is not to be opened before a sign-in exists. What must exist first is in the README, "Before PAVE is run as a shared or production service" |
 | D-271 | Asked whether the tool was ready to load into STS, the integrator first answered yes for mock with one caveat; that was wrong in part | A test found 24 handler arguments in 9 handlers that took their request name from their Java name. Compiled as STS would without the parameter-names setting (the batch Eclipse compiler, an emulation, not STS), 8 of the 9 were seen answering HTTP 500 (History, one run, the note, notifications, the four subscription calls); the export was not called. Each argument now names itself, the test holds it, and the emulation saw the 8 answer 200 and the export answer through the README's example. **No real STS had imported or started the project** then; later one did, on Linux: D-272 |
 | D-272 | The real STS 5.4.0 has run the project on Linux, twice, with one fix between the runs | On Linux with Spring Tools 5.4.0 the import with every default worked; the shared launch configuration started `PaveApplication` from the Boot Dashboard without asking; three tests that need the Gradle test task were skipped outside it with a sentence that says why. A profile typed in the launch dialog was written into that tracked file. **Not seen: Windows, `run.cmd`, a real tester's workstation, the screens in a browser after an STS start, live against a service, the whole suite from the IDE, any other STS release** |
-| D-273 | The operator let STS clone the repository on Windows and got stuck; the path, the error, their state and a machine without a JDK 21 were then run in the real STS on Linux | The Git import wizard's own choices are wrong for this project: the default branch has no `epa-pave` folder, and its last page offers only the other application. The error naming `gradle-8.9-bin.zip` means the wrong folder; it reads like a network fault and is not one. STS alone, with no JDK 21, imports a project that cannot start (simulated). Close Project or Delete (both boxes unticked) ends the double `PaveApplication`. Nothing in the repository root was changed. **Not seen: Windows beyond the operator's report, a credential prompt, a corporate proxy, an STS other than 5.4.0, a machine with a Java 17 and no 21** |
+| D-273 | The operator let STS clone the repository on Windows and got stuck; the path, the error, their state and a machine without a JDK 21 were then run in the real STS on Linux | The Git import wizard's own choices are wrong for this project: the default branch has no `epa-pave` folder, and its last page offers only the other application. The error naming `gradle-8.9-bin.zip` means the wrong folder; on Linux it read like a network fault and was not one (the operator's cause was not seen). STS alone, with no JDK 21, imports a project that cannot start (simulated). Close Project or Delete (both boxes unticked) ends the double `PaveApplication`. Nothing in the repository root was changed. **Not seen: Windows beyond the operator's report, a credential prompt, a corporate proxy, an STS other than 5.4.0, a machine with a Java 17 and no 21** |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -5230,7 +5230,8 @@ workstation. What follows from it is reported, not seen by the writers of these 
   changed; then, for whoever already pressed Finish on the wizard's own choice, the steps of the
   fourth run, and the two ways to be rid of the second `PaveApplication`, Close Project first (no
   dialog, undone by Open Project), then Delete with both boxes unticked, and why: the tool's folder
-  lies inside that project's folder. Also a warning not to open Run Configurations before
+  lies inside that project's folder; and, where the Git Repositories view lists two clones, to use
+  the one on `[epa-pave]`. Also a warning not to open Run Configurations before
   `epa-pave` is imported. After the import step, "If the import fails": the 8.9 message and its
   real cause beside the Import Preview of the right folder, a clone with no project, the Maven
   project, the two entries, a path refused on another branch, the toolchain message, and the refused
@@ -5254,4 +5255,18 @@ workstation. What follows from it is reported, not seen by the writers of these 
   that view, a pull that brings new commits and whether Gradle then needs a refresh, what the
   mirror, distribution and TLS settings do from STS, and what an import makes of an `epa-pave`
   folder that a branch switch left holding only ignored files.
-- The commit that records this changes this file, `PROGRESS.md` and the README only.
+- **What an independent check of this entry and the README found.** Seven README sentences were unclear or claimed more
+  than the runs saw, and the summary row stated the cause of the 8.9 error without saying where it
+  was seen. Now: the wizard's acceptance of a leftover `epa-pave` folder is marked as not tried (the
+  run moved those files aside first); the Git Repositories way of importing `epa-pave` is said to
+  have been seen only with the top folder already imported, and a clone with no project is pointed
+  to File, Import, Gradle, Existing Gradle Project; the repository line is quoted with the `>` it
+  carried in the operator's state; a sub-step that pointed to "step 5" now names the section's step
+  5 and the paragraph it means; a newer Java alone is said not to build PAVE, not "not to run" it,
+  since running on a newer Java was not tried and `run.sh` accepts 21 or newer; the TLS section is
+  said to be checked only in part; and the proofs are said to have been run after every start but
+  the double launch of the operator's state, after which only `GET /api/mode` was called. The
+  check also noted that the Delete warning rests on the dialog's label (no run ticked the box),
+  which the README now says, and that nothing told a tester with two clones which to use, which the
+  README now does: the one whose line reads `[epa-pave]`.
+- The commits that record this change this file, `PROGRESS.md` and the README only.

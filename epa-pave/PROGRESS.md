@@ -41,8 +41,9 @@ on Linux with Spring Tools 5.4.0, and the change made between them, with what an
 of that entry and the README's STS section found. D-273 records what the operator met when they let
 STS clone the repository on a Windows workstation, what they were told and how it held up, and four
 more runs of the real STS on Linux on `d089e65` (the Git import wizard, the wrong folder on purpose,
-the operator's state rebuilt, and a machine with no JDK 21 and then no network, both simulated); the
-commit that records it changes this file, `DECISIONS.md` and the README only.
+the operator's state rebuilt, and a machine with no JDK 21 and then no network, both simulated), with
+what an independent check of that entry and the README's STS section found; each commit that records
+it changes this file, `DECISIONS.md` and the README only.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
 D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and two code changes:
