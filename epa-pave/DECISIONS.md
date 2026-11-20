@@ -25,6 +25,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-260 to D-268 | The last check found blockers and majors in four parts; four last fixes followed and are merged | **The last fixes are checked by nobody but their authors, and no check follows them** (D-268). What they left was not applied (D-266). What is open is first in `PROGRESS.md` |
 | D-227, D-252 | Four questions were put to the operator during the build and had no answer then | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request. The operator's replies, after the pull request was opened: D-269 |
 | D-269 | The operator replied to the four questions of D-227 after the pull request was opened: two answered, two not | The sandbox follows 2.0.1 on the operator's word, not observed; a vendor sample request can be shared and has not arrived; the operator does not know about the NPI's first digit and did not understand the question about the bind, so both stay as they are |
+| D-270 | Told what the bind means, the operator replied that the tool will be run as a real service one day | Nothing changes now and the tool keeps listening on this machine only. **As delivered it is not fit to be run as a shared or production service**, and the bind is not to be opened before a sign-in exists. What must exist first is in the README, "Before PAVE is run as a shared or production service" |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -4827,8 +4828,35 @@ change no code: the commit that records them changes this file, `PROGRESS.md` an
    call the notification receiver, so a pended request is followed with an inquiry. Relaxing it is a
    setting (`server.address`, `app.allowed-hosts`, `onyx.subscription.callback-url`), not a code change,
    and because the tool has no sign-in and its wire view carries member data, it is a decision for
-   whoever is responsible for the network the tool runs on.
+   whoever is responsible for the network the tool runs on. (Later: the operator added that the tool
+   is to be run as a real service one day: D-270.)
 4. **A sample request from the UM vendor with no real member data can be shared.** None has arrived
    yet. When one does it is to be checked for member data before it is used, run through the request
    comparison (D-119), and what the comparison makes of it recorded. Until then the comparison has met no
    real vendor request, and that limit stands.
+
+**D-270. The operator means the tool to be run as a real service one day; nothing changes now, and
+what must exist first is written down.**
+The third question of D-269 was put again in plain words: as delivered, the tool can be used only from
+the computer it runs on; nobody else on the network can open it, and the vendor cannot send anything to
+it. The operator replied, in these exact words: "Eventually this app will productionlize". Nothing else
+was said.
+- **The reading.** The operator intends the tool to be run one day as a real service, not only as one
+  tester's own copy. What that covers was not said: one copy shared by a team and still pointed at a
+  sandbox, or use against the vendor's production service, or both. The integrator has asked. Until an
+  answer comes both are taken as possible, which is the reading that is safer if wrong.
+- **The decision.** Nothing changes in the code now, and nothing in the defaults: the tool keeps
+  listening on `127.0.0.1` only (D-115), and the statement is about later. **The tool as delivered is
+  not fit to be run as a shared or production service**, and `server.address` is not to be opened to
+  the network before a sign-in exists, whoever asks for it, for the receiver or for a team.
+- **What must exist first** is listed in the README under "Before PAVE is run as a shared or production
+  service", each line a fact about the tool as it is at this revision, checked in its source and
+  settings, with what would have to exist in its place: a sign-in and roles, an encrypted connection,
+  secrets kept apart from the tool's files, control of who sees member data, a record of who did what,
+  a receiver that checks its caller and keeps what arrived, production writes allowed only to named
+  people, storage that several copies can share, packaging, monitoring, backup and a rule for how long
+  runs are kept, and an observation of the vendor's service (D-233). None of it is built, and none of
+  it is designed here: the list says what is missing, not which product fills it.
+- The commit that records this changes this file, `PROGRESS.md` and the README only, and no code. The
+  `bindNote` that `GET /api/mode` returns still says to set `server.address` and read the README first;
+  the README now says not to before a sign-in exists.

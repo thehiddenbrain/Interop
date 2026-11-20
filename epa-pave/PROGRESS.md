@@ -31,8 +31,9 @@ D-201, those of the join, the server work for the screens and the second audits 
 of the last server task, the last screens pass, the last audits and the checks of the fixes D-229 to
 D-252, those of the four closing tasks D-253 to D-259, and those of the last check, the last fixes and
 how the checking ended D-260 to D-268. D-269 records what the operator replied to the four questions of
-D-227 after the pull request was opened; the commit that records it changes this file, `DECISIONS.md`
-and the README only, and no code.
+D-227 after the pull request was opened, and D-270 the operator's later word that the tool is to be run
+as a real service one day; the commits that record them change this file, `DECISIONS.md` and the README
+only, and no code.
 
 ### Open at the revision handed over, the worst first
 
@@ -52,7 +53,12 @@ has looked.
    to; that has not been observed. Of the four questions put to the operator (D-227), two are answered
    and two stand as they were (D-269). The lookups have never met the
    real member API or provider directory, and the token request's HTTP Basic is an assumption (D-233).
-3. **The guardrail, what it still lets through or cannot see.** A production environment refused at
+3. **Not fit to be run as a shared or production service as delivered.** The operator intends that one
+   day (D-270). The tool has no sign-in, serves plain http, keeps secrets in plain text on disk, records
+   no user, and is one copy on one machine; it keeps listening on this machine only, and is not to be
+   opened to the network before a sign-in exists. The README, "Before PAVE is run as a shared or
+   production service", lists what must exist first; none of it is built.
+4. **The guardrail, what it still lets through or cannot see.** A production environment refused at
    upload is not stored, so a sandbox at its address is not refused until the production environment is
    uploaded with its address written plainly. Addresses read from `onyx.<protocol>.url` are no
    production environment's. On production's server a sandbox whose base path holds `%00`, `%20` or
@@ -60,7 +66,7 @@ has looked.
    server that decodes such bytes. Not proven: IPv6, explicit default ports on the wire, hosts other than
    loopback, a real front server, proxies and redirects, another DNS name for a production host, a
    collection variable supplying a production address on the jar (D-145, D-225, D-265).
-4. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
+5. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
    request does not carry is written as typed in a note (D-217). A body of the tester's own is read for
    identifiers only, not names or dates, and is read as typed when one of its placeholders has no value
    or is filled from a collection variable (D-262). A suite expectation that holds a date of birth or a
@@ -70,7 +76,7 @@ has looked.
    recorded" under a ClaimResponse or subscription id cannot be matched. The configuration store keeps
    uploads as uploaded (D-213), secrets and the installation salt sit in plain text in `config-store/`
    (D-234), and the wire view carries member data.
-5. **What a tester meets on screen that is wrong or gives nothing to do** (D-257, D-266):
+6. **What a tester meets on screen that is wrong or gives nothing to do** (D-257, D-266):
    - discovering the CDS services on the CRD tab is refused when text is left in the procedure code
      box, although discovery sends nothing of the case; the sentence says which box to clear;
    - the next step still says only that the tool cannot say what should happen next for CRD
@@ -96,17 +102,17 @@ has looked.
      own; "read the response detail below" is shown in the replay panel and the chain view, where nothing
      is below; the repeated-key detail says "the value shown above" for a key not drawn; the action of a
      "not configured" error does not fit a url that is not valid as filled.
-6. **Who answered, and what History can tell apart.** A notification posted to the receiver by hand
+7. **Who answered, and what History can tell apart.** A notification posted to the receiver by hand
    while the tool runs on mock is recorded as answered by a mock scenario; lines written between
    `98effa6` and `428eff5` with the service beside a scenario id are read as written. When two responses
    were completed from one package, nothing says which the PAS submission carried (D-181).
-7. **What the build cannot see.** Behaviour on screen has no test in the build: the drawing of the
+8. **What the build cannot see.** Behaviour on screen has no test in the build: the drawing of the
    presences is held by tests that read the script's text (NEW-6), and the test of the code box refusal
    runs through Node and is skipped where no `node` is on the path. A test that searched a line holding
    random tokens failed by chance once in about a hundred builds and was corrected (`6b7abba`); a build
    green twice does not prove no other such test is left. No test holds that a replay on mock uses the
    rewritten scenario sentence.
-8. **The fixtures and the style gate, given no fix after the last check.** Fixtures: a CRD note for
+9. **The fixtures and the style gate, given no fix after the last check.** Fixtures: a CRD note for
    `crd-04` chosen by hand does not say the DTR sentinel came from the body; the DTR sentinel note says
    CRD answers documentation required whatever the file says; two descriptions slip past the
    old-directory check; a PAS list filtered with `?for=inquire` or `?for=notification` hides the CRD
@@ -117,10 +123,10 @@ has looked.
    or an early NUL byte is skipped unread; a second, weaker copy of the tracking rule; invented surnames
    and 16 files of empty banners remain. The gate does not read commit messages or the pull request
    description.
-9. **Never run or never tried.** `run.cmd` (no Windows machine); the STS minimum version (not stated,
+10. **Never run or never tried.** `run.cmd` (no Windows machine); the STS minimum version (not stated,
    not verified); a mirror with credentials and a token server; a screen reader, contrast, 200% zoom
    and phone width; many states listed below under the screens as never drawn.
-10. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
+11. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
     `$log-questionnaire-errors`, no CQL; DTR is the operations behind a SMART launch, not the launch; the
     notification receiver listens on this machine only by default and does not authenticate its caller;
