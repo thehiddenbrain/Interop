@@ -335,7 +335,10 @@ function fillFromComparison(answer) {
             codes.set(codePart[1], entry);
             filled.push(label + ' ' + value);
         } else if (source.field === 'hook') {
-            (value === 'order-select' ? controls.hookSelect : controls.hookSign).checked = true;
+            const hook = value === 'order-select' ? controls.hookSelect : controls.hookSign;
+            hook.checked = true;
+            // The form hears of it as it hears of a choice made by hand, so what depends on the hook follows it.
+            hook.dispatchEvent(new Event('change', {bubbles: true}));
             filled.push(label + ' ' + value);
         } else if (source.field === 'dateOfService') {
             controls.date.set(value);

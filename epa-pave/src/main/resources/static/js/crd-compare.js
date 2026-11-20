@@ -53,7 +53,7 @@ export function createComparison(spec) {
             + 'difference means. Nothing is sent to the service and nothing is recorded.'));
     // The vendor's sample is offered whichever request is chosen: it is compared as the collection
     // holds it, without being put in the box. Whether there is one is said before anything is pressed.
-    const sampleState = el('p', {class: 'small'});
+    const sampleState = el('p', {class: 'small', aria: {live: 'polite'}});
     const sampleControls = el('div', {class: 'crd-cmp-bar__sample', hidden: true}, sampleButton, loadSample);
     const samplePart = el('div', {class: 'crd-cmp-sample'},
         el('p', {class: 'crd-cmp-sample__title'}, 'The vendor\'s sample'), sampleState, sampleControls, said);
@@ -333,7 +333,7 @@ function casePart(answer, actions) {
                 el('p', null, el('strong', null, report.filled.length > 0 ? 'Filled: ' : 'Nothing was filled.'),
                     report.filled.length > 0 ? report.filled.join('; ') + '.' : null),
                 report.leftAlone.length > 0 ? el('p', null, el('strong', null, 'Left alone: '), report.leftAlone.join('; ') + '.') : null,
-                el('p', null, 'The form now describes the case of your request. To send the request this tool builds for it, choose ',
+                el('p', null, 'The form now holds the values filled, and the rest as they were. To send the request this tool builds from it, choose ',
                     '"Built by this tool from the form", then "Send CRD request".', ' ',
                     button('Switch to the request built by this tool', actions.useBuilt, {class: 'button--text'})));
         }) : null));
