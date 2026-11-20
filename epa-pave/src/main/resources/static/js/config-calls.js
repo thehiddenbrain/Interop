@@ -3,12 +3,10 @@
 // All of them go through api.js, the one script that talks to the server, and come back in its
 // one shape. This file adds nothing to that: it only says which address a thing lives at.
 //
-// Seam: api.js offers get, postJson, postForm and post. Changing a mapping is a PUT and removing
-// an environment or a collection is a DELETE, and api.js has neither yet. Until it exports
-// putJson(path, payload) and del(path), each with the answer shape of the others, this tab does
-// not offer those three actions: canChangeMapping() and canRemove() say so, and the screen puts
-// one sentence where a control that could do nothing would have been. Nothing else here changes
-// when the two functions arrive.
+// Changing a mapping is a PUT and removing an environment or a collection is a DELETE, sent with
+// api.js putJson and del. canChangeMapping() and canRemove() still ask whether those exist, so a
+// copy of the page served with an older api.js says the action is not offered instead of offering
+// a control that would fail.
 
 import * as api from './api.js';
 
@@ -78,7 +76,7 @@ export const sendAsWritten = body => api.postJson('/api/raw', body);
 export const ledgerHealth = () => api.get('/api/runs/health');
 export const codeListSelfCheck = () => api.get('/api/procedure-codes/self-check');
 
-/* ---------- the three calls that wait for api.js ---------- */
+/* ---------- the three calls that change or remove what the tool holds ---------- */
 
 export const canChangeMapping = () => typeof api.putJson === 'function';
 export const canRemove = () => typeof api.del === 'function';

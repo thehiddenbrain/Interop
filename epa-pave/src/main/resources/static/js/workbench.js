@@ -24,25 +24,34 @@
 
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
 import {clearFieldErrors, markFieldErrors, formProblem, unmark} from './forms.js';
-import {renderResult, errorPanel} from './result.js';
+import {renderResult, errorPanel, operationName} from './result.js';
 import {presenceMark} from './shown.js';
 import {resultWord} from './marks.js';
 import {idForms} from './lookup.js';
 import {createOwnRequest} from './own-request.js';
 import {createRunValues} from './run-values.js';
+import {sourceWords} from './config-parts.js';
 
 /**
  * Builds the two panes into a tab panel.
  *
  * spec: formLabel and readoutLabel (for assistive technology), onSubmit (called when the form is
  * submitted by its send button; Enter in a field does not submit it).
+ *
+ * spec.operations, optional: the operations the tab sends, in the order a case meets them, named
+ * as /api/config/effective names them (["CRD_ORDER_SIGN", "CRD_ORDER_SELECT"]), or a function
+ * returning that list. When it is given and the server says the first one cannot be sent as things
+ * stand, the form is not offered: in its place the tab says what is missing, in the server's
+ * words, with a way to the Config tab, and the form comes back as soon as the configuration
+ * changes so that it can be sent. Left out, the form is always offered, as before.
  */
 export function createWorkbench(app, panel, spec) {
     let busy = false;
     // The case as it stood when the latest request left. A result on screen was produced for this
     // case, whatever the tester has typed into the form since.
     let sentCase = null;
-    const tracked = [];
+    // A set, so a control tracked twice is disabled once and untracked once.
+    const tracked = new Set();
 
     const caseSlot = el('div', {class: 'case-slot'});
     const own = el('div', {class: 'case-group case-pane__own'});
@@ -95,8 +104,17 @@ export function createWorkbench(app, panel, spec) {
         }
     });
 
+    // Said in place of the form when the tab's first operation cannot be sent. Not a live region:
+    // the status line says in one sentence that the form is withheld, and that is what is announced.
+    const readinessTitle = (panel.id || 'workbench') + '-readiness-title';
+    const readiness = el('section', {class: 'readiness', hidden: true, aria: {labelledby: readinessTitle}});
+    // The readout, and its status line with it, can be hidden while the form is withheld, so the
+    // withholding and the return of the form are announced from a line that is never hidden.
+    const readinessStatus = el('p', {class: 'visually-hidden', role: 'status', aria: {live: 'polite'}});
+    const workbench = el('div', {class: 'workbench'}, readinessStatus, readiness, form, readout);
+
     panel.classList.add('tabpanel--workbench');
-    fill(panel, el('div', {class: 'workbench'}, form, readout));
+    fill(panel, workbench);
 
     function drawBeforeSending() {
         const items = app.caseContext.attention();
@@ -125,8 +143,77 @@ export function createWorkbench(app, panel, spec) {
                 })))));
     }
     app.caseContext.onChange(drawBeforeSending);
+
+    /** The operations the tab sends, as given, or an empty list when it gave none. */
+    function operationsSent() {
+        const given = typeof spec.operations === 'function' ? spec.operations() : spec.operations;
+        return Array.isArray(given) ? given.filter(name => typeof name === 'string' && name.length > 0) : [];
+    }
+
+    /**
+     * Whether the form can be offered, from what /api/config/effective says now. Only the server's
+     * own sentence withholds it: an operation the server has not described yet, or does not list,
+     * keeps the form, and a send then meets whatever the server answers.
+     */
+    function drawReadiness() {
+        const names = operationsSent();
+        const first = names.length > 0 ? app.operationRow(names[0]) : null;
+        const withheld = Boolean(first && first.outbound !== false && first.unavailable);
+        const was = !readiness.hidden;
+        // With no result to read, the readout's words about the form would point at nothing, so the
+        // statement takes the whole width. A result on screen stays beside it.
+        const whole = withheld && !bench.hasResult();
+        workbench.classList.toggle('workbench--gated', withheld);
+        workbench.classList.toggle('workbench--gated-whole', whole);
+        readiness.hidden = !withheld;
+        form.hidden = withheld;
+        readout.hidden = whole;
+        if (!withheld) {
+            clear(readiness);
+            if (was) {
+                readinessStatus.textContent = 'The configuration now lets this tab send. The form is back.';
+            }
+            return;
+        }
+        const later = names.slice(1).map(name => app.operationRow(name))
+            .filter(row => row && row.outbound !== false && row.unavailable);
+        const label = first.label || first.operation;
+        fill(readiness,
+            el('h2', {class: 'readiness__title', id: readinessTitle}, 'This tab cannot send yet'),
+            el('p', {class: 'readiness__lead'}, 'The tool cannot send ', el('strong', null, label),
+                ' as it is configured now, so there is no form to fill in. This is what it says is missing:'),
+            el('blockquote', {class: 'readiness__missing'}, first.unavailable),
+            later.length > 0 ? [
+                el('p', null, 'The later steps of this tab are missing something as well:'),
+                el('ul', {class: 'readiness__later'}, later.map(row => el('li', null, el('strong', null, row.label || row.operation), ': ', row.unavailable)))
+            ] : null,
+            el('p', {class: 'readiness__way'}, button('Open the Config tab', () => app.navigate('config'), {class: 'button--primary'})),
+            el('p', {class: 'quiet'}, 'Upload or choose what is missing there. The form comes back here on its own as soon as the configuration lets this tab send, '
+                + 'with no reload.'));
+        if (!was) {
+            readinessStatus.textContent = 'This tab cannot send yet. ' + first.unavailable;
+        }
+    }
+
     // The configuration this workbench starts under. A lookup made under it says so once it has changed.
     app.caseContext.configChanged(app.epoch());
+
+    /** Lets go of the tracked controls inside the result on screen, which is about to be replaced. */
+    function forgetResultControls() {
+        for (const control of tracked) {
+            if (result.contains(control)) {
+                tracked.delete(control);
+            }
+        }
+    }
+
+    /** Returns the focus to the control that started a call, when the focus fell to the page meanwhile. */
+    function giveFocusBack(control) {
+        const now = document.activeElement;
+        if (control && control.isConnected && !control.disabled && !control.closest('[hidden]') && (!now || now === document.body)) {
+            control.focus({preventScroll: true});
+        }
+    }
 
     function setBusy(state, control) {
         busy = state;
@@ -137,39 +224,6 @@ export function createWorkbench(app, panel, spec) {
             control.setAttribute('aria-busy', state ? 'true' : 'false');
         }
         result.setAttribute('aria-busy', state ? 'true' : 'false');
-    }
-
-    /** Shows, under the result's top line, that the body sent was the tester's own. Every protocol's detail says it the same way. */
-    function markOwnBody(envelope) {
-        const detail = envelope.detail;
-        if (!detail || detail.bodyBuiltByTool !== false) {
-            return;
-        }
-        const top = result.querySelector('.result__top');
-        if (!top) {
-            return;
-        }
-        const sentBody = envelope.wire && envelope.wire.request ? envelope.wire.request.body : null;
-        // The text that went out is the tester's, and whether it parses is a fact about that text,
-        // the same fact the box said before sending. A malformed body sent on purpose is a negative
-        // case, and an answer to it must not read as the service accepting it.
-        let parses = true;
-        if (typeof sentBody === 'string') {
-            try {
-                JSON.parse(sentBody);
-            } catch (notJson) {
-                parses = false;
-            }
-        }
-        top.after(el('div', {class: 'result__own-body'},
-            el('p', null, el('strong', null, 'A request body of your own was sent.'),
-                ' This tool did not build it from the form; it went as you wrote it, with its placeholders filled in. '
-                + 'The member, provider and codes on the form were not sent with it. The wire view shows the body.'),
-            parses ? null : el('p', null, el('strong', null, 'The body sent was not valid JSON.'),
-                envelope.profile === 'mock'
-                    ? ' On the mock profile a scenario file answers whatever the body holds, so the answer and its next step '
-                        + 'are the scenario\'s and say nothing about this body.'
-                    : ' Whatever the service answered, it answered a body that does not parse: read the answer in that light.')));
     }
 
     const bench = {
@@ -191,11 +245,27 @@ export function createWorkbench(app, panel, spec) {
             caseSlot.append(app.caseContext.node, app.chain.control);
             refusal.after(app.caseContext.detail);
             drawBeforeSending();
+            drawReadiness();
         },
 
-        /** Controls that cannot be used while a request is on its way. */
+        /**
+         * Controls that cannot be used while a request is on its way. A control drawn inside a
+         * result is let go by the workbench when that result is replaced, so a tab may track the
+         * controls of each result it draws without them piling up.
+         */
         track(...controls) {
-            tracked.push(...controls);
+            for (const control of controls) {
+                if (control) {
+                    tracked.add(control);
+                }
+            }
+        },
+
+        /** Stops tracking controls the tab has taken off the page itself. */
+        untrack(...controls) {
+            for (const control of controls) {
+                tracked.delete(control);
+            }
         },
 
         /** A named place in the readout, above the result, for something the tab shows on request. */
@@ -242,6 +312,10 @@ export function createWorkbench(app, panel, spec) {
                 status.textContent = nothing.title;
                 return null;
             }
+            // The control that started the call. Disabling it while the call is out drops the focus
+            // to the page, so it is given back when the call is done, unless the tester has moved on.
+            const starter = options.control || (document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+                ? document.activeElement : null);
             setBusy(true, options.control);
             status.textContent = options.saying;
             let answer;
@@ -254,6 +328,9 @@ export function createWorkbench(app, panel, spec) {
             } finally {
                 // Whatever happened, the controls come back: a tester is never left with a dead form.
                 setBusy(false, options.control);
+                // Before anything else is drawn, so a form problem can still move the focus to the
+                // field it marks, which is a deliberate move and wins.
+                giveFocusBack(starter);
             }
             if (answer.kind === 'ok' || answer.kind === 'result') {
                 return answer;
@@ -269,8 +346,9 @@ export function createWorkbench(app, panel, spec) {
                 return null;
             }
             fill(refusal, errorPanel(answer.body),
-                // The answer to a problem with the configuration is on the Config tab, so the way there is offered with it.
-                answer.body.kind === 'CONFIGURATION'
+                // The answer to a problem with the configuration is on the Config tab, so the way there
+                // is offered with it, unless this workbench is on the Config tab already.
+                answer.body.kind === 'CONFIGURATION' && !panel.closest('#panel-config')
                     ? el('p', {class: 'readout__way'}, button('Open the Config tab', () => app.navigate('config'))) : null);
             if (answer.kind === 'conflict') {
                 // The usual cause is that the configuration changed under this screen. Reading the mode
@@ -284,13 +362,26 @@ export function createWorkbench(app, panel, spec) {
          * Shows the result of a run and tells the rest of the page about it.
          *
          * options.detail(envelope) returns the protocol's own part; options.detailTitle is its heading.
+         * options.nextStepControl(nextStep, envelope), optional, returns {label, run} for a next step
+         * the tab itself can take, or null; the shared control is used whenever it returns null.
          */
         showResult(envelope, options) {
-            fill(result, renderResult(envelope, {...options, nextStepControl: nextStepControl(app, sentCase)}));
-            markOwnBody(envelope);
+            const settings = options || {};
+            // A tab's own control for the next step (answering the next question, sending the
+            // response, checking a status) is asked first; the shared one covers the rest.
+            const shared = nextStepControl(app, sentCase);
+            const own = typeof settings.nextStepControl === 'function' ? settings.nextStepControl : null;
+            forgetResultControls();
+            // A body of the tester's own is said under the verdict by the result view itself, on every protocol.
+            fill(result, renderResult(envelope, {...settings,
+                nextStepControl: (step, shownEnvelope) => (own ? own(step, shownEnvelope) : null) || shared(step, shownEnvelope)}));
             drawBeforeSending();
             readout.scrollTop = 0;
-            status.textContent = 'Result received. ' + envelope.verdict.headline + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
+            // The line announced is short: a headline worded into a paragraph is read in the strip, and
+            // here the server's short label of the outcome stands for it.
+            const headline = String(envelope.verdict.headline || '');
+            const said = headline.length > 120 && envelope.verdict.outcomeLabel ? envelope.verdict.outcomeLabel : headline;
+            status.textContent = 'Result received. ' + said + (/[.!?]$/.test(said) ? '' : '.') + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
             // A result has arrived under the configuration now in force, so a notice about the change has done its work.
             app.clearNotices();
             app.ledgerReceipt(envelope.ledger);
@@ -371,6 +462,7 @@ export function createWorkbench(app, panel, spec) {
 
         /** What the readout shows before the first run. */
         showEmpty(node) {
+            forgetResultControls();
             fill(result, node);
         },
 
@@ -392,6 +484,11 @@ export function createWorkbench(app, panel, spec) {
             }
         }
     };
+    if (spec.operations) {
+        // The frame reads the operations again on every change of the configuration, then says so.
+        app.whenConfigChanges(drawReadiness);
+        drawReadiness();
+    }
     return bench;
 }
 
@@ -416,16 +513,28 @@ export function nextStepControl(app, forCase) {
         if (step.action === 'OPEN_CONFIG' || step.action === 'UNLOCK_OR_SWITCH') {
             return {label: 'Open the Config tab', run: () => app.navigate('config')};
         }
-        // Seam: ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE and CHECK_STATUS belong to the DTR and PAS tabs
-        // and get their buttons when those tabs are built. Every other action is something a person
-        // does away from this tool, so it has no button.
+        // ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE and CHECK_STATUS are taken on the DTR and PAS tabs,
+        // which pass their own control to bench.showResult as options.nextStepControl. Every other
+        // action is something a person does away from this tool, so it has no button.
         return null;
     };
 }
 
 /**
+ * A placeholder written the way the url as configured writes it. A collection writes most of them
+ * in double braces and the single-brace parts of a lookup url in single ones; the tester compares
+ * this with the template above it, so it must not change the form.
+ */
+function placeholderAsWritten(name, template) {
+    const doubled = '{{' + name + '}}';
+    const single = '{' + name + '}';
+    return code(typeof template === 'string' && !template.includes(doubled) && template.includes(single) ? single : doubled);
+}
+
+/**
  * The request as it would be sent: where it would go, beside the url as configured, the body the
  * tool would build, and what was left out of it. Every protocol answers its preview in this shape.
+ * Every name the server sends as a code (the operation, where a value came from) is given in words.
  */
 export function requestPreviewPanel(preview, close) {
     const url = preview.url || {};
@@ -438,12 +547,14 @@ export function requestPreviewPanel(preview, close) {
         el('p', {class: 'quiet'}, 'Nothing was sent and nothing was recorded.'),
         preview.blocked ? el('div', {class: 'error-panel error-panel--blocked'}, el('p', {class: 'error-panel__title'}, preview.blocked)) : null,
         facts([
-            ['Operation', [code(preview.operation), preview.method ? [' with ', code(preview.method)] : null]],
-            ['Url as configured', url.template ? code(url.template) : presenceMark('EMPTY')],
+            ['Operation', operationName(preview.operation)],
+            ['Method', preview.method ? code(preview.method) : null],
+            // The server sends an empty template when nothing is configured: that is said, not drawn as an empty value of a response.
+            ['Url as configured', url.template ? code(url.template) : el('span', {class: 'presence presence--none'}, 'nothing configured')],
             ['Url it resolves to', url.display ? code(url.display) : el('span', {class: 'presence presence--none'}, 'none')],
             ['Where the url comes from', url.source || null],
             ['Placeholders with no value', url.unresolved && url.unresolved.length > 0
-                ? el('strong', null, url.unresolved.map((name, index) => [index > 0 ? ', ' : null, code('{{' + name + '}}')])) : null],
+                ? el('strong', null, url.unresolved.map((name, index) => [index > 0 ? ', ' : null, placeholderAsWritten(name, url.template)])) : null],
             ['Environment', preview.environment && preview.environment.active
                 ? preview.environment.name + ' (' + preview.environment.kind + ')' : 'none active'],
             ['Collection request', preview.requestName ? [preview.requestName, preview.scripted
@@ -452,9 +563,9 @@ export function requestPreviewPanel(preview, close) {
         ], 'facts--ruled'),
         url.variables && url.variables.length > 0
             ? table(['Placeholder', 'Value shown', 'Comes from'], url.variables.map(variable => [
-                code('{{' + variable.name + '}}'),
+                placeholderAsWritten(variable.name, url.template),
                 variable.display === undefined ? presenceMark('ABSENT') : [code(variable.display), variable.secret ? ' (masked: a secret)' : null],
-                code(variable.source)]), {class: 'thirds'})
+                sourceWords(variable.source, true)]), {class: 'thirds'})
             : null,
         preview.notes && preview.notes.length > 0 ? el('ul', {class: 'note-list'}, preview.notes.map(note => el('li', null, note))) : null,
         body ? el('div', {class: 'raw-body'},

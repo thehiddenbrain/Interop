@@ -167,7 +167,8 @@ function announce(text) {
  * this tab draws from is the one the banner shows, and then what the tool holds is read again.
  */
 async function changed() {
-    await app.refreshMode();
+    // Each view says what its own action changed, so the frame is not asked to say it again.
+    await app.refreshMode({quiet: true});
     await reload();
 }
 

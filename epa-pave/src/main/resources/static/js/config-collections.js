@@ -10,7 +10,7 @@ import * as calls from './config-calls.js';
 import {el, fill, clear, button, code, facts, table, heading, when, copyButton} from './dom.js';
 import {clearFieldErrors} from './forms.js';
 import {errorPanel} from './result.js';
-import {none, flag, sentences, refusal, during, counted, requestName, requestMarks} from './config-parts.js';
+import {none, flag, sentences, refusal, during, counted, requestName, requestMarks, readAgainAfter, staleRefusal} from './config-parts.js';
 
 export function createCollectionsView(context) {
     let choosing = null;     // the operation a request is being chosen for
@@ -106,7 +106,9 @@ export function createCollectionsView(context) {
     // Not a live region: a request in full is long. It takes the focus when it arrives, which is announced.
     const detailNode = el('section', {class: 'result__section config-detail', id: 'config-request-in-full', tabIndex: -1});
     detailNode.hidden = true;
-    const status = el('div', {class: 'config-outcome', aria: {live: 'polite'}});
+    // The outcome of a change to the mapping or a removal. It takes the focus when the change is
+    // done, because the control that made it is redrawn away and the focus would fall to the page.
+    const status = el('div', {class: 'config-outcome', tabIndex: -1, aria: {live: 'polite'}});
 
     // While production writes are unlocked, an upload ends the unlock, from this browser or any other.
     const uploadLocks = el('p', {class: 'config-switch config-switch--unlocked'});
@@ -211,7 +213,8 @@ export function createCollectionsView(context) {
                     + (row.outbound ? '' : ' config-op--inside')},
                     index === 0 ? el('th', {scope: 'row', rowSpan: requests.length},
                         el('span', {class: 'config-op__label'}, row.label),
-                        row.outbound ? null : el('div', {class: 'small quiet'}, row.unavailable || '')) : null,
+                        row.outbound ? null : el('div', {class: 'small quiet'}, row.unavailable || ''),
+                        row.outbound && requests.length > 1 ? severalNote(row) : null) : null,
                     el('td', null, requestName(request),
                         el('div', {class: 'small'}, code(request.method), ' ', code(request.urlTemplate)),
                         el('div', {class: 'config-marks'},
@@ -232,6 +235,18 @@ export function createCollectionsView(context) {
         return lines;
     }
 
+    /** Said beside an operation with several requests: which one a run takes, and how to have another taken. */
+    function severalNote(row) {
+        return el('div', {class: 'small config-op__rule'}, 'The tool picks the one marked "used by default". To have another used, take the others off.');
+    }
+
+    function defaultRule(row) {
+        const used = (row.requests || []).find(available => available.usedByDefault);
+        return [used ? ['A run uses "', used.request.name, '", marked "used by default". '] : 'No request here is used by default. ',
+            'The tool picks that one itself, and this page cannot pick another. To have another used, take the ones you do not want off ',
+            row.label, '; the line under this table then names the one used.'];
+    }
+
     function collectionsHeld() {
         return ((context.stored().collections || {}).collections || []).length;
     }
@@ -240,7 +255,8 @@ export function createCollectionsView(context) {
         return [
             request.correctedOperation
                 ? el('div', null, flag('chosen by hand', 'Someone mapped this request by hand. The tool keeps the choice until it is changed again.'),
-                    ' Detection proposed ', el('strong', null, context.operationLabel(request.detectedOperation)), '.')
+                    request.detectedOperation === 'UNMAPPED' ? ' Detection did not map it to any operation.'
+                        : [' Detection proposed ', el('strong', null, context.operationLabel(request.detectedOperation)), '.'])
                 : null,
             el('div', {class: 'small'}, request.detectionBasis || none('no reason given')),
             sentences(request.notes, 'small')
@@ -249,7 +265,9 @@ export function createCollectionsView(context) {
 
     function chooseControl(row) {
         const open = choosing === row.operation;
-        return button(open ? 'Close the choice' : 'Choose another request', () => {
+        // With nothing mapped there is nothing to choose another of.
+        const words = (row.requests || []).length === 0 ? 'Choose a request' : 'Choose another request';
+        return button(open ? 'Close the choice' : words, () => {
             choosing = open ? null : row.operation;
             draw();
             if (!open) {
@@ -258,11 +276,11 @@ export function createCollectionsView(context) {
                     select.focus();
                 }
             }
-        }, {class: 'button--quiet button--small', aria: {expanded: String(open), label: (open ? 'Close the choice of a request for ' : 'Choose another request for ') + row.label}});
+        }, {class: 'button--quiet button--small', aria: {expanded: String(open), label: (open ? 'Close the choice of a request for ' : words + ' for ') + row.label}});
     }
 
     function takeOffControl(collectionId, request, row) {
-        const control = button('Take it off this operation', () => during(control, () => remap(collectionId, request.id, 'UNMAPPED')),
+        const control = button('Take it off this operation', () => during(control, () => remap(collectionId, request.id, 'UNMAPPED', null, row.label)),
             {class: 'button--text', aria: {label: 'Take ' + request.name + ' off ' + row.label}});
         return control;
     }
@@ -276,9 +294,13 @@ export function createCollectionsView(context) {
         for (const collection of (context.stored().collections || {}).collections || []) {
             const group = el('optgroup', {label: collection.name});
             for (const request of collection.requests || []) {
-                group.append(el('option', {value: collection.id + ' ' + request.id},
-                    request.name + ' (' + request.method + ')' + (request.effectiveOperation === row.operation ? ', mapped to it already'
-                        : ', now ' + (request.effectiveLabel || request.effectiveOperation))));
+                // A request mapped here already is listed, so the list is complete, and cannot be
+                // chosen: choosing it would change nothing.
+                const here = request.effectiveOperation === row.operation;
+                group.append(el('option', {value: collection.id + ' ' + request.id, disabled: here},
+                    request.name + ' (' + request.method + ')' + (here ? ', mapped to it already'
+                        : request.effectiveOperation === 'UNMAPPED' ? ', not mapped to any operation'
+                        : ', mapped to ' + (request.effectiveLabel || request.effectiveOperation) + ' now')));
             }
             select.append(group);
         }
@@ -304,25 +326,99 @@ export function createCollectionsView(context) {
                     el('label', {htmlFor: id}, ['The request of the collection to use for ', el('strong', null, row.label)]), select),
                 entries.length === 0 ? el('p', null, 'No collection is uploaded, so there is no request to choose.') : null,
                 el('p', {class: 'small quiet'}, 'The request keeps its own url, headers and sample body. A request moved here is no longer used for the operation it had before.'),
+                (row.requests || []).length > 0 ? el('p', {class: 'small'}, defaultRule(row)) : null,
                 problemSlot,
                 el('div', {class: 'button-row'}, look, use))));
     }
 
-    async function remap(collectionId, requestId, operation, problemSlot) {
+    /** fromLabel is the operation a request is being taken off, so the outcome can name it. */
+    async function remap(collectionId, requestId, operation, problemSlot, fromLabel) {
         clear(status);
+        const before = defaultsNow();
         const answer = await calls.changeMapping(collectionId, requestId, operation);
         if (answer.kind !== 'ok') {
+            if (readAgainAfter(answer)) {
+                // What this screen offered is out of date. The view is read again and redrawn, which
+                // takes the chooser away with what it offered, so the refusal is said in the line
+                // that stays, and the focus goes there.
+                choosing = null;
+                await context.changed();
+                fill(status, staleRefusal(answer, 'the request you chose'));
+                status.focus();
+                return;
+            }
             fill(problemSlot || status, refusal(answer, problemSlot ? [problemSlot.parentNode] : []));
+            if (!problemSlot) {
+                status.focus();
+            }
             return;
         }
         const done = answer.body;
         choosing = null;
-        fill(status, el('div', {class: 'config-done'},
-            el('p', {class: 'config-done__title'}, done.changed
-                ? ['"', done.request.name, '" is now mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, '.']
-                : ['"', done.request.name, '" was mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, ' already. Nothing changed.']),
-            sentences(done.notes)));
-        await context.changed();
+        const title = el('p', {class: 'config-done__title'}, done.changed && operation === 'UNMAPPED' && fromLabel
+            // Taken off: what changed is that the operation no longer uses it, and where it went is the list below.
+            ? ['"', done.request.name, '" is no longer used for ', fromLabel, '. It is listed below, among the requests not mapped to any operation.']
+            : done.changed && done.request.effectiveOperation === 'UNMAPPED'
+            ? ['"', done.request.name, '" is not mapped to any operation now.']
+            : done.changed
+            ? ['"', done.request.name, '" is mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, ' now.']
+            : ['"', done.request.name, '" was mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, ' already. Nothing changed.']);
+        // A change that moved nothing leaves the configuration as it was, so the frame is not asked to say it changed.
+        if (done.changed) {
+            await context.changed();
+        }
+        fill(status, el('div', {class: 'config-done'}, title,
+            // The server's first note restates the change the title has just said (ConfigService.correctMapping
+            // always puts it first); what it adds after that, such as a request that still counts as a write, is kept.
+            sentences((done.notes || []).slice(1)),
+            defaultsChanged(before, [operation, done.request.effectiveOperation])));
+        status.focus();
+    }
+
+    /**
+     * Which request each outbound operation uses by default, from /api/config/effective as last
+     * read: operation name -> {row, used}, used being the request marked usedByDefault or null.
+     */
+    function defaultsNow() {
+        const rows = ((context.stored().effective || {}).operations || []).filter(row => row.operation !== 'UNMAPPED' && row.outbound);
+        return new Map(rows.map(row => [row.operation, {row, used: (row.requests || []).find(available => available.usedByDefault) || null}]));
+    }
+
+    function usedKey(used) {
+        return used ? used.collectionId + ' ' + used.request.id : null;
+    }
+
+    /**
+     * After a change, the request each operation it touched now uses by default, read from the
+     * effective configuration, so a tester never has to work out what will be sent. An operation
+     * named in always is said even when its default did not move; the others only when it did.
+     */
+    function defaultsChanged(before, always) {
+        const after = defaultsNow();
+        const lines = [];
+        for (const [operation, now] of after) {
+            const was = before.get(operation);
+            const moved = !was || usedKey(was.used) !== usedKey(now.used);
+            if (moved || always.includes(operation)) {
+                lines.push(el('li', null, defaultSentence(now, moved)));
+            }
+        }
+        return lines.length > 0 ? el('div', {class: 'config-defaults'},
+            el('p', {class: 'sub-heading'}, 'What a run uses now'),
+            el('ul', {class: 'note-list'}, lines)) : null;
+    }
+
+    function defaultSentence(now, moved) {
+        const row = now.row;
+        const label = el('strong', null, row.label);
+        if (now.used) {
+            return [label, moved ? ' now uses "' : ' still uses "', now.used.request.name, '" by default',
+                collectionsHeld() > 1 ? [', from the collection "', now.used.collectionName, '"'] : null, '.'];
+        }
+        const target = row.target;
+        return [label, ' uses no request of a collection by default now.',
+            target && target.display ? [' It is sent to ', code(target.display, 'literal--address'), target.source ? ', from ' + target.source : null, '.'] : null,
+            row.unavailable || row.note ? [' ', row.unavailable || row.note] : null];
     }
 
     /* ---------- requests no operation uses ---------- */
@@ -337,7 +433,7 @@ export function createCollectionsView(context) {
         fill(unmappedNode,
             heading(2, 'Requests not mapped to any operation', unmapped.length),
             el('p', {class: 'quiet'}, 'An unmapped request is not an error. It can be sent exactly as written, with its placeholders filled in',
-                calls.canChangeMapping() ? ', or mapped by hand with "Choose another request" above.' : '.'),
+                calls.canChangeMapping() ? ', or mapped to an operation by hand from the table above.' : '.'),
             table([{text: 'Request', class: 'col-30'}, 'Method and url', {text: '', class: 'col-22'}],
                 unmapped.map(({collection, request}) => [
                     [requestName(request), requestMarks(request)],
@@ -420,16 +516,21 @@ export function createCollectionsView(context) {
 
     async function removeNow(collection) {
         clear(status);
+        // What an earlier upload said is about a collection that may be the one going now.
+        clear(outcome);
+        const before = defaultsNow();
         const answer = await calls.removeCollection(collection.id);
         removing = null;
+        await context.changed();
         if (answer.kind !== 'ok') {
-            fill(status, errorPanel(answer.body));
+            fill(status, staleRefusal(answer, 'the collection "' + collection.name + '"'));
         } else {
             fill(status, el('div', {class: 'config-done'},
                 el('p', {class: 'config-done__title'}, 'Removed the collection "', answer.body.removed, '".'),
-                (answer.body.warnings || []).length > 0 ? el('div', {class: 'config-warnings', role: 'alert'}, sentences(answer.body.warnings)) : null));
+                (answer.body.warnings || []).length > 0 ? el('div', {class: 'config-warnings', role: 'alert'}, sentences(answer.body.warnings)) : null,
+                defaultsChanged(before, [])));
         }
-        await context.changed();
+        status.focus();
     }
 
     /* ---------- one request in full ---------- */

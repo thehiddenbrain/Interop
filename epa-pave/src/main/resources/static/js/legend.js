@@ -2,8 +2,8 @@
 // is where each one is named. It is drawn with the same marks the pages use, so a change to how a
 // fact is drawn changes the key with it.
 
-import {el, fill, button} from './dom.js';
-import {TONES, RESULTS, toneMark, stamp, slowFlag, mockMark} from './marks.js';
+import {el, fill, button, code} from './dom.js';
+import {TONES, RESULTS, FINDING_GROUPS, toneMark, stamp, slowFlag, mockMark} from './marks.js';
 import {presenceMark, noneMark} from './shown.js';
 
 export function openLegend(dialog) {
@@ -30,16 +30,39 @@ export function openLegend(dialog) {
                 group('Where the tool is pointed', null, [
                     row(el('span', {class: 'kind kind--prod'}, 'prod'),
                         'Production. A solid purple banner stays at the top of every tab and says whether writes are locked.'),
+                    row(el('span', {class: 'banner__writes banner__writes--unlocked legend__unlocked'}, 'UNLOCKED'),
+                        'Production with writes unlocked for this browser session only. The banner says so in a white frame, and on the Config tab '
+                        + 'the panel about writes wears a purple band and frame. Any change to the configuration locks them again.'),
                     row(el('span', {class: 'kind kind--uat'}, 'uat'), 'UAT. A banner in purple outline stays at the top of every tab.'),
-                    row(mockMark(), 'The mock profile. A scenario file answered in place of the service, and nothing left this machine.')
+                    row(el('span', {class: 'kind kind--sandbox'}, 'sandbox'), 'A sandbox. It has no banner: nothing about it needs a warning.'),
+                    row(mockMark(), 'The mock profile. A scenario file answered in place of the service, and nothing left this machine. '
+                        + 'A request this tool refused carries no hatch: nothing answered it.')
                 ]),
 
                 group('Marks', null, [
-                    row(el('span', {class: 'swatch swatch--cream'}), 'Cream: test data typed by hand, which a lookup would not give back.'),
+                    row(el('span', {class: 'swatch swatch--cream'}), [
+                        'Cream has three meanings, each about the test data and none about the service doing wrong:',
+                        el('ul', {class: 'legend__meanings'},
+                            el('li', null, 'a field of the case typed by hand, which a lookup would not give back;'),
+                            el('li', null, 'a DTR answer the payer pre-populated and a person then changed (an information-origin override);'),
+                            el('li', null, 'as the square of an outcome or a verdict strip, the service does not know the member or the provider.'))]),
                     row(el('span', {class: 'swatch swatch--nothing'}),
                         'A dashed outline: nothing is there. No answer, nothing declared, nothing returned. The words inside say which.'),
-                    row(el('span', {class: 'swatch swatch--fault'}), 'A heavy black frame: a fault to report. The environment failed, or a run was not recorded.'),
-                    row(el('span', {class: 'swatch swatch--blocked'}), 'A purple frame: the production guardrail refused to send.'),
+                    row(el('span', {class: 'swatch swatch--fault'}),
+                        'A heavy black frame: stop and read this before the next run. A fault to report: the environment failed, the ledger is not '
+                        + 'recording, or a run was not recorded. A field or a form the server refused, with its sentence beneath it. A result made '
+                        + 'before the configuration changed. News about the tool itself, under the tabs: the configuration changed, or the server '
+                        + 'stopped answering.'),
+                    row(el('span', {class: 'swatch swatch--plain'}),
+                        'A thin black frame around a sentence of the server: an answer that is not a fault and not a result. Something not found in this tool, '
+                        + 'a problem with its configuration, or an action on the Config tab it did not make. Its own words say what to do.'),
+                    row(el('span', {class: 'flag'}, 'write'),
+                        'A thin black frame around a word: a mark to read, not a fault. A write, a secret, a pre-request script, a code this tool does not know.'),
+                    row(el('span', {class: 'swatch swatch--edge'}),
+                        'A heavy rule down the edge of a row on the Config tab: an operation that cannot be sent to a service as things are configured. '
+                        + 'In purple: one the production guardrail would refuse. The row says why.'),
+                    row(el('span', {class: 'swatch swatch--blocked'}),
+                        'A purple frame: the production guardrail. A request it refused to send, or, on the Config tab, writes it lets through while unlocked.'),
                     row(slowFlag(), 'The call completed but took longer than the threshold.')
                 ]),
 
@@ -48,17 +71,26 @@ export function openLegend(dialog) {
                     row(presenceMark('NULL'), 'The response carried the field with an explicit null.'),
                     row(presenceMark('EMPTY'), 'The response carried the field and it was empty.'),
                     row(noneMark(), 'A field that can repeat, and the response carried none of them.')
-                ]))));
+                ])),
+
+            el('div', null,
+                group('Findings',
+                    'A finding is something to look at, never a failure of the call, and none has a colour. The line above its title says what it is about. '
+                    + 'Its kind is the name the server sends; a kind not listed here is shown under its own name.',
+                    // The line a finding carries is words, not a mark, so here each one stands above what it means.
+                    FINDING_GROUPS.map(each => row(el('span', {class: 'legend__finding'}, each.heading),
+                        [each.meaning, el('span', {class: 'legend__kinds'}, each.kinds.map((kind, index) => [index > 0 ? ', ' : null, code(kind)]))])),
+                    'legend__rows--stacked'))));
     if (!dialog.open) {
         dialog.showModal();
     }
 }
 
-function group(title, lead, rows) {
+function group(title, lead, rows, extraClass) {
     return el('section', {class: 'legend__group'},
         el('h3', {class: 'sub-heading'}, title),
         lead ? el('p', {class: 'quiet small'}, lead) : null,
-        el('dl', {class: 'legend__rows'}, rows));
+        el('dl', {class: 'legend__rows' + (extraClass ? ' ' + extraClass : '')}, rows));
 }
 
 function row(mark, meaning) {

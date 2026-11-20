@@ -17,7 +17,27 @@
 
 import {el, append, button, code, facts, table, heading, copyButton, count, millis, token} from './dom.js';
 import {shown, shownList, presenceMark} from './shown.js';
-import {toneClass, stamp, slowFlag, mockMark} from './marks.js';
+import {toneClass, stamp, slowFlag, mockMark, findingGroup} from './marks.js';
+import {runLink} from './history-common.js';
+// lookup.js imports this file as well. The cycle is harmless: idForms is only called while a
+// result is drawn, long after both modules have loaded.
+import {idForms} from './lookup.js';
+
+// What the server words and the frame keeps current: the label of each operation, and whether the
+// code list in use is the bundled placeholder. Set once by app.js; until then a result shows the
+// operation by its name and says nothing about the list.
+let serverWords = {operationLabel: () => null, codeListIsPlaceholder: () => null};
+
+/** Called by the frame at start-up. words: {operationLabel(name), codeListIsPlaceholder()}. */
+export function useServerWords(words) {
+    serverWords = words;
+}
+
+/** An operation as the server labels it, with its name kept as literal text beside it. One with no label is its name. */
+export function operationName(name) {
+    const label = name ? serverWords.operationLabel(name) : null;
+    return label ? [label, ' ', el('span', {class: 'quiet'}, '(', code(name), ')')] : code(String(name));
+}
 
 /**
  * Draws one run result.
@@ -30,8 +50,9 @@ import {toneClass, stamp, slowFlag, mockMark} from './marks.js';
 export function renderResult(envelope, options) {
     const settings = options || {};
     const root = el('article', {class: 'result', aria: {label: 'Result of run ' + envelope.runId}});
-    root.append(
+    append(root,
         el('div', {class: 'result__top'}, verdictStrip(envelope), testResult(envelope.expectation)),
+        ownBody(envelope),
         runFacts(envelope, settings),
         findingsSection(envelope.findings || []),
         determinationSection(envelope.determination || []));
@@ -41,10 +62,25 @@ export function renderResult(envelope, options) {
     root.append(section(heading(3, detailTitle),
         detailNode || el('p', {class: 'quiet'}, 'This run has no response detail. The verdict above says why.')));
 
-    root.append(additionalFieldsSection(envelope.additionalFields || []));
+    root.append(additionalFieldsSection(envelope.additionalFields || [], null, envelope.wire));
     root.append(el('section', {class: 'result__section'}, wireView(envelope.wire)));
     if (envelope.error) {
-        root.append(section(heading(3, 'What went wrong'), errorPanel(envelope.error)));
+        // A refusal is worded once by the server and sent as the headline, as the error's title
+        // and as the next step: a request the guardrail refused has its reason as the headline of
+        // the strip in the guardrail's tone. It is read in full there; here the panel says which
+        // kind of refusal it is and points to it, rather than setting the same paragraph out again.
+        const error = envelope.error;
+        const step = envelope.nextStep || {};
+        const repeated = typeof error.title === 'string'
+            && (error.title === envelope.verdict.headline || (error.kind === 'BLOCKED' && envelope.verdict.tone === 'BLOCKED'));
+        const said = {...error};
+        if (repeated) {
+            said.title = 'The headline at the top of this result says what was refused, in full.';
+        }
+        if (typeof error.action === 'string' && error.action === step.headline) {
+            said.action = 'The next step above says what to do.';
+        }
+        root.append(section(heading(3, 'What went wrong'), errorPanel(said)));
     }
     return root;
 }
@@ -55,22 +91,70 @@ function section(...children) {
 
 /* ---------- 1. the verdict strip ---------- */
 
+/**
+ * True when this tool refused the run before it was sent, so nothing answered it, scenario or
+ * service. Read from the server's own tone and error kind, never worked out from the wire.
+ */
+function refusedBeforeSending(envelope) {
+    return envelope.verdict.tone === 'BLOCKED' || Boolean(envelope.error && envelope.error.kind === 'BLOCKED');
+}
+
 function verdictStrip(envelope) {
     const verdict = envelope.verdict;
+    // The hatch says a scenario file answered. A request refused before it was sent was answered
+    // by nothing, so on the mock profile it says that instead, and carries no hatch.
+    const refused = refusedBeforeSending(envelope);
     const mock = envelope.profile === 'mock';
-    const strip = el('div', {class: 'verdict ' + toneClass(verdict.tone) + (mock ? ' verdict--mock' : '')});
-    if (mock) {
+    const answeredByScenario = mock && !refused;
+    const strip = el('div', {class: 'verdict ' + toneClass(verdict.tone) + (answeredByScenario ? ' verdict--mock' : '')});
+    if (answeredByScenario) {
         strip.append(el('span', {class: 'visually-hidden'}, 'Mock profile: this answer came from a scenario file. '));
     }
-    strip.append(el('h2', {class: 'verdict__headline'}, verdict.headline));
+    // A headline is one sentence, set large. A refusal can word its reason into a paragraph, which
+    // at that size fills the screen and hides the test result beside it, so a long one is set smaller.
+    const length = String(verdict.headline || '').length;
+    const size = length > 220 ? ' verdict__headline--long verdict__headline--longest' : length > 110 ? ' verdict__headline--long' : '';
+    strip.append(el('h2', {class: 'verdict__headline' + size}, verdict.headline));
     const supporting = verdict.supporting || [];
     if (supporting.length > 0) {
         strip.append(el('ul', {class: 'verdict__supporting'}, supporting.map(line => el('li', null, line))));
     }
     strip.append(el('p', {class: 'verdict__foot'},
-        mock ? mockMark() : null,
+        answeredByScenario ? mockMark() : null,
+        mock && refused ? el('span', {class: 'verdict__unanswered'}, 'Mock profile, and no scenario answered: the request was refused before it was sent.') : null,
         el('span', null, 'Outcome code ', code(verdict.outcomeCode, 'verdict__code'))));
     return strip;
+}
+
+/**
+ * Said under the verdict and the test result whenever the body sent was the tester's own, for
+ * every protocol: the answer is to a body this tool did not build. Whether the text parses is a
+ * fact about the text that went out, the same fact the box stated before sending, and a malformed
+ * body sent on purpose is a negative case whose answer must not read as the service accepting it.
+ */
+function ownBody(envelope) {
+    const detail = envelope.detail;
+    if (!detail || detail.bodyBuiltByTool !== false) {
+        return null;
+    }
+    const sentBody = envelope.wire && envelope.wire.request ? envelope.wire.request.body : null;
+    let parses = true;
+    if (typeof sentBody === 'string') {
+        try {
+            JSON.parse(sentBody);
+        } catch (notJson) {
+            parses = false;
+        }
+    }
+    return el('div', {class: 'result__own-body'},
+        el('p', null, el('strong', null, 'A request body of your own was sent.'),
+            ' This tool did not build it from the form; it went as you wrote it, with its placeholders filled in. '
+            + 'The member, provider and codes on the form were not sent with it. The wire view shows the body.'),
+        parses ? null : el('p', null, el('strong', null, 'The body sent was not valid JSON.'),
+            envelope.profile === 'mock'
+                ? ' On the mock profile a scenario file answers whatever the body holds, so the answer and its next step '
+                    + 'are the scenario\'s and say nothing about this body.'
+                : ' Whatever the service answered, it answered a body that does not parse: read the answer in that light.'));
 }
 
 /* ---------- 2. the test result ---------- */
@@ -115,8 +199,16 @@ function runFacts(envelope, settings) {
     const memberId = envelope.wire ? envelope.wire.memberId : null;
     if (memberId && memberId.changed) {
         // The tool removes spaces from a member ID on the way out. It is said here, in the open,
-        // and not only inside the collapsed wire view.
-        rows.push(['Member ID', ['Typed as ', code(memberId.typed), ' and sent as ', code(memberId.sent), '.']]);
+        // and not only inside the collapsed wire view, with every space shown and counted.
+        rows.push(['Member ID', idForms(memberId)]);
+    }
+    const response = envelope.wire ? envelope.wire.response : null;
+    if (response && response.maskedPlaces > 0) {
+        // The response on screen is not byte for byte what arrived, and the place a tester reads
+        // first says so, in the server's words. The wire view says it again beside the body.
+        rows.push(['Masked', el('span', {class: 'result__masked'},
+            el('span', {class: 'result__masked-count'}, count(response.maskedPlaces) + (response.maskedPlaces === 1 ? ' place' : ' places') + ' masked. '),
+            response.maskNote)]);
     }
     return facts(rows, 'runfacts facts--ruled');
 }
@@ -141,7 +233,9 @@ function ledgerLine(ledger, runId) {
     return el('div', {class: 'ledger ledger--missing', role: 'alert'},
         el('p', {class: 'ledger__state'}, 'NOT recorded'),
         el('p', null, 'The ledger did not keep run ', code(runId), '. It said:'),
-        el('blockquote', null, ledger.message));
+        el('blockquote', null, ledger.message),
+        // A next step of "record this result" is for the tester. With the ledger not keeping it, the record is theirs to make.
+        el('p', {class: 'ledger__todo'}, 'This run is in no ledger. If you need it, write down its run id and its result yourself.'));
 }
 
 function responseTime(timing) {
@@ -155,8 +249,10 @@ function responseTime(timing) {
 
 function runLine(envelope) {
     const environment = envelope.environment || {};
-    const parts = [code(envelope.runId), ' ', copyButton('Copy run id', () => envelope.runId)];
-    const where = el('div', {class: 'small quiet'}, code(envelope.operation), ' against ',
+    // A recorded run opens in History. One the ledger did not keep has nothing there to open, so it is not a link.
+    const recorded = Boolean(envelope.ledger && envelope.ledger.recorded);
+    const parts = [recorded ? runLink(envelope.runId) : code(envelope.runId), ' ', copyButton('Copy run id', () => envelope.runId)];
+    const where = el('div', {class: 'small quiet'}, operationName(envelope.operation), ' against ',
         environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment',
         envelope.profile ? ', ' + envelope.profile + ' profile' : null);
     const chain = envelope.chainId ? el('div', {class: 'small quiet'}, 'In chain ', code(envelope.chainId)) : null;
@@ -174,20 +270,31 @@ function findingsSection(findings) {
         el('div', null, findings.map(finding)));
 }
 
+/**
+ * One finding, in the server's words. What it is about (the request this tool sent, the response
+ * held to the guide, and so on) is said above its title, so that a request that went out
+ * incomplete never reads as a fault of the service. A kind this page does not group is drawn
+ * the same plain way with no such line, and its name is given as sent: it is never dropped and
+ * never drawn as a fault.
+ */
 function finding(item) {
-    const node = el('div', {class: 'finding'},
+    const group = findingGroup(item.kind);
+    const node = el('div', {class: 'finding' + (group ? ' finding--' + group.id : '')},
+        group ? el('p', {class: 'finding__about'}, group.heading) : null,
         el('p', {class: 'finding__title'}, item.title),
         item.detail ? el('p', null, item.detail) : null);
+    // A position taken from the bundled placeholder list is not P32H's position, and says so on its own label.
+    const listWho = serverWords.codeListIsPlaceholder() === true ? 'The code list (the bundled placeholder, not a P32H list)' : 'The code list';
     if (item.codeListSays && item.serviceSays) {
         // A disagreement is two positions. Either side can be the one that is wrong, so the two
         // are set side by side with the same weight and neither is marked.
         node.append(el('div', {class: 'positions'},
-            position('The code list', item.codeListSays),
+            position(listWho, item.codeListSays),
             position('The service', item.serviceSays)));
     } else if (item.codeListSays || item.serviceSays) {
         // One position only: the finding is about what one side said, not a comparison of the two.
         node.append(el('div', {class: 'positions positions--one'},
-            item.codeListSays ? position('The code list', item.codeListSays) : position('The service', item.serviceSays)));
+            item.codeListSays ? position(listWho, item.codeListSays) : position('The service', item.serviceSays)));
     }
     node.append(el('p', {class: 'finding__meta'}, 'Kind ', code(item.kind), item.subject ? [', about ', code(item.subject)] : null));
     return node;
@@ -239,8 +346,118 @@ function determinationRow(row) {
 
 /* ---------- 8. the additional fields ---------- */
 
-/** Everything the response carried that the designed view did not use, each entry presented as what it is. */
-export function additionalFieldsSection(fields, title) {
+/**
+ * The returned-but-not-interpreted values as the wire view shows the body: with every secret the
+ * server masked there masked here too.
+ *
+ * The server masks a secret that a service sends back in the wire view, and says how many places
+ * it masked. Until it builds these fields from the masked body as well, they can carry the secret
+ * in clear (a stand-in that echoed the Authorization header showed it here, under a line saying it
+ * was masked). So when the wire says anything was masked, each value is taken from the masked body
+ * at the same path; one whose path cannot be found there is withheld, with a pointer to the wire
+ * view, rather than shown as it came. Nothing is un-masked and nothing is guessed: the masked text
+ * is the server's. When nothing was masked the fields are shown exactly as sent.
+ */
+function maskedLikeTheWire(fields, wire) {
+    const response = wire ? wire.response : null;
+    if (!response || !(response.maskedPlaces > 0)) {
+        return fields;
+    }
+    let masked;
+    let parsed = false;
+    if (typeof response.body === 'string') {
+        try {
+            masked = JSON.parse(response.body);
+            parsed = true;
+        } catch (notJson) {
+            parsed = false;
+        }
+    }
+    return fields.map(field => {
+        if (field.kind === 'RAW_BODY') {
+            return {...field, value: typeof response.body === 'string' ? response.body : undefined};
+        }
+        if (field.kind === 'NOTE' || field.value === undefined || field.value === null) {
+            return field;
+        }
+        const found = parsed ? atPath(masked, field.path) : {found: false};
+        if (found.found) {
+            const text = JSON.stringify(found.value);
+            // Only a value the masking changed is replaced, so a number keeps the form it arrived in.
+            return typeof found.value === 'string' && text !== field.value ? {...field, value: text} : field;
+        }
+        return {...field, value: undefined, withheld: true};
+    });
+}
+
+/**
+ * The value at a path written the way the server writes one: names joined by dots, a name holding
+ * path punctuation in double quotes, and [n] for an element of an array; "(root)" for the body.
+ * Returns {found, value}.
+ */
+function atPath(body, path) {
+    if (path === '(root)') {
+        return {found: true, value: body};
+    }
+    let at = body;
+    let index = 0;
+    const text = String(path);
+    let first = true;
+    while (index < text.length) {
+        if (text[index] === '[') {
+            const close = text.indexOf(']', index);
+            const position = close > index ? Number(text.slice(index + 1, close)) : NaN;
+            if (!Array.isArray(at) || !Number.isInteger(position) || position < 0 || position >= at.length) {
+                return {found: false};
+            }
+            at = at[position];
+            index = close + 1;
+            first = false;
+            continue;
+        }
+        if (!first) {
+            if (text[index] !== '.') {
+                return {found: false};
+            }
+            index++;
+        }
+        let name = '';
+        if (text[index] === '"') {
+            index++;
+            while (index < text.length && text[index] !== '"') {
+                if (text[index] === '\\' && index + 1 < text.length) {
+                    index++;
+                }
+                name += text[index];
+                index++;
+            }
+            if (text[index] !== '"') {
+                return {found: false};
+            }
+            index++;
+        } else {
+            while (index < text.length && text[index] !== '.' && text[index] !== '[') {
+                name += text[index];
+                index++;
+            }
+        }
+        if (at === null || typeof at !== 'object' || Array.isArray(at) || !Object.prototype.hasOwnProperty.call(at, name)) {
+            return {found: false};
+        }
+        at = at[name];
+        first = false;
+    }
+    return {found: true, value: at};
+}
+
+/**
+ * Everything the response carried that the designed view did not use, each entry presented as what it is.
+ * wire, optional: the wire view of the same answer. When it is given and says secrets were masked,
+ * the values are drawn masked as the wire's body is (see maskedLikeTheWire). Pass it wherever the
+ * answer has one.
+ */
+export function additionalFieldsSection(givenFields, title, wire) {
+    const fields = wire ? maskedLikeTheWire(givenFields, wire) : givenFields;
     const label = title || 'Returned but not interpreted';
     if (fields.length === 0) {
         return section(heading(3, label, 0), el('p', {class: 'quiet'}, 'Nothing was returned that is not shown above.'));
@@ -270,10 +487,27 @@ export function additionalFieldsTable(fields) {
     return table(['Path', 'Presence', 'Value as returned'], fields.map(field => [
         code(field.path),
         field.presence === 'VALUE' ? el('span', {class: 'quiet small'}, 'value') : presenceMark(field.presence),
-        field.value !== undefined && field.value !== null ? code(field.value)
+        field.withheld ? el('span', {class: 'quiet small'}, 'withheld here: secrets were masked in this response and this value could not be matched '
+            + 'to the masked body. The wire view shows the body as masked.')
+            : field.value !== undefined && field.value !== null ? longValue(String(field.value))
             // An explicit null has no text beyond the word itself, and the word is the literal that was returned.
             : field.presence === 'NULL' ? code('null') : el('span', {class: 'quiet small'}, 'no text given')
     ]), {class: 'additional'});
+}
+
+// A value longer than this is shown by its start, with the whole of it in a fold beneath.
+const LONG_VALUE = 600;
+
+/** A returned value as literal text. A very long one is folded: nothing is cut, it is one press away. */
+function longValue(value) {
+    if (value.length <= LONG_VALUE) {
+        return code(value);
+    }
+    return el('div', null,
+        code(value.slice(0, LONG_VALUE / 2) + ' ...'),
+        el('details', {class: 'additional__long'},
+            el('summary', null, 'Show all ' + count(value.length) + ' characters'),
+            code(value)));
 }
 
 /* ---------- 9. the wire view ---------- */
@@ -295,14 +529,13 @@ export function wireView(wire) {
     summaryParts.push(response
         ? (typeof response.status === 'number' ? 'response HTTP ' + response.status : 'no response arrived')
             + (typeof response.byteLength === 'number' ? ', ' + count(response.byteLength) + ' bytes' : '')
+            + (response.maskedPlaces > 0 ? ', ' + count(response.maskedPlaces) + (response.maskedPlaces === 1 ? ' place' : ' places') + ' masked' : '')
         : 'no response');
     const node = el('details', {class: 'wire'},
         el('summary', null, 'Wire view', el('span', {class: 'quiet'}, summaryParts.join('; '))));
     node.append(el('div', {class: 'wire__sides'}, requestSide(request), responseSide(response)));
     if (wire.memberId) {
-        node.append(el('p', {class: 'wire__memberid'}, wire.memberId.changed
-            ? ['The member ID was typed as ', code(wire.memberId.typed), ' and sent as ', code(wire.memberId.sent), '.']
-            : ['The member ID was sent as typed: ', code(wire.memberId.sent), '.']));
+        node.append(el('p', {class: 'wire__memberid'}, 'The member ID: ', idForms(wire.memberId)));
     }
     return node;
 }
@@ -338,6 +571,10 @@ function responseSide(response) {
         typeof response.byteLength === 'number' ? ' ' + count(response.byteLength) + ' bytes received.' : null,
         response.parsed ? ' Read as JSON.' : ' Not read as JSON.',
         response.parseError ? [' ', response.parseError] : null));
+    if (response.maskNote) {
+        // The note is there when something was masked, and also when a secret could not be looked for.
+        side.append(el('p', {class: 'result__masked'}, response.maskNote));
+    }
     side.append(headerTable(response.headers));
     side.append(bodyBlock(response.body, 'Response body', 'Copy response body'));
     return side;

@@ -51,7 +51,14 @@ const SOURCES = {
     UNRESOLVED: 'nowhere: it has no value'
 };
 
-export function sourceWords(source) {
+/**
+ * The layer a value came from, in words. forRun is true where the value was typed for a run of a
+ * protocol tab rather than for a try on this tab; the layer is the same, the words follow the screen.
+ */
+export function sourceWords(source, forRun) {
+    if (forRun && source === 'RUN_VALUE') {
+        return 'typed for this run';
+    }
     return Object.prototype.hasOwnProperty.call(SOURCES, source) ? SOURCES[source] : code(String(source));
 }
 
@@ -65,6 +72,45 @@ export function refusal(answer, roots) {
         return formProblem(answer.body, markFieldErrors(roots || [], answer.body.fieldErrors));
     }
     return errorPanel(answer.body);
+}
+
+/**
+ * What the page adds under a refusal that means what this screen showed is out of date: a 404 for
+ * something that was there when the screen was drawn, or a 409. The server's own sentences say
+ * what was refused; this says only what the page does about it, which is to read the tool again.
+ * The caller reads it again.
+ */
+export function readAgainAfter(answer, what) {
+    if (!isStale(answer)) {
+        return null;
+    }
+    return el('p', {class: 'config-read-again'},
+        what ? 'Choose again from the list as it is now: ' + what + ' may have been changed or removed from another browser. '
+            + 'What the tool holds has been read again, and this view now shows it.'
+            : 'It may have been changed from another browser. What the tool holds has been read again, and this view now shows it.');
+}
+
+function isStale(answer) {
+    return answer.status === 404 || answer.kind === 'conflict';
+}
+
+/**
+ * A refusal of an action on something this screen listed. When the screen was out of date (a 404
+ * or a 409), the page's own line comes first and names the thing as the tester chose it, by its
+ * name, since the server's sentence names it by an identifier the tester never typed. The server's
+ * generic next step for a 404 ("check the identifier") is left out there: nothing was typed, and
+ * the step that works is the page's. Any other refusal is drawn as refusal() draws it.
+ * what: the thing in words, such as 'the environment "Vendor Prod"'.
+ */
+export function staleRefusal(answer, what, roots) {
+    if (!isStale(answer)) {
+        return refusal(answer, roots);
+    }
+    const said = answer.status === 404 ? {...answer.body, action: undefined} : answer.body;
+    return el('div', {class: 'config-stale-refusal'},
+        el('p', {class: 'config-done__title'}, 'Nothing was changed: ', what, ' is not there as this screen showed it.'),
+        readAgainAfter(answer, what),
+        errorPanel(said));
 }
 
 /**
