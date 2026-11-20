@@ -53,6 +53,9 @@ import org.p32h.interop.epa.pave.model.Tone;
  * @param outcomeFault   true when the outcome says the service failed or did not answer, as
  *                       opposed to a determination. Null when nothing was sent
  * @param nextStep       what the last step said should happen next, in plain words
+ * @param countedIn      the count group of the suite run this row is counted in, written as the
+ *                       name of that count, such as {@code passed} or {@code notConfigured}. The
+ *                       run's {@code countGroups} gives its words
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SuiteCaseResult(
@@ -86,7 +89,8 @@ public record SuiteCaseResult(
         List<Step> steps,
         String faultReference,
         Boolean outcomeFault,
-        String nextStep) {
+        String nextStep,
+        SuiteCountGroup countedIn) {
 
     public SuiteCaseResult {
         steps = steps == null ? List.of() : List.copyOf(steps);
@@ -94,6 +98,24 @@ public record SuiteCaseResult(
         findings = findings == null ? List.of() : List.copyOf(findings);
         notes = notes == null ? List.of() : List.copyOf(notes);
         notRecorded = notRecorded == null ? List.of() : List.copyOf(notRecorded);
+    }
+
+    public SuiteCaseResult(int row, String caseId, String what, boolean chain, SuiteRowState state, CaseStatus status, String statusLine,
+                           String expected, String outcome, String outcomeLabel, Tone tone, TestResult result, Long elapsedMillis,
+                           boolean slow, String runId, List<String> runIds, String chainId, Integer httpStatus, List<String> findings,
+                           String nextAction, String reason, List<String> notes, List<String> notRecorded, String previousOutcome,
+                           String previousOutcomeLabel, TestResult previousResult, Boolean changed, List<Step> steps,
+                           String faultReference, Boolean outcomeFault, String nextStep) {
+        this(row, caseId, what, chain, state, status, statusLine, expected, outcome, outcomeLabel, tone, result, elapsedMillis, slow,
+                runId, runIds, chainId, httpStatus, findings, nextAction, reason, notes, notRecorded, previousOutcome,
+                previousOutcomeLabel, previousResult, changed, steps, faultReference, outcomeFault, nextStep, null);
+    }
+
+    /** The same row, counted in the given group. */
+    public SuiteCaseResult countedIn(SuiteCountGroup group) {
+        return new SuiteCaseResult(row, caseId, what, chain, state, status, statusLine, expected, outcome, outcomeLabel, tone, result,
+                elapsedMillis, slow, runId, runIds, chainId, httpStatus, findings, nextAction, reason, notes, notRecorded,
+                previousOutcome, previousOutcomeLabel, previousResult, changed, steps, faultReference, outcomeFault, nextStep, group);
     }
 
     /** True when some of the case's steps went out and the case did not complete or end blocked. */

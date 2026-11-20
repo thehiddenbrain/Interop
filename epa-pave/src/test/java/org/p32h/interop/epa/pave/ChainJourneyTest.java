@@ -142,8 +142,11 @@ class ChainJourneyTest {
                 StandardOpenOption.APPEND);
         JsonNode chain = json(get("/api/chains/" + chainId), 200);
         assertThat(chain.get("runCount").intValue()).isEqualTo(1);
-        assertThat(chain.get("notes").toString()).contains("line it cannot read. A run of this chain may be among them")
-                .doesNotContain("self-check");
+        // The note names the day file that holds the damaged line, by the tool's own name for it.
+        assertThat(chain.get("notes").toString()).contains("The ledger has 1 line it cannot read, in " + day.getFileName() + " (1 line). "
+                + "A run of this chain may be among them").doesNotContain("self-check");
+        JsonNode health = json(get("/api/runs/health"), 200);
+        assertThat(health.get("unreadableFiles").get(day.getFileName().toString()).intValue()).isEqualTo(1);
     }
 
     @Test

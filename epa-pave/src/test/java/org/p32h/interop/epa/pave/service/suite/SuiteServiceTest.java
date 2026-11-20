@@ -183,6 +183,15 @@ class SuiteServiceTest {
         assertThat(bed.ledger.records()).extracting(RunRecord::caseId).containsExactly("TC-1", "TC-3");
         assertThat(run.counts().invalid()).isEqualTo(1);
         assertThat(run.counts().done()).isEqualTo(3);
+        // Each row names the count it is in, and that count gives its words.
+        assertThat(run.results()).extracting(SuiteCaseResult::countedIn).containsExactly(
+                org.p32h.interop.epa.pave.model.suite.SuiteCountGroup.PASSED, org.p32h.interop.epa.pave.model.suite.SuiteCountGroup.INVALID,
+                org.p32h.interop.epa.pave.model.suite.SuiteCountGroup.PASSED);
+        assertThat(run.countGroups()).filteredOn(group -> group.group().equals("invalid")).singleElement()
+                .satisfies(group -> {
+                    assertThat(group.label()).isEqualTo("Not valid: nothing was sent");
+                    assertThat(group.count()).isEqualTo(1);
+                });
     }
 
     @Test

@@ -365,8 +365,11 @@ public class RunReplay {
         }
         if (!original.unrecordedInputs().isEmpty()) {
             List<String> words = original.unrecordedInputs().stream().map(RunReplay::inWords).toList();
+            // A step of a chain is run again as part of its journey, which the chain view points to in the same words.
+            String journey = original.unrecordedInputs().contains(RunRecord.INPUT_PRIOR_STEP) ? " This run is one step of a chain, and "
+                    + "cannot be replayed by itself. To run the journey again, run it as a suite row with the protocol chain." : "";
             return "This run sent something its ledger line does not hold: " + String.join("; ", words) + ". Running it again from the "
-                    + "line would send a different request, and the two answers could not be compared.";
+                    + "line would send a different request, and the two answers could not be compared." + journey;
         }
         if (Texts.blank(original.memberId()) && Texts.present(original.memberToken())) {
             return "The member ID of this run was not recorded. The line holds a token in its place, and a token cannot be turned back "

@@ -796,6 +796,12 @@ class RunReplayTest {
         assertThat(report.selected()).isEqualTo(2 * RunReplay.MOST_RUNS);
         assertThat(report.summary()).containsEntry("same", RunReplay.MOST_RUNS).containsEntry("not-replayable", RunReplay.MOST_RUNS);
         assertThat(runner.asked).hasSize(RunReplay.MOST_RUNS);
+        // A step of a chain is pointed to the way its journey is run again, in the words the chain view uses.
+        assertThat(report.results()).filteredOn(entry -> entry.runId().equals("step-0")).singleElement()
+                .satisfies(entry -> assertThat(entry.reason()).isEqualTo("This run sent something its ledger line does not hold: answers "
+                        + "or identifiers handed on by an earlier step. Running it again from the line would send a different request, and "
+                        + "the two answers could not be compared. This run is one step of a chain, and cannot be replayed by itself. To run "
+                        + "the journey again, run it as a suite row with the protocol chain."));
         // One more that can be sent, and the whole request is refused.
         many.record(draft("one-too-many", clock).build());
         runner.asked.clear();

@@ -13,6 +13,7 @@ import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunQuery;
+import org.p32h.interop.epa.pave.model.LedgerHealth;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Texts;
@@ -64,12 +65,13 @@ public class ChainService {
                     + "under it, so check that the test run ledger is switched on and writable.");
         }
         ChainView built = build(id, records);
-        Integer unreadable = unreadableLines(store);
+        LedgerHealth health = health(store);
+        Integer unreadable = health == null ? null : health.unreadableLines();
         if (unreadable != null && unreadable > 0) {
             // A damaged line cannot be read to tell which chain it was, so the note says it may be this one's.
             List<String> notes = new ArrayList<>(built.notes());
-            notes.add("The ledger has " + unreadable + (unreadable == 1 ? " line" : " lines") + " it cannot read. A run of this chain may be "
-                    + "among them, so a step may be missing here.");
+            notes.add("The ledger has " + unreadable + (unreadable == 1 ? " line" : " lines") + " it cannot read" + inFiles(health)
+                    + ". A run of this chain may be among them, so a step may be missing here.");
             built = new ChainView(built.chainId(), built.headline(), built.nextAction(), built.nextHeadline(), built.nextStage(), built.ended(),
                     built.startedAt(), built.lastRunAt(), built.environment(), built.environmentKind(), built.profile(), built.target(),
                     built.member(), built.procedureCodes(), built.stages(), built.otherRuns(), built.runCount(), built.elapsedMillis(), notes,
@@ -78,10 +80,20 @@ public class ChainService {
         return built;
     }
 
-    /** How many ledger lines cannot be read, or null when the ledger cannot say. */
-    private static Integer unreadableLines(RunLedger store) {
+    /** Which day files hold them, as ", in runs-2026-03-10.jsonl (2 lines)", or nothing when the ledger does not say. */
+    private static String inFiles(LedgerHealth health) {
+        if (health.unreadableFiles().isEmpty()) {
+            return "";
+        }
+        List<String> files = new ArrayList<>();
+        health.unreadableFiles().forEach((name, count) -> files.add(name + " (" + count + (count == 1 ? " line)" : " lines)")));
+        return ", in " + String.join(", ", files);
+    }
+
+    /** The ledger's health, or null when the ledger cannot say. */
+    private static LedgerHealth health(RunLedger store) {
         try {
-            return store.health().unreadableLines();
+            return store.health();
         } catch (RuntimeException e) {
             // The chain is still shown from what could be read. Whether lines were lost is then not known, and nothing is claimed.
             return null;

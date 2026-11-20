@@ -382,6 +382,8 @@ class JsonlRunLedgerTest {
         assertThat(receipt.runsToday()).isEqualTo(2);
         assertThat(ledger.health().unreadableLines()).isEqualTo(1);
         assertThat(ledger.health().runsToday()).isEqualTo(2);
+        // The file that holds it is named, by the tool's own name for the day file.
+        assertThat(ledger.health().unreadableFiles()).containsExactly(java.util.Map.entry(todayFile().getFileName().toString(), 1));
     }
 
     @Test

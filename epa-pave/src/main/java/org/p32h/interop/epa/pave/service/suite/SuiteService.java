@@ -28,6 +28,7 @@ import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.suite.SuiteCaseResult;
+import org.p32h.interop.epa.pave.model.suite.SuiteCountGroup;
 import org.p32h.interop.epa.pave.model.suite.SuiteCounts;
 import org.p32h.interop.epa.pave.model.suite.SuitePreview;
 import org.p32h.interop.epa.pave.model.suite.SuiteRowState;
@@ -742,6 +743,7 @@ public class SuiteService implements AutoCloseable {
                 if (row == null) {
                     boolean running = entry.state == SuiteRowState.RUNNING;
                     boolean skipped = entry.state == SuiteRowState.NOT_RUN;
+                    SuiteCountGroup group = skipped ? SuiteCountGroup.NOT_RUN : SuiteCountGroup.WAITING;
                     if (skipped) {
                         notRun++;
                     } else {
@@ -750,31 +752,49 @@ public class SuiteService implements AutoCloseable {
                     row = new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, entry.state, null,
                             skipped ? "Not run: the suite stopped before this case." : running ? "Running now." : "Waiting.",
                             entry.expected, null, null, null, null, null, false, null, List.of(), null, null, List.of(), null,
-                            null, List.of(), List.of(), null, null, null, null, List.of(), null, null, null);
+                            null, List.of(), List.of(), null, null, null, null, List.of(), null, null, null).countedIn(group);
                 } else {
+                    SuiteCountGroup group;
                     if (row.faultReference() != null) {
                         // A failure of this tool, which is neither a fact about the case nor about the service.
                         toolFailed++;
+                        group = SuiteCountGroup.TOOL_FAILED;
                     } else if (row.partlySent()) {
                         partly++;
+                        group = SuiteCountGroup.PARTLY;
                     } else {
-                        switch (row.status()) {
+                        group = switch (row.status()) {
                             case COMPLETED -> {
                                 if (row.result() == TestResult.PASS) {
                                     passed++;
+                                    yield SuiteCountGroup.PASSED;
                                 } else if (row.result() == TestResult.FAIL) {
                                     failed++;
                                     failedByFault += Boolean.TRUE.equals(row.outcomeFault()) ? 1 : 0;
-                                } else {
-                                    unverified++;
+                                    yield SuiteCountGroup.FAILED;
                                 }
+                                unverified++;
+                                yield SuiteCountGroup.UNVERIFIED;
                             }
-                            case BLOCKED -> blocked++;
-                            case INVALID -> invalid++;
-                            case NOT_CONFIGURED -> notConfigured++;
-                            case NOT_RUNNABLE -> notRunnable++;
-                        }
+                            case BLOCKED -> {
+                                blocked++;
+                                yield SuiteCountGroup.BLOCKED;
+                            }
+                            case INVALID -> {
+                                invalid++;
+                                yield SuiteCountGroup.INVALID;
+                            }
+                            case NOT_CONFIGURED -> {
+                                notConfigured++;
+                                yield SuiteCountGroup.NOT_CONFIGURED;
+                            }
+                            case NOT_RUNNABLE -> {
+                                notRunnable++;
+                                yield SuiteCountGroup.NOT_RUNNABLE;
+                            }
+                        };
                     }
+                    row = row.countedIn(group);
                     for (String message : row.notRecorded()) {
                         // A case line records no call, so it is counted apart from the runs.
                         if (ChainCaseStep.aboutTheCaseLine(message)) {

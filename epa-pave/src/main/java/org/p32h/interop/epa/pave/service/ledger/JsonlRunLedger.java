@@ -731,8 +731,16 @@ public class JsonlRunLedger implements RunLedger {
             // folder is not written to on every look, because this is asked for all day long.
             boolean writable = enabled && usable && !lastWriteFailed;
             int unreadable = unreadableByFile.values().stream().mapToInt(Integer::intValue).sum();
+            // By file, so a screen can say which day holds a damaged line. The directory listing is
+            // not a file and is left out by name; its failure still counts in the total.
+            Map<String, Integer> byFile = new HashMap<>();
+            unreadableByFile.forEach((name, count) -> {
+                if (count > 0 && DayFiles.dayOf(name) != null) {
+                    byFile.put(name, count);
+                }
+            });
             return new LedgerHealth(enabled, directory == null ? null : directory.toString(), writable, fileName, runsToday, unreadable,
-                    lastWriteAt, lastError, lastErrorAt, failedWrites);
+                    lastWriteAt, lastError, lastErrorAt, failedWrites, byFile);
         }
     }
 
