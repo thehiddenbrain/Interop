@@ -4854,9 +4854,22 @@ was said.
   settings, with what would have to exist in its place: a sign-in and roles, an encrypted connection,
   secrets kept apart from the tool's files, control of who sees member data, a record of who did what,
   a receiver that checks its caller and keeps what arrived, production writes allowed only to named
-  people, storage that several copies can share, packaging, monitoring, backup and a rule for how long
-  runs are kept, and an observation of the vendor's service (D-233). None of it is built, and none of
+  people, either a rule that only one copy uses a store and a ledger or storage that several copies
+  can share, packaging, monitoring, backup and a rule for how long runs are kept, a limit on where the
+  tool may send requests, limits on what any caller can make it hold in memory, and an observation of
+  the vendor's service (D-233). None of it is built, and none of
   it is designed here: the list says what is missing, not which product fills it.
 - The commit that records this changes this file, `PROGRESS.md` and the README only, and no code. The
-  `bindNote` that `GET /api/mode` returns still says to set `server.address` and read the README first;
-  the README now says not to before a sign-in exists.
+  `bindNote` that `GET /api/mode` returns, and the comment above `server.address` in `application.yml`,
+  still say to set `server.address` so that a service can reach the receiver; the README now says not
+  to before a sign-in exists, beside the `bindNote` it shows, in its settings table and in its open
+  items.
+- **After an independent check of this entry and the README section.** The check found the README
+  stating as the operator's intent what is this entry's reading, and lines that said less than the
+  code: received notifications and the ledger's notes, readable and exportable by anyone who can reach
+  the tool; secrets in `application.yml` and the salt's place set by `tracking.salt-file`; a copy that
+  removes a file the other copy's state still names, so that the other does not start again; a ledger
+  file added only on a day something is recorded. It also found two facts missing, each now a line of
+  the section: nothing limits where the tool sends a request, and any caller can make it hold large
+  bodies in memory. Each was checked in the code before it was written; the commit that records this
+  changes the three documents only, and no code.

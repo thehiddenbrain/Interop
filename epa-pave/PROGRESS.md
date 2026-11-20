@@ -32,8 +32,8 @@ of the last server task, the last screens pass, the last audits and the checks o
 D-252, those of the four closing tasks D-253 to D-259, and those of the last check, the last fixes and
 how the checking ended D-260 to D-268. D-269 records what the operator replied to the four questions of
 D-227 after the pull request was opened, and D-270 the operator's later word that the tool is to be run
-as a real service one day; the commits that record them change this file, `DECISIONS.md` and the README
-only, and no code.
+as a real service one day, with what an independent check of that entry found; the commits that record
+them change this file, `DECISIONS.md` and the README only, and no code.
 
 ### Open at the revision handed over, the worst first
 
@@ -55,7 +55,7 @@ has looked.
    real member API or provider directory, and the token request's HTTP Basic is an assumption (D-233).
 3. **Not fit to be run as a shared or production service as delivered.** The operator intends that one
    day (D-270). The tool has no sign-in, serves plain http, keeps secrets in plain text on disk, records
-   no user, and is one copy on one machine; it keeps listening on this machine only, and is not to be
+   no user, sends a request wherever an upload says, and is one copy on one machine; it keeps listening on this machine only, and is not to be
    opened to the network before a sign-in exists. The README, "Before PAVE is run as a shared or
    production service", lists what must exist first; none of it is built.
 4. **The guardrail, what it still lets through or cannot see.** A production environment refused at
@@ -1310,7 +1310,8 @@ it; compare a pasted CRD request with the tool's own, each difference explained;
 version 2.0.1 of the guides. All three are on the line, the first two with their screens on the
 protocol tabs. The CRD and DTR 2.0.1 packages were supplied by the operator as files. Four questions
 put to the operator had no answer during the build (D-227); after the pull request was opened the
-operator answered two and does not know the answer to the other two (D-269). Late in the build the operator asked how much longer the
+operator answered two and does not know the answer to the other two (D-269). Told what the third
+meant, the operator added that the tool will be run as a real service one day (D-270). Late in the build the operator asked how much longer the
 work would take, and was told what remained and that the build prompt allows a finding to be resolved
 or recorded; no instruction followed, and the full sequence was carried on (D-252).
 

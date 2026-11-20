@@ -177,7 +177,9 @@ next and changes when the configuration changes, but two calls in a row answer t
 ```
 
 `"mode":"mock"` is the line to check: nothing you do now reaches a real service. `bindNote` says
-who can reach the tool (see [Who can reach this tool](#who-can-reach-this-tool)).
+who can reach the tool (see [Who can reach this tool](#who-can-reach-this-tool)). Where it says to
+set `server.address`, do not do so before PAVE has a sign-in (D-270): the tool's own text was not
+changed when that was decided.
 
 **6. Open the tool in a browser.**
 
@@ -782,8 +784,9 @@ vendor can reach.
 
 ### Before PAVE is run as a shared or production service
 
-The operator intends PAVE to be run one day as a real service, not only as one tester's own copy
-(D-270). As delivered it is built for one tester on one machine, and what follows would have to
+The operator said that PAVE will be run as a real service one day (D-270). Whether that means one
+copy shared by a team, use against the vendor's production service, or both was not said, and both
+are taken as possible. As delivered it is built for one tester on one machine, and what follows would have to
 exist first. **None of it is built.** Each line says what the tool does today and what would have
 to exist in its place.
 
@@ -795,14 +798,20 @@ to exist in its place.
   cookie and whatever is typed would cross the network readable by anyone on the way. An encrypted
   connection would have to exist.
 - **Secrets in plain text on disk.** An uploaded Postman environment or collection is kept as
-  uploaded in `config-store/`, credentials included, and so is `config-store/installation-salt`,
-  with which a member ID is recovered from its ledger token. On Linux and macOS these files can be
+  uploaded in `config-store/`, credentials included, and so is the installation salt (by default
+  `config-store/installation-salt`, see `tracking.salt-file`), with which a member ID is recovered
+  from its ledger token. A client secret or a lookup header set in `application.yml`
+  (`onyx.auth.client-secret`, `lookup.member.headers`, `lookup.provider.headers`) is in plain text
+  there, or on the command line when given there. On Linux and macOS these files can be
   read by the account that runs the tool only; on Windows they take the access list of their
   folder. Secrets kept apart from the tool's files, with access to them controlled, would have to
   exist.
-- **Member data on screen and in uploads.** On live, the wire view, the lookup results and the
-  request preview show member data to whoever is looking, and an uploaded file is kept whole,
-  member data included. Who may see a member's data would have to be decided and enforced.
+- **Member data on screen, in uploads and in the ledger.** On live, the wire view, the lookup
+  results and the request preview show member data to whoever is looking, and so do the received
+  notifications (`GET /api/pas/notifications`), which can carry a ClaimResponse. An uploaded file
+  is kept whole, member data included, and the ledger keeps a note as it was typed, a name or an
+  address included (D-217); the run history and its export (`GET /api/runs/export.csv`) can be read
+  by anyone who can reach the tool. Who may see a member's data would have to be decided and enforced.
 - **No record of who did what.** A ledger line has no place for a user, and the tester reference is
   free text that anyone can type. An upload, a deletion, an activation and a production unlock name
   no person either: the unlock is logged with the environment's name only. A record of who did
@@ -824,14 +833,29 @@ to exist in its place.
   (`run-history/`) are files in the folder the tool starts in. Nothing guards two copies that use
   the same folders: the ledger takes no lock on its files beyond what appending a line gives, and
   each copy reads the configuration store when it starts and then keeps it in memory, so neither
-  sees what the other changed, and the last to write the store's state file wins. Storage that
-  several copies can share safely would have to exist.
+  sees what the other changed, and the last to write the store's state file wins. A copy that
+  replaces an uploaded file also removes the old file, which the other copy's state can still name;
+  a store whose state file names a missing file is refused at start-up, so that copy then does not
+  start. Either a rule that only one copy uses a store and a ledger, or storage that several copies
+  can share safely, would have to exist.
 - **Nothing packages it or watches it.** There is no container file and no service unit, only
   `run.sh`, `run.cmd` and the jar. What it has for checking itself is `GET /api/runs/health`
   (whether the ledger can write), `GET /api/mode` and `GET /api/procedure-codes/self-check`; there
   is no general health endpoint. The ledger has no setting for backup or for how long runs are
-  kept: a file is added each day and none is ever removed. Packaging, monitoring, backup and a rule
+  kept: a file is added for each day on which something is recorded, and none is ever removed. Packaging, monitoring, backup and a rule
   for how long runs are kept would have to exist.
+- **Requests go wherever an upload says.** The tool sends a request to whatever address an uploaded
+  environment or collection names, from the network of the machine it runs on and with the stored
+  credentials; a request sent as it is in the collection (`/api/raw`) too. Nothing limits the host:
+  the address checks only warn about addresses the HTTP client reads differently and about a
+  sandbox on the same server as production. On a shared copy, anyone who can reach it could point
+  it at an address inside that network and read the answer in the wire view. A limit on where the
+  tool may send would have to exist.
+- **Any caller can make it hold large bodies in memory.** A request body of up to 30 MB is accepted
+  (`spring.servlet.multipart.max-request-size`), and an upload is held in memory, not on disk. The
+  notification receiver, which needs no sign-in, reads each body up to 8 MB into memory. Nothing in
+  the tool limits how many requests one caller sends. Limits on who may send what, and how much,
+  would have to exist.
 - **Never seen against the vendor.** Nothing has been run against the vendor's service, and the way
   the token request authenticates the client (HTTP Basic) is an assumption (D-233). It would have
   to be observed in the sandbox first.
@@ -1816,7 +1840,7 @@ shows what is in force, secrets masked.
 | `spring.servlet.multipart.resolve-lazily` | `true` | Only an endpoint that takes a file reads a multipart body |
 | `spring.mvc.formcontent.filter.enabled` | `false` | No form body is read for a PUT or a DELETE |
 | `server.port` | `8057` | The port. Not 8080, so PAVE can run beside the tools that use 8080 |
-| `server.address` | `127.0.0.1` | Listen on this machine only. See [Who can reach this tool](#who-can-reach-this-tool) |
+| `server.address` | `127.0.0.1` | Listen on this machine only. Not to be changed before PAVE has a sign-in (D-270). See [Who can reach this tool](#who-can-reach-this-tool) |
 | `server.servlet.session.cookie.name` | `PAVESESSION` | A name of its own, so other tools on localhost do not overwrite PAVE's session |
 | `server.servlet.session.cookie.same-site` | `strict` | The production unlock lives in the session; no other site can borrow it |
 | `server.servlet.session.cookie.http-only` | `true` | No script reads the session cookie |
@@ -1971,7 +1995,7 @@ Each of these is unknown. PAVE uses an obvious placeholder for it rather than a 
 | The procedure code list header row, flag spellings, date format, time zone, encoding, line and vendor names | The bundled placeholder list and candidate header lists | `codelist.file`; `codelist.columns.*`; check with Config, `Check this installation`, or `GET /api/procedure-codes/self-check` |
 | How the token request authenticates the client: HTTP Basic, the credentials in the form body, or a private-key JWT | OAuth2 client credentials with the client authenticated by HTTP Basic (`Authorization: Basic`), decided in code and not by the vendor | `onyx.auth.*` for the values. For credentials in the form body or a signed JWT assertion, `requestToken` in `src/main/java/org/p32h/interop/epa/pave/client/support/OnyxTokenService.java` is the one method to change |
 | The PAS attachment mechanism in use | `fhir` | `onyx.pas.attachment-mode`. `x12-275` names the attachment and sends nothing else |
-| Whether the receiver is reachable from Onyx | Assumed not | `server.address`, `app.allowed-hosts`, `onyx.subscription.callback-url` |
+| Whether the receiver is reachable from Onyx | Assumed not | `server.address`, `app.allowed-hosts`, `onyx.subscription.callback-url`, none of them to be changed for this before PAVE has a sign-in (D-270; see [Before PAVE is run as a shared or production service](#before-pave-is-run-as-a-shared-or-production-service)) |
 | Which version of each guide the sandbox follows (D-130, D-136, D-269) | 2.0.1, which the operator says the sandbox follows; this has not been observed against it. Codes of the 2.2.0 ballot are read and named; DTR reads both published shapes of next-question | `wrapInParameter` on a next-question request chooses the wrapped form; the variable `dtrCoverageExtension` the ballot form of coverage |
 | How Onyx signals an unknown member or provider, inactive coverage and the delegated vendor (D-033) | A rule kept in the client layer, stated in each mock scenario | `src/main/java/org/p32h/interop/epa/pave/client/crd/OnyxCrdConventions.java`, `.../client/pas/OnyxPasConventions.java`, `.../client/dtr/OnyxDtrConventions.java` |
 | Values the guides require that only the payer's or the provider's set-up knows: the payer, the member ID system, the medical record number, the X12 service and request types, the requesting organization (D-141) | Nothing: the request goes without them and names each one left out | The variables under [Variables that fill a request](#variables-that-fill-a-request), in the vendor's environment |
