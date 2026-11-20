@@ -91,12 +91,26 @@ public final class ConfigViews {
      * @param problems what is wrong with the configuration as it stands, in words
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record EnvironmentList(List<EnvironmentView> environments, String active, long epoch, List<String> problems) {
+    public record EnvironmentList(List<EnvironmentView> environments, String active, long epoch, List<String> problems,
+                                  List<ProductionDestinationView> productionDestinations) {
 
         public EnvironmentList {
             environments = environments == null ? List.of() : List.copyOf(environments);
             problems = problems == null ? List.of() : List.copyOf(problems);
+            productionDestinations = productionDestinations == null ? List.of() : List.copyOf(productionDestinations);
         }
+    }
+
+    /**
+     * An address this installation knows as production. Nothing is remembered in secret: the list
+     * is shown, with whether the environment it belonged to is still stored.
+     *
+     * @param environment the production environment the address belongs or belonged to
+     * @param destination scheme, host, port and base path. Never a query or user information
+     * @param stored      false when that environment has been deleted and the address is remembered
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ProductionDestinationView(String environment, String destination, boolean stored) {
     }
 
     /** What switching the active environment answers: the environment now in force, the new epoch, and whether a write would be sent. */
@@ -524,9 +538,11 @@ public final class ConfigViews {
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Effective(String mode, EnvironmentRef environment, long epoch, List<String> problems, boolean allowProdWrites,
-                            WriteAccess writeAccess, String storeDirectory, List<OperationRow> operations, List<SettingRow> settings) {
+                            WriteAccess writeAccess, String storeDirectory, List<OperationRow> operations, List<SettingRow> settings,
+                            List<ProductionDestinationView> productionDestinations) {
 
         public Effective {
+            productionDestinations = productionDestinations == null ? List.of() : List.copyOf(productionDestinations);
             problems = problems == null ? List.of() : List.copyOf(problems);
             operations = operations == null ? List.of() : List.copyOf(operations);
             settings = settings == null ? List.of() : List.copyOf(settings);

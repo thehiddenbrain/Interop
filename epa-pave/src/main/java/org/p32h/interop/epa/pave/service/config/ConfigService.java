@@ -105,7 +105,7 @@ public class ConfigService {
         ConfigSnapshot snapshot = store.snapshot();
         List<EnvironmentView> views = new ArrayList<>();
         snapshot.environments().forEach(environment -> views.add(environmentView(environment, snapshot)));
-        return new EnvironmentList(views, snapshot.activeName(), snapshot.epoch(), store.problems());
+        return new EnvironmentList(views, snapshot.activeName(), snapshot.epoch(), store.problems(), productionDestinations(snapshot));
     }
 
     /** @param unlock the session's unlock. A switch drops it, and the answer says whether a write would be sent now */
@@ -298,7 +298,18 @@ public class ConfigService {
             rows.add(row(operation, snapshot, unlock));
         }
         return new Effective(epa.mode(), snapshot.activeRef(), snapshot.epoch(), store.problems(), store.allowProdWrites(),
-                gateway.writeAccess(unlock), store.directory().toString(), rows, settings());
+                gateway.writeAccess(unlock), store.directory().toString(), rows, settings(), productionDestinations(snapshot));
+    }
+
+    /** Every address the store knows as production, so that nothing about the guardrail is remembered out of sight. */
+    private static List<ConfigViews.ProductionDestinationView> productionDestinations(ConfigSnapshot snapshot) {
+        List<ConfigViews.ProductionDestinationView> views = new ArrayList<>();
+        for (ConfigSnapshot.KnownDestination known : snapshot.remembered()) {
+            StoredEnvironment stored = snapshot.byName(known.environment());
+            views.add(new ConfigViews.ProductionDestinationView(known.environment(), known.destination().shown(),
+                    stored != null && stored.kind() == org.p32h.interop.epa.pave.model.EnvironmentKind.PROD));
+        }
+        return views;
     }
 
     private OperationRow row(EpaOperation operation, ConfigSnapshot snapshot, ProdUnlock unlock) {

@@ -170,11 +170,15 @@ final class LookupOutcomes {
                 + "HTTP, so nothing was sent: correct " + words.property() + ".headers, and until then " + words.byHand() + ".", null);
     }
 
-    /** The production guardrail refused the request, which can only happen when the lookup is mapped to a request that counts as a write. */
-    static Ending refusedByTheGuardrail(LookupWords words, String environment) {
-        return new Ending(LookupStatus.DISABLED, words.lookup() + " was not sent: on the production environment"
-                + (Texts.present(environment) ? " \"" + environment.strip() + "\"" : "") + " the request it is mapped to counts as a "
-                + "write, and writes are locked, so " + words.byHand() + ".", null);
+    /**
+     * The production guardrail refused the request. It is not switched off and not missing, so it
+     * is not reported as either: the lookup was refused, and the refusal says why. The refusal
+     * names a header, a variable or an environment, never a value, so it can be repeated here.
+     */
+    static Ending refusedByTheGuardrail(LookupWords words, String refusal, String action) {
+        String message = words.lookup() + " was refused by the production guardrail and not sent: " + Texts.orElse(refusal, "").strip();
+        return new Ending(LookupStatus.FAULT, message, ErrorView.of(ErrorKind.CONFIGURATION, message,
+                Texts.orElse(action, "").strip() + (Texts.present(action) ? " " : "") + "Until then, " + words.byHand() + "."));
     }
 
     /**

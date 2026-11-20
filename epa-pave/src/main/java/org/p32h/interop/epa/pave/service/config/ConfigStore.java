@@ -436,18 +436,6 @@ public class ConfigStore {
         return new Removal(collection.name(), false, warnings, current.epoch());
     }
 
-    /**
-     * Moves the epoch on without changing what is stored. A relock does this, so that a call
-     * prepared while writes were unlocked cannot be sent after they were locked again. Nothing is
-     * written: the lock state is never on disk.
-     */
-    synchronized long advanceEpoch() {
-        ConfigSnapshot before = current;
-        current = new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), before.collections(),
-                before.remembered());
-        return current.epoch();
-    }
-
     private static StoredEnvironment requireEnvironment(ConfigSnapshot snapshot, String nameOrId) {
         StoredEnvironment environment = snapshot.environment(nameOrId);
         if (environment == null) {

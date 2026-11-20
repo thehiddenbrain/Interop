@@ -208,6 +208,12 @@ class DestinationGuardrailTest {
             String state = Files.readString(shared.resolve(ConfigStore.STATE_FILE));
             assertThat(state).contains("\"productionDestinations\"").contains("\"environment\" : \"vendor-live-two\"")
                     .contains("\"destination\" : \"" + LIVE_TWO + "\"");
+            // The Config endpoints show it, so nothing is remembered out of sight.
+            assertThat(fixture.service.environments().productionDestinations()).as(profile).contains(
+                    new ConfigViews.ProductionDestinationView("vendor-live-two", LIVE_TWO, false),
+                    new ConfigViews.ProductionDestinationView("vendor-live", LIVE, true));
+            assertThat(fixture.service.effective(null).productionDestinations()).as(profile)
+                    .contains(new ConfigViews.ProductionDestinationView("vendor-live-two", LIVE_TWO, false));
             ConfigFixture restarted = ConfigFixture.on(shared).mode(profile).allowProdWrites().build();
             assertThatThrownBy(() -> restarted.store.uploadEnvironment("env.json", same, EnvironmentKind.SANDBOX, true))
                     .isInstanceOf(ValidationException.class);
