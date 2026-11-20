@@ -40,13 +40,26 @@ final class AddressChecks {
         }
         if (environment.kind() != EnvironmentKind.PROD) {
             Set<String> sharing = new LinkedHashSet<>();
+            Set<String> unreadHost = new LinkedHashSet<>();
             for (ProductionDestinations.Found found : ProductionDestinations.of(environment.content(), urlForming)) {
                 for (ConfigSnapshot.KnownDestination known : snapshot.remembered()) {
-                    if (!known.environment().equals(environment.name()) && known.destination().sameOrigin(found.destination())
-                            && !known.destination().overlaps(found.destination())) {
+                    if (known.environment().equals(environment.name()) || !known.destination().sameOrigin(found.destination())) {
+                        continue;
+                    }
+                    // A production address that could not be read stands for its whole host, so
+                    // "the same scheme, host and port" would not be true of it.
+                    if (!known.destination().readable()) {
+                        unreadHost.add(known.environment());
+                    } else if (!known.destination().overlaps(found.destination())) {
                         sharing.add(known.environment());
                     }
                 }
+            }
+            for (String production : unreadHost) {
+                warnings.add("This environment is on the host of the production environment \"" + ConfigStore.oneLine(production)
+                        + "\", an address of which could not be read the way the HTTP client reads it. This tool takes every port and "
+                        + "every path of that host as production, so a write from this environment to it is refused. Upload \""
+                        + ConfigStore.oneLine(production) + "\" again with its address written plainly, as scheme://host:port/path.");
             }
             for (String production : sharing) {
                 warnings.add("This environment is on the same server, by scheme, host and port, as the production environment \""

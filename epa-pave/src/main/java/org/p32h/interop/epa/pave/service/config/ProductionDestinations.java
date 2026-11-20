@@ -64,8 +64,21 @@ final class ProductionDestinations {
      * @param destination scheme, host, port and base path
      * @param secret      true when a secret of the environment is part of the host or the port, so
      *                    the destination may be used for judging and is never shown or kept
+     * @param variable    the name of the variable it was read from
+     * @param written     the value of that variable as the file writes it, for quoting, or null
+     *                    when the variable is a secret. See {@link UrlNormal#asWritten}
      */
-    record Found(UrlNormal.Destination destination, boolean secret) {
+    record Found(UrlNormal.Destination destination, boolean secret, String variable, String written) {
+
+        Found(UrlNormal.Destination destination, boolean secret) {
+            this(destination, secret, null, null);
+        }
+
+        /** Prints the variable name only: the destination can be one built from a secret. */
+        @Override
+        public String toString() {
+            return "Found[" + variable + (secret ? ", secret" : "") + "]";
+        }
     }
 
     /**
@@ -73,6 +86,21 @@ final class ProductionDestinations {
      *                   its scheme, host and port. Such a variable is a destination whatever its name says
      */
     static List<Found> of(PostmanEnvironment environment, Set<String> urlForming) {
+        return read(environment, urlForming, false);
+    }
+
+    /**
+     * The destinations of a production environment, as they are remembered. The same as
+     * {@link #of}, with one difference: an address with a scheme and a host that cannot be read
+     * the way the HTTP client reads it is never dropped, and protects its whole host, every port
+     * and every path on it. This tool cannot know which port and path the client would make of
+     * it, and a destination that cannot be read is never "not production".
+     */
+    static List<Found> production(PostmanEnvironment environment, Set<String> urlForming) {
+        return read(environment, urlForming, true);
+    }
+
+    private static List<Found> read(PostmanEnvironment environment, Set<String> urlForming, boolean production) {
         Set<Found> found = new LinkedHashSet<>();
         if (environment == null) {
             return List.of();
@@ -88,15 +116,33 @@ final class ProductionDestinations {
             if (value == null || !ProductionSigns.looksLikeUrl(value)) {
                 continue;
             }
+            String written = variable.secret() ? null : variable.value();
             // A secret whose own value is an address is judged by and never shown or kept, like a
             // host built from one.
             UrlNormal.Destination whole = variable.secret() ? UrlNormal.destination(value) : null;
             Found destination = variable.secret() ? (whole == null ? null : new Found(whole, true)) : withoutSecrets(resolved, value);
+            if (production && hasSchemeAndHost(value.strip()) && (destination == null || !destination.destination().readable())) {
+                UrlNormal.Destination host = UrlNormal.wholeHost(value);
+                // A secret anywhere in the value keeps the host out of every view and out of the store.
+                boolean secret = variable.secret() || resolved.pieces().stream().anyMatch(piece -> piece.kind() == Resolution.Kind.SECRET);
+                destination = host == null ? null : new Found(host, secret);
+            }
             if (destination != null) {
-                found.add(destination);
+                found.add(new Found(destination.destination(), destination.secret(), variable.key(), written));
             }
         }
         return new ArrayList<>(found);
+    }
+
+    /**
+     * The variables considered by {@link #of} whose value, resolved against the environment alone,
+     * has a scheme and a host and yet no destination the HTTP client would read the same way.
+     */
+    static List<PostmanVariable> unreadableVariables(PostmanEnvironment environment, Set<String> urlForming) {
+        return variablesWhere(environment, urlForming, value -> {
+            UrlNormal.Destination destination = UrlNormal.destination(value);
+            return destination == null || !destination.readable();
+        });
     }
 
     /**
@@ -106,10 +152,7 @@ final class ProductionDestinations {
      * anything is sent.
      */
     static List<String> unreadable(PostmanEnvironment environment, Set<String> urlForming) {
-        return namesWhere(environment, urlForming, value -> {
-            UrlNormal.Destination destination = UrlNormal.destination(value);
-            return destination == null || !destination.readable();
-        });
+        return unreadableVariables(environment, urlForming).stream().map(PostmanVariable::key).toList();
     }
 
     /**
@@ -123,7 +166,12 @@ final class ProductionDestinations {
 
     private static List<String> namesWhere(PostmanEnvironment environment, Set<String> urlForming,
                                            java.util.function.Predicate<String> holds) {
-        List<String> names = new ArrayList<>();
+        return variablesWhere(environment, urlForming, holds).stream().map(PostmanVariable::key).toList();
+    }
+
+    private static List<PostmanVariable> variablesWhere(PostmanEnvironment environment, Set<String> urlForming,
+                                                        java.util.function.Predicate<String> holds) {
+        List<PostmanVariable> names = new ArrayList<>();
         if (environment == null) {
             return names;
         }
@@ -136,7 +184,7 @@ final class ProductionDestinations {
             Resolution resolved = WITHIN.resolve(variable.value(), layers);
             String value = resolved.send();
             if (value != null && hasSchemeAndHost(value.strip()) && holds.test(value)) {
-                names.add(variable.key());
+                names.add(variable);
             }
         }
         return names;

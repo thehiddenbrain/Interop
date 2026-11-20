@@ -102,6 +102,14 @@ public final class UrlNormal {
             return covers(other) || (other != null && other.covers(this));
         }
 
+        /**
+         * True for a destination that stands for a whole host, every scheme, port and path on it:
+         * what a production address that cannot be read protects, see {@link #wholeHost}.
+         */
+        public boolean everyPortAndPath() {
+            return !readable && scheme == null && port < 0 && path.isEmpty();
+        }
+
         @Override
         public String toString() {
             return "Destination[" + shown() + "]";
@@ -190,6 +198,83 @@ public final class UrlNormal {
     }
 
     private static final int MAX_PORT = 65535;
+
+    /**
+     * The whole host an absolute url names, every scheme, port and path on it, or null when it
+     * names no host at all. For a production address that cannot be read: the client may read its
+     * port and path in a way this tool does not, so only the host is taken from it, and the host is
+     * read as loosely as a browser would. A backslash ends the authority as a slash does, the host
+     * ends at its first colon outside an IPv6 literal, and compatibility characters are folded, so
+     * {@code http://127.0.0.1:+18865\fhir} and {@code http://127.0.0.1:18865:/fhir} both protect
+     * every address of {@code 127.0.0.1}. The result keeps no scheme, port or path, so that it is
+     * written and read back the same way: as the host alone.
+     */
+    public static Destination wholeHost(String url) {
+        if (url == null) {
+            return null;
+        }
+        String text = of(url.strip()).text();
+        int at = text.indexOf("://");
+        String rest = at > 0 ? text.substring(at + 3) : text;
+        int end = 0;
+        while (end < rest.length() && "/?#\\".indexOf(rest.charAt(end)) < 0) {
+            end++;
+        }
+        String authority = rest.substring(0, end);
+        int userInfo = authority.lastIndexOf('@');
+        if (userInfo >= 0) {
+            authority = authority.substring(userInfo + 1);
+        }
+        String host;
+        if (authority.startsWith("[")) {
+            int close = authority.indexOf(']');
+            host = close < 0 ? authority : authority.substring(0, close + 1);
+        } else {
+            int colon = authority.indexOf(':');
+            host = colon < 0 ? authority : authority.substring(0, colon);
+        }
+        host = withoutTrailingDots(java.text.Normalizer.normalize(host, java.text.Normalizer.Form.NFKC).strip().toLowerCase(Locale.ROOT));
+        if (host.isEmpty() || host.contains("{")) {
+            return null;
+        }
+        return new Destination(null, host, -1, "", false);
+    }
+
+    /**
+     * An address as the file writes it, for quoting in a sentence: its scheme, authority and path,
+     * without user information, query or fragment, which can hold a credential, and with every
+     * control character written as an escape so that it shows and stays on one line.
+     */
+    public static String asWritten(String url) {
+        if (url == null) {
+            return "";
+        }
+        String text = url.strip();
+        int scheme = text.indexOf("://");
+        int authorityStart = scheme > 0 ? scheme + 3 : 0;
+        int pathStart = authorityStart;
+        while (pathStart < text.length() && "/?#\\".indexOf(text.charAt(pathStart)) < 0) {
+            pathStart++;
+        }
+        int userInfo = text.lastIndexOf('@', pathStart - 1);
+        String head = userInfo >= authorityStart ? text.substring(0, authorityStart) + text.substring(userInfo + 1, pathStart)
+                : text.substring(0, pathStart);
+        int pathEnd = pathStart;
+        while (pathEnd < text.length() && text.charAt(pathEnd) != '?' && text.charAt(pathEnd) != '#') {
+            pathEnd++;
+        }
+        StringBuilder out = new StringBuilder();
+        for (char c : (head + text.substring(pathStart, pathEnd)).toCharArray()) {
+            if (c == '\t') {
+                out.append("\\t");
+            } else if (Character.isISOControl(c)) {
+                out.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
 
     private static URI parsed(String text) {
         try {

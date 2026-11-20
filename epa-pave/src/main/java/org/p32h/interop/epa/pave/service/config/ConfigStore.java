@@ -39,6 +39,7 @@ import org.p32h.interop.epa.pave.postman.PostmanHeader;
 import org.p32h.interop.epa.pave.postman.PostmanParser;
 import org.p32h.interop.epa.pave.postman.PostmanRequest;
 import org.p32h.interop.epa.pave.postman.PostmanVariable;
+import org.p32h.interop.epa.pave.postman.UrlNormal;
 import org.p32h.interop.epa.pave.postman.VariableResolver;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
@@ -280,6 +281,8 @@ public class ConfigStore {
         }
         if (kind != EnvironmentKind.PROD) {
             refuseProductionAddresses(before, parsed, kind);
+        } else {
+            refuseUnreadableProduction(parsed, ProductionDestinations.urlForming(before.collections()), "upload");
         }
         boolean needsConfirmation = kind != EnvironmentKind.PROD && !reasonsToAsk.isEmpty();
         if (needsConfirmation && !acknowledgedNotProd) {
@@ -301,8 +304,14 @@ public class ConfigStore {
         } else {
             environments.set(environments.indexOf(previous), stored);
         }
+        // A production environment uploaded again replaces the whole host that its earlier,
+        // unreadable address protected: its addresses are now read as written, and they are the
+        // ones it is remembered by from here on.
+        List<ConfigSnapshot.KnownDestination> remembered = kind != EnvironmentKind.PROD ? before.remembered()
+                : before.remembered().stream().filter(known -> !(known.environment().equals(parsed.name())
+                && !known.destination().readable())).toList();
         List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections(),
-                before.remembered()), file, previous == null ? null : previous.file());
+                remembered), file, previous == null ? null : previous.file());
 
         List<String> warnings = new ArrayList<>(secretWarnings(parsed.variables(), file));
         warnings.addAll(AddressChecks.of(current.byName(stored.name()), current));
@@ -321,6 +330,9 @@ public class ConfigStore {
         StoredEnvironment environment = requireEnvironment(before, nameOrId);
         if (environment.name().equals(before.activeName())) {
             return before;
+        }
+        if (environment.kind() == EnvironmentKind.PROD) {
+            refuseUnreadableProduction(environment.content(), ProductionDestinations.urlForming(before.collections()), "activate");
         }
         commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), environment.name(), before.collections(),
                 before.remembered()), null, null);
@@ -490,11 +502,11 @@ public class ConfigStore {
      */
     private static void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
-        String shown = null;
+        ProductionDestinations.Found quoted = null;
         for (ProductionDestinations.Found found : ProductionDestinations.of(parsed, ProductionDestinations.urlForming(before.collections()))) {
             List<String> overlapping = before.productionOverlaps(found.destination());
-            if (!overlapping.isEmpty() && shown == null && !found.secret()) {
-                shown = found.destination().shown();
+            if (!overlapping.isEmpty() && quoted == null && !found.secret()) {
+                quoted = found;
             }
             owners.addAll(overlapping);
         }
@@ -503,13 +515,58 @@ public class ConfigStore {
         }
         String named = owners.stream().map(owner -> "\"" + oneLine(owner) + "\"").collect(java.util.stream.Collectors.joining(" and "));
         // The address is quoted only when no secret is part of it, and only as far as the first secret.
-        String address = shown == null ? "one of its addresses" : "its address " + oneLine(shown);
-        throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + address + " is an address of the "
-                + "production environment" + (owners.size() > 1 ? "s " : " ") + named + ", or lies above or beneath one. It was not stored.",
+        // One the client cannot read is quoted as the file writes it, since this tool's own
+        // reading of it is not an address the file holds.
+        String address;
+        if (quoted == null) {
+            address = "one of its addresses is an address of the production environment";
+        } else if (!quoted.destination().readable() && quoted.written() != null) {
+            address = "its address \"" + UrlNormal.asWritten(quoted.written()) + "\", in the variable \"" + oneLine(quoted.variable())
+                    + "\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is an address of the "
+                    + "production environment";
+        } else {
+            address = "its address " + oneLine(quoted.destination().shown()) + " is an address of the production environment";
+        }
+        throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + address
+                + (owners.size() > 1 ? "s " : " ") + named + ", or lies above or beneath one. It was not stored.",
                 List.of(new FieldError("kind", "An address that this "
                 + "installation knows as production stays production, even after its environment is deleted. If this environment is "
                 + "production, upload it with the kind prod. If it is not, point its variables at the " + kind.wire()
                 + " service and upload it again.")));
+    }
+
+    /**
+     * Refuses a production environment with an address the HTTP client cannot read as this tool
+     * does. Where production is must be known exactly: the addresses of a production environment
+     * are what a write needs an unlock for and what a sandbox may not use, and an address read one
+     * way here and another way by the client protects nothing. An operator who means production
+     * writes its address plainly.
+     *
+     * @param step what is refused: "upload", "activate" or "unlock"
+     */
+    static void refuseUnreadableProduction(PostmanEnvironment environment, Set<String> urlForming, String step) {
+        List<PostmanVariable> unreadable = ProductionDestinations.unreadableVariables(environment, urlForming);
+        if (unreadable.isEmpty()) {
+            return;
+        }
+        PostmanVariable first = unreadable.get(0);
+        // A secret is named and never quoted.
+        String holds = "the variable \"" + oneLine(first.key()) + "\" holds "
+                + (first.secret() ? "an address that is not quoted here because the variable is a secret" : "the address \""
+                + UrlNormal.asWritten(first.value()) + "\"") + ", which this tool cannot read the way the HTTP client reads it";
+        String plainly = "Write the address plainly, as scheme://host:port/path with the host as a name or as four decimal numbers and a "
+                + "port of at most 65535, and upload the environment again.";
+        if ("upload".equals(step)) {
+            throw new ValidationException("This environment was declared as prod, and " + holds + ". It was not stored.",
+                    List.of(new FieldError("kind", "The addresses of a production environment are what a write must be unlocked for "
+                            + "and what no other environment may use, so this tool must read them exactly as the HTTP client does. "
+                            + plainly)));
+        }
+        String name = "\"" + oneLine(environment.name()) + "\"";
+        String refused = "activate".equals(step) ? name + " cannot be made active" : "Writes to " + name + " cannot be unlocked";
+        throw new BadInputException(refused + ": it is a production environment, and "
+                + holds + ".", "Nothing was changed. " + plainly + " Until then this tool takes every port and every path of that "
+                + "address's host as production.");
     }
 
     /**

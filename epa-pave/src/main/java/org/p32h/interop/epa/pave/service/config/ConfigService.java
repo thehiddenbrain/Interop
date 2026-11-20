@@ -322,8 +322,11 @@ public class ConfigService {
         for (ConfigSnapshot.KnownDestination known : snapshot.remembered()) {
             StoredEnvironment stored = snapshot.byName(known.environment());
             // A destination whose host or port is built from a secret is listed without it.
-            views.add(new ConfigViews.ProductionDestinationView(known.environment(), known.secret()
-                    ? "an address whose host is built from a secret of the environment, not shown" : known.destination().shown(),
+            String destination = known.secret() ? "an address whose host is built from a secret of the environment, not shown"
+                    : known.destination().everyPortAndPath() ? "every port and every path of the host " + known.destination().host()
+                    + ", because an address of this environment could not be read the way the HTTP client reads it"
+                    : known.destination().shown();
+            views.add(new ConfigViews.ProductionDestinationView(known.environment(), destination,
                     stored != null && stored.kind() == org.p32h.interop.epa.pave.model.EnvironmentKind.PROD));
         }
         return views;
