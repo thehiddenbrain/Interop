@@ -148,6 +148,69 @@ class LedgerLineSafetyTest {
         }
     }
 
+    @Test
+    void aDateWithAMonthNameAndTheRunsOwnMemberIdHoweverPunctuatedAreNotKeptAsCodesOrPaths() {
+        // Found by the verifier (V-1, V-2).
+        RunRecord record = minimal().memberId("S12345678 01").coverageCodes(List.of("covered=Jul-23-1961", "pa-needed=23Jul1961",
+                "doc-needed=23-July-61", "doc-purpose=S12345678-01", "info-needed=s1234.5678.01", "covered=covered", "pa-needed=no-auth"))
+                .correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, "https://payer.example.invalid/Questionnaire/S12345678-01",
+                        RunRecord.CORR_CLAIM_ID, "claim-S12345678_01"))
+                .build();
+        assertThat(record.coverageCodes()).containsExactly("covered=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 11 characters)",
+                "pa-needed=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 9 characters)",
+                "doc-needed=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 10 characters)",
+                "doc-purpose=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 12 characters)",
+                "info-needed=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 13 characters)", "covered=covered", "pa-needed=no-auth");
+        assertThat(record.correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, "(not recorded, 56 characters)")
+                .containsEntry(RunRecord.CORR_CLAIM_ID, "(not recorded, 18 characters)");
+        // The statements settle: a copy and a read give the same record.
+        assertThat(record.toBuilder().build()).isEqualTo(record);
+        // A path or a urn that spells a name and a date of birth, with no member ID to compare with.
+        for (String canonical : List.of("https://payer.example.invalid/Questionnaire/Zzlastname.Zzfirstname.1961-07-23",
+                "urn:zz:Zzlastname-Zzfirstname-19610723-77-Zzaddress-Lane", "https://payer.example.invalid/Questionnaire/q1|23Jul1961",
+                "https://payer.example.invalid/Questionnaire/q1 https://payer.example.invalid/S123456789/Questionnaire/q2")) {
+            assertThat(minimal().correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, canonical)).build().correlation())
+                    .as(canonical).containsEntry(RunRecord.CORR_QUESTIONNAIRE, "(not recorded, " + canonical.length() + " characters)");
+        }
+        // The host is the service's address: an IP address with digits in it is not a date.
+        String host = "http://10.10.10.10:8080/fhir/Questionnaire/home-o2|1.0.0";
+        assertThat(minimal().correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, host)).build().correlation())
+                .containsEntry(RunRecord.CORR_QUESTIONNAIRE, host);
+    }
+
+    @Test
+    void everyQuestionnaireAddressTheScenarioFilesUseIsKept() throws java.io.IOException {
+        // The stricter questionnaire rule (V-1) must not cost a tester a real canonical.
+        java.util.Set<String> canonicals = new java.util.TreeSet<>();
+        for (org.springframework.core.io.Resource file : new org.springframework.core.io.support.PathMatchingResourcePatternResolver()
+                .getResources("classpath*:scenarios/**/*.json")) {
+            try (java.io.InputStream in = file.getInputStream()) {
+                collectCanonicals(JsonSafe.parse(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)).node(), canonicals);
+            }
+        }
+        assertThat(canonicals).hasSizeGreaterThan(5);
+        for (String canonical : canonicals) {
+            assertThat(minimal().correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, canonical)).build().correlation())
+                    .as(canonical).containsEntry(RunRecord.CORR_QUESTIONNAIRE, canonical);
+        }
+    }
+
+    private static void collectCanonicals(tools.jackson.databind.JsonNode node, java.util.Set<String> into) {
+        if (node == null) {
+            return;
+        }
+        if (node.isString()) {
+            String text = node.asString();
+            if (text.matches("(?:https?|urn):\\S*Questionnaire/[^\\s$]+") && !text.contains("QuestionnaireResponse")) {
+                into.add(text);
+            }
+        } else if (node.isObject()) {
+            JsonSafe.properties(node).forEach(property -> collectCanonicals(property.getValue(), into));
+        } else if (node.isArray()) {
+            JsonSafe.elements(node).forEach(element -> collectCanonicals(element, into));
+        }
+    }
+
     private static void collectCodes(tools.jackson.databind.JsonNode node, java.util.Set<String> into) {
         if (node == null) {
             return;

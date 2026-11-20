@@ -126,6 +126,7 @@ class LedgerOverTheServerTest {
     @Test
     void aLineOfBusinessTheToolDoesNotKnowAndAnIdThatIsNotAPlaceholderReachTheFileOnlyAsTheirLengthAndAToken() throws IOException {
         Answer person = post("/api/crd", run("Zzlastname Zzfirstname 1961-07-23 77 Zzaddress Lane", "Zzlastname, Zzfirstname", ""));
+        // A known line, typed in another case and with spaces, is written as the code list spells it (V-8).
         Answer known = post("/api/crd", run("S12345678   01", " medicare ", ",\"testerRef\":\"QA-17\""));
 
         assertThat(person.status()).isEqualTo(200);
@@ -133,7 +134,7 @@ class LedgerOverTheServerTest {
         String file = ledgerText();
         assertThat(file).doesNotContain("Zzlastname").doesNotContain("Zzfirstname").doesNotContain("1961-07-23").doesNotContain("Zzaddress");
         assertThat(file).contains("\"lineOfBusiness\":\"(line of business not on the known list, 23 characters)\"")
-                .contains("\"lineOfBusiness\":\"medicare\"").contains("\"memberId\":\"S1234567801\"").contains("\"memberToken\":\"");
+                .contains("\"lineOfBusiness\":\"Medicare\"").contains("\"memberId\":\"S1234567801\"").contains("\"memberToken\":\"");
         // The screen is told what the line holds, which is the same record.
         assertThat(person.json().at("/ledger/record/lineOfBusiness").asString()).startsWith("(line of business not on the known list");
         assertThat(person.json().at("/ledger/record/memberId").isMissingNode()).isTrue();

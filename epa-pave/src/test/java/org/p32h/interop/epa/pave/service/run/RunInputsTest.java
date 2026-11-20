@@ -49,6 +49,24 @@ class RunInputsTest {
     }
 
     @Test
+    void anExpectationOverItsLimitIsReportedByItsLengthAloneAndItsTermsAreNotQuoted() {
+        // Found by the verifier (V-4): the vocabulary check ran as well, and quoted the whole text back.
+        String expected = "NO_AUTH_REQUIRED;" + "Zzlastname Zzfirstname 1961-07-23 ".repeat(30);
+        CrdRunRequest request = CrdRunRequest.builder().expected(expected).build();
+
+        List<FieldError> errors = new RunInputs(CLOCK).common(request)
+                .expectation(expected, org.p32h.interop.epa.pave.model.CrdOutcome.values(),
+                        org.p32h.interop.epa.pave.service.crd.CrdCodes.EXPECTATION_ELEMENTS)
+                .errors();
+
+        assertThat(errors).extracting(FieldError::field).containsExactly("expected");
+        assertThat(errors.get(0).message()).startsWith("An expectation can be at most 1000 characters").doesNotContain("Zzlastname");
+        // One within the limit is still read, and a misspelt outcome still refused.
+        assertThat(new RunInputs(CLOCK).expectation("NO_AUTH_REQUIRD", org.p32h.interop.epa.pave.model.CrdOutcome.values(),
+                org.p32h.interop.epa.pave.service.crd.CrdCodes.EXPECTATION_ELEMENTS).errors()).hasSize(1);
+    }
+
+    @Test
     void atTheirLimitsTheyAreAccepted() {
         assertThat(errors(CrdRunRequest.builder().note("n".repeat(RunRecord.LONGEST_NOTE)).testerRef("r".repeat(RunRecord.LONGEST_TESTER_REF))
                 .expected("NO_AUTH_REQUIRED;" + "95810: pa-needed=auth-needed;".repeat(30)).build())).isEmpty();

@@ -101,9 +101,15 @@ public final class RunInputs {
     /**
      * A declared expectation must be something this operation can be checked against: outcomes it
      * can produce and elements it returns. A misspelt one is refused here, before sending, because
-     * afterwards it could only be reported as a failed test with a misleading reason.
+     * afterwards it could only be reported as a failed test with a misleading reason. One longer
+     * than the record keeps is reported by {@link #common} by its length alone.
      */
     public RunInputs expectation(String expected, OutcomeCode[] vocabulary, Collection<String> elements) {
+        if (expected != null && expected.length() > RunRecord.LONGEST_EXPECTED) {
+            // Its length is reported by common(). The terms are not read: a problem with one quotes
+            // it, and text that long is not an expectation but something pasted, which can name a member.
+            return this;
+        }
         for (String problem : Expectations.problems(expected, vocabulary, elements)) {
             errors.add(new FieldError("expected", problem));
         }

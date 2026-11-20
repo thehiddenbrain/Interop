@@ -329,6 +329,61 @@ class LedgerPhiTest {
     }
 
     @Test
+    void aQuestionnaireAddressWhosePathHoldsTheMemberIdWrittenWithPunctuationOrADateIsNotKept() {
+        // Found by the verifier (V-1): the shape check let a path or a urn through that held the
+        // member ID with separators, or a name and a date of birth. Member IDs are tokenised here.
+        List<String> refused = List.of("https://payer.example.invalid/Questionnaire/S-123456789",
+                "https://payer.example.invalid/Questionnaire/S12345-6789",
+                "https://payer.example.invalid/Questionnaire/" + SURNAME + "." + GIVEN + "." + BIRTH,
+                "https://payer.example.invalid/Questionnaire/q1|" + BIRTH,
+                "urn:zz:" + SURNAME + "-" + GIVEN + "-19700131-1-Placeholder-Street",
+                "https://payer.example.invalid/Questionnaire/q1 https://payer.example.invalid/Questionnaire/Jan-31-1970");
+        for (int i = 0; i < refused.size(); i++) {
+            String canonical = refused.get(i);
+            Path folder = home.resolve("p" + i);
+            JsonlRunLedger ledger = ledger(folder, CLOCK);
+            service(answering("{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"questionnaire\",\"valueCanonical\":\""
+                    + canonical + "\"}"), ledger).run(request(MEMBER_ID).build(), RunOrigin.manual(), null);
+
+            String line = lines(dayFile(folder, TODAY)).get(0);
+            assertThat(line).as(canonical).doesNotContain(SURNAME).doesNotContain(BIRTH).doesNotContain("19700131")
+                    .doesNotContain("S-123456789").doesNotContain("S12345-6789").doesNotContain("Jan-31")
+                    .contains("\"questionnaire\":\"(not recorded, " + canonical.length() + " characters)\"");
+            assertThat(JsonSafe.parse(line).node().has("memberId")).isFalse();
+        }
+
+        // What the scenario files and real payers use is kept: words in the path, a version, an
+        // OID whose arcs hold long runs of digits, and a urn:uuid.
+        String kept = "https://example.org/p32h-placeholder/Questionnaire/genetic-testing-criteria|2.1.0 "
+                + "urn:oid:2.16.840.1.113883.4.642 urn:uuid:00000000-0000-4000-8000-0000000000a1 "
+                + "http://127.0.0.1:18061/fhir/Questionnaire/home-o2-r4|3.0";
+        JsonlRunLedger ledger = ledger(home.resolve("kept"), CLOCK);
+        service(answering("{\"url\":\"covered\",\"valueCode\":\"covered\"}," + java.util.Arrays.stream(kept.split(" "))
+                .map(q -> "{\"url\":\"questionnaire\",\"valueCanonical\":\"" + q + "\"}").collect(java.util.stream.Collectors.joining(","))), ledger)
+                .run(request(MEMBER_ID).build(), RunOrigin.manual(), null);
+        assertThat(lines(dayFile(home.resolve("kept"), TODAY)).get(0)).contains("\"questionnaire\":\"" + kept + "\"");
+    }
+
+    @Test
+    void theMemberIdWrittenWithPunctuationOrADateWrittenWithAMonthNameIsNotKeptAsACode() {
+        // Found by the verifier (V-2): only the plain no-space ID and numeric dates were caught.
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        service(answering("{\"url\":\"covered\",\"valueCode\":\"S-123-456-789\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"Jan-31-1970\"},"
+                + "{\"url\":\"doc-needed\",\"valueCode\":\"31Jan1970\"},"
+                + "{\"url\":\"doc-purpose\",\"valueCode\":\"31-January-70\"},"
+                + "{\"url\":\"info-needed\",\"valueCode\":\"S1234.5678.9\"}"), ledger).run(request(MEMBER_ID).build(), RunOrigin.manual(), null);
+
+        String line = onlyLine();
+        assertThat(line).doesNotContain("S-123-456-789").doesNotContain("Jan-31-1970").doesNotContain("31Jan1970")
+                .doesNotContain("31-January-70").doesNotContain("S1234.5678.9");
+        String statement = "(not recorded: reads like an identifier or a date, ";
+        assertThat(JsonSafe.parse(line).node().get("coverageCodes").toString()).isEqualTo("[\"covered=" + statement + "13 characters)\","
+                + "\"pa-needed=" + statement + "11 characters)\",\"doc-needed=" + statement + "9 characters)\","
+                + "\"doc-purpose=" + statement + "13 characters)\",\"info-needed=" + statement + "12 characters)\"]");
+    }
+
+    @Test
     @ExtendWith(OutputCaptureExtension.class)
     void nothingTheLedgerLogsHoldsMemberDataWhetherTheWriteWorksOrFails(CapturedOutput output) throws IOException {
         JsonlRunLedger ledger = ledger(home, CLOCK);

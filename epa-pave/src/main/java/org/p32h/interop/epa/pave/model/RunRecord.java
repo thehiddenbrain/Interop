@@ -26,12 +26,14 @@ import java.util.Map;
  *       text is shown on screen and not stored</li>
  *   <li>{@code correlation}: only the CORR keys are accepted. A questionnaire is kept only as one
  *       or more canonical addresses (http, https or urn, no query, no fragment, no user, no white
- *       space, an optional {@code |version}); every other value only as one identifier token</li>
+ *       space, an optional {@code |version}) none of whose path segments, urn name or version reads
+ *       like an identifier or a date (an OID and a UUID excepted); every other value only as one
+ *       identifier token</li>
  *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token, a line of business
  *       is a short label that does not read like an identifier or a date. Which lines the tool
  *       knows is the ledger's to decide, since the record cannot see the code list</li>
  *   <li>a coverage code, a line of business or a correlation value that holds this run's own
- *       member ID is not kept, whatever its shape</li>
+ *       member ID is not kept, whatever its shape and however it is punctuated</li>
  *   <li>{@code note}, {@code testerRef} and {@code expected}: kept up to {@link #LONGEST_NOTE},
  *       {@link #LONGEST_TESTER_REF} and {@link #LONGEST_EXPECTED} characters. Every way in refuses
  *       a longer one with a message to the tester; this is the last line of defence behind them</li>
@@ -206,7 +208,8 @@ public record RunRecord(
      * query can be one.
      */
     private static final java.util.regex.Pattern IDENTIFIER = java.util.regex.Pattern.compile("[A-Za-z0-9\\-._:/|]{1,128}");
-    private static final java.util.regex.Pattern SPACED_IDENTIFIER = java.util.regex.Pattern.compile("\\s*[A-Za-z0-9\\-._:/|]+(?: +[A-Za-z0-9\\-._:/|]+)?\\s*");
+    private static final java.util.regex.Pattern SPACED_IDENTIFIER =
+            java.util.regex.Pattern.compile(" *[A-Za-z0-9\\-._:/|]+(?: +[A-Za-z0-9\\-._:/|]+){0,3} *");
     /**
      * One canonical address: http or https with a host and a path, or a urn, then an optional
      * {@code |version}. No query, no fragment, no user before the host, no percent escape (which
@@ -225,8 +228,24 @@ public record RunRecord(
      * letter and a digit or two, and short numbers. A member ID, a subscriber ID and a date of
      * birth almost always do.
      */
-    private static final java.util.regex.Pattern IDENTIFIER_OR_DATE = java.util.regex.Pattern.compile(
-            "\\d{6,}|\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}|\\d{1,2}[-/.]\\d{1,2}[-/.]\\d{2,4}");
+    private static final java.util.regex.Pattern IDENTIFIER_OR_DATE;
+
+    static {
+        String month = "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?"
+                + "|nov(?:ember)?|dec(?:ember)?)";
+        IDENTIFIER_OR_DATE = java.util.regex.Pattern.compile("\\d{6,}|\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}|\\d{1,2}[-/.]\\d{1,2}[-/.]\\d{2,4}"
+                // A date written with the name of its month: 23Jul1961, 23-July-61, Jul-23-1961, July 23, 1961.
+                + "|\\d{1,2}[-/. ]?" + month + "[-/. ,]?\\d{2,4}|" + month + "[-/. ]?\\d{1,2}[-/. ,]{1,2}\\d{2,4}",
+                java.util.regex.Pattern.CASE_INSENSITIVE);
+    }
+
+    /**
+     * A part of a questionnaire address that cannot be anyone's identifier or date, though it
+     * holds long runs of digits: a UUID, which is hex in fixed groups, and the arcs of an OID.
+     */
+    private static final java.util.regex.Pattern UUID_SHAPE =
+            java.util.regex.Pattern.compile("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    private static final java.util.regex.Pattern OID_SHAPE = java.util.regex.Pattern.compile("[0-2](?:\\.\\d{1,20}){1,40}");
     /** A member ID shorter than this is not looked for inside other values: too short to say anything. */
     private static final int SHORTEST_MEMBER_ID_SOUGHT = 6;
 
@@ -246,7 +265,7 @@ public record RunRecord(
         // Read before anything else is checked, because a value that holds the member ID is not
         // kept, whatever its shape. Only a draft holds the ID: once the ledger has tokenised it,
         // the values it would have caught were replaced when the draft was built.
-        String member = MemberIds.noSpace(memberId).toLowerCase(java.util.Locale.ROOT);
+        String member = alphanumerics(memberId);
         String sought = member.length() >= SHORTEST_MEMBER_ID_SOUGHT ? member : null;
         procedureCodes = procedureCodes == null ? List.of()
                 : procedureCodes.stream().map(code -> kept(PROCEDURE_CODE, code, "not a code")).toList();
@@ -282,8 +301,61 @@ public record RunRecord(
 
     /** True when a value reads like an identifier or a date, or holds this run's member ID. */
     private static boolean identifying(String value, String sought) {
-        return value != null && (IDENTIFIER_OR_DATE.matcher(value).find()
-                || sought != null && MemberIds.noSpace(value).toLowerCase(java.util.Locale.ROOT).contains(sought));
+        return value != null && (IDENTIFIER_OR_DATE.matcher(value).find() || holdsMember(value, sought));
+    }
+
+    /**
+     * True when a value holds this run's member ID, however it is punctuated. A service that
+     * writes S-123456789 or S12345-6789 where a code or a path belongs has written the ID, so both
+     * sides are compared with everything but letters and digits removed.
+     */
+    private static boolean holdsMember(String value, String sought) {
+        return sought != null && value != null && alphanumerics(value).contains(sought);
+    }
+
+    private static String alphanumerics(String value) {
+        return value == null ? "" : value.replaceAll("[^A-Za-z0-9]", "").toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * True when a part of a questionnaire address reads like an identifier or a date. The scheme
+     * and the host are the service's address and are not looked at; every segment of the path, the
+     * name inside a urn and the version are. An OID and a UUID are left alone, since their long
+     * runs of digits are what they are made of.
+     */
+    private static boolean identifyingQuestionnaire(String questionnaires) {
+        for (String canonical : questionnaires.split(" ")) {
+            if (canonical.matches(NOT_A_URL)) {
+                continue;
+            }
+            int bar = canonical.indexOf('|');
+            String address = bar < 0 ? canonical : canonical.substring(0, bar);
+            if (bar >= 0 && IDENTIFIER_OR_DATE.matcher(canonical.substring(bar + 1)).find()) {
+                return true;
+            }
+            List<String> parts = new java.util.ArrayList<>();
+            String lower = address.toLowerCase(java.util.Locale.ROOT);
+            if (lower.startsWith("urn:")) {
+                int colon = address.indexOf(':', 4);
+                String namespace = lower.substring(4, colon);
+                String name = address.substring(colon + 1);
+                if (namespace.equals("oid") && OID_SHAPE.matcher(name).matches() || namespace.equals("uuid") && UUID_SHAPE.matcher(name).matches()) {
+                    continue;
+                }
+                parts.add(name);
+            } else {
+                int path = address.indexOf('/', address.indexOf("//") + 2);
+                if (path >= 0) {
+                    parts.addAll(List.of(address.substring(path + 1).split("/")));
+                }
+            }
+            for (String part : parts) {
+                if (!UUID_SHAPE.matcher(part).matches() && IDENTIFIER_OR_DATE.matcher(part).find()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static String notKept(String what, String value) {
@@ -379,17 +451,21 @@ public record RunRecord(
             if (Texts.blank(value)) {
                 return;
             }
-            boolean holdsMember = sought != null && !statement("not recorded", value)
-                    && MemberIds.noSpace(value).toLowerCase(java.util.Locale.ROOT).contains(sought);
-            if (holdsMember) {
+            if (statement("not recorded", value)) {
+                out.put(key, value);
+            } else if (holdsMember(value, sought)) {
                 out.put(key, notKept("not recorded", value));
             } else if (CORR_QUESTIONNAIRE.equals(key)) {
-                out.put(key, kept(QUESTIONNAIRES, value, "not recorded"));
+                // The shape alone lets a path through that spells a name and a date of birth, so
+                // each part of the address is also held to the rule codes are held to.
+                out.put(key, QUESTIONNAIRES.matcher(value).matches() && !identifyingQuestionnaire(value) ? value
+                        : notKept("not recorded", value));
             } else if (CORR_AUTHORIZATION_REF.equals(key)) {
-                // An authorization number can have one gap of spaces before a suffix, as a member ID
-                // can, and the ledger keeps it without them. Anything more is not one identifier.
+                // An authorization number can be written in up to four groups with spaces between
+                // them, as a member ID can, and the ledger keeps it without them. A tab, a line
+                // break or more groups than that is not one identifier.
                 out.put(key, SPACED_IDENTIFIER.matcher(value).matches() && MemberIds.noSpace(value).length() <= 128
-                        || statement("not recorded", value) ? value : notKept("not recorded", value));
+                        ? value : notKept("not recorded", value));
             } else {
                 out.put(key, kept(IDENTIFIER, value, "not recorded"));
             }
