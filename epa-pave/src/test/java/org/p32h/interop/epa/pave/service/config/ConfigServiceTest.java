@@ -288,7 +288,9 @@ class ConfigServiceTest {
         assertThat(collection.originalFileName()).isEqualTo("vendor.json");
         assertThat(collection.requests()).hasSize(13);
         assertThat(uploaded.replaced()).isFalse();
-        assertThat(uploaded.warnings()).isEmpty();
+        // The vendor collection saves example responses, which can hold member data; nothing else is warned about.
+        assertThat(uploaded.warnings()).singleElement().satisfies(warning -> assertThat(warning).startsWith("2 requests, the first being "
+                + "\"DTR / $questionnaire-package Error\", carry a saved example response"));
         assertThat(uploaded.epoch()).isEqualTo(fixture.gateway.epoch());
 
         RequestSummary submit = request(collection, "submit Happy Path");

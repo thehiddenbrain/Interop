@@ -78,7 +78,9 @@ class SamplePostmanFilesTest {
 
         List<RequestSummary> requests = uploaded.collection().requests();
         assertThat(uploaded.collection().schema()).contains("v2.1");
-        assertThat(uploaded.warnings()).isEmpty();
+        // The sample saves example responses, which in a real collection can hold member data; nothing else is warned about.
+        assertThat(uploaded.warnings()).singleElement().satisfies(warning -> assertThat(warning).startsWith("4 requests, the first being "
+                + "\"CRD / order-sign Happy Path\", carry a saved example response"));
         assertThat(requests).hasSize(13);
         Map<String, EpaOperation> mapped = requests.stream()
                 .collect(Collectors.toMap(RequestSummary::name, RequestSummary::effectiveOperation, (a, b) -> a, LinkedHashMap::new));

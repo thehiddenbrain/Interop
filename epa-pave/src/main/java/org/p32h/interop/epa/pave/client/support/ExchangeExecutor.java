@@ -140,7 +140,9 @@ public class ExchangeExecutor {
             // Only the send is inside this try. A defect in describing the response must surface as
             // a defect, not as "the service could not be reached".
             Failure failure = classify(e);
-            if (failure.unnamed()) {
+            // A lookup client logs its outcome and its HTTP status and nothing else (specification
+            // section 15), so this line is not written for a lookup, whose url is built on a member ID.
+            if (failure.unnamed() && call.operation().protocol() != org.p32h.interop.epa.pave.model.Protocol.LOOKUP) {
                 // The host and the exception types and frames only. Never the path, the query, a
                 // header or a message, which can quote the url and with it a member ID.
                 log.warn("A call to the host {} failed in a way the result does not name: {}", uri.getHost(), Faults.describe(e));

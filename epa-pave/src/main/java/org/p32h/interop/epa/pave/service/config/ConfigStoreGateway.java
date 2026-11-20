@@ -1012,9 +1012,16 @@ public class ConfigStoreGateway implements OperationGateway {
     private static String judgedByMethod(CallIntent intent, Target target, String method, ResolvedUrl url, UrlForms.Filled filled) {
         EpaOperation operation = intent.operation();
         if (operation.writesWith(method)) {
-            return operation == EpaOperation.UNMAPPED
+            if (operation != EpaOperation.UNMAPPED) {
+                return "it would be sent with " + method + ", which is not the method of " + operation.label() + " and can change something";
+            }
+            // A raw send of a request that is mapped is still judged by its method: the mapping
+            // says what the request is for, not what the server will do with what is sent.
+            EpaOperation mappedTo = target.source() == Source.REQUEST ? target.request().effective() : EpaOperation.UNMAPPED;
+            return mappedTo == EpaOperation.UNMAPPED
                     ? "a request this tool cannot map may change something when it is sent with " + method
-                    : "it would be sent with " + method + ", which is not the method of " + operation.label() + " and can change something";
+                    : "a request sent as written is judged by its method whatever it is mapped to, and this one, mapped to "
+                    + mappedTo.label() + ", would be sent with " + method;
         }
         String name = null;
         if (target.source() == Source.REQUEST) {
