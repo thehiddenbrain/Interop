@@ -7,7 +7,7 @@
 // discovery, and the words before the first run.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts, table, heading} from './dom.js';
+import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
 import {textField, selectField, setOptions} from './forms.js';
 import {errorPanel, wireView, additionalFieldsSection} from './result.js';
 import {createWorkbench, requestPreviewPanel} from './workbench.js';
@@ -62,7 +62,8 @@ function mount(panel, application) {
         bench.problem,
         el('div', {class: 'button-row'}, controls.send, controls.preview));
     bench.track(controls.send, controls.preview, controls.discover);
-    bench.useOwnRequest({protocol: 'CRD', sendButton: controls.send, sendLabel: 'Send CRD request'});
+    bench.useOwnRequest({protocol: 'CRD', sendButton: controls.send, sendLabel: 'Send CRD request',
+        modeChanged: () => { if (!bench.hasResult()) { drawEmptyState(); } }});
     bench.useRunValues({operation: () => 'crd-' + (controls.hookSelect.checked ? 'order-select' : 'order-sign')});
     bench.form.addEventListener('input', drawExpectedText);
     bench.form.addEventListener('change', drawExpectedText);
@@ -283,23 +284,32 @@ async function discover() {
 /* ---------- before the first run ---------- */
 
 function drawEmptyState() {
+    // With a request of the tester's own chosen, the body is what goes and the form's member is not sent.
+    const own = bench.ownRequestActive();
     const parts = [
         el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.'),
-        el('p', null, 'Enter a member ID, the ordering provider\'s NPI and at least one procedure code on the left, then choose "Send CRD request". '
-            + 'The answer appears here: what the service said, whether it matched what you expected, and what to do next.')
+        el('p', null, own
+            ? 'Paste the request body on the left, then choose "Send CRD request". The member, provider and codes on the form are not sent with it. '
+                + 'The answer appears here: what the service said, whether it matched what you expected, and what to do next.'
+            : 'Enter a member ID, the ordering provider\'s NPI and at least one procedure code on the left, then choose "Send CRD request". '
+                + 'The answer appears here: what the service said, whether it matched what you expected, and what to do next.')
     ];
     const list = vocabulary.scenarios;
     if (app.isMock() && list && list.available && list.scenarios.length > 0) {
-        parts.push(el('p', null, 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
+        parts.push(el('p', null, own
+            ? 'On the mock profile a sentinel member ID inside your body selects the scenario that answers, unless one is chosen in the Mock '
+                + 'scenario field. These are the member IDs that do:'
+            : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
         parts.push(table([{text: '', class: 'col-5'}, {text: 'Scenario', class: 'col-45'}, {text: 'Member ID', class: 'col-25'},
             {text: '', class: 'col-25'}], list.scenarios.map(scenario => [
             {class: 'num', node: String(scenario.number)},
             scenario.label,
             scenario.sentinelMemberId ? code(scenario.sentinelMemberId) : el('span', {class: 'presence presence--none'}, 'none'),
-            scenario.sentinelMemberId
-                ? button('Use this member ID', () => app.caseContext.setMemberId(scenario.sentinelMemberId),
-                    {class: 'button--text', aria: {label: 'Use the member ID ' + scenario.sentinelMemberId}})
-                : null
+            // The form's member is not sent with a body of the tester's own: the ID is copied, to be put into the body.
+            !scenario.sentinelMemberId ? null
+                : own ? copyButton('Copy this member ID', () => scenario.sentinelMemberId)
+                    : button('Use this member ID', () => app.caseContext.setMemberId(scenario.sentinelMemberId),
+                        {class: 'button--text', aria: {label: 'Use the member ID ' + scenario.sentinelMemberId}})
         ]), {class: 'sentinels'}));
     }
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));

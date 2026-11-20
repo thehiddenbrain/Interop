@@ -21,6 +21,7 @@ let sequence = 0;
  * spec.sendLabel    its words otherwise: "Send CRD request"
  * spec.isMock()     true on the mock profile
  * spec.changed()    called when the choice or the text changes
+ * spec.modeChanged() called when the choice changes, and not for each key typed in the box
  */
 export function createOwnRequest(spec) {
     sequence += 1;
@@ -65,14 +66,16 @@ export function createOwnRequest(spec) {
                 'Nothing is added, removed or put in another order, and the text is not checked before it goes.'),
             el('li', null, 'Placeholders in double braces, such as ', code('{{baseUrl}}'),
                 ', are filled in from the active environment, or from values typed for this run, before it is sent.'),
-            el('li', null, 'The member, the provider and the codes on the form are not used to build the body. '
-                + 'They may be left empty. Whatever is filled in is still checked, and an NPI must still pass its check digit.'),
+            el('li', null, 'The member, the provider and the codes on the form are not sent with it. They may be left empty, '
+                + 'and what they hold is kept for when you go back to the body built by this tool.'),
             spec.isMock()
-                ? el('li', null, 'On the mock profile the scenario is chosen by a sentinel member ID found inside the text, such as ',
-                    code('P32H-NO-AUTH'), '. A member ID on the form chooses it instead when one is filled in.')
+                ? el('li', null, 'On the mock profile the scenario is chosen by the Mock scenario field when one is chosen there, '
+                    + 'otherwise by a sentinel member ID found inside the text, such as ', code('P32H-NO-AUTH'),
+                    '. With neither, the first scenario answers, and the result says so.')
                 : null,
-            el('li', null, 'The ledger records that a body of your own was sent. It does not keep the body, so the run cannot be '
-                + 'replayed from the ledger alone.'));
+            el('li', null, 'The ledger records that a body of your own was sent, with the codes it finds in the body. It records no '
+                + 'member ID, provider or line of business for the run, because those on the form were not sent. It does not keep '
+                + 'the body, so the run cannot be replayed from the ledger alone.'));
     }
 
     function drawMode() {
@@ -82,6 +85,7 @@ export function createOwnRequest(spec) {
         }
         drawValidity();
         spec.changed();
+        spec.modeChanged();
     }
 
     /** Says whether the text is valid JSON, and gives the send button the words that fit. */

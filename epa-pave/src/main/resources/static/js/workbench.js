@@ -14,13 +14,13 @@
 //
 // Two parts a tab switches on with one call each, and never copies:
 //
-//   bench.useOwnRequest({protocol, sendButton, sendLabel})   a choice between the body this tool
-//       builds from the form and a request of the tester's own, pasted into a box
+//   bench.useOwnRequest({protocol, sendButton, sendLabel, modeChanged})   a choice between the body
+//       this tool builds from the form and a request of the tester's own, pasted into a box
 //   bench.useRunValues({operation})   fields for placeholders no environment defines, offered
 //       when the server refuses a run for want of them
 //
-// A tab that uses either merges bench.requestFields() into every request it posts, the preview
-// included.
+// A tab that uses either merges bench.requestFields() into every request it posts, after the case's
+// own fields, the preview included.
 
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
 import {clearFieldErrors, markFieldErrors, formProblem, unmark} from './forms.js';
@@ -52,7 +52,8 @@ export function createWorkbench(app, panel, spec) {
     const valuesSlot = el('div', {class: 'values-slot'});
     // Said above the case while a request of the tester's own is chosen, so nobody reads the case as what is sent.
     const caseNote = el('p', {class: 'case-note', hidden: true},
-        'A request of your own is chosen: the member, provider and codes below are not used to build the body, and may be left empty.');
+        'A request of your own is chosen: the member, provider and codes below are not sent with it, and are not what the ledger records. '
+        + 'They may be left empty.');
     let ownRequest = null;
     let runValues = null;
     // That the lookups said something a tester should read before sending. It sits with the send
@@ -145,12 +146,30 @@ export function createWorkbench(app, panel, spec) {
             return;
         }
         const top = result.querySelector('.result__top');
-        if (top) {
-            top.after(el('p', {class: 'result__own-body'},
-                el('strong', null, 'A request body of your own was sent.'),
-                ' This tool did not build it from the form; it went as you wrote it, with its placeholders filled in. '
-                + 'The wire view shows it.'));
+        if (!top) {
+            return;
         }
+        const sentBody = envelope.wire && envelope.wire.request ? envelope.wire.request.body : null;
+        // The text that went out is the tester's, and whether it parses is a fact about that text,
+        // the same fact the box said before sending. A malformed body sent on purpose is a negative
+        // case, and an answer to it must not read as the service accepting it.
+        let parses = true;
+        if (typeof sentBody === 'string') {
+            try {
+                JSON.parse(sentBody);
+            } catch (notJson) {
+                parses = false;
+            }
+        }
+        top.after(el('div', {class: 'result__own-body'},
+            el('p', null, el('strong', null, 'A request body of your own was sent.'),
+                ' This tool did not build it from the form; it went as you wrote it, with its placeholders filled in. '
+                + 'The member, provider and codes on the form were not sent with it. The wire view shows the body.'),
+            parses ? null : el('p', null, el('strong', null, 'The body sent was not valid JSON.'),
+                envelope.profile === 'mock'
+                    ? ' On the mock profile a scenario file answers whatever the body holds, so the answer and its next step '
+                        + 'are the scenario\'s and say nothing about this body.'
+                    : ' Whatever the service answered, it answered a body that does not parse: read the answer in that light.')));
     }
 
     const bench = {
@@ -281,7 +300,9 @@ export function createWorkbench(app, panel, spec) {
         /**
          * Switches on the choice of "A request of my own". spec: protocol ("CRD"), sendButton (the
          * tab's send button, whose words change while the pasted text is not valid JSON), sendLabel
-         * (its usual words, "Send CRD request").
+         * (its usual words, "Send CRD request"), modeChanged (optional: called when the tester
+         * switches between the two, so the tab can word what it says before the first run for the
+         * one chosen).
          */
         useOwnRequest(ownSpec) {
             ownRequest = createOwnRequest({
@@ -291,6 +312,11 @@ export function createWorkbench(app, panel, spec) {
                     caseNote.hidden = !ownRequest.active();
                     // The refusal of an empty box is out of date as soon as the box or the choice changes.
                     problem.querySelectorAll('.form-problem--own').forEach(node => node.remove());
+                },
+                modeChanged: () => {
+                    if (ownSpec.modeChanged) {
+                        ownSpec.modeChanged();
+                    }
                 }
             });
             modeSlot.append(ownRequest.node);
@@ -315,9 +341,19 @@ export function createWorkbench(app, panel, spec) {
         /**
          * What the two optional parts add to a run request: rawBody while a request of the
          * tester's own is chosen, variables while values for this run are typed. Empty otherwise.
+         *
+         * While a body of the tester's own is chosen, the case's member, provider and codes are
+         * taken out of the request: the body is what goes, so the form's copies would only steer
+         * the mock scenario and fill the ledger with a member the body may not be about. Their
+         * properties are set to undefined, which a JSON body leaves out, so a tab merging this
+         * after the case's own fields sends none of them.
          */
         requestFields() {
             const out = {};
+            if (ownRequest && ownRequest.active()) {
+                Object.assign(out, {member: undefined, memberOverrides: undefined, provider: undefined, providerOverrides: undefined,
+                    procedureCodes: undefined});
+            }
             if (ownRequest) {
                 Object.assign(out, ownRequest.requestFields());
             }
@@ -326,6 +362,9 @@ export function createWorkbench(app, panel, spec) {
             }
             return out;
         },
+
+        /** True while a request of the tester's own is chosen. */
+        ownRequestActive: () => Boolean(ownRequest && ownRequest.active()),
 
         /** True when the result of a run is on screen. */
         hasResult: () => result.querySelector('.result') !== null,
