@@ -585,6 +585,20 @@ public record RunRecord(
                 null, null, null, null, null, null, null, null);
     }
 
+    /**
+     * This record with each piece of free text that holds this run's member ID replaced by the
+     * statement the record writes for it. For a line whose member ID is a token, which the record
+     * itself cannot look for: only the ledger can tell whether text holds the ID behind a token.
+     *
+     * @param holdsMember true for text that holds the member ID of this run
+     */
+    public RunRecord withoutMemberText(java.util.function.Predicate<String> holdsMember) {
+        java.util.function.BiFunction<String, String, String> checked = (value, what) ->
+                value == null || statement(what, value) || !holdsMember.test(value) ? value : notKept(what, value);
+        return toBuilder().note(checked.apply(note, NOTE_NOT_KEPT)).testerRef(checked.apply(testerRef, TESTER_REF_NOT_KEPT))
+                .expected(checked.apply(expected, EXPECTED_NOT_KEPT)).caseExpected(checked.apply(caseExpected, EXPECTED_NOT_KEPT)).build();
+    }
+
     /** True for a case line, which records the result of a chain case and no call. */
     public boolean caseLine() {
         return TYPE_CASE.equals(recordType);

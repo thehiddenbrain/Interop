@@ -176,4 +176,21 @@ class LedgerMemberTextTest {
         recording.record(draft("run-2", CLOCK).build());
         Assertions.assertThatThrownBy(() -> recording.addNote("run-2", "about S-1234-56789", null)).isInstanceOf(ValidationException.class);
     }
+
+    @Test
+    void aNoteAnOlderVersionAppendedWithTheMemberIdIsReplacedWhenTheLineIsReadAndExported() throws java.io.IOException {
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        ledger.record(draft("run-1", CLOCK).build());
+        // As a version before the second member data audit would have appended it: kept as typed.
+        java.nio.file.Files.writeString(dayFile(home, TODAY), "{\"recordType\":\"note\",\"runId\":\"run-1\",\"timestamp\":"
+                + "\"2026-03-10T11:05:00-04:00\",\"note\":\"old note about s12345 6789\",\"testerRef\":\"QA-S123456789\"}\n",
+                java.nio.file.StandardOpenOption.APPEND);
+
+        RunRecord read = ledger.find("run-1").orElseThrow();
+        assertThat(read.note()).isEqualTo("(note not recorded, 26 characters)");
+        assertThat(read.testerRef()).isEqualTo("(tester reference not recorded, 13 characters)");
+        String exported = new String(RunCsv.bytes(ledger.query(org.p32h.interop.epa.pave.model.RunQuery.builder().build())),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(exported).doesNotContainIgnoringCase("s12345").contains("(note not recorded, 26 characters)");
+    }
 }

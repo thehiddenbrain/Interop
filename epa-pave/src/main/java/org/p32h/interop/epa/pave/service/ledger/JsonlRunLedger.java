@@ -573,7 +573,7 @@ public class JsonlRunLedger implements RunLedger {
                 if (!mayHoldRuns) {
                     continue;
                 }
-                RunRecord run = withNote(line, latestNotes.get(line.runId())).withCase(latestCases.get(line.runId()));
+                RunRecord run = withoutMemberText(withNote(line, latestNotes.get(line.runId())).withCase(latestCases.get(line.runId())));
                 if (accepts(query, run, file.day())) {
                     matching.add(run);
                     if (limit > 0 && matching.size() == limit) {
@@ -645,6 +645,18 @@ public class JsonlRunLedger implements RunLedger {
         return day == null ? fileDay : day;
     }
 
+    /**
+     * A run as it is shown and exported. A line written before every way in refused member data in
+     * free text, or a note line appended by such a version, can hold the member ID that the line
+     * keeps only as a token. The file is never rewritten, so such text is replaced as it is read.
+     */
+    private RunRecord withoutMemberText(RunRecord run) {
+        if (Texts.present(run.memberId()) || Texts.blank(run.memberToken())) {
+            return run;
+        }
+        return run.withoutMemberText(text -> holdsMemberOf(run, text));
+    }
+
     private static RunRecord withNote(RunRecord run, RunRecord note) {
         return note == null ? run : run.toBuilder().note(note.note()).testerRef(note.testerRef()).build();
     }
@@ -669,7 +681,7 @@ public class JsonlRunLedger implements RunLedger {
                     continue;
                 }
                 if (!LedgerLines.isNote(line)) {
-                    return Optional.of(withNote(line, latestNote).withCase(latestCase));
+                    return Optional.of(withoutMemberText(withNote(line, latestNote).withCase(latestCase)));
                 }
                 if (latestNote == null) {
                     latestNote = line;
