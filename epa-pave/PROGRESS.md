@@ -1146,7 +1146,7 @@ tests.
 
 ### Degradation level
 
-Target: level 1 of section 0. At revision `e1d37dc` the server holds what level 1 asks of it, the
+Target: level 1 of section 0. At revision `428eff5` the server holds what level 1 asks of it, the
 optional capabilities of section 28 included: CRD, DTR and PAS, the chain, suites, conformance checking
 and response times, **with the limits D-235 names beside it**: in the X12 275 attachment mode the tool
 names the document and sends nothing; there is no `$submit-attachment` and no claim update, so the
