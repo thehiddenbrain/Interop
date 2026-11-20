@@ -152,6 +152,8 @@ export function createComparison(spec) {
         }
         clear(said);
         clear(bench.problem);
+        // A refusal left by an earlier send is about that send, not about this comparison.
+        bench.clearRefusal();
         clearFieldErrors(bench.form);
         let request = spec.buildRequest();
         let about;
@@ -526,7 +528,7 @@ function fillButton(actions, outcome) {
             el('p', null, button('Put your request\'s values in these fields', event => {
                 const done = report.applyPasted();
                 const pressed = event.currentTarget;
-                pressed.replaceWith(el('span', {role: 'status'}, 'Put in: ' + done.join('; ') + '. The form marks them as changed by hand, '
+                pressed.replaceWith(el('span', {role: 'status'}, 'Put in: ' + done.join('; ') + '. The form marks them as from the pasted request, '
                     + 'and the ledger notes that the run used values the lookup does not give back.'));
             }, {class: 'button--quiet button--small'})));
         fill(outcome,

@@ -1441,15 +1441,6 @@ legend, .case-legend {
     gap: var(--gap-4);
 }
 
-/* A tab that is not built yet: one statement, and what it was handed. */
-.placeholder {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-4);
-    max-width: 1000px;
-    padding-bottom: 48px;
-}
-
 /* ---------- the result ---------- */
 
 .result {
@@ -2478,6 +2469,54 @@ details.fold > :not(summary) {
      */
     main > [role="tabpanel"], .tabpanel--stacked > [role="tabpanel"], .case-pane__scroll, .readout {
         position: relative;
+    }
+}
+
+/* A value that breaks only at its joints: see atJoints in result.js. */
+.nobreak {
+    white-space: nowrap;
+}
+
+/*
+ * A laptop screen is short. The frame above the panes takes less of it, so the case keeps room to
+ * be filled in: the production band keeps every word, in a smaller size; the chain bar keeps one
+ * line per stage, each whole in its title and in the journey on the History tab; and what sits
+ * with the send button scrolls within itself past half the pane, with the button still at its foot.
+ */
+@media (min-width: 1181px) and (max-height: 860px) {
+    .banner--prod .banner__inner {
+        padding-top: 4px;
+        padding-bottom: 4px;
+        font-size: var(--text);
+    }
+
+    .banner--prod .banner__kind {
+        font-size: var(--text-large);
+    }
+
+    .banner--prod .banner__reason {
+        font-size: var(--text-small);
+    }
+
+    .chain-bar {
+        padding-top: 4px;
+        padding-bottom: 4px;
+        row-gap: 2px;
+    }
+
+    .chain-stage__state, .chain-bar__side > p {
+        display: block;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .chain-bar__side {
+        gap: 2px;
+    }
+
+    .case-pane__actions {
+        max-height: 50%;
     }
 }
 

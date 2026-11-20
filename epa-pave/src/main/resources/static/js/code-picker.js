@@ -482,9 +482,9 @@ function listSays(rows, line) {
 function tags(row) {
     const out = [];
     if (row.authRequired === 'REQUIRED') {
-        out.push(el('span', {class: 'code-tag', title: 'The code list says prior authorization is required' + listedAs(row)}, 'PA'));
+        out.push(el('span', {class: 'code-tag', title: 'The code list says prior authorization is required' + listedAs(row)}, row.authRequiredLabel || 'PA'));
     } else if (row.authRequired === 'NOT_REQUIRED') {
-        out.push(el('span', {class: 'code-tag', title: 'The code list says prior authorization is not required' + listedAs(row)}, 'No PA'));
+        out.push(el('span', {class: 'code-tag', title: 'The code list says prior authorization is not required' + listedAs(row)}, row.authRequiredLabel || 'No PA'));
     }
     if (row.delegatedVendor) {
         out.push(el('span', {class: 'code-tag code-tag--vendor', title: 'The vendor the code list names'}, row.delegatedVendor));

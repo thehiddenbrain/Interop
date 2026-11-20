@@ -79,6 +79,7 @@ export function createLookup(spec) {
     let pending = null;    // the identifier being looked up now, or null
     let before = null;     // a sentence saying the lookup on screen was made under an earlier configuration, or null
     let opener = null;     // the control that opened the panel, which takes the focus back when the panel is closed
+    let pageNote = null;   // a line the page asked to have said under the answer, or null
 
     const control = button('Look up ' + spec.subject, () => lookUp(true), {class: 'button--quiet lookup-action'});
     // The first line is the live region: it says how the lookup ended and nothing else, so a
@@ -123,6 +124,7 @@ export function createLookup(spec) {
         pending = null;
         held = null;
         before = null;
+        pageNote = null;
         control.removeAttribute('aria-busy');
         strip.hidden = true;
         clear(said);
@@ -136,6 +138,7 @@ export function createLookup(spec) {
         const mine = latest;
         held = null;
         before = null;
+        pageNote = null;
         setPanel(null);
         spec.starting();
         pending = id;
@@ -143,6 +146,8 @@ export function createLookup(spec) {
         show(null, 'Looking up the ' + spec.subject + '.');
         // An empty identifier is asked for as one space, which reaches the server as a blank
         // identifier: the server then says what is wrong, in its own words, at the field.
+        // The identifier goes as a query parameter, so one that holds a slash or a backslash reaches
+        // the server as typed and is answered there, in its words, rather than refused on the way.
         const answer = await api.get(spec.address + encodeURIComponent(id === '' ? ' ' : id));
         if (mine !== latest) {
             // A newer lookup, or a change of the identifier, has replaced this one. Its answer is about something no longer on screen.
@@ -181,20 +186,25 @@ export function createLookup(spec) {
         if (answer.memberId && answer.memberId.changed) {
             extra.push(el('p', {class: 'lookup-strip__ids'}, idForms(answer.memberId)));
         }
+        if (pageNote) {
+            extra.push(el('p', {class: 'lookup-strip__note'}, pageNote));
+        }
+        // How the lookup ended, in the server's words for it when it sends them.
+        const label = typeof answer.statusLabel === 'string' && answer.statusLabel !== '' ? answer.statusLabel : null;
         if (answer.status === 'FOUND') {
             if (attention.length > 0) {
                 extra.push(attentionList(attention));
             }
             extra.push(returnedLine(answer));
-            show(attention.length > 0 ? el('span', {class: 'flag'}, 'to check') : el('strong', null, 'Found.'), answer.message, extra);
+            show(attention.length > 0 ? el('span', {class: 'flag'}, 'to check') : el('strong', null, (label || 'Found') + '.'), answer.message, extra);
         } else if (answer.status === 'NOT_FOUND') {
             // A finding about the test data, drawn in the mark the result view gives that meaning.
             extra.push(el('p', null, 'The case can still be sent: a ' + spec.subject + ' the lookup does not know is a test case.'));
             extra.push(returnedLine(answer));
-            show(outcome('Not found.', 'DATA'), answer.message, extra);
+            show(outcome((label || 'Not found') + '.', 'DATA'), answer.message, extra);
         } else if (answer.status === 'DISABLED') {
             // Nothing was asked, so there is nothing to show beyond the server's sentence.
-            show(el('span', {class: 'presence presence--none'}, 'no lookup'), answer.message, extra);
+            show(el('span', {class: 'presence presence--none'}, label || 'no lookup'), answer.message, extra);
         } else if (answer.status === 'FAULT' && answer.error) {
             // The error panel says what happened and what to do, so the first line is spoken and not drawn twice.
             extra.push(errorPanel(answer.error));
@@ -256,7 +266,7 @@ export function createLookup(spec) {
                     ? el('p', {class: 'quiet'}, 'No ' + spec.subject + ' record was read from this answer, so there are no fields to list.')
                     : [el('p', {class: 'quiet'}, 'Every field this tool looks for, with what the answer held for it and where in the answer it was read from.'),
                         fieldsTable(fields)]),
-            additionalFieldsSection(answer.additionalFields || []),
+            additionalFieldsSection(answer.additionalFields || [], null, answer.wire),
             el('section', {class: 'result__section'}, wireView(answer.wire)));
         setPanel(section);
     }
@@ -294,7 +304,17 @@ export function createLookup(spec) {
                 draw();
             }
         },
-        outdated: () => before !== null
+        outdated: () => before !== null,
+        /**
+         * A line the page adds under the answer on screen, such as that a pasted request names
+         * another person than the one this lookup found. Null takes it away. A new lookup starts without one.
+         */
+        note(text) {
+            pageNote = text || null;
+            if (held) {
+                draw();
+            }
+        }
     };
 }
 

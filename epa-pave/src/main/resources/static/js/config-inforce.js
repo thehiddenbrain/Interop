@@ -199,7 +199,8 @@ export function createInForceView(context) {
     function statusCell(row) {
         const parts = [];
         if (row.blocked) {
-            parts.push(el('div', {class: 'config-op__blocked'}, el('strong', null, 'Blocked by the production guardrail. '), row.blocked));
+            // The short form the server gives for a row: the reason in full is said once, with the writes, not on every write row.
+            parts.push(el('div', {class: 'config-op__blocked', title: row.blocked}, el('strong', null, 'Blocked by the production guardrail. '), row.blockedShort || row.blocked));
         }
         if (row.unavailable) {
             parts.push(el('div', {class: row.outbound ? 'config-op__unavailable' : null}, row.outbound ? el('strong', null, 'Cannot be sent. ') : null, row.unavailable));

@@ -113,7 +113,7 @@ function verdictStrip(envelope) {
     // A headline is one sentence, set large. A refusal can word its reason into a paragraph, which
     // at that size fills the screen and hides the test result beside it, so a long one is set smaller.
     const length = String(verdict.headline || '').length;
-    const size = length > 220 ? ' verdict__headline--long verdict__headline--longest' : length > 110 ? ' verdict__headline--long' : '';
+    const size = length > 220 ? ' verdict__headline--long verdict__headline--longest' : length > 80 ? ' verdict__headline--long' : '';
     strip.append(el('h2', {class: 'verdict__headline' + size}, verdict.headline));
     const supporting = verdict.supporting || [];
     if (supporting.length > 0) {
@@ -194,7 +194,8 @@ function runFacts(envelope, settings) {
         ['Next step', nextStep(envelope, settings)],
         ['Ledger', ledgerLine(envelope.ledger, envelope.runId)],
         ['Response time', responseTime(envelope.timing)],
-        ['Run', runLine(envelope)]
+        ['Run', runLine(envelope)],
+        ...typedWithRun(envelope.ledger)
     ];
     const memberId = envelope.wire ? envelope.wire.memberId : null;
     if (memberId && memberId.changed) {
@@ -219,7 +220,7 @@ function nextStep(envelope, settings) {
     return el('div', {class: 'nextstep'},
         el('div', {class: 'nextstep__row'},
             el('span', {class: 'nextstep__headline'}, step.headline),
-            control ? button(control.label, control.run, {class: 'button--primary'}) : null),
+            control ? (control.node || button(control.label, control.run, {class: 'button--primary'})) : null),
         step.reason ? el('p', {class: 'nextstep__reason'}, step.reason) : null);
 }
 
@@ -236,6 +237,23 @@ function ledgerLine(ledger, runId) {
         el('blockquote', null, ledger.message),
         // A next step of "record this result" is for the tester. With the ledger not keeping it, the record is theirs to make.
         el('p', {class: 'ledger__todo'}, 'This run is in no ledger. If you need it, write down its run id and its result yourself.'));
+}
+
+/**
+ * The tester reference and the note typed with the run, as the ledger kept them, beside the run id
+ * on every tab: an analyst comparing a result with a ledger row looks for them here. The ledger is
+ * where they are kept, so a run it did not keep has none to show, and that is said.
+ */
+function typedWithRun(ledger) {
+    const none = text => el('span', {class: 'presence presence--none'}, text);
+    if (!ledger || !ledger.recorded || !ledger.record) {
+        return [['Tester reference and note', none('not kept: the ledger did not record this run')]];
+    }
+    const record = ledger.record;
+    return [
+        ['Tester reference', record.testerRef ? code(record.testerRef) : none('none given')],
+        ['Note', record.note ? el('span', {class: 'vendor-inline'}, record.note) : none('none given')]
+    ];
 }
 
 function responseTime(timing) {
@@ -328,11 +346,24 @@ function determinationSection(rows) {
     return section(heading(3, 'Determination'), el('table', {class: 'grid determination'}, head, el('tbody', null, body)));
 }
 
+/**
+ * A code or a value as literal text that a narrow cell breaks only where the value itself is
+ * joined (after a slash, a bar or a space), never inside a date or a code: a date range keeps each
+ * of its dates whole. The text is unchanged, so what is copied is the value as returned.
+ */
+function atJoints(value) {
+    const node = el('code', {class: 'literal'});
+    for (const part of String(value).split(/(?<=[/| ])/)) {
+        node.append(el('span', {class: 'nobreak'}, part), el('wbr'));
+    }
+    return node;
+}
+
 function determinationRow(row) {
     const returned = row.presence === 'VALUE' && row.code !== undefined;
     const cells = [el('td', null, row.label)];
     if (returned) {
-        cells.push(el('td', null, code(row.code)));
+        cells.push(el('td', null, atJoints(row.code)));
         // A row can hold an identifier, such as an authorization number, which has no meaning to state.
         cells.push(el('td', null, row.display || el('span', {class: 'quiet small'}, 'no meaning to state'),
             row.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a code this tool knows')] : null));
@@ -482,8 +513,13 @@ export function additionalFieldsSection(givenFields, title, wire) {
     return node;
 }
 
-/** The table of returned fields: where each sat, whether it held anything, and its value as JSON text. */
-export function additionalFieldsTable(fields) {
+/**
+ * The table of returned fields: where each sat, whether it held anything, and its value as JSON text.
+ * wire, optional: as for additionalFieldsSection. Pass it where the fields' paths are written from
+ * the root of the response body, as the CRD detail's are.
+ */
+export function additionalFieldsTable(givenFields, wire) {
+    const fields = wire ? maskedLikeTheWire(givenFields, wire) : givenFields;
     return table(['Path', 'Presence', 'Value as returned'], fields.map(field => [
         code(field.path),
         field.presence === 'VALUE' ? el('span', {class: 'quiet small'}, 'value') : presenceMark(field.presence),

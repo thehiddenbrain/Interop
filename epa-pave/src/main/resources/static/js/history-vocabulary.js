@@ -23,6 +23,7 @@ const SOURCES = [
  */
 export async function loadVocabulary() {
     const byProtocol = new Map();   // protocol -> Map(code -> {code, label, tone})
+    const nextActions = new Map();  // next action name -> its words, as the scenarios endpoints serve them
     const operations = new Map();   // operation -> {operation, label, protocol, write, outbound}
     const problems = [];
     const answers = await Promise.all(SOURCES.map(source => api.get(source.path)));
@@ -34,6 +35,9 @@ export async function loadVocabulary() {
         const outcomes = new Map((answer.body.outcomes || []).map(option => [option.code, option]));
         for (const protocol of SOURCES[index].protocols) {
             byProtocol.set(protocol, outcomes);
+        }
+        for (const option of answer.body.nextActions || []) {
+            nextActions.set(option.code, option.label);
         }
     });
     const effective = await api.get('/api/config/effective');
@@ -52,6 +56,9 @@ export async function loadVocabulary() {
             const outcomes = byProtocol.get(String(protocol || '').toUpperCase());
             return outcomes ? outcomes.get(code) || null : null;
         },
+
+        /** A next action's words as the server serves them, or null when it has given none for that name. */
+        nextAction: name => nextActions.get(name) || null,
 
         /** The operation as the server words it, or null. */
         operation(name) {

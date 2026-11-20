@@ -64,7 +64,7 @@ export function createChain(app, bar) {
         fill(bar, el('div', {class: 'chain-bar'},
             el('ol', {class: 'chain-stages'}, (view.stages || []).map(stage => el('li', {class: 'chain-stage chain-stage--' + token(stage.state)},
                 el('span', {class: 'chain-stage__name'}, stage.name),
-                el('span', {class: 'chain-stage__state'}, stage.latest ? [toneMark(stage.latest.tone), ' '] : null, stage.stateLine)))),
+                el('span', {class: 'chain-stage__state', title: stage.stateLine || ''}, stage.latest ? [toneMark(stage.latest.tone), ' '] : null, stage.stateLine)))),
             el('div', {class: 'chain-bar__side'},
                 el('p', {class: 'chain-bar__next'},
                     el('span', {class: 'chain-bar__next-label'}, 'Next step '),

@@ -26,18 +26,10 @@ const TEMPLATE = [
     ''
 ].join('\r\n');
 
-// The counts of a suite run, in the order they are offered as filters, with the rows each one
-// selects. The server counts; this only picks out the rows a count is about.
+// The counts of a suite run that are not count groups, offered as filters after the groups, with
+// the rows each one selects. A row can be in several of these. The count groups themselves, every
+// row in exactly one, come with their words from the server (countGroups, and countedIn on each row).
 const COUNT_FILTERS = [
-    ['passed', 'Passed', row => row.status === 'COMPLETED' && row.result === 'pass'],
-    ['failed', 'Failed', row => row.status === 'COMPLETED' && row.result === 'fail'],
-    ['unverified', 'Unverified', row => row.status === 'COMPLETED' && row.result === 'unverified'],
-    ['blocked', 'Blocked', row => row.status === 'BLOCKED'],
-    ['invalid', 'Not valid', row => row.status === 'INVALID'],
-    ['notConfigured', 'Not configured', row => row.status === 'NOT_CONFIGURED'],
-    ['notRunnable', 'Not runnable', row => row.status === 'NOT_RUNNABLE'],
-    ['notRun', 'Not run', row => row.state === 'NOT_RUN'],
-    ['waiting', 'Waiting', row => row.state === 'PENDING' || row.state === 'RUNNING'],
     ['withFindings', 'With findings', row => (row.findings || []).length > 0],
     ['slow', 'Slow', row => row.slow === true],
     ['changed', 'Changed since the earlier run', row => row.changed === true],
@@ -342,6 +334,11 @@ export function createSuites(app, context) {
             class: 'button--quiet button--small filter', aria: {pressed: String(Boolean(candidate ? filter && filter.key === candidate.key : !filter))}
         });
         const chips = [chip(null, 'Every case', total)];
+        for (const group of run.countGroups || []) {
+            if (group.count > 0) {
+                chips.push(chip({key: 'group:' + group.group, label: group.label, test: row => row.countedIn === group.group}, group.label, group.count));
+            }
+        }
         for (const [key, label, test] of COUNT_FILTERS) {
             if (counts[key] > 0) {
                 chips.push(chip({key, label, test}, label, counts[key]));

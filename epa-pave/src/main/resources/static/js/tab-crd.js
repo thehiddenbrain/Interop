@@ -30,7 +30,9 @@ function mount(panel, application) {
     bench = createWorkbench(app, panel, {
         formLabel: 'The case and the CRD request',
         readoutLabel: 'The readout: the request, discovery and the result',
-        onSubmit: send
+        onSubmit: send,
+        // The hook chosen is what a run sends; discovery is the step a tester may take after it.
+        operations: () => [controls.hookSelect && controls.hookSelect.checked ? 'CRD_ORDER_SELECT' : 'CRD_ORDER_SIGN', 'CRD_DISCOVERY']
     });
 
     controls.hookSign = el('input', {type: 'radio', name: 'crd-hook', id: 'crd-hook-sign', value: 'order-sign', checked: true});
@@ -74,6 +76,9 @@ function mount(panel, application) {
     bench.useRunValues({operation});
     bench.form.addEventListener('input', drawExpectedText);
     bench.form.addEventListener('change', drawExpectedText);
+    for (const hook of [controls.hookSign, controls.hookSelect]) {
+        hook.addEventListener('change', () => bench.checkReadiness());
+    }
 
     slots.preview = bench.slot('preview');
     slots.discovery = bench.slot('discovery');
@@ -388,11 +393,19 @@ async function fillFromComparison(answer) {
         if (onForm === detail.value) {
             sameAsLookup.push(detail.label);
         } else if (onForm === '') {
-            typeInto(input, detail.value);
+            app.caseContext.setDetail(detail.field, detail.value, 'pasted');
             typedIn.push(detail.label + ' ' + detail.value);
         } else {
-            disagree.push({label: detail.label, pasted: detail.value, onForm, input});
+            disagree.push({field: detail.field, label: detail.label, pasted: detail.value, onForm});
         }
+    }
+    // The lookup found someone, and the pasted request names details that differ from what it
+    // found: said under the lookup too, where the tester reads who the identifier belongs to.
+    for (const subject of ['member', 'provider']) {
+        const differing = disagree.filter(entry => entry.field.startsWith(subject + '.'));
+        app.caseContext.lookupNote(subject, differing.length === 0 ? null
+            : 'The pasted request does not agree with this lookup on ' + differing.map(entry => entry.label).join(', ')
+                + '. The comparison lists both values, and the form keeps what the lookup found unless you put the pasted ones in.');
     }
     // What the lookups put on the form that the pasted request did not hold: it goes out with the
     // request all the same, so it is named.
@@ -412,7 +425,7 @@ async function fillFromComparison(answer) {
         /** Puts the pasted value in every field that disagreed with the lookup, when the tester asks for it. */
         applyPasted() {
             for (const entry of disagree) {
-                typeInto(entry.input, entry.pasted);
+                app.caseContext.setDetail(entry.field, entry.pasted, 'pasted');
             }
             return disagree.map(entry => entry.label);
         }
@@ -422,12 +435,6 @@ async function fillFromComparison(answer) {
 /** The input of a field of the case, by the name the request gives it, or null. */
 function detailInput(field) {
     return app.caseContext.node.querySelector('[data-field="' + field + '"] input');
-}
-
-/** Puts a value in a field of the case as typing would, so the case marks where it came from as it does for typing. */
-function typeInto(input, value) {
-    input.value = value;
-    input.dispatchEvent(new Event('input', {bubbles: true}));
 }
 
 /**
@@ -495,7 +502,7 @@ async function discover() {
                     : el('span', {class: 'presence presence--none'}, 'none declared')
             ])),
         found.error ? errorPanel(found.error) : null,
-        additionalFieldsSection(found.additionalFields || []),
+        additionalFieldsSection(found.additionalFields || [], null, found.wire),
         el('section', {class: 'result__section'}, wireView(found.wire))));
     slots.discovery.scrollIntoView({block: 'start'});
     bench.say('Discovery answered with ' + services.length + (services.length === 1 ? ' service.' : ' services.'));

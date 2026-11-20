@@ -12,6 +12,7 @@ import {el, fill, clear, button, code, facts} from './dom.js';
 import {runLink} from './history-common.js';
 import {indent} from './own-request.js';
 import {answersTable} from './pas-answers.js';
+import {sameCase} from './handover.js';
 
 const ANSWERS = 'questionnaireResponse';
 
@@ -22,15 +23,11 @@ export function createHandover(spec) {
     const node = el('section', {class: 'case-group pas-handover', hidden: true, dataset: {field: 'carry.' + ANSWERS},
         aria: {labelledby: 'pas-handover-title'}});
 
-    function sameCase(one, other) {
-        if (!one) {
-            return true;
-        }
-        return one.memberId === other.memberId && one.npi === other.npi && JSON.stringify(one.codes) === JSON.stringify(other.codes);
-    }
+    // A hand-over that names no case was made before cases were carried with it, and is taken as made for the case on screen.
+    const forThisCase = forCase => !forCase || sameCase(forCase, spec.caseNow());
 
     function applies() {
-        return Boolean(handed) && !dismissed && sameCase(handed.forCase, spec.caseNow());
+        return Boolean(handed) && !dismissed && forThisCase(handed.forCase);
     }
 
     function answers() {
@@ -54,7 +51,7 @@ export function createHandover(spec) {
         const carry = handed.carry || {};
         const responses = answers();
         const others = Object.entries(carry).filter(([key]) => key !== ANSWERS);
-        const changed = !sameCase(handed.forCase, spec.caseNow());
+        const changed = !forThisCase(handed.forCase);
         const parts = [
             el('h2', {class: 'case-legend', id: 'pas-handover-title'}, 'Handed on from ' + (handed.fromProtocol || 'an earlier step')),
             el('p', {class: 'small'}, 'From run ', handed.fromRunId ? runLink(handed.fromRunId) : 'not stated',
