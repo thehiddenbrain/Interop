@@ -319,7 +319,7 @@ public class PasService {
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
         PasRequestBuilder.Built built = builder.submit(request, Texts.orElse(claimId(request, false), NEW_ID), claimId(request, false) == null,
                 NEW_ID, reads);
-        return RequestPreview.of(operation, call, reads.shown(built.json()), built.notes(), shown);
+        return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
     }
 
     /** What the inquiry would be, without sending it. Nothing is recorded. */
@@ -340,7 +340,7 @@ public class PasService {
         Codes codes = inquiryCodes(request, claimId);
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
         PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, reads);
-        return RequestPreview.of(operation, call, reads.shown(built.json()), built.notes(), shown);
+        return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
     }
 
     private static RequestPreview ownBodyPreview(EpaOperation operation, PreparedCall call, RunRequest request, MemberIdForms shown) {

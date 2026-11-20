@@ -317,7 +317,7 @@ class CrdRequestComparerTest {
         String unknown = sent(form("order-sign", 1, true).procedureCodes(List.of(new CodeInput("XYZ-1", "https://example.invalid/local-codes", null))).build());
         assertThat(compare(CrdRunRequest.builder().rawBody(unknown).build()).notes()).contains("Your request states the system of the code at "
                 + "context.draftOrders.entry[0].resource.code.coding[0].code, and the tool's request was built with that system. Left to work "
-                + "the system out for itself, from the code list or else from the format of the code, this tool writes none.");
+                + "the system out for itself, from the code list or else from the format of the code, this tool writes no system for that code.");
 
         // Where this tool writes the same system by itself there is nothing to note.
         assertThat(compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json").replace(
@@ -535,10 +535,11 @@ class CrdRequestComparerTest {
         assertThat(key.explanation()).isEqualTo("The tool's request holds this Patient under the key `patient` and your request holds it under "
                 + "`patientRequest`. The tool's was built from what was read out of yours, so the two are compared with each other. "
                 + "A CDS service names the prefetch keys it asks for in its discovery response. "
-                + "GET /api/crd/discover lists the keys the service names.");
+                + "The button Discover the CDS services this environment offers, on the CRD tab, lists the keys the service names.");
         assertThat(at(comparison, "prefetch.practitionerRole").explanation()).isEqualTo("The tool's request has the key `practitionerRole` here "
                 + "and your request does not. It holds a PractitionerRole resource. A CDS service names the prefetch keys it asks for in its "
-                + "discovery response. GET /api/crd/discover lists the keys the service names.");
+                + "discovery response. The button Discover the CDS services this environment offers, on the CRD tab, lists the keys the "
+                + "service names.");
 
         Difference date = at(comparison, "context.draftOrders.entry[ServiceRequest #1].resource.occurrenceDateTime");
         assertThat(date.toolValue().value()).isEqualTo("2026-03-20");

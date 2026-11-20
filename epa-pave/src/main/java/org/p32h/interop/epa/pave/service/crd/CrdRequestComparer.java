@@ -507,7 +507,7 @@ public final class CrdRequestComparer {
             if (stated != null && !stated.equals(chosen)) {
                 notes.add("Your request states the system of the code at " + orders.get(i).code().path() + ", and the tool's request was built "
                         + "with that system. Left to work the system out for itself, from the code list or else from the format of the code, "
-                        + "this tool writes " + (chosen == null ? "none" : chosen) + ".");
+                        + (chosen == null ? "this tool writes no system for that code." : "this tool writes " + chosen + "."));
             }
         }
     }

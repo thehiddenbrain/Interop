@@ -221,8 +221,9 @@ class DtrNotAppliedTest {
         assertThat(result.nextStep().action()).isEqualTo(NextAction.SUBMIT_RESPONSE);
         assertThat(result.nextStep().carry()).doesNotContainKey("questionnaireResponse");
         assertThat(result.verdict().supporting()).contains("Not judged, because a rule this tool does not apply decides whether they still "
-                + "need an answer: by-expression \"by-expression\".", "Rules: this tool evaluates enableWhen and nothing else, and does not "
-                + "apply a rule this questionnaire carries. It is named with the questionnaire, with what not applying it means.");
+                + "need an answer: by-expression \"by-expression\".");
+        // The rules not applied are named once, with the questionnaire, and not again in the verdict.
+        assertThat(result.verdict().supporting()).noneMatch(line -> line.contains("evaluates enableWhen and nothing else"));
         assertThat(result.detail().questionnaires().get(0).notApplied()).singleElement().asString().startsWith("1 item carries "
                 + "enableWhenExpression, which decides by an expression whether the item is enabled.");
     }

@@ -221,7 +221,7 @@ public class CrdService {
 
         List<Finding> findings = new ArrayList<>(conformance.check(reading, exchange,
                 request.member() == null ? null : request.member().lineOfBusiness(), IsoDates.parse(request.dateOfService())));
-        addIfPresent(findings, incompleteRequest(incomplete));
+        addIfPresent(findings, incompleteRequest(incomplete, exchange.httpStatus() != null));
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
 
@@ -381,12 +381,21 @@ public class CrdService {
      * is not read as a fault of the service.
      */
     static Finding incompleteRequest(List<CaseResources.Required> incomplete) {
+        return incompleteRequest(incomplete, true);
+    }
+
+    /**
+     * @param answered true when an answer arrived. With none (a timeout, a service that could not
+     *                 be reached) nothing is known to have arrived, so the request is said to have
+     *                 been built without the elements, never sent without them
+     */
+    static Finding incompleteRequest(List<CaseResources.Required> incomplete, boolean answered) {
         if (incomplete == null || incomplete.isEmpty()) {
             return null;
         }
         int count = incomplete.size();
         return new Finding(FindingKind.REQUEST_INCOMPLETE,
-                "The request was sent without " + count + (count == 1 ? " element " : " elements ") + CaseResources.CRD_VERSION
+                (answered ? "The request was sent without " : "The request was built without ") + count + (count == 1 ? " element " : " elements ") + CaseResources.CRD_VERSION
                         + " requires",
                 "Nobody supplied " + (count == 1 ? "it" : "them") + ", and this tool does not invent values. A service that validates "
                         + "against " + CaseResources.CRD_VERSION + " may refuse the request for this, which is then not a fault of the "

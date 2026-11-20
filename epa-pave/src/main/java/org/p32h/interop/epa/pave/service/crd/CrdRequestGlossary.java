@@ -47,11 +47,12 @@ public final class CrdRequestGlossary implements Glossary {
             Map.of("context.patientId", "Patient", "context.encounterId", "Encounter", "context.userId", "", "context.selections", ""),
             CrdRequestReader.CODE_ELEMENT, "fhirServer");
 
-    static final String PREFETCH_KEYS = "A CDS service names the prefetch keys it asks for in its discovery response. GET "
-            + "/api/crd/discover lists the keys the service names.";
+    static final String PREFETCH_KEYS = "A CDS service names the prefetch keys it asks for in its discovery response. The button "
+            + "Discover the CDS services this environment offers, on the CRD tab, lists the keys the service names.";
 
     static final String PREFETCH_SHAPES = "In CDS Hooks a prefetch entry is the answer to a FHIR read or search: a read gives the "
-            + "resource itself and a search gives a Bundle. GET /api/crd/discover shows the query the service names for each key.";
+            + "resource itself and a search gives a Bundle. The button Discover the CDS services this environment offers, on the CRD tab, "
+            + "shows the query the service names for each key.";
 
     /** The hook request itself, by its path from the top of the document. */
     private static final Map<String, Entry> DOCUMENT = new HashMap<>();

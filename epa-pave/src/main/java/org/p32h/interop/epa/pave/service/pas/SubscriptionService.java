@@ -288,7 +288,7 @@ public class SubscriptionService {
                     : List.of("The body still contains placeholders with no value: " + String.join(", ", resolved.unresolved()) + "."), null);
         }
         SubscriptionRequestBuilder.Built built = builder.build(id, call::resolve);
-        return RequestPreview.of(operation, call, built.shownJson(), built.notes(), null);
+        return RequestPreview.of(operation, call, built.shownJson(), PasNotes.asPreview(built.notes()), null);
     }
 
     private static boolean sendsBody(EpaOperation operation) {

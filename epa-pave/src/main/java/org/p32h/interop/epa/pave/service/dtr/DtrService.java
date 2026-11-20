@@ -171,7 +171,7 @@ public class DtrService {
             // A package fetch is where the questionnaire comes from, so the steps after it are linked to this run.
             DtrHandoff handoff = DtrHandoff.afterPackage(runId, sent.codes(), questionnaires, request.carry());
             read = interpret(operation, request, call, exchange, reading, handoff, correlation(known.get(RunRecord.CORR_RUN_ID), questionnaires),
-                    ownBody ? null : DtrProfileCheck.finding(packageGaps(sent), true));
+                    ownBody ? null : DtrProfileCheck.finding(packageGaps(sent), true, exchange.httpStatus() != null));
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -265,7 +265,7 @@ public class DtrService {
                     QuestionnaireJson.findResponse(exchange.withReturnedSecretsMasked().json()))), answering);
             DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), answered, request.carry());
             read = interpret(operation, request, call, exchange, reading, handoff, correlation(packageRun, listOf(answered)),
-                    DtrProfileCheck.finding(gaps, true));
+                    DtrProfileCheck.finding(gaps, true, exchange.httpStatus() != null));
         } catch (RuntimeException e) {
             return support.toolError(operation, call, exchange, draft, request, e);
         }
@@ -384,11 +384,23 @@ public class DtrService {
                 .expectation(expectation)
                 .nextStep(nextStep)
                 .determination(determination(operation, reading))
-                .detail(reading.detail())
+                .detail(reading.detail().withRequest(withScope(operation, reading.detail().requestNotes()), true))
                 .findings(findings)
                 .additionalFields(reading.additionalFields())
                 .ledger(receipt)
                 .build();
+    }
+
+    /**
+     * The notes about how the request or the response was made, closed by the sentence on what the
+     * step exercised. It is true of every result and is not the answer, so it is said once here and
+     * not in the verdict, where it pushed the answer out of view. It comes last, because the first
+     * note is the one that says what the request left out.
+     */
+    private static List<String> withScope(EpaOperation operation, List<String> notes) {
+        List<String> all = new ArrayList<>(notes);
+        all.add(DtrVerdicts.scope(operation));
+        return all;
     }
 
     // ---- what the steps that make a call share ----
@@ -431,7 +443,7 @@ public class DtrService {
                 .expectation(read.expectation())
                 .nextStep(read.nextStep())
                 .determination(determination(operation, read.reading()))
-                .detail(read.reading().detail().withRequest(requestNotes, bodyBuiltByTool))
+                .detail(read.reading().detail().withRequest(withScope(operation, requestNotes), bodyBuiltByTool))
                 .findings(read.findings())
                 .additionalFields(read.reading().additionalFields())
                 // A next-question request names the member by a local reference and carries no member ID,
