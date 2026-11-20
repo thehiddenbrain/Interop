@@ -194,9 +194,11 @@ has looked.
   live against a stand-in, and is not a sign-off. Its three majors were fixed, the check of those fixes
   found two of them closed in part and four new majors (D-260), and the last walkthrough fix (D-264) closed some and
   left the rest open (above). The two proofs of part 2 were seen on the real tabs, on mock, by the second
-  pass over the screens on `0658a7c` (D-208) and by the walkthrough on `9e285a1`. **On the revision
-  handed over they were run by the integrator through the API, not on a screen**: on the jar built from
-  the content of `902e0d9`, on mock, with a script (D-267). `P32H-NO-AUTH` gave `NO_AUTH_REQUIRED`,
+  pass over the screens on `0658a7c` (D-208) and by the walkthrough on `9e285a1`. **On `902e0d9`
+  they were run by the integrator through the API, not on a screen**: on the jar built from that
+  content, on mock, with a script (D-267). On the code of `05acbf7` they were run in the emulation of
+  D-271, from classes the Eclipse compiler built, and held; the integrator's gates run them again on
+  the head, from a fresh clone, and that result is in the pull request description. `P32H-NO-AUTH` gave `NO_AUTH_REQUIRED`,
   "Prior authorization is not required.", next action `FLOW_ENDS`, and `P32H-EMPTY` gave
   `NO_DETERMINATION`, "The service answered but returned no determination.", next action
   `REPORT_NO_DETERMINATION`; their two ledger lines differ in outcome and hold no raw request or

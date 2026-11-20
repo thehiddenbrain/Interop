@@ -4893,8 +4893,9 @@ said so.
 - **The first answer was wrong in part.** The integrator answered yes for testing on mock, with one
   caveat: six endpoints whose path variables took their name from the Java name of the argument,
   which only a compiler that keeps parameter names provides. Inside STS the classes are compiled by
-  the Eclipse compiler, which keeps no parameter names unless a project setting is on, and nothing
-  in the import turns it on. The search behind the caveat matched only a bare `@PathVariable`. The
+  the Eclipse compiler, which keeps no parameter names unless a setting is on, and nothing read shows
+  the import turning it on (Buildship's source at 3.1.12 sets only the compliance, source and target
+  level). The search behind the caveat matched only a bare `@PathVariable`. The
   test written for the fix found 24 such arguments in 9 handlers of `RunController` and
   `PasController`: the History list and its filters, one run, the note, the export, the
   notifications list and the four subscription calls. "Yes for mock" was true only when the tool is
@@ -4943,14 +4944,17 @@ said so.
 - **How the versions were read.** From the projects' own pages and source, each claim marked as read
   then from a named source or from memory, and only the first kind used as fact; the launch's
   default working directory, which the research had only from memory, is given in the README as an
-  inference, not seen. The sources read: the Spring Tools wiki (Changelog, FAQ, Boot Dashboard), the
-  Spring Tools and Buildship source, and the Spring Framework 6.1 release notes. Two hosts were
-  refused by the machine's network policy (`docs.gradle.org`, `eclipse.dev`), so the Gradle
+  inference, not seen. The sources used for the facts below: the Spring Tools wiki (Changelog, FAQ,
+  Boot Dashboard), the Spring Tools and Buildship source, and the Spring Framework 6.1 release notes.
+  Also read and not used: the Spring Boot 3.2 release notes, Buildship's installation page, a post on
+  an Eclipse mailing list, and a search result that summarised a page of the Gradle documentation. Two
+  hosts were refused by the machine's network policy (`docs.gradle.org`, `eclipse.dev`), so the Gradle
   compatibility pages and the Eclipse notes were not read. Buildship's source was read at release
   3.1.12, the latest when read. The agent read three public repositories (Buildship, Spring Tools
-  and the Spring Tools wiki) by cloning them without signing in, although this session's access to
-  GitHub is scoped to this project's repository. The integrator removed those copies when it saw
-  them. Nothing from them is in the project except the facts below, which are public.
+  and the Spring Tools wiki) by cloning them without signing in, the first of them after the GitHub
+  interface of this session had refused that repository, although this session's access to GitHub is
+  scoped to this project's repository. That was not asked for, and the integrator removed the copies
+  when it saw them. Nothing from them is in the project except the facts below, which are public.
 - **What a tester is told** (README, "STS (Spring Tools for Eclipse)"): no STS installation has ever
   imported or started the project. Use Spring Tools 5: 5.0.0 is the first release that states Spring
   Boot 4 support and is built on Eclipse 2025-12; Spring Tools 5 does not run on an older Eclipse
@@ -4984,5 +4988,15 @@ said so.
   what the emulation could not show left out of the README, and two long lines. The integrator's
   agent corrected each in the README, here and in `PROGRESS.md` after reading the outputs. It did
   not add one suggestion, that `gradlew clean build` run while the project is open may make markers
-  come and go: that was inferred by the checker and is in no output. Nobody has checked these
-  corrections.
+  come and go: that was inferred by the checker and is in no output.
+- **After a second check, of the corrected text**, by another agent that had not seen the first. It
+  found one thing a tester was not told: tests started from STS's own JUnit launcher fail where they
+  depend on the Gradle test task, two tests of `HouseStyleTest` (system properties set in
+  `build.gradle`) and `PaveApplicationTest` (the build information file only the Gradle build writes).
+  The README now says to run the tests with Gradle and names these. It also found the sentence above
+  about the import stated as seen when it was read from Buildship's source, the list of sources given
+  as complete when it was not, the setting for parameter names placed in the project when the Spring
+  notes name the workspace preference, the warning counts in the order a tester will not meet them,
+  nothing said about annotation processing, and two lines of the README and `PROGRESS.md` that still
+  called `902e0d9` the revision last run. The integrator corrected each. Nobody has checked these last
+  corrections, and the failures of those tests under an IDE are read from the code, not seen.

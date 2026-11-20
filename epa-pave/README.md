@@ -2051,19 +2051,28 @@ Seven files under `src/test/java` do. The Gradle build reads every source as UTF
 match was not seen. Before you run tests from STS on Windows, open the project's Properties, Resource,
 and set Text file encoding to UTF-8 if it is not already.
 
-**Yellow markers to expect.** The Eclipse compiler, run here, reported 23 warnings in the main code
-(18 when it also reads Javadoc comments) and 6 in the tests, and no error: 13 exception classes with no
-`serialVersionUID`, unused imports, two unused private methods and one deprecated Jackson method. They
-need no action. STS with its own settings may count differently.
+**Tests: run them with Gradle.** `./gradlew test`, or the `clean build` of step 3, is how the tests
+have always been run. Started from STS's own JUnit launcher, some fail for reasons that are not
+defects: two tests of `HouseStyleTest` read system properties that only the Gradle test task sets
+(`pave.houseStyle.*`, in `build.gradle`), and `PaveApplicationTest` needs
+`META-INF/build-info.properties`, which only the Gradle build writes. This is read from the code: no
+test was ever started from an IDE, so there may be others.
+
+**Yellow markers to expect.** The Eclipse compiler, run here, reported no error. When it also reads
+Javadoc comments, as an IDE usually does, it reported 18 warnings in the main code (23 without), and
+6 in the tests: 13 exception classes with no `serialVersionUID`, unused imports, two unused private
+methods and one deprecated Jackson method. They need no action. STS with its own settings may count
+differently. The import sets up no annotation processing, so STS offers no completion for PAVE's
+own properties in `application.yml`; the tool runs the same.
 
 **Parameter names.** The application no longer depends on the compiler keeping parameter names: every
 controller argument names its request parameter or path variable in its annotation, and
 `HandlerArgumentNamesTest` fails the build when one does not (D-271). The Eclipse compiler keeps no
-parameter names unless the project says so, and the import does not say so: Buildship sets only the
-compliance, source and target level from the build (read in its source at release 3.1.12, the
-latest when read). Ticking "Store information
-about method parameters (usable via reflection)" in the project's Java compiler settings, as the
-Spring Framework 6.1 release notes tell Eclipse users to do, does no harm and is not needed.
+parameter names unless a setting says so, and nothing read shows the import saying so: Buildship
+sets only the compliance, source and target level from the build (read in its source at release
+3.1.12, the latest when read). Ticking "Store information about method parameters (usable via
+reflection)" under Preferences, Java, Compiler, as the Spring Framework 6.1 release notes tell
+Eclipse users to do, or in the project's own Java compiler settings, does no harm and is not needed.
 
 - `bin/`, `.classpath`, `.project`, `.settings/` and `.factorypath` that STS creates are in
   `.gitignore`. A launch file you save into the project is not.
@@ -2389,8 +2398,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
 
 ## What this README was checked against
 
-- **Revision:** `902e0d9`, the head of `epa-pave` when this README was last checked against the
-  running tool, with this README added; the code change made since is in the next bullet. That is
+- **Revision:** `902e0d9`, the head of `epa-pave` when this README was last checked in full against
+  the running tool, with this README added; the code change made since, and what was run on it, are
+  in the next two bullets. That is
   `428eff5` with the last four fixes merged (completeness on screen `fff3bd0`, the walkthrough
   `10108d4`, the ledger `54f9912`, the guardrail `ca716a1`), the merge `60876fa` that kept both
   changes to one method of the ledger record, and the test corrected in `6b7abba`. Every sentence
