@@ -196,6 +196,24 @@ class UnreadableProductionOverTheServerTest {
                     + "was not stored.");
         }
 
+        // G2-2 of the last check. The same name uploaded as production at another host adds that address and gives up
+        // nothing: the whole host stays production, with or without a delete first.
+        for (boolean deleteFirst : List.of(false, true)) {
+            if (deleteFirst) {
+                assertThat(json("DELETE", "/api/config/environments/Legacy%20Prod", null, null).statusCode()).isEqualTo(200);
+            }
+            assertThat(upload("/api/config/environments", "p.json", environment("Legacy Prod", "baseUrl",
+                    "https://p32h-placeholder.example.org/lg/fhir"), "kind", "prod").statusCode()).as("delete first " + deleteFirst).isEqualTo(200);
+            HttpResponse<String> stillHost = upload("/api/config/environments", "s.json", environment("UP plain", "baseUrl", plain()),
+                    "kind", "sandbox", "acknowledgeNotProd", "true");
+            assertThat(stillHost.statusCode()).as("delete first " + deleteFirst).isEqualTo(422);
+            assertThat(title(stillHost)).contains("\"Legacy Prod\"");
+            assertThat(json("POST", "/api/pas/submit", SUBMIT, null).statusCode()).as("the sandbox on that host").isEqualTo(403);
+            assertThat(json("POST", "/api/raw", raw("Literal", "transaction plain"), null).statusCode()).isEqualTo(403);
+            assertThat(PROD.received).isEmpty();
+            assertThat(SANDBOX.received).isEmpty();
+        }
+
         // Written plainly, it replaces the whole host: the sandbox writes again, and the plain spelling stays production.
         assertThat(upload("/api/config/environments", "p.json", environment("Legacy Prod", "baseUrl", plain()), "kind", "prod").statusCode())
                 .isEqualTo(200);

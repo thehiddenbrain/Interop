@@ -120,6 +120,8 @@ public class ConfigStore {
 
     private final ConfigStoreProperties properties;
     private final Clock clock;
+    /** The {@code onyx.variables} of application.yml, through which the addresses of an environment are read as well. */
+    private final Map<String, String> applicationYml;
     private final Path directory;
     /** Files that were in the two upload directories at startup and that the state file did not name. */
     private final List<Path> strays;
@@ -131,8 +133,18 @@ public class ConfigStore {
      * first upload would fail in front of a tester and not in front of whoever configured it.
      */
     public ConfigStore(ConfigStoreProperties properties, Clock clock) {
+        this(properties, null, clock);
+    }
+
+    /**
+     * @param onyx where {@code onyx.variables} comes from: the last layer a url is resolved through,
+     *             and so a layer the address of a production environment can come from
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    public ConfigStore(ConfigStoreProperties properties, org.p32h.interop.epa.pave.config.OnyxProperties onyx, Clock clock) {
         this.properties = properties;
         this.clock = clock;
+        this.applicationYml = onyx == null ? Map.of() : onyx.variables();
         if (Texts.blank(properties.directory())) {
             throw new IllegalStateException("config-store.directory is blank. Set it to the directory uploaded Postman files are kept in.");
         }
@@ -167,7 +179,8 @@ public class ConfigStore {
         // The epoch starts above every epoch an earlier run of this installation used, so a browser
         // tab left open across a restart can never hold an epoch that reads as current.
         long epoch = Math.max(clock.millis(), loaded.epoch() + 1);
-        this.current = new ConfigSnapshot(epoch, loaded.environments(), active, loaded.collections(), loaded.remembered());
+        this.current = new ConfigSnapshot(epoch, loaded.environments(), active, loaded.collections(), loaded.remembered(),
+                applicationYml);
         // Counts and names only. Never a variable value.
         log.info("Configuration store ready at {}: environments {}, collections {}, active environment: {}", directory,
                 current.environments().size(), current.collections().size(), active == null ? "none" : "\"" + active + "\"");
@@ -282,7 +295,7 @@ public class ConfigStore {
         if (kind != EnvironmentKind.PROD) {
             refuseProductionAddresses(before, parsed, kind);
         } else {
-            refuseUnreadableProduction(parsed, ProductionDestinations.urlForming(before.collections()), "upload");
+            refuseUnreadableProduction(parsed, before.context(), "upload");
         }
         boolean needsConfirmation = kind != EnvironmentKind.PROD && !reasonsToAsk.isEmpty();
         if (needsConfirmation && !acknowledgedNotProd) {
@@ -304,14 +317,19 @@ public class ConfigStore {
         } else {
             environments.set(environments.indexOf(previous), stored);
         }
-        // A production environment uploaded again replaces the whole host that its earlier,
-        // unreadable address protected: its addresses are now read as written, and they are the
-        // ones it is remembered by from here on.
-        List<ConfigSnapshot.KnownDestination> remembered = kind != EnvironmentKind.PROD ? before.remembered()
-                : before.remembered().stream().filter(known -> !(known.environment().equals(parsed.name())
-                && !known.destination().readable())).toList();
+        // A production environment uploaded again, written plainly on the same host, replaces what
+        // its earlier, unreadable address protected on that host. Uploaded on another host it adds
+        // to what is remembered and takes nothing away: the old host may still be production.
+        List<UrlNormal.Destination> plain = kind != EnvironmentKind.PROD ? List.of()
+                : ProductionDestinations.production(parsed, before.context()).stream().map(ProductionDestinations.Found::destination)
+                .filter(UrlNormal.Destination::readable).toList();
+        List<ConfigSnapshot.KnownDestination> remembered = before.remembered().stream()
+                .filter(known -> !(known.environment().equals(parsed.name()) && !known.destination().readable()
+                        && plain.stream().anyMatch(each -> new UrlNormal.Destination(null, known.destination().host(), -1, "", false)
+                        .sameOrigin(each))))
+                .toList();
         List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections(),
-                remembered), file, previous == null ? null : previous.file());
+                remembered, before.applicationYml()), file, previous == null ? null : previous.file());
 
         List<String> warnings = new ArrayList<>(secretWarnings(parsed.variables(), file));
         warnings.addAll(AddressChecks.of(current.byName(stored.name()), current));
@@ -332,10 +350,10 @@ public class ConfigStore {
             return before;
         }
         if (environment.kind() == EnvironmentKind.PROD) {
-            refuseUnreadableProduction(environment.content(), ProductionDestinations.urlForming(before.collections()), "activate");
+            refuseUnreadableProduction(environment.content(), before.context(), "activate");
         }
         commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), environment.name(), before.collections(),
-                before.remembered()), null, null);
+                before.remembered(), before.applicationYml()), null, null);
         // The name and the kind only.
         log.info("Active environment switched to \"{}\" ({})", oneLine(environment.name()), environment.kind().wire());
         return current;
@@ -348,7 +366,7 @@ public class ConfigStore {
         List<StoredEnvironment> environments = new ArrayList<>(before.environments());
         environments.remove(environment);
         List<String> warnings = commit(new ConfigSnapshot(before.epoch() + 1, environments, wasActive ? null : before.activeName(),
-                before.collections(), before.remembered()), null, environment.file());
+                before.collections(), before.remembered(), before.applicationYml()), null, environment.file());
         // The name only.
         log.info("Environment \"{}\" removed{}", oneLine(environment.name()), wasActive ? ". It was the active one, so none is active now" : "");
         return new Removal(environment.name(), wasActive, warnings, current.epoch());
@@ -395,7 +413,7 @@ public class ConfigStore {
             collections.set(collections.indexOf(previous), stored);
         }
         List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections,
-                before.remembered()), file, previous == null ? null : previous.file());
+                before.remembered(), before.applicationYml()), file, previous == null ? null : previous.file());
 
         warnings.addAll(secretWarnings(parsed.variables(), file));
         warnings.addAll(literalCredentialWarnings(parsed, file));
@@ -438,8 +456,8 @@ public class ConfigStore {
                 collection.originalFileName(), collection.uploadedAt(), requests);
         List<StoredCollection> collections = new ArrayList<>(before.collections());
         collections.set(collections.indexOf(collection), changed);
-        commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections, before.remembered()),
-                null, null);
+        commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections, before.remembered(),
+                before.applicationYml()), null, null);
         // The operations only.
         log.info("Mapping of one request corrected to {}", correction == null ? "what detection proposed" : correction.name());
         return new MappingChange(changed, changed.request(requestId), true, current);
@@ -451,7 +469,7 @@ public class ConfigStore {
         List<StoredCollection> collections = new ArrayList<>(before.collections());
         collections.remove(collection);
         List<String> warnings = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections,
-                before.remembered()), null, collection.file());
+                before.remembered(), before.applicationYml()), null, collection.file());
         // The name only.
         log.info("Collection \"{}\" removed, with its mapping corrections", oneLine(collection.name()));
         return new Removal(collection.name(), false, warnings, current.epoch());
@@ -503,7 +521,7 @@ public class ConfigStore {
     private static void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
         ProductionDestinations.Found quoted = null;
-        for (ProductionDestinations.Found found : ProductionDestinations.of(parsed, ProductionDestinations.urlForming(before.collections()))) {
+        for (ProductionDestinations.Found found : ProductionDestinations.of(parsed, before.context())) {
             List<String> overlapping = before.productionOverlaps(found.destination());
             if (!overlapping.isEmpty() && quoted == null && !found.secret()) {
                 quoted = found;
@@ -543,37 +561,68 @@ public class ConfigStore {
     }
 
     /**
-     * Refuses a production environment with an address the HTTP client cannot read as this tool
-     * does. Where production is must be known exactly: the addresses of a production environment
-     * are what a write needs an unlock for and what a sandbox may not use, and an address read one
-     * way here and another way by the client protects nothing. An operator who means production
-     * writes its address plainly.
+     * Refuses a production environment whose address is not known exactly: one the HTTP client
+     * cannot read as this tool does, a variable that holds an address and has no value, and one
+     * built from an operating system variable, whose value is known only at the moment of sending.
+     * The address is read through every layer the gateway resolves through when it sends,
+     * application.yml included. Where production is must be known exactly: the addresses of a
+     * production environment are what a write needs an unlock for and what a sandbox may not use,
+     * and an address this tool does not know protects nothing. An operator who means production
+     * writes its address into the environment, plainly.
      *
      * @param step what is refused: "upload", "activate" or "unlock"
      */
-    static void refuseUnreadableProduction(PostmanEnvironment environment, Set<String> urlForming, String step) {
-        List<PostmanVariable> unreadable = ProductionDestinations.unreadableVariables(environment, urlForming);
-        if (unreadable.isEmpty()) {
+    static void refuseUnreadableProduction(PostmanEnvironment environment, ProductionDestinations.Context context, String step) {
+        List<ProductionDestinations.Problem> problems = ProductionDestinations.problems(environment, context);
+        if (problems.isEmpty()) {
             return;
         }
-        PostmanVariable first = unreadable.get(0);
-        // A secret is named and never quoted.
-        String holds = "the variable \"" + oneLine(first.key()) + "\" holds "
-                + (first.secret() ? "an address that is not quoted here because the variable is a secret" : "the address \""
-                + UrlNormal.asWritten(first.value()) + "\"") + ", which this tool cannot read the way the HTTP client reads it";
-        String plainly = "Write the address plainly, as scheme://host:port/path with the host as a name or as four decimal numbers and a "
-                + "port of at most 65535, and upload the environment again.";
+        ProductionDestinations.Problem first = problems.get(0);
+        String holds = holds(first);
+        boolean unreadable = first.why() == ProductionDestinations.Unknown.UNREADABLE;
+        String plainly = unreadable
+                ? "Write the address plainly, as scheme://host:port/path with the host as a name or as four decimal numbers and a "
+                + "port of at most 65535, and upload the environment again."
+                : "Write the address itself into the environment, plainly, as scheme://host:port/path, and upload the environment again.";
         if ("upload".equals(step)) {
             throw new ValidationException("This environment was declared as prod, and " + holds + ". It was not stored.",
                     List.of(new FieldError("kind", "The addresses of a production environment are what a write must be unlocked for "
-                            + "and what no other environment may use, so this tool must read them exactly as the HTTP client does. "
-                            + plainly)));
+                            + "and what no other environment may use, so this tool must " + (unreadable
+                            ? "read them exactly as the HTTP client does. " : "know them before anything is sent. ") + plainly)));
         }
         String name = "\"" + oneLine(environment.name()) + "\"";
         String refused = "activate".equals(step) ? name + " cannot be made active" : "Writes to " + name + " cannot be unlocked";
-        throw new BadInputException(refused + ": it is a production environment, and "
-                + holds + ".", "Nothing was changed. " + plainly + " Until then this tool takes every port and every path of that "
-                + "address's host as production.");
+        throw new BadInputException(refused + ": it is a production environment, and " + holds + ".", "Nothing was changed. " + plainly
+                + (unreadable ? " Until then this tool takes every port and every path of that address's host as production." : ""));
+    }
+
+    /** Where an address of a production environment is held and why it is not known, in words. A secret is named and never quoted. */
+    private static String holds(ProductionDestinations.Problem problem) {
+        String variable = "the variable \"" + oneLine(problem.variable()) + "\"";
+        String where = problem.own() ? variable : variable + ", which this environment does not define and "
+                + (problem.from() == null ? "another layer" : problem.from()) + " gives,";
+        String written = problem.secret() || problem.written() == null ? null : UrlNormal.asWritten(problem.written());
+        return switch (problem.why()) {
+            case UNREADABLE -> {
+                String address;
+                if (problem.secret()) {
+                    address = " holds an address that is not quoted here because " + (problem.own() && problem.written() == null
+                            ? "the variable is a secret" : "a secret is part of it");
+                } else if (!problem.own() || written == null) {
+                    address = " holds the address \"" + UrlNormal.asWritten(problem.resolved() == null ? "" : problem.resolved()) + "\"";
+                } else if (problem.resolved() != null) {
+                    address = " holds \"" + written + "\", which resolves through application.yml or the variables of a collection to the "
+                            + "address \"" + UrlNormal.asWritten(problem.resolved()) + "\"";
+                } else {
+                    address = " holds the address \"" + written + "\"";
+                }
+                yield where + address + ", which this tool cannot read the way the HTTP client reads it";
+            }
+            case NO_VALUE -> where + (written == null ? "" : " holds \"" + written + "\", which") + " has no value in this environment, "
+                    + "its collections or application.yml, so the address it would send to is not known";
+            case AT_SENDING -> where + (written == null ? "" : " holds \"" + written + "\", which") + " is read from an operating system "
+                    + "variable only at the moment of sending, so the address it would send to is not known before then";
+        };
     }
 
     /**

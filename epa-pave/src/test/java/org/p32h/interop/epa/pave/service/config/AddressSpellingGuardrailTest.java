@@ -112,9 +112,14 @@ class AddressSpellingGuardrailTest {
     @Test
     void aProductionAddressWithLeadingZerosInApplicationYmlIsNotWrittenToFromASandbox() {
         for (String profile : PROFILES) {
-            ConfigFixture fixture = on(profile).allowProdWrites().onyx("variables.ymlZero", "http://127.0.0.1:0018743/pb/fhir").build();
+            ConfigFixture fixture = on(profile).allowProdWrites().onyx("variables.ymlZero", "http://127.0.0.1:0018743/pb/fhir")
+                    .onyx("variables.baseUrl", "http://127.0.0.1:0018743/pb/fhir").build();
             fixture.environmentOf("Audit Live B", EnvironmentKind.PROD, "baseUrl", PROD_B);
-            fixture.activeEnvironmentOf("Audit Sandbox", EnvironmentKind.SANDBOX, "baseUrl", "{{ymlZero}}");
+            // The sandbox's own address is read through application.yml as it would be sent, so it is refused at upload.
+            assertThatThrownBy(() -> fixture.environmentOf("Audit Sandbox", EnvironmentKind.SANDBOX, "baseUrl", "{{ymlZero}}")).as(profile)
+                    .isInstanceOf(ValidationException.class).hasMessageContaining("is an address of the production environment \"Audit Live B\"");
+            // A sandbox that leaves its address to application.yml is stored, and its write there is refused.
+            fixture.activeEnvironmentOf("Audit Sandbox", EnvironmentKind.SANDBOX, "clientId", "pave-client");
             fixture.collection(PostmanFiles.VENDOR_COLLECTION);
             ProdWriteBlockedException refusal = blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT));
             assertThat(refusal.getMessage()).as(profile).contains("belongs to the production environment \"Audit Live B\"");

@@ -115,6 +115,9 @@ class SecondGuardrailAuditOverTheServerTest {
         registry.add("onyx.auth.client-id", () -> "placeholder-client");
         registry.add("onyx.auth.client-secret", () -> "placeholder-secret");
         registry.add("onyx.variables.ymlZero", () -> PROD_B.zeros("/pb/fhir"));
+        // G2-1 of the last check: production addresses that application.yml supplies.
+        registry.add("onyx.variables.ymlProd", () -> PROD_B.url("/yp/fhir"));
+        registry.add("onyx.variables.ymlProdOdd", () -> "http://127.0.0.1:+" + PROD_B.port() + "/yq/fhir");
     }
 
     @AfterAll
@@ -245,29 +248,54 @@ class SecondGuardrailAuditOverTheServerTest {
             assertThat(zeros.statusCode()).as(spelling).isEqualTo(422);
             assertThat(zeros.body()).contains("is an address of the production environment \\\"Audit Live A\\\"");
         }
-        // B1 through application.yml: a sandbox whose address is {{ymlZero}}, production B with leading zeros.
-        assertThat(upload("/api/config/environments", "y.json", environment("Yml Zero", "baseUrl", "{{ymlZero}}"), "kind", "sandbox")
+        // B1 through application.yml: a sandbox whose address is {{ymlZero}}, production B with leading zeros. Its
+        // address is read through application.yml as it would be sent, so it is refused at upload.
+        HttpResponse<String> ymlZero = upload("/api/config/environments", "y.json", environment("Yml Zero", "baseUrl", "{{ymlZero}}"),
+                "kind", "sandbox");
+        assertThat(ymlZero.statusCode()).isEqualTo(422);
+        assertThat(ymlZero.body()).contains("is an address of the production environment \\\"Audit Live B\\\"");
+        // G2-1. A production environment whose address application.yml supplies is remembered at that address, and
+        // a sandbox or a uat written at that very address is refused. One whose address cannot be known before
+        // sending, read from the operating system or unreadable through application.yml, is not stored.
+        assertThat(upload("/api/config/environments", "yp.json", environment("P YP", "baseUrl", "{{ymlProd}}"), "kind", "prod")
                 .statusCode()).isEqualTo(200);
-        activate("Yml Zero");
-        HttpResponse<String> yml = json("POST", "/api/pas/submit", submit(null), null);
-        assertThat(yml.statusCode()).isEqualTo(403);
-        assertThat(yml.body()).contains("belongs to the production environment \\\"Audit Live B\\\"");
-        assertThat(json("DELETE", "/api/pas/subscriptions/s-1", null, null).statusCode()).isEqualTo(403);
+        for (String kind : List.of("sandbox", "uat")) {
+            HttpResponse<String> near = upload("/api/config/environments", "n.json", environment("Near YP", "baseUrl", PROD_B.url("/yp/fhir")),
+                    "kind", kind, "acknowledgeNotProd", "true");
+            assertThat(near.statusCode()).as(kind).isEqualTo(422);
+            assertThat(near.body()).as(kind).contains("is an address of the production environment \\\"P YP\\\"");
+        }
+        for (String reference : List.of("{{ymlProdOdd}}", "{{env:PAVE_P32H_TEST_PRODURL}}")) {
+            HttpResponse<String> unknown = upload("/api/config/environments", "u.json", environment("P Unknown", "baseUrl", reference),
+                    "kind", "prod");
+            assertThat(unknown.statusCode()).as(reference).isEqualTo(422);
+            assertThat(unknown.body()).as(reference).contains("holds \\\"" + reference + "\\\", which");
+        }
         // B1 through a collection literal, from a sandbox and while production A is unlocked.
         String literals = "{\"info\": {\"name\": \"Literal zeros\", \"schema\": "
                 + "\"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\"}, \"item\": " + ConfigFixture.items(
                 ConfigFixture.item("transaction zero", "POST", PROD_B.zeros("/pb/fhir")),
+                ConfigFixture.item("submit by yml", "POST", "{{ymlZero}}/Claim/$submit"),
+                ConfigFixture.item("submit at yp", "POST", PROD_B.url("/yp/fhir/Claim/$submit")),
                 ConfigFixture.item("transaction unreadable", "POST", "http://127.0.0.1:" + (PROD_B.port() + 65536) + "/elsewhere/fhir"),
                 ConfigFixture.item("search encoded", "GET", "{{baseUrl}}/Claim?patient=Patient%2FS123456789")) + "}";
         assertThat(upload("/api/config/collections", "literals.json", literals.getBytes(StandardCharsets.UTF_8)).statusCode()).isEqualTo(200);
         activate("Audit Sandbox");
         assertThat(json("POST", "/api/raw", raw("Literal zeros", "transaction zero", null), null).statusCode()).isEqualTo(403);
+        // A write whose address application.yml gives, from a sandbox: refused, naming production B.
+        HttpResponse<String> yml = json("POST", "/api/raw", raw("Literal zeros", "submit by yml", null), null);
+        assertThat(yml.statusCode()).isEqualTo(403);
+        assertThat(yml.body()).contains("belongs to the production environment \\\"Audit Live B\\\"");
+        HttpResponse<String> atYp = json("POST", "/api/raw", raw("Literal zeros", "submit at yp", null), null);
+        assertThat(atYp.statusCode()).isEqualTo(403);
+        assertThat(atYp.body()).contains("belongs to the production environment \\\"P YP\\\"");
         HttpResponse<String> unreadable = json("POST", "/api/raw", raw("Literal zeros", "transaction unreadable", null), null);
         assertThat(unreadable.statusCode()).isEqualTo(403);
         assertThat(unreadable.body()).contains("could not be read the way the HTTP client reads them");
         activate("Audit Live A");
         String unlockedA = unlock("Audit Live A");
         assertThat(json("POST", "/api/raw", raw("Literal zeros", "transaction zero", null), unlockedA).statusCode()).isEqualTo(403);
+        assertThat(json("POST", "/api/raw", raw("Literal zeros", "submit by yml", null), unlockedA).statusCode()).isEqualTo(403);
         json("POST", "/api/config/writes", "{\"action\": \"lock\"}", unlockedA);
 
         // M-ENC. Production A active and locked: an encoded separator typed for one run hides a write in a read.

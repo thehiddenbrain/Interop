@@ -52,7 +52,7 @@ public final class ConfigFixture {
         AtomicInteger guids = new AtomicInteger();
         VariableResolver resolver = new VariableResolver(operatingSystem::get, CLOCK,
                 () -> "00000000-0000-4000-8000-" + String.format("%012d", guids.incrementAndGet()));
-        this.store = new ConfigStore(configStore, CLOCK);
+        this.store = new ConfigStore(configStore, onyx, CLOCK);
         this.gateway = new ConfigStoreGateway(store, onyx, lookup, epa, CLOCK, resolver);
         this.service = new ConfigService(store, gateway, configStore, onyx, lookup, epa);
     }

@@ -538,7 +538,7 @@ public class ConfigStoreGateway implements OperationGateway {
         // A production environment whose address cannot be read is never made active; one that was
         // active before that rule, or became unreadable when a collection made another of its
         // variables an address, is not opened either.
-        ConfigStore.refuseUnreadableProduction(active.content(), ProductionDestinations.urlForming(snapshot.collections()), "unlock");
+        ConfigStore.refuseUnreadableProduction(active.content(), snapshot.context(), "unlock");
         if (typedEnvironmentName == null || !typedEnvironmentName.equals(active.name())) {
             // The outcome only. What was typed is not logged.
             log.info("An unlock of production writes was refused on \"{}\": the name typed did not match", ConfigStore.oneLine(active.name()));
