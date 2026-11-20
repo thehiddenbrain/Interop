@@ -493,6 +493,16 @@ class DestinationGuardrailTest {
         }
     }
 
+    @Test
+    void aUrlReadsAsProductionOnceEveryEscapeIsDecodedAndByItsHost() {
+        // Escapes the normal form keeps, because they do not stand for an unreserved character, are read as well.
+        assertThat(ConfigStoreGateway.readsAsProduction("http://127.0.0.1:18472/p%72od/Claim")).isTrue();
+        assertThat(ConfigStoreGateway.readsAsProduction("http://127.0.0.1:18472/pr%6fd")).isTrue();
+        assertThat(ConfigStoreGateway.readsAsProduction("http://127.0.0.1:18472/pr%22od")).isFalse();
+        assertThat(ConfigStoreGateway.readsAsProduction("http://API.PROD.example.invalid/fhir")).isTrue();
+        assertThat(ConfigStoreGateway.readsAsProduction(SANDBOX + "/Claim/$submit")).isFalse();
+    }
+
     // ------------------------------------------------------------------------------------------
     // G8: the unlock is checked against the environment's name, not only the epoch
     // ------------------------------------------------------------------------------------------

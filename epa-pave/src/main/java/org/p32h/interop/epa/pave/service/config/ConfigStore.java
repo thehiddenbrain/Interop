@@ -565,6 +565,8 @@ public class ConfigStore {
             List<String> places = new ArrayList<>();
             LiteralCredentials.inUrl(request.url()).found().forEach(found -> places.add(found.place()));
             LiteralCredentials.inBody(request.body()).found().forEach(found -> places.add(found.place()));
+            request.formCredentials().forEach(field -> places.add("the field " + oneLine(field) + " of its " + oneLine(request.bodyMode())
+                    + " body"));
             if (!places.isEmpty()) {
                 warnings.add("The request \"" + oneLine(request.qualifiedName()) + "\" holds a credential typed into the collection, in "
                         + String.join(" and in ", places) + "." + stored + " This tool masks it wherever it shows the request, and sends it "
@@ -581,8 +583,10 @@ public class ConfigStore {
                             + "wherever it shows the example. A saved example is never sent. If it is a real credential, have it revoked.");
                 }
             }
-            PostmanAuth auth = request.auth();
-            if (auth != null && !auth.literals().isEmpty() && helpers.add(auth.type() + "|" + auth.from())) {
+        }
+        // Every helper the file sets, whether or not a request inherits it: each one is in the file as uploaded.
+        for (PostmanAuth auth : collection.helpers()) {
+            if (!auth.literals().isEmpty() && helpers.add(auth.type() + "|" + auth.from())) {
                 warnings.add("The authentication helper " + oneLine(auth.type()) + " set on " + oneLine(auth.from()) + " holds a credential "
                         + "typed into the collection, in its field " + String.join(" and its field ", auth.literals().stream()
                         .map(ConfigStore::oneLine).toList()) + "." + stored + " This tool does not apply the helper, so it never sends or "

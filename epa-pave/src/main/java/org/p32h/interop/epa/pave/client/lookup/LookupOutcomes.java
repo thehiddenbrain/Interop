@@ -170,13 +170,22 @@ final class LookupOutcomes {
                 + "HTTP, so nothing was sent: correct " + words.property() + ".headers, and until then " + words.byHand() + ".", null);
     }
 
+    private static final String BLOCKED = " is blocked: ";
+
     /**
      * The production guardrail refused the request. It is not switched off and not missing, so it
      * is not reported as either: the lookup was refused, and the refusal says why. The refusal
      * names a header, a variable or an environment, never a value, so it can be repeated here.
      */
     static Ending refusedByTheGuardrail(LookupWords words, String refusal, String action) {
-        String message = words.lookup() + " was refused by the production guardrail and not sent: " + Texts.orElse(refusal, "").strip();
+        // The guardrail's reason opens by naming what is blocked, which this sentence has just said.
+        String reason = Texts.orElse(refusal, "").strip();
+        int named = reason.indexOf(BLOCKED);
+        int firstSentence = reason.indexOf(". ");
+        if (named >= 0 && (firstSentence < 0 || named < firstSentence)) {
+            reason = reason.substring(named + BLOCKED.length());
+        }
+        String message = words.lookup() + " was refused by the production guardrail and not sent: " + reason;
         return new Ending(LookupStatus.FAULT, message, ErrorView.of(ErrorKind.BLOCKED, message,
                 Texts.orElse(action, "").strip() + (Texts.present(action) ? " " : "") + "Until then, " + words.byHand() + "."));
     }

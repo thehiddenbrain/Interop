@@ -35,7 +35,7 @@ class SecretsTest {
     void namesThatLocateOrDescribeACredentialAreNotSecret() {
         for (String name : new String[] {"tokenUrl", "token_url", "clientId", "client_id", "baseUrl", "keyId", "tokenType",
                 "secretName", "monkeyUrl", "keyword", "tokenizer", "scopes", "crdServiceId", "host", "authUrl",
-                "authType", "auth_method", "tokenAudience", "author", "crdOrderSignServiceId"}) {
+                "authType", "auth_method", "tokenAudience", "author", "crdOrderSignServiceId", "sigFormat", "targetFormat", "tokenFormat"}) {
             assertThat(Secrets.looksSecret(name)).as(name).isFalse();
         }
     }

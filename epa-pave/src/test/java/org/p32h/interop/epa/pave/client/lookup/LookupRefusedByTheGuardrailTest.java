@@ -45,8 +45,8 @@ class LookupRefusedByTheGuardrailTest {
         server.verify();
 
         assertThat(result.status()).isEqualTo(LookupStatus.FAULT);
-        assertThat(result.message()).isEqualTo("Member lookup was refused by the production guardrail and not sent: Member lookup is "
-                + "blocked: \"vendor-live\" is a production environment and production writes are locked for this session. It counts as a "
+        assertThat(result.message()).isEqualTo("Member lookup was refused by the production guardrail and not sent: "
+                + "\"vendor-live\" is a production environment and production writes are locked for this session. It counts as a "
                 + "write because its header X-HTTP-Method-Override asks the far side to act on it as DELETE.")
                 .doesNotContain("switched off").doesNotContain("mapped to").doesNotContain("S1234567801");
         assertThat(result.error().action()).endsWith("Until then, type the member details by hand.");

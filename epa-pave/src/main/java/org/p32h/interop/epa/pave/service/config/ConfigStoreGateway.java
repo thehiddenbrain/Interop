@@ -1178,7 +1178,7 @@ public class ConfigStoreGateway implements OperationGateway {
     }
 
     /** True when the url reads as production: the word "prod" in it once escapes are decoded, or in its host. */
-    private static boolean readsAsProduction(String url) {
+    static boolean readsAsProduction(String url) {
         UrlNormal.Destination destination = UrlNormal.destination(url);
         return ProductionSigns.saysProd(UrlNormal.decodedForReading(url))
                 || (destination != null && ProductionSigns.saysProd(UrlNormal.decodedForReading(destination.host())));

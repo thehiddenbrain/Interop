@@ -69,13 +69,44 @@ class LiteralCredentialsInACollectionTest {
                         + "in its header Authorization and in the field access_token of its body. It sits in the file " + file + " in plain "
                         + "text: the collection is kept exactly as it was uploaded, value included. This tool masks it wherever it shows the "
                         + "example. A saved example is never sent. If it is a real credential, have it revoked.",
-                "The authentication helper bearer set on this request holds a credential typed into the collection, in its field token. "
+                "The authentication helper bearer set on the request \"Tokens / token with secrets in the url and the body\" holds a "
+                        + "credential typed into the collection, in its field token. "
                         + "It sits in the file " + file + " in plain text: the collection is kept exactly as it was uploaded, value "
                         + "included. This tool does not apply the helper, so it never sends or shows that value. To keep it out of that "
                         + "file, move the value into a secret variable of the environment, or into an operating system variable referred "
                         + "to as {{env:PAVE_YOUR_NAME}}, refer to it from the request as a {{placeholder}} in Postman, and export again.");
+        // The helpers of the collection and of the folder are in the file too, though the request sets its own.
+        assertThat(warnings).anyMatch(warning -> warning.startsWith("The authentication helper basic set on the collection holds a "
+                + "credential typed into the collection, in its field password."));
+        assertThat(warnings).anyMatch(warning -> warning.startsWith("The authentication helper apikey set on the folder \"Tokens\" holds "
+                + "a credential typed into the collection, in its field value."));
         // The file is kept as uploaded, value included, which is what the warnings say.
         assertThat(fixture.store.directory().resolve(upload.collection().file())).content().contains("ZZLIT-URLSECRET-15");
+    }
+
+    @Test
+    void aCredentialInAUrlencodedOrFormdataBodyIsNamedThoughTheBodyIsNotLoaded() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        String forms = """
+                {"info": {"name": "zz forms", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+                 "item": [{"name": "token by form", "request": {"method": "POST", "url": "{{baseUrl}}/oauth2/token",
+                     "body": {"mode": "urlencoded", "urlencoded": [{"key": "grant_type", "value": "client_credentials"},
+                       {"key": "client_secret", "value": "ZZLIT-BODYSECRET-17"}, {"key": "client_id", "value": "{{clientId}}"},
+                       {"key": "password", "value": "{{password}}"}]}}},
+                   {"name": "upload by form", "request": {"method": "POST", "url": "{{baseUrl}}/upload",
+                     "body": {"mode": "formdata", "formdata": [{"key": "api_key", "value": "ZZLIT-FORMKEY-25", "type": "text"},
+                       {"key": "file", "src": "/tmp/x.pdf", "type": "file"}]}}}]}
+                """;
+        ConfigStore.CollectionUpload upload = fixture.store.uploadCollection("forms.json", forms.getBytes(StandardCharsets.UTF_8));
+        String all = String.join(" ", upload.warnings());
+        assertThat(all).doesNotContain(CANARY);
+        assertThat(upload.warnings()).anyMatch(warning -> warning.startsWith("The request \"token by form\" holds a credential typed into "
+                + "the collection, in the field client_secret of its urlencoded body. It sits in the file "));
+        assertThat(upload.warnings()).anyMatch(warning -> warning.startsWith("The request \"upload by form\" holds a credential typed into "
+                + "the collection, in the field api_key of its formdata body."));
+        assertThat(all).doesNotContain("field password").doesNotContain("field client_id").doesNotContain("field grant_type");
+        assertThat(upload.collection().content().requests().get(0).formCredentials()).containsExactly("client_secret");
+        assertThat(upload.collection().content().requests().get(0).toString()).doesNotContain(CANARY);
     }
 
     @Test

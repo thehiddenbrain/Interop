@@ -48,7 +48,7 @@ public final class Secrets {
      */
     private static final Set<String> DESCRIPTOR_WORDS = Set.of("url", "uri", "endpoint", "host", "path", "id", "type",
             "name", "scope", "scopes", "ttl", "expiry", "enabled", "prefix", "algorithm", "alg", "method", "mode",
-            "grant", "realm", "audience", "issuer");
+            "grant", "realm", "audience", "issuer", "format");
 
     private Secrets() {
     }
