@@ -50,7 +50,11 @@ class PlaceholderOnTheLiveProfileTest {
 
     private static final String EXT = "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information";
 
-    /** No authorization needed, for each of two orders. The placeholder list says both codes need one for Medicare. */
+    /**
+     * No authorization needed, for each of two orders, in the shape CRD 2.0.1 requires (coverage,
+     * covered, date and coverage-assertion-id once each), so that the only findings left are about
+     * the code list. The placeholder list says both codes need one for Medicare.
+     */
     private static final String NO_AUTH_FOR_BOTH = "{\"cards\":[],\"systemActions\":[" + noAuthFor(1) + "," + noAuthFor(2) + "]}";
 
     private static final AtomicInteger RECEIVED = new AtomicInteger();
@@ -62,8 +66,12 @@ class PlaceholderOnTheLiveProfileTest {
 
     private static String noAuthFor(int order) {
         return "{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-" + order + "\","
-                + "\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[{\"url\":\"covered\",\"valueCode\":\"covered\"},"
-                + "{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"}]}]}}";
+                + "\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":["
+                + "{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}},"
+                + "{\"url\":\"covered\",\"valueCode\":\"covered\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"},"
+                + "{\"url\":\"date\",\"valueDate\":\"2026-03-20\"},"
+                + "{\"url\":\"coverage-assertion-id\",\"valueString\":\"assertion-" + order + "\"}]}]}}";
     }
 
     @DynamicPropertySource
