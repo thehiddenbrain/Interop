@@ -292,7 +292,7 @@ public class NotificationReceiver {
 
     /** Records whatever arrived at the receiver. Never throws for anything a sender sent. */
     public NotificationView receive(Inbound inbound) {
-        return accept(inbound == null ? new Inbound(new byte[0], 0, true) : inbound, null, List.of());
+        return accept(inbound == null ? new Inbound(new byte[0], 0, true) : inbound, null, List.of(), null);
     }
 
     /**
@@ -361,9 +361,22 @@ public class NotificationReceiver {
             claimResponseId = Texts.orElse(run.correlation().get(RunRecord.CORR_CLAIM_RESPONSE_ID), MockNotifications.claimResponseIdFor(claimId));
         }
         List<String> notes = new ArrayList<>();
+        String toSeeAMatch = null;
         if (subscriptionId == null) {
             boolean[] lookupFailed = new boolean[1];
             subscriptionId = latestCreatedSubscription(target, lookupFailed);
+            if (subscriptionId != null && !notify.body().contains(MockNotifications.SUBSCRIPTION_ID_TOKEN)) {
+                // This sample names a subscription of its own, which nobody created here, on purpose. Creating
+                // another subscription would change nothing, so the step names a sample that would be matched.
+                toSeeAMatch = all.stream().filter(s -> MockNotifications.step(s) != null && MockNotifications.step(s).body() != null
+                        && MockNotifications.step(s).body().contains(MockNotifications.SUBSCRIPTION_ID_TOKEN)
+                        && !MockNotifications.aboutASubmission(MockNotifications.step(s))).map(Scenario::id).findFirst().orElse(null);
+                if (toSeeAMatch == null) {
+                    toSeeAMatch = all.stream().filter(s -> MockNotifications.step(s) != null && MockNotifications.step(s).body() != null
+                            && MockNotifications.step(s).body().contains(MockNotifications.SUBSCRIPTION_ID_TOKEN)).map(Scenario::id)
+                            .findFirst().orElse(null);
+                }
+            }
             if (subscriptionId == null) {
                 notes.add(target == null || lookupFailed[0]
                         ? "The ledger could not be asked which subscription this tool created last, so this sample names one nobody created."
@@ -371,7 +384,8 @@ public class NotificationReceiver {
                                 + "unmatched. Create a subscription first to see a notification that is matched to it.");
             }
         }
-        return accept(Inbound.of(MockNotifications.body(notify, subscriptionId, claimId, claimResponseId)), scenario.id(), notes);
+        return accept(Inbound.of(MockNotifications.body(notify, subscriptionId, claimId, claimResponseId)), scenario.id(), notes,
+                toSeeAMatch);
     }
 
     /**
@@ -407,7 +421,12 @@ public class NotificationReceiver {
         }
     }
 
-    private NotificationView accept(Inbound inbound, String sampleScenarioId, List<String> sampleNotes) {
+    /**
+     * @param toSeeAMatch for a sample that names a subscription nobody created here on purpose,
+     *                    while this tool has created one: the scenario whose sample would be
+     *                    matched to it. Null otherwise
+     */
+    private NotificationView accept(Inbound inbound, String sampleScenarioId, List<String> sampleNotes, String toSeeAMatch) {
         List<String> payloadNotes = new ArrayList<>(sampleNotes);
         String text = decode(inbound.kept(), inbound.cut(), payloadNotes);
         org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = callbackSecrets().mask(text);
@@ -437,7 +456,7 @@ public class NotificationReceiver {
         try {
             // Only the reading, the matching and the wording are inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one notification.
-            Interpreted read = interpret(text, inbound.cut(), sampleScenarioId, cut);
+            Interpreted read = interpret(text, inbound.cut(), sampleScenarioId, cut, toSeeAMatch);
             outcome = read.outcome();
             draft.outcome(outcome).coverageCodes(read.codes()).correlation(read.correlation()).nextAction(read.nextStep().action())
                     .findings(read.findings().stream().map(f -> f.kind().name()).distinct().toList());
@@ -491,7 +510,7 @@ public class NotificationReceiver {
         return stored;
     }
 
-    private Interpreted interpret(String text, boolean wasCut, String sampleScenarioId, String cut) {
+    private Interpreted interpret(String text, boolean wasCut, String sampleScenarioId, String cut, String toSeeAMatch) {
         NotificationReading reading = reader.apply(text);
         Links links = correlate(reading);
         NotificationOutcome outcome = NotificationVerdicts.outcome(reading, links.unmatched());
@@ -552,7 +571,7 @@ public class NotificationReceiver {
 
         VerdictView verdict = NotificationVerdicts.verdict(outcome, reading, links.notes(), sampleScenarioId, cut);
         NextStepView nextStep = NotificationVerdicts.nextStep(outcome, reading, claimId, links.submissionRunId(), status.subscriptionId(),
-                links.unmatched(), sampleScenarioId != null);
+                links.unmatched(), sampleScenarioId != null, toSeeAMatch);
         return new Interpreted(outcome, reading, links, findings, verdict, nextStep, codes, correlation, claimId);
     }
 

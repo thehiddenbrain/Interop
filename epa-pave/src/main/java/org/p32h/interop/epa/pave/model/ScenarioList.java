@@ -20,11 +20,15 @@ import java.util.List;
  *                  a run's next step was from here: the ledger line keeps the code alone
  * @param findingKinds every finding kind, with the group it is shown under and that group's
  *                  heading, so no screen keeps its own grouping of the kinds
+ * @param notes     what a tester should know about the protocol's scenario files that does not
+ *                  stop them being used, one sentence each naming the file: a file that is not
+ *                  read, the file that is the default, an expect block at odds with its file.
+ *                  Empty when there is nothing to say
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ScenarioList(boolean available, String reason, List<ScenarioSummary> scenarios, List<String> problems,
                            List<OutcomeOption> outcomes, List<String> elements, List<NextActionOption> nextActions,
-                           List<FindingKindOption> findingKinds) {
+                           List<FindingKindOption> findingKinds, List<String> notes) {
 
     public ScenarioList {
         scenarios = scenarios == null ? List.of() : List.copyOf(scenarios);
@@ -34,6 +38,13 @@ public record ScenarioList(boolean available, String reason, List<ScenarioSummar
         // The vocabulary is the same for every protocol and on both profiles, so it is always served.
         nextActions = nextActions == null ? NextActionOption.all() : List.copyOf(nextActions);
         findingKinds = findingKinds == null ? FindingKindOption.all() : List.copyOf(findingKinds);
+        notes = notes == null ? List.of() : List.copyOf(notes);
+    }
+
+    public ScenarioList(boolean available, String reason, List<ScenarioSummary> scenarios, List<String> problems,
+                        List<OutcomeOption> outcomes, List<String> elements, List<NextActionOption> nextActions,
+                        List<FindingKindOption> findingKinds) {
+        this(available, reason, scenarios, problems, outcomes, elements, nextActions, findingKinds, null);
     }
 
     public ScenarioList(boolean available, String reason, List<ScenarioSummary> scenarios, List<String> problems,

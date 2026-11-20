@@ -26,7 +26,11 @@ class SampleCodeListTest {
     void everyColumnIsRecognisedAndTheSelfCheckCountsWhatTheFileHolds() {
         CodeListSelfCheck check = service.selfCheck();
 
-        assertThat(check.placeholder()).isFalse();
+        // Every row says it is not from a P32H export, so the tool believes the file and treats it as the placeholder (F-SAMPLE-LIST).
+        assertThat(check.placeholder()).isTrue();
+        assertThat(check.warnings()).containsExactly("This code list says of itself that it is synthetic: 11 of its rows carry the note "
+                + "\"Not from a P32H export.\" Its tags are not P32H's, so it is treated as the bundled placeholder is: on live it is not "
+                + "compared with the service. Set codelist.file to the P32H export and restart.");
         assertThat(check.format()).isEqualTo("csv");
         assertThat(check.unrecognisedColumns()).isEmpty();
         assertThat(check.recognisedColumns()).containsOnlyKeys("code", "description", "codeType", "authRequired", "lineOfBusiness",

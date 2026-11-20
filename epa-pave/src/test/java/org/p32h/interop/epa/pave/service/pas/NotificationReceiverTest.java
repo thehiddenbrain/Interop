@@ -133,6 +133,26 @@ class NotificationReceiverTest {
                 + "Deliver a sample notification again.");
     }
 
+    @Test
+    void theSampleThatMatchesNothingByDesignSaysSoOnceASubscriptionExistsAndNamesASampleThatWouldMatch() {
+        // F-UNMATCHED-LOOP: before any subscription, the remedy is to create one. After, creating another changes nothing.
+        NotificationView before = receiver.deliverSample(new NotificationSampleRequest("pas-12-notification-unmatched", null, null));
+        assertThat(before.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
+        assertThat(before.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, then choose "
+                + "Deliver a sample notification again.");
+        createSubscription();
+        NotificationView after = receiver.deliverSample(new NotificationSampleRequest("pas-12-notification-unmatched", null, null));
+        assertThat(after.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
+        assertThat(after.nextStep().headline()).isEqualTo("Next: to see a notification matched to the subscription this tool created, "
+                + "deliver the sample of scenario pas-10-subscription-lifecycle.");
+        assertThat(after.nextStep().reason()).isEqualTo("This sample names a subscription this tool did not create, on purpose: a "
+                + "notification that matches nothing is what it shows, and is a finding in itself. Creating another subscription would "
+                + "not change that.");
+        // The sample it names is matched.
+        NotificationView named = receiver.deliverSample(new NotificationSampleRequest("pas-10-subscription-lifecycle", null, null));
+        assertThat(named.verdict().outcomeCode()).isNotEqualTo("UNMATCHED_NOTIFICATION");
+    }
+
     // ---- a credential of the address to call back ----
 
     @Test

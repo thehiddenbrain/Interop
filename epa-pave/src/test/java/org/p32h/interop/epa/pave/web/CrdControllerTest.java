@@ -417,7 +417,7 @@ class CrdControllerTest {
         // The failure is logged under its reference, as exception types and frames, and nothing else is logged at all.
         assertThat(output.getAll()).contains(failure.get("reference").asString()).contains("IllegalStateException");
         assertThat(output.getAll()).doesNotContain("Sample-Member").doesNotContain("Form-Surname").doesNotContain("S123456789")
-                .doesNotContain("1968-04-12").doesNotContain("1970-01-31").doesNotContain("1987654328").doesNotContain("Robin")
+                .doesNotContain("1968-04-12").doesNotContain("1970-01-31").doesNotContain("1000000087").doesNotContain("Robin")
                 .doesNotContain("pat-8842").doesNotContain("hookInstance").doesNotContain("resourceType").doesNotContain("Placeholder Street")
                 .doesNotContain("code list exploded");
         assertNothingWasSentOrRecorded();

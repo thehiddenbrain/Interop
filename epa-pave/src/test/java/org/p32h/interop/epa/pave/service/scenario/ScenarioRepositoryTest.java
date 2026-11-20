@@ -311,6 +311,142 @@ class ScenarioRepositoryTest {
         assertThat(bundled.select("crd", null, "ISA*P32H-PA-SAT*\"P32H-PA-SAT\"").scenario().number()).isEqualTo(1);
     }
 
+    // ---- the second fixture audit: one rule for every protocol, and every sentinel a file claims is checked ----
+
+    @Test
+    void aCrdSentinelClaimedByTwoDtrFilesIsAProblemNamingBothFiles(@TempDir Path dir) throws IOException {
+        // F-DUP-CRDSENT: dtr-10 given P32H-NOMEM beside dtr-09 used to start, and dtr-10 never answered it.
+        Files.createDirectories(dir.resolve("dtr"));
+        Files.writeString(dir.resolve("dtr/a.json"), scenario("a", 1, "\"sentinelMemberId\":\"P32H-DTR-A\",\"crdSentinelMemberIds\":[\"P32H-NOMEM\"],"));
+        Files.writeString(dir.resolve("dtr/b.json"), scenario("b", 2,
+                "\"sentinelMemberId\":\"P32H-DTR-B\",\"crdSentinelMemberIds\":[\"P32H-NOPROV\",\"p32h-nomem\"],"));
+        ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+        assertThat(external.load("dtr").problems()).containsExactly("b.json: the CRD sentinel member ID P32H-NOMEM in its "
+                + "crdSentinelMemberIds is already claimed by a.json. One sentinel selects one scenario.");
+        // Within one list, and against the file's own sentinel.
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("x", 1, "\"crdSentinelMemberIds\":[\"P32H-NOMEM\",\" p32h-nomem\"],")))
+                .hasMessage("it names one CRD sentinel member ID twice.");
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("x", 1,
+                "\"sentinelMemberId\":\"P32H-NOMEM\",\"crdSentinelMemberIds\":[\"P32H-NOMEM\"],")))
+                .hasMessage("it names one sentinel member ID both as its own and among its crdSentinelMemberIds.");
+        // A CRD sentinel is held to the same rule as any sentinel: only this tool's own identifiers.
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("x", 1, "\"crdSentinelMemberIds\":[\"S123456789\"],")))
+                .hasMessageStartingWith("one of its sentinel member IDs is not a P32H- sentinel.").hasMessageNotContaining("S123456789");
+    }
+
+    @Test
+    void aPasFileThatClaimsACrdSentinelAnotherPasFileAnswersIsAProblemNamingBothFiles(@TempDir Path dir) throws IOException {
+        // F-PAS-SHADOW: pas-02 given P32H-NOMEM used to start, and pas-15 took the sentinel through a map in Java.
+        Files.createDirectories(dir.resolve("pas"));
+        Files.writeString(dir.resolve("pas/pas-02.json"), scenario("pas-02", 2, "\"sentinelMemberId\":\"P32H-NOMEM\","));
+        Files.writeString(dir.resolve("pas/pas-15.json"), scenario("pas-15", 15,
+                "\"sentinelMemberId\":\"P32H-PAS-NOMEM\",\"crdSentinelMemberIds\":[\"P32H-NOMEM\"],"));
+        ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+        assertThat(external.load("pas").problems()).containsExactly("pas-15.json: the CRD sentinel member ID P32H-NOMEM in its "
+                + "crdSentinelMemberIds is already claimed by pas-02.json. One sentinel selects one scenario.");
+    }
+
+    @Test
+    void thePasFilesSayWhichCrdSentinelsSelectThemAndTheListShowsIt() {
+        // F-PAS-CRDMAP-HIDDEN: the mapping is scenario data, read by the list as the mock reads it.
+        Map<String, String> sameCase = Map.of("P32H-NOMEM", "pas-15-member-not-found", "P32H-NOPROV", "pas-21-provider-not-found",
+                "P32H-ERR500", "pas-17-server-error-500", "P32H-TIMEOUT", "pas-16-timeout", "P32H-BAD400", "pas-09-invalid-bundle");
+        Map<String, String> listed = new LinkedHashMap<>();
+        for (Scenario scenario : bundled.list("pas")) {
+            scenario.summary().crdSentinelMemberIds().forEach(crd -> listed.put(crd, scenario.id()));
+            for (String crd : scenario.crdSentinelMemberIds()) {
+                assertThat(scenario.description()).as(scenario.id()).contains(crd);
+            }
+        }
+        assertThat(listed).isEqualTo(sameCase);
+    }
+
+    @Test
+    void aForeignSentinelInAPastedBodySelectsAsTheSameIdTypedOnTheFormDoes() {
+        // F-RAW: one rule, applied to a typed member ID and to one found in a pasted body alike.
+        String body = "{\"resourceType\":\"Bundle\",\"entry\":[{\"resource\":{\"resourceType\":\"Patient\","
+                + "\"identifier\":[{\"value\":\"%s\"}]}}]}";
+        for (String protocol : List.of("crd", "dtr", "pas")) {
+            for (String member : List.of("P32H-NOMEM", "P32H-TIMEOUT", "P32H-DTR-ADAPT", "P32H-PAS-DENIED", "P32H-DOC-DTR", "S123456789")) {
+                ScenarioSelection typed = bundled.select(protocol, MockSelection.of(null, member, null));
+                ScenarioSelection pasted = bundled.select(protocol, null, body.formatted(member.toLowerCase(java.util.Locale.ROOT)));
+                assertThat(pasted.scenario().id()).as(protocol + " " + member).isEqualTo(typed.scenario().id());
+                assertThat(pasted.by()).as(protocol + " " + member).isEqualTo(typed.by());
+                if (typed.by() != ScenarioSelection.By.DEFAULT) {
+                    assertThat(pasted.inBody()).isTrue();
+                    assertThat(pasted.how()).as(protocol + " " + member).contains("found in the request body").doesNotContain("default");
+                }
+            }
+        }
+        ScenarioSelection pas = bundled.select("pas", null, body.formatted("P32H-NOMEM"));
+        assertThat(pas.scenario().id()).isEqualTo("pas-15-member-not-found");
+        assertThat(pas.how()).isEqualTo("selected by the CRD sentinel member ID P32H-NOMEM found in the request body, which this scenario "
+                + "answers for the same case");
+        ScenarioSelection crd = bundled.select("crd", null, body.formatted("P32H-DTR-ADAPT"));
+        assertThat(crd.scenario().id()).isEqualTo("crd-04-doc-dtr");
+        assertThat(crd.via().id()).isEqualTo("dtr-02-adaptive-branching");
+        assertThat(crd.how()).isEqualTo("selected because P32H-DTR-ADAPT, found in the request body, is the sentinel member ID of DTR "
+                + "scenario dtr-02-adaptive-branching, and CRD answers documentation required for every DTR sentinel so that the journey "
+                + "reaches DTR");
+        // A CRD sentinel keeps its own CRD scenario, in a body as on the form.
+        assertThat(bundled.select("crd", null, body.formatted("P32H-NOMEM")).scenario().id()).isEqualTo("crd-07-member-not-found");
+    }
+
+    @Test
+    void onlyOneCrdFileAnswersDtrSentinelsAndOnlyACrdFile(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir.resolve("crd"));
+        Files.createDirectories(dir.resolve("pas"));
+        Files.writeString(dir.resolve("crd/a.json"), scenario("a", 1, "\"answersDtrSentinels\":true,"));
+        Files.writeString(dir.resolve("crd/b.json"), scenario("b", 2, "\"answersDtrSentinels\":true,\"crdSentinelMemberIds\":[\"P32H-X\"],"));
+        Files.writeString(dir.resolve("pas/c.json"), scenario("c", 1, "\"answersDtrSentinels\":true,"));
+        ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+        assertThat(external.load("crd").problems()).containsExactly(
+                "b.json: a CRD scenario cannot list crdSentinelMemberIds. Give a CRD sentinel as the file's own sentinelMemberId.",
+                "b.json: answersDtrSentinels is already true in a.json. One CRD scenario answers every DTR sentinel.");
+        assertThat(external.load("pas").problems()).containsExactly(
+                "c.json: only a CRD scenario can answer DTR sentinels, so answersDtrSentinels belongs in a CRD file.");
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("x", 1, "\"answersDtrSentinels\":\"yes\",")))
+                .hasMessage("its answersDtrSentinels is not true or false.");
+    }
+
+    @Test
+    void aFileThatIsNotReadTheDefaultAndAnExpectBlockAtOddsWithItsFileAreSaidAndDoNotStopTheSet(@TempDir Path dir) throws IOException {
+        // F-ORPHAN and F-V4-02-REST: none of these stops the start, and each is said, naming the file and quoting nothing of it.
+        writeGoodSet(dir);
+        Files.createDirectories(dir.resolve("crd/sub"));
+        Files.writeString(dir.resolve("crd/crd-02.json"), scenario("crd-02", 2, "\"sentinelMemberId\":\"P32H-TWO\","));
+        Files.writeString(dir.resolve("crd/crd-00-zero.json"), "{\"id\":\"crd-00-zero\",\"number\":0,\"label\":\"L\",\"httpStatus\":200,"
+                + "\"expect\":{\"outcome\":\"AUTH_REQUIRED\",\"httpStatus\":500},\"response\":{}}");
+        Files.writeString(dir.resolve("crd/notes.txt"), scenario("crd-03", 3, "\"sentinelMemberId\":\"P32H-THREE\","));
+        Files.writeString(dir.resolve("crd/sub/crd-04.json"), scenario("crd-04", 4, "\"sentinelMemberId\":\"P32H-FOUR\","));
+        ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+        ScenarioRepository.Loaded loaded = external.load("crd");
+        assertThat(loaded.problems()).isEmpty();
+        assertThat(loaded.scenarios()).extracting(Scenario::id).containsExactly("crd-00-zero", "crd-01", "crd-02");
+        assertThat(loaded.notes()).containsExactly(
+                "notes.txt: it is not read, because only files whose names end in .json are scenario files.",
+                "sub: it is a folder, and folders inside crd are not read. A scenario file belongs directly in crd.",
+                "crd-00-zero.json: it is the default, because its number (0) is the lowest. A run that neither a chosen scenario nor a "
+                        + "sentinel selects is answered from it.",
+                "crd-00-zero.json: its expect block claims HTTP 500, and the file answers with HTTP 200, so the outcome it claims may not "
+                        + "be the one it produces.");
+        // The scenario list carries the notes about each file on that file's own line.
+        assertThat(loaded.scenarios().get(0).summary().notes()).hasSize(2);
+        assertThat(loaded.scenarios().get(1).summary().notes()).isEmpty();
+        assertThat(external.select("crd", MockSelection.of(null, "S123456789", null)).scenario().id()).isEqualTo("crd-00-zero");
+        // A set with notes is still used whole, and the start is not refused.
+        external.checkEveryProtocol();
+    }
+
+    @Test
+    void theBundledSetsSayOnlyWhichFileIsTheDefault() {
+        for (String protocol : ScenarioRepository.PROTOCOLS) {
+            ScenarioRepository.Loaded loaded = bundled.load(protocol);
+            assertThat(loaded.notes()).as(protocol).singleElement().asString()
+                    .startsWith(loaded.scenarios().get(0).source() + ": it is the default, because its number (");
+        }
+    }
+
     // ---- the check at start-up ----
 
     /** A scenario directory with one good file per protocol, which the start-up check accepts. */

@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.service.scenario;
 
 import java.nio.file.Path;
+import java.util.List;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.slf4j.Logger;
@@ -40,6 +41,7 @@ public class ScenarioCheckAtStart implements InitializingBean {
     public void afterPropertiesSet() {
         if (environment.matchesProfiles("mock")) {
             scenarios.checkEveryProtocol();
+            warnOfFilesNotRead();
             return;
         }
         if (!Texts.present(app.scenarioDir())) {
@@ -51,6 +53,26 @@ public class ScenarioCheckAtStart implements InitializingBean {
             // The setting and its directory only, which are configuration. The problems are left out: this profile does not read the files.
             log.warn("The mock scenarios in {} (app.scenario-dir) cannot be used. The live profile does not answer from them, so the tool "
                     + "starts; on the mock profile it would refuse to start until they are put right.", Path.of(app.scenarioDir().strip()));
+        }
+    }
+
+    /**
+     * A file saved with another extension, or in a folder, is not read. It does not stop the start,
+     * because a tester's own directory may hold work in progress, but it is said once, here and in
+     * the scenario list, so that nobody believes it was loaded.
+     */
+    private void warnOfFilesNotRead() {
+        if (!Texts.present(app.scenarioDir())) {
+            return;
+        }
+        for (String protocol : ScenarioRepository.PROTOCOLS) {
+            ScenarioRepository.Loaded loaded = scenarios.load(protocol);
+            List<String> notRead = loaded.notes().stream()
+                    .filter(note -> loaded.scenarios().stream().noneMatch(scenario -> scenario.notes().contains(note))).toList();
+            if (!notRead.isEmpty()) {
+                // File names and the rule only: nothing a file holds is read for this line.
+                log.warn("Mock scenarios for {}: {}", protocol, String.join(" ", notRead));
+            }
         }
     }
 }

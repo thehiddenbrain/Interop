@@ -4,16 +4,13 @@ import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.support.Exchanges;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
 import org.p32h.interop.epa.pave.model.JsonSafe;
-import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.ResolvedText;
-import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.dtr.QuestionnaireJson;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.scenario.Scenario;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioSelection;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
@@ -37,8 +34,8 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>A sentinel means the same case in every protocol. The CRD sentinels for a member not found,
  * a provider not found, a server error, a timeout and a rejected request select the DTR scenario
- * for the same case, which names them under {@link #CRD_SENTINELS}. A scenario file can name one
- * sentinel of its own only, so the CRD ones are kept beside it.
+ * for the same case, which names them under {@link #CRD_SENTINELS}, kept beside its own so that
+ * the result can say which of the two selected it.
  */
 @Component
 @Profile("mock")
@@ -93,59 +90,13 @@ public class MockOnyxDtrClient implements OnyxDtrClient {
     }
 
     /**
-     * The scenario that answers, by the shared rule, with one addition: a CRD sentinel member ID
-     * selects the DTR scenario that names it under {@link #CRD_SENTINELS}. It is looked at where
-     * the shared rule looks at a member ID, after a scenario chosen explicitly and a DTR sentinel,
-     * and before a sentinel NPI, so that a member not found is not answered as a provider not
-     * found, as in CRD.
+     * The scenario that answers, by the rule every mock shares. A CRD sentinel member ID selects
+     * the DTR scenario that names it under {@link #CRD_SENTINELS}, typed or in a pasted body alike,
+     * after a DTR sentinel and before a sentinel NPI, so that a member not found is not answered as
+     * a provider not found, as in CRD.
      */
     private ScenarioSelection select(MockSelection selection, String requestBody) {
-        if (selection == null || Texts.present(selection.scenarioId())) {
-            return scenarios.select(SCENARIOS, selection, requestBody);
-        }
-        List<Scenario> all = scenarios.list(SCENARIOS);
-        String memberId = Texts.present(selection.memberId()) ? MemberIds.noSpace(selection.memberId()) : null;
-        boolean ownSentinel = memberId != null && all.stream().anyMatch(scenario -> Texts.present(scenario.sentinelMemberId())
-                && MemberIds.noSpace(scenario.sentinelMemberId()).equalsIgnoreCase(memberId));
-        if (memberId != null && !ownSentinel) {
-            for (Scenario scenario : all) {
-                for (String crd : crdSentinels(scenario)) {
-                    if (MemberIds.noSpace(crd).equalsIgnoreCase(memberId)) {
-                        return new ScenarioSelection(scenario, "selected by the CRD sentinel member ID " + crd
-                                + ", which this scenario answers for the same case");
-                    }
-                }
-            }
-        }
-        // The shared rule falls back on a sentinel in the request body only when nothing on the form selected a scenario. So does this.
-        String npi = Texts.present(selection.npi()) ? selection.npi().strip() : null;
-        boolean formSelects = ownSentinel || all.stream().anyMatch(scenario -> npi != null && Texts.present(scenario.sentinelNpi())
-                && scenario.sentinelNpi().strip().equals(npi));
-        boolean bodySelects = Texts.present(requestBody) && all.stream().anyMatch(scenario -> Texts.present(scenario.sentinelMemberId())
-                && requestBody.contains("\"" + scenario.sentinelMemberId() + "\""));
-        if (!formSelects && !bodySelects && Texts.present(requestBody)) {
-            for (Scenario scenario : all) {
-                for (String crd : crdSentinels(scenario)) {
-                    if (requestBody.contains("\"" + crd + "\"")) {
-                        return new ScenarioSelection(scenario, "selected by the CRD sentinel member ID " + crd
-                                + " found in the request body, which this scenario answers for the same case");
-                    }
-                }
-            }
-        }
         return scenarios.select(SCENARIOS, selection, requestBody);
-    }
-
-    /** The CRD sentinel member IDs a scenario file says it also answers. Empty when it names none. */
-    static List<String> crdSentinels(Scenario scenario) {
-        List<String> out = new ArrayList<>();
-        for (JsonNode value : JsonSafe.elements(scenario.raw(), CRD_SENTINELS)) {
-            String text = JsonSafe.presentText(value);
-            if (text != null) {
-                out.add(text.strip());
-            }
-        }
-        return out;
     }
 
     /**

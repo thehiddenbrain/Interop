@@ -5,8 +5,6 @@ import org.p32h.interop.epa.pave.client.support.ExchangeOptions;
 import org.p32h.interop.epa.pave.client.support.Exchanges;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
 import org.p32h.interop.epa.pave.model.JsonSafe;
-import org.p32h.interop.epa.pave.model.MemberIds;
-import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.WireHeader;
@@ -37,14 +35,8 @@ public class MockOnyxCrdClient implements OnyxCrdClient {
 
     /** The directory under {@code scenarios/} that holds the CRD scenario files. */
     public static final String SCENARIOS = "crd";
-    /** The DTR scenario files, read only for their sentinel member IDs. */
-    static final String DTR_SCENARIOS = "dtr";
-    /**
-     * The CRD scenario that asks for documentation, which also answers every DTR sentinel member
-     * ID. Without it a journey with a DTR sentinel gets the default CRD answer and goes straight to
-     * PAS, so a failing, empty or two-questionnaire package could never be met in a chain on mock.
-     */
-    static final String DOCUMENTATION_SCENARIO = "crd-04-doc-dtr";
+    /** The coverage information sub-extension that names a questionnaire, as CRD 2.0.1 gives it. */
+    static final String QUESTIONNAIRE = "questionnaire";
 
     private final ScenarioRepository scenarios;
     private final MockExchanges exchanges;
@@ -57,40 +49,126 @@ public class MockOnyxCrdClient implements OnyxCrdClient {
     @Override
     public VendorExchange hook(PreparedCall call, ResolvedText body, MockSelection selection) {
         String text = body == null ? null : body.value();
-        ScenarioSelection chosen = forADtrSentinel(selection);
-        if (chosen == null) {
-            chosen = scenarios.select(SCENARIOS, selection, text);
+        ScenarioSelection chosen = scenarios.select(SCENARIOS, selection, text);
+        VendorExchange exchange = exchanges.answer(call, body, HttpOnyxCrdClient.HOOK_OPTIONS, chosen, null);
+        if (chosen.by() == ScenarioSelection.By.DTR_SENTINEL) {
+            exchange = nameTheQuestionnairesOf(chosen.via(), exchange);
         }
-        VendorExchange exchange = echoTheOrders(answerEveryOrder(exchanges.answer(call, body, HttpOnyxCrdClient.HOOK_OPTIONS, chosen, null),
-                SentOrder.fromBody(text)), text);
+        exchange = echoTheOrders(answerEveryOrder(exchange, SentOrder.fromBody(text)), text);
         // The same recognition rules the live client applies, so mock cannot disagree with live about them.
         return exchange.withSignals(OnyxCrdConventions.signals(exchange));
     }
 
     /**
-     * The documentation scenario, when the member ID is the sentinel of a DTR scenario and of no
-     * CRD scenario, and nothing was chosen explicitly. Null otherwise, and the repository decides.
-     * The DTR files are read for their sentinels, so a DTR scenario added later is answered too.
+     * For a DTR sentinel, the questionnaires CRD names are the ones the package of that DTR
+     * scenario holds, read from the DTR file, so that DTR, given what CRD hands on, answers as its
+     * label says and does not report a questionnaire the two synthetic data sets merely disagree
+     * on. A DTR scenario whose package holds no questionnaire is answered with the file as written.
      */
-    private ScenarioSelection forADtrSentinel(MockSelection selection) {
-        if (selection == null || Texts.present(selection.scenarioId()) || Texts.blank(selection.memberId())) {
-            return null;
+    private static VendorExchange nameTheQuestionnairesOf(Scenario dtr, VendorExchange exchange) {
+        List<String> held = questionnairesHeldBy(dtr);
+        if (held.isEmpty() || exchange.json() == null || !exchange.json().isContainer()) {
+            return exchange.withScenario(exchange.scenarioId(), exchange.scenarioNote() + ". The package of DTR scenario " + dtr.id()
+                    + " holds no questionnaire, so the questionnaire this file names is named");
         }
-        String memberId = MemberIds.noSpace(selection.memberId());
-        List<Scenario> crd = scenarios.list(SCENARIOS);
-        boolean crdSentinel = crd.stream().anyMatch(s -> Texts.present(s.sentinelMemberId())
-                && MemberIds.noSpace(s.sentinelMemberId()).equalsIgnoreCase(memberId));
-        if (crdSentinel) {
-            return null;
+        JsonNode copy = exchange.json().deepCopy();
+        List<String> named = new ArrayList<>();
+        collectNamed(copy, named);
+        renameQuestionnaires(copy, held, named);
+        if (named.isEmpty()) {
+            return exchange;
         }
-        Scenario dtr = scenarios.list(DTR_SCENARIOS).stream().filter(s -> Texts.present(s.sentinelMemberId())
-                && MemberIds.noSpace(s.sentinelMemberId()).equalsIgnoreCase(memberId)).findFirst().orElse(null);
-        Scenario documentation = crd.stream().filter(s -> s.id().equals(DOCUMENTATION_SCENARIO)).findFirst().orElse(null);
-        if (dtr == null || documentation == null) {
-            return null;
+        return Exchanges.fromResponse(exchange.request(), exchange.httpStatus(), exchange.responseHeaders(), JsonSafe.pretty(copy),
+                        exchange.elapsedMillis(), true)
+                .withScenario(exchange.scenarioId(), exchange.scenarioNote() + ". The questionnaire named is the one the package of DTR "
+                        + "scenario " + dtr.id() + " holds, " + String.join(" and ", held) + ", in place of " + String.join(" and ", named)
+                        + ", so that DTR answers as its label says");
+    }
+
+    /** The canonical url of every questionnaire in the package a DTR scenario answers with, in the order the file gives them. */
+    public static List<String> questionnairesHeldBy(Scenario dtr) {
+        List<String> urls = new ArrayList<>();
+        if (dtr.main() != null && dtr.main().body() != null) {
+            JsonSafe.Parsed parsed = JsonSafe.parse(dtr.main().body());
+            if (parsed.ok()) {
+                collectQuestionnaires(parsed.node(), urls);
+            }
         }
-        return new ScenarioSelection(documentation, "selected because " + dtr.sentinelMemberId() + " is the sentinel member ID of DTR "
-                + "scenario " + dtr.id() + ", and CRD answers documentation required for every DTR sentinel so that the journey reaches DTR");
+        return urls;
+    }
+
+    private static void collectQuestionnaires(JsonNode node, List<String> urls) {
+        if ("Questionnaire".equals(JsonSafe.text(node, "resourceType"))) {
+            String url = JsonSafe.presentText(node, "url");
+            if (url != null && !urls.contains(url.strip())) {
+                urls.add(url.strip());
+            }
+        }
+        for (Map.Entry<String, JsonNode> property : JsonSafe.properties(node)) {
+            collectQuestionnaires(property.getValue(), urls);
+        }
+        for (JsonNode element : JsonSafe.elements(node)) {
+            collectQuestionnaires(element, urls);
+        }
+    }
+
+    /** The questionnaires the file names in a questionnaire sub-extension, each once. */
+    private static void collectNamed(JsonNode node, List<String> named) {
+        if (QUESTIONNAIRE.equals(JsonSafe.text(node, "url"))) {
+            String canonical = JsonSafe.presentText(node, "valueCanonical");
+            if (canonical != null && !named.contains(canonical)) {
+                named.add(canonical);
+            }
+        }
+        for (Map.Entry<String, JsonNode> property : JsonSafe.properties(node)) {
+            collectNamed(property.getValue(), named);
+        }
+        for (JsonNode element : JsonSafe.elements(node)) {
+            collectNamed(element, named);
+        }
+    }
+
+    /**
+     * Replaces every questionnaire sub-extension of every coverage information extension with one
+     * for each questionnaire held, where the first one stood, and the questionnaire a card link's
+     * appContext names with the same list. {@code named} is what the file names.
+     */
+    private static void renameQuestionnaires(JsonNode node, List<String> held, List<String> named) {
+        if (node instanceof ObjectNode object) {
+            for (String name : new ArrayList<>(object.propertyNames())) {
+                JsonNode child = object.get(name);
+                if ("appContext".equals(name) && child.isString()) {
+                    String context = child.stringValue();
+                    for (String old : named) {
+                        context = context.replace(QUESTIONNAIRE + "=" + old, String.join("&", held.stream().map(u -> QUESTIONNAIRE + "=" + u).toList()));
+                    }
+                    object.put(name, context);
+                } else if (child.isContainer()) {
+                    renameQuestionnaires(child, held, named);
+                }
+            }
+        } else if (node instanceof ArrayNode array) {
+            int first = -1;
+            for (int i = array.size() - 1; i >= 0; i--) {
+                JsonNode element = array.get(i);
+                if (QUESTIONNAIRE.equals(JsonSafe.text(element, "url")) && element.has("valueCanonical")) {
+                    array.remove(i);
+                    first = i;
+                }
+            }
+            if (first >= 0) {
+                for (int i = 0; i < held.size(); i++) {
+                    ObjectNode added = array.insertObject(first + i);
+                    added.put("url", QUESTIONNAIRE);
+                    added.put("valueCanonical", held.get(i));
+                }
+            }
+            for (JsonNode element : array) {
+                if (element.isContainer()) {
+                    renameQuestionnaires(element, held, named);
+                }
+            }
+        }
     }
 
     /**

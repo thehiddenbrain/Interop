@@ -13,8 +13,6 @@ import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioSelection;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -55,22 +53,6 @@ public class MockOnyxPasClient implements OnyxPasClient {
     /** What the token becomes when the request carried no claim identifier. */
     static final String UNIDENTIFIED_CLAIM = "unidentified-claim";
 
-    /**
-     * The CRD sentinel member IDs for a case PAS has a scenario of its own for, each mapped to the
-     * sentinel of that scenario. A tester who carries one member from CRD into PAS gets the same
-     * case in both, not the PAS default, which is an approval. The sentinel NPI for a provider the
-     * payer does not know needs no entry: the PAS scenario for that case answers it directly.
-     */
-    static final Map<String, String> SAME_CASE_AS_CRD = Map.of(
-            "P32H-NOMEM", "P32H-PAS-NOMEM",
-            "P32H-NOPROV", "P32H-PAS-NOPROV",
-            "P32H-ERR500", "P32H-PAS-ERR500",
-            "P32H-TIMEOUT", "P32H-PAS-TIMEOUT",
-            "P32H-BAD400", "P32H-PAS-BAD400");
-
-    /** How a selection through {@link #SAME_CASE_AS_CRD} says so, between the typed sentinel and the PAS one. */
-    private static final String SAME_CASE = ", which means the same case in CRD as ";
-
     private final ScenarioRepository scenarios;
     private final MockExchanges exchanges;
 
@@ -103,31 +85,35 @@ public class MockOnyxPasClient implements OnyxPasClient {
         return exchange.withSignals(OnyxPasConventions.signals(exchange));
     }
 
-    /** The scenario that answers, with a CRD sentinel for a case PAS also has answered by the PAS scenario for that case. */
+    /**
+     * The scenario that answers, by the rule every mock shares. A CRD sentinel for a case PAS has a
+     * scenario of its own for selects that scenario, which names it under
+     * {@code crdSentinelMemberIds}: a tester who carries one member from CRD into PAS gets the same
+     * case in both, not the PAS default, which is an approval.
+     */
     private ScenarioSelection select(MockSelection selection, String text) {
-        String typed = selection == null || Texts.blank(selection.memberId()) ? null : selection.memberId().strip().toUpperCase(Locale.ROOT);
-        String same = typed == null ? null : SAME_CASE_AS_CRD.get(typed);
-        if (same == null || Texts.present(selection.scenarioId())) {
-            return scenarios.select(SCENARIOS, selection, text);
-        }
-        ScenarioSelection chosen = scenarios.select(SCENARIOS, new MockSelection(null, same, selection.npi(), selection.hints()), text);
-        return new ScenarioSelection(chosen.scenario(), "selected by the sentinel member ID " + typed + SAME_CASE + same + " does here");
+        return scenarios.select(SCENARIOS, selection, text);
     }
 
     private static void refuseBySentinel(ScenarioSelection chosen, String step) {
-        String how = Texts.orElse(chosen.how(), "");
         String call = STEP_INQUIRE.equals(step) ? "an inquiry" : "the step \"" + step + "\"";
-        if (how.startsWith("selected by the sentinel member ID") && how.contains(SAME_CASE)) {
+        ScenarioSelection.By by = chosen.by();
+        if (chosen.inBody() && (by == ScenarioSelection.By.SENTINEL || by == ScenarioSelection.By.CRD_SENTINEL)) {
+            // The sentinel was in the pasted body, so that is the field named, not the member ID on the form.
+            throw ValidationException.of("rawBody", "The request body holds a member ID that selects scenario " + chosen.scenario().id()
+                    + ", which has no answer for " + call + ". Use a member ID whose scenario answers " + call + ", or choose a scenario.");
+        }
+        if (by == ScenarioSelection.By.CRD_SENTINEL) {
             // A CRD sentinel is not this scenario's own: it selects the scenario for the same case.
             throw ValidationException.of("member.memberId", "The member ID selects scenario " + chosen.scenario().id()
                     + " (it means the same case as in CRD), which has no answer for " + call + ". Use a member ID whose scenario answers "
                     + call + ", or choose a scenario.");
         }
-        if (how.startsWith("selected by the sentinel member ID")) {
+        if (by == ScenarioSelection.By.SENTINEL) {
             throw ValidationException.of("member.memberId", "The member ID is the sentinel of scenario " + chosen.scenario().id()
                     + ", which has no answer for " + call + ". Use a member ID whose scenario answers " + call + ", or choose a scenario.");
         }
-        if (how.startsWith("selected by the sentinel NPI")) {
+        if (by == ScenarioSelection.By.SENTINEL_NPI) {
             throw ValidationException.of("provider.npi", "The NPI is the sentinel of scenario " + chosen.scenario().id()
                     + ", which has no answer for " + call + ". Use another NPI, or choose a scenario.");
         }

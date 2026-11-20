@@ -4,6 +4,9 @@
   "label": "Invalid bundle rejected with an OperationOutcome",
   "description": "The service refuses the bundle as not valid and answers HTTP 400 with an OperationOutcome that names the element at fault, which PAS 2.0.1 allows in place of a bundle. The CRD sentinel P32H-BAD400 selects it too.",
   "sentinelMemberId": "P32H-PAS-BAD400",
+  "crdSentinelMemberIds": [
+    "P32H-BAD400"
+  ],
   "behavior": "respond",
   "httpStatus": 400,
   "delayMillis": 150,
