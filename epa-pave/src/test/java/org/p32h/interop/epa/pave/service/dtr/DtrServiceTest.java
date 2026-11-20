@@ -1875,6 +1875,8 @@ class DtrServiceTest {
         assertThat(disabled.verdict().outcomeCode()).isEqualTo("RESPONSE_COMPLETED");
         assertThat(disabled.detail().form().notes()).contains("The answer given to pac-2 was left out of the response, because the answers "
                 + "given disable that question.");
+        // Said once, with the form: the verdict keeps to the answer (DTR review R18).
+        assertThat(disabled.verdict().supporting()).doesNotContainAnyElementsOf(disabled.detail().form().notes());
         assertThat(disabled.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE).get(0)).doesNotContain("bathing");
         // Every enableWhen condition is reported with whether it evaluated true.
         assertThat(disabled.detail().questionnaires().get(0).items().get(0).items().get(1).enableWhen()).singleElement().satisfies(condition -> {

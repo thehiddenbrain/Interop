@@ -44,7 +44,6 @@ public final class DtrVerdicts {
     /** First under every result of a step that was completed inside the tool: where the response came from is part of the answer. */
     static final String NOTHING_SENT = "Nothing was sent to the service for this step. The response was put together inside this tool.";
 
-
     private static final String NOT_A_LAUNCH = " operation behind a provider-facing SMART launch, not the launch itself, which this tool "
             + "does not host.";
 

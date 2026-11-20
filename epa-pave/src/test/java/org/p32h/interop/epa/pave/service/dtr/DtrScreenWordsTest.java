@@ -70,6 +70,14 @@ class DtrScreenWordsTest {
     }
 
     @Test
+    void aNextStepNamesItsActionByTheActionsOwnLabelWhichIsTheNameOfTheButton() {
+        for (NextAction action : List.of(NextAction.SUBMIT_RESPONSE, NextAction.ANSWER_NEXT_QUESTION)) {
+            String label = action.label().strip();
+            assertThat(DtrVerdicts.button(action)).isEqualTo(label.endsWith(".") ? label.substring(0, label.length() - 1) : label);
+        }
+    }
+
+    @Test
     void aDroppedAnswerIsHeldWithItsQuestionAndPrintedNowhere() {
         QuestionRef dropped = new QuestionRef("q2", "Second").withValues(List.of("Placeholder answer"));
         assertThat(dropped.values()).containsExactly("Placeholder answer");
