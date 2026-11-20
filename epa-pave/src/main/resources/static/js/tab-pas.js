@@ -47,6 +47,9 @@ const vocabulary = {outcomes: new Map(), byUse: new Map(), settings: null, opera
 // The latest submission on this tab: what an inquiry follows unless the tester types another claim id.
 let following = null;
 
+// The request the payer asked documentation for, while the tester prepares to send it again from this tab.
+let resubmitting = null;
+
 const controls = {};
 const sections = {};
 const slots = {};
@@ -108,6 +111,10 @@ function mount(target, application) {
             carry: pick(carry, ['claimId', 'runId']), why: first(carry.runId)
                 ? ['the notification ', runLink(item.id), ' about the submission ', runLink(first(carry.runId))] : ['the notification ', runLink(item.id)]}),
         lastRunId: () => (following ? following.runId : null),
+        showSubscriptions: () => {
+            showMode('subscriptions');
+            controls.create.focus();
+        },
         tick: () => drawWrites()
     });
     sections.notifications.append(notifications.sampleNode);
@@ -213,9 +220,13 @@ function buildSubmit() {
     controls.diagnoses = textField({label: 'Diagnosis codes', field: 'diagnosisCodes', literal: true, placeholder: 'such as G47.33',
         hint: 'Separate codes with a comma or a space. Optional.'});
     controls.attachments = createAttachments({changed: () => {}});
+    // Said when the payer asked for documentation and the tester chose to send again from here: the claim identifier is reused.
+    controls.resubmit = el('div', {class: 'pas-resubmit', hidden: true, aria: {live: 'polite'}});
+    controls.claimId.input.addEventListener('input', drawResubmit);
     sections.submit = el('div', {class: 'pas-section__body'},
         controls.handover.node,
         el('div', {class: 'field-grid'}, controls.claimId.node, controls.date.node, controls.diagnoses.node),
+        controls.resubmit,
         controls.attachments.node);
 }
 
@@ -276,7 +287,7 @@ function submitRequest() {
 async function sendSubmit() {
     // What the hand-over held when the request left, so the result says what went with it even if the tester changes it afterwards.
     const answers = controls.handover.answersState();
-    const answer = await bench.call(() => api.postJson('/api/pas/submit', submitRequest()), {saying: 'Sending the PAS request.', control: controls.submit});
+    const answer = await call(() => api.postJson('/api/pas/submit', submitRequest()), {saying: 'Sending the PAS request.', control: controls.submit});
     if (answer) {
         showRun(answer.body);
         showAnswersSent(answer.body, answers);
@@ -369,7 +380,7 @@ function inquiryRequest() {
 }
 
 async function sendInquiry() {
-    const answer = await bench.call(() => api.postJson('/api/pas/inquire', inquiryRequest()), {saying: 'Sending the inquiry.', control: controls.inquire});
+    const answer = await call(() => api.postJson('/api/pas/inquire', inquiryRequest()), {saying: 'Sending the inquiry.', control: controls.inquire});
     if (answer) {
         showRun(answer.body);
     }
@@ -475,7 +486,7 @@ async function subscriptionCall(kind) {
     const words = {create: 'Creating the subscription.', list: 'Listing the subscriptions.', read: 'Reading the subscription.',
         update: 'Updating the subscription.', delete: 'Deleting the subscription.'}[kind];
     const control = {create: controls.create, list: controls.list, read: controls.read, update: controls.update, delete: controls.remove}[kind];
-    const answer = await bench.call(send, {saying: words, control});
+    const answer = await call(send, {saying: words, control});
     if (answer) {
         showRun(answer.body);
     }
@@ -568,6 +579,7 @@ async function loadVocabulary() {
     drawExpectationVocabulary();
     const forNotifications = vocabulary.byUse.get('notification');
     notifications.drawSample(forNotifications && forNotifications.available ? forNotifications.scenarios : []);
+    notifications.redraw();
     await loadConfiguration();
     if (!bench.hasResult()) {
         drawEmptyState();
@@ -636,6 +648,11 @@ function drawWrites() {
 
 function showRun(envelope) {
     clear(slots.preview);
+    if (envelope.operation === 'PAS_SUBMIT' && resubmitting) {
+        // The request that was being prepared has gone. What it said no longer describes the form.
+        resubmitting = null;
+        drawResubmit();
+    }
     bench.showResult(envelope, {detailTitle: envelope.protocol === 'SUBSCRIPTION' ? 'Subscription detail' : 'PAS response detail',
         detail: detailFor(vocabulary)});
     const step = envelope.nextStep || {};
@@ -649,16 +666,138 @@ function showRun(envelope) {
     if (envelope.protocol === 'SUBSCRIPTION' && envelope.operation === 'SUBSCRIPTION_CREATE' && envelope.detail && envelope.detail.subscriptionId) {
         controls.subscriptionId.set(envelope.detail.subscriptionId);
     }
-    // The shared next step offers a button for the steps every tab knows. Asking for the status is this tab's own. After a
-    // fault the server's step is to check the environment; whether to ask for the status or send again it says in words, and
-    // the Inquire call is already filled from this submission, so no button is offered here for it.
-    const row = bench.form.closest('.workbench').querySelector('.readout__result .nextstep__row');
-    if (step.action === 'CHECK_STATUS' && row && !row.querySelector('button') && carry.claimId && carry.claimId.length > 0) {
+    // The shared next step offers a button for the steps every tab knows. Asking for the status is this tab's own.
+    const row = readoutResult().querySelector('.nextstep__row');
+    const hasClaim = carry.claimId && carry.claimId.length > 0;
+    if (step.action === 'CHECK_STATUS' && row && !row.querySelector('button') && hasClaim) {
         row.append(button('Send inquiry', () => inquireFrom({claimId: first(carry.claimId), runId: first(carry.runId) || envelope.runId,
             codes: carry.procedureCodes || [], carry: pick(carry, ['claimId', 'runId', 'procedureCodes']), why: ['the result of run ', runLink(envelope.runId)]}),
         {class: 'button--primary'}));
     }
+    if (step.action === 'START_PAS' && envelope.protocol === 'PAS' && row) {
+        offerResubmission(row, envelope, step);
+    }
+    // After a fault the server's step is to check the environment, and whether to ask for the status first it says in words.
+    // No inquiry is sent from here on the browser's own account; the Inquire call is filled from this submission, and the way to it is offered.
+    if (step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT' && hasClaim && row) {
+        row.closest('.nextstep').append(el('p', {class: 'small pas-nextstep-way'},
+            'The Inquire call on the left is already filled with the claim identifier of this submission. ',
+            button('Choose the Inquire call', () => {
+                showMode('inquire');
+                controls.inquiryClaimId.input.focus();
+            }, {class: 'button--text'})));
+    }
+    showRunNotes(envelope);
     drawFollowing();
+    focusResult();
+}
+
+/** The part of the readout that holds the result. */
+function readoutResult() {
+    return bench.form.closest('.workbench').querySelector('.readout__result');
+}
+
+/**
+ * Puts the keyboard on the verdict of the result that just arrived, so a keyboard or screen
+ * reader user lands where the answer starts instead of on the page itself.
+ */
+function focusResult() {
+    const headline = readoutResult().querySelector('.verdict__headline');
+    if (headline) {
+        headline.setAttribute('tabindex', '-1');
+        headline.focus({preventScroll: true});
+    }
+}
+
+/**
+ * Sends one call through the workbench. When nothing came back to show, the control that was
+ * pressed takes the focus back: it was disabled while the call was on its way, which drops the
+ * focus to the page. A refusal of a form has already put it on the first marked field.
+ */
+async function call(send, options) {
+    const answer = await bench.call(send, options);
+    const now = document.activeElement;
+    if (!answer && options.control && (!now || now === document.body || now.disabled)) {
+        options.control.focus({preventScroll: true});
+    }
+    return answer;
+}
+
+/**
+ * The tester reference and the note typed with the run, as the ledger kept them, beside the run
+ * id: an analyst comparing this screen with a ledger row looks for them there.
+ */
+function showRunNotes(envelope) {
+    const record = envelope.ledger && envelope.ledger.recorded ? envelope.ledger.record : null;
+    const runFacts = readoutResult().querySelector('.runfacts');
+    if (!record || !runFacts) {
+        return;
+    }
+    const none = el('span', {class: 'presence presence--none'}, 'none given');
+    runFacts.append(el('dt', null, 'Tester reference'), el('dd', null, record.testerRef ? code(record.testerRef) : none),
+        el('dt', null, 'Note'), el('dd', null, record.note ? el('span', {class: 'vendor-inline'}, record.note) : none.cloneNode(true)));
+}
+
+/**
+ * The payer asked for documentation. The shared button would carry this result back into the
+ * same tab under the name of the tab, and the next send would repeat the submission without a
+ * word about it. Here it says what it does: it opens the attachment fields of the submission,
+ * with the claim identifier of that request in its field, and the form says plainly that the
+ * next send reuses it, beside the server's own next step.
+ */
+function offerResubmission(row, envelope, step) {
+    const shared = row.querySelector('button');
+    if (shared) {
+        shared.remove();
+    }
+    const claimId = first((step.carry || {}).claimId);
+    row.append(button('Add the documentation and send again', () => {
+        if (mode !== 'submit') {
+            showMode('submit');
+        }
+        resubmitting = {claimId, runId: envelope.runId, headline: step.headline};
+        if (claimId) {
+            controls.claimId.set(claimId);
+        }
+        drawResubmit();
+        const field = controls.attachments.firstField();
+        // The sentence about the claim identifier and the first attachment field are read together, so the sentence goes to the top of the pane.
+        const pane = controls.resubmit.closest('.case-pane__scroll');
+        if (pane && pane.scrollHeight > pane.clientHeight) {
+            pane.scrollTop += controls.resubmit.getBoundingClientRect().top - pane.getBoundingClientRect().top - 8;
+            // The field takes the keyboard, so it must be seen whole even when that pushes the top of the sentence out of view.
+            const below = field ? field.closest('[data-field]').getBoundingClientRect().bottom - pane.getBoundingClientRect().bottom + 8 : 0;
+            if (below > 0) {
+                pane.scrollTop += below;
+            }
+        } else {
+            bringIntoPane(controls.resubmit);
+        }
+        if (field) {
+            field.focus({preventScroll: true});
+        }
+    }, {class: 'button--primary'}));
+}
+
+function drawResubmit() {
+    if (!controls.resubmit) {
+        return;
+    }
+    if (!resubmitting) {
+        controls.resubmit.hidden = true;
+        clear(controls.resubmit);
+        return;
+    }
+    const reused = resubmitting.claimId && controls.claimId.value() === resubmitting.claimId;
+    controls.resubmit.hidden = false;
+    fill(controls.resubmit,
+        el('p', null, el('strong', null, 'Sending again after run '), runLink(resubmitting.runId), el('strong', null, ', where the payer asked for documentation.')),
+        reused
+            ? el('p', null, 'The claim identifier field holds that request\'s identifier, ', code(resubmitting.claimId),
+                ', so "Send PAS request" sends a new request with the same claim identifier. Clear the field to have the tool mint a new one.')
+            : el('p', null, 'The claim identifier field no longer holds that request\'s identifier, so this send is not tied to it.'),
+        el('p', {class: 'small'}, 'The next step of that run says: ', el('q', null, resubmitting.headline)),
+        el('p', null, button('Set this aside', () => { resubmitting = null; drawResubmit(); }, {class: 'button--text'})));
 }
 
 async function showPreview(kind) {
@@ -670,7 +809,7 @@ async function showPreview(kind) {
         update: () => api.postJson('/api/pas/subscriptions/' + encodeURIComponent(id === '' ? '-' : id) + '/preview', subscriptionBody())
     }[kind];
     const control = {submit: controls.preview, inquire: controls.inquirePreview, create: controls.createPreview, update: controls.updatePreview}[kind];
-    const answer = await bench.call(send, {saying: 'Building the request. Nothing is sent.', control});
+    const answer = await call(send, {saying: 'Building the request. Nothing is sent.', control});
     if (answer) {
         const shownPanel = requestPreviewPanel(answer.body, () => clear(slots.preview));
         if (kind === 'submit') {
@@ -686,8 +825,18 @@ async function showPreview(kind) {
                 }
             }
         }
+        // The server's notes are written as of a request that went. Here nothing has gone, so they are introduced as what would happen.
+        const notes = shownPanel.querySelector(':scope > .note-list');
+        if (notes) {
+            notes.before(el('p', {class: 'sub-heading'}, 'If it were sent as it stands, the server notes:'));
+        }
         fill(slots.preview, shownPanel);
         bench.say('The request is shown. Nothing was sent.');
+        const title = shownPanel.querySelector('h2');
+        if (title) {
+            title.setAttribute('tabindex', '-1');
+            title.focus({preventScroll: true});
+        }
     }
 }
 

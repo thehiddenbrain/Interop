@@ -116,6 +116,14 @@ export function createAttachments(spec) {
         /** The documents as the request takes them. Blank fields are sent as typed, so the server can name what is missing. */
         values: () => Array.from(list.children).map(item => item.value()),
         count: () => list.children.length,
+        /** Makes sure one attachment is open for typing, and returns its first field, for a resubmission the payer asked documentation for. */
+        firstField() {
+            if (list.children.length === 0) {
+                add();
+                spec.changed();
+            }
+            return list.children[0].querySelector('input, textarea');
+        },
         /** The attachment mode from the configuration, or null when it could not be read. */
         setMode(value) {
             modeValue = value;

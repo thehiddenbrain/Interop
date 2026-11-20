@@ -151,7 +151,8 @@ function decisionsPart(response, vocabulary) {
     part.append(el('p', {class: 'quiet small'}, 'One row for every item that was asked about, whether or not the response lists it. '
         + 'The decision is read from the review action code only, never from the payer\'s wording.'));
     const rows = decisions.map(decision => ({cells: [
-        decision.subject ? [code(decision.subject), decision.sequence !== undefined && decision.sequence !== null
+        // The sequence is drawn only when the subject does not already say it, as a subject of "item 1" does.
+        decision.subject ? [code(decision.subject), decision.sequence !== undefined && decision.sequence !== null && decision.subject !== 'item ' + decision.sequence
             ? el('div', {class: 'small quiet'}, 'item ' + decision.sequence) : null]
             : el('span', null, 'The request as a whole'),
         [outcomeOf(vocabulary, decision.outcome), SOURCES[decision.source]
@@ -180,9 +181,8 @@ function authorization(decision) {
     const to = decision.authorizedTo;
     return el('div', null,
         numbers.length > 0 ? el('div', null, numbers.map((value, index) => [index > 0 ? ', ' : null, code(value, 'pas-authno')]))
-            : el('div', null, none('no number stated')),
-        from || to ? el('div', {class: 'small'}, 'Valid from ', from ? code(from) : none('not stated'), ' to ', to ? code(to) : none('not stated'))
-            : el('div', {class: 'small'}, none('no period stated')));
+            : el('div', null, 'Number ', noneMark()),
+        el('div', {class: 'small'}, 'Valid from ', from ? code(from) : presenceMark('ABSENT'), ' to ', to ? code(to) : presenceMark('ABSENT')));
 }
 
 /* ---------- the response as a whole ---------- */
@@ -415,7 +415,7 @@ export function subscriptionDetail(envelope) {
         ['Subscription this run is about', detail.subscriptionId ? [code(detail.subscriptionId),
             detail.idSource ? el('div', {class: 'small quiet'}, 'Read from ' + detail.idSource + '.') : null]
             : none(envelope.operation === 'SUBSCRIPTION_GET' && !detail.subscriptionId ? 'none: a list' : 'none stated')],
-        ['Url it named for call back', envelope.operation === 'SUBSCRIPTION_CREATE' || envelope.operation === 'SUBSCRIPTION_UPDATE'
+        ['Url this request named for call back', envelope.operation === 'SUBSCRIPTION_CREATE' || envelope.operation === 'SUBSCRIPTION_UPDATE'
             ? (detail.callbackUrl ? code(detail.callbackUrl) : el('strong', null, 'none: the request named no url to call back')) : null],
         ['Bundle', detail.responseKind === 'BUNDLE' ? ['type ', shown(detail.bundleType, {as: 'literal'}), ', id ', shown(detail.bundleId, {as: 'literal'}),
             ', total stated ', shown(detail.total, {as: 'literal'})] : null]
@@ -445,7 +445,8 @@ function subscriptionBlock(subscription) {
                 ['Status', coded(subscription.status)],
                 ['Subscribed to', shown(subscription.criteria, {as: 'literal'})],
                 ['Filters', shownList(subscription.filters, {as: 'literal'})],
-                ['Calls back', shown(subscription.endpoint, {as: 'literal'})],
+                // What the service answered, which can differ from what the request named above: the two are labelled as two statements.
+                ['The service says it will call back', shown(subscription.endpoint, {as: 'literal'})],
                 ['Channel', shown(subscription.channelType, {as: 'literal'})],
                 ['Heartbeat, seconds', shown(subscription.heartbeat, {as: 'literal'})],
                 ['Last error', shown(subscription.error)]

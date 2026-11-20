@@ -14,9 +14,9 @@
 // gives are shown with its own note, so a short list is never taken to mean nothing arrived.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts, table, heading, when, count} from './dom.js';
-import {shown, shownList} from './shown.js';
-import {toneMark, mockMark} from './marks.js';
+import {el, fill, clear, button, code, facts, table, heading, when, whenText, count} from './dom.js';
+import {shown, shownList, presenceMark} from './shown.js';
+import {outcome, mockMark} from './marks.js';
 import {additionalFieldsTable, issuesTable} from './result.js';
 import {selectField, textField, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {runLink} from './history-common.js';
@@ -24,12 +24,26 @@ import {coded, claimResponseBlock, otherResourcesPart} from './pas-detail.js';
 
 const POLL_MILLIS = 5000;
 
+// How many notifications are drawn at first, and how many more each press of the button adds. A
+// receiver holds up to two hundred, and a tester looks for one among them.
+const PAGE = 20;
+
+// The ways the list can be narrowed. Each reads a fact the server stated on the notification.
+const VIEWS = [
+    {value: 'all', label: 'Every notification held', test: () => true},
+    {value: 'latest', label: 'About the latest submission on this tab', test: (item, lastRunId) => Boolean(lastRunId) && item.correlatedRunId === lastRunId},
+    {value: 'matched', label: 'About a submission of this tool', test: item => Boolean(item.correlatedRunId)},
+    {value: 'unmatched', label: 'About no submission of this tool', test: item => !item.correlatedRunId},
+    {value: 'samples', label: 'Samples delivered on the mock profile', test: item => Boolean(item.sample)}
+];
+
 /**
  * spec.app             the page's app object
  * spec.panel           the PAS tab's panel, whose hidden state says whether the tab is on screen
  * spec.vocabulary()    {outcomes} as the scenarios endpoint served it
  * spec.inquire(carry, about)  sends an inquiry for the request a notification is about
  * spec.lastRunId()     the run id of the latest submission on this tab, or null
+ * spec.showSubscriptions()  puts the Subscriptions call on screen, where a subscription is created
  */
 export function createNotifications(spec) {
     let timer = null;
@@ -40,14 +54,25 @@ export function createNotifications(spec) {
     let scenarios = [];
     let fillRun = () => {};
     const shownItems = [];
+    // The row drawn for each notification, and which of them the tester has opened. Both outlive a redraw of the view.
+    const rows = new Map();
+    const openIds = new Set();
+    let limit = PAGE;
 
     const status = el('span', {class: 'pas-notifications__status', role: 'status', aria: {live: 'polite'}});
     const heldCount = el('span', {class: 'section-heading__count'});
     const receiver = el('div', {class: 'pas-receiver'});
     const countsLine = el('p', {class: 'small quiet'});
     const list = el('ol', {class: 'pas-notifications__list'});
+    const view = selectField({label: 'Show', field: 'notifications.view', options: VIEWS.map(item => ({value: item.value, label: item.label}))});
+    view.node.classList.add('pas-notifications__view');
+    view.select.addEventListener('change', () => { limit = PAGE; applyView(); });
+    const showing = el('p', {class: 'small quiet', aria: {live: 'polite'}});
+    const moreButton = button('Show ' + PAGE + ' more', () => { limit += PAGE; applyView(); }, {class: 'button--quiet button--small'});
+    const moreRow = el('p', {hidden: true}, moreButton);
     const sampleSlot = el('div', {class: 'pas-sample'});
     const problem = el('div');
+    const noSubscription = el('div', {aria: {live: 'polite'}});
     // One line while folded, so a long list does not push a result down. What arrives is announced in that line either way,
     // and the list is open while the Notifications call is chosen.
     const body = el('details', {class: 'pas-notifications__body'},
@@ -56,7 +81,7 @@ export function createNotifications(spec) {
             status),
         el('div', {class: 'pas-notifications__inside'},
             el('p', null, button('Ask the receiver now', () => poll(), {class: 'button--quiet button--small'})),
-            receiver, countsLine, list));
+            receiver, countsLine, view.node, showing, list, moreRow));
     const node = el('section', {class: 'pas-notifications', aria: {labelledby: 'pas-notifications-title'}}, body);
 
     /* ---------- where the receiver listens ---------- */
@@ -141,9 +166,14 @@ export function createNotifications(spec) {
         if (got.latest) {
             latest = got.latest;
         }
+        // The newest of what arrived is opened, so the one a tester is waiting for reads in full. The rest stay one line each.
+        if (arrived.length > 0) {
+            openIds.add(arrived[0].id);
+        }
         // Newest first: what arrived since is newer than everything on screen, and goes above it.
         for (const item of arrived.slice().reverse()) {
             const row = rowFor(item, loaded);
+            rows.set(item.id, row);
             shownItems.unshift(item);
             list.prepend(row);
         }
@@ -156,6 +186,36 @@ export function createNotifications(spec) {
         }
         loaded = true;
         drawCounts();
+        applyView();
+    }
+
+    /** Shows the notifications the chosen view keeps, newest first, a page at a time. */
+    function applyView() {
+        const chosen = VIEWS.find(item => item.value === view.value()) || VIEWS[0];
+        const lastRunId = spec.lastRunId();
+        let matching = 0;
+        for (const item of shownItems) {
+            const row = rows.get(item.id);
+            if (!row) {
+                continue;
+            }
+            const keep = chosen.test(item, lastRunId);
+            row.hidden = !keep || matching >= limit;
+            if (keep) {
+                matching += 1;
+            }
+        }
+        moreRow.hidden = matching <= limit;
+        if (shownItems.length === 0) {
+            showing.textContent = '';
+        } else if (chosen.value === 'latest' && !lastRunId) {
+            showing.textContent = 'No submission has been sent from this tab yet, so none is about the latest one.';
+        } else if (matching === 0) {
+            showing.textContent = 'None of the ' + count(shownItems.length) + ' notifications here matches "' + chosen.label + '".';
+        } else {
+            showing.textContent = 'Showing ' + count(Math.min(matching, limit)) + ' of ' + count(matching)
+                + (chosen.value === 'all' ? '' : ' that match') + ', newest first.';
+        }
     }
 
     function drawCounts() {
@@ -181,27 +241,42 @@ export function createNotifications(spec) {
 
     /* ---------- one notification ---------- */
 
+    /**
+     * One notification as one short line that can be read in a list of two hundred: when, what
+     * the server calls it, which submission it is about, and the decision the ClaimResponse it
+     * carries states, item by item. Opening it shows the server's verdict in full, its next step
+     * and, further folded, everything the notification held.
+     */
     function rowFor(item, fresh) {
         const verdict = item.verdict;
         const step = item.nextStep || {};
         const carry = step.carry || {};
         const known = spec.vocabulary().outcomes.get(verdict.outcomeCode);
         const tone = known ? known.tone : verdict.tone;
+        const label = verdict.outcomeLabel || (known ? known.label : verdict.outcomeCode);
         const inquiry = step.action === 'CHECK_STATUS' && (carry.claimId || []).length > 0
             ? button('Send inquiry for this request', () => spec.inquire(carry, item), {class: 'button--primary button--small'}) : null;
-        const head = el('div', {class: 'pas-note__head'},
+        const openId = 'pas-note-open-' + item.id;
+        const toggle = el('button', {type: 'button', class: 'button button--quiet button--small pas-note__toggle',
+            aria: {expanded: 'false', controls: openId}}, 'Open');
+        const line = el('div', {class: 'pas-note__line'},
             when(item.receivedAt),
             fresh ? el('span', {class: 'flag'}, 'new') : null,
             item.sample ? mockMark() : null,
-            el('span', {class: 'outcome'}, toneMark(tone), code(verdict.outcomeCode)),
-            item.type && item.type.code ? ['type ', code(item.type.code)] : null);
+            el('span', {class: 'pas-note__what'}, outcome(label, tone), ' ', el('span', {class: 'small quiet'}, code(verdict.outcomeCode))),
+            el('span', {class: 'pas-note__about'}, item.correlatedRunId ? ['about ', runLink(item.correlatedRunId)]
+                : el('span', {class: 'presence presence--none'}, 'about no submission of this tool')),
+            toggle);
+        const decided = decisionLine(item);
+        // A sample says on its own line why it is matched or not, and what to do about it. The tester must not have to open it to learn that.
+        const sampleNotes = item.sample && (item.payloadNotes || []).length > 0
+            ? el('ul', {class: 'note-list small pas-note__sample-notes'}, item.payloadNotes.map(note => el('li', null, note))) : null;
         const links = el('p', {class: 'small'},
             'Subscription ', item.subscriptionId ? code(item.subscriptionId) : el('span', {class: 'presence presence--none'}, 'none named'),
             item.subscriptionRunId ? [', created by ', runLink(item.subscriptionRunId)] : null,
             '. ',
             item.correlatedRunId ? ['About the submission ', runLink(item.correlatedRunId), item.claimId ? [' (claim ', code(item.claimId), ')'] : null, '.'] : null);
-        // When no submission was matched, how each link was or was not made is the server's to say.
-        const unmatched = item.correlatedRunId ? [] : item.correlationNotes || [];
+        const supporting = verdict.supporting || [];
         const more = el('details', {class: 'fold pas-note__more'},
             el('summary', null, 'Everything in this notification', el('span', {class: 'quiet'}, count(item.bytesReceived) + ' bytes received')));
         let drawn = false;
@@ -211,27 +286,67 @@ export function createNotifications(spec) {
                 more.append(everything(item));
             }
         });
-        return el('li', {class: 'pas-note' + (fresh ? ' pas-note--fresh' : '')},
-            head,
+        const opened = el('div', {class: 'pas-note__open', id: openId, hidden: true},
             el('p', {class: 'pas-note__headline'}, verdict.headline),
+            supporting.length > 0 ? el('ul', {class: 'note-list small'}, supporting.map(text => el('li', null, text))) : null,
             links,
-            unmatched.length > 0 ? el('ul', {class: 'note-list small'}, unmatched.map(note => el('li', null, note))) : null,
             el('div', {class: 'pas-note__next'},
                 el('p', null, el('strong', null, step.headline || 'No next step was stated.')),
-                step.reason ? el('p', {class: 'small'}, step.reason) : null,
-                inquiry),
+                step.reason ? el('p', {class: 'small'}, step.reason) : null),
             more);
+        const row = el('li', {class: 'pas-note' + (fresh ? ' pas-note--fresh' : ''), tabIndex: -1, aria: {label: 'Notification of ' + whenText(item.receivedAt)}},
+            line, decided, sampleNotes, inquiry ? el('p', null, inquiry) : null, opened);
+        const setOpen = open => {
+            opened.hidden = !open;
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            toggle.textContent = open ? 'Fold' : 'Open';
+            if (open) {
+                openIds.add(item.id);
+            } else {
+                openIds.delete(item.id);
+            }
+        };
+        toggle.addEventListener('click', () => setOpen(opened.hidden));
+        setOpen(openIds.has(item.id));
+        return row;
+    }
+
+    /**
+     * The decision each ClaimResponse in the notification states, as the server set it for each
+     * item: its outcome in its tone, the authorization number and the period. Nothing is read from
+     * codes here; the outcome is the server's code, worded from the vocabulary.
+     */
+    function decisionLine(item) {
+        const responses = item.claimResponses || [];
+        if (responses.length === 0) {
+            return null;
+        }
+        const decisions = responses.flatMap(response => response.decisions || []);
+        if (decisions.length === 0) {
+            return el('p', {class: 'pas-note__decision small'}, 'It carries a ClaimResponse that states no decision for any item.');
+        }
+        const outcomes = spec.vocabulary().outcomes;
+        return el('ul', {class: 'pas-note__decision plain-list'}, decisions.map(decision => {
+            const known = decision.outcome ? outcomes.get(decision.outcome) : null;
+            const numbers = decision.authorizationNumbers || [];
+            return el('li', null,
+                decisions.length > 1 && decision.subject ? [code(decision.subject), ': '] : null,
+                decision.outcome ? outcome(known ? known.label : decision.outcome, known ? known.tone : null)
+                    : el('span', {class: 'presence presence--none'}, 'no decision stated'),
+                numbers.length > 0 ? [', authorization ', numbers.map((value, index) => [index > 0 ? ', ' : null, code(value, 'pas-authno')])] : null,
+                decision.authorizedFrom || decision.authorizedTo ? [', valid ', decision.authorizedFrom ? code(decision.authorizedFrom) : presenceMark('ABSENT'),
+                    ' to ', decision.authorizedTo ? code(decision.authorizedTo) : presenceMark('ABSENT')] : null);
+        }));
     }
 
     function everything(item) {
-        // The verdict's lines can repeat how the notification was matched, which has its own heading below. Each is said once.
-        const supporting = (item.verdict.supporting || []).filter(line => !(item.correlationNotes || []).includes(line));
+        // The verdict's lines are on the opened line above. How the notification was matched is said here only where they did not say it.
+        const matching = (item.correlationNotes || []).filter(line => !(item.verdict.supporting || []).includes(line));
         const events = item.events || [];
         const findings = item.findings || [];
         const parts = [
-            supporting.length > 0 ? el('ul', {class: 'note-list'}, supporting.map(line => el('li', null, line))) : null,
-            item.correlationNotes && item.correlationNotes.length > 0
-                ? el('div', null, el('p', {class: 'sub-heading'}, 'How it was matched'), el('ul', {class: 'note-list'}, item.correlationNotes.map(line => el('li', null, line))))
+            matching.length > 0
+                ? el('div', null, el('p', {class: 'sub-heading'}, 'How it was matched'), el('ul', {class: 'note-list'}, matching.map(line => el('li', null, line))))
                 : null,
             findings.length > 0 ? el('div', null, el('p', {class: 'sub-heading'}, 'Findings (' + findings.length + ')'),
                 findings.map(finding => el('div', {class: 'finding'}, el('p', {class: 'finding__title'}, finding.title),
@@ -278,7 +393,8 @@ export function createNotifications(spec) {
         return el('div', {class: 'raw-body'},
             el('p', null, el('strong', null, 'The payload as received. '), count(item.bytesReceived) + ' bytes arrived and ' + count(item.bytesKept) + ' are held.',
                 item.truncated ? el('strong', null, ' It was cut: what is shown is not all that was sent.') : null),
-            (item.payloadNotes || []).length > 0 ? el('ul', {class: 'note-list'}, item.payloadNotes.map(note => el('li', null, note))) : null,
+            // A sample's notes are on its line already.
+            !item.sample && (item.payloadNotes || []).length > 0 ? el('ul', {class: 'note-list'}, item.payloadNotes.map(note => el('li', null, note))) : null,
             item.payload === undefined ? el('p', {class: 'quiet'}, 'No payload is held.') : text);
     }
 
@@ -339,9 +455,18 @@ export function createNotifications(spec) {
             }
             if (answer.kind === 'ok') {
                 status.textContent = 'The sample was delivered to the receiver. It shows in the list as it arrives.';
-                poll();
+                const before = shownItems.length > 0 ? shownItems[0].id : null;
+                await poll();
+                // The keyboard goes to the notification that arrived, which opens on its own; without it, back to the button, never to the page.
+                const newest = shownItems.length > 0 && shownItems[0].id !== before ? rows.get(shownItems[0].id) : null;
+                if (newest && !newest.hidden) {
+                    newest.focus({preventScroll: false});
+                } else {
+                    deliver.focus();
+                }
                 return;
             }
+            deliver.focus();
             // The sample's fields are named apart from the run's own, so a refusal of one never lands on the other.
             fill(problem, formProblem(answer.body, markFieldErrors([sampleSlot],
                 (answer.body.fieldErrors || []).map(item => ({...item, field: 'sample.' + item.field})))));
@@ -351,10 +476,29 @@ export function createNotifications(spec) {
             el('p', {class: 'small'}, el('span', {class: 'hatch pas-hatch', aria: {hidden: 'true'}}),
                 ' Mock profile only. The notification a scenario file holds is handed to the receiver as if a service had sent it, '
                 + 'so the whole loop can be learned without a vendor. It is marked as a sample wherever it shows.'),
-            scenario.node, runId.node, subscriptionId.node, problem,
+            scenario.node, runId.node, subscriptionId.node, noSubscription, problem,
             el('div', {class: 'button-row'}, deliver, button('Use the latest submission', () => { runId.set(''); fillRun(); }, {class: 'button--text'}))));
         runId.input.addEventListener('input', () => { filled = ''; });
         fillRun();
+        checkSubscriptions();
+    }
+
+    /**
+     * Says, before a sample is delivered, when the ledger lists no subscription created by this
+     * tool: the sample then names a subscription nobody created. The ledger is asked, which is
+     * what the receiver matches against; when it cannot be asked nothing is said.
+     */
+    async function checkSubscriptions() {
+        const answer = await api.get('/api/runs?operation=SUBSCRIPTION_CREATE&limit=1');
+        if (answer.kind !== 'ok' || typeof answer.body.count !== 'number' || answer.body.count > 0) {
+            clear(noSubscription);
+            return;
+        }
+        fill(noSubscription, el('p', {class: 'pas-sample__nosub'},
+            el('strong', null, 'The ledger lists no subscription created by this tool.'),
+            ' A sample delivered now names a subscription nobody created, so it is shown as matching no subscription of this tool. '
+            + 'To see a notification matched to its subscription, create one first. ',
+            spec.showSubscriptions ? button('Go to the Subscriptions call', () => spec.showSubscriptions(), {class: 'button--text'}) : null));
     }
 
     return {
@@ -366,13 +510,29 @@ export function createNotifications(spec) {
         /** Call when a submission has been sent from the tab, so the sample can be about it. */
         submitted() {
             fillRun();
+            applyView();
         },
-        /** Opens or folds the list. */
+        /** Opens or folds the list. Opening it asks the ledger again whether a subscription exists, for the sample form. */
         setOpen(open) {
             body.open = open;
+            if (open && spec.app.isMock() && scenarios.length > 0) {
+                checkSubscriptions();
+            }
         },
         drawReceiver,
         drawSample,
+        /** Draws every row again, for when the outcome vocabulary arrives after the first notifications did. */
+        redraw() {
+            for (const item of shownItems) {
+                const old = rows.get(item.id);
+                if (old) {
+                    const row = rowFor(item, false);
+                    row.hidden = old.hidden;
+                    old.replaceWith(row);
+                    rows.set(item.id, row);
+                }
+            }
+        },
         /** The latest list of notification scenarios, for redrawing the sample form when the mode changes. */
         scenarios: () => scenarios
     };
