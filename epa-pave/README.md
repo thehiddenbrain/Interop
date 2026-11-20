@@ -2031,12 +2031,13 @@ same sentence, naming `':compileJava'`. So install a JDK 21 before the import. O
 a JDK 21 installed in the system's usual place (on Linux under `/usr/lib/jvm`) was found by STS and by
 Gradle with no setting; STS looks for installed Javas at startup ("Detect available JVM installations
 at startup", ticked, under Installed JREs). Otherwise give Gradle its Java home as under "If the
-import fails" below. A machine that has a Java 17 and no 21 was not tried. On the Linux machine seen, with no WebKit
-installed, STS's Tip of the Day dialog failed ("No more handles because there is no underlying browser
-available"), followed by "An SWT error has occurred ... Do you want to exit the workbench?"; the
-answer was No, and after the package `libwebkit2gtk-4.1-0` was installed the run went on. A plain
-Eclipse showed a "Chromium Additional Terms of Service" dialog at its first start; Cancel was pressed,
-with no effect on the project.
+import fails" below. A machine that has a Java 17 and no 21 was not tried.
+
+On the Linux machine seen, with no WebKit installed, STS's Tip of the Day dialog failed ("No more
+handles because there is no underlying browser available"), followed by "An SWT error has occurred
+... Do you want to exit the workbench?"; the answer was No, and after the package
+`libwebkit2gtk-4.1-0` was installed the run went on. A plain Eclipse showed a "Chromium Additional
+Terms of Service" dialog at its first start; Cancel was pressed, with no effect on the project.
 
 **2. Get the code.** Two ways. Either way, what STS must import in the end is the folder `epa-pave`
 inside your clone, with the clone on the branch `epa-pave`. The top folder of the repository is
@@ -2114,10 +2115,9 @@ process) and both proofs holding:
   "Remove project '<name>' from the workspace?" and shows two checkboxes, both unticked: "Delete
   project contents on disk (cannot be undone)" and "Delete 1 nested project". **Leave both
   unticked** and press OK. The first would, by its label, delete your clone from the disk (no run
-ticked it), and with it the tool,
-  because the folder `epa-pave` lies inside that project's folder; the second would take the project
-  `epa-pave` out of the workspace too. Afterwards only `epa-pave` remains, whole, and the Problems
-  view reads "0 errors, 25 warnings, 59 others".
+  ticked it), and with it the tool, because the folder `epa-pave` lies inside that project's
+  folder; the second would take the project `epa-pave` out of the workspace too. Afterwards only
+  `epa-pave` remains, whole, and the Problems view reads "0 errors, 25 warnings, 59 others".
 
 The Maven import leaves `.classpath`, `.project` and `.settings/` in the top folder of the clone, and
 `git status` there lists them as untracked (`??`), because the top folder's `.gitignore` does not
@@ -2146,8 +2146,8 @@ Package Explorer (no `[boot]`) and at the Problems view.
   *Cause:* the wrong folder. The folder given has no Gradle wrapper, so it is not `epa-pave` (seen
   with the top folder of a clone, on the branch `epa-pave` and on the default branch alike). With no
   wrapper, STS 5.4.0 falls back to the Gradle that its Gradle support (Buildship 3.1.11) carries, 8.9,
-  and runs it on the Java 25 inside STS, which Gradle 8.9 cannot run on. That cause is only in the "Caused by" lines, at
-  the end of the trace in the workspace's `.metadata/.log`:
+  and runs it on the Java 25 inside STS, which Gradle 8.9 cannot run on. That cause is only in the
+  "Caused by" lines, at the end of the trace in the workspace's `.metadata/.log`:
   `java.lang.IllegalArgumentException: Unsupported class file major version 69` (69 is Java 25).
   **It is not the network, although it reads like it:** on the machine seen the download of Gradle 8.9
   succeeded before this error. (Where a download itself failed, in the simulation below, the first
@@ -2212,11 +2212,10 @@ branch mean it is that many commits behind GitHub. "Working Tree - <the folder o
 the clone's files, `epa-pave` among them while that branch is checked out. If the view lists more
 than one clone of the repository (the operator reported two, one inside the folder of the other, on
 different branches), use the one whose line reads `[epa-pave]` and give the import the `epa-pave`
-folder under its path, not the other's. Once a project from the
-clone is imported, the repository is listed by itself. If the view is empty, "Add an existing local
-Git repository" opens "Add Git Repositories": put the folder of your clone in "Directory:", press
-Search, tick the repository found (it is listed unticked, and "Add" stays greyed out until then), and
-Add. To check out `epa-pave`: expand Branches; under Local, right click `epa-pave` and choose "Check
+folder under its path, not the other's. Once a project from the clone is imported, the repository is
+listed by itself. If the view is empty, "Add an existing local Git repository" opens "Add Git
+Repositories": put the folder of your clone in "Directory:", press Search, tick the repository found
+(it is listed unticked, and "Add" stays greyed out until then), and Add. To check out `epa-pave`: expand Branches; under Local, right click `epa-pave` and choose "Check
 Out"; if it is only under Remote Tracking, right click `origin/epa-pave`, "Check Out...", then "Check
 out as New Local Branch" in "Check out remote-tracking branch", and Finish in "Create Branch" with
 "Check out new branch" ticked. These menus and dialogs were seen; the switch itself was not made from
