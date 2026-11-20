@@ -34,7 +34,7 @@ server work for the screens and the second audits D-202 to D-228.
   1080, and are quoted in its report and in D-208. They were not looked at again on this revision.
   `P32H-NO-AUTH` and `P32H-EMPTY` were not looked at in a suite or a chain on screen.
 - **No fresh-clone build of this revision.** Spine 5 has not run as a step: the branch is pushed, but
-  the two clean builds with the plain wrapper, the fresh-clone build and the pull request have not
+  the two clean builds with plain `./gradlew`, the fresh-clone build and the pull request have not
   been done. Every build reported here went through the shared wrapper, which builds offline.
 - **`run.cmd` has never been run**: there is no Windows machine here, and no agent ran on Windows.
 - **Nothing has been observed against the vendor's service.** Every live check any agent reported
@@ -519,7 +519,8 @@ that fail without the change; SP-2 (eleven notes on the DTR package request) fix
 DTR names the package run, not the response run) refuted and kept (D-181). The platform task (VSP-1
 to VSP-9): VSP-1 (major, the headline of a blocked replay still said to unlock) fixed (D-183), and the
 gateway's own sentence for a replay seen since through a test over the server (D-205); VSP-2 (major, no test of the chain view's next
-action) fixed with a unit test, not seen on the jar; VSP-3 (a garbled sentence) fixed and pinned;
+action) fixed with a unit test of a state the tool cannot reach, since a replay never joins a
+chain (D-208); VSP-3 (a garbled sentence) fixed and pinned;
 VSP-4 and VSP-5 (incomplete raw urls answered differently by profile, one recorded as a run) fixed
 (D-184); VSP-6 (`..` in a url part moved a read) fixed by refusing it (D-184); VSP-7 (the mock
 headline) fixed; VSP-8 (no test of two lookup fixtures claiming one identifier) fixed for members and,
@@ -703,7 +704,7 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
 | Wave C: C1 frontend | merged and joined into one tool by two passes (`fe-join` at `4d795d8`, `fe-join-2` at `d15db15`). A third pass, for what the audits asked of the screens, is started and not merged |
 | Wave C: C2 docs and scripts | merged (`docs-2` at `81637c2`); the README describes the tool at the join. An update for the later changes is started and not merged. `run.cmd` never run |
 | Wave C: C3 verification V1 to V7 | V2, V3 and V4 ran twice, the second time on `0658a7c`; their fixes are merged (`audit-fix-v2` at `d542405`, `audit-fix-v3` at `1557e5c`, `audit-fix-v4` at `fd61e6e`) and not yet checked by another agent. V1, V5, V6, V7 not run |
-| Spine 5: clean build twice, fresh-clone build, push, pull request | not run as a step. The branch is pushed at every integration (at `5763c41` now); the clean builds with the plain wrapper, the fresh-clone build and the pull request have not been done |
+| Spine 5: clean build twice, fresh-clone build, push, pull request | not run as a step. The branch is pushed at every integration (at `5763c41` now); the clean builds with plain `./gradlew`, the fresh-clone build and the pull request have not been done |
 
 ### How the build got here
 
