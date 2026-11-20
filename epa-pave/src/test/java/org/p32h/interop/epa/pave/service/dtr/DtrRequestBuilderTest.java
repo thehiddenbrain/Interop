@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.service.dtr;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -188,8 +189,8 @@ class DtrRequestBuilderTest {
      * from nothing, and the one about where the answers came from. Each of those has tests of its own.
      */
     private static List<String> others(List<String> notes) {
-        return notes.stream().filter(note -> !note.startsWith("No response was given to start from") && !note.startsWith("Each answer added"))
-                .toList();
+        return notes.stream().filter(note -> !note.startsWith("No response was given to start from") && !note.startsWith("Each answer added")
+                && !note.startsWith("The provider on the form is named as the author of the response")).toList();
     }
 
     @Test
@@ -203,14 +204,17 @@ class DtrRequestBuilderTest {
         // A contained resource is referred to by its id, so one that arrived without an id is given one, and the result says so.
         assertThat(sent.get("questionnaire").asString()).isEqualTo("#adaptive-questionnaire");
         assertThat(sent.at("/contained/0/id").asString()).isEqualTo("adaptive-questionnaire");
-        assertThat(sent.at("/contained/0/url").asString()).isEqualTo("https://example.org/p32h-placeholder/Questionnaire/no-id");
-        // The guides tie an adaptive response to the questionnaire being completed by what the questionnaire inside it is derived from.
+        // DTR 2.0.1 dtr-questionnaire-adapt: the questionnaire inside has no url, and exactly one derivedFrom, the one being completed.
+        assertThat(sent.at("/contained/0").has("url")).isFalse();
         assertThat(sent.at("/contained/0/derivedFrom")).hasSize(1);
         assertThat(sent.at("/contained/0/derivedFrom/0").asString()).isEqualTo("https://example.org/p32h-placeholder/Questionnaire/no-id");
         assertThat(others(first.notes())).hasSize(2).anySatisfy(note -> assertThat(note).contains("was given the id adaptive-questionnaire"))
-                .anySatisfy(note -> assertThat(note).isEqualTo("The copy of the questionnaire inside the QuestionnaireResponse was marked as "
-                        + "derived from https://example.org/p32h-placeholder/Questionnaire/no-id, which is how the DTR and SDC guides tie an "
-                        + "adaptive response to the questionnaire being completed."));
+                .anySatisfy(note -> assertThat(note).isEqualTo("The questionnaire was copied into the QuestionnaireResponse and shaped to "
+                        + "the DTR 2.0.1 adaptive questionnaire profile (dtr-questionnaire-adapt): its url was taken off, because the profile "
+                        + "allows none; derivedFrom was set to https://example.org/p32h-placeholder/Questionnaire/no-id."));
+        // What the response cannot carry because nothing supplied it is listed as gaps, each naming DTR 2.0.1.
+        assertThat(first.gaps()).extracting(DtrProfileCheck.Gap::element).containsExactly("QuestionnaireResponse.extension:context",
+                "QuestionnaireResponse.extension:intendedUse", "QuestionnaireResponse.item", "Questionnaire.title", "Questionnaire.text");
         // The member is named by the local id of the Patient resource, never by the member ID.
         assertThat(sent.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
         assertThat(first.json()).doesNotContain("S123456789");
@@ -248,18 +252,24 @@ class DtrRequestBuilderTest {
         String canonical = "https://example.org/p32h-placeholder/Questionnaire/derived|2.0";
         String questionnaire = "{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"url\":\"https://example.org/p32h-placeholder/"
                 + "Questionnaire/derived\",\"version\":\"2.0\",\"derivedFrom\":[\"" + base + "\"]}";
-        JsonNode sent = builder.buildNextQuestion(DtrAnswers.read(questionnaire, null, List.of()), null, DtrFixtures.CLOCK).response();
-        // Nothing the payer stated is taken away: its own derivedFrom follows the questionnaire being completed.
-        assertThat(sent.at("/contained/0/derivedFrom")).hasSize(2);
+        DtrRequestBuilder.LoopBody copied = builder.buildNextQuestion(DtrAnswers.read(questionnaire, null, List.of()), null, DtrFixtures.CLOCK);
+        JsonNode sent = copied.response();
+        // DTR 2.0.1 allows the questionnaire inside exactly one derivedFrom, so the one being completed replaces what it was derived from,
+        // and the note names what was replaced. Its url and its version are taken off: the canonical in derivedFrom carries them.
+        assertThat(sent.at("/contained/0/derivedFrom")).hasSize(1);
         assertThat(sent.at("/contained/0/derivedFrom/0").asString()).isEqualTo(canonical);
-        assertThat(sent.at("/contained/0/derivedFrom/1").asString()).isEqualTo(base);
-        assertThat(OnyxDtrConventions.completes(sent)).containsExactly(canonical, base);
+        assertThat(sent.at("/contained/0").has("version")).isFalse();
+        assertThat(OnyxDtrConventions.completes(sent)).containsExactly(canonical);
+        assertThat(copied.notes()).contains("The questionnaire was copied into the QuestionnaireResponse and shaped to the DTR 2.0.1 adaptive "
+                + "questionnaire profile (dtr-questionnaire-adapt): its url was taken off, because the profile allows none; its version was "
+                + "taken off, because derivedFrom carries it and SDC 4.0.0-ballot allows none; derivedFrom was set to " + canonical
+                + " alone, in place of " + base + ", because the profile allows exactly one.");
 
         // A questionnaire that already says it is derived from itself is left as it is, with no note about it.
         String already = "{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"url\":\"" + base + "\",\"derivedFrom\":[\"" + base + "\"]}";
         DtrRequestBuilder.LoopBody unchanged = builder.buildNextQuestion(DtrAnswers.read(already, null, List.of()), null, DtrFixtures.CLOCK);
         assertThat(unchanged.response().at("/contained/0/derivedFrom")).hasSize(1);
-        assertThat(unchanged.notes()).noneMatch(note -> note.contains("derived from"));
+        assertThat(unchanged.notes()).noneMatch(note -> note.contains("derivedFrom was set"));
 
         // A questionnaire with no url cannot be named, so nothing is made up for it.
         DtrRequestBuilder.LoopBody unnamed = builder.buildNextQuestion(DtrAnswers.read("{\"resourceType\":\"Questionnaire\",\"id\":\"q\"}",
@@ -278,7 +288,7 @@ class DtrRequestBuilderTest {
                 + "\"https://example.org/item\",\"valueString\":\"kept\"}],\"answer\":[{\"valueBoolean\":true}]}]},"
                 + "{\"linkId\":\"vanished\",\"answer\":[{\"valueString\":\"left behind\"}]}]}";
         DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(DtrAnswers.read(null, soFar, List.of(DtrAnswerInput.of("q1a", "more"),
-                DtrAnswerInput.of("q2", "3"))), DtrFixtures.member("S123456789"), DtrFixtures.CLOCK);
+                DtrAnswerInput.of("q2", "3"))), answering("S123456789"), DtrFixtures.CLOCK, null);
         JsonNode sent = built.response();
         // What the service put on the response is kept: its id, its extension, and what it put on an item.
         assertThat(sent.get("id").asString()).isEqualTo("service-id-7");
@@ -294,8 +304,18 @@ class DtrRequestBuilderTest {
         assertThat(sent.at("/item/0/item/1/answer/0/valueInteger").asInt()).isEqualTo(3);
         // An answer with no question to go under is not sent, and is not dropped in silence either.
         assertThat(built.json()).doesNotContain("left behind");
-        assertThat(others(built.notes())).containsExactly("The response so far holds an answer for vanished, which is not a question of its "
+        assertThat(others(built.notes())).containsExactly("The response so far stated no time it was authored, so the time of this step was "
+                + "put on it.", "The response so far holds an answer for vanished, which is not a question of its "
                 + "questionnaire. It was not sent: a response is built from the questionnaire it answers.");
+        // DTR 2.0.1 requires authored, and the time of this step is a fact this tool knows.
+        assertThat(sent.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        // The provider on the form is named as the author of the response, by its local id.
+        assertThat(sent.at("/author/reference").asString()).isEqualTo("Practitioner/practitioner-1");
+    }
+
+    /** Someone answering for the member: the provider is on the form, as a step that adds an answer requires. */
+    private static DtrRequestBuilder.Filler answering(String memberId) {
+        return new DtrRequestBuilder.Filler(memberId == null ? null : DtrFixtures.member(memberId), DtrFixtures.provider(), List.of());
     }
 
     private static final String ORIGIN = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/information-origin";
@@ -325,33 +345,39 @@ class DtrRequestBuilderTest {
         // The provider is named by the local id of the Practitioner resource, never by the NPI or a name.
         assertThat(answer.at("/extension/0/extension/1/extension/0/valueReference/reference").asString()).isEqualTo("Practitioner/practitioner-1");
         assertThat(built.json()).doesNotContain(DtrFixtures.NPI).doesNotContain("Provider");
-        assertThat(built.notes()).contains("Each answer added in this step was marked with the information-origin extension the DTR guide "
+        assertThat(built.notes()).contains("Each answer added in this step was marked with the information-origin extension DTR 2.0.1 "
                 + "requires of a client: given by a person, or changed by one where it had been pre-populated. The provider on the form is "
-                + "named as its author, by the id this tool gives the Practitioner in every request.");
+                + "named as its author, by the id this tool gives the Practitioner in every request, as DTR 2.0.1 requires of an answer a "
+                + "person gave.");
 
-        // A response started from nothing says which coverage and which orders it is for, and that it states no intended use.
+        // A response started from nothing names the coverage and each order in qr-context, as DTR 2.0.1 has it, and no qr-coverage.
         JsonNode response = built.response();
         assertThat(response.get("extension")).hasSize(3);
-        assertThat(response.at("/extension/0/url").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-coverage");
-        assertThat(response.at("/extension/0/valueReference/reference").asString()).isEqualTo("Coverage/coverage-1");
-        assertThat(response.at("/extension/1/url").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context");
-        assertThat(response.at("/extension/1/valueReference/reference").asString()).isEqualTo(ORDER_ONE);
-        assertThat(response.at("/extension/2/valueReference/reference").asString()).isEqualTo(ORDER_TWO);
+        assertThat(response.get("extension")).extracting(extension -> extension.get("url").asString()).containsOnly(QR_CONTEXT);
+        assertThat(response.get("extension")).extracting(extension -> extension.at("/valueReference/reference").asString())
+                .containsExactly("Coverage/coverage-1", ORDER_ONE, ORDER_TWO);
         assertThat(built.notes()).contains("No response was given to start from, so this tool built one. It names the coverage of the case, "
-                + "and the 2 orders it is for. The references use the ids this tool gives those resources in every request. It states no "
-                + "intended use, which DTR 2.2.0-ballot asks for and this tool cannot know.");
+                + "and the 2 orders it is for. Each is named in a qr-context extension, as DTR 2.0.1 has it. The references use the ids this "
+                + "tool gives those resources in every request.");
+        // Nothing states an intended use, so none is sent, and the gap names the 2.0.1 profile and what would supply one.
+        // The questionnaire of this test has no url, title or narrative, so the copy inside cannot carry them either.
+        assertThat(built.gaps()).extracting(DtrProfileCheck.Gap::element).containsExactly("QuestionnaireResponse.extension:intendedUse",
+                "Questionnaire.title", "Questionnaire.text", "Questionnaire.derivedFrom");
+        assertThat(built.gaps().get(0).sentence()).isEqualTo("The DTR 2.0.1 QuestionnaireResponse profile (dtr-questionnaireresponse) "
+                + "requires at least one intendedUse extension, from the CRD 2.0.1 value set DocReason. None is stated: it comes from the "
+                + "variable dtrIntendedUse, or from what CRD said the documentation is for (doc-purpose), and neither stated one. This tool "
+                + "does not assume one.");
 
-        // With nobody named, the answer still says a person gave it, names no author, and the result says the guide asks for one.
-        DtrRequestBuilder.LoopBody nobody = builder.buildNextQuestion(DtrAnswers.read(FIVE_QUESTIONS, null, List.of(DtrAnswerInput.of("q1", "yes"))),
-                DtrRequestBuilder.Filler.of(null), DtrFixtures.CLOCK, null);
-        assertThat(nobody.response().at("/item/0/answer/0/extension/0/extension")).hasSize(1);
-        assertThat(nobody.response().at("/item/0/answer/0/extension/0/extension/0/valueCode").asString()).isEqualTo("manual");
-        assertThat(nobody.response().has("extension")).isFalse();
-        assertThat(nobody.notes()).anySatisfy(note -> assertThat(note).endsWith("No author is named, because the request names no provider. "
-                + "The guide asks for one.")).contains("No response was given to start from, so this tool built one. It names no coverage, "
-                + "because the request names no member, and no order, because this step was handed no order and no procedure code. It states "
-                + "no intended use, which DTR 2.2.0-ballot asks for and this tool cannot know.");
+        // With no provider on the form an answer cannot name its author, which DTR 2.0.1 requires (dtrx-1). The service refuses
+        // such a step before building anything, so the builder never writes an answer that breaks the invariant.
+        DtrAnswers.Posted unauthored = DtrAnswers.read(FIVE_QUESTIONS, null, List.of(DtrAnswerInput.of("q1", "yes")));
+        assertThat(DtrRequestBuilder.marksAnAnswer(unauthored)).isTrue();
+        assertThatThrownBy(() -> builder.buildNextQuestion(unauthored, DtrRequestBuilder.Filler.of(null), DtrFixtures.CLOCK, null))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(DtrRequestBuilder.marksAnAnswer(DtrAnswers.read(FIVE_QUESTIONS, null, List.of()))).isFalse();
     }
+
+    private static final String QR_CONTEXT = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context";
 
     @Test
     void aPrePopulatedAnswerThatIsChangedBecomesAnOverrideAndAnAnswerLeftAsItWasKeepsTheOriginItHad() {
@@ -429,13 +455,14 @@ class DtrRequestBuilderTest {
     @Test
     void aResponseTheServiceCalledCompleteIsSentAsInProgressOnlyWhenAnAnswerIsAddedOrChanged() {
         String completed = "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"item\":["
-                + "{\"linkId\":\"q1\",\"type\":\"string\"}]}],\"questionnaire\":\"#q\",\"status\":\"completed\",\"item\":[{\"linkId\":\"q1\","
+                + "{\"linkId\":\"q1\",\"type\":\"string\"}]}],\"questionnaire\":\"#q\",\"status\":\"completed\",\"authored\":\"2026-03-09\","
+                + "\"item\":[{\"linkId\":\"q1\","
                 + "\"answer\":[{\"valueString\":\"given\"}]}]}";
         DtrRequestBuilder.LoopBody untouched = builder.buildNextQuestion(DtrAnswers.read(null, completed, List.of()), null, DtrFixtures.CLOCK);
         assertThat(untouched.response().get("status").asString()).isEqualTo("completed");
         assertThat(untouched.notes()).isEmpty();
         DtrRequestBuilder.LoopBody changed = builder.buildNextQuestion(DtrAnswers.read(null, completed, List.of(DtrAnswerInput.of("q1", "other"))),
-                null, DtrFixtures.CLOCK);
+                answering(null), DtrFixtures.CLOCK, null);
         assertThat(changed.response().get("status").asString()).isEqualTo("in-progress");
         assertThat(others(changed.notes())).containsExactly("The response so far had the status completed. An answer was added or changed, so it was "
                 + "sent as in-progress.");
@@ -454,8 +481,7 @@ class DtrRequestBuilderTest {
         DtrAnswers.Posted posted = DtrAnswers.read(STATIC, startFrom, List.of(answers));
         assertThat(posted.errors()).isEmpty();
         Form evaluated = EnableWhenEvaluator.evaluate(posted.questionnaire(), posted.merged());
-        return builder.buildResponse(posted, evaluated, complete, DtrRequestBuilder.Filler.of(DtrFixtures.member("S123456789")), DtrFixtures.CLOCK,
-                notes);
+        return builder.buildResponse(posted, evaluated, complete, answering("S123456789"), DtrFixtures.CLOCK, notes);
     }
 
     @Test
@@ -502,8 +528,7 @@ class DtrRequestBuilderTest {
                 List.of(DtrAnswerInput.of("q1", "x")));
         List<String> notes = new ArrayList<>();
         ObjectNode response = builder.buildResponse(posted, EnableWhenEvaluator.evaluate(posted.questionnaire(), posted.merged()), true,
-                DtrRequestBuilder.Filler.of(null),
-                DtrFixtures.CLOCK, notes);
+                answering(null), DtrFixtures.CLOCK, notes);
         assertThat(response.has("questionnaire")).isFalse();
         assertThat(response.has("subject")).isFalse();
         assertThat(others(notes)).containsExactly("The questionnaire has no url, so the response does not name the questionnaire it answers.",

@@ -151,7 +151,7 @@ class DtrPhiTest {
 
         // A package that arrives with answers already in it, a package with nothing in it, and the faults.
         RunEnvelope<DtrDetail> prepopulated = service.runPackage(packageRequest("P32H-DTR-PREPOP"), RunOrigin.manual(), null);
-        service.runResponse(DtrResponseRequest.builder().member(member("P32H-DTR-PREPOP"))
+        service.runResponse(DtrResponseRequest.builder().member(member("P32H-DTR-PREPOP")).provider(DtrFixtures.provider())
                 .questionnaire(prepopulated.detail().questionnaires().get(0).json())
                 .questionnaireResponse(prepopulated.detail().questionnaireResponses().get(0).json())
                 .answers(List.of(DtrAnswerInput.of("gen-4", "no"))).build(), RunOrigin.manual());
@@ -265,7 +265,8 @@ class DtrPhiTest {
                 .answers(List.of(DtrAnswerInput.of("mri-2-red-flag", ANSWER))).build();
         DtrAnswers.Posted posted = DtrAnswers.read(stepRequest.questionnaire(), stepRequest.questionnaireResponse(), stepRequest.answers());
         DtrRequestBuilder builder = new DtrRequestBuilder(null);
-        DtrRequestBuilder.LoopBody loopBody = builder.buildNextQuestion(posted, member("P32H-DTR-ADAPT"), DtrFixtures.CLOCK);
+        DtrRequestBuilder.LoopBody loopBody = builder.buildNextQuestion(posted, new DtrRequestBuilder.Filler(member("P32H-DTR-ADAPT"),
+                DtrFixtures.provider(), List.of()), DtrFixtures.CLOCK, null);
         DtrRequestBuilder.Package built = builder.buildPackage(packageRequest("P32H-DTR-ADAPT"), ResolvedText::plain);
         DtrHandoff handoff = DtrHandoff.afterAnswering(fetched.runId(), List.of("72148"), null, Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE,
                 List.of("{\"answer\":\"" + ANSWER + "\"}")));

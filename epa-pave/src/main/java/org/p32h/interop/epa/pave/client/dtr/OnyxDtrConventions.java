@@ -149,13 +149,18 @@ public final class OnyxDtrConventions {
     public static final String ORIGIN_MANUAL = "manual";
 
     /**
-     * READ: the extensions that say which order and which coverage a response is for. The payer
-     * fills them in on the response a package carries. DTR 2.2.0-ballot names the coverage in an
-     * extension of its own, which earlier versions do not define, and also asks for an intended
-     * use, which this tool cannot know and never states.
+     * READ in the DTR 2.0.1 package: the extensions that say which coverage and which orders a
+     * response is for, and what it is intended for. The payer fills them in on the draft response a
+     * package carries. DTR 2.0.1 names the coverage and the orders alike in qr-context, and requires
+     * at least two qr-context and at least one intendedUse on every response. The intended use is
+     * bound, required, to the CRD 2.0.1 value set DocReason. The DTR 2.2.0 ballot names the coverage
+     * in qr-coverage instead, which 2.0.1 does not define, and keeps qr-context for orders only.
+     * Both forms are read when they come back. This tool writes the 2.0.1 form unless a request asks
+     * for the later one by name.
      */
     public static final String EXT_QR_CONTEXT = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context";
     public static final String EXT_QR_COVERAGE = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-coverage";
+    public static final String EXT_INTENDED_USE = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/intendedUse";
 
     /** The information-origin extension an answer carries, or null when it carries none. */
     public static JsonNode origin(JsonNode answer) {

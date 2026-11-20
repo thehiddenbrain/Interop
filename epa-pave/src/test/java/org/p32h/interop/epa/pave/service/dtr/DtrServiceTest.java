@@ -133,6 +133,19 @@ class DtrServiceTest {
                 : request.questionnaireResponse(detail.questionnaireResponses().get(0).json());
     }
 
+    /**
+     * The response a package carried as a first next-question step sends it: unchanged but for the author, which names the provider
+     * on the form, and the time it was authored when it states none.
+     */
+    private static JsonNode asSent(String carried) {
+        tools.jackson.databind.node.ObjectNode expected = (tools.jackson.databind.node.ObjectNode) JsonSafe.parse(carried).node().deepCopy();
+        if (!expected.has("authored")) {
+            expected.put("authored", "2026-03-10T11:00:00-04:00");
+        }
+        expected.putObject("author").put("reference", "Practitioner/practitioner-1");
+        return expected;
+    }
+
     private RunEnvelope<DtrDetail> next(RunEnvelope<DtrDetail> previous, DtrAnswerInput... answers) {
         return service().runNextQuestion(following(previous, "P32H-DTR-ADAPT", answers).build(), RunOrigin.manual(), null);
     }
@@ -1020,7 +1033,8 @@ class DtrServiceTest {
             assertThat(row.recognised()).isFalse();
             assertThat(row.display()).isEqualTo("Unrecognised code: published");
         });
-        assertThat(ledger.only().findings()).containsExactly("CODE_OUTSIDE_VALUE_SET");
+        // The request this tool built left out the coverage status and the payer, which nobody supplied: that is its own finding.
+        assertThat(ledger.only().findings()).containsExactly("CODE_OUTSIDE_VALUE_SET", "REQUEST_INCOMPLETE");
         assertThat(ledger.only().coverageCodes()).contains("questionnaire-status=published");
     }
 
@@ -1138,9 +1152,10 @@ class DtrServiceTest {
                 .containsExactly("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse-adapt");
 
         RunEnvelope<DtrDetail> first = next(fetched);
-        // The first request is the response the package carried for the questionnaire, exactly as it arrived, with no answer.
+        // The first request is the response the package carried for the questionnaire, as it arrived, with no answer. The provider on
+        // the form is named as its author, and a time it was authored is put on it when it states none.
         JsonNode firstSent = JsonSafe.parse(first.wire().request().body()).node();
-        assertThat(firstSent).isEqualTo(JsonSafe.parse(carried.json()).node());
+        assertThat(firstSent).isEqualTo(asSent(carried.json()));
         assertThat(firstSent.get("resourceType").asString()).isEqualTo("QuestionnaireResponse");
         assertThat(firstSent.get("status").asString()).isEqualTo("in-progress");
         assertThat(firstSent.get("questionnaire").asString()).isEqualTo("#lumbar-mri-adaptive");
@@ -1172,7 +1187,7 @@ class DtrServiceTest {
                 .isEqualTo("Practitioner/practitioner-1");
         assertThat(second.wire().request().body()).doesNotContain(DtrFixtures.NPI);
         assertThat(second.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("Each answer added in this step was marked "
-                + "with the information-origin extension").endsWith("by the id this tool gives the Practitioner in every request."));
+                + "with the information-origin extension").endsWith("as DTR 2.0.1 requires of an answer a person gave."));
         // It comes back with the answer, and the result shows where the answer came from without leaving any of it uninterpreted.
         assertThat(second.detail().questionnaireResponses().get(0).items().get(0).origins()).singleElement().satisfies(origin -> {
             assertThat(origin.source().value()).isEqualTo("manual");
@@ -1257,7 +1272,7 @@ class DtrServiceTest {
         assertThat(sent.get("parameter")).hasSize(1);
         assertThat(sent.at("/parameter/0/name").asString()).isEqualTo("questionnaire-response-in");
         // What is inside is the same response that goes out by itself otherwise.
-        assertThat(sent.at("/parameter/0/resource")).isEqualTo(JsonSafe.parse(fetched.detail().questionnaireResponses().get(0).json()).node());
+        assertThat(sent.at("/parameter/0/resource")).isEqualTo(asSent(fetched.detail().questionnaireResponses().get(0).json()));
         assertThat(first.detail().requestNotes()).contains("The QuestionnaireResponse was put inside a Parameters resource, under the "
                 + "parameter questionnaire-response-in, as the request asked.");
         // A service that takes it that way answers that way, under the name its guide gives the answer. The mock does the same.
@@ -1320,11 +1335,13 @@ class DtrServiceTest {
         assertThat(firstSent.get("resourceType").asString()).isEqualTo("QuestionnaireResponse");
         assertThat(firstSent.get("status").asString()).isEqualTo("in-progress");
         assertThat(firstSent.get("questionnaire").asString()).isEqualTo("#knee-arthroscopy-adaptive");
-        // The questionnaire goes inside as the package returned it, and says which questionnaire is being completed.
-        assertThat(firstSent.at("/contained/0/url").asString()).isEqualTo("https://example.org/p32h-placeholder/Questionnaire/knee-arthroscopy-adaptive");
+        // The questionnaire goes inside shaped to the DTR 2.0.1 adaptive profile: no url, and one derivedFrom naming the one being completed.
+        assertThat(firstSent.at("/contained/0").has("url")).isFalse();
+        assertThat(firstSent.at("/contained/0/derivedFrom")).hasSize(1);
         assertThat(firstSent.at("/contained/0/derivedFrom/0").asString()).isEqualTo(canonical);
-        assertThat(first.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("The copy of the questionnaire inside the "
-                + "QuestionnaireResponse was marked as derived from " + canonical));
+        assertThat(first.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("The questionnaire was copied into the "
+                + "QuestionnaireResponse and shaped to the DTR 2.0.1 adaptive questionnaire profile (dtr-questionnaire-adapt): its url was "
+                + "taken off"));
         assertThat(firstSent.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
         assertThat(firstSent.has("item")).isFalse();
         // The member is named by the local id of the Patient resource. The member ID is not in the request, and is not shown as sent.
@@ -1335,9 +1352,9 @@ class DtrServiceTest {
         assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, canonical)
                 .containsEntry(RunRecord.CORR_RUN_ID, fetched.runId());
 
-        // A response this tool starts from nothing says which coverage and which order it is for, as the payer's own would.
+        // A response this tool starts from nothing says which coverage and which order it is for, both in qr-context, as DTR 2.0.1 has it.
         assertThat(firstSent.get("extension")).hasSize(2);
-        assertThat(firstSent.at("/extension/0/url").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-coverage");
+        assertThat(firstSent.at("/extension/0/url").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context");
         assertThat(firstSent.at("/extension/0/valueReference/reference").asString()).isEqualTo("Coverage/coverage-1");
         assertThat(firstSent.at("/extension/1/url").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context");
         assertThat(firstSent.at("/extension/1/valueReference/reference").asString()).isEqualTo("ServiceRequest/service-request-1");
@@ -1428,7 +1445,7 @@ class DtrServiceTest {
         // It was handed no run, so it hands on its own, and the step after it is linked to that.
         assertThat(first.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(first.runId());
 
-        RunEnvelope<DtrDetail> second = service().runNextQuestion(DtrNextQuestionRequest.builder()
+        RunEnvelope<DtrDetail> second = service().runNextQuestion(DtrNextQuestionRequest.builder().provider(DtrFixtures.provider())
                 .questionnaireResponse(first.detail().questionnaireResponses().get(0).json()).answers(List.of(DtrAnswerInput.of("mri-1-therapy", "yes")))
                 .scenarioId("dtr-02-adaptive-branching").carry(first.nextStep().carry()).build(), RunOrigin.manual(), null);
         assertThat(linkIds(second.detail().form().asked())).containsExactly("mri-2-weeks");
@@ -2020,7 +2037,7 @@ class DtrServiceTest {
         assertThat(ledger.last().nextAction()).isEqualTo("REVIEW");
 
         // The second questionnaire, started from the first result. Now both are complete, and both go to PAS.
-        DtrResponseRequest.Builder second = DtrResponseRequest.builder().member(DtrFixtures.member("P32H-DTR-TWO"))
+        DtrResponseRequest.Builder second = DtrResponseRequest.builder().member(DtrFixtures.member("P32H-DTR-TWO")).provider(DtrFixtures.provider())
                 .questionnaire(fetched.detail().questionnaires().get(1).json()).carry(first.nextStep().carry());
         RunEnvelope<DtrDetail> both = service().runResponse(second.answers(List.of(DtrAnswerInput.of("msk-1", "true"),
                 DtrAnswerInput.of("msk-2", "4"))).build(), RunOrigin.manual());
