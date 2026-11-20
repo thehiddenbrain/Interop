@@ -608,6 +608,14 @@ collection as it is, the "returned but not interpreted" fields are built from th
 received, so there the page masks what it can and the server does not (D-196). A credential typed
 into a pasted CRD request is shown as typed by the comparison.
 
+A notification a service sends to the receiver is masked the same way before it is held or shown,
+with everything PAVE could have sent to that service: every secret variable of the active
+environment and of `application.yml`, the access token it holds, the client secret, and the
+credentials of the address to call back. A notification that had something masked says so: "1
+place in this payload is masked because it repeats a secret this tool could have sent to the
+service ... What is shown is therefore not exactly what was received." This was checked by the
+fix's author against a stand-in on this machine, not for this README.
+
 PAVE never writes the wire view to disk: the ledger holds no request or response body, no name,
 date of birth, address, gender or subscriber ID under any setting. Every `/api/` response carries
 `Cache-Control: no-store`, so the browser does not keep member data in its cache either (observed
@@ -686,7 +694,22 @@ curl -s -X POST localhost:8057/api/config/environments/pave-sample-sandbox-977ed
   was declared as sandbox. It was not stored."
 - An environment that is not declared production may not use an address a production
   environment uses (D-143): its upload is refused, naming the production environment. Declaring
-  it `prod` is the way through.
+  it `prod` is the way through. The address is read the way the HTTP client reads it, so another
+  spelling of the same address (a port written with leading zeros, for example) is the same
+  address. Observed: with `http://127.0.0.1:18742/fhir` uploaded as `prod`, an environment at
+  `http://127.0.0.1:0018742/fhir` declared `sandbox` was refused, naming the production one.
+- **Address warnings.** The upload answer, the environment list (`addressWarnings`) and the answer
+  of a switch warn about three things, without refusing the file: an address whose scheme, host and
+  port PAVE cannot read the way the HTTP client reads them (a port above 65535, a host in a form the
+  client refuses), to which no write is sent; an address with an encoded slash, backslash,
+  semicolon or dot segment in its path (`%2F`, `%5C`, `%3B`), to which nothing at all is sent; and
+  a non-production environment on the same scheme, host and port as a production environment under
+  another base path, which PAVE treats as not production because the base path differs ("If that
+  server routes this path to production, upload this environment with the kind prod."). All three
+  were observed on mock.
+- **Member data in the file.** A variable whose name reads as member data (a member, patient or
+  subscriber identifier or name, a first or last name, a birth date) is named in a warning. See
+  [Member data in an uploaded file](#member-data-in-an-uploaded-file).
 - Uploading never activates. Activating switches every tab at runtime, with no restart and no
   reload, and drops any production unlock.
 - A disabled variable is listed and ignored, as Postman ignores it.
@@ -719,7 +742,9 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
   because none was supplied for this run." (observed with the sample's `submit Happy Path`). A url
   part in single braces, such as `{claimId}`, takes its value from `urlValues`; without one the
   request is refused with 422 and nothing is sent, on both profiles (observed on mock), and so is
-  a url part of `.` or `..`. The vendor's access token goes with it only to a scheme, host and port the
+  a url part of `.` or `..`, or one holding `/`, `\` or `;`. A request sent as written is judged
+  by its method, whatever it is mapped to: on production, any method but `GET`, `HEAD` and
+  `OPTIONS` makes it a write. The vendor's access token goes with it only to a scheme, host and port the
   configuration names for a vendor operation. PAVE does not interpret the answer: it shows
   everything that came back and records the run.
 - **Pre-request scripts are never run.** A request that has one is flagged, and every run that
