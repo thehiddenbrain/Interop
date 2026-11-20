@@ -514,11 +514,16 @@ class CrdResponseMapperTest {
     void aKeyThatAppearsTwiceInTheBodyIsPointedOut() {
         CrdReading reading = read("{\"cards\":[{\"summary\":\"s\",\"indicator\":\"info\",\"indicator\":\"warning\"}]}");
         assertThat(reading.detail().cards().get(0).indicator().value()).isEqualTo("warning");
-        assertThat(reading.additionalFields()).singleElement().satisfies(note -> {
+        // The note, then every value of the repeated key in the order sent: none is on the wire view alone.
+        assertThat(reading.additionalFields()).hasSize(3);
+        assertThat(reading.additionalFields().get(0)).satisfies(note -> {
             assertThat(note.kind()).isEqualTo(AdditionalField.Kind.NOTE);
             assertThat(note.path()).isEqualTo("(body)");
-            assertThat(note.value()).contains("repeats a key").contains("wire view");
+            assertThat(note.value()).contains("repeats a key").contains("Every value of each repeated key is listed");
         });
+        assertThat(reading.additionalFields().subList(1, 3)).extracting(AdditionalField::path, AdditionalField::value).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("cards[0].indicator (value 1 of 2)", "\"info\""),
+                org.assertj.core.groups.Tuple.tuple("cards[0].indicator (value 2 of 2)", "\"warning\""));
     }
 
     @Test

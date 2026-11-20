@@ -722,10 +722,13 @@ class PasResponseMapperTest {
     void somethingWorthKnowingAboutTheBodyAsAWholeComesFirst() {
         PasReading reading = read("{\"resourceType\":\"Bundle\",\"type\":\"collection\",\"type\":\"batch\",\"vendorField\":1,\"entry\":[{\"resource\":"
                 + claimResponse(items(decided(1, "A1"))) + "}]}", sent("95810"));
-        assertThat(reading.additionalFields()).hasSize(2);
+        // The note and every value of the repeated key come before the fields of the body.
+        assertThat(reading.additionalFields()).hasSize(4);
         assertThat(reading.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.NOTE);
         assertThat(reading.additionalFields().get(0).value()).contains("repeats a key");
-        assertThat(reading.additionalFields().get(1).path()).isEqualTo("vendorField");
+        assertThat(reading.additionalFields().get(1).path()).isEqualTo("type (value 1 of 2)");
+        assertThat(reading.additionalFields().get(2).path()).isEqualTo("type (value 2 of 2)");
+        assertThat(reading.additionalFields().get(3).path()).isEqualTo("vendorField");
     }
 
     // ---- not found is not a fault ----

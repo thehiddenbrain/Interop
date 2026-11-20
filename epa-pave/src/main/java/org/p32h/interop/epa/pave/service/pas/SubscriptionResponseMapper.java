@@ -49,7 +49,7 @@ public final class SubscriptionResponseMapper {
         VendorExchange exchange = received.withReturnedSecretsMasked();
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.
-        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         List<SubscriptionView> subscriptions = new ArrayList<>();
         List<BundleResourceView> others = new ArrayList<>();
         List<IssueView> issues = new ArrayList<>();

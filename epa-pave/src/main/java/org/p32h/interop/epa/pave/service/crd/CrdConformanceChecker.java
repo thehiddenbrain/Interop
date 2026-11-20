@@ -8,6 +8,7 @@ import org.p32h.interop.epa.pave.model.FindingKind;
 import org.p32h.interop.epa.pave.model.crd.ConformanceScope;
 import org.p32h.interop.epa.pave.model.ProcedureCode;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
@@ -88,6 +89,10 @@ public final class CrdConformanceChecker {
             view.infoNeeded().forEach(value -> valueSet(findings, where, CrdCodes.INFO_NEEDED, value));
             CrdGuideRules.check(findings, view);
         }
+
+        // A key sent twice where the view read it: the answer shown is the last value, and the
+        // others are said here so the contradiction is on screen and not in the wire view alone.
+        findings.addAll(TrackedJson.repeatedKeyFindings(exchange, reading.additionalFields()));
 
         if (exchange.ok() && coverage.isEmpty()) {
             // CRD 2.0.1 makes the extension optional on every order profile and ships no response

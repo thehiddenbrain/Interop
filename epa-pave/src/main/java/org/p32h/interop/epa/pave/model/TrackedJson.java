@@ -74,14 +74,148 @@ public final class TrackedJson {
         out.add(new AdditionalField(path.isEmpty() ? "(root)" : path, presence, value));
     }
 
-    private static String escape(String name) {
+    static String escape(String name) {
         return name.replace("~", "~0").replace("/", "~1");
     }
 
-    private static String displayName(String name) {
+    static String displayName(String name) {
         // A name holding path punctuation is quoted so the displayed path stays unambiguous.
         boolean plain = !name.isEmpty() && name.chars().noneMatch(c -> c == '.' || c == '[' || c == ']' || c == '"' || Character.isWhitespace(c));
         return plain ? name : "\"" + name.replace("\"", "\\\"") + "\"";
+    }
+
+    /** The note every body that repeats a key carries, worded for a list that holds every value. */
+    public static final String REPEATED_KEY_NOTE = "The body repeats a key inside one object. This tool reads the last value of each "
+            + "repeated key, as JSON readers do. Every value of each repeated key is listed here, in the order the body carried them.";
+
+    /** How the note the exchange carries for a repeated key begins. It says only the last value is shown, which is no longer so. */
+    private static final String EXCHANGE_NOTE_START = "The body repeats a key inside one object.";
+
+    /**
+     * The entries a mapper puts first, with every value of each key the body repeats. The parsed
+     * body keeps only the last value of a repeated key, so without these an earlier value would be
+     * on the wire view alone. Each value is listed under the key's path with its place among them,
+     * masked where it repeats a secret the request carried, as the wire view masks it.
+     */
+    public static List<AdditionalField> bodyFieldsWithRepeatedKeys(VendorExchange exchange) {
+        List<RepeatedKeyRead> repeated = repeatedKeys(exchange);
+        List<AdditionalField> out = new ArrayList<>();
+        for (AdditionalField field : exchange.bodyFields()) {
+            boolean exchangeNote = field.kind() == AdditionalField.Kind.NOTE && field.value() != null
+                    && field.value().startsWith(EXCHANGE_NOTE_START);
+            if (!(exchangeNote && !repeated.isEmpty())) {
+                out.add(field);
+            }
+        }
+        out.addAll(repeatedKeyFields(repeated));
+        return out;
+    }
+
+    /**
+     * The note and the entries for every value of each repeated key, for a reader that parses a
+     * body itself, such as the notification receiver. Empty when no key repeats.
+     */
+    public static List<AdditionalField> repeatedKeyFields(JsonSafe.Parsed parsed) {
+        if (parsed == null || !parsed.repeatedKeys()) {
+            return List.of();
+        }
+        List<RepeatedKeyRead> read = parsed.repeated().stream().map(key -> new RepeatedKeyRead(key.path(), key.values())).toList();
+        if (read.isEmpty()) {
+            // The walk could not list the values; the note that a key repeats still stands.
+            return List.of(AdditionalField.bodyNote(REPEATED_KEY_NOTE));
+        }
+        return repeatedKeyFields(read);
+    }
+
+    private static List<AdditionalField> repeatedKeyFields(List<RepeatedKeyRead> repeated) {
+        List<AdditionalField> out = new ArrayList<>();
+        if (repeated.isEmpty()) {
+            return out;
+        }
+        out.add(AdditionalField.bodyNote(REPEATED_KEY_NOTE));
+        for (RepeatedKeyRead key : repeated) {
+            int count = key.values().size();
+            for (int i = 0; i < count; i++) {
+                String value = key.values().get(i);
+                JsonSafe.Parsed one = JsonSafe.parse(value);
+                Presence presence = one.ok() ? JsonSafe.presence(one.node()) : Presence.VALUE;
+                out.add(new AdditionalField(key.path() + " (value " + (i + 1) + " of " + count + ")", presence,
+                        presence == Presence.NULL ? null : value));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A key the body repeats, with each value as the screen may show it.
+     *
+     * @param values the JSON text of each value in the order sent, masked where it repeats a secret the request carried
+     */
+    public record RepeatedKeyRead(String path, List<String> values) {
+
+        public RepeatedKeyRead {
+            values = values == null ? List.of() : List.copyOf(values);
+        }
+
+        /** Prints the path and how many values, never a value: a value can be member data. */
+        @Override
+        public String toString() {
+            return "RepeatedKeyRead[" + path + ", " + values.size() + " values]";
+        }
+    }
+
+    /**
+     * A finding for each repeated key a designed view read: one that is not among the fields
+     * returned but not interpreted, so its last value is on screen as the answer. The finding gives
+     * every value in the order sent and chooses none of them. It is filed with the rules of the
+     * guide, because the rule broken is one of the format the guide is written in.
+     *
+     * @param unread the fields returned but not interpreted, as the mapper listed them
+     */
+    public static List<Finding> repeatedKeyFindings(VendorExchange exchange, List<AdditionalField> unread) {
+        List<Finding> out = new ArrayList<>();
+        for (RepeatedKeyRead key : repeatedKeys(exchange)) {
+            boolean listedUnread = unread != null && unread.stream().filter(field -> field.kind() == AdditionalField.Kind.FIELD)
+                    .map(AdditionalField::path)
+                    .anyMatch(path -> path.equals(key.path()) || path.startsWith(key.path() + ".") || path.startsWith(key.path() + "["));
+            if (listedUnread) {
+                continue;
+            }
+            List<String> said = new ArrayList<>();
+            for (int i = 0; i < key.values().size(); i++) {
+                said.add((i == 0 ? "first " : i == key.values().size() - 1 ? "then " : "next ") + key.values().get(i));
+            }
+            out.add(new Finding(FindingKind.GUIDE_RULE_BROKEN,
+                    key.path() + " is sent " + key.values().size() + " times in one object",
+                    "The body carries " + key.path() + " " + key.values().size() + " times inside one object: " + String.join(", ", said)
+                            + ". JSON (RFC 8259) says the names in an object should be unique, and FHIR JSON allows a property once. "
+                            + "This tool reads the last value, as JSON readers do, and shows it above as the answer. Which value the "
+                            + "service meant cannot be told from the body. Every value is listed among the fields returned but not "
+                            + "interpreted.",
+                    null, null, null));
+        }
+        return out;
+    }
+
+    /** Every key the response body repeats, with its values masked as the wire view masks them. Empty when none repeats. */
+    public static List<RepeatedKeyRead> repeatedKeys(VendorExchange exchange) {
+        if (exchange == null || exchange.json() == null || Texts.blank(exchange.responseBody())) {
+            return List.of();
+        }
+        JsonSafe.Parsed parsed = JsonSafe.parse(exchange.responseBody());
+        if (!parsed.repeatedKeys()) {
+            return List.of();
+        }
+        SentSecrets secrets = exchange.request() == null ? null : exchange.request().secrets();
+        List<RepeatedKeyRead> out = new ArrayList<>();
+        for (JsonSafe.RepeatedKey key : parsed.repeated()) {
+            List<String> values = new ArrayList<>();
+            for (String value : key.values()) {
+                values.add(secrets == null || secrets.searched() == 0 ? value : secrets.mask(value).text());
+            }
+            out.add(new RepeatedKeyRead(secrets == null || secrets.searched() == 0 ? key.path() : secrets.mask(key.path()).text(), values));
+        }
+        return out;
     }
 
     /** One position in the tracked document. */

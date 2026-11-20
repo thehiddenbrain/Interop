@@ -120,7 +120,7 @@ public final class PasResponseMapper {
         SentClaim sent = sentClaim == null ? SentClaim.unknown() : sentClaim;
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.
-        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         Carried carried = Carried.nothing();
         PasResponseKind kind;
         String note = null;

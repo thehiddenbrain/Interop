@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.cfg.EnumFeature;
 import tools.jackson.databind.JsonNode;
@@ -38,8 +40,18 @@ public final class JsonSafe {
      *
      * @param repeatedKeys true when an object in the text carries the same key more than once. The
      *                     node then holds only the last value of that key, so the caller should say so
+     * @param repeated     each key that an object carries more than once, with every value it was
+     *                     sent with, in the order they came. Empty when no key repeats
      */
-    public record Parsed(JsonNode node, String error, boolean repeatedKeys) {
+    public record Parsed(JsonNode node, String error, boolean repeatedKeys, List<RepeatedKey> repeated) {
+
+        public Parsed {
+            repeated = repeated == null ? List.of() : List.copyOf(repeated);
+        }
+
+        public Parsed(JsonNode node, String error, boolean repeatedKeys) {
+            this(node, error, repeatedKeys, List.of());
+        }
 
         public boolean ok() {
             return node != null;
@@ -49,6 +61,27 @@ public final class JsonSafe {
         @Override
         public String toString() {
             return "Parsed[" + (ok() ? "ok" : error) + "]";
+        }
+    }
+
+    /**
+     * A key one object carries more than once. The parsed node keeps only the last value, as JSON
+     * readers do; this keeps every value, so none of them is on the wire view alone.
+     *
+     * @param path    where the key sits, written as the fields returned but not interpreted write a path
+     * @param pointer the JSON Pointer of the key, as {@link TrackedJson} names the place it consumed
+     * @param values  the JSON text of each value, in the order the body carried them
+     */
+    public record RepeatedKey(String path, String pointer, List<String> values) {
+
+        public RepeatedKey {
+            values = values == null ? List.of() : List.copyOf(values);
+        }
+
+        /** Prints the path and how many values, never a value: a value can be member data. */
+        @Override
+        public String toString() {
+            return "RepeatedKey[" + path + ", " + values.size() + " values]";
         }
     }
 
@@ -75,12 +108,70 @@ public final class JsonSafe {
             } catch (JacksonException duplicate) {
                 repeated = true;
             }
-            return new Parsed(node, null, repeated);
+            return new Parsed(node, null, repeated, repeated ? repeatedKeys(text) : List.of());
         } catch (JacksonException e) {
             // The original message can quote the source text, which may be member data. Only the
             // position is kept.
             return new Parsed(null, "The body is not valid JSON" + position(e) + ".", false);
         }
+    }
+
+    /**
+     * Walks the text token by token, which a tree cannot do once a repeated key has replaced its
+     * earlier value, and collects every key an object carries more than once. Read only when the
+     * text is known to repeat a key, so an ordinary body is parsed once as before.
+     */
+    private static List<RepeatedKey> repeatedKeys(String text) {
+        List<RepeatedKey> out = new ArrayList<>();
+        try (JsonParser parser = MAPPER.createParser(text)) {
+            if (parser.nextToken() != null) {
+                walk(parser, "", "", out);
+            }
+        } catch (JacksonException unreadable) {
+            // The text was read as a tree a moment ago, so this does not happen. If it did, the
+            // note that a key repeats still stands, and only the values are not listed.
+            return List.of();
+        }
+        return out;
+    }
+
+    /** Reads the value the parser stands on and returns its JSON text, as written for a number. */
+    private static String walk(JsonParser parser, String pointer, String path, List<RepeatedKey> out) {
+        JsonToken token = parser.currentToken();
+        if (token == JsonToken.START_OBJECT) {
+            Map<String, List<String>> values = new java.util.LinkedHashMap<>();
+            List<String> members = new ArrayList<>();
+            while (parser.nextToken() == JsonToken.PROPERTY_NAME) {
+                String name = parser.currentName();
+                parser.nextToken();
+                String childPath = path.isEmpty() ? TrackedJson.displayName(name) : path + "." + TrackedJson.displayName(name);
+                String value = walk(parser, pointer + "/" + TrackedJson.escape(name), childPath, out);
+                values.computeIfAbsent(name, key -> new ArrayList<>()).add(value);
+                members.add(MAPPER.writeValueAsString(name) + ":" + value);
+            }
+            for (Map.Entry<String, List<String>> entry : values.entrySet()) {
+                if (entry.getValue().size() > 1) {
+                    String name = entry.getKey();
+                    out.add(new RepeatedKey(path.isEmpty() ? TrackedJson.displayName(name) : path + "." + TrackedJson.displayName(name),
+                            pointer + "/" + TrackedJson.escape(name), entry.getValue()));
+                }
+            }
+            return "{" + String.join(",", members) + "}";
+        }
+        if (token == JsonToken.START_ARRAY) {
+            List<String> elements = new ArrayList<>();
+            int index = 0;
+            while (parser.nextToken() != JsonToken.END_ARRAY) {
+                elements.add(walk(parser, pointer + "/" + index, path + "[" + index + "]", out));
+                index++;
+            }
+            return "[" + String.join(",", elements) + "]";
+        }
+        if (token == JsonToken.VALUE_STRING) {
+            return MAPPER.writeValueAsString(parser.getString());
+        }
+        // A number, true, false or null, as written in the body.
+        return parser.getText();
     }
 
     private static String position(JacksonException e) {

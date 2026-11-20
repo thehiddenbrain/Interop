@@ -87,7 +87,7 @@ public final class CrdResponseMapper {
         List<IssueView> issues = List.of();
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.
-        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         Presence cardsPresence = Presence.ABSENT;
         Presence actionsPresence = Presence.ABSENT;
         CrdResponseKind kind;

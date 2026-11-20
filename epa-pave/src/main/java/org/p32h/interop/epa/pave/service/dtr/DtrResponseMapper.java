@@ -180,7 +180,7 @@ public final class DtrResponseMapper {
         }
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.
-        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         Walk walk = new Walk();
         List<QuestionnaireView> questionnaires = new ArrayList<>();
         List<QuestionnaireResponseView> responses = new ArrayList<>();
@@ -291,7 +291,7 @@ public final class DtrResponseMapper {
     public DtrReading readNextQuestion(VendorExchange received, JsonNode sent) {
         // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
-        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         List<IssueView> issues = new ArrayList<>();
         List<PackageResourceView> resources = new ArrayList<>();
         QuestionnaireView questionnaire = null;

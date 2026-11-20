@@ -51,12 +51,24 @@ public class MockOnyxCrdClient implements OnyxCrdClient {
         String text = body == null ? null : body.value();
         ScenarioSelection chosen = scenarios.select(SCENARIOS, selection, text);
         VendorExchange exchange = exchanges.answer(call, body, HttpOnyxCrdClient.HOOK_OPTIONS, chosen, null);
+        if (repeatsAKey(exchange)) {
+            // Writing the body out again from its tree would keep only the last value of each
+            // repeated key, so the scenario could not play the case it was written for, and the
+            // wire view would not be the scenario's text. It is played as written instead.
+            return exchange.withScenario(exchange.scenarioId(), exchange.scenarioNote() + ". The scenario's body repeats a key, so it "
+                    + "is played exactly as written: the orders the request sent are not carried back on it")
+                    .withSignals(OnyxCrdConventions.signals(exchange));
+        }
         if (chosen.by() == ScenarioSelection.By.DTR_SENTINEL) {
             exchange = nameTheQuestionnairesOf(chosen.via(), exchange);
         }
         exchange = echoTheOrders(answerEveryOrder(exchange, SentOrder.fromBody(text)), text);
         // The same recognition rules the live client applies, so mock cannot disagree with live about them.
         return exchange.withSignals(OnyxCrdConventions.signals(exchange));
+    }
+
+    private static boolean repeatsAKey(VendorExchange exchange) {
+        return exchange.json() != null && exchange.responseBody() != null && JsonSafe.parse(exchange.responseBody()).repeatedKeys();
     }
 
     /**

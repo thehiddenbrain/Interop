@@ -64,11 +64,8 @@ public final class NotificationReader {
             return unread(NotificationKind.NOT_JSON, "The body could not be read as JSON. It is shown below exactly as it was kept. " + parsed.error(),
                     List.of());
         }
-        List<AdditionalField> additional = new ArrayList<>();
-        if (parsed.repeatedKeys()) {
-            additional.add(AdditionalField.bodyNote("The body repeats a key inside one object. Only the last value of a repeated key is read "
-                    + "here. The payload as received is shown below."));
-        }
+        // Every value of a repeated key is listed, so an earlier value is not in the payload text alone.
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.repeatedKeyFields(parsed));
         JsonNode json = parsed.node();
         TrackedJson tracked = TrackedJson.of(json);
         TrackedJson.Node root = tracked.root();
