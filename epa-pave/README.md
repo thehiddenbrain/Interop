@@ -1314,15 +1314,22 @@ shows what is in force, secrets masked.
 | --- | --- | --- |
 | `spring.profiles.default` | `mock` | The profile when none is given. `./run.sh live` selects `live` |
 | `spring.servlet.multipart.max-file-size` | `25MB` | Largest uploaded file. A collection can be several megabytes |
-| `spring.servlet.multipart.max-request-size` | `30MB` | Largest upload request |
+| `spring.servlet.multipart.max-request-size` | `30MB` | The one limit on any request body, upload or JSON (D-149). A negative value means no limit |
+| `spring.servlet.multipart.file-size-threshold` | `30MB` | Equal to the limit, so no uploaded part is ever written to the temporary folder |
+| `spring.servlet.multipart.resolve-lazily` | `true` | Only an endpoint that takes a file reads a multipart body |
+| `spring.mvc.formcontent.filter.enabled` | `false` | No form body is read for a PUT or a DELETE |
 | `server.port` | `8057` | The port. Not 8080, so PAVE can run beside the tools that use 8080 |
 | `server.address` | `127.0.0.1` | Listen on this machine only. See [Who can reach this tool](#who-can-reach-this-tool) |
 | `server.servlet.session.cookie.name` | `PAVESESSION` | A name of its own, so other tools on localhost do not overwrite PAVE's session |
 | `server.servlet.session.cookie.same-site` | `strict` | The production unlock lives in the session; no other site can borrow it |
 | `server.servlet.session.cookie.http-only` | `true` | No script reads the session cookie |
+| `server.servlet.session.tracking-modes` | `cookie` | The session is never taken from the address |
 | `server.error.whitelabel.enabled` | `false` | No HTML error page; errors are JSON |
 | `logging.level.org.apache.coyote.http11.Http11Processor` | `WARN` | Keeps a refused address, which can hold a member ID, out of the log (D-128) |
 | `logging.level.org.springframework.web.servlet.resource.ResourceHandlerUtils` | `ERROR` | The same, for a path with `../` in it |
+| `logging.level.org.apache.catalina.webresources.AbstractFileResourceSet` | `ERROR` | The same, for a static file path |
+| `logging.level.org.apache.tomcat.util.http.parser.Cookie` | `WARN` | Keeps an unreadable cookie out of the log (D-150) |
+| `logging.level.org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver` | `ERROR` | Keeps request text out of the log when an error is answered (D-150) |
 | `epa.name` | `PAVE` | Shown in the tab title, on screen and by `/api/mode` |
 | `epa.version` | `1.0.0` | The same. A test checks it matches the build |
 | `epa.target` | `onyx` | `onyx` or `nehen`. Recorded and shown; it changes no behaviour (D-031) |
@@ -1373,6 +1380,10 @@ Not in `application.yml` but read when set: `lookup.member.use-onyx-auth` and
 
 The build has to work on a P32H laptop behind the corporate network, where `repo.maven.apache.org`
 and `services.gradle.org` may both be blocked.
+
+The checks quoted in this section were made on an earlier revision, when this README was first
+written (see the last section). `build.gradle`, `settings.gradle`, `gradle.properties` and the
+wrapper have not changed since, and they were not repeated for this revision.
 
 ### Dependencies through an internal mirror
 
@@ -1454,19 +1465,19 @@ Each of these is unknown. PAVE uses an obvious placeholder for it rather than a 
 
 | Open item | What stands in for it | Where the real value goes |
 | --- | --- | --- |
-| The Onyx CRD service id | The Postman variable `crdOrderSignServiceId` (and `crdOrderSelectServiceId`); the sample uses `placeholder-order-sign-service` | The vendor's environment file. `GET /api/crd/discover` lists what the environment offers. Fallback: `onyx.variables` in `application.yml` |
-| Whether the sandbox collection has `order-select` and a `/cds-services` discovery request | Detection reads both by name and by url; neither is in the sample | Upload the vendor's collection and correct with `PUT /api/config/collections/{id}/mapping` |
-| The member API response contract | A tolerant mapping: several spellings per field, any common envelope | `lookup.member.url` in `application.yml`; narrow the tables at the top of `src/main/java/org/p32h/interop/epa/pave/client/lookup/MemberResponseMapping.java` (D-129) |
+| The Onyx CRD service id | The Postman variable `crdOrderSignServiceId` (and `crdOrderSelectServiceId`); the sample uses `placeholder-order-sign-service` | The vendor's environment file. `Discover the CDS services this environment offers` on the CRD tab (`GET /api/crd/discover`) lists what the environment offers. Fallback: `onyx.variables` in `src/main/resources/application.yml` |
+| Whether the sandbox collection has `order-select` and a `/cds-services` discovery request | Detection reads both by name and by url; neither is in the sample | Upload the vendor's collection; correct on the Config tab, `Collections and mapping`, or with `PUT /api/config/collections/{id}/mapping` |
+| The member API response contract | A tolerant mapping: several spellings per field, any common envelope | `lookup.member.url` in `src/main/resources/application.yml`; narrow the tables at the top of `src/main/java/org/p32h/interop/epa/pave/client/lookup/MemberResponseMapping.java` (D-129) |
 | The provider directory response contract | The same | `lookup.provider.url`; `src/main/java/org/p32h/interop/epa/pave/client/lookup/ProviderResponseMapping.java` |
 | How the lookup APIs authenticate | Nothing is assumed | `lookup.member.headers`, `lookup.provider.headers`, or `lookup.*.use-onyx-auth` |
-| The procedure code list header row, flag spellings, date format, line and vendor names | The bundled placeholder list and candidate header lists | `codelist.file`; `codelist.columns.*`; check with `GET /api/procedure-codes/self-check` |
+| The procedure code list header row, flag spellings, date format, time zone, encoding, line and vendor names | The bundled placeholder list and candidate header lists | `codelist.file`; `codelist.columns.*`; check with Config, `Check this installation`, or `GET /api/procedure-codes/self-check` |
 | Client secret or private-key JWT | OAuth2 client credentials | `onyx.auth.*`. For private-key JWT, `requestToken` in `src/main/java/org/p32h/interop/epa/pave/client/support/OnyxTokenService.java` is the one method to replace |
 | The PAS attachment mechanism in use | `fhir` | `onyx.pas.attachment-mode`. `x12-275` names the attachment and sends nothing else |
 | Whether the receiver is reachable from Onyx | Assumed not | `server.address`, `app.allowed-hosts`, `onyx.subscription.callback-url` |
-| Which version of each guide the sandbox follows (D-130, D-136) | 2.0.1 on the operator's word; DTR reads both published shapes of next-question | `wrapInParameter` on a next-question request chooses the wrapped form |
+| Which version of each guide the sandbox follows (D-130, D-136) | 2.0.1 on the operator's word; codes of the 2.2.0 ballot are read and named; DTR reads both published shapes of next-question | `wrapInParameter` on a next-question request chooses the wrapped form; the variable `dtrCoverageExtension` the ballot form of coverage |
 | How Onyx signals an unknown member or provider, inactive coverage and the delegated vendor (D-033) | A rule kept in the client layer, stated in each mock scenario | `src/main/java/org/p32h/interop/epa/pave/client/crd/OnyxCrdConventions.java`, `.../client/pas/OnyxPasConventions.java`, `.../client/dtr/OnyxDtrConventions.java` |
-| PAS profile elements Onyx requires, the shape of `$inquire` it accepts, the review action codes it returns | Defaults sent and named in the request notes | `OnyxPasConventions.java` |
-| What a subscription must name (topic, filter, payload) | A topic under `example.org/p32h-placeholder`, so a default subscription is meant to look wrong | Run values `subscriptionTopic`, `subscriptionFilter` and the others listed in D-133 |
+| Values the guides require that only the payer's or the provider's set-up knows: the payer, the member ID system, the medical record number, the X12 service and request types, the requesting organization (D-141) | Nothing: the request goes without them and names each one left out | The variables under [Variables that fill a request](#variables-that-fill-a-request), in the vendor's environment |
+| What a subscription must name (filter, channel, payload, end) | The topic PAS 2.0.1 defines; a filter only from what was supplied (D-160) | The `subscription...` variables and `pasRequestingOrgIdentifier`, or values typed for the run |
 | The shape of a notification from Onyx | Both published forms are read | Nothing to set; check the first real one |
 | The reference implementation `onyx-crd-harness-1.2.0.zip` (D-001) | Not available; everything was written fresh | Compare its scenario bodies and operation detector with this build if it turns up |
 
