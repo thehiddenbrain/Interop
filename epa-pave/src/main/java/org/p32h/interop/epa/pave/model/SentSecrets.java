@@ -64,6 +64,12 @@ public final class SentSecrets {
     }
 
     private record Hit(int start, int end, String mask) {
+
+        /** Where the hit is, and nothing of the text around it. */
+        @Override
+        public String toString() {
+            return "Hit[" + start + ", " + end + "]";
+        }
     }
 
     private final List<Entry> searched;

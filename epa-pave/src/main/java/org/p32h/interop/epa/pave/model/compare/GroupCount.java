@@ -12,4 +12,10 @@ public record GroupCount(DifferenceGroup group, String label, String description
     public static GroupCount of(DifferenceGroup group, int count) {
         return new GroupCount(group, group.label(), group.description(), count);
     }
+
+    /** The group and its count only: every record of the model that holds text keeps it out of its toString. */
+    @Override
+    public String toString() {
+        return "GroupCount[" + group + ", " + count + "]";
+    }
 }
