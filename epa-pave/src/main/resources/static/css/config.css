@@ -1,1 +1,575 @@
 /* config: the rules of one part of the interface, kept apart from pave.css so that two people can work on two parts at once. */
+
+/*
+ * The Config tab is a row of views over one scrolling column. It follows the rule of pave.css:
+ * the page has no colour of its own. Purple is the one colour used here, and it means what it
+ * means everywhere else: production and its guardrail.
+ */
+
+/* ---------- a view ---------- */
+
+.config-view {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-5);
+    padding-top: var(--gap-3);
+    padding-bottom: 48px;
+}
+
+/* The row of views above already ends in a rule, so the first section of a view starts without one. */
+.config-view > .result__section:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+/* Sentences are kept to a line a person can read. Tables take the width they are given. */
+.config-view p, .config-view .note-list, .config-steps {
+    max-width: 100ch;
+}
+
+/* The kind of an environment sits in running text here, not after a label as in the masthead. */
+.config .kind {
+    margin-left: 0;
+}
+
+.config-problem {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    padding-top: var(--gap-3);
+}
+
+.config-problem:empty {
+    display: none;
+}
+
+.config-stale {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.config-marks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 3px;
+}
+
+/* ---------- where the tool is pointed ---------- */
+
+.config-read {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--gap-3);
+}
+
+.config-facts {
+    max-width: 1180px;
+}
+
+.config-facts > dt {
+    padding-right: var(--gap-4);
+}
+
+/* Production is said in the colour of production. */
+.config-production {
+    color: var(--purple);
+}
+
+/* ---------- what to do first ---------- */
+
+.config-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+    padding-left: 1.5em;
+}
+
+.config-step > span {
+    display: block;
+}
+
+.config-step > .button {
+    margin-top: 6px;
+}
+
+.config-step--done {
+    color: var(--ink-soft);
+}
+
+/* ---------- uploading a file ---------- */
+
+.config-upload {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+}
+
+.config-upload__fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr);
+    gap: var(--gap-3) var(--gap-6);
+    max-width: 1180px;
+}
+
+/* The question a group of choices answers reads like the label of any other field. */
+.config-upload legend {
+    font: 400 var(--text-small)/1.45 var(--font-body);
+    color: var(--ink-soft);
+}
+
+.config-kind-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-top: 2px;
+}
+
+.config-kind-choice {
+    margin-right: 0;
+}
+
+/*
+ * The confirmation the server asks for when an environment declared as something else reads like
+ * production. It is a matter of the production guardrail, so it wears the guardrail's frame, and
+ * the server's sentence stands above the box that answers it.
+ */
+.config-confirm {
+    max-width: 1180px;
+    gap: var(--gap-2);
+    padding: var(--gap-2) var(--gap-3) var(--gap-3);
+    border: 3px solid var(--purple);
+}
+
+.config-confirm .field__error {
+    order: -1;
+    margin-top: 0;
+    font-weight: 400;
+    border-left: 0;
+    padding-left: 0;
+}
+
+.config-confirm .choice {
+    margin-right: 0;
+    font-weight: 600;
+}
+
+.config-outcome:empty {
+    display: none;
+}
+
+.config-done {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.config-done__title {
+    font: 600 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+/* What the tool warns about, in its own sentences: a rule down the side, the weight of ordinary text. */
+.config-warnings {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: var(--gap-3);
+    border-left: 4px solid var(--ink-strong);
+}
+
+.config-warnings .note-list li, .note-list.config-warnings li {
+    padding-left: 0;
+    border-left: 0;
+}
+
+/* ---------- the environments the tool holds ---------- */
+
+.config-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* While production writes are unlocked, the sentence about switching carries the guardrail's colour. */
+.config-switch--unlocked {
+    padding-left: var(--gap-3);
+    border-left: 4px solid var(--purple);
+}
+
+.config-environments th:nth-child(1) { width: 36%; }
+.config-environments th:nth-child(2) { width: 9%; }
+.config-environments th:nth-child(3) { width: 18%; }
+.config-environments th:nth-child(4) { width: 17%; }
+
+/* The active environment is the row drawn heavy. Every row keeps the same edge, so the names stay in one line. */
+.config-environments td:first-child, .config-environments th:first-child {
+    padding-left: var(--gap-2);
+    border-left: 4px solid transparent;
+}
+
+.config-environments .config-row--active > td:first-child {
+    border-left-color: var(--ink-strong);
+}
+
+.config-actions {
+    white-space: nowrap;
+}
+
+.config-actions > * + * {
+    margin-left: var(--gap-4);
+}
+
+.config-removal > td {
+    padding-top: 0;
+    padding-bottom: var(--gap-3);
+}
+
+.config-removal__box {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    padding: var(--gap-2) var(--gap-3) var(--gap-3);
+    border: 3px solid var(--ink-strong);
+}
+
+/* A variable that is switched off or replaced is never used, and is set back accordingly. */
+.config-row--idle > td, .config-row--idle .literal {
+    color: var(--ink-soft);
+}
+
+/* ---------- writes to production ---------- */
+
+/*
+ * The panel is about the production guardrail, so it wears the guardrail's purple frame, the one
+ * the colour key names for a write the guardrail refuses. Unlocked is the state to notice: the
+ * frame is joined by a solid purple band down its side and the heading is set in purple.
+ */
+.config-writes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 1180px;
+    padding: var(--gap-3) var(--gap-4) var(--gap-4);
+    border: 3px solid var(--purple);
+}
+
+.config-writes--unlocked {
+    border-left-width: 14px;
+}
+
+.config-writes--unlocked > .section-heading {
+    color: var(--purple);
+}
+
+.config-writes__reason {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.config-writes__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--gap-4);
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.config-writes__what {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.config-unlock {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 640px;
+}
+
+/* ---------- where each operation is sent ---------- */
+
+.config-operations th:nth-child(1) { width: 15%; }
+.config-operations th:nth-child(2) { width: 31%; }
+.config-operations th:nth-child(3) { width: 24%; }
+
+.config-op > th {
+    font-weight: 400;
+    text-align: left;
+    vertical-align: top;
+}
+
+.config-op__label {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+/* Every row keeps the same edge, so the operation names stay in one line. */
+.config-op > th:first-child {
+    padding-left: var(--gap-2);
+    border-left: 4px solid transparent;
+}
+
+/* An operation that cannot be sent is the row to notice: a heavy rule down its edge. */
+.config-op--missing > th:first-child {
+    border-left-color: var(--ink-strong);
+}
+
+/* An operation the guardrail would refuse carries the guardrail's colour on its edge. */
+.config-op--blocked > th:first-child {
+    border-left-color: var(--purple);
+}
+
+.config-op--inside > td, .config-op--inside > th, .config-op--inside .config-op__label {
+    color: var(--ink-soft);
+}
+
+/* A row header in the body of a table is ruled as its cells are, so a row reads across all its
+   columns. The heavy ink rule stays under the column headings only. The line is the control edge
+   grey, not the faint hairline, so that the rows of a long table stay apart over a screen share. */
+.config-operations tbody > tr > th, .config-operations tbody > tr > td,
+.config-mapping tbody > tr > th, .config-mapping tbody > tr > td {
+    border-bottom: 1px solid var(--line);
+}
+
+/* A second request of the same operation sits under the first, apart by a hairline only. */
+.config-op--more > td {
+    border-top: 1px dashed var(--rule);
+}
+
+.config-mapping tbody > tr.config-op--more-follows > td {
+    border-bottom-color: var(--rule);
+}
+
+.config-op__unavailable, .config-op__unresolved {
+    color: var(--ink-strong);
+}
+
+.config-op__blocked {
+    padding-left: var(--gap-2);
+    border-left: 3px solid var(--purple);
+}
+
+.config-default {
+    font-size: var(--text-small);
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.config-change {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.config-mapping th:nth-child(1) { width: 17%; }
+.config-mapping th:nth-child(2) { width: 36%; }
+.config-mapping th:nth-child(4) { width: 19%; }
+
+.config-mapping tbody > tr > th {
+    font-weight: 400;
+    text-align: left;
+    vertical-align: top;
+}
+
+.config-chooser > td {
+    padding-top: 0;
+    padding-bottom: var(--gap-3);
+}
+
+.config-chooser__box {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 900px;
+    padding: var(--gap-2) var(--gap-3) var(--gap-3);
+    border: 1px solid var(--ink-strong);
+}
+
+.config-unmapped td, .config-collections td {
+    vertical-align: top;
+}
+
+.config-collections th:nth-child(1) { width: 34%; }
+.config-collections th:nth-child(2) { width: 18%; }
+.config-collections th:nth-child(3) { width: 22%; }
+
+/* A placeholder with no value: the row a tester has to act on. */
+.config-row--missing > td:first-child {
+    font-weight: 600;
+}
+
+.config-row--missing > td:nth-child(2) {
+    color: var(--ink-strong);
+}
+
+/* ---------- try a value ---------- */
+
+.config-try__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+    max-width: 1180px;
+}
+
+.config-try__choose {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: var(--gap-3);
+}
+
+.config-try__values {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.config-try__values:empty {
+    display: none;
+}
+
+.config-try__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px var(--gap-3);
+}
+
+.config-try__answer:empty {
+    display: none;
+}
+
+.config-try__resolved {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+    padding-top: var(--gap-3);
+}
+
+.config-script {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: var(--gap-2);
+}
+
+.config-detail {
+    scroll-margin-top: var(--gap-3);
+}
+
+.config-detail:focus {
+    outline: none;
+}
+
+.config-fold > summary {
+    font-size: var(--text-small);
+}
+
+/* ---------- send a request as written ---------- */
+
+/* This view is a workbench: its two panes scroll, the view itself does not. */
+.config--bench {
+    overflow: hidden;
+}
+
+.config-raw {
+    height: 100%;
+    padding-top: var(--gap-2);
+}
+
+.config-raw__body {
+    width: 100%;
+    min-height: 220px;
+    resize: vertical;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    font: 400 var(--text-small)/1.45 var(--font-mono);
+    color: var(--ink-strong);
+}
+
+.config-raw__body:focus-visible {
+    outline-offset: 0;
+}
+
+.config-raw__values {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.config-raw__values:empty, .config-raw__about:empty {
+    display: none;
+}
+
+.config-raw__missing > label {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.config-raw__facts > dt {
+    padding-right: var(--gap-3);
+}
+
+/* ---------- check this installation ---------- */
+
+.config-checks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-4);
+}
+
+/* A check that has found something to report wears the frame of a fault to report. */
+.config-check--alarm {
+    padding: var(--gap-3) var(--gap-4) var(--gap-4);
+    border: 4px solid var(--ink-strong);
+}
+
+.config-check__alarm {
+    font: 600 var(--text-large)/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.config-check__fine {
+    font-weight: 600;
+}
+
+.config-lookups th:nth-child(1) { width: 16%; }
+.config-lookups th:nth-child(2) { width: 38%; }
+.config-lookups th:nth-child(3) { width: 12%; }
+
+@media (max-width: 860px) {
+    .config-try__choose {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .config-upload__fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* On a narrow window the five views and the controls beside a heading go onto a second line
+       rather than past the edge of the page. */
+    .config-views {
+        flex-wrap: wrap;
+        row-gap: var(--gap-2);
+    }
+
+    .config-read {
+        flex-wrap: wrap;
+    }
+
+    .config-view .panel__head {
+        flex-wrap: wrap;
+    }
+}
+
+/* The raw view has no case: the shared case belongs to the protocol tabs, so its slot and the rule under it are not drawn here. */
+.config-raw .case-slot:empty {
+    display: none;
+}
+
+.config-raw .case-pane__own {
+    padding-top: 0;
+    border-top: 0;
+}
