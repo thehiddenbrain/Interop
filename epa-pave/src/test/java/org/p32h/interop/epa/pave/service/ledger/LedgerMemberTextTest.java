@@ -43,7 +43,11 @@ class LedgerMemberTextTest {
     private JsonNode onlyLine() {
         List<String> written = lines(dayFile(home, TODAY));
         assertThat(written).hasSize(1);
-        assertThat(written.get(0)).doesNotContain("S123456789").doesNotContainIgnoringCase("s12345").doesNotContain("1961")
+        // A line holds tokens of random hexadecimal digits, and any four digits turn up inside one by
+        // chance about once in a hundred builds. So the year is looked for where it stands as a number
+        // of its own, and the date in the two spellings these tests write.
+        assertThat(written.get(0)).doesNotContain("S123456789").doesNotContainIgnoringCase("s12345")
+                .doesNotContainPattern("(?<![0-9a-fA-F])1961(?![0-9a-fA-F])").doesNotContain("1961-07-23").doesNotContain("19610723")
                 .doesNotContain("Zzlastname");
         return JsonSafe.parse(written.get(0)).node();
     }
