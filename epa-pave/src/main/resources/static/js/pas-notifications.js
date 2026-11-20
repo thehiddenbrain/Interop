@@ -78,8 +78,8 @@ export function createNotifications(spec) {
             parts.push(el('p', {class: 'pas-receiver__unreachable'},
                 el('strong', null, 'No service can call this receiver back.'),
                 ' The setting ', code('onyx.subscription.callback-url'), ' is blank, so a subscription this tool creates names no address '
-                + 'to call back and no notification from a service can arrive. Do not wait for one: follow a pended request with an inquiry. '
-                + 'On the mock profile a sample notification can be delivered below.'));
+                + 'to call back and no notification from a service can arrive. Do not wait for one: follow a pended request with an inquiry.',
+                spec.app.isMock() ? ' On the mock profile a sample notification can be delivered from the Notifications call on the left.' : null));
         } else {
             parts.push(el('p', null, 'A subscription this tool creates asks the service to call back ', code(callback.value),
                 ', from the setting ', code('onyx.subscription.callback-url'), '. Whether the service can reach that address from where it runs '

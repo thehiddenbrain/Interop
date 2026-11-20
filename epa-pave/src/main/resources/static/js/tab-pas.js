@@ -85,12 +85,12 @@ function mount(target, application) {
     controls.inquire = button('Send inquiry', () => sendInquiry(), {class: 'button--primary'});
     controls.inquirePreview = button('Show the inquiry', () => showPreview('inquire'));
     controls.create = button('Create subscription', () => subscriptionCall('create'), {class: 'button--primary'});
-    controls.createPreview = button('Show the create request', () => showPreview('create'));
-    controls.list = button('List subscriptions', () => subscriptionCall('list'));
-    controls.read = button('Read subscription', () => subscriptionCall('read'));
-    controls.update = button('Update subscription', () => subscriptionCall('update'));
-    controls.updatePreview = button('Show the update request', () => showPreview('update'));
-    controls.remove = button('Delete subscription', () => subscriptionCall('delete'));
+    controls.createPreview = button('Show the create request', () => showPreview('create'), {class: 'button--text'});
+    controls.list = button('List subscriptions', () => subscriptionCall('list'), {class: 'button--quiet button--small'});
+    controls.read = button('Read subscription', () => subscriptionCall('read'), {class: 'button--quiet button--small'});
+    controls.update = button('Update subscription', () => subscriptionCall('update'), {class: 'button--quiet button--small'});
+    controls.updatePreview = button('Show the update request', () => showPreview('update'), {class: 'button--text'});
+    controls.remove = button('Delete subscription', () => subscriptionCall('delete'), {class: 'button--quiet button--small'});
     bench.track(controls.submit, controls.preview, controls.inquire, controls.inquirePreview, controls.create, controls.createPreview,
         controls.list, controls.read, controls.update, controls.updatePreview, controls.remove);
 
@@ -171,8 +171,8 @@ function showMode(id) {
     const buttons = {
         submit: [controls.submit, controls.preview],
         inquire: [controls.inquire, controls.inquirePreview],
-        subscriptions: [el('div', {class: 'pas-buttons__group'}, controls.create, controls.createPreview, controls.list),
-            el('div', {class: 'pas-buttons__group'}, controls.read, controls.update, controls.updatePreview, controls.remove)],
+        subscriptions: [el('div', {class: 'pas-buttons__group'}, controls.create, controls.createPreview),
+            el('div', {class: 'pas-buttons__group'}, controls.list, controls.read, controls.update, controls.remove, controls.updatePreview)],
         notifications: []
     }[id];
     fill(controls.buttons, buttons);
@@ -549,13 +549,19 @@ function drawWrites() {
         fill(controls.writes, el('div', {class: 'pas-writes__blocked'},
             el('p', null, el('strong', null, 'Writes are blocked here. '), what + ' sent now is refused by the production guardrail and recorded as blocked. ',
                 access.reason || ''),
-            el('p', null, 'Writes are unlocked on the Config tab, for this session only. ', button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
+            // Where an owner has locked the installation, the reason says no unlock is possible, and the tab does not suggest one.
+            access.floorAllows === false ? el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))
+                : el('p', null, 'Writes are unlocked on the Config tab, for this session only. ',
+                    button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
         return;
     }
     if (access.production) {
         fill(controls.writes, el('div', {class: 'pas-writes__open'},
             el('p', null, el('strong', null, 'Production, with writes unlocked for this session. '),
-                mode === 'submit' ? 'A PAS request sent now creates a real prior authorization request against a real member. ' : 'A subscription change now changes the real service. ',
+                // On the mock profile nothing leaves this machine, so the sentence about a real request is kept for the live profile.
+                app.isMock() ? 'On the mock profile a scenario file answers and nothing leaves this machine. '
+                    : mode === 'submit' ? 'A PAS request sent now creates a real prior authorization request against a real member. '
+                        : 'A subscription created, updated or deleted now changes the real service. ',
                 access.reason || '')));
         return;
     }
