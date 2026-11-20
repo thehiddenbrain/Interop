@@ -15,7 +15,7 @@ public enum CrdOutcome implements OutcomeCode {
 
     AUTH_REQUIRED("Prior authorization is required", Tone.ACTION, false),
     NO_AUTH_REQUIRED("Prior authorization is not required", Tone.CLEAR, false),
-    AUTH_SATISFIED("Prior authorization is already satisfied", Tone.CLEAR, false),
+    AUTH_SATISFIED("Prior authorization requirements are already met", Tone.CLEAR, false),
     PERFORMER_AUTH("The performing provider must obtain prior authorization", Tone.ACTION, false),
     DOCUMENTATION_REQUIRED("Documentation is required", Tone.ACTION, false),
     INFORMATION_NEEDED("More information is needed before the payer can answer", Tone.ACTION, false),
@@ -26,7 +26,7 @@ public enum CrdOutcome implements OutcomeCode {
     PROVIDER_NOT_FOUND("The service does not recognise this provider", Tone.DATA, false),
     AUTH_NOT_STATED("The service did not state whether prior authorization is required", Tone.NO_ANSWER, false),
     UNRECOGNISED_CODE("The service returned a code this tool does not recognise", Tone.NO_ANSWER, false),
-    MIXED("The codes in this order did not all receive the same answer", Tone.ACTION, false),
+    MIXED("Not every answer in this response is the same", Tone.ACTION, false),
     NO_DETERMINATION("The service returned no determination", Tone.NO_ANSWER, false),
     REJECTED("The service did not accept the request as sent", Tone.FAULT, true),
     SERVICE_ERROR("The service failed", Tone.FAULT, true),

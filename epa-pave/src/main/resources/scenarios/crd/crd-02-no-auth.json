@@ -13,8 +13,7 @@
     "httpStatus": 200,
     "codes": {
       "covered": "covered",
-      "pa-needed": "no-auth",
-      "doc-needed": "no-doc"
+      "pa-needed": "no-auth"
     }
   },
   "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
@@ -54,10 +53,6 @@
                 {
                   "url": "pa-needed",
                   "valueCode": "no-auth"
-                },
-                {
-                  "url": "doc-needed",
-                  "valueCode": "no-doc"
                 },
                 {
                   "url": "date",

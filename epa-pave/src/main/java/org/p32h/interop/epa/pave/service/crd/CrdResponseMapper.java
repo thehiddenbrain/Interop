@@ -47,6 +47,16 @@ import tools.jackson.databind.JsonNode;
  */
 public final class CrdResponseMapper {
 
+    /** Marks a sub-extension sent again where CRD 2.0.1 allows it once. The checker looks for it. */
+    public static final String REPEATED = " (repeated)";
+
+    /** The sub-extensions CRD 2.0.1 allows at most once on one coverage information extension. */
+    static final Set<String> SINGLE = Set.of(CrdCodes.COVERAGE, CrdCodes.COVERED, CrdCodes.PA_NEEDED, CrdCodes.DOC_NEEDED,
+            CrdCodes.DATE, CrdCodes.COVERAGE_ASSERTION_ID, CrdCodes.SATISFIED_PA_ID);
+
+    /** The CRD 2.0.1 detail code that says authorization is needed only out of network. */
+    private static final String AUTH_OUT_NETWORK_ONLY = "auth-out-network-only";
+
     /** One coverage information extension as found, before it is tied to a requested code. */
     private static final class Found {
         private final CoverageInformationView view;
@@ -132,6 +142,10 @@ public final class CrdResponseMapper {
 
         List<CoverageInformationView> coverage = new ArrayList<>();
         boolean[] answered = new boolean[orders.size()];
+        // An order carries one answer for each coverage it is checked against. When the response
+        // names more than one coverage, each answer is named by its coverage as well, so two
+        // coverages answering differently are never read as two codes answering differently.
+        boolean severalCoverages = found.stream().map(one -> one.view.coverage().orNull()).filter(Texts::present).distinct().count() > 1;
         for (Found one : found) {
             List<String> codes = new ArrayList<>();
             List<String> labels = new ArrayList<>();
@@ -147,6 +161,9 @@ public final class CrdResponseMapper {
             }
             String subject = labels.isEmpty() ? Texts.orElse(one.view.appliesTo().orNull(), one.view.foundAt())
                     : String.join(", ", labels);
+            if (severalCoverages) {
+                subject += " under " + Texts.orElse(one.view.coverage().orNull(), "no named coverage");
+            }
             coverage.add(one.view.attributedTo(codes, subject));
         }
         // Only a response that answered something can leave an order unanswered. One that carries
@@ -175,7 +192,7 @@ public final class CrdResponseMapper {
             }
         }
         CrdDetail detail = new CrdDetail(kind, note, cardsPresence, cards, actionsPresence, systemActions, coverage, issues,
-                List.of(), true);
+                List.of(), true, CrdConformanceChecker.SCOPE);
         return new CrdReading(detail, CrdOutcomeRules.overall(exchange, outcomes, unanswered.size()), requested, unanswered,
                 vendors.isEmpty() ? null : String.join("; ", vendors), additional);
     }
@@ -386,9 +403,6 @@ public final class CrdResponseMapper {
         CodedValue covered = CodedValue.notReturned();
         CodedValue paNeeded = CodedValue.notReturned();
         CodedValue docNeeded = CodedValue.notReturned();
-        boolean seenCovered = false;
-        boolean seenPaNeeded = false;
-        boolean seenDocNeeded = false;
         List<CodedValue> docPurpose = new ArrayList<>();
         List<CodedValue> infoNeeded = new ArrayList<>();
         Shown satisfiedPaId = Shown.absent();
@@ -396,10 +410,16 @@ public final class CrdResponseMapper {
         Shown assertionId = Shown.absent();
         Shown date = Shown.absent();
         List<Shown> questionnaires = new ArrayList<>();
+        List<Shown> responses = new ArrayList<>();
         List<Shown> reasons = new ArrayList<>();
+        List<String> laterReasons = new ArrayList<>();
         List<CoverageDetailView> details = new ArrayList<>();
         List<SubExtensionView> other = new ArrayList<>();
+        // The sub-extensions CRD 2.0.1 allows at most once. A second one is never allowed to replace
+        // the first in silence: it is listed beside the others as repeated, and the checker reports it.
+        Set<String> seenOnce = new LinkedHashSet<>();
         boolean coverageInactive = false;
+        Boolean authOutOfNetworkOnly = null;
         String vendor = null;
         String vendorBasis = null;
 
@@ -409,54 +429,43 @@ public final class CrdResponseMapper {
             }
             String url = sub.presentText("url");
             if (url == null) {
-                other.add(new SubExtensionView("(no url)", FhirViews.extensionValueShown(sub)));
+                other.add(new SubExtensionView("(no url)", FhirViews.extensionValueShown(sub), CrdCodes.definedIn("")));
+                continue;
+            }
+            if (SINGLE.contains(url) && !seenOnce.add(url)) {
+                other.add(new SubExtensionView(url + REPEATED, FhirViews.extensionValueShown(sub), CrdCodes.definedIn(url)));
                 continue;
             }
             switch (url) {
-                case CrdCodes.COVERED -> {
-                    if (seenCovered) {
-                        other.add(new SubExtensionView(url + " (repeated)", FhirViews.extensionValueShown(sub)));
-                    } else {
-                        covered = CrdCodes.coded(url, presentCode(sub));
-                        seenCovered = true;
-                    }
-                }
-                case CrdCodes.PA_NEEDED -> {
-                    if (seenPaNeeded) {
-                        other.add(new SubExtensionView(url + " (repeated)", FhirViews.extensionValueShown(sub)));
-                    } else {
-                        paNeeded = CrdCodes.coded(url, presentCode(sub));
-                        seenPaNeeded = true;
-                    }
-                }
-                case CrdCodes.DOC_NEEDED -> {
-                    if (seenDocNeeded) {
-                        other.add(new SubExtensionView(url + " (repeated)", FhirViews.extensionValueShown(sub)));
-                    } else {
-                        docNeeded = CrdCodes.coded(url, presentCode(sub));
-                        seenDocNeeded = true;
-                    }
-                }
+                case CrdCodes.COVERED -> covered = CrdCodes.coded(url, presentCode(sub));
+                case CrdCodes.PA_NEEDED -> paNeeded = CrdCodes.coded(url, presentCode(sub));
+                case CrdCodes.DOC_NEEDED -> docNeeded = CrdCodes.coded(url, presentCode(sub));
                 case CrdCodes.DOC_PURPOSE -> docPurpose.add(CrdCodes.coded(url, presentCode(sub)));
                 case CrdCodes.INFO_NEEDED -> infoNeeded.add(CrdCodes.coded(url, presentCode(sub)));
                 case CrdCodes.SATISFIED_PA_ID -> satisfiedPaId = present(FhirViews.extensionValueShown(sub));
-                case "coverage" -> coverageRef = present(FhirViews.extensionValueShown(sub));
-                case "coverage-assertion-id" -> assertionId = present(FhirViews.extensionValueShown(sub));
-                case "date" -> date = present(FhirViews.extensionValueShown(sub));
-                case "questionnaire" -> questionnaires.add(present(FhirViews.extensionValueShown(sub)));
-                case "reason" -> {
+                case CrdCodes.COVERAGE -> coverageRef = present(FhirViews.extensionValueShown(sub));
+                case CrdCodes.COVERAGE_ASSERTION_ID -> assertionId = present(FhirViews.extensionValueShown(sub));
+                case CrdCodes.DATE -> date = present(FhirViews.extensionValueShown(sub));
+                case CrdCodes.QUESTIONNAIRE -> questionnaires.add(present(FhirViews.extensionValueShown(sub)));
+                case CrdCodes.RESPONSE -> responses.add(present(FhirViews.extensionValueShown(sub)));
+                case CrdCodes.REASON -> {
                     Map.Entry<String, TrackedJson.Node> value = FhirViews.extensionValue(sub);
-                    if (value != null && OnyxCrdConventions.coverageInactive(FhirViews.conceptCodes(value.getValue()))) {
-                        coverageInactive = true;
+                    if (value != null) {
+                        if (OnyxCrdConventions.coverageInactive(FhirViews.conceptCodes(value.getValue()))) {
+                            coverageInactive = true;
+                        }
+                        laterReasons.addAll(OnyxCrdConventions.laterVersionReasons(value.getValue().raw()));
                     }
                     reasons.add(present(FhirViews.extensionValueShown(sub)));
                 }
                 case CrdCodes.DETAIL -> {
                     Shown code = Shown.absent();
                     Shown value = Shown.absent();
-                    Shown qualifier = Shown.absent();
+                    Shown qualification = Shown.absent();
+                    Shown category = Shown.absent();
                     List<String> codeKeys = new ArrayList<>();
                     String plainValue = null;
+                    Boolean booleanValue = null;
                     for (TrackedJson.Node part : sub.children("extension")) {
                         if (!part.isObject()) {
                             continue;
@@ -471,14 +480,23 @@ public final class CrdResponseMapper {
                             code = present(FhirViews.extensionValueShown(part));
                         } else if ("value".equals(partUrl)) {
                             plainValue = partValue == null ? null : plain(partValue.getValue().raw());
+                            if (partValue != null && partValue.getValue().raw().isBoolean()) {
+                                booleanValue = partValue.getValue().raw().asBoolean();
+                            }
                             value = present(FhirViews.extensionValueShown(part));
-                        } else if ("qualifier".equals(partUrl)) {
-                            qualifier = present(FhirViews.extensionValueShown(part));
+                        } else if ("qualification".equals(partUrl)) {
+                            qualification = present(FhirViews.extensionValueShown(part));
+                        } else if ("category".equals(partUrl)) {
+                            category = present(FhirViews.extensionValueShown(part));
                         } else {
-                            other.add(new SubExtensionView("detail." + Texts.orElse(partUrl, "(no url)"), FhirViews.extensionValueShown(part)));
+                            String name = "detail." + Texts.orElse(partUrl, "(no url)");
+                            other.add(new SubExtensionView(name, FhirViews.extensionValueShown(part), CrdCodes.definedIn(name)));
                         }
                     }
-                    details.add(new CoverageDetailView(code, value, qualifier));
+                    details.add(new CoverageDetailView(code, value, qualification, category));
+                    if (codeKeys.contains(AUTH_OUT_NETWORK_ONLY) && booleanValue != null) {
+                        authOutOfNetworkOnly = booleanValue;
+                    }
                     if (vendor == null) {
                         OnyxCrdConventions.VendorMatch match = OnyxCrdConventions.delegatedVendor(codeKeys, plainValue);
                         if (match != null) {
@@ -487,14 +505,17 @@ public final class CrdResponseMapper {
                         }
                     }
                 }
-                default -> other.add(new SubExtensionView(url, FhirViews.extensionValueShown(sub)));
+                default -> other.add(new SubExtensionView(url, FhirViews.extensionValueShown(sub), CrdCodes.definedIn(url)));
             }
         }
 
-        CrdOutcome outcome = CrdOutcomeRules.forExtension(covered, paNeeded, docNeeded, infoNeeded, coverageInactive);
+        boolean memberNotFound = laterReasons.contains(OnyxCrdConventions.LATER_NO_MEMBER_FOUND);
+        coverageInactive |= laterReasons.contains(OnyxCrdConventions.LATER_NO_ACTIVE_COVERAGE);
+        CrdOutcome outcome = CrdOutcomeRules.forExtension(covered, paNeeded, docNeeded, infoNeeded, coverageInactive, memberNotFound);
         // Which requested codes the answer is for is worked out afterwards, once every answer is known.
-        return new CoverageInformationView(foundAt, appliesTo, List.of(), null, outcome, covered, paNeeded, docNeeded, docPurpose, infoNeeded,
-                satisfiedPaId, coverageRef, assertionId, date, questionnaires, reasons, details, vendor, vendorBasis, other);
+        return new CoverageInformationView(foundAt, appliesTo, List.of(), null, outcome, covered, paNeeded, docNeeded, docPurpose,
+                infoNeeded, satisfiedPaId, coverageRef, assertionId, date, questionnaires, responses, reasons, laterReasons, details,
+                authOutOfNetworkOnly, vendor, vendorBasis, other);
     }
 
     /**

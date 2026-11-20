@@ -161,7 +161,7 @@ class CrdServiceTest {
         assertThat(record.procedureCodes()).containsExactly("95810");
         assertThat(record.lineOfBusiness()).isEqualTo("Medicare");
         assertThat(record.outcome()).isEqualTo("AUTH_REQUIRED");
-        assertThat(record.coverageCodes()).containsExactly("covered=covered", "pa-needed=auth-needed", "doc-needed=no-doc");
+        assertThat(record.coverageCodes()).containsExactly("covered=covered", "pa-needed=auth-needed");
         assertThat(record.delegatedVendor()).isEqualTo("Evolent");
         assertThat(record.httpStatus()).isEqualTo(200);
         assertThat(record.elapsedMillis()).isGreaterThanOrEqualTo(0);
@@ -214,7 +214,7 @@ class CrdServiceTest {
         RunRecord emptyRecord = ledger.records().get(1);
         assertThat(noAuthRecord.outcome()).isEqualTo("NO_AUTH_REQUIRED");
         assertThat(emptyRecord.outcome()).isEqualTo("NO_DETERMINATION");
-        assertThat(noAuthRecord.coverageCodes()).containsExactly("covered=covered", "pa-needed=no-auth", "doc-needed=no-doc");
+        assertThat(noAuthRecord.coverageCodes()).containsExactly("covered=covered", "pa-needed=no-auth");
         assertThat(emptyRecord.coverageCodes()).isEmpty();
         assertThat(noAuthRecord.result()).isEqualTo(TestResult.PASS);
         assertThat(emptyRecord.result()).isEqualTo(TestResult.FAIL);
@@ -223,7 +223,8 @@ class CrdServiceTest {
         assertThat(emptyRecord.errorType()).isEqualTo("NONE");
         assertThat(noAuthRecord.httpStatus()).isEqualTo(200);
         assertThat(emptyRecord.httpStatus()).isEqualTo(200);
-        assertThat(emptyRecord.findings()).containsExactly("REQUIRED_ELEMENT_MISSING");
+        // CRD 2.0.1 does not require coverage information, so its absence is information (CRD201-15).
+        assertThat(emptyRecord.findings()).containsExactly("NOT_STATED");
         // The code list in this test has no row for the code, and the result says the two were not
         // compared. No finding at all would have read as agreement.
         assertThat(noAuthRecord.findings()).containsExactly("CODE_LIST_NOT_COMPARED");
@@ -905,7 +906,9 @@ class CrdServiceTest {
     private static String noAuthFor(int order) {
         return "{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-" + order + "\","
                 + "\"extension\":[{\"url\":\"http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information\",\"extension\":["
-                + "{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"}]}]}}";
+                + "{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}},"
+                + "{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"},"
+                + "{\"url\":\"date\",\"valueDate\":\"2026-01-15\"},{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-" + order + "\"}]}]}}";
     }
 
     private static List<Finding> aboutTheCodeList(RunEnvelope<CrdDetail> result) {

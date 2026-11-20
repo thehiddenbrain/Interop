@@ -46,9 +46,15 @@ class CodeListConformanceSeamTest {
     @TempDir
     Path directory;
 
+    /**
+     * A response whose coverage information carries these sub-extensions beside the parts CRD 2.0.1
+     * requires of every answer, so that the only findings are the ones about the code list.
+     */
     private static String response(String... subExtensions) {
         return "{\"cards\":[],\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\","
-                + "\"id\":\"service-request-1\",\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[" + String.join(",", subExtensions) + "]}]}}]}";
+                + "\"id\":\"service-request-1\",\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[" + String.join(",", subExtensions)
+                + ",{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}},{\"url\":\"covered\",\"valueCode\":\"covered\"},"
+                + "{\"url\":\"date\",\"valueDate\":\"2026-01-15\"},{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}]}]}}]}";
     }
 
     private static String paNeeded(String value) {

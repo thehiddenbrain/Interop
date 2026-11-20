@@ -13,6 +13,9 @@ import org.p32h.interop.epa.pave.model.crd.ActionView;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
 import org.p32h.interop.epa.pave.model.crd.CrdResponseKind;
+import org.p32h.interop.epa.pave.model.crd.SubExtensionView;
+import org.p32h.interop.epa.pave.config.EpaProperties;
+import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.testsupport.TestExchanges;
 import java.util.List;
 import java.util.Map;
@@ -246,33 +249,78 @@ class CrdResponseMapperTest {
 
     @Test
     void everyStandardSubExtensionIsReadIntoItsSlot() {
-        CrdReading reading = read(systemAction(String.join(",",
+        // A coverage information extension that conforms to CRD 2.0.1 (CRD201-25): info-needed beside
+        // a conditional (crd-ci-q3), a questionnaire and a response beside doc-needed (crd-ci-q1), and
+        // no satisfied-pa-id since pa-needed is not satisfied (crd-ci-q5).
+        String extension = String.join(",",
                 "{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/c1\",\"display\":\"Plan\"}}",
-                code("covered", "covered"), code("pa-needed", "auth-needed"), code("doc-needed", "both"),
-                code("doc-purpose", "withpa"), code("doc-purpose", "retain"), code("info-needed", "timeframe"),
+                code("covered", "conditional"), code("pa-needed", "auth-needed"), code("doc-needed", "both"),
+                code("doc-purpose", "withpa"), code("doc-purpose", "retain-doc"), code("info-needed", "timeframe"),
                 "{\"url\":\"questionnaire\",\"valueCanonical\":\"https://example.org/Questionnaire/q1\"}",
-                "{\"url\":\"satisfied-pa-id\",\"valueString\":\"PA-PLACEHOLDER-0002\"}",
+                "{\"url\":\"response\",\"valueReference\":{\"reference\":\"QuestionnaireResponse/qr-1\"}}",
                 "{\"url\":\"date\",\"valueDate\":\"2026-01-15\"}",
                 "{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}",
-                "{\"url\":\"reason\",\"valueCodeableConcept\":{\"text\":\"Because\",\"coding\":[{\"system\":\"s\",\"code\":\"gold-card\",\"display\":\"Gold card\"}]}}")));
+                "{\"url\":\"reason\",\"valueCodeableConcept\":{\"text\":\"Because\",\"coding\":[{\"system\":\"s\",\"code\":\"gold-card\",\"display\":\"Gold card\"}]}}",
+                "{\"url\":\"detail\",\"extension\":[{\"url\":\"code\",\"valueCodeableConcept\":{\"coding\":[{\"system\":"
+                        + "\"http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp\",\"code\":\"allowed-quantity\"}]}},"
+                        + "{\"url\":\"value\",\"valueQuantity\":{\"value\":2}},{\"url\":\"qualification\",\"valueString\":\"Per calendar year\"}]}");
+        CrdReading reading = read(systemAction(extension));
         CoverageInformationView view = only(reading);
         assertThat(view.appliesTo().value()).isEqualTo("ServiceRequest/service-request-1");
         assertThat(view.coverage().value()).isEqualTo("Coverage/c1 (Plan)");
-        assertThat(view.covered().code()).isEqualTo("covered");
-        assertThat(view.covered().display()).isEqualTo("Covered");
+        assertThat(view.covered().code()).isEqualTo("conditional");
+        assertThat(view.covered().version()).isEqualTo("CRD 2.0.1");
         assertThat(view.paNeeded().display()).isEqualTo("Prior authorization is needed");
         assertThat(view.docNeeded().code()).isEqualTo("both");
-        assertThat(view.docPurpose()).extracting(CodedValue::code).containsExactly("withpa", "retain");
+        assertThat(view.docPurpose()).extracting(CodedValue::code).containsExactly("withpa", "retain-doc");
+        assertThat(view.docPurpose()).extracting(CodedValue::recognised).containsExactly(true, true);
         assertThat(view.infoNeeded()).extracting(CodedValue::code).containsExactly("timeframe");
         assertThat(view.questionnaires()).extracting(Shown::value).containsExactly("https://example.org/Questionnaire/q1");
-        assertThat(view.satisfiedPaId().value()).isEqualTo("PA-PLACEHOLDER-0002");
+        // The 2.0.1 response sub-extension has its own slot and is not left among the uninterpreted ones (CRD201-03).
+        assertThat(view.responses()).extracting(Shown::value).containsExactly("QuestionnaireResponse/qr-1");
+        assertThat(view.satisfiedPaId().presence()).isEqualTo(Presence.ABSENT);
         assertThat(view.date().value()).isEqualTo("2026-01-15");
         assertThat(view.coverageAssertionId().value()).isEqualTo("a-1");
         assertThat(view.reasons()).extracting(Shown::value).containsExactly("Because [Gold card (s|gold-card)]");
+        // The third part of a detail is qualification in 2.0.1, and it stays with its detail (CRD201-12).
+        assertThat(view.details()).singleElement().satisfies(detail -> {
+            assertThat(detail.qualification().value()).isEqualTo("Per calendar year");
+            assertThat(detail.category().presence()).isEqualTo(Presence.ABSENT);
+        });
         assertThat(view.otherSubExtensions()).isEmpty();
-        assertThat(codes(reading)).containsEntry("doc-purpose", List.of("withpa", "retain"));
-        // info-needed outranks the authorization code: the payer cannot answer yet.
-        assertThat(reading.outcome()).isEqualTo(CrdOutcome.INFORMATION_NEEDED);
+        assertThat(codes(reading)).containsEntry("doc-purpose", List.of("withpa", "retain-doc"));
+        // A definite pa-needed is not hidden behind info-needed: what is conditional here is coverage.
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.DOCUMENTATION_REQUIRED);
+        // And the extension breaks no rule CRD 2.0.1 states for it.
+        VendorExchange exchange = TestExchanges.crd(200, systemAction(extension));
+        assertThat(new CrdConformanceChecker(null, EpaProperties.of(java.util.Map.of("mode", "live")))
+                .check(reading, exchange, null, null)).isEmpty();
+    }
+
+    @Test
+    void theBallotsDetailCategoryIsReadIntoItsDetailAndANameNoVersionDefinesSaysSo() {
+        CrdReading reading = read(systemAction(code("covered", "covered") + ",{\"url\":\"detail\",\"extension\":[{\"url\":\"category\","
+                + "\"valueCode\":\"cat-limitation\"},{\"url\":\"code\",\"valueCodeableConcept\":{\"text\":\"limit\"}},{\"url\":\"value\","
+                + "\"valueString\":\"2 a year\"},{\"url\":\"qualifier\",\"valueString\":\"old name\"}]},{\"url\":\"billingCode\",\"valueCoding\""
+                + ":{\"code\":\"x\"}},{\"url\":\"made-up\",\"valueString\":\"y\"}"));
+        CoverageInformationView view = only(reading);
+        assertThat(view.details()).singleElement().satisfies(detail -> assertThat(detail.category().value()).isEqualTo("cat-limitation"));
+        assertThat(view.otherSubExtensions()).extracting(SubExtensionView::url, SubExtensionView::definedIn).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("detail.qualifier", "defined in no version of CRD this tool can read"),
+                org.assertj.core.groups.Tuple.tuple("billingCode", "defined in CRD 2.0.1"),
+                org.assertj.core.groups.Tuple.tuple("made-up", "defined in no version of CRD this tool can read"));
+    }
+
+    @Test
+    void theAuthorizationOutOfNetworkOnlyDetailOfCrd201IsRead() {
+        CrdReading reading = read(systemAction(code("covered", "covered") + "," + code("pa-needed", "auth-needed")
+                + ",{\"url\":\"detail\",\"extension\":[{\"url\":\"code\",\"valueCodeableConcept\":{\"coding\":[{\"system\":"
+                + "\"http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp\",\"code\":\"auth-out-network-only\"}]}},{\"url\":\"value\","
+                + "\"valueBoolean\":true}]}"));
+        assertThat(only(reading).authOutOfNetworkOnly()).isTrue();
+        assertThat(CrdVerdicts.verdict(reading, TestExchanges.crd(200, "{}")).supporting())
+                .contains("The payer adds that prior authorization is needed only if the service is delivered out of network "
+                        + "(detail auth-out-network-only).");
     }
 
     @Test

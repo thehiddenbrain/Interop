@@ -6,7 +6,6 @@ import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VendorSignal;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Decides the outcome of a CRD call from standard codes and transport facts. Card wording is never
@@ -19,18 +18,26 @@ import java.util.Set;
  */
 public final class CrdOutcomeRules {
 
-    private static final Set<String> DOCUMENTATION_WANTED = Set.of("clinical", "admin", "both");
-
     private CrdOutcomeRules() {
     }
 
     /**
      * The outcome one coverage information extension establishes. First match wins, in this order.
      *
+     * <p>A definite prior authorization answer is never hidden behind a request for information:
+     * CRD 2.0.1 rule crd-ci-q3 asks only that something be conditional when information is asked
+     * for, and its own annotated example answers pa-needed=satisfied with coverage conditional and
+     * info-needed=performer. So info-needed decides the outcome only when prior authorization
+     * itself is not stated or is conditional. What is conditional is then said in the verdict.
+     *
      * @param coverageInactive true when the client layer recognised a coverage-inactive reason on it
+     * @param memberNotFound   true when the reason is the 2.2.0 ballot's no-member-found
      */
     public static CrdOutcome forExtension(CodedValue covered, CodedValue paNeeded, CodedValue docNeeded,
-                                          List<CodedValue> infoNeeded, boolean coverageInactive) {
+                                          List<CodedValue> infoNeeded, boolean coverageInactive, boolean memberNotFound) {
+        if (memberNotFound) {
+            return CrdOutcome.MEMBER_NOT_FOUND;
+        }
         if (coverageInactive) {
             return CrdOutcome.COVERAGE_INACTIVE;
         }
@@ -42,9 +49,6 @@ public final class CrdOutcomeRules {
         if (paNeeded.code() != null && !paNeeded.recognised()) {
             return CrdOutcome.UNRECOGNISED_CODE;
         }
-        if (infoNeeded.stream().anyMatch(value -> value.code() != null)) {
-            return CrdOutcome.INFORMATION_NEEDED;
-        }
         if (paNeeded.is("satisfied")) {
             return CrdOutcome.AUTH_SATISFIED;
         }
@@ -52,7 +56,9 @@ public final class CrdOutcomeRules {
         if (paNeeded.is("no-auth")) {
             return CrdOutcome.NO_AUTH_REQUIRED;
         }
-        if (docNeeded.code() != null && DOCUMENTATION_WANTED.contains(docNeeded.code())) {
+        boolean documentation = docNeeded.code() != null && CrdCodes.DOCUMENTATION_WANTED.contains(docNeeded.code());
+        boolean authNeeded = paNeeded.is("auth-needed") || paNeeded.is("performpa");
+        if (documentation && authNeeded) {
             return CrdOutcome.DOCUMENTATION_REQUIRED;
         }
         if (paNeeded.is("auth-needed")) {
@@ -60,6 +66,12 @@ public final class CrdOutcomeRules {
         }
         if (paNeeded.is("performpa")) {
             return CrdOutcome.PERFORMER_AUTH;
+        }
+        if (infoNeeded.stream().anyMatch(value -> value.code() != null)) {
+            return CrdOutcome.INFORMATION_NEEDED;
+        }
+        if (documentation) {
+            return CrdOutcome.DOCUMENTATION_REQUIRED;
         }
         if (paNeeded.is("conditional") || covered.is("conditional") || docNeeded.is("conditional")) {
             return CrdOutcome.CONDITIONAL;

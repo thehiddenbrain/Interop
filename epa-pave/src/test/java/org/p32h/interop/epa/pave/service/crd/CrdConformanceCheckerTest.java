@@ -25,7 +25,28 @@ class CrdConformanceCheckerTest {
     private final CrdResponseMapper mapper = new CrdResponseMapper();
     private final FakeCodeList codeList = new FakeCodeList();
 
+    /**
+     * A system action whose coverage information carries these sub-extensions and, where they are
+     * not among them, the parts CRD 2.0.1 requires of every answer (coverage, covered, date and
+     * coverage-assertion-id) and the satisfied-pa-id that crd-ci-q5 requires beside satisfied. So a
+     * test about one thing is not also about a missing required part.
+     */
     private static String action(int serviceRequest, String subExtensions) {
+        StringBuilder all = new StringBuilder(subExtensions);
+        if (!subExtensions.contains("\"url\":\"covered\"")) {
+            all.append(",").append(code("covered", "covered"));
+        }
+        if (subExtensions.contains("\"satisfied\"") && !subExtensions.contains("satisfied-pa-id")) {
+            all.append(",{\"url\":\"satisfied-pa-id\",\"valueString\":\"PA-PLACEHOLDER-0001\"}");
+        }
+        all.append(",{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}}")
+                .append(",{\"url\":\"date\",\"valueDate\":\"2026-01-15\"}")
+                .append(",{\"url\":\"coverage-assertion-id\",\"valueString\":\"assertion-").append(serviceRequest).append("\"}");
+        return bareAction(serviceRequest, all.toString());
+    }
+
+    /** A system action whose coverage information carries exactly these sub-extensions and nothing else. */
+    private static String bareAction(int serviceRequest, String subExtensions) {
         return "{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-" + serviceRequest
                 + "\",\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[" + subExtensions + "]}]}}";
     }
@@ -90,20 +111,28 @@ class CrdConformanceCheckerTest {
     void aCodeOutsideItsValueSetIsReportedAsNonConformantWithTheValueSet() {
         List<Finding> findings = checkResponse(200, response(action(1, code("covered", "maybe") + "," + code("pa-needed", "auth-needed") + ","
                 + code("doc-purpose", "withfax") + "," + code("info-needed", "mood"))), "95810");
+        // Three codes outside their value sets, and crd-ci-q3, since info-needed is sent and nothing is conditional.
         assertThat(kinds(findings)).containsExactly(FindingKind.CODE_OUTSIDE_VALUE_SET, FindingKind.CODE_OUTSIDE_VALUE_SET,
-                FindingKind.CODE_OUTSIDE_VALUE_SET);
-        assertThat(findings.get(0).title()).isEqualTo("Non-conformant code in covered");
-        assertThat(findings.get(0).detail()).contains("\"maybe\"").contains("covered, not-covered, conditional");
+                FindingKind.CODE_OUTSIDE_VALUE_SET, FindingKind.REQUIRED_ELEMENT_MISSING);
+        assertThat(findings.get(0).title()).isEqualTo("covered=maybe is not in the CRD 2.0.1 value set");
+        assertThat(findings.get(0).detail()).isEqualTo("The CRD 2.0.1 value set for covered is: covered, not-covered, conditional. Codes are "
+                + "compared exactly, letter case included. No version of the guide this tool can read (CRD 2.0.1 and CRD 2.2.0 ballot) "
+                + "defines maybe, so it is shown as unrecognised.");
         assertThat(findings.get(0).serviceSays()).isEqualTo("The service returned covered=maybe.");
         // The finding is about the answer for the code that was asked, and is named by that code.
         assertThat(findings.get(0).subject()).isEqualTo("95810");
     }
 
     @Test
-    void coverageInformationWithNoAnswerSaysSo() {
-        List<Finding> findings = checkResponse(200, response(action(1, "{\"url\":\"date\",\"valueDate\":\"2026-01-15\"}")), "95810");
-        assertThat(kinds(findings)).containsExactly(FindingKind.REQUIRED_ELEMENT_MISSING);
-        assertThat(findings.get(0).detail()).contains("carries neither covered nor pa-needed");
+    void coverageInformationWithNoAnswerSaysWhichRequiredPartsOfCrd201AreMissing() {
+        List<Finding> findings = checkResponse(200, response(bareAction(1, "{\"url\":\"date\",\"valueDate\":\"2026-01-15\"}")), "95810");
+        assertThat(findings).extracting(Finding::title).containsExactly(
+                "CRD 2.0.1 requires coverage on coverage information",
+                "CRD 2.0.1 requires covered on coverage information",
+                "CRD 2.0.1 requires coverage-assertion-id on coverage information");
+        assertThat(kinds(findings)).containsOnly(FindingKind.REQUIRED_ELEMENT_MISSING);
+        assertThat(findings.get(1).detail()).isEqualTo("The coverage information at systemActions[0].resource.extension[0] does not "
+                + "carry covered. CRD 2.0.1 ext-coverage-information requires it once (1..1).");
     }
 
     @Test
@@ -113,16 +142,19 @@ class CrdConformanceCheckerTest {
         assertThat(findings).singleElement().satisfies(f -> {
             assertThat(f.kind()).isEqualTo(FindingKind.REQUIRED_ELEMENT_MISSING);
             assertThat(f.title()).isEqualTo("pa-needed was sent with no value");
-            assertThat(f.detail()).contains("its value is null");
+            assertThat(f.detail()).isEqualTo("The sub-extension pa-needed is present but its value is null. CRD 2.0.1 requires a value on it "
+                    + "(value[x] 1..1). It is not treated as an answer.");
         });
     }
 
     @Test
-    void aSuccessfulResponseWithNoCoverageInformationIsAFindingAndAFaultIsNot() {
+    void aSuccessfulResponseWithNoCoverageInformationIsNotStatedAndAFaultIsNot() {
         codeList.row("95810", AuthRequirement.REQUIRED, null, null);
         assertThat(check(200, "{\"cards\":[]}", null, "95810")).singleElement().satisfies(f -> {
-            assertThat(f.kind()).isEqualTo(FindingKind.REQUIRED_ELEMENT_MISSING);
+            // CRD 2.0.1 does not require coverage information, so its absence is information and claims no requirement.
+            assertThat(f.kind()).isEqualTo(FindingKind.NOT_STATED);
             assertThat(f.title()).isEqualTo("No coverage information in the response");
+            assertThat(f.detail()).contains("CRD 2.0.1 does not require one").doesNotContain("required");
         });
         // A fault is already the headline. It is not also reported as a missing element, and the
         // code list is not said to be uncompared when there was never an answer to compare.
@@ -161,7 +193,8 @@ class CrdConformanceCheckerTest {
             assertThat(f.codeListSays()).isEqualTo("The code list says prior authorization is not required (rows for Medicare).");
             assertThat(f.serviceSays()).isEqualTo("The service answered pa-needed=auth-needed.");
         });
-        // "Satisfied" means one was needed and exists, which agrees with "required".
+        // "Satisfied" means prior authorization would typically be needed and its conditions were already evaluated,
+        // which agrees with a list that says the code requires it.
         assertThat(check(200, response(action(1, code("pa-needed", "satisfied"))), "Medicare", "95810")).isEmpty();
         assertThat(kinds(check(200, response(action(1, code("pa-needed", "satisfied"))), "Medicare", "70553")))
                 .containsExactly(FindingKind.CODE_LIST_DISAGREES_ON_AUTH);
@@ -365,7 +398,7 @@ class CrdConformanceCheckerTest {
         // A fault is the headline, and a response with no coverage information has its own finding.
         // That is the rule for a real list too: the code list is spoken of only beside a determination.
         assertThat(checkOn(LIVE, 500, "{\"resourceType\":\"OperationOutcome\",\"issue\":[]}", null, "95810")).isEmpty();
-        assertThat(kinds(checkOn(LIVE, 200, "{\"cards\":[]}", null, "95810"))).containsExactly(FindingKind.REQUIRED_ELEMENT_MISSING);
+        assertThat(kinds(checkOn(LIVE, 200, "{\"cards\":[]}", null, "95810"))).containsExactly(FindingKind.NOT_STATED);
         VendorExchange timeout = TestExchanges.timeout(EpaOperation.CRD_ORDER_SIGN);
         assertThat(new CrdConformanceChecker(codeList, LIVE).check(mapper.read(timeout, orders("95810")), timeout, null, null)).isEmpty();
     }
@@ -482,5 +515,158 @@ class CrdConformanceCheckerTest {
         }
         // Still asked only once for each check, however many codes there were.
         assertThat(codeList.selfChecks()).isEqualTo(2);
+    }
+
+    // ---- CRD 2.0.1: the value sets, as data for each version ----
+
+    @Test
+    void everyCodeOfTheCrd201ValueSetsIsConformantIncludingContractWindowRetainDocAndOth() {
+        // CRD201-01 and 02: contract-window, retain-doc and OTH are 2.0.1 codes and raise nothing.
+        assertThat(checkResponse(200, response(action(1, code("covered", "conditional") + "," + code("pa-needed", "auth-needed") + ","
+                + code("doc-needed", "both") + "," + code("doc-purpose", "withpa") + "," + code("doc-purpose", "retain-doc") + ","
+                + code("doc-purpose", "OTH") + "," + code("info-needed", "contract-window") + "," + code("info-needed", "OTH") + ","
+                + code("info-needed", "timeframe"))), "95810")).isEmpty();
+    }
+
+    @Test
+    void lowerCaseOthAndRetainAreInNoVersionAndTheCrd201ListIsQuotedAsThe201List() {
+        List<Finding> findings = checkResponse(200, response(action(1, code("pa-needed", "auth-needed") + "," + code("doc-needed", "clinical")
+                + "," + code("doc-purpose", "retain") + "," + code("info-needed", "oth") + "," + code("covered", "conditional"))), "95810");
+        assertThat(kinds(findings)).containsExactly(FindingKind.CODE_OUTSIDE_VALUE_SET, FindingKind.CODE_OUTSIDE_VALUE_SET);
+        assertThat(findings.get(0).title()).isEqualTo("doc-purpose=retain is not in the CRD 2.0.1 value set");
+        assertThat(findings.get(0).detail()).startsWith("The CRD 2.0.1 value set for doc-purpose is: withpa, withclaim, withorder, "
+                + "retain-doc, OTH.");
+        assertThat(findings.get(1).title()).isEqualTo("info-needed=oth is not in the CRD 2.0.1 value set");
+        assertThat(findings.get(1).detail()).startsWith("The CRD 2.0.1 value set for info-needed is: performer, location, timeframe, "
+                + "contract-window, OTH.");
+    }
+
+    @Test
+    void aLaterVersionsCodeIsNamedWithItsVersionAndNotCalledWrong() {
+        // CRD201-09: doc-needed=patient and info-needed=detail-code are 2.2.0 ballot codes.
+        List<Finding> findings = checkResponse(200, response(action(1, code("covered", "conditional") + "," + code("pa-needed", "auth-needed")
+                + "," + code("doc-needed", "patient") + "," + code("info-needed", "detail-code"))), "95810");
+        assertThat(kinds(findings)).containsExactly(FindingKind.OTHER_VERSION_CONTENT, FindingKind.OTHER_VERSION_CONTENT);
+        assertThat(findings.get(0).title()).isEqualTo("doc-needed=patient is a CRD 2.2.0 ballot code, not a CRD 2.0.1 code");
+        assertThat(findings.get(0).detail()).isEqualTo("This tool judges by CRD 2.0.1, whose value set for doc-needed is: clinical, admin, "
+                + "both, conditional. The code patient is defined in a later version, CRD 2.2.0 ballot, where it means: documentation from "
+                + "the patient or their representative is needed. It is read with that meaning and not called wrong, because which "
+                + "version the service follows is not known.");
+        assertThat(findings).allSatisfy(f -> assertThat(f.title() + f.detail()).doesNotContain("Non-conformant").doesNotContain("not conformant"));
+        assertThat(findings.get(1).title()).isEqualTo("info-needed=detail-code is a CRD 2.2.0 ballot code, not a CRD 2.0.1 code");
+    }
+
+    @Test
+    void noDocIsReadAsNoDocumentationAndReportedWithWhatCrd201SaysInstead() {
+        // CRD201-10.
+        List<Finding> findings = checkResponse(200, response(action(1, code("pa-needed", "no-auth") + "," + code("doc-needed", "no-doc"))),
+                "95810");
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.kind()).isEqualTo(FindingKind.CODE_OUTSIDE_VALUE_SET);
+            assertThat(f.title()).isEqualTo("doc-needed=no-doc is not in the CRD 2.0.1 value set");
+            assertThat(f.detail()).isEqualTo("The CRD 2.0.1 value set for doc-needed (AdditionalDocumentation) is: clinical, admin, both, "
+                    + "conditional, and CRD 2.0.1 says that no documentation is needed by leaving doc-needed out. The 2.0.1 package's own "
+                    + "rule crd-ci-q1 does mention no-doc, so a service may well send it. This tool reads it as no documentation needed.");
+        });
+    }
+
+    // ---- CRD 2.0.1: the other rules of the extension ----
+
+    @Test
+    void eachInvariantOfCrd201ThatIsBrokenIsAFindingNamingItsKey() {
+        // crd-ci-q1: a questionnaire with no doc-needed.
+        List<Finding> q1 = checkResponse(200, response(action(1, code("pa-needed", "auth-needed")
+                + ",{\"url\":\"questionnaire\",\"valueCanonical\":\"https://example.org/p32h-placeholder/Questionnaire/q\"}")), "95810");
+        assertThat(q1).singleElement().satisfies(f -> {
+            assertThat(f.kind()).isEqualTo(FindingKind.REQUIRED_ELEMENT_MISSING);
+            assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q1: a questionnaire or a response is named without doc-needed");
+        });
+        // crd-ci-q1 again: a response beside doc-needed=no-doc.
+        assertThat(checkResponse(200, response(action(1, code("pa-needed", "no-auth") + "," + code("doc-needed", "no-doc")
+                + ",{\"url\":\"response\",\"valueReference\":{\"reference\":\"QuestionnaireResponse/qr-1\"}}")), "95810"))
+                .extracting(Finding::title).contains("CRD 2.0.1 crd-ci-q1: a questionnaire or a response is named without doc-needed");
+        // crd-ci-q3: info-needed with nothing conditional.
+        assertThat(checkResponse(200, response(action(1, code("pa-needed", "auth-needed") + "," + code("info-needed", "timeframe"))), "95810"))
+                .singleElement().satisfies(f -> assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q3: info-needed is sent and nothing is conditional"));
+        // crd-ci-q5, both ways.
+        assertThat(checkResponse(200, response(bareAction(1, code("covered", "covered") + "," + code("pa-needed", "satisfied")
+                + ",{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}},{\"url\":\"date\",\"valueDate\":"
+                + "\"2026-01-15\"},{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}")), "95810"))
+                .singleElement().satisfies(f -> assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q5: pa-needed is satisfied and satisfied-pa-id is missing"));
+        assertThat(checkResponse(200, response(action(1, code("pa-needed", "auth-needed")
+                + ",{\"url\":\"satisfied-pa-id\",\"valueString\":\"PA-PLACEHOLDER-0002\"}")), "95810"))
+                .singleElement().satisfies(f -> assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q5: satisfied-pa-id is sent and pa-needed is not satisfied"));
+    }
+
+    @Test
+    void crdCiQ2AndQ4AreNotEnforcedAndTheResultSaysWhy() {
+        // The text of q2 forbids pa-needed beside not-covered; its expression would require it. Neither is enforced.
+        assertThat(checkResponse(200, response(action(1, code("covered", "not-covered") + "," + code("pa-needed", "auth-needed"))), "95810"))
+                .isEmpty();
+        assertThat(checkResponse(200, response(action(1, code("covered", "covered"))), "95810")).isEmpty();
+        assertThat(CrdConformanceChecker.SCOPE.version()).isEqualTo("CRD 2.0.1");
+        assertThat(CrdConformanceChecker.SCOPE.notApplied()).anySatisfy(line -> assertThat(line).startsWith("crd-ci-q2 is not applied"))
+                .anySatisfy(line -> assertThat(line).startsWith("crd-ci-q4 is not applied"));
+        assertThat(CrdConformanceChecker.SCOPE.applied()).anySatisfy(line -> assertThat(line).startsWith("crd-ci-q1"))
+                .anySatisfy(line -> assertThat(line).startsWith("crd-ci-q3")).anySatisfy(line -> assertThat(line).startsWith("crd-ci-q5"));
+    }
+
+    @Test
+    void aSubExtensionSentTwiceWhereCrd201AllowsOneIsAFindingAndTheFirstIsTheAnswer() {
+        List<Finding> findings = checkResponse(200, response(action(1, code("pa-needed", "auth-needed") + "," + code("pa-needed", "no-auth"))),
+                "95810");
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.title()).isEqualTo("CRD 2.0.1 allows pa-needed once, and it was sent more than once");
+            assertThat(f.detail()).contains("The first was read as the answer");
+        });
+        // A second date is not allowed to replace the first in silence either.
+        assertThat(checkResponse(200, response(action(1, code("pa-needed", "auth-needed") + ",{\"url\":\"date\",\"valueDate\":\"2027-01-01\"}")),
+                "95810")).extracting(Finding::title).containsExactly("CRD 2.0.1 allows date once, and it was sent more than once");
+    }
+
+    @Test
+    void aDetailNeedsACodeAndAValue() {
+        List<Finding> findings = checkResponse(200, response(action(1, code("pa-needed", "auth-needed")
+                + ",{\"url\":\"detail\",\"extension\":[{\"url\":\"qualification\",\"valueString\":\"Per calendar year\"}]}")), "95810");
+        assertThat(findings).extracting(Finding::title).containsExactly("CRD 2.0.1 requires detail[0].code on coverage information",
+                "CRD 2.0.1 requires detail[0].value on coverage information");
+    }
+
+    @Test
+    void coverageInformationOnACardIsReadAndSaidNotToBeAPlaceCrd201Allows() {
+        // CRD201-16.
+        String body = "{\"cards\":[{\"summary\":\"s\",\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[" + code("covered", "covered")
+                + "," + code("pa-needed", "no-auth") + ",{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}},"
+                + "{\"url\":\"date\",\"valueDate\":\"2026-01-15\"},{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}]}]}]}";
+        assertThat(checkResponse(200, body, "95810")).singleElement().satisfies(f -> {
+            assertThat(f.title()).isEqualTo("Coverage information sits on a card, which CRD 2.0.1 does not allow");
+            assertThat(f.detail()).contains("QuestionnaireResponse, Encounter, NutritionOrder, CommunicationRequest, DeviceRequest, "
+                    + "ServiceRequest and MedicationRequest").contains("The answer was still read");
+        });
+        // On a resource inside a card suggestion it is on a resource, which 2.0.1 allows.
+        String onASuggestion = "{\"cards\":[{\"summary\":\"s\",\"suggestions\":[{\"label\":\"l\",\"actions\":[" + action(1, code("pa-needed",
+                "no-auth")) + "]}]}]}";
+        assertThat(checkResponse(200, onASuggestion, "95810")).isEmpty();
+    }
+
+    @Test
+    void elementsAndReasonCodesOfALaterVersionAreNamedWithThatVersion() {
+        List<Finding> findings = checkResponse(200, response(action(1, code("covered", "not-covered")
+                + ",{\"url\":\"reason\",\"valueCodeableConcept\":{\"coding\":[{\"system\":\"http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp\","
+                + "\"code\":\"no-active-coverage\"}]}},{\"url\":\"expiry-date\",\"valueDate\":\"2026-12-31\"}")), "95810");
+        assertThat(kinds(findings)).containsOnly(FindingKind.OTHER_VERSION_CONTENT);
+        assertThat(findings).extracting(Finding::title).containsExactly("expiry-date is defined in CRD 2.2.0 ballot, not in CRD 2.0.1",
+                "The reason no-active-coverage is a CRD 2.2.0 ballot code");
+    }
+
+    @Test
+    void aVendorIsComparedOnlyWhenTheAnswerLeavesASubmissionToRoute() {
+        // CRD201-21: satisfied means prior authorization can be bypassed, and not-covered has nothing to submit.
+        codeList.row("95810", AuthRequirement.REQUIRED, "Medicare", "eviCore");
+        assertThat(check(200, response(action(1, code("pa-needed", "satisfied"))), "Medicare", "95810")).isEmpty();
+        assertThat(kinds(check(200, response(action(1, code("pa-needed", "performpa"))), "Medicare", "95810")))
+                .containsExactly(FindingKind.CODE_LIST_DISAGREES_ON_VENDOR);
+        assertThat(kinds(check(200, response(action(1, code("pa-needed", "auth-needed"))), "Medicare", "95810")))
+                .containsExactly(FindingKind.CODE_LIST_DISAGREES_ON_VENDOR);
     }
 }

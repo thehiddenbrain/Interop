@@ -62,9 +62,9 @@ class SuiteServiceTest {
         assertThat(run.startedAt()).isNotNull();
         assertThat(run.finishedAt()).isNotNull();
         // Every case here has something for a person to look at. The test code list holds no row for 95810,
-        // so nothing was compared, and the empty answer is missing what the guide requires.
+        // so nothing was compared, and the empty answer states no coverage information, which CRD 2.0.1 does not require.
         assertThat(run.counts()).isEqualTo(new SuiteCounts(3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0));
-        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_NOT_COMPARED", 2), Map.entry("REQUIRED_ELEMENT_MISSING", 1));
+        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_NOT_COMPARED", 2), Map.entry("NOT_STATED", 1));
 
         assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("TC-1", "TC-2", "TC-3");
         SuiteCaseResult passed = run.results().get(0);

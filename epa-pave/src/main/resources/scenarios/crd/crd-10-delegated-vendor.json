@@ -13,8 +13,7 @@
     "httpStatus": 200,
     "codes": {
       "covered": "covered",
-      "pa-needed": "auth-needed",
-      "doc-needed": "no-doc"
+      "pa-needed": "auth-needed"
     },
     "delegatedVendor": "Evolent"
   },
@@ -57,10 +56,6 @@
                 {
                   "url": "pa-needed",
                   "valueCode": "auth-needed"
-                },
-                {
-                  "url": "doc-needed",
-                  "valueCode": "no-doc"
                 },
                 {
                   "url": "detail",
