@@ -228,6 +228,20 @@ async function poll(announceSame, options) {
             }
         }
         app.chain.refresh();
+    } else if (before && JSON.stringify(before.writeAccess) !== JSON.stringify(answer.body.writeAccess)) {
+        // Writes were unlocked or locked again with no change of the configuration. A lock from any
+        // browser ends the unlock of every session and leaves the epoch where it was, so without this
+        // a panel drawn while unlocked would go on saying so beside a banner that says locked.
+        if (!quiet && relocked(before, answer.body)) {
+            notice('Writes to production were locked again. This browser did not lock them, so it may have been done from another '
+                + 'browser: locking from any browser ends the unlock of every session. Every tab now shows them as locked. '
+                + 'Unlock them again on the Config tab if they are still needed.');
+        }
+        for (const entry of state.tabs.values()) {
+            if (entry.built && entry.tab.onWriteAccessChange) {
+                entry.tab.onWriteAccessChange(answer.body, before);
+            }
+        }
     } else if (announceSame && before && !quiet) {
         // Asked for after a refusal. Saying nothing would leave the tester wondering whether the screen is current.
         notice('The screen shows the configuration now in force. ' + environmentSentence(answer.body), {plain: true});

@@ -874,6 +874,11 @@ function onConfigChange() {
     loadVocabulary();
 }
 
+/** Writes were unlocked or locked again with no change of the configuration: only the write box says so. */
+function onWriteAccessChange() {
+    drawWrites();
+}
+
 /* ---------- small helpers ---------- */
 
 function first(values) {
@@ -899,5 +904,5 @@ function copyPresent(target, values) {
     }
 }
 
-export default {id: 'pas', label: 'PAS', mount, onShow, onConfigChange};
+export default {id: 'pas', label: 'PAS', mount, onShow, onConfigChange, onWriteAccessChange};
 

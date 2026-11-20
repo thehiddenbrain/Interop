@@ -292,4 +292,10 @@ function onConfigChange() {
     }
 }
 
-export default {id: 'history', label: 'History', mount, onShow, onConfigChange, address};
+function onWriteAccessChange() {
+    if (runs) {
+        runs.writeAccessChanged();
+    }
+}
+
+export default {id: 'history', label: 'History', mount, onShow, onConfigChange, onWriteAccessChange, address};

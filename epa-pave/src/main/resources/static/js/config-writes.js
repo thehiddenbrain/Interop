@@ -66,7 +66,7 @@ export function createWritesPanel(context) {
         }
         await context.changed();
         if (answer.kind === 'ok') {
-            context.announce('Writes to production are locked again.');
+            context.announce('Writes to production are locked again, for every browser session.');
             // The button has gone. The keyboard lands where an unlock would start again.
             if (node.contains(typed)) {
                 typed.focus();
@@ -125,7 +125,10 @@ export function createWritesPanel(context) {
                     : 'A PAS submit sent now creates a real prior authorization request against a real member. ',
                 'The unlock is held for this browser session alone, and other browsers still read as locked. '
                     + 'It ends with any change to the configuration, made from any browser: a switch of environment, an upload of an '
-                    + 'environment or a collection. A restart of the tool or the button below ends it too.'),
+                    + 'environment or a collection. A restart of the tool ends it too.'),
+                el('p', null, el('strong', null, 'Locking ends the unlock of every session. '),
+                    'The button below, pressed in this browser or in any other, locks writes for every browser session at once, '
+                    + 'and each one that wants to write again has to unlock again.'),
                 whatIsAWrite(),
                 el('div', {class: 'button-row'},
                     lockButton()),
@@ -146,7 +149,8 @@ export function createWritesPanel(context) {
             whatIsAWrite(),
             el('p', null, 'To send a write to ', el('strong', null, environment.name),
                 ' from this browser session, type its name below. The unlock is never remembered: it ends with the session, '
-                + 'with a restart of the tool, and with any change to the configuration from any browser, an upload included.'),
+                + 'with a restart of the tool, and with any change to the configuration from any browser, an upload included. '
+                + 'A lock pressed in any browser ends it as well, for every session at once.'),
             form,
             outcome));
     }
