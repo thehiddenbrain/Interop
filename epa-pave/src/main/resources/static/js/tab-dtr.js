@@ -13,7 +13,7 @@
 import * as api from './api.js';
 import {el, fill, clear, button, code, table, facts, copyButton} from './dom.js';
 import {textField, textArea, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
-import {createWorkbench, requestPreviewPanel, nextStepControl, sentinelCell} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, nextStepControl, sentinelCell, scenarioLabel, scenarioListNotes, scenarioAbout} from './workbench.js';
 import {sameCase} from './handover.js';
 import {dtrDetail} from './dtr-detail.js';
 import {createSession, hasQuestionnaires} from './dtr-questionnaire.js';
@@ -158,7 +158,7 @@ function drawScenarioSelector(list) {
     field.select.setAttribute('aria-describedby', 'dtr-scenario-about');
     const describe = () => {
         const chosen = list.scenarios.find(scenario => scenario.id === field.value());
-        fill(description, chosen ? chosen.description : 'With none chosen here, the member ID picks the scenario.');
+        fill(description, chosen ? scenarioAbout(chosen) : 'With none chosen here, the member ID picks the scenario.');
     };
     field.select.addEventListener('change', describe);
     describe();
@@ -521,10 +521,11 @@ function drawEmptyState() {
         parts.push(el('p', null, own
             ? 'On the mock profile a sentinel member ID inside your body selects the scenario that answers. These are the member IDs that do:'
             : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
+        parts.push(scenarioListNotes(list));
         parts.push(table([{text: '', class: 'col-5'}, {text: 'Scenario', class: 'col-45'}, {text: 'Member ID', class: 'col-25'},
             {text: '', class: 'col-25'}], list.scenarios.map(scenario => [
             {class: 'num', node: String(scenario.number)},
-            scenario.label,
+            scenarioLabel(scenario),
             sentinelCell(scenario),
             !scenario.sentinelMemberId ? null
                 : own ? copyButton('Copy this member ID', () => scenario.sentinelMemberId)

@@ -610,10 +610,39 @@ export function requestPreviewPanel(preview, close) {
 }
 
 /**
+ * The label of a mock scenario's row on an empty tab, with the server's notes about its file
+ * beneath it: that it is the default, or that what it claims does not fit what it answers.
+ */
+export function scenarioLabel(scenario) {
+    const notes = scenario.notes || [];
+    return notes.length === 0 ? scenario.label
+        : [scenario.label, el('ul', {class: 'note-list small scenario-notes'}, notes.map(note => el('li', null, note)))];
+}
+
+/**
+ * What the server says about the scenario files as a whole that no scenario's own notes already
+ * say, such as a file that was not read, set above the table of scenarios. Null when there is none.
+ */
+export function scenarioListNotes(list) {
+    const said = new Set((list.scenarios || []).flatMap(scenario => scenario.notes || []));
+    const rest = (list.notes || []).filter(note => !said.has(note));
+    return rest.length === 0 ? null : el('div', {class: 'scenario-list-notes'},
+        el('p', {class: 'sub-heading'}, 'About the scenario files'),
+        el('ul', {class: 'note-list'}, rest.map(note => el('li', null, note))));
+}
+
+/**
+ * A scenario's description with its notes after it, for the hint beneath the Mock scenario field.
+ */
+export function scenarioAbout(scenario) {
+    return [scenario.description, ...(scenario.notes || []).map(note => [' ', el('strong', null, note)])];
+}
+
+/**
  * The member ID cell of a mock scenario's row on an empty tab: the first member ID that selects
  * it, then every other identifier the server lists for it (sentinelMemberIds, sentinelNpis and,
- * on DTR, the CRD member IDs it also answers for), so a tester can reach it every way it can be
- * reached. Each list is the server's; none is worked out here.
+ * on DTR and PAS, the CRD member IDs it also answers for), so a tester can reach it every way it
+ * can be reached. Each list is the server's; none is worked out here.
  */
 export function sentinelCell(scenario) {
     const first = scenario.sentinelMemberId || null;
@@ -625,6 +654,6 @@ export function sentinelCell(scenario) {
         first ? code(first) : el('span', {class: 'presence presence--none'}, 'none'),
         others.length > 0 ? el('div', {class: 'small'}, 'or ', list(others)) : null,
         npis.length > 0 ? el('div', {class: 'small'}, 'or the NPI ', list(npis)) : null,
-        fromCrd.length > 0 ? el('div', {class: 'small'}, 'and the CRD member ', fromCrd.length === 1 ? 'ID ' : 'IDs ', list(fromCrd), ', for a journey begun at CRD') : null
+        fromCrd.length > 0 ? el('div', {class: 'small'}, 'or the CRD member ', fromCrd.length === 1 ? 'ID ' : 'IDs ', list(fromCrd), ', for a journey begun at CRD') : null
     ];
 }

@@ -24,11 +24,11 @@ import {runLink} from './history-common.js';
 import {idForms} from './lookup.js';
 
 // What the server words and the frame keeps current: the label of each operation, and whether the
-// code list in use is the bundled placeholder. Set once by app.js; until then a result shows the
+// code list in use is a placeholder, and where it was read from. Set once by app.js; until then a result shows the
 // operation by its name and says nothing about the list.
-let serverWords = {operationLabel: () => null, codeListIsPlaceholder: () => null};
+let serverWords = {operationLabel: () => null, codeListIsPlaceholder: () => null, codeListSource: () => null};
 
-/** Called by the frame at start-up. words: {operationLabel(name), codeListIsPlaceholder()}. */
+/** Called by the frame at start-up. words: {operationLabel(name), codeListIsPlaceholder(), codeListSource()}. */
 export function useServerWords(words) {
     serverWords = words;
 }
@@ -300,8 +300,12 @@ function finding(item) {
         item.groupLabel ? el('p', {class: 'finding__about'}, item.groupLabel) : null,
         el('p', {class: 'finding__title'}, item.title),
         item.detail ? el('p', null, item.detail) : null);
-    // A position taken from the bundled placeholder list is not P32H's position, and says so on its own label.
-    const listWho = serverWords.codeListIsPlaceholder() === true ? 'The code list (the bundled placeholder, not a P32H list)' : 'The code list';
+    // A position taken from a placeholder list is not P32H's position, and says so on its own label. A placeholder can be the
+    // list that ships with the tool, the sample or a tester's own list marked as synthetic, so the label names where it was read
+    // from, as the self-check does, and does not say which of them it is.
+    const source = serverWords.codeListSource();
+    const listWho = serverWords.codeListIsPlaceholder() === true
+        ? ['The code list (a placeholder, not a P32H list', source ? [', read from ', code(source)] : null, ')'] : 'The code list';
     if (item.codeListSays && item.serviceSays) {
         // A disagreement is two positions. Either side can be the one that is wrong, so the two
         // are set side by side with the same weight and neither is marked.

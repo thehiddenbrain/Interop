@@ -14,7 +14,7 @@
 import * as api from './api.js';
 import {el, fill, clear, button, code, table, copyButton} from './dom.js';
 import {textField, selectField, formProblem, markFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
-import {createWorkbench, requestPreviewPanel, sentinelCell} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, sentinelCell, scenarioLabel, scenarioListNotes, scenarioAbout} from './workbench.js';
 import {detailFor} from './pas-detail.js';
 import {createExpectation} from './pas-expectation.js';
 import {createAttachments} from './pas-attachments.js';
@@ -536,7 +536,7 @@ function drawScenarioSelector() {
     field.select.setAttribute('aria-describedby', 'pas-scenario-about');
     const describe = () => {
         const chosen = scenarios.find(item => item.id === field.value());
-        fill(about, chosen ? chosen.description : mode === 'subscriptions'
+        fill(about, chosen ? scenarioAbout(chosen) : mode === 'subscriptions'
             ? 'With none chosen, the mock answers from its default scenario for subscription calls.'
             : 'With none chosen here, the member ID picks the scenario.');
     };
@@ -849,10 +849,11 @@ function drawEmptyState() {
     if (mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0) {
         parts.push(el('p', null, own ? 'On the mock profile a sentinel member ID inside your body selects the scenario that answers. These are the member IDs that do:'
             : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
+        parts.push(scenarioListNotes(list));
         parts.push(table([{text: '', class: 'col-5'}, {text: 'Scenario', class: 'col-45'}, {text: 'Member ID', class: 'col-25'}, {text: '', class: 'col-25'}],
             list.scenarios.map(item => [
                 {class: 'num', node: String(item.number)},
-                item.label,
+                scenarioLabel(item),
                 sentinelCell(item),
                 !item.sentinelMemberId ? null
                     : own ? copyButton('Copy this member ID', () => item.sentinelMemberId)
