@@ -12,7 +12,7 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, table, facts, copyButton} from './dom.js';
-import {textField, textArea, selectField, setOptions} from './forms.js';
+import {textField, textArea, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel, nextStepControl, sentinelCell} from './workbench.js';
 import {sameCase} from './handover.js';
 import {dtrDetail} from './dtr-detail.js';
@@ -58,8 +58,8 @@ function mount(panel, application) {
     controls.expected = selectField({label: 'Expected outcome of the next step sent (optional)', field: 'expected'});
     controls.assertions = el('div', {class: 'assertions'});
     controls.expectedText = el('p', {class: 'small'});
-    controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
-    controls.note = textField({label: 'Note', field: 'note', wide: true});
+    controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials', hint: LEDGER_TEXT_HINT});
+    controls.note = textField({label: 'Note', field: 'note', wide: true, hint: LEDGER_TEXT_HINT});
     controls.send = el('button', {type: 'submit', class: 'button button--primary'}, 'Fetch the questionnaire package');
     controls.preview = button('Show the request', showPackagePreview);
     controls.restart = el('p', {class: 'small dtr-restart', hidden: true},
@@ -232,7 +232,7 @@ function addAssertionRow() {
         adder.before(row);
     } else {
         controls.assertions.append(
-            el('p', {class: 'field__hint'}, 'Each asserts one element of the step, such as questionnaire-kind = static. Every one must hold for the run to pass.'),
+            el('p', {class: 'field__hint'}, 'Each asserts one element of the step, such as questionnaire-kind = static. Every one must hold for the run to pass. ' + LEDGER_TEXT_HINT),
             row,
             el('div', {class: 'assertions__add'}, button('Add an assertion', () => addAssertionRow(), {class: 'button--text'})));
     }

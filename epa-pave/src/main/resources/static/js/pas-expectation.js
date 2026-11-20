@@ -6,7 +6,7 @@
 // text; the server refuses an expectation it cannot read and says which part.
 
 import {el, fill, button, code} from './dom.js';
-import {selectField, setOptions} from './forms.js';
+import {selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
 
 let sequence = 0;
 
@@ -17,7 +17,7 @@ export function createExpectation() {
     const sentAs = el('p', {class: 'small'});
     const adder = el('div', {class: 'assertions__add'}, button('Add an assertion', () => addRow(), {class: 'button--text'}));
     const hint = el('p', {class: 'field__hint'},
-        'Each asserts one standard code, such as review-action = A3 for one procedure code. Every one must hold for the run to pass.');
+        'Each asserts one standard code, such as review-action = A3 for one procedure code. Every one must hold for the run to pass. ' + LEDGER_TEXT_HINT);
     const fold = el('details', {class: 'fold'}, el('summary', null, 'Assert standard codes as well'), el('div', {class: 'assertions'}, hint, rows, adder));
     const node = el('div', {class: 'pas-expectation'}, select.node, fold, sentAs);
 

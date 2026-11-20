@@ -12,7 +12,7 @@
 
 import * as calls from './config-calls.js';
 import {el, fill, clear, button, code, facts} from './dom.js';
-import {textField} from './forms.js';
+import {textField, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel} from './workbench.js';
 import {issuesTable} from './result.js';
 import {none, flag, sentences, placeholder, sourceWords, requestMarks} from './config-parts.js';
@@ -36,8 +36,8 @@ export function createRawView(context) {
     const body = el('textarea', {id: 'config-raw-body', class: 'config-raw__body', rows: 14, spellcheck: false,
         aria: {describedby: 'config-raw-body-hint'}});
     const reload = button('Load the sample body again', () => loadBody(true), {class: 'button--text'});
-    const testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
-    const note = textField({label: 'Note', field: 'note'});
+    const testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials', hint: LEDGER_TEXT_HINT});
+    const note = textField({label: 'Note', field: 'note', hint: LEDGER_TEXT_HINT});
     const sendButton = el('button', {type: 'submit', class: 'button button--primary'}, 'Send this request as written');
     const previewButton = button('Show the request', preview);
     const previewSlot = bench.slot('preview');

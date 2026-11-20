@@ -13,7 +13,7 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, table, copyButton} from './dom.js';
-import {textField, selectField, formProblem, markFieldErrors} from './forms.js';
+import {textField, selectField, formProblem, markFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel, sentinelCell} from './workbench.js';
 import {detailFor} from './pas-detail.js';
 import {createExpectation} from './pas-expectation.js';
@@ -502,8 +502,8 @@ async function subscriptionCall(kind) {
 
 function buildCommon() {
     controls.scenarioSlot = el('div', {class: 'field--wide'});
-    controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
-    controls.note = textField({label: 'Note', field: 'note', wide: true});
+    controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials', hint: LEDGER_TEXT_HINT});
+    controls.note = textField({label: 'Note', field: 'note', wide: true, hint: LEDGER_TEXT_HINT});
     controls.common = el('div', {class: 'field-grid pas-common'}, controls.scenarioSlot, controls.testerRef.node, controls.note.node);
 }
 

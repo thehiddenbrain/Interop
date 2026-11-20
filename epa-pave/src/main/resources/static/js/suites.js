@@ -8,7 +8,7 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButton, count, millis, when, whenText} from './dom.js';
-import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
+import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem, LEDGER_TEXT_HINT} from './forms.js';
 import {outcome, stamp, slowFlag} from './marks.js';
 import {errorPanel} from './result.js';
 import {runLink, suiteRunsLink} from './history-common.js';
@@ -46,7 +46,7 @@ export function createSuites(app, context) {
 
     const file = el('input', {type: 'file', id: 'suite-file', accept: '.csv,.json,text/csv,application/json'});
     const templateLink = el('a', {download: 'pave-suite-template.csv', href: '#'}, 'Download a suite file template (CSV)');
-    const testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
+    const testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials', hint: LEDGER_TEXT_HINT});
     const compare = selectField({label: 'Compare with an earlier run', field: 'compareWith', options: [{value: '', label: 'No comparison'}],
         hint: 'Each case then shows what it produced last time.'});
     const start = button('Run suite', startRun, {class: 'button--primary', disabled: true});
@@ -66,7 +66,8 @@ export function createSuites(app, context) {
         el('div', {class: 'suites__controls'},
             el('div', {class: 'field', dataset: {field: 'file'}},
                 el('label', {htmlFor: 'suite-file'}, 'Suite file, CSV or JSON'), file,
-                el('span', {class: 'small'}, templateLink)),
+                el('span', {class: 'small'}, templateLink),
+                el('span', {class: 'field__hint'}, 'The ledger keeps the expected, testerRef and note of each row as typed. Do not type member data into them.')),
             testerRef.node,
             compare.node),
         previewBox,
