@@ -45,7 +45,9 @@ class OnyxPasConventionsTest {
         assertThat(OnyxPasConventions.reviewPart("code")).isEqualTo(OnyxPasConventions.ReviewPart.CODE);
         assertThat(OnyxPasConventions.reviewPart("number")).isEqualTo(OnyxPasConventions.ReviewPart.NUMBER);
         assertThat(OnyxPasConventions.reviewPart("reasonCode")).isEqualTo(OnyxPasConventions.ReviewPart.REASON);
-        assertThat(OnyxPasConventions.reviewPart("secondSurgicalOpinionNeeded")).isEqualTo(OnyxPasConventions.ReviewPart.SECOND_SURGICAL_OPINION);
+        // PAS 2.0.1 ClaimResponse.fsh ReviewAction: "secondSurgicalOpinionFlag 0..1". The tool's earlier name is no part of any version.
+        assertThat(OnyxPasConventions.reviewPart("secondSurgicalOpinionFlag")).isEqualTo(OnyxPasConventions.ReviewPart.SECOND_SURGICAL_OPINION);
+        assertThat(OnyxPasConventions.reviewPart("secondSurgicalOpinionNeeded")).isEqualTo(OnyxPasConventions.ReviewPart.OTHER);
         // Anything else is kept and shown. It is never taken for the decision.
         assertThat(OnyxPasConventions.reviewPart("decision")).isEqualTo(OnyxPasConventions.ReviewPart.OTHER);
         assertThat(OnyxPasConventions.reviewPart("Code")).isEqualTo(OnyxPasConventions.ReviewPart.OTHER);
@@ -194,8 +196,13 @@ class OnyxPasConventionsTest {
     }
 
     @Test
-    void thePlaceholderTopicCannotBeMistakenForARealOne() {
-        assertThat(OnyxPasConventions.PLACEHOLDER_TOPIC).contains("example.org").contains("placeholder");
+    void theTopicIsTheOnePas201DefinesAndTheFilterNamesTheRequestingOrganization() {
+        // PAS 2.0.1 input/resources/SubscriptionTopic.json url and canFilterBy filterParameter.
+        assertThat(OnyxPasConventions.PAS_TOPIC).isEqualTo("http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic");
+        assertThat(OnyxPasConventions.orgIdentifierFilter("http://hl7.org/fhir/sid/us-npi", " 1234567893 "))
+                .isEqualTo("orgIdentifier=http://hl7.org/fhir/sid/us-npi|1234567893");
+        assertThat(OnyxPasConventions.orgIdentifierFilter(" ", "1234567893")).isEqualTo("orgIdentifier=1234567893");
+        assertThat(OnyxPasConventions.orgIdentifierFilter(null, "1234567893")).isEqualTo("orgIdentifier=1234567893");
     }
 
     @Test

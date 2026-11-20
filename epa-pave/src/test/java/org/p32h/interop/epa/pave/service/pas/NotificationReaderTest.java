@@ -56,6 +56,59 @@ class NotificationReaderTest {
         assertThat(reading.identifiers().authorizationRef()).isNull();
     }
 
+    // ---- PAS 2.0.1 and the 2.2.0 ballot: where the decision and the claim identifier sit in a notification ----
+
+    private static final String RESPONSE_BUNDLE_URL = "https://example.org/p32h-placeholder/fhir/Bundle/response-bundle-1";
+
+    /** A ClaimResponse in the shape of the PAS 2.0.1 examples: the claim identifier echoed in identifier, the request a reference, the number on the review action. */
+    private static String claimResponseAsIn201(String claimId, String number) {
+        return PasJson.claimResponseWithId("cr-201", "\"identifier\":[{\"system\":\"https://example.org/p32h-placeholder/trace\",\"value\":\"" + claimId
+                + "\"}]", "\"request\":{\"reference\":\"Claim/claim-1\"}", "\"outcome\":\"complete\"",
+                PasJson.items(PasJson.item(1, PasJson.action("A1", ",{\"url\":\"number\",\"valueString\":\"" + number + "\"}"))));
+    }
+
+    @Test
+    void aFullResourceNotificationCarryingTheResponseBundleIsReadThroughThatBundle() {
+        // The shape of the PAS 2.2.0 ballot example Bundle-PASSubscriptionNotification: the focus is the response
+        // Bundle, and the ClaimResponse sits inside it, not directly in the notification.
+        String responseBundle = "{\"resourceType\":\"Bundle\",\"id\":\"response-bundle-1\",\"type\":\"collection\",\"timestamp\":"
+                + "\"2026-01-16T09:29:00Z\",\"entry\":[{\"fullUrl\":\"https://example.org/p32h-placeholder/fhir/ClaimResponse/cr-201\","
+                + "\"resource\":" + claimResponseAsIn201("claim-test-1", "AUTH0001") + "}]}";
+        String body = "{\"resourceType\":\"Bundle\",\"type\":\"history\",\"entry\":[{\"resource\":"
+                + status(SUBSCRIPTION, "event-notification", event(1, RESPONSE_BUNDLE_URL)) + "},{\"fullUrl\":\"" + RESPONSE_BUNDLE_URL
+                + "\",\"resource\":" + responseBundle + "}]}";
+        NotificationReading reading = reader.read(body);
+
+        assertThat(reading.carried().claimResponses()).hasSize(1);
+        assertThat(reading.carried().claimResponses().get(0).decision()).isEqualTo(PasOutcome.APPROVED);
+        assertThat(reading.identifiers().claimId()).isEqualTo("claim-test-1");
+        assertThat(reading.identifiers().claimResponseId()).isEqualTo("cr-201");
+        assertThat(reading.identifiers().authorizationRef()).isEqualTo("AUTH0001");
+        assertThat(reading.payloadContent()).isEqualTo("full-resource");
+        // The response bundle itself is listed, with its own type and timestamp, so nothing it held is lost.
+        assertThat(reading.carried().otherResources()).anySatisfy(resource -> {
+            assertThat(resource.resourceType().value()).isEqualTo("Bundle");
+            assertThat(resource.id().value()).isEqualTo("response-bundle-1");
+            assertThat(resource.fullUrl().value()).isEqualTo(RESPONSE_BUNDLE_URL);
+            assertThat(resource.fields()).extracting(AdditionalField::value).contains("collection", "2026-01-16T09:29:00Z");
+        });
+        // Nothing under the response bundle is left over: all of it is either read or listed with it.
+        assertThat(paths(reading)).noneMatch(path -> path.startsWith("entry[1]"));
+    }
+
+    @Test
+    void theClaimIdentifierIsReadWherePas201EchoesItInClaimResponseIdentifier() {
+        // PAS 2.0.1 Examples.fsh: the Claim's identifier.value "111099" comes back as the ClaimResponse's identifier.value,
+        // and ClaimResponse.request is a reference, not an identifier.
+        NotificationReading reading = reader.read(bundle(status(SUBSCRIPTION, "event-notification", event(1, "ClaimResponse/cr-201")),
+                claimResponseAsIn201("claim-test-2", "AUTH0002")));
+        assertThat(reading.identifiers().claimId()).isEqualTo("claim-test-2");
+        // When the response also echoes the claim in request.identifier, that one is read first.
+        NotificationReading both = reader.read(bundle(status(SUBSCRIPTION, "event-notification", event(1, "ClaimResponse/cr-1")),
+                claimResponse("cr-1", "claim-test-3", "A1", "\"identifier\":[{\"value\":\"payer-own-9\"}]")));
+        assertThat(both.identifiers().claimId()).isEqualTo("claim-test-3");
+    }
+
     @Test
     void anEventNotificationThatCarriesTheResourceIsReadByTheSameRulesAsAResponseToASubmission() {
         NotificationReading reading = reader.read(bundle(status(SUBSCRIPTION, "event-notification", event(1, "ClaimResponse/cr-7")),

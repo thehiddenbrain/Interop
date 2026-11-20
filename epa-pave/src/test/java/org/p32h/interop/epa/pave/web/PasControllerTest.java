@@ -158,7 +158,8 @@ class PasControllerTest {
         // Tier 1, the grid and the wire view are there to read.
         assertThat(result.at("/detail/responseKind").asString()).isEqualTo("BUNDLE");
         assertThat(result.at("/detail/claimResponses/0/decision").asString()).isEqualTo("APPROVED");
-        assertThat(result.at("/detail/claimResponses/0/preAuthRef/value").asString()).isEqualTo("PA-PLACEHOLDER-0001");
+        // The authorization number travels where PAS 2.0.1 puts it: on the decision of the item, not in preAuthRef.
+        assertThat(result.at("/detail/claimResponses/0/decisions/0/authorizationNumbers/0").asString()).isEqualTo("PA-PLACEHOLDER-0001");
         assertThat(result.at("/detail/claimResponses/0/items/0/adjudications/0/reviewActions/0/code/code").asString()).isEqualTo("A1");
         assertThat(result.at("/determination/0/code").asString()).isEqualTo("A1");
         assertThat(result.at("/wire/request/sent").asBoolean()).isFalse();
@@ -219,6 +220,20 @@ class PasControllerTest {
         mvc.perform(post("/api/pas/submit")).andExpect(status().isUnprocessableContent());
         assertThat(ledger.records()).isEmpty();
         assertThat(gateway.intents()).isEmpty();
+    }
+
+    @Test
+    void anAttachmentMayCarryItsDocumentTypeAndCategoryAndAMisspeltPartOfEitherIsRefusedByName() throws Exception {
+        MockMvc mvc = mvc("mock");
+        // The document type and category an attachment may carry, for US Core 3.1.1 DocumentReference, are read by those names.
+        JsonNode typed = send(mvc, json(post("/api/pas/submit/preview"), submission("P32H-PAS-APPROVED", ",\"attachments\":[{\"title\":"
+                + "\"Report\",\"contentType\":\"text/plain\",\"text\":\"Placeholder report.\",\"type\":{\"code\":\"11506-3\",\"system\":"
+                + "\"http://loinc.org\"},\"category\":{\"code\":\"clinical-note\",\"system\":"
+                + "\"http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category\"}}]")), 200);
+        assertThat(typed.get("body").asString()).contains("\"11506-3\"").contains("\"clinical-note\"");
+        mvc.perform(json(post("/api/pas/submit"), submission("P32H-PAS-APPROVED", ",\"attachments\":[{\"title\":\"Report\","
+                + "\"contentType\":\"text/plain\",\"text\":\"x\",\"type\":{\"kode\":\"11506-3\"}}]")))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("kode"));
     }
 
     @Test
@@ -376,7 +391,7 @@ class PasControllerTest {
         JsonNode view = created.at("/detail/subscriptions/0");
         assertThat(view.at("/id/value").asString()).isEqualTo(ID);
         assertThat(view.at("/status/code").asString()).isEqualTo("requested");
-        assertThat(view.at("/criteria/value").asString()).contains("p32h-placeholder");
+        assertThat(view.at("/criteria/value").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic");
         assertThat(view.at("/channelType/value").asString()).isEqualTo("rest-hook");
         assertThat(view.at("/endpoint/value").asString()).isEqualTo("https://pave.example.invalid/api/pas/notifications");
         assertThat(view.at("/heartbeat/value").asString()).isEqualTo("86400");
@@ -692,17 +707,17 @@ class PasControllerTest {
         MockMvc mvc = mvc("mock");
         JsonNode all = send(mvc, get("/api/pas/scenarios"), 200);
         assertThat(all.get("available").asBoolean()).isTrue();
-        assertThat(all.get("scenarios")).hasSize(20);
+        assertThat(all.get("scenarios")).hasSize(21);
         assertThat(all.at("/scenarios/0/sentinelMemberId").asString()).isEqualTo("P32H-PAS-APPROVED");
         assertThat(all.at("/scenarios/0/expectedOutcome").asString()).isEqualTo("APPROVED");
         assertThat(all.get("problems")).isEmpty();
-        // Every outcome a tester can meet on this tab, each once, with its label and tone: 21 of a
+        // Every outcome a tester can meet on this tab, each once, with its label and tone: 22 of a
         // submission or an inquiry, 12 of a subscription call of which 5 faults carry the same code
         // as PAS, 8 of a notification, and the 2 about this tool itself.
         Set<String> codes = new HashSet<>();
         all.get("outcomes").forEach(option -> assertThat(codes.add(option.get("code").asString())).as(option.get("code").asString() + " is listed once").isTrue());
         assertThat(codes).contains("APPROVED", "DENIED", "NO_DECISION", "CREATED", "NOT_FOUND", "UNMATCHED_NOTIFICATION",
-                "UNCHECKED_NOTIFICATION", "BLOCKED", "TOOL_ERROR").hasSize(38);
+                "UNCHECKED_NOTIFICATION", "BLOCKED", "TOOL_ERROR", "NO_MATCHING_AUTHORIZATION").hasSize(39);
         assertThat(all.get("outcomes")).anySatisfy(option -> {
             assertThat(option.get("code").asString()).isEqualTo("DENIED");
             assertThat(option.get("label").asString()).isEqualTo("The authorization is denied");
@@ -712,8 +727,8 @@ class PasControllerTest {
                 "subscription-status", "channel-type", "payload-content");
 
         JsonNode submit = send(mvc, get("/api/pas/scenarios").param("for", "submit"), 200);
-        assertThat(submit.get("scenarios")).hasSize(15);
-        assertThat(submit.get("outcomes")).hasSize(23);
+        assertThat(submit.get("scenarios")).hasSize(16);
+        assertThat(submit.get("outcomes")).hasSize(24);
         assertThat(submit.get("elements")).extracting(JsonNode::asString).containsExactly("review-action", "review-reason", "claim-outcome", "error-code");
 
         JsonNode inquire = send(mvc, get("/api/pas/scenarios").param("for", "Inquire"), 200);
@@ -749,7 +764,7 @@ class PasControllerTest {
                 .andExpect(jsonPath("$.available").value(false))
                 .andExpect(jsonPath("$.reason").isNotEmpty())
                 .andExpect(jsonPath("$.scenarios.length()").value(0))
-                .andExpect(jsonPath("$.outcomes.length()").value(38))
+                .andExpect(jsonPath("$.outcomes.length()").value(39))
                 .andExpect(jsonPath("$.elements.length()").value(7));
         mvc.perform(get("/api/pas/scenarios").param("for", "subscription")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.available").value(false)).andExpect(jsonPath("$.outcomes.length()").value(14));

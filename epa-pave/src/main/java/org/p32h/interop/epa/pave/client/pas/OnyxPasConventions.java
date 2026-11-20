@@ -16,10 +16,12 @@ import tools.jackson.databind.JsonNode;
 /**
  * ASSUMPTIONS ABOUT THE VENDOR, ALL IN ONE FILE: PAS, subscriptions and notifications.
  *
- * <p>Nothing here has been observed from the live service, and the Da Vinci PAS guide and the
- * subscriptions backport guide could not be fetched while this was written. Every url, name and
- * rule below is the builder's knowledge of those guides, or an assumption about how the vendor
- * applies them. Each rule reads a coded element or the structure of a resource, never the wording
+ * <p>Nothing here has been observed from the live service. The tool is held to PAS 2.0.1 (D-136),
+ * read from the guide's own source at its 2.0.1 tag, with the 2.2.0 ballot read for what changes.
+ * A name or rule taken from the guide says so and names the version; one marked ASSUMPTION is how
+ * this tool expects the vendor to apply the guide, or covers a case the guide does not define.
+ * The subscriptions backport 1.1.0 that PAS 2.0.1 depends on could not be read, so its names are
+ * taken from the 1.2.0 ballot. Each rule reads a coded element or the structure of a resource, never the wording
  * of a disposition or a diagnostic, and each is deliberately narrow: when a response does not
  * match a rule, nothing is inferred and the response is shown in full under the outcome its codes
  * support.
@@ -59,6 +61,10 @@ public final class OnyxPasConventions {
      * ClaimResponse refers to is carried with one of these statuses. A reference whose resource is
      * not carried has no visible status, and is treated as open: the element it sits in exists to
      * ask for more information, and closing it unseen would hide a request from the tester.
+     *
+     * <p>PAS 2.0.1 fixes the status of a PASCommunicationRequest to active, so a service that
+     * follows it never sends one of these, and shows that documentation was accepted by a later
+     * decision instead. The rule is kept for a service that does not follow the profile.
      */
     private static final Set<String> CLOSED_REQUEST_STATUSES = Set.of("completed", "revoked", "entered-in-error");
 
@@ -98,9 +104,32 @@ public final class OnyxPasConventions {
     public static final String DEFAULT_CLAIM_TYPE = "professional";
     public static final String DEFAULT_CLAIM_PRIORITY = "normal";
 
-    /** The category under which a claim names supporting documentation. */
-    public static final String SUPPORTING_INFO_TYPES = "http://hl7.org/fhir/us/davinci-pas/CodeSystem/PASSupportingInfoType";
+    /**
+     * The category under which a claim names supporting documentation: PAS 2.0.1 PASClaim slice
+     * supportingInfo[AdditionalInformation] fixes it to PASTempCodes#additionalInformation, and the
+     * slice is told apart by that value. PASSupportingInfoType is the value set, not the code system.
+     */
+    public static final String SUPPORTING_INFO_TYPES = "http://hl7.org/fhir/us/davinci-pas/CodeSystem/PASTempCodes";
     public static final String ADDITIONAL_INFORMATION = "additionalInformation";
+
+    /** PAS 2.0.1 item extensions, by their canonical urls (the ids in the guide's Claim-update.fsh). */
+    private static final String PAS_EXTENSION = "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-";
+    public static final String ITEM_TRACE_NUMBER = PAS_EXTENSION + "itemTraceNumber";
+    public static final String ITEM_REQUEST_TYPE = PAS_EXTENSION + "serviceItemRequestType";
+    public static final String ITEM_CERTIFICATION_TYPE = PAS_EXTENSION + "certificationType";
+    public static final String ITEM_REQUESTED_SERVICE = PAS_EXTENSION + "requestedService";
+    public static final String ITEM_PRE_AUTH_PERIOD = PAS_EXTENSION + "itemPreAuthPeriod";
+    public static final String ITEM_AUTHORIZATION_NUMBER = PAS_EXTENSION + "authorizationNumber";
+
+    /** X12 code systems PAS 2.0.1 binds, required, to the elements named. */
+    public static final String X12_SERVICE_TYPES = "https://codesystem.x12.org/005010/1365";
+    public static final String X12_REQUEST_TYPES = "https://codesystem.x12.org/005010/1525";
+    public static final String X12_CERTIFICATION_TYPES = "https://codesystem.x12.org/005010/1322";
+    public static final String X12_ENTITY_TYPES = "https://codesystem.x12.org/005010/98";
+    public static final String X12_RELATIONSHIP = "https://codesystem.x12.org/005010/1069";
+
+    /** X12 1322 code I, "Initial": the certification type of a request that is new, not a revision. */
+    public static final String CERTIFICATION_INITIAL = "I";
 
     /**
      * ASSUMPTION, attachment mode fhir: a document travels in the request bundle as a
@@ -140,22 +169,44 @@ public final class OnyxPasConventions {
     public static final String PAYLOAD_CONTENT = BACKPORT + "backport-payload-content";
 
     /**
-     * ASSUMPTION: what a subscription must be subscribed to is not known. This is a placeholder
-     * that names no real topic, sent only when the tester sets none, so that a subscription made
-     * with it is rejected or visibly wrong and never quietly accepted as the right one.
+     * The subscription topic PAS 2.0.1 defines (input/resources/SubscriptionTopic.json), which both
+     * of its CapabilityStatements name: an event when a ClaimResponse result is available. The 2.2.0
+     * ballot keeps the same canonical address.
      */
-    public static final String PLACEHOLDER_TOPIC = "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status";
+    public static final String PAS_TOPIC = "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic";
 
-    /** ASSUMPTION: a subscription that calls a receiver back is a rest-hook carrying FHIR JSON. */
+    /**
+     * The filter parameter the PAS 2.0.1 topic offers (canFilterBy orgIdentifier, comparator eq).
+     * PAS 2.0.1 says a subscription SHALL be filtered by the requesting provider organization.
+     */
+    public static final String ORG_IDENTIFIER_FILTER = "orgIdentifier";
+
+    /**
+     * A filter as the backport filter-criteria string holds it: {@code orgIdentifier=system|value},
+     * or {@code orgIdentifier=value} when no system is known. This is the form the PAS 2.2.0 ballot's
+     * own example uses; the backport 1.1.0 format PAS 2.0.1 depends on could not be read here.
+     */
+    public static String orgIdentifierFilter(String system, String value) {
+        return ORG_IDENTIFIER_FILTER + "=" + (Texts.present(system) ? system.strip() + "|" : "") + value.strip();
+    }
+
+    /**
+     * A subscription that calls a receiver back is a rest-hook carrying FHIR JSON: PAS 2.0.1 says
+     * a server SHOULD support rest-hook, and the 2.2.0 ballot profile fixes it.
+     */
     public static final String DEFAULT_CHANNEL_TYPE = "rest-hook";
 
     /**
-     * ASSUMPTION: how much a notification should carry is not known. Ids only is this tool's
-     * default because it puts the least member data on the wire. The request notes say it was a default.
+     * Ids only: PAS 2.0.1 says clients and intermediaries SHALL support id-only and MAY agree on
+     * full-resource. It also puts the least member data on the wire. The PAS 2.2.0 ballot profile
+     * fixes full-resource instead, and the request notes say so.
      */
     public static final String DEFAULT_PAYLOAD_CONTENT = "id-only";
 
-    /** The status a client asks for when it creates a subscription. The service decides whether to activate it. */
+    /**
+     * The status a client asks for when it creates a subscription. The service decides whether to
+     * activate it. PAS 2.0.1 has no Subscription profile; the 2.2.0 ballot profile fixes active.
+     */
     public static final String REQUESTED = "requested";
 
     /**
@@ -177,16 +228,21 @@ public final class OnyxPasConventions {
     private OnyxPasConventions() {
     }
 
+    /** True when an extension url is an item extension of PAS, by its canonical url or, served from another host, by its last segment. */
+    public static boolean pasExtension(String extensionUrl, String canonical) {
+        return extensionUrl != null && (extensionUrl.equals(canonical) || extensionUrl.endsWith(canonical.substring(canonical.lastIndexOf('/'))));
+    }
+
     /** True when an extension url is the review action extension. A copy served from another host is accepted by its last segment. */
     public static boolean reviewAction(String extensionUrl) {
         return extensionUrl != null && (extensionUrl.equals(REVIEW_ACTION) || extensionUrl.endsWith("/extension-reviewAction"));
     }
 
     /**
-     * ASSUMPTION: the decision code of a review action sits in a part named by the full
-     * reviewActionCode url, as the later versions of the guide have it, or in a part named
-     * {@code code}, as the earlier ones had it. Both are read, because which version the vendor
-     * follows is not known.
+     * The decision code of a review action sits in a part named by the full reviewActionCode url,
+     * as PAS 2.0.1 and the 2.2.0 ballot both write it. A part named {@code code} is read as the
+     * same thing, because that is the slice name the guide gives it and a vendor may write it so.
+     * The second surgical opinion part is {@code secondSurgicalOpinionFlag}, as PAS 2.0.1 names it.
      */
     public static ReviewPart reviewPart(String partUrl) {
         if (partUrl == null) {
@@ -198,7 +254,7 @@ public final class OnyxPasConventions {
         return switch (partUrl) {
             case "number" -> ReviewPart.NUMBER;
             case "reasonCode" -> ReviewPart.REASON;
-            case "secondSurgicalOpinionNeeded" -> ReviewPart.SECOND_SURGICAL_OPINION;
+            case "secondSurgicalOpinionFlag" -> ReviewPart.SECOND_SURGICAL_OPINION;
             default -> ReviewPart.OTHER;
         };
     }

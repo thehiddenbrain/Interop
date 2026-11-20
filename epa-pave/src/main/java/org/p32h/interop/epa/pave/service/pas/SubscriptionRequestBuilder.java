@@ -12,14 +12,15 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Builds the Subscription a create or an update sends.
+ * Builds the Subscription a create or an update sends, as PAS 2.0.1 describes it: to the topic
+ * PAS 2.0.1 defines, filtered by the requesting provider organization, with the R4 backport
+ * extensions.
  *
- * <p>What a subscription has to be subscribed to for the live service, how much a notification
- * should carry and what else the service wants set are not known. So nothing of that is a fixed
- * choice of this tool. Each value is read from a placeholder, which the tester types for the run or
- * keeps in the environment, and where the resource cannot be sent without one the tool sends a
- * default that is a visible placeholder and says so in a note. A subscription created with the
- * placeholder topic is meant to be rejected or to look wrong, never to pass for the right one.
+ * <p>Every value can be stated by a placeholder, which the tester types for the run or keeps in the
+ * environment. Where the resource cannot go without a value and none was stated, the tool sends the
+ * value PAS 2.0.1 gives or its own default and says so in a note, naming what the PAS 2.2.0 ballot
+ * fixes instead where the two differ. The requesting organization is a fact nobody but the tester
+ * knows, so the filter is built only from what was stated, and its absence is said first.
  *
  * <p>The receiver the subscription names is this tool's own, from {@code onyx.subscription.callback-url}.
  * When that is not set the subscription is still built, without an endpoint, and the caller is told.
@@ -35,6 +36,12 @@ public final class SubscriptionRequestBuilder {
     public static final String VAR_PAYLOAD_CONTENT = "subscriptionPayloadContent";
     public static final String VAR_HEARTBEAT_SECONDS = "subscriptionHeartbeatSeconds";
     public static final String VAR_END = "subscriptionEnd";
+    /** The identifier of the requesting provider organization, which the orgIdentifier filter names, and its system. */
+    public static final String VAR_ORG_IDENTIFIER = "pasRequestingOrgIdentifier";
+    public static final String VAR_ORG_IDENTIFIER_SYSTEM = "pasRequestingOrgIdentifierSystem";
+
+    /** What a subscription goes out without when nobody names the requesting organization. */
+    public static final String FILTER_LEFT_OUT = "the orgIdentifier filter PAS 2.0.1 requires";
 
     /** The setting that holds the url of this tool's receiver, as an operator writes it. */
     public static final String CALLBACK_PROPERTY = "onyx.subscription.callback-url";
@@ -48,8 +55,14 @@ public final class SubscriptionRequestBuilder {
      * @param notes           one plain sentence for each thing left out or worked out
      * @param callbackUrl     the url the subscription names as its receiver, or null when it names none
      * @param callbackProblem why it names none, in plain words with what to set, or null when it names one
+     * @param leftOut         what PAS 2.0.1 requires that the subscription went out without. Empty when nothing
      */
-    public record Built(String json, List<String> notes, String callbackUrl, String callbackProblem) {
+    public record Built(String json, List<String> notes, String callbackUrl, String callbackProblem, List<String> leftOut) {
+
+        public Built {
+            notes = notes == null ? List.of() : List.copyOf(notes);
+            leftOut = leftOut == null ? List.of() : List.copyOf(leftOut);
+        }
 
         /** The body is what goes on the wire and the receiver's address is the operator's, so neither is printed. */
         @Override
@@ -71,6 +84,7 @@ public final class SubscriptionRequestBuilder {
      */
     public Built build(String subscriptionId, Function<String, ResolvedText> variables) {
         List<String> notes = new ArrayList<>();
+        List<String> leftOut = new ArrayList<>();
         ObjectNode subscription = JSON.objectNode();
         subscription.put("resourceType", "Subscription");
         if (Texts.present(subscriptionId)) {
@@ -78,28 +92,43 @@ public final class SubscriptionRequestBuilder {
         }
         subscription.putObject("meta").putArray("profile").add(OnyxPasConventions.SUBSCRIPTION_PROFILE);
         subscription.put("status", chosen(variables, VAR_STATUS, OnyxPasConventions.REQUESTED,
-                "status", "which is what a client asks for and leaves the service to activate", notes));
+                "status", "which is what a client asks for and leaves the service to activate",
+                "PAS 2.0.1 has no Subscription profile; the PAS 2.2.0 ballot fixes the status to active.", notes));
         String end = CaseResources.value(variables, VAR_END);
         if (end != null) {
             subscription.put("end", end);
         }
         subscription.put("reason", chosen(variables, VAR_REASON, OnyxPasConventions.DEFAULT_SUBSCRIPTION_REASON,
-                "reason", "which is this tool's own wording", notes));
+                "reason", "which is this tool's own wording", null, notes));
 
         String topic = CaseResources.value(variables, VAR_TOPIC);
         if (topic == null) {
-            topic = OnyxPasConventions.PLACEHOLDER_TOPIC;
-            notes.add("The subscription topic was set to " + topic + ". That is a placeholder and names no real topic: what the service "
-                    + "expects here is not known. Set the variable " + VAR_TOPIC + " to the topic the service documents.");
+            topic = OnyxPasConventions.PAS_TOPIC;
+            notes.add("The subscription topic was set to " + topic + ", the topic PAS 2.0.1 defines for a prior authorization result. "
+                    + "Set the variable " + VAR_TOPIC + " to send another.");
         }
         subscription.put("criteria", topic);
         String filter = CaseResources.value(variables, VAR_FILTER);
+        if (filter == null) {
+            String organization = CaseResources.value(variables, VAR_ORG_IDENTIFIER);
+            if (organization != null) {
+                String system = CaseResources.value(variables, VAR_ORG_IDENTIFIER_SYSTEM);
+                filter = OnyxPasConventions.orgIdentifierFilter(system, organization);
+                notes.add("The subscription is filtered by the requesting organization, as PAS 2.0.1 requires: " + filter + ", written in the "
+                        + "form the PAS 2.2.0 ballot's own example uses."
+                        + (system == null ? " No identifier system was given (the variable " + VAR_ORG_IDENTIFIER_SYSTEM + " is not set), "
+                        + "so the filter names the identifier without one." : ""));
+            } else {
+                leftOut.add(FILTER_LEFT_OUT);
+                notes.add("No filter was sent with the topic: neither " + VAR_ORG_IDENTIFIER + " nor " + VAR_FILTER + " is set. PAS 2.0.1 "
+                        + "requires a subscription to be filtered by the requesting provider organization, through the topic's filter "
+                        + OnyxPasConventions.ORG_IDENTIFIER_FILTER + ", and the service may refuse it or send notifications about other "
+                        + "organizations' requests. Set " + VAR_ORG_IDENTIFIER + " to that organization's identifier, such as its NPI.");
+            }
+        }
         if (filter != null) {
             subscription.putObject("_criteria").putArray("extension").addObject().put("url", OnyxPasConventions.FILTER_CRITERIA)
                     .put("valueString", filter);
-        } else {
-            notes.add("No filter was sent with the topic: the variable " + VAR_FILTER + " is not set. Whether the service needs one, "
-                    + "and what it must say, is not known.");
         }
 
         ObjectNode channel = subscription.putObject("channel");
@@ -112,7 +141,8 @@ public final class SubscriptionRequestBuilder {
             notes.add("No heartbeat period was sent: the variable " + VAR_HEARTBEAT_SECONDS + " is not set.");
         }
         channel.put("type", chosen(variables, VAR_CHANNEL_TYPE, OnyxPasConventions.DEFAULT_CHANNEL_TYPE, "channel type",
-                "which is the kind of channel that calls a receiver back", notes));
+                "which is the kind of channel that calls a receiver back and the one PAS 2.0.1 says a server should support", null,
+                notes));
 
         String callbackUrl = null;
         String callbackProblem = null;
@@ -137,9 +167,14 @@ public final class SubscriptionRequestBuilder {
         channel.put("payload", OnyxPasConventions.FHIR_JSON);
         channel.putObject("_payload").putArray("extension").addObject().put("url", OnyxPasConventions.PAYLOAD_CONTENT)
                 .put("valueCode", chosen(variables, VAR_PAYLOAD_CONTENT, OnyxPasConventions.DEFAULT_PAYLOAD_CONTENT, "payload content",
-                        "which puts the least member data on the wire", notes));
+                        "which PAS 2.0.1 requires every client to support and which puts the least member data on the wire",
+                        "The PAS 2.2.0 ballot fixes full-resource instead.", notes));
         notes.add("No header was asked for on the notifications. This tool's receiver accepts a notification without one.");
-        return new Built(JsonSafe.pretty(subscription), List.copyOf(notes), callbackUrl, callbackProblem);
+        if (!leftOut.isEmpty()) {
+            notes.add(0, "This subscription goes out without " + String.join(" and ", leftOut) + ", because nobody supplied what it is "
+                    + "built from. The service may refuse it for that alone.");
+        }
+        return new Built(JsonSafe.pretty(subscription), notes, callbackUrl, callbackProblem, leftOut);
     }
 
     /**
@@ -156,15 +191,17 @@ public final class SubscriptionRequestBuilder {
      * A value the resource cannot go without and the tester may state as a variable. When they have
      * not, the tool's own default is sent and the note says so, because a default nobody is told
      * about is a guess.
+     *
+     * @param versions what the versions of the guide say about the value, or null when they say nothing
      */
     private static String chosen(Function<String, ResolvedText> variables, String variable, String fallback, String what, String why,
-                                 List<String> notes) {
+                                 String versions, List<String> notes) {
         String stated = CaseResources.value(variables, variable);
         if (stated != null) {
             return stated;
         }
         notes.add("The " + what + " was set to " + fallback + ", " + why + ". It is this tool's default and not something known about "
-                + "the service. Set the variable " + variable + " to send another.");
+                + "the service." + (versions == null ? "" : " " + versions) + " Set the variable " + variable + " to send another.");
         return fallback;
     }
 }

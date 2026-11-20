@@ -119,6 +119,7 @@ public class SubscriptionService {
         List<String> requestNotes = new ArrayList<>();
         String callbackUrl = null;
         String callbackProblem = null;
+        List<String> leftOut = List.of();
         if (ownBody) {
             body = call.resolve(request.rawBody());
             JsonSafe.Parsed parsed = JsonSafe.parse(body.value());
@@ -137,6 +138,7 @@ public class SubscriptionService {
             requestNotes.addAll(built.notes());
             callbackUrl = built.callbackUrl();
             callbackProblem = built.callbackProblem();
+            leftOut = built.leftOut();
         }
 
         MockSelection selection = new MockSelection(request.scenarioId(), null, null,
@@ -157,7 +159,7 @@ public class SubscriptionService {
         try {
             // Only the reading and wording of the response is inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one run.
-            read = interpret(request, operation, call, exchange, id, known, followsRunId, sendsBody, ownBody, callbackProblem);
+            read = interpret(request, operation, call, exchange, id, known, followsRunId, sendsBody, ownBody, callbackProblem, leftOut);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -202,7 +204,8 @@ public class SubscriptionService {
     }
 
     private Interpreted interpret(SubscriptionRequest request, EpaOperation operation, PreparedCall call, VendorExchange exchange, String askedId,
-                                  Map<String, String> known, String followsRunId, boolean sendsBody, boolean ownBody, String callbackProblem) {
+                                  Map<String, String> known, String followsRunId, boolean sendsBody, boolean ownBody, String callbackProblem,
+                                  List<String> leftOut) {
         SubscriptionReading reading = mapper.read(exchange, operation, askedId);
         SubscriptionOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
@@ -223,6 +226,15 @@ public class SubscriptionService {
         }
 
         List<Finding> findings = new ArrayList<>();
+        if (!leftOut.isEmpty()) {
+            // Said first, so that a refusal by the service is not read as a fault of the service.
+            findings.add(new Finding(FindingKind.REQUEST_INCOMPLETE, "The subscription is not filtered by the requesting organization",
+                    "PAS 2.0.1 says the subscription SHALL be filtered by the requesting provider organization, through the topic's filter "
+                            + OnyxPasConventions.ORG_IDENTIFIER_FILTER + ". Nobody supplied that organization's identifier: set the variable "
+                            + SubscriptionRequestBuilder.VAR_ORG_IDENTIFIER + ", and " + SubscriptionRequestBuilder.VAR_ORG_IDENTIFIER_SYSTEM
+                            + " for its system. A refusal by the service may be about this and not a fault of the service.",
+                    String.join("; ", leftOut), null, null));
+        }
         if (sendsBody && callbackProblem != null) {
             // Its own kind: this is about what was sent, and no element is missing from the response.
             findings.add(new Finding(FindingKind.NO_CALLBACK_URL, "The subscription names no url to call back",

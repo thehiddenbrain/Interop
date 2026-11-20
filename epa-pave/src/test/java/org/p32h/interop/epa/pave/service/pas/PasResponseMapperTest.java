@@ -204,7 +204,7 @@ class PasResponseMapperTest {
                 + "\",\"valueCodeableConcept\":{\"coding\":[{\"system\":\"" + PasJson.X12_306 + "\",\"code\":\"A1\",\"display\":\"Certified in total\"}]}},"
                 + "{\"url\":\"number\",\"valueString\":\"PA-PLACEHOLDER-0001\"},"
                 + "{\"url\":\"reasonCode\",\"valueCodeableConcept\":{\"coding\":[{\"system\":\"https://example.org/p32h-placeholder/reason\",\"code\":\"R1\"}]}},"
-                + "{\"url\":\"secondSurgicalOpinionNeeded\",\"valueBoolean\":false},"
+                + "{\"url\":\"secondSurgicalOpinionFlag\",\"valueBoolean\":false},"
                 + "{\"url\":\"vendorPart\",\"valueString\":\"extra\"}"))))), sent("95810"));
         ReviewActionView view = only(reading).items().get(0).adjudications().get(0).reviewActions().get(0);
         assertThat(view.code().code()).isEqualTo("A1");
@@ -670,7 +670,7 @@ class PasResponseMapperTest {
         PasReading malformed = mapper.read(response(200, "{\"resourceType\": \"Bundle\", \"entry\": ["));
         assertThat(malformed.outcome()).isEqualTo(PasOutcome.MALFORMED_RESPONSE);
         assertThat(malformed.detail().responseKind()).isEqualTo(PasResponseKind.NOT_JSON);
-        assertThat(malformed.detail().responseNote()).contains("could not be read as JSON").contains("exactly as received");
+        assertThat(malformed.detail().responseNote()).contains("could not be read as JSON").contains("shown as received, but for any place that repeats a secret the request carried");
         // The raw bytes are on screen outside the wire view, first in the list and marked for what they are.
         assertThat(malformed.additionalFields()).containsExactly(AdditionalField.unparsedBody("{\"resourceType\": \"Bundle\", \"entry\": ["));
         assertThat(malformed.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.RAW_BODY);
@@ -762,5 +762,39 @@ class PasResponseMapperTest {
                 + "\"code\":\"not-found\",\"expression\":[\"Claim.identifier\"]}]}"), sent("95810"));
         assertThat(reading.outcome()).isEqualTo(PasOutcome.AUTHORIZATION_NOT_FOUND);
         assertThat(reading.outcome().fault()).isFalse();
+    }
+
+    /** A decided response item that echoes an item trace number, as PAS 2.0.1 lets ClaimResponse.item do. */
+    private static String tracedDecision(int sequence, String trace, String code) {
+        return "{\"extension\":[{\"url\":\"" + OnyxPasConventions.ITEM_TRACE_NUMBER + "\",\"valueIdentifier\":{\"value\":\"" + trace
+                + "\"}}],\"itemSequence\":" + sequence + ",\"adjudication\":[{\"category\":{\"coding\":[{\"code\":\"submitted\"}]},"
+                + "\"extension\":[" + action(code) + "]}]}";
+    }
+
+    @Test
+    void aDecisionIsTiedByTheItemTraceNumberItEchoesBeforeItsSequence() {
+        SentClaim traced = new SentClaim("claim-test-1", List.of(new SentClaim.Item(1, "E0601", "claim-test-1-1"),
+                new SentClaim.Item(2, "95810", "claim-test-1-2")));
+        // The payer numbered its items the other way round, and echoes each item's trace number.
+        String body = bundle(claimResponse("\"outcome\":\"complete\"", items(tracedDecision(1, "claim-test-1-2", "A3"),
+                tracedDecision(2, "claim-test-1-1", "A1"))));
+        PasReading reading = new PasResponseMapper().read(response(200, body), traced);
+
+        assertThat(reading.decisions()).extracting(PasDecision::subject, PasDecision::outcome).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("E0601", PasOutcome.APPROVED), org.assertj.core.groups.Tuple.tuple("95810", PasOutcome.DENIED));
+        // A trace number that names no requested item leaves the sequence to tie it.
+        String other = bundle(claimResponse("\"outcome\":\"complete\"", items(tracedDecision(1, "someone-else-9", "A3"),
+                tracedDecision(2, "someone-else-8", "A1"))));
+        assertThat(new PasResponseMapper().read(response(200, other), traced).decisions()).extracting(PasDecision::subject,
+                PasDecision::outcome).containsExactly(org.assertj.core.groups.Tuple.tuple("E0601", PasOutcome.DENIED),
+                org.assertj.core.groups.Tuple.tuple("95810", PasOutcome.APPROVED));
+    }
+
+    @Test
+    void theTraceNumberAClaimItemWasSentWithIsReadFromTheBody() {
+        String body = "{\"resourceType\":\"Bundle\",\"entry\":[{\"resource\":{\"resourceType\":\"Claim\",\"item\":[{\"extension\":[{\"url\":\""
+                + OnyxPasConventions.ITEM_TRACE_NUMBER + "\",\"valueIdentifier\":{\"value\":\"c-1-1\"}}],\"sequence\":1,"
+                + "\"productOrService\":{\"coding\":[{\"code\":\"E0601\"}]}}]}}]}";
+        assertThat(SentClaim.fromBody(body).items()).containsExactly(new SentClaim.Item(1, "E0601", "c-1-1"));
     }
 }

@@ -2,7 +2,7 @@
   "id": "pas-01-approved",
   "number": 1,
   "label": "Approved",
-  "description": "The payer certifies the request in total and returns an authorization number. An inquiry returns the same decision.",
+  "description": "The payer certifies the request in total and returns an authorization number and the period it is valid for, on the item, where PAS 2.0.1 puts them. An inquiry returns the same decision. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-APPROVED",
   "behavior": "respond",
   "httpStatus": 200,
@@ -16,7 +16,7 @@
       "claim-outcome": "complete"
     }
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, each decision in a review action on item.adjudication, an authorization number on the review action and the item's itemPreAuthPeriod where the item is certified, and an item trace number on each item. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
   "response": {
     "resourceType": "Bundle",
     "id": "pas-response-bundle",
@@ -28,6 +28,12 @@
         "resource": {
           "resourceType": "ClaimResponse",
           "id": "claimresponse-{{claimId}}",
+          "identifier": [
+            {
+              "system": "https://example.org/p32h-placeholder/patient-event-trace-number",
+              "value": "{{claimId}}"
+            }
+          ],
           "status": "active",
           "type": {
             "coding": [
@@ -49,19 +55,31 @@
             "reference": "PractitionerRole/practitioner-role-1"
           },
           "request": {
-            "identifier": {
-              "value": "{{claimId}}"
-            }
+            "reference": "Claim/claim-1"
           },
           "outcome": "complete",
           "disposition": "Certified in total.",
-          "preAuthRef": "PA-PLACEHOLDER-0001",
           "preAuthPeriod": {
             "start": "2026-01-15",
             "end": "2026-04-15"
           },
           "item": [
             {
+              "extension": [
+                {
+                  "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+                  "valueIdentifier": {
+                    "value": "{{claimId}}-1"
+                  }
+                },
+                {
+                  "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemPreAuthPeriod",
+                  "valuePeriod": {
+                    "start": "2026-01-15",
+                    "end": "2026-04-15"
+                  }
+                }
+              ],
               "itemSequence": 1,
               "adjudication": [
                 {
@@ -136,6 +154,12 @@
             "resource": {
               "resourceType": "ClaimResponse",
               "id": "claimresponse-{{claimId}}",
+              "identifier": [
+                {
+                  "system": "https://example.org/p32h-placeholder/patient-event-trace-number",
+                  "value": "{{claimId}}"
+                }
+              ],
               "status": "active",
               "type": {
                 "coding": [
@@ -157,19 +181,31 @@
                 "reference": "PractitionerRole/practitioner-role-1"
               },
               "request": {
-                "identifier": {
-                  "value": "{{claimId}}"
-                }
+                "reference": "Claim/claim-1"
               },
               "outcome": "complete",
               "disposition": "Certified in total.",
-              "preAuthRef": "PA-PLACEHOLDER-0001",
               "preAuthPeriod": {
                 "start": "2026-01-15",
                 "end": "2026-04-15"
               },
               "item": [
                 {
+                  "extension": [
+                    {
+                      "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+                      "valueIdentifier": {
+                        "value": "{{claimId}}-1"
+                      }
+                    },
+                    {
+                      "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemPreAuthPeriod",
+                      "valuePeriod": {
+                        "start": "2026-01-15",
+                        "end": "2026-04-15"
+                      }
+                    }
+                  ],
                   "itemSequence": 1,
                   "adjudication": [
                     {

@@ -27,15 +27,29 @@ import java.util.List;
  * @param reasonCodes   the coded reasons given with the decision
  * @param errorCodes    the codes of the errors the response reported against this item, or against
  *                      the request as a whole
+ * @param authorizationNumbers the authorization numbers stated for this item: the number part of its
+ *                      review action, which is where PAS 2.0.1 puts the item's authorization number.
+ *                      Empty when none was stated
+ * @param authorizedFrom the start of the period the item's authorization is valid for, from the item's
+ *                      itemPreAuthPeriod extension, where PAS 2.0.1 puts it. Null when not stated
+ * @param authorizedTo  the end of that period. Null when not stated
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PasDecision(String subject, String procedureCode, Integer sequence, String foundAt, List<CodedValue> reviewActions,
-                          DecisionSource source, PasOutcome outcome, List<String> reasonCodes, List<String> errorCodes) {
+                          DecisionSource source, PasOutcome outcome, List<String> reasonCodes, List<String> errorCodes,
+                          List<String> authorizationNumbers, String authorizedFrom, String authorizedTo) {
 
     public PasDecision {
         reviewActions = reviewActions == null ? List.of() : List.copyOf(reviewActions);
         reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
         errorCodes = errorCodes == null ? List.of() : List.copyOf(errorCodes);
+        authorizationNumbers = authorizationNumbers == null ? List.of() : List.copyOf(authorizationNumbers);
+    }
+
+    /** A decision with no authorization number and no period stated. */
+    public PasDecision(String subject, String procedureCode, Integer sequence, String foundAt, List<CodedValue> reviewActions,
+                       DecisionSource source, PasOutcome outcome, List<String> reasonCodes, List<String> errorCodes) {
+        this(subject, procedureCode, sequence, foundAt, reviewActions, source, outcome, reasonCodes, errorCodes, null, null, null);
     }
 
     /** The review action code values that were actually returned, without the ones that were present and empty. */
@@ -45,7 +59,8 @@ public record PasDecision(String subject, String procedureCode, Integer sequence
 
     /** The same decision under another name, for a result that holds several ClaimResponses. */
     public PasDecision named(String newSubject) {
-        return new PasDecision(newSubject, procedureCode, sequence, foundAt, reviewActions, source, outcome, reasonCodes, errorCodes);
+        return new PasDecision(newSubject, procedureCode, sequence, foundAt, reviewActions, source, outcome, reasonCodes, errorCodes,
+                authorizationNumbers, authorizedFrom, authorizedTo);
     }
 
     /** Prints where it was found and the outcome. The codes and the subject come from a response. */

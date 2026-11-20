@@ -2,7 +2,7 @@
   "id": "pas-16-timeout",
   "number": 16,
   "label": "No response inside the read timeout",
-  "description": "The service accepts the submission and does not answer inside the read timeout. The submission may still have been received. The mock reports the timeout after this file's delay and does not wait for the full configured timeout.",
+  "description": "The service accepts the submission and does not answer inside the read timeout. The submission may still have been received. The mock reports the timeout after this file's delay and does not wait for the full configured timeout. The CRD sentinel P32H-TIMEOUT selects it too. It has no body, so it is in no version's shape.",
   "sentinelMemberId": "P32H-PAS-TIMEOUT",
   "behavior": "timeout",
   "delayMillis": 400,
@@ -10,5 +10,5 @@
     "outcome": "TIMEOUT",
     "errorType": "TIMEOUT"
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service."
+  "basis": "Synthetic. It models the transport and has no body in the shape of PAS 2.0.1 or any other version. It has not been observed from the live service."
 }
