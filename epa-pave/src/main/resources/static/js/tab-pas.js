@@ -804,11 +804,6 @@ async function showPreview(kind) {
                 }
             }
         }
-        // The server's notes are written as of a request that went. Here nothing has gone, so they are introduced as what would happen.
-        const notes = shownPanel.querySelector(':scope > .note-list');
-        if (notes) {
-            notes.before(el('p', {class: 'sub-heading'}, 'If it were sent as it stands, the server notes:'));
-        }
         fill(slots.preview, shownPanel);
         bench.say('The request is shown. Nothing was sent.');
         const title = shownPanel.querySelector('h2');

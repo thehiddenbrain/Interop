@@ -275,7 +275,7 @@ export function createNotifications(spec) {
         const tone = known ? known.tone : verdict.tone;
         const label = verdict.outcomeLabel || (known ? known.label : verdict.outcomeCode);
         const inquiry = step.action === 'CHECK_STATUS' && (carry.claimId || []).length > 0
-            ? button('Send inquiry for this request', () => spec.inquire(carry, item), {class: 'button--primary button--small'}) : null;
+            ? button('Send inquiry', () => spec.inquire(carry, item), {class: 'button--primary button--small', aria: {label: 'Send inquiry for the request this notification is about'}}) : null;
         const openId = 'pas-note-open-' + item.id;
         const toggle = el('button', {type: 'button', class: 'button button--quiet button--small pas-note__toggle',
             aria: {expanded: 'false', controls: openId}}, 'Open');

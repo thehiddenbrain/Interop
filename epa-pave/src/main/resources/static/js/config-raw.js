@@ -39,7 +39,7 @@ export function createRawView(context) {
     const testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
     const note = textField({label: 'Note', field: 'note'});
     const sendButton = el('button', {type: 'submit', class: 'button button--primary'}, 'Send this request as written');
-    const previewButton = button('Show the request before sending', preview);
+    const previewButton = button('Show the request', preview);
     const previewSlot = bench.slot('preview');
     bench.track(sendButton, previewButton, requestSelect);
 
@@ -118,7 +118,7 @@ export function createRawView(context) {
         const collections = (context.stored().collections || {}).collections || [];
         bench.showEmpty(chosen
             ? el('div', {class: 'empty-state'},
-                el('p', null, 'Send it with "Send this request as written", or look at it first with "Show the request before sending". '
+                el('p', null, 'Send it with "Send this request as written", or look at it first with "Show the request". '
                     + 'What comes back appears here.'))
             : emptyState(collections.length));
     }
@@ -132,7 +132,7 @@ export function createRawView(context) {
         }
         return el('div', {class: 'empty-state'},
             el('p', {class: 'empty-state__lead'}, 'Choose a request of the collection.'),
-            el('p', null, 'Its sample body is loaded into the form. Look at the request before sending with "Show the request before sending", '
+            el('p', null, 'Its sample body is loaded into the form. Look at the request before sending with "Show the request", '
                 + 'then send it. The result appears here, in the same form as every other run.'));
     }
 
@@ -293,7 +293,7 @@ export function createRawView(context) {
             previewButton.focus();
         }));
         drawEmpty();
-        bench.say('The request as it would be sent is shown. Nothing was sent.');
+        bench.say('The request is shown. Nothing was sent.');
         focusHeading(previewSlot, 'h2');
     }
 

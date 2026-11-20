@@ -298,7 +298,7 @@ export function createRunsList(app, context) {
         const access = mode.writeAccess || {};
         const mock = mode.mode === 'mock';
         const plural = (number, one, many) => count(number) + ' ' + (number === 1 ? one : many);
-        const send = button('Send these runs again', () => runReplay(dates, send), {class: 'button--primary'});
+        const send = button('Replay these runs', () => runReplay(dates, send), {class: 'button--primary'});
         const cancel = button('Cancel', () => { clear(replayBox); opener.focus(); });
         fill(replayBox, el('div', {class: 'history-confirm', role: 'group', aria: {label: 'Replay these dates'}},
             el('p', null, el('strong', null, 'The ledger holds ' + plural(inDates.length, 'run', 'runs') + ' in these UTC days'),
