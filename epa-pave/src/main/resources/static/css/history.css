@@ -141,8 +141,8 @@
     box-shadow: inset 4px 0 0 var(--magenta);
 }
 
-/* A date and its time are read as one value, so they are never broken across lines. */
-.history-when-cell time, .history-run__when time {
+/* A date, and a time of day, are each read as one value, so neither is broken across lines. */
+.history-when__part {
     white-space: nowrap;
 }
 
@@ -161,7 +161,6 @@
 }
 
 .history-expected {
-    font-weight: 600;
     color: var(--ink-strong);
 }
 
@@ -375,4 +374,15 @@
     .history-actions {
         grid-template-columns: minmax(0, 1fr);
     }
+}
+
+/* A chain in the list: the member first, kept whole, then the chain's headline, read as one line of text. */
+.chain-row__open.button {
+    display: block;
+    text-align: left;
+}
+
+.chain-row__open .literal {
+    white-space: nowrap;
+    font-weight: 600;
 }

@@ -6,7 +6,7 @@
 // policy wrote it: the member ID when recording it is switched on, otherwise a token and the last
 // characters. A token is not a member ID, and it is never labelled as one.
 
-import {el, code, token, when} from './dom.js';
+import {el, code, token, when, whenText} from './dom.js';
 import {outcome} from './marks.js';
 
 /*
@@ -28,9 +28,28 @@ function localDay(date) {
     return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
 }
 
+/**
+ * A time as when() writes it, with the date and the time of day each kept whole: a narrow cell may
+ * put the time under the date, but never breaks inside either. Anything that is not a time is
+ * left to when().
+ */
+function whenUnbroken(timestamp) {
+    const text = whenText(timestamp);
+    const cut = text.lastIndexOf(', ');
+    if (Number.isNaN(new Date(timestamp).getTime()) || cut < 0) {
+        return when(timestamp);
+    }
+    return el('time', {title: String(timestamp), attrs: {datetime: String(timestamp)}},
+        el('span', {class: 'history-when__part'}, text.slice(0, cut + 1)), ' ',
+        el('span', {class: 'history-when__part'}, text.slice(cut + 2)));
+}
+
 /** A time as when() shows it, with the UTC day the ledger files it under when that is not the date on the viewer's clock. */
 export function whenFiled(timestamp) {
-    const shown = when(timestamp);
+    if (!timestamp) {
+        return null;
+    }
+    const shown = whenUnbroken(timestamp);
     const day = utcDay(timestamp);
     if (!shown || !day || day === localDay(new Date(timestamp))) {
         return shown;

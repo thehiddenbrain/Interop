@@ -164,9 +164,11 @@ export function createRunsList(app, context) {
             context.announce(answer.body.title);
             return;
         }
+        // A filter chip that had the focus is about to be redrawn away.
+        const chipHadFocus = status.contains(document.activeElement);
         drawStatus(answer.body, query);
         context.announce(status.querySelector('.history-status__count').textContent);
-        if (focusAfter || !document.activeElement || document.activeElement === document.body) {
+        if (focusAfter || chipHadFocus) {
             // The control that had the focus was redrawn or taken away, so the focus goes to the count, where the new list starts.
             status.querySelector('.history-status__count').focus({preventScroll: true});
         }

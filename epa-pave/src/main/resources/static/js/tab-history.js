@@ -123,12 +123,15 @@ function showView(view, argument, query) {
         nodes.chains.show(argument);
     } else if (argument) {
         openRunId = argument;
+        // When the tester was working in the view that is replaced, the new one takes the focus. On arriving at the tab it does not.
+        const hadFocus = nodes.view.contains(document.activeElement);
         const replaced = place(runView.node);
-        runView.open(argument, replaced || focusLost());
+        runView.open(argument, hadFocus && replaced);
     } else {
         openRunId = null;
+        const hadFocus = nodes.view.contains(document.activeElement);
         const replaced = place(runs.node);
-        runs.show(query !== null && query !== undefined ? new URLSearchParams(query) : runs.query(), replaced);
+        runs.show(query !== null && query !== undefined ? new URLSearchParams(query) : runs.query(), hadFocus && replaced);
     }
 }
 
@@ -144,11 +147,6 @@ function place(...wanted) {
     }
     fill(nodes.view, ...wanted);
     return true;
-}
-
-/** True when the focus is nowhere in particular, as after the node that held it was redrawn. */
-function focusLost() {
-    return !document.activeElement || document.activeElement === document.body;
 }
 
 /* ---------- chains ---------- */
@@ -209,7 +207,7 @@ function chainsView() {
         fill(list, el('ul', {class: 'chain-rows'}, chains.map(chain => {
             const latest = (chain.stages || []).map(stage => stage.latest).filter(Boolean).pop();
             return el('li', {class: 'chain-row', dataset: {chain: chain.chainId}},
-                button([chain.member ? code(chain.member) : code(chain.chainId), ': ', chain.headline],
+                button([chain.member ? code(chain.member) : code(chain.chainId), ' ', el('span', {class: 'chain-row__headline'}, chain.headline)],
                     () => { open(chain.chainId); app.addressChanged(); }, {class: 'button--text chain-row__open'}),
                 el('div', {class: 'small quiet'}, chain.member ? 'Member, as recorded. ' : 'Chain id; no member recorded. ',
                     when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs',
