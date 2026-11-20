@@ -219,7 +219,7 @@ class RunControllerTest {
         mvc.perform(get("/api/runs/run-404")).andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no run with id run-404."))
+                .andExpect(jsonPath("$.title").value("There is no run with that id."))
                 .andExpect(jsonPath("$.action").isNotEmpty());
         // Text that is not an id is not repeated back.
         mvc.perform(get("/api/runs/{runId}", "<b>not an id</b>".replace("/", ""))).andExpect(status().isNotFound())
@@ -304,7 +304,7 @@ class RunControllerTest {
         mvc.perform(post("/api/runs/run-404/note").contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"a note\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no run with id run-404."));
+                .andExpect(jsonPath("$.title").value("There is no run with that id."));
     }
 
     @Test
@@ -467,7 +467,7 @@ class RunControllerTest {
         mvc.perform(post("/api/runs/replay").contentType(MediaType.APPLICATION_JSON).content("{\"runIds\":[\"run-1\",\"run-404\"]}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no run with id run-404. Nothing was sent."));
+                .andExpect(jsonPath("$.title").value("There is no run with that id. Nothing was sent."));
         assertThat(askedOfTheRunner).isEmpty();
     }
 

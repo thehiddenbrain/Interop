@@ -298,11 +298,9 @@ public class RunReplay {
             selected.add(run);
         }
         if (!unknown.isEmpty()) {
-            // Only an id that has the shape of one is repeated back.
-            List<String> shown = unknown.stream().filter(RunIds::plain).limit(10).toList();
-            throw new NotFoundException(unknown.size() == 1 && shown.size() == 1 ? "There is no run with id " + shown.get(0) + ". Nothing was sent."
-                    : unknown.size() + " of the run ids given are not in the ledger"
-                    + (shown.isEmpty() ? "" : ", among them " + String.join(", ", shown)) + ". Nothing was sent.");
+            // An id came from the request body, so none is repeated back: the count says enough.
+            throw new NotFoundException(unknown.size() == 1 ? "There is no run with that id. Nothing was sent."
+                    : unknown.size() + " of the run ids given are not in the ledger. Nothing was sent.");
         }
         if (!outside.isEmpty()) {
             throw new ValidationException(outside.size() + " of the run ids given are outside the date range given with them. Nothing was sent.",

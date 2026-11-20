@@ -110,7 +110,7 @@ class InMemoryLedgerTest {
     void aNoteOnARunTheLedgerDoesNotHoldIsNotFoundAndOneWithNothingInItIsRefused() {
         ledger.record(run("run-1", "APPROVED").note("first reading").build());
         assertThatThrownBy(() -> ledger.addNote("run-unknown", "a note", null)).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no run with id run-unknown.");
+                .hasMessage("There is no run with that id.");
         assertThatThrownBy(() -> ledger.addNote(null, "a note", null)).isInstanceOf(NotFoundException.class);
         // Neither a note nor a tester reference: nothing to change, and the caller is told.
         assertThatThrownBy(() -> ledger.addNote("run-1", null, null)).isInstanceOf(ValidationException.class);

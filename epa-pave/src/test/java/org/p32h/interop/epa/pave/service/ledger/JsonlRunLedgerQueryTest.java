@@ -368,7 +368,7 @@ class JsonlRunLedgerQueryTest {
         byte[] before = bytes(dayFile(home, TENTH));
 
         assertThatThrownBy(() -> ledger.addNote("run-404", "a note", null)).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no run with id run-404.");
+                .hasMessage("There is no run with that id.");
         // Text that is not an id this tool minted is not repeated back.
         assertThatThrownBy(() -> ledger.addNote("<script>alert(1)</script>", "a note", null)).isInstanceOf(NotFoundException.class)
                 .hasMessage("There is no run with that id.");

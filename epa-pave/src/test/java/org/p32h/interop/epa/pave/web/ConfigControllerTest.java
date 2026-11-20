@@ -258,7 +258,7 @@ class ConfigControllerTest {
 
         mvc.perform(post("/api/config/environments/{name}/activate", "No such environment")).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no uploaded environment named \"No such environment\"."));
+                .andExpect(jsonPath("$.title").value("There is no uploaded environment with that name."));
         assertThat(fixture.gateway.activeEnvironment().name()).isEqualTo("Onyx UAT");
     }
 
@@ -480,7 +480,7 @@ class ConfigControllerTest {
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.kind").value("NOT_FOUND"));
         mvc.perform(json(put(url), "{\"requestId\": \"r-000000000000\", \"operation\": \"UNMAPPED\"}"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("The collection \"Onyx Sandbox ePA\" has no request with the id \"r-000000000000\"."));
+                .andExpect(jsonPath("$.title").value("The collection \"Onyx Sandbox ePA\" has no request with that id."));
         // None of the refused corrections changed anything.
         assertThat(fixture.gateway.epoch()).isEqualTo(epoch);
     }
@@ -498,7 +498,7 @@ class ConfigControllerTest {
         mvc.perform(get("/api/config/collections")).andExpect(jsonPath("$.collections", hasSize(0)));
         mvc.perform(delete("/api/config/collections/{id}", id)).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no uploaded collection with the id \"" + id + "\"."));
+                .andExpect(jsonPath("$.title").value("There is no uploaded collection with that id."));
     }
 
     // ------------------------------------------------------------------------------------------

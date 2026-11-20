@@ -999,7 +999,7 @@ class NotificationReceiverTest {
         assertSampleInvalid(new NotificationSampleRequest(null, submitted.runId(), null), "scenarioId");
         assertThatThrownBy(() -> receiver.deliverSample(new NotificationSampleRequest("pas-11-notification-known-run",
                 "run-00000000-0000-4000-8000-00000000dead", null))).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no run with the id run-00000000-0000-4000-8000-00000000dead in the ledger.");
+                .hasMessage("There is no run with that id in the ledger.");
 
         // Nothing that was refused was delivered or recorded.
         assertThat(ledger.records()).hasSize(lines);

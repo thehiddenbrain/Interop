@@ -636,9 +636,9 @@ class RunReplayTest {
         recorded(draft("run-1", clock));
 
         assertThatThrownBy(() -> replay.replay(null, null, List.of("run-1", "run-404"))).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no run with id run-404. Nothing was sent.");
+                .hasMessage("There is no run with that id. Nothing was sent.");
         assertThatThrownBy(() -> replay.replay(null, null, List.of("run-404", "run-405", "<b>not an id</b>"))).isInstanceOf(NotFoundException.class)
-                .hasMessage("3 of the run ids given are not in the ledger, among them run-404, run-405. Nothing was sent.");
+                .hasMessage("3 of the run ids given are not in the ledger. Nothing was sent.");
         // The run that does exist was not sent on its own either.
         assertThat(runner.asked).isEmpty();
     }

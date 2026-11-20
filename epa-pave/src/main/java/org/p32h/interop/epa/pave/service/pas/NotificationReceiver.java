@@ -257,8 +257,8 @@ public class NotificationReceiver {
             }
             run = target == null ? null : target.find(runId).orElse(null);
             if (run == null) {
-                throw new NotFoundException(target == null ? "No ledger is available, so the run " + runId + " cannot be looked up."
-                        : "There is no run with the id " + runId + " in the ledger.");
+                throw new NotFoundException(target == null ? "No ledger is available, so that run cannot be looked up."
+                        : "There is no run with that id in the ledger.");
             }
             if (run.operation() != EpaOperation.PAS_SUBMIT) {
                 throw ValidationException.of("runId", "Name a PAS submission. The run " + runId + " is a " + run.operation().label() + " run.");
