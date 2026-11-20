@@ -87,6 +87,36 @@ class RunRecordTest {
     }
 
     @Test
+    void whoAnsweredIsWorkedOutOnEveryLineAndATimeNobodyMeasuredIsNotZero() {
+        // A line written before either fact was kept: a questionnaire response completed inside the tool, written with 0.
+        String local = "{\"recordType\":\"run\",\"runId\":\"run-7\",\"timestamp\":\"2026-01-05T10:15:30.000-05:00\","
+                + "\"protocol\":\"DTR\",\"operation\":\"DTR_RESPONSE\",\"profile\":\"mock\",\"outcome\":\"RESPONSE_COMPLETED\","
+                + "\"result\":\"unverified\",\"scenarioId\":null,\"httpStatus\":null,\"elapsedMillis\":0}";
+        RunRecord read = JsonSafe.mapper().readValue(local, RunRecord.class);
+        assertThat(read.answeredBy()).isEqualTo(AnsweredBy.NOBODY);
+        // On both profiles: the step is done inside this tool on live as well.
+        assertThat(AnsweredBy.of(EpaOperation.DTR_RESPONSE, "live", false)).isEqualTo(AnsweredBy.NOBODY);
+        assertThat(read.elapsedMillis()).isNull();
+        JsonNode written = JsonSafe.parse(JsonSafe.mapper().writeValueAsString(read)).node();
+        assertThat(written.get("elapsedMillis").isNull()).isTrue();
+        assertThat(written.get("answeredBy").asString()).isEqualTo("NOBODY");
+
+        assertThat(minimal().profile("mock").elapsedMillis(150).build().answeredBy()).isEqualTo(AnsweredBy.SCENARIO);
+        RunRecord live = minimal().profile("live").elapsedMillis(42).build();
+        assertThat(live.answeredBy()).isEqualTo(AnsweredBy.SERVICE);
+        assertThat(live.elapsedMillis()).isEqualTo(42L);
+        RunRecord refused = minimal().profile("mock").outcome(RunOutcome.BLOCKED).errorType(RunRecord.ERROR_BLOCKED).build();
+        assertThat(refused.answeredBy()).isEqualTo(AnsweredBy.NOT_SENT);
+        assertThat(refused.elapsedMillis()).isNull();
+        RunRecord arrived = minimal().protocol(Protocol.PAS).operation(EpaOperation.SUBSCRIPTION_NOTIFICATION).profile("mock").build();
+        assertThat(arrived.answeredBy()).isEqualTo(AnsweredBy.SERVICE);
+        assertThat(arrived.elapsedMillis()).isNull();
+        // A line that is not a run says nothing about who answered.
+        assertThat(RunRecord.caseLine("run-1", "2026-01-05T10:15:30.000-05:00", "chain-1", "suite-1", "c1", null, TestResult.PASS)
+                .answeredBy()).isNull();
+    }
+
+    @Test
     void aLineWrittenByANewerVersionStillReads() {
         String line = "{\"recordType\":\"run\",\"runId\":\"run-9\",\"timestamp\":\"2026-01-05T10:15:30.000-05:00\","
                 + "\"protocol\":\"PAS\",\"operation\":\"PAS_SUBMIT\",\"outcome\":\"APPROVED\",\"result\":\"pass\","

@@ -87,6 +87,14 @@ import java.util.Map;
  *                         step it never reached has failed although every step it made passed.
  *                         Applied when the line is read, from the case line that names this run.
  *                         Null otherwise
+ * @param answeredBy       who answered the run, by the one rule of {@link AnsweredBy#of}. Worked out
+ *                         when the record is built and when an older line that lacks it is read, from
+ *                         the operation, the profile and whether the run was refused, so every line
+ *                         answers it the same way
+ * @param elapsedMillis    how long the call took. Null when nothing was sent, as for a step done
+ *                         inside this tool, a notification that arrived and a refused write: a time
+ *                         that was not measured is not 0. An older line that wrote 0 for such a run
+ *                         is read as null
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.ALWAYS)
@@ -95,7 +103,7 @@ import java.util.Map;
         "delegatedVendor", "httpStatus", "elapsedMillis", "errorType", "expected", "result", "note", "testerRef",
         "chainId", "suiteRunId", "caseId", "replayOfRunId", "hook", "attachmentMode", "nextAction", "targetSource", "memberId",
         "memberToken", "memberIdLast4", "npi",
-        "dateOfService", "correlation", "findings", "unrecordedInputs", "slow", "caseExpected", "caseResult"})
+        "dateOfService", "correlation", "findings", "unrecordedInputs", "slow", "caseExpected", "caseResult", "answeredBy"})
 public record RunRecord(
         String recordType,
         String runId,
@@ -137,7 +145,8 @@ public record RunRecord(
         @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> unrecordedInputs,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) Boolean slow,
         @JsonInclude(JsonInclude.Include.NON_NULL) String caseExpected,
-        @JsonInclude(JsonInclude.Include.NON_NULL) TestResult caseResult) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) TestResult caseResult,
+        @JsonInclude(JsonInclude.Include.NON_NULL) AnsweredBy answeredBy) {
 
     /** The record type of a run line. Other line types in the same file carry a different value. */
     public static final String TYPE_RUN = "run";
@@ -284,9 +293,15 @@ public record RunRecord(
         // Boxed, not primitive, because Jackson 3 refuses to bind a missing property to a primitive
         // and a line without these two must still be readable. They are normalised here so callers
         // never see a null.
-        elapsedMillis = elapsedMillis == null ? Long.valueOf(0L) : elapsedMillis;
         slow = slow != null && slow;
         recordType = recordType == null ? TYPE_RUN : recordType;
+        if (TYPE_RUN.equals(recordType) && operation != null) {
+            boolean refused = ERROR_BLOCKED.equals(errorType) || RunOutcome.BLOCKED.name().equals(outcome);
+            answeredBy = answeredBy == null ? AnsweredBy.of(operation, profile, refused) : answeredBy;
+            if (refused || !operation.outbound()) {
+                elapsedMillis = null;
+            }
+        }
         if (TYPE_RUN.equals(recordType)) {
             if (Texts.blank(runId) || Texts.blank(timestamp) || Texts.blank(outcome) || protocol == null || operation == null
                     || result == null) {
@@ -582,7 +597,7 @@ public record RunRecord(
                                      String expected, TestResult result) {
         return new RunRecord(TYPE_CASE, lastRunId, timestamp, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, expected, result, null, null, chainId, suiteRunId, caseId, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -685,7 +700,7 @@ public record RunRecord(
         private List<String> coverageCodes = List.of();
         private String delegatedVendor;
         private Integer httpStatus;
-        private long elapsedMillis;
+        private Long elapsedMillis;
         private String errorType = OnyxFailureType.NONE.name();
         private String expected;
         private TestResult result;
@@ -937,7 +952,7 @@ public record RunRecord(
                     environmentKind, scenarioId, procedureCodes, lineOfBusiness, outcome, coverageCodes, delegatedVendor,
                     httpStatus, elapsedMillis, errorType, expected, result, note, testerRef, chainId, suiteRunId, caseId,
                     replayOfRunId, hook, attachmentMode, nextAction, targetSource, memberId, memberToken, memberIdLast4, npi, dateOfService, correlation,
-                    findings, unrecordedInputs, slow, caseExpected, caseResult);
+                    findings, unrecordedInputs, slow, caseExpected, caseResult, null);
         }
 
     }

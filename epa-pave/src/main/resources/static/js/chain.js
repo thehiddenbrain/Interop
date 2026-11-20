@@ -64,7 +64,7 @@ export function createChain(app, bar) {
         fill(bar, el('div', {class: 'chain-bar'},
             el('ol', {class: 'chain-stages'}, (view.stages || []).map(stage => el('li', {class: 'chain-stage chain-stage--' + token(stage.state)},
                 el('span', {class: 'chain-stage__name'}, stage.name),
-                el('span', {class: 'chain-stage__state', title: stage.stateLine || ''}, stage.latest ? [toneMark(stage.latest.tone), ' '] : null, stage.stateLine)))),
+                el('span', {class: 'chain-stage__state', title: stage.stateLine || ''}, stage.latest ? [toneMark(stage.latest.tone, stage.latest.answeredBy), ' '] : null, stage.stateLine)))),
             el('div', {class: 'chain-bar__side'},
                 el('p', {class: 'chain-bar__next'},
                     el('span', {class: 'chain-bar__next-label'}, 'Next step '),
@@ -196,7 +196,7 @@ function runTable(runs) {
             tableRow({class: 'chain-run', cells: [
                 when(run.timestamp),
                 run.what,
-                outcome(run.outcomeLabel, run.tone),
+                outcome(run.outcomeLabel, run.tone, run.answeredBy),
                 run.expected ? code(run.expected) : none('nothing declared'),
                 stamp(run.result),
                 {class: 'num', node: [millis(run.elapsedMillis), run.slow ? el('div', null, slowFlag()) : null]}

@@ -143,7 +143,7 @@ export function memberShort(run) {
 /** The outcome of a run in the server's words and tone. A code it has given no words for is shown as the code, with no tone. */
 export function outcomeOf(vocabulary, run) {
     const option = vocabulary ? vocabulary.outcome(run.protocol, run.outcome) : null;
-    return option ? outcome(option.label, option.tone) : outcome(code(run.outcome), null);
+    return option ? outcome(option.label, option.tone, run.answeredBy) : outcome(code(run.outcome), null, run.answeredBy);
 }
 
 /**

@@ -136,7 +136,6 @@ public class RunSupport {
                 .target(epa.target())
                 .profile(epa.mode())
                 .environment(environment == null ? EnvironmentRef.none() : environment)
-                .elapsedMillis(0)
                 .suiteRunId(from.suiteRunId())
                 .caseId(from.caseId())
                 .replayOfRunId(from.replayOfRunId());

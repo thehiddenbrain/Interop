@@ -231,7 +231,9 @@ class ChainServiceTest {
                 .containsExactly(ChainStageState.DONE, ChainStageState.DONE, ChainStageState.DONE);
         assertThat(done.runCount()).isEqualTo(5);
         assertThat(stage(done, Protocol.PAS).runs()).extracting(ChainRun::what).containsExactly("PAS submit", "PAS inquire");
-        assertThat(done.elapsedMillis()).isGreaterThanOrEqualTo(160);
+        // The package fetch, the submission and the inquiry were each written with 40 ms. The response
+        // completed inside the tool sent nothing, was not timed and adds nothing.
+        assertThat(done.elapsedMillis()).isEqualTo(120);
         assertThat(done.member()).isEqualTo("P32H-DOC-DTR");
         assertThat(done.notes()).isEmpty();
     }

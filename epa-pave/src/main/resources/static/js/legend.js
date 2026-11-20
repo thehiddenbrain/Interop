@@ -3,7 +3,7 @@
 // fact is drawn changes the key with it.
 
 import {el, fill, button, code} from './dom.js';
-import {TONES, RESULTS, findingGroupsOf, toneMark, stamp, slowFlag, mockMark} from './marks.js';
+import {TONES, RESULTS, findingGroupsOf, toneMark, stamp, slowFlag, mockMark, localMark} from './marks.js';
 import * as api from './api.js';
 import {presenceMark, noneMark} from './shown.js';
 
@@ -23,7 +23,10 @@ export async function openLegend(dialog) {
                 group('What the service said',
                     'The verdict strip at the top of a result, and the square in front of an outcome in a table. '
                     + 'A solid colour is an answer from the payer. A hollow frame is no answer from the payer, and the frame says why.',
-                    TONES.map(([tone, meaning]) => row(toneMark(tone), meaning))),
+                    [TONES.map(([tone, meaning]) => row(toneMark(tone), meaning)),
+                        row([toneMark('ACTION', 'NOBODY'), ' ', localMark()],
+                            'Nobody answered: a step done inside this tool, such as completing a questionnaire response. Nothing was sent. '
+                            + 'The dotted frame is in the colour of what the step means, and is never filled, because no payer answered.')]),
 
                 group('The test result',
                     'Whether the outcome matched what the tester declared. It is a different fact from what the service said, '
@@ -40,7 +43,7 @@ export async function openLegend(dialog) {
                     row(el('span', {class: 'kind kind--uat'}, 'uat'), 'UAT. A banner in purple outline stays at the top of every tab.'),
                     row(el('span', {class: 'kind kind--sandbox'}, 'sandbox'), 'A sandbox. It has no banner: nothing about it needs a warning.'),
                     row(mockMark(), 'The mock profile. A scenario file answered in place of the service, and nothing left this machine. '
-                        + 'A request this tool refused carries no hatch: nothing answered it.')
+                        + 'A request this tool refused, and a step done inside this tool, carry no hatch: nothing answered them.')
                 ]),
 
                 group('Marks', null, [

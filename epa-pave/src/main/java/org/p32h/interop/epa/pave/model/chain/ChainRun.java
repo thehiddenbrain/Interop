@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.model.chain;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
+import org.p32h.interop.epa.pave.model.AnsweredBy;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.Protocol;
@@ -22,6 +23,8 @@ import org.p32h.interop.epa.pave.model.Tone;
  *                        this one has been run again since
  * @param caseResult      on the last step of a chain run as a case, the result of the case as a
  *                        whole, which can differ from this step's own result. Null otherwise
+ * @param answeredBy      who answered the run, as its ledger line says: a step nobody answered is
+ *                        drawn apart from an answer of the payer or of a scenario
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ChainRun(
@@ -42,7 +45,8 @@ public record ChainRun(
         List<String> findings,
         String scenarioId,
         boolean latestOfItsKind,
-        TestResult caseResult) {
+        TestResult caseResult,
+        AnsweredBy answeredBy) {
 
     public ChainRun {
         findings = findings == null ? List.of() : List.copyOf(findings);

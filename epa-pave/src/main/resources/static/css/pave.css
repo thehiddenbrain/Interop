@@ -904,6 +904,33 @@ legend, .case-legend {
     --hatch-ink: var(--ink-strong);
 }
 
+/*
+ * A step nobody answered, done inside this tool. Its tone keeps its colour as a dotted frame and
+ * is never filled, because a filled strip or square is an answer from the payer.
+ */
+.verdict.verdict--local {
+    background: var(--white);
+    border-style: dotted;
+    color: var(--ink-strong);
+}
+
+.tone-mark.tone-mark--local {
+    background: var(--white);
+    border-style: dotted;
+}
+
+.local-mark {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--text-small);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--ink-strong);
+    padding: 0 6px;
+    background: var(--white);
+    border: 1px dotted var(--ink-strong);
+}
+
 /* ---------- the test result: its own element, its own colours ---------- */
 
 .stamp {

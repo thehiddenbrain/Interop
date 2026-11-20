@@ -337,7 +337,8 @@ public class ChainService {
                 record.operation() == null ? null : record.operation().label(), record.outcome(),
                 outcomes.label(record.protocol(), record.outcome()), outcomes.tone(record.protocol(), record.outcome()),
                 record.expected(), record.result(), record.elapsedMillis(), Boolean.TRUE.equals(record.slow()), record.httpStatus(),
-                nextAction(record), record.findings(), record.scenarioId(), latestOfItsKind, record.caseResult());
+                nextAction(record), record.findings(), record.scenarioId(), latestOfItsKind, record.caseResult(),
+                record.answeredBy());
     }
 
     /**
