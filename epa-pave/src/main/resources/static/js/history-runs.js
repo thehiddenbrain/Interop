@@ -388,7 +388,7 @@ export function createRunsList(app, context) {
                     el('td', null, outcomeOf(vocabulary, run)),
                     el('td', null, run.expected ? expectedOf(vocabulary, run) : none('nothing declared')),
                     el('td', null, stamp(run.result)),
-                    el('td', {class: 'num'}, millis(run.elapsedMillis), run.slow ? el('div', null, slowFlag()) : null),
+                    el('td', {class: 'num'}, millis(run.elapsedMillis) || none('not measured'), run.slow ? el('div', null, slowFlag()) : null),
                     el('td', null, memberShort(run)),
                     el('td', null, run.testerRef ? run.testerRef : none('none')),
                     el('td', null, partOf(run))))))));

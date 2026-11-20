@@ -126,7 +126,7 @@ export function createRunView(app, context) {
                         ['Ran against', [whereRan(run), ', ', run.profile || 'no', ' profile, target ', run.target || 'not stated']],
                         ['Url came from', run.targetSource ? ['the collection request ', el('strong', null, run.targetSource)]
                             : el('span', {class: 'quiet'}, 'the fallback settings, or nothing was configured')],
-                        ['Elapsed', [millis(run.elapsedMillis), run.slow ? [' ', slowFlag()] : null]],
+                        ['Elapsed', [millis(run.elapsedMillis) || none('not measured'), run.slow ? [' ', slowFlag()] : null]],
                         [member.label, member.node],
                         ['NPI', run.npi ? code(run.npi) : none('not recorded')],
                         ['Date of service', run.dateOfService ? code(run.dateOfService) : none('not recorded')],

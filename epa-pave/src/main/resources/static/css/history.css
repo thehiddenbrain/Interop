@@ -125,8 +125,17 @@
 .history-table th:nth-child(3) { width: 9%; }
 .history-table th:nth-child(4) { width: 17%; }
 .history-table th:nth-child(5) { width: 11%; }
+.history-table th:nth-child(7) { width: 7%; }
 .history-table th:nth-child(8) { width: 11%; }
 .history-table th:nth-child(9) { width: 6%; }
+
+/* A number stays on one line; "not measured" in its place may wrap inside its own column. */
+.history-table td.num .presence {
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: normal;
+    text-align: left;
+}
 
 /*
  * A failed test result is marked at the row's edge as well as in its stamp, so a list of failures

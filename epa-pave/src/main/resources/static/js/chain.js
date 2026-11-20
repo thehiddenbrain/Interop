@@ -199,7 +199,7 @@ function runTable(runs) {
                 outcome(run.outcomeLabel, run.tone, run.answeredBy),
                 run.expected ? code(run.expected) : none('nothing declared'),
                 stamp(run.result),
-                {class: 'num', node: [millis(run.elapsedMillis), run.slow ? el('div', null, slowFlag()) : null]}
+                {class: 'num', node: [millis(run.elapsedMillis) || none('not measured'), run.slow ? el('div', null, slowFlag()) : null]}
             ]}),
             tableRow({class: 'chain-run__more', cells: [{colSpan: headings.length, node: [
                 run.latestOfItsKind === false ? [el('span', {class: 'flag'}, 'run again since'), ' '] : null,
