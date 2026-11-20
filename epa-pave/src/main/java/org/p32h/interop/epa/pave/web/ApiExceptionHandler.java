@@ -332,6 +332,8 @@ public class ApiExceptionHandler {
     }
 
     private static ResponseEntity<ErrorView> respond(HttpStatus status, ErrorView body) {
-        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(body);
+        // Every refusal of what was submitted is worded for the call that was made, in one place.
+        ErrorView worded = status == HttpStatus.UNPROCESSABLE_CONTENT ? CallWording.word(body, CallWording.current()) : body;
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(worded);
     }
 }

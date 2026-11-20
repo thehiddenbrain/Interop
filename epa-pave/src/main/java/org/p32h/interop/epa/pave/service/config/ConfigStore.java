@@ -145,7 +145,7 @@ public class ConfigStore {
         this.strays = strays(loaded);
         if (!strays.isEmpty()) {
             // A count and the directory. The Config tab names each file.
-            log.warn("The configuration store at {} holds {} file(s) that it does not use. They may hold credentials from an upload "
+            log.warn("The configuration store at {} holds files that it does not use: {}. They may hold credentials from an upload "
                     + "that did not finish. The Config tab lists them.", directory, strays.size());
         }
 
@@ -168,7 +168,7 @@ public class ConfigStore {
         long epoch = Math.max(clock.millis(), loaded.epoch() + 1);
         this.current = new ConfigSnapshot(epoch, loaded.environments(), active, loaded.collections(), loaded.remembered());
         // Counts and names only. Never a variable value.
-        log.info("Configuration store ready at {}: {} environment(s), {} collection(s), active environment: {}", directory,
+        log.info("Configuration store ready at {}: environments {}, collections {}, active environment: {}", directory,
                 current.environments().size(), current.collections().size(), active == null ? "none" : "\"" + active + "\"");
     }
 
@@ -308,7 +308,7 @@ public class ConfigStore {
         warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
         // The name, the kind and a count. Never a variable value.
-        log.info("Environment \"{}\" uploaded as {} with {} variable(s){}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
+        log.info("Environment \"{}\" uploaded as {}, variables {}{}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
         return new EnvironmentUpload(stored, previous != null, warnings, current);
     }
@@ -385,7 +385,7 @@ public class ConfigStore {
         warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
         // The name and counts only. Never a url, a header or a body.
-        log.info("Collection \"{}\" uploaded with {} request(s){}", oneLine(parsed.name()), parsed.requests().size(),
+        log.info("Collection \"{}\" uploaded, requests {}{}", oneLine(parsed.name()), parsed.requests().size(),
                 previous == null ? "" : ", replacing the one of the same name");
         return new CollectionUpload(stored, previous != null, warnings, current);
     }

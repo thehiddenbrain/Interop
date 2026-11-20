@@ -32,7 +32,7 @@ class ProcedureCodeServiceLogTest {
         assertThat(output.getOut()).contains("Procedure code list loaded from " + file + " as csv: 2 rows, 1 state a prior authorization "
                 + "requirement, 1 name a vendor");
         // Two warnings: the flag that was not read, and the vendor nobody knows. The log gives the count and where to read them.
-        assertThat(output.getOut()).contains("The procedure code list was loaded with 2 warning(s). GET /api/procedure-codes/self-check "
+        assertThat(output.getOut()).contains("The procedure code list was loaded with warnings: 2. GET /api/procedure-codes/self-check "
                 + "lists them.");
         assertThat(output.getAll()).doesNotContain("QX958").doesNotContain("Zebra").doesNotContain("walrus").doesNotContain("Giraffe")
                 .doesNotContain("ocelot").doesNotContain("Mystery");

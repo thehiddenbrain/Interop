@@ -472,7 +472,8 @@ class ConfigControllerTest {
         // A misspelt property is named, not dropped.
         mvc.perform(json(put(url), "{\"requestID\": \"" + inquiry.requestId() + "\", \"operation\": \"UNMAPPED\"}"))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.title").value("The request has a field this tool does not know. Nothing was sent."))
+                .andExpect(jsonPath("$.title").value("The request has a field this tool does not know. Nothing was changed."))
+                .andExpect(jsonPath("$.action").value("Correct the marked field and try again."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("requestID"));
         mvc.perform(json(put(url), "not json")).andExpect(status().isUnprocessableContent());
         mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON)).andExpect(status().isUnprocessableContent());
@@ -862,7 +863,8 @@ class ConfigControllerTest {
         // A misspelt property is named, at the top and inside the request reference.
         mvc.perform(json(post("/api/config/resolve"), "{\"operation\": \"PAS_SUBMIT\", \"runValues\": {\"baseUrl\": \"x\"}}"))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.title").value("The request has a field this tool does not know. Nothing was sent."))
+                .andExpect(jsonPath("$.title").value("The request has a field this tool does not know. The request is not shown."))
+                .andExpect(jsonPath("$.action").value("Correct the marked field and show the request again."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("runValues"));
         mvc.perform(json(post("/api/config/resolve"), "{\"operation\": \"PAS_SUBMIT\", \"request\": {\"collectionID\": \"x\", \"requestId\": \"y\"}}"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("collectionID"));

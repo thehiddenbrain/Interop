@@ -200,7 +200,7 @@ class RunControllerTest {
                 .andExpect(jsonPath("$.fieldErrors[0].message").value("The from date is after the to date."));
         mvc.perform(get("/api/runs").param("from", "yesterday").param("protocol", "fax").param("result", "maybe").param("limit", "x"))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.title").value("The request has 4 problem(s). Nothing was done."))
+                .andExpect(jsonPath("$.title").value("The request has 4 problems. Nothing was done."))
                 .andExpect(jsonPath("$.fieldErrors[*].field").value(org.hamcrest.Matchers.contains("from", "protocol", "result", "limit")));
     }
 

@@ -191,7 +191,8 @@ class LookupControllerTest {
     void aBlankMemberIdIs422AndNothingIsLookedUp() throws Exception {
         mvc().perform(get("/api/members/{memberId}", "   ")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.kind").value("VALIDATION"))
-                .andExpect(jsonPath("$.title").value("There is no member ID to look up. Nothing was sent."))
+                .andExpect(jsonPath("$.title").value("There is no member ID to look up. Nothing was looked up."))
+                .andExpect(jsonPath("$.action").value("Correct the marked field and look it up again."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("memberId"))
                 .andExpect(jsonPath("$.fieldErrors[0].message").value("Enter a member ID. Nothing was looked up."));
         assertThat(asked).isEmpty();
@@ -247,7 +248,7 @@ class LookupControllerTest {
         MockMvc mvc = mvc();
         mvc.perform(get("/api/providers/{npi}", "1234567890")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.kind").value("VALIDATION"))
-                .andExpect(jsonPath("$.title").value("This is not an NPI that can be looked up. Nothing was sent."))
+                .andExpect(jsonPath("$.title").value("This is not an NPI that can be looked up. Nothing was looked up."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("npi"))
                 .andExpect(jsonPath("$.fieldErrors[0].message").value("The check digit of this NPI does not match, so it is probably a "
                         + "typing mistake. The directory was not asked."));
