@@ -40,12 +40,19 @@ export function openLegend(dialog) {
                 ]),
 
                 group('Marks', null, [
-                    row(el('span', {class: 'swatch swatch--cream'}), 'Cream: test data typed by hand, which a lookup would not give back.'),
+                    row(el('span', {class: 'swatch swatch--cream'}), [
+                        'Cream has three meanings, each about the test data and none about the service doing wrong:',
+                        el('ul', {class: 'legend__meanings'},
+                            el('li', null, 'a field of the case typed by hand, which a lookup would not give back;'),
+                            el('li', null, 'a DTR answer the payer pre-populated and a person then changed (an information-origin override);'),
+                            el('li', null, 'as the square of an outcome or a verdict strip, the service does not know the member or the provider.'))]),
                     row(el('span', {class: 'swatch swatch--nothing'}),
                         'A dashed outline: nothing is there. No answer, nothing declared, nothing returned. The words inside say which.'),
                     row(el('span', {class: 'swatch swatch--fault'}),
-                        'A heavy black frame: a fault to report. The environment failed, the ledger is not recording, or a run was not recorded. '
-                        + 'A field the server refused wears it too, with the server\'s sentence beneath it.'),
+                        'A heavy black frame: stop and read this before the next run. A fault to report: the environment failed, the ledger is not '
+                        + 'recording, or a run was not recorded. A field or a form the server refused, with its sentence beneath it. A result made '
+                        + 'before the configuration changed. News about the tool itself, under the tabs: the configuration changed, or the server '
+                        + 'stopped answering.'),
                     row(el('span', {class: 'flag'}, 'write'),
                         'A thin black frame around a word: a mark to read, not a fault. A write, a secret, a pre-request script, a code this tool does not know.'),
                     row(el('span', {class: 'swatch swatch--blocked'}),

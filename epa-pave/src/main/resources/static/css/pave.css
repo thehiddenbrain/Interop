@@ -2534,3 +2534,72 @@ details.fold > :not(summary) {
         scroll-behavior: auto !important;
     }
 }
+
+/* The meanings of one colour in the key, listed under it. */
+.legend__meanings {
+    margin: 2px 0 0;
+    padding-left: 18px;
+}
+
+/*
+ * What a protocol tab says in place of its form when the tool cannot send its first operation as
+ * configured. Plain type under a rule, like a panel: it is a statement, not a fault of anything.
+ */
+.readiness {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-3);
+    max-width: 80ch;
+    padding: var(--gap-2) var(--gap-5) var(--gap-5) 0;
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+}
+
+.workbench--gated .readout {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.workbench--gated-whole .readiness {
+    grid-column: 1 / -1;
+}
+
+.readiness__title {
+    font: 600 1.25rem/1.3 var(--font-display);
+    color: var(--ink-strong);
+}
+
+.readiness__missing {
+    margin: 0;
+    padding-left: var(--gap-3);
+    border-left: 3px solid var(--line);
+    color: var(--ink-strong);
+}
+
+.readiness__later {
+    margin: 0;
+    padding-left: 18px;
+}
+
+@media (min-width: 1181px) and (min-height: 600px) {
+    .workbench--gated .readiness {
+        margin-top: var(--gap-4);
+        border-right: 1px solid var(--rule);
+    }
+
+    .workbench--gated-whole .readiness {
+        border-right: 0;
+    }
+}
+
+@media (max-width: 1180px) {
+    .workbench--gated .readout {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    .readiness {
+        padding-right: 0;
+    }
+}

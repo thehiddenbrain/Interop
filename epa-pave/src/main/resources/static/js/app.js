@@ -34,7 +34,9 @@ const state = {
     health: null,         // the last answer of /api/runs/health, or null before the first
     healthUnread: false,  // true when the last ask of /api/runs/health got no usable answer
     stripKey: null,       // what the environment strip was last drawn from, so a poll that changes nothing is silent
-    operations: new Map(), // operation name -> its label, from /api/config/effective
+    operations: new Map(), // operation name -> its row of /api/config/effective, as the server sent it
+    operationsRead: false, // true once /api/config/effective has answered at least once
+    configListeners: [],   // parts of the page told after each change of the configuration, once the operations are read again
     placeholderList: null  // true when the code list in use is the bundled placeholder, from the self-check; null before it is read
 };
 
@@ -90,7 +92,28 @@ const app = {
     },
     /** The label of an operation as /api/config/effective words it, or null when the server has not listed it. */
     operationLabel(name) {
-        return state.operations.has(name) ? state.operations.get(name) : null;
+        const row = state.operations.get(name);
+        return row && row.label ? row.label : null;
+    },
+    /**
+     * The row /api/config/effective gives for an operation, named as that endpoint names it
+     * ("CRD_ORDER_SIGN"): where it would be sent, and in "unavailable" the server's sentence when
+     * it cannot be sent as things stand. Null when the server has not answered yet or does not list it.
+     */
+    operationRow(name) {
+        return state.operations.get(name) || null;
+    },
+    /** True once /api/config/effective has answered, so that a missing row means "not listed" and not "not read yet". */
+    operationsRead: () => state.operationsRead,
+    /**
+     * Calls listener() after every change of the configuration, once the frame has read the
+     * operations again, so what it reads through operationRow() is current. Returns a function that stops it.
+     */
+    whenConfigChanges(listener) {
+        state.configListeners.push(listener);
+        return () => {
+            state.configListeners = state.configListeners.filter(each => each !== listener);
+        };
     },
     /** True when the code list in use is the bundled placeholder, false when it is not, null while that is not known. */
     codeListIsPlaceholder: () => state.placeholderList,
@@ -187,6 +210,9 @@ async function poll(announceSame) {
         }
         // A new collection can carry operations under other words; they are read before any tab redraws.
         await readOperations();
+        for (const listener of state.configListeners) {
+            listener();
+        }
         // Every tab that has been drawn is redrawn now, whichever one is on screen. A tab that has
         // not been opened yet draws from the new configuration when it is.
         for (const entry of state.tabs.values()) {
@@ -220,11 +246,16 @@ async function readHealth() {
     drawStrip();
 }
 
-/** Reads the words for each operation. Kept from the last good answer when a read fails: labels do not go stale in a way that misleads. */
+/**
+ * Reads each operation's row: its label, where it would be sent, and why it cannot be sent when it
+ * cannot. Kept from the last good answer when a read fails; until one answer has arrived nothing is
+ * assumed about any operation.
+ */
 async function readOperations() {
     const answer = await api.get('/api/config/effective');
     if (answer.kind === 'ok' && Array.isArray(answer.body.operations)) {
-        state.operations = new Map(answer.body.operations.map(row => [row.operation, row.label]));
+        state.operations = new Map(answer.body.operations.map(row => [row.operation, row]));
+        state.operationsRead = true;
     }
 }
 

@@ -37,13 +37,21 @@ import {sourceWords} from './config-parts.js';
  *
  * spec: formLabel and readoutLabel (for assistive technology), onSubmit (called when the form is
  * submitted by its send button; Enter in a field does not submit it).
+ *
+ * spec.operations, optional: the operations the tab sends, in the order a case meets them, named
+ * as /api/config/effective names them (["CRD_ORDER_SIGN", "CRD_ORDER_SELECT"]), or a function
+ * returning that list. When it is given and the server says the first one cannot be sent as things
+ * stand, the form is not offered: in its place the tab says what is missing, in the server's
+ * words, with a way to the Config tab, and the form comes back as soon as the configuration
+ * changes so that it can be sent. Left out, the form is always offered, as before.
  */
 export function createWorkbench(app, panel, spec) {
     let busy = false;
     // The case as it stood when the latest request left. A result on screen was produced for this
     // case, whatever the tester has typed into the form since.
     let sentCase = null;
-    const tracked = [];
+    // A set, so a control tracked twice is disabled once and untracked once.
+    const tracked = new Set();
 
     const caseSlot = el('div', {class: 'case-slot'});
     const own = el('div', {class: 'case-group case-pane__own'});
@@ -96,8 +104,17 @@ export function createWorkbench(app, panel, spec) {
         }
     });
 
+    // Said in place of the form when the tab's first operation cannot be sent. Not a live region:
+    // the status line says in one sentence that the form is withheld, and that is what is announced.
+    const readinessTitle = (panel.id || 'workbench') + '-readiness-title';
+    const readiness = el('section', {class: 'readiness', hidden: true, aria: {labelledby: readinessTitle}});
+    // The readout, and its status line with it, can be hidden while the form is withheld, so the
+    // withholding and the return of the form are announced from a line that is never hidden.
+    const readinessStatus = el('p', {class: 'visually-hidden', role: 'status', aria: {live: 'polite'}});
+    const workbench = el('div', {class: 'workbench'}, readinessStatus, readiness, form, readout);
+
     panel.classList.add('tabpanel--workbench');
-    fill(panel, el('div', {class: 'workbench'}, form, readout));
+    fill(panel, workbench);
 
     function drawBeforeSending() {
         const items = app.caseContext.attention();
@@ -126,8 +143,69 @@ export function createWorkbench(app, panel, spec) {
                 })))));
     }
     app.caseContext.onChange(drawBeforeSending);
+
+    /** The operations the tab sends, as given, or an empty list when it gave none. */
+    function operationsSent() {
+        const given = typeof spec.operations === 'function' ? spec.operations() : spec.operations;
+        return Array.isArray(given) ? given.filter(name => typeof name === 'string' && name.length > 0) : [];
+    }
+
+    /**
+     * Whether the form can be offered, from what /api/config/effective says now. Only the server's
+     * own sentence withholds it: an operation the server has not described yet, or does not list,
+     * keeps the form, and a send then meets whatever the server answers.
+     */
+    function drawReadiness() {
+        const names = operationsSent();
+        const first = names.length > 0 ? app.operationRow(names[0]) : null;
+        const withheld = Boolean(first && first.outbound !== false && first.unavailable);
+        const was = !readiness.hidden;
+        // With no result to read, the readout's words about the form would point at nothing, so the
+        // statement takes the whole width. A result on screen stays beside it.
+        const whole = withheld && !bench.hasResult();
+        workbench.classList.toggle('workbench--gated', withheld);
+        workbench.classList.toggle('workbench--gated-whole', whole);
+        readiness.hidden = !withheld;
+        form.hidden = withheld;
+        readout.hidden = whole;
+        if (!withheld) {
+            clear(readiness);
+            if (was) {
+                readinessStatus.textContent = 'The configuration now lets this tab send. The form is back.';
+            }
+            return;
+        }
+        const later = names.slice(1).map(name => app.operationRow(name))
+            .filter(row => row && row.outbound !== false && row.unavailable);
+        const label = first.label || first.operation;
+        fill(readiness,
+            el('h2', {class: 'readiness__title', id: readinessTitle}, 'This tab cannot send yet'),
+            el('p', {class: 'readiness__lead'}, 'The tool cannot send ', el('strong', null, label),
+                ' as it is configured now, so there is no form to fill in. This is what it says is missing:'),
+            el('blockquote', {class: 'readiness__missing'}, first.unavailable),
+            later.length > 0 ? [
+                el('p', null, 'The later steps of this tab are missing something as well:'),
+                el('ul', {class: 'readiness__later'}, later.map(row => el('li', null, el('strong', null, row.label || row.operation), ': ', row.unavailable)))
+            ] : null,
+            el('p', {class: 'readiness__way'}, button('Open the Config tab', () => app.navigate('config'), {class: 'button--primary'})),
+            el('p', {class: 'quiet'}, 'Upload or choose what is missing there. The form comes back here on its own as soon as the configuration lets this tab send, '
+                + 'with no reload.'));
+        if (!was) {
+            readinessStatus.textContent = 'This tab cannot send yet. ' + first.unavailable;
+        }
+    }
+
     // The configuration this workbench starts under. A lookup made under it says so once it has changed.
     app.caseContext.configChanged(app.epoch());
+
+    /** Lets go of the tracked controls inside the result on screen, which is about to be replaced. */
+    function forgetResultControls() {
+        for (const control of tracked) {
+            if (result.contains(control)) {
+                tracked.delete(control);
+            }
+        }
+    }
 
     function setBusy(state, control) {
         busy = state;
@@ -159,11 +237,27 @@ export function createWorkbench(app, panel, spec) {
             caseSlot.append(app.caseContext.node, app.chain.control);
             refusal.after(app.caseContext.detail);
             drawBeforeSending();
+            drawReadiness();
         },
 
-        /** Controls that cannot be used while a request is on its way. */
+        /**
+         * Controls that cannot be used while a request is on its way. A control drawn inside a
+         * result is let go by the workbench when that result is replaced, so a tab may track the
+         * controls of each result it draws without them piling up.
+         */
         track(...controls) {
-            tracked.push(...controls);
+            for (const control of controls) {
+                if (control) {
+                    tracked.add(control);
+                }
+            }
+        },
+
+        /** Stops tracking controls the tab has taken off the page itself. */
+        untrack(...controls) {
+            for (const control of controls) {
+                tracked.delete(control);
+            }
         },
 
         /** A named place in the readout, above the result, for something the tab shows on request. */
@@ -252,10 +346,19 @@ export function createWorkbench(app, panel, spec) {
          * Shows the result of a run and tells the rest of the page about it.
          *
          * options.detail(envelope) returns the protocol's own part; options.detailTitle is its heading.
+         * options.nextStepControl(nextStep, envelope), optional, returns {label, run} for a next step
+         * the tab itself can take, or null; the shared control is used whenever it returns null.
          */
         showResult(envelope, options) {
+            const settings = options || {};
+            // A tab's own control for the next step (answering the next question, sending the
+            // response, checking a status) is asked first; the shared one covers the rest.
+            const shared = nextStepControl(app, sentCase);
+            const own = typeof settings.nextStepControl === 'function' ? settings.nextStepControl : null;
+            forgetResultControls();
             // A body of the tester's own is said under the verdict by the result view itself, on every protocol.
-            fill(result, renderResult(envelope, {...options, nextStepControl: nextStepControl(app, sentCase)}));
+            fill(result, renderResult(envelope, {...settings,
+                nextStepControl: (step, shownEnvelope) => (own ? own(step, shownEnvelope) : null) || shared(step, shownEnvelope)}));
             drawBeforeSending();
             readout.scrollTop = 0;
             status.textContent = 'Result received. ' + envelope.verdict.headline + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
@@ -339,6 +442,7 @@ export function createWorkbench(app, panel, spec) {
 
         /** What the readout shows before the first run. */
         showEmpty(node) {
+            forgetResultControls();
             fill(result, node);
         },
 
@@ -360,6 +464,11 @@ export function createWorkbench(app, panel, spec) {
             }
         }
     };
+    if (spec.operations) {
+        // The frame reads the operations again on every change of the configuration, then says so.
+        app.whenConfigChanges(drawReadiness);
+        drawReadiness();
+    }
     return bench;
 }
 
@@ -384,9 +493,9 @@ export function nextStepControl(app, forCase) {
         if (step.action === 'OPEN_CONFIG' || step.action === 'UNLOCK_OR_SWITCH') {
             return {label: 'Open the Config tab', run: () => app.navigate('config')};
         }
-        // Seam: ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE and CHECK_STATUS belong to the DTR and PAS tabs
-        // and get their buttons when those tabs are built. Every other action is something a person
-        // does away from this tool, so it has no button.
+        // ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE and CHECK_STATUS are taken on the DTR and PAS tabs,
+        // which pass their own control to bench.showResult as options.nextStepControl. Every other
+        // action is something a person does away from this tool, so it has no button.
         return null;
     };
 }

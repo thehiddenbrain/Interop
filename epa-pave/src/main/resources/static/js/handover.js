@@ -11,7 +11,8 @@
 // forCase} or null. forCase is the member ID, NPI and codes the run was sent with. A real tab is
 // built on createWorkbench as tab-crd.js is: it reads what was carried in onShow, places the
 // shared case with bench.showCase(), and sends carry with its first run only while the case on
-// screen is still forCase. Values carried for one member must not go out with another.
+// screen is still forCase. Values carried for one member must not go out with another:
+// sameCase(forCase, app.caseContext.summary()) is the test of that, for every tab.
 
 import {el, fill, code, facts, table, heading} from './dom.js';
 
@@ -81,8 +82,16 @@ export function protocolPlaceholder(spec) {
     };
 }
 
-function sameCase(one, other) {
-    return one.memberId === other.memberId && one.npi === other.npi && JSON.stringify(one.codes) === JSON.stringify(other.codes);
+/**
+ * True when two cases are the same member, provider and codes. one and other are each
+ * {memberId, npi, codes}, as app.caseContext.summary() gives them and as forCase is carried. A
+ * hand-over made for one case must not go out with another, and this is the one test of that.
+ */
+export function sameCase(one, other) {
+    if (!one || !other) {
+        return false;
+    }
+    return one.memberId === other.memberId && one.npi === other.npi && JSON.stringify(one.codes || []) === JSON.stringify(other.codes || []);
 }
 
 function carryTable(carry) {
