@@ -670,7 +670,7 @@ class PasResponseMapperTest {
         PasReading malformed = mapper.read(response(200, "{\"resourceType\": \"Bundle\", \"entry\": ["));
         assertThat(malformed.outcome()).isEqualTo(PasOutcome.MALFORMED_RESPONSE);
         assertThat(malformed.detail().responseKind()).isEqualTo(PasResponseKind.NOT_JSON);
-        assertThat(malformed.detail().responseNote()).contains("could not be read as JSON").contains("exactly as received");
+        assertThat(malformed.detail().responseNote()).contains("could not be read as JSON").contains("shown as received, but for any place that repeats a secret the request carried");
         // The raw bytes are on screen outside the wire view, first in the list and marked for what they are.
         assertThat(malformed.additionalFields()).containsExactly(AdditionalField.unparsedBody("{\"resourceType\": \"Bundle\", \"entry\": ["));
         assertThat(malformed.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.RAW_BODY);
