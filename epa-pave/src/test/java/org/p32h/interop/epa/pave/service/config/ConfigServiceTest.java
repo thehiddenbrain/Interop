@@ -925,10 +925,12 @@ class ConfigServiceTest {
                 + "{{traceId}}, and no environment is active. Give {{traceId}} a value in an environment on the Config tab, or type it among "
                 + "the values for this run.");
         assertThat(liveToken.notes()).isEmpty();
-        // With the header given a value for the run, the url alone is short, and on mock the scenario still answers.
+        // With the header given a value for the run, the url alone is short. On mock a run from the tab is still answered by
+        // a scenario, and the same request sent as written is refused, as on live: the note says both.
         assertThat(mock.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, Map.of("traceId", "t-1"), null, null).notes())
-                .containsExactly("The url still needs a value for id, and no environment is active. On the mock profile nothing is sent, "
-                        + "so the run is still answered from a scenario.");
+                .containsExactly("The url still needs a value for id, and no environment is active. On the mock profile a run from its "
+                        + "tab is still answered from a scenario, since nothing is sent. Sent as written from the Config tab, it is refused "
+                        + "until every part of its url has a value, on the mock profile as on live, and nothing is sent.");
         assertThat(live.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, Map.of("traceId", "t-1"), null, null).unavailable())
                 .isEqualTo("The url still needs a value for id, and no environment is active.");
     }

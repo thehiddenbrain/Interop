@@ -623,7 +623,7 @@ public class ConfigService {
         }
         List<String> notes = new ArrayList<>(source == null ? List.of() : source.notes());
         if (incomplete != null && epa.mock()) {
-            notes.add(headersMissing(plan) ? incomplete : incomplete + " On the mock profile nothing is sent, so the run is still answered from a scenario.");
+            notes.add(headersMissing(plan) ? incomplete : incomplete + onMockAnIncompleteUrl(operation, plan));
         }
         return Resolved.builder()
                 .operation(operation)
@@ -650,6 +650,22 @@ public class ConfigService {
                 .unavailable(epa.mock() ? null : incomplete)
                 .notes(notes)
                 .build();
+    }
+
+    /**
+     * What an incomplete target means on mock. A run from a protocol tab is answered by a scenario,
+     * which needs no url. A request sent as written is refused while its url still needs a value,
+     * on mock as on live (RawService), so a preview that said only the first would be contradicted
+     * by the send it prepares. An unmapped request can only be sent as written.
+     */
+    private static String onMockAnIncompleteUrl(EpaOperation operation, CallPlan plan) {
+        if (!plan.url().configured()) {
+            return " On the mock profile nothing is sent, so the run is still answered from a scenario.";
+        }
+        String asWritten = "Sent as written from the Config tab, it is refused until every part of its url has a value, on the mock "
+                + "profile as on live, and nothing is sent.";
+        return operation == EpaOperation.UNMAPPED ? " " + asWritten
+                : " On the mock profile a run from its tab is still answered from a scenario, since nothing is sent. " + asWritten;
     }
 
     /** A map as a browser posts it, without the entries that carry no value. */
