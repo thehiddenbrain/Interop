@@ -2707,3 +2707,263 @@ at `94edbc8`; the CRD tab at `6d7303a`; the DTR tab at `81e9092`; the PAS tab at
 5. The merged line built once through the shared build wrapper: 2597 tests, 2595 passed, 2 skipped
    (the two that need a folder that cannot be written, which a build running as root cannot make),
    none failed.
+
+## Decisions of the join, the server work the screens asked for, and the second audits
+
+After the revision of D-201, eight branches were merged: the pass that joined the five tabs into one
+tool, the two server tasks that did what the reviews of the screens asked of the server (D-200),
+the README brought up to the tool as built, a second pass that made the screens read what the
+server then said, and the fixes for what the second run of three audits of section 27 found
+(member data, the production guardrail, fixtures). Each was done by one agent. The two server
+tasks had no verifier of their own: the audits were their first independent readers. The fixes for
+the audits have been checked by nobody but their authors. The entries below record what was
+decided, in this order: the server work for the screens, the two passes over the screens and the
+README, the second audits and their fixes, what was decided not to do, the work decided and not
+done, the questions the operator has not answered, and what was decided while joining. "The fix",
+"the pass" or "the audit" means the agent that did that work. What is still open is in
+`PROGRESS.md`.
+
+### The server, as the screens asked
+
+**D-202. The request comparison masks a credential, and a secret sent back as a number is masked.**
+From the CRD review's CMP-6, CMP-7, CMP-10 and CMP-12 and the protocol half of D-200, item 1.
+- `ComparisonMasks` masks, by the name of the element that holds it and by the same rule and mask text
+  as the wire view, every credential the pasted request carries: in both documents and in every
+  difference value. The two requests are still compared on the values as typed, so a credential
+  that differs is still a difference, and its explanation says both values are masked.
+  `RequestComparison.maskedNote` says how many places were masked and is absent when none were. A
+  text the comparison could not check for a credential is not shown.
+- `RequestComparison.caveat` carries, on every answer, comparable or not, the sentence that the
+  comparison shows where the two requests differ and cannot show which one the service expects.
+  `CaseValue.sourceLabel` and `GroupCount.startsOpen` say where a case value came from and which
+  group starts open. The glossary names the button of the CRD tab, not an API path. `notes` still
+  repeats the caveat as its first entry; leaving it out is decided and not done (D-226).
+- A secret a service sends back as a JSON number is masked by the number's text as written, so the
+  designed view agrees with the wire view, which finds the same digits in the body text. Unit tests
+  only.
+- On the built jar a pasted request carrying a token was compared: the token was absent from the
+  whole answer, the application log and the ledger file.
+- The earlier `CaseResources` builders nothing called (`patient()`, `coverage()`, the five-argument
+  `serviceRequest`, the three-argument `codeableConcept`, `insurer()`) were removed, with the tests
+  that only exercised them. Closes D-178's open item.
+- `CaseResources.Reads` masks a secret variable a builder writes into a body in the wire view, the
+  preview and the designed view, and a delivered notification is masked for the credentials of the
+  address to call back. Secrets the environment and the token service hold were not reachable from
+  the receiver at this point; that gap was confirmed by the second audits and closed by D-215.
+
+**D-203. Tones say what the answer means for whoever must act, and the DTR and PAS answers carry their own words.**
+From the DTR review (R02, R04, R05, R09, R16, R18), the PAS review (R02, R05, R06, R11, R12, R15) and
+the protocol half of D-200, item 1.
+- Tones changed: the DTR outcomes `RESPONSE_COMPLETED` and `NOTHING_REQUIRED` from `CLEAR` to
+  `ACTION`, because their next step is PAS; a created or updated
+  subscription from `CLEAR` to `NEUTRAL`; an unmatched notification from `DATA` to `NEUTRAL`. A CRD
+  answer that needs no authorization keeps `CLEAR` unless its next step is not the end of the flow
+  (for example documentation is also wanted), when it is drawn `ACTION`. Every other outcome kept
+  its tone; the report lists each with its tone and next action.
+- The DTR verdict keeps to the answer: the count, what is asked, what is required. The sentence about
+  what the step exercised moves to the last request note; the notes on authorship and information
+  origin stay in the form's notes. A test fails if a form note comes back into the verdict.
+- The DTR next steps name the action by `NextAction.label()`, so the server's next step and the
+  button are one name (D-205 sets the two labels). The reason of a static questionnaire's next step
+  says that which items are enabled is worked out each time the response is completed in this tool,
+  without another call to the service: the sentence D-199 said would be made true.
+- Additions, each derived from its code in the record's compact constructor so that no caller can send
+  a label that disagrees with its code, with the old constructors kept:
+  `QuestionnaireView.kindLabel`, `EnableWhenView.stateLabel`, `DtrDetail.responseNote` for every
+  response kind, `NextStepView.carryLabels` (one map for all three protocols; a key with no words of
+  its own is labelled by itself, never left out; absent when nothing is carried, so a next step
+  with no carry keeps its JSON shape), `values` on each answer that was dropped (on the result only,
+  never on the ledger line), `PasDecision.sourceLabel` and `PasDetail.attachmentNote` (worded in
+  the present tense, so it is true of an answered run, a timeout and a preview alike).
+- A subscription value that was stated gets a note naming its variable and where its value came from
+  (typed for this run, the active environment, the collection, `application.yml`, an operating
+  system variable, made up by the tool); a secret value is named by its variable and never quoted.
+- A subscription created with no address to call back: the mock echoes the address sent, or none,
+  and the verdict is worded from what the request named and what the service answered. An unmatched
+  notification gives the remedy first (create a subscription from the PAS tab, then deliver the
+  sample again); D-224 changes this for the sample that matches nothing by design.
+- A preview's notes say "would be sent" and "would go out". A request that never arrived was "built
+  without" what it left out, not "sent without". No "(s)" is left in a sentence a tester reads.
+
+**D-204. Every next step on mock leads somewhere the mock can answer, and a played timeout says it was played.**
+From the protocol half of D-200, item 1, and FR-16 and CRD-2.
+- `pas-16-timeout` and `pas-17-server-error-500` gained an inquiry step that answers "pended": the
+  submission did arrive. They were the only submit scenarios whose next step says to ask for the
+  status and that had no inquiry. A test walks every PAS submit scenario and follows each next step
+  that names an inquiry with the same sentinel. The scenario data changed, not the wording.
+- `VendorExchange.withScenario` adds one sentence to the failure detail of every timeout a scenario
+  answered: the timeout is simulated, the scenario reports it after its own short delay, and the
+  response time shown is that delay. It is set once, centrally, so every protocol and lookup gets
+  it, and a tester is never held for the full read timeout.
+- A test proves what D-188 said was missing: two lookup fixture files that claim one member ID, or one
+  NPI, stop the start naming both (`LookupFixturesTest`). It pins behaviour that was already there.
+- The protocol task changed one count in `PasControllerTest`, a test of the other task (9 scenarios
+  answering an inquiry became 11). The integrator accepted it at the merge (D-228).
+
+**D-205. The platform half: words the server gained, refusals that say what happened, and two halves of a rule seen together.**
+From the frame review (FR-01, FR-03, FR-04, FR-07, FR-08, FR-11, FR-13, FR-16, FR-17), the CRD review
+(CMP-9, CRD-1, CRD-3), the DTR review (R09), the PAS review (R12) and the platform half of D-200.
+- A request sent from the collection as it is reads the masked body, like every protocol (FR-01).
+  `SecretsSentBackOverTheServerTest` searches the whole answer of ten endpoints (the CRD run, CRD
+  discovery, the DTR package and next question, the PAS submission and inquiry, a subscription, both
+  lookups and the raw send) over the running server on live, for the bearer token, an API key header
+  and a secret variable echoed in an unexpected field and as a property name. None is disabled and
+  all ten are clean. D-215 added a delivered notification to it.
+- "Can this operation be sent" counts a placeholder in the url and in the headers of the mapped
+  request (FR-03). On live such a header makes the row unavailable, with a sentence naming the
+  placeholder and where to give it a value. On mock it goes in the row's note, which says a run is
+  refused there too, because the mock refuses a header with no value before a scenario answers.
+  The body is not counted, decided against D-200: a protocol run sends the body the tool builds,
+  never the collection's, and the one call that sends a collection body (a raw send) has no row
+  and refuses an unresolved placeholder itself.
+- The reason of a blocked run's next step says what the step achieves and no longer repeats the
+  refusal (FR-13). `SEND_ON_ITS_OWN`'s label no longer repeats "never carries".
+  `ProductionRefusalOverTheServerTest` drives a refused PAS replay and a refused suite row through the
+  real endpoints on live against a stand-in playing production: each carries the sentence of its
+  origin exactly once, and only the original unlocked submission arrived. That is how the two halves
+  of D-183 were seen together; nobody drove them by hand on the merged line.
+- A configuration item another window removed is answered 404 saying it is no longer held and may
+  have been removed or uploaded again in another window, with the action to read the list again
+  (FR-07). The removed environment is not named: the store no longer holds its name, and the id in
+  the address is not repeated (D-185). A request taken off every operation is "not mapped to any
+  operation", and is named as itself in the guardrail's refusal and in the upload warning, never as
+  "Unmapped request", the label of no operation (FR-08).
+- `CallWording`: every 4xx answer, not only a 422, is worded for the call that was made, so a preview,
+  a comparison, an unlock, an upload or a lookup is never told "Nothing was sent" or "send again"
+  (FR-17, CMP-9). An endpoint it does not know keeps its words, and so does a 5xx. Counts are written
+  in words that agree ("1 problem", "2 problems").
+- A failure the tool cannot name is said in plain words, not by a Java class name (CRD-3): the host
+  could not be found, the TLS handshake failed, or the connection failed before an answer arrived and
+  the request may have reached the service. For a failure it cannot name, the log line holds the host
+  and the exception types and frames, never the path, the query, the headers or the message. D-216
+  stops that line for the lookups.
+- A played mock timeout gets an error panel of its own: the scenario reports giving up after its
+  delay, nothing was waited for, and what live would wait (`onyx.read-timeout-ms`) (CRD-2, FR-16).
+  The verdict's supporting line still says no response arrived inside the read timeout beside it,
+  so the timeout is said twice; on PAS the verdict also says the payer may have received the
+  submission beside "Nothing was sent". Saying it once is decided and not done (D-226).
+- Additions, by the names D-200 fixed: `defaultRule` on an effective row with several requests (absent
+  with one or none, and on the notification, inbound and unmapped rows; when every mapped request is
+  a sample of an error it says none is used and how to have one used); `bindAddress` and `bindNote`
+  on `GET /api/mode` (`bindAddress` absent when `server.address` is not set, so no address is
+  invented; loopback and wildcard judged from the text with no name lookup); the enum `FindingGroup`
+  with `group` and `groupLabel` on every `Finding`, derived from the kind in the compact
+  constructor, and `findingKinds` on every scenarios answer, each entry carrying `groupMeaning` as
+  well, so the colour key could drop its copy (an addition beyond the names D-200 fixed);
+  `IssueView.expressionPresent` and `locationPresent`, primitive booleans, true when the issue held
+  the element at all, null included.
+- The labels of `SUBMIT_RESPONSE` and `ANSWER_NEXT_QUESTION` are exactly "Complete the response" and
+  "Send answers and get the next question", the names of the DTR tab's buttons, with no full stop.
+  The chain view adds one where it makes a sentence of a label.
+- The platform task changed one line of a CRD test of the other task (`PlaceholderOnTheLiveProfileTest`
+  now lists `group` and `groupLabel` among a finding's properties). The integrator accepted it at the
+  merge (D-228).
+
+### The screens joined, and reading what the server says
+
+**D-206. The pass that joined the tabs: one readiness statement, one next-step row, one focus.**
+From `TASK_JOIN`, on the revision of D-201, before the server tasks above were merged.
+- Every protocol tab passes `spec.operations` to the workbench: CRD by its hook, DTR its two
+  operations, PAS by the call chosen (the notification receiver needs no service, so the readiness
+  statement offers the way to it). On live with nothing configured each tab holds its form back and
+  says what is missing, with a link to Config; after an upload the form comes back within one poll,
+  with no reload. The DTR and PAS tabs' own readings of the configuration were removed: two ways of
+  saying one thing. On mock the statement never shows, by design.
+- The rule that a result never carries itself into the tab it is on lives in the shared next-step
+  control. A tab gives a control of its own through the hook (`{label, run}`, `{node}` or nothing);
+  DTR's reach into the shared row and PAS's removal of buttons are gone.
+- After a send the focus goes to the new verdict headline, once, in the workbench, on every tab. DTR
+  still moves it to the line under the questions after a loop or response step, on purpose.
+- The tester reference and the note show in the run facts of the result view on every tab, read from
+  the ledger record; a run the ledger did not keep says so, because the envelope does not echo them.
+- The masked wire is passed to the returned fields of the lookups, discovery and the CRD detail; not
+  to the PAS detail or the notifications, whose paths were not confirmed to start at the root of the
+  body, because the stopgap withholds a value whose path it cannot find.
+- `bench.clearRefusal`, `caseContext.setDetail(field, value, origin)` with the mark "from the pasted
+  request", `caseContext.lookupNote` and a compact layout at laptop height (the production banner
+  from 124 to 79 pixels, the chain bar at one line per stage, the action box capped at half the
+  pane, determination cells breaking only at a joint, the verdict headline smaller from 80
+  characters) were added.
+- A defect of the join was found and fixed: History's "Load this case into the form" called two
+  functions the case never had, and every load threw. `StaticJoinTest` now fails the build when a
+  script calls a member that `app`, `caseContext` or `bench` does not have, an import names nothing
+  exported, a script is orphaned or a linked file is missing. It does not check that a field the
+  browser reads exists on the record the server returns.
+- The lookups use the query form (D-189); `handover.js` holds only `sameCase`, which both hand-over
+  tabs use; the export link passes the protocol and result filters; a replay entry's verdict line is
+  left out when it repeats the entry's reason word for word.
+
+**D-207. The second pass: the screens read the server's words, and the copies are gone.**
+From `TASK_JOIN2`, on revision `0658a7c`, which holds the two server tasks.
+- The page's own copies of the server's words were removed and replaced by what the server serves:
+  `FINDING_GROUPS` in `marks.js` (the key reads `findingKinds` each time it opens and says so if that
+  read fails), the comparison's `SOURCES` and `STARTS_CLOSED`, the PAS `SOURCES` and its attachment
+  sentence, the Config tab's sentence about the default request (`defaultRule`), its words for a
+  placeholder's source (`sourceLabel`), the receiver panel's own sentence about whether a service
+  can call back (`bindNote`, shown plainly, with no colour: the page does not judge an address), the
+  DTR kind and condition words, and the raw hand-over keys (`carryLabels`, stacked label over value
+  with the key in brackets). `StaticServerWordsTest` fails the build if one of the removed copies
+  comes back, and pins each field a script now reads.
+- The DTR buttons take their names from the next actions' labels, so the server's next step and the
+  button are one name. An issue's expression and location are drawn "not returned" or "empty" from
+  the presence flags. `exactCode`, the `testerRef` filter, the sentinel lists of each scenario,
+  `urlValues` with a field per url part, and the 422 of an incomplete url at its field are read.
+  The comparison shows the caveat once, also on an answer that is not comparable, and drops the
+  duplicate in `notes` by its text.
+- Action names made to agree: "Show the request" (was "Show the request before sending"), "Replay
+  these runs" (was "Send these runs again"), "Send inquiry" (was "Send inquiry for this request").
+  Decided otherwise: the Config buttons that only open a view ("Upload a collection", "Send one as
+  written") keep their names, because their words do not claim the action is done.
+- An unreadable ledger line is a visible note after the masthead's count, not an alarm, because runs
+  are still recorded; it joins the alarm list when there is one already.
+- The zone filter of the run list was not added. Decided since: History is worded in UTC days
+  throughout (the list's date fields, the export's range sentence and the date-range replay), and
+  adding a zone would mean rewording all three. The server keeps the `zone` parameter (D-187).
+- The comparison's token is absent from the page text and stays only in the tester's own pasted box,
+  which is the tester's input. On live, against a stand-in echoing the bearer token, an API key, the
+  client secret and a secret environment variable, none appeared in the page text or a field value
+  after the lookups, the CRD run, discovery, the DTR package, the PAS submission and the raw send, at
+  1366 by 768 only; values that are not secrets stayed visible.
+- Found and handed to the server: a lookup answer holding a masked value fills the case field with
+  the mask text, which a following run would send as data (decided, D-226); the raw resolve says a
+  run is still answered from a scenario where the raw send refuses the same request (decided,
+  D-226); the body source is served as a code only and the page shows the server's sentence instead.
+
+**D-208. What the passes proved on the real tabs, and a replay never joins a chain.**
+- The two proofs of "Prove it before handover" were seen on the real tabs, on mock, by the second pass,
+  on revision `0658a7c`, at 1366 by 768 and 1920 by 1080, by browser scripts, and quoted in its report.
+  `P32H-NO-AUTH` is a solid strip in the tone `CLEAR` reading "Prior authorization is not required."
+  with "The flow ends here. Record this result."; `P32H-EMPTY` is a dashed hollow strip in the tone
+  `NO_ANSWER` reading "The service answered but returned no determination." and "This is not the same
+  as an answer that prior authorization is not required. The service has said nothing either way."
+  In History they are two rows with their own words; in the ledger file one line has outcome
+  `NO_AUTH_REQUIRED` and next action `FLOW_ENDS`, the other `NO_DETERMINATION`, `REVIEW` and the
+  finding `NOT_STATED`. The journey with `P32H-DOC-DTR` went from CRD ("Documentation is required.")
+  through DTR ("The questionnaire response is complete.") into PAS ("The answers completed in DTR
+  will travel with this request."), and the answer typed in DTR (`"valueInteger" : 17`) was seen in
+  the PAS preview and, after the send, in the wire view. On mock the wire says the request was not
+  sent, because nothing leaves the machine. A business tester has not done either.
+- The hand-over between the real tabs was seen by both passes, and a journey was found again as one
+  chain in History. One journey was driven with the keyboard alone by the second pass (31 presses of
+  Tab to reach the package button, 38 to reach the PAS send).
+- A replay's ledger line has no chain id, so no chain view ever shows a replay: seen through the API of
+  the running tool by the second pass. `ChainServiceTest` pins what a chain view says for a blocked
+  replay, a state the tool cannot reach. Decided: a replay never joins a chain, and the test and the
+  comments are to be brought into line with that (D-226).
+
+**D-209. The README brought up to the tool as built, and the pull request draft.**
+From `TASK_DOCS2`, on the line with the join and before the server tasks for the screens were merged.
+- The README was gone through from the first line to the last against the running tool, and every
+  example under Endpoints was run in order against a fresh tool on mock, on port 8091 because 8057
+  was taken (D-171). It now walks a tester through the five tabs in the screen's own words, with the
+  journey with `P32H-DOC-DTR`, and describes the guides, the guardrail, the ledger, the edge, suites,
+  fixtures and the last server changes. The sentences D-139 and D-184 said were untrue are corrected.
+- Every sentence of the README that quotes the screen or the API word for word was listed by line, to
+  be checked again after later work. Later work has since reworded some of them (D-202 to D-207 and
+  the audit fixes): "Show the request before sending" is one, the presentation of the sample code
+  list another (D-223). Checking them is the work of D-226.
+- The pull request draft lives outside the repository and keeps a place for each gate that has not
+  run. Its attribution footer, required by the session for pull request descriptions, holds a
+  non-ASCII character and names the generating tool, which the house style and the rule against
+  naming a tool as an author both forbid. Which wins is the integrator's to decide before it is
+  posted; nothing is posted yet.
