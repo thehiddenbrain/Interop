@@ -12,7 +12,7 @@ import {createWritesPanel} from './config-writes.js';
 import {createTryPanel} from './config-try.js';
 
 export function createInForceView(context) {
-    const pointed = el('section', {class: 'result__section', aria: {live: 'polite'}});
+    const pointed = el('section', {class: 'result__section'});
     const start = el('div', {class: 'config-start'});
     const writes = createWritesPanel(context);
     const operations = el('section', {class: 'result__section config-operations-section'});
@@ -224,5 +224,5 @@ export function createInForceView(context) {
         }
     }
 
-    return {node, show, draw};
+    return {node, show, draw, configChanged: () => trying.configChanged()};
 }

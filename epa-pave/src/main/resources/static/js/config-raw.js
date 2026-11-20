@@ -43,7 +43,10 @@ export function createRawView(context) {
     const previewSlot = bench.slot('preview');
     bench.track(sendButton, previewButton, requestSelect);
 
+    // The summary of a refused form sits in the scrolling form, above the fields it marks, not in
+    // the strip of buttons below it: a laptop screen leaves that strip too little room to show both.
     bench.own.append(
+        bench.problem,
         el('h2', {class: 'case-legend'}, 'A request of the collection'),
         el('p', {class: 'small'}, 'Sent with its own method, url and headers, with the placeholders filled in. '
             + 'The tool does not interpret the answer: it shows everything that came back and records the run.'),
@@ -57,7 +60,7 @@ export function createRawView(context) {
                 + 'Placeholders in it are filled in when it is sent. An empty field sends no body.'),
             el('p', null, reload)),
         el('div', {class: 'field-grid'}, testerRef.node, note.node));
-    bench.actions.append(bench.problem, el('div', {class: 'button-row'}, sendButton, previewButton));
+    bench.actions.append(el('div', {class: 'button-row'}, sendButton, previewButton));
 
     requestSelect.addEventListener('change', () => choose(requestSelect.value));
 
@@ -95,9 +98,16 @@ export function createRawView(context) {
         }
         requestSelect.value = chosen;
         drawAbout();
-        if (!bench.hasResult()) {
-            bench.showEmpty(emptyState(collections.length));
+        drawEmpty();
+    }
+
+    /** What to do next, while the readout holds no result and no request is chosen. Once one is chosen it says nothing. */
+    function drawEmpty() {
+        if (bench.hasResult()) {
+            return;
         }
+        const collections = (context.stored().collections || {}).collections || [];
+        bench.showEmpty(chosen ? null : emptyState(collections.length));
     }
 
     function emptyState(collectionCount) {
@@ -108,7 +118,7 @@ export function createRawView(context) {
                 el('p', null, button('Upload a collection', () => context.go('collections'), {class: 'button--primary'})));
         }
         return el('div', {class: 'empty-state'},
-            el('p', {class: 'empty-state__lead'}, 'Choose a request of the collection on the left.'),
+            el('p', {class: 'empty-state__lead'}, 'Choose a request of the collection.'),
             el('p', null, 'Its sample body is loaded into the form. Look at the request before sending with "Show the request before sending", '
                 + 'then send it. The result appears here, in the same form as every other run.'));
     }
@@ -131,6 +141,7 @@ export function createRawView(context) {
         chosen = key;
         clear(previewSlot);
         drawAbout();
+        drawEmpty();
         clear(values);
         if (!key) {
             body.value = '';
@@ -234,10 +245,15 @@ export function createRawView(context) {
         const answer = await bench.call(() => calls.previewAsWritten(sent), {saying: 'Reading the request before it is sent.', control: previewButton});
         forgetSecrets();
         if (!answer) {
+            focusRefusedField();
             return;
         }
-        fill(previewSlot, requestPreviewPanel(answer.body, () => clear(previewSlot)));
+        fill(previewSlot, requestPreviewPanel(answer.body, () => {
+            clear(previewSlot);
+            previewButton.focus();
+        }));
         bench.say('The request as it would be sent is shown. Nothing was sent.');
+        focusHeading(previewSlot, 'h2');
     }
 
     async function send() {
@@ -245,10 +261,50 @@ export function createRawView(context) {
         const answer = await bench.call(() => calls.sendAsWritten(sent), {saying: 'Sending the request as written.', control: sendButton});
         forgetSecrets();
         if (!answer) {
+            focusRefusedField();
             return;
         }
         clear(previewSlot);
         bench.showResult(answer.body, {detail: rawDetail, detailTitle: 'What came back'});
+        // The keyboard goes where the answer is, as it would on any page that changed under it.
+        focusHeading(host, '.readout__result .verdict__headline');
+    }
+
+    /** A refused form: the first field it marks is brought into view and given the focus. */
+    function focusRefusedField() {
+        const marked = host.querySelector('.case-pane .field--invalid');
+        if (!marked) {
+            return;
+        }
+        const control = marked.querySelector('input, select, textarea');
+        marked.scrollIntoView({block: 'center'});
+        if (control) {
+            control.focus({preventScroll: true});
+        }
+    }
+
+    function focusHeading(root, selector) {
+        const target = root.querySelector(selector);
+        if (target) {
+            target.tabIndex = -1;
+            target.focus();
+        }
+    }
+
+    /**
+     * The configuration changed: another environment is active, or something was uploaded. What
+     * this view drew from the earlier one is read again, so no field says where a value comes
+     * from under a configuration that is no longer in force.
+     */
+    function configChanged() {
+        clear(previewSlot);
+        if (chosen) {
+            listValues();
+        }
+        bench.markStale();
+        if (chosen) {
+            bench.say('The configuration changed. The placeholders of the chosen request were read again.');
+        }
     }
 
     function show(argument) {
@@ -266,7 +322,7 @@ export function createRawView(context) {
         return null;
     }
 
-    return {node: host, show, draw, address, bench: true};
+    return {node: host, show, draw, configChanged, address, bench: true};
 }
 
 /** The raw detail: which request went, what kind of answer came back, and the issues of an OperationOutcome. */

@@ -27,7 +27,9 @@ export function createTryPanel(context) {
     const valueFields = el('div', {class: 'config-try__values'});
     const problem = el('div', {class: 'form-problem-slot'});
     const go = el('button', {type: 'submit', class: 'button button--quiet'}, 'Show how it resolves');
-    const answerNode = el('div', {class: 'config-try__answer', aria: {live: 'polite'}});
+    // Not a live region: the answer holds tables, and a live region is read out whole. The tab's
+    // status line says in one sentence that it arrived.
+    const answerNode = el('div', {class: 'config-try__answer'});
     const form = el('form', {class: 'config-try__form', noValidate: true, attrs: {'aria-label': 'Try values for one operation'}},
         el('div', {class: 'config-try__choose'},
             el('div', {class: 'field', dataset: {field: 'operation'}}, el('label', {htmlFor: 'config-try-operation'}, 'Operation'), operationSelect),
@@ -85,7 +87,9 @@ export function createTryPanel(context) {
     function drawRequests() {
         const row = outboundRows().find(candidate => candidate.operation === operation);
         const requests = row ? row.requests || [] : [];
-        const options = [el('option', {value: ''}, requests.length > 0 ? 'The one the operation uses by default' : 'None is mapped: the address comes from application.yml')];
+        // With nothing mapped, where the address comes from (or that there is none) is the server's
+        // to say, in the answer. The option says only that no request is mapped.
+        const options = [el('option', {value: ''}, requests.length > 0 ? 'The one the operation uses by default' : 'No request of a collection is mapped to it')];
         for (const available of requests) {
             options.push(el('option', {value: available.collectionId + ' ' + available.request.id},
                 available.request.name + ' (' + available.collectionName + ')' + (available.usedByDefault ? ', used by default' : '')));
@@ -163,6 +167,21 @@ export function createTryPanel(context) {
         last = answer.body;
         drawValueFields();
         fill(answerNode, resolvedView(last));
+        context.announce('Resolved ' + (last.label || operation) + (last.url && last.url.display ? '.' : '. The url is not complete.'));
+    }
+
+    /**
+     * The configuration changed. An answer on screen was worked out under the earlier one, so it
+     * is taken away rather than left beside the new environment's name in the frame.
+     */
+    function configChanged() {
+        if (!last) {
+            return;
+        }
+        last = null;
+        clear(valueFields);
+        fill(answerNode, el('p', {class: 'config-try__gone'}, el('strong', null, 'The configuration changed, so the answer shown here was taken away. '),
+            'It described the configuration that was in force before. Press "Show how it resolves" to see it under the one in force now.'));
     }
 
     /** One field for every variable and url token the latest answer named, so a value can be typed for any of them. */
@@ -170,7 +189,9 @@ export function createTryPanel(context) {
         const variables = last.variables || [];
         const tokens = last.urlTokens || [];
         if (variables.length === 0 && tokens.length === 0) {
-            fill(valueFields, el('p', {class: 'small quiet'}, 'This request has no placeholders to type a value for.'));
+            fill(valueFields, el('p', {class: 'small quiet'}, last.url && last.url.template
+                ? 'This request has no placeholders to type a value for.'
+                : 'There is nothing to type a value for: the answer below names no url and no placeholder.'));
             return;
         }
         fill(valueFields,
@@ -193,7 +214,7 @@ export function createTryPanel(context) {
             hint ? el('span', {class: 'field__hint'}, hint) : null);
     }
 
-    return {node, draw, tryOperation};
+    return {node, draw, configChanged, tryOperation};
 }
 
 /** What one operation's request resolves to, as the server answered it. */
@@ -217,7 +238,8 @@ function resolvedView(resolved) {
             ['Environment', environment.active ? environment.name + ' (' + environment.kind + ')' : none('none active')],
             ['Url as configured', url.template ? code(url.template) : none('none')],
             ['Url it resolves to', url.display ? code(url.display, 'literal--address')
-                : [none('not complete'), resolved.urlShown ? [' So far: ', code(resolved.urlShown, 'literal--address')] : null]],
+                : !url.template && !resolved.urlShown ? none('there is no url')
+                    : [none('not complete'), resolved.urlShown ? [' So far: ', code(resolved.urlShown, 'literal--address')] : null]],
             ['Where the url comes from', url.source || none('not stated')],
             ['Collection request', resolved.requestName ? [resolved.requestName, requestMarks({scripted: resolved.scripted})] : none('none: the address is not from a collection')]
         ], 'facts--ruled'),

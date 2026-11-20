@@ -46,7 +46,8 @@ const context = {
     reload,
     changed,
     go,
-    operationLabel
+    operationLabel,
+    announce
 };
 
 function mount(panel, application) {
@@ -58,10 +59,13 @@ function mount(panel, application) {
             on: {click: () => go(view.id)}
         }, view.label)));
     nodes.switcher.addEventListener('keydown', moveAlongViews);
-    nodes.problem = el('div', {class: 'config-problem', aria: {live: 'polite'}});
+    nodes.problem = el('div', {class: 'config-problem'});
+    // The one live region of the tab. Sections are redrawn whole, and a live region around one would
+    // be read out whole on every redraw, so each view says in one short line what changed instead.
+    nodes.status = el('p', {class: 'visually-hidden', role: 'status', aria: {live: 'polite'}});
     nodes.view = el('div', {id: 'config-view', class: 'config', role: 'tabpanel', tabIndex: -1});
     panel.classList.add('tabpanel--stacked');
-    fill(panel, nodes.switcher, nodes.problem, nodes.view);
+    fill(panel, nodes.switcher, nodes.status, nodes.problem, nodes.view);
     reload();
 }
 
@@ -121,6 +125,7 @@ async function reload() {
         return;
     }
     const failed = [environments, collections, effective].find(answer => answer.kind !== 'ok');
+    const before = stored.epoch;
     if (failed) {
         // What was read earlier stays on screen, since the tester may be reading it, and is marked
         // as possibly out of date. Nothing is cleared to an empty table that would read as "none".
@@ -134,9 +139,27 @@ async function reload() {
         stored.epoch = effective.body.epoch;
         stored.readAt = new Date();
     }
+    // What a view drew from the earlier configuration and keeps until it is asked again (the
+    // placeholders of a chosen request, a resolved answer, a preview) is dropped or read again.
+    const epochChanged = !failed && before !== null && before !== stored.epoch;
     for (const view of built.values()) {
         view.draw();
+        if (epochChanged && view.configChanged) {
+            view.configChanged();
+        }
     }
+    if (failed) {
+        announce('The configuration could not be read from the tool. ' + failed.body.title);
+    }
+}
+
+/** Says one short sentence to assistive technology. The sections themselves are not live regions. */
+function announce(text) {
+    nodes.status.textContent = '';
+    // Set on the next frame, so that the same sentence twice in a row is announced twice.
+    requestAnimationFrame(() => {
+        nodes.status.textContent = text;
+    });
 }
 
 /**

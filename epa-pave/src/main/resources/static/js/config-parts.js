@@ -107,7 +107,8 @@ export function requestMarks(request) {
         marks.push(flag('script after the response', 'Postman would run a script after the response, which may store a value a later request needs. This tool never runs it.'));
     }
     if (request.guardedAsWrite) {
-        marks.push(flag('counts as a write', 'Sending this request counts as a write, whatever it is mapped to. On a production environment it needs writes to be unlocked.'));
+        marks.push(flag('counts as a write', 'Sending this request as the operation it is mapped to counts as a write. On a production environment it needs writes to be unlocked. '
+            + 'Sent as written, a request is judged again by its method, name, url and headers.'));
     }
     if (request.detectionConflict) {
         marks.push(flag('name and url disagree', 'The name reads as one operation and the url as another. The name was followed.'));

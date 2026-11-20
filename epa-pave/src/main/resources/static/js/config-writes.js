@@ -16,7 +16,8 @@ import {clearFieldErrors} from './forms.js';
 import {refusal, during} from './config-parts.js';
 
 export function createWritesPanel(context) {
-    const node = el('section', {class: 'result__section config-writes-section', aria: {live: 'polite'}});
+    // Not a live region: the panel is redrawn whole. An unlock or a lock is announced in one line.
+    const node = el('section', {class: 'result__section config-writes-section'});
     const typed = el('input', {type: 'text', id: 'config-unlock-name', autocomplete: 'off', spellcheck: false});
     const problem = el('div', {class: 'form-problem-slot'});
     const unlock = el('button', {type: 'submit', class: 'button button--primary'}, 'Unlock production writes for this session');
@@ -48,6 +49,13 @@ export function createWritesPanel(context) {
         }
         typed.value = '';
         await context.changed();
+        context.announce('Writes to production are now unlocked for this browser session.');
+        // The form has gone. The keyboard lands on the heading of the panel that replaced it.
+        const title = node.querySelector('.section-heading');
+        if (title) {
+            title.tabIndex = -1;
+            title.focus();
+        }
     }
 
     async function sendLock(control) {
@@ -57,6 +65,19 @@ export function createWritesPanel(context) {
             fill(outcome, refusal(answer));
         }
         await context.changed();
+        if (answer.kind === 'ok') {
+            context.announce('Writes to production are locked again.');
+            // The button has gone. The keyboard lands where an unlock would start again.
+            if (node.contains(typed)) {
+                typed.focus();
+            } else {
+                const title = node.querySelector('.section-heading');
+                if (title) {
+                    title.tabIndex = -1;
+                    title.focus();
+                }
+            }
+        }
     }
 
     function writeOperations() {
@@ -64,17 +85,23 @@ export function createWritesPanel(context) {
         return effective ? (effective.operations || []).filter(row => row.write) : [];
     }
 
-    /** What counts as a write here, from the operations the server marks as writes. */
+    /**
+     * What counts as a write here: the operations the server marks as writes, and what the server
+     * does with a request sent as written. The server sends no sentence for the second, so this
+     * one says only what its refusal says, and points to where its own words appear.
+     */
     function whatIsAWrite() {
         const writes = writeOperations();
         return el('div', {class: 'config-writes__what'},
-            el('p', null, 'A write is a request that creates or changes something at the far side. Here that is:'),
+            el('p', null, 'A write is a request that creates or changes something at the far side. These operations are writes:'),
             writes.length > 0
                 ? el('ul', {class: 'plain-list config-writes__list'}, writes.map(row => el('li', null, row.label)))
                 : el('p', null, el('strong', null, 'The tool did not list its write operations.')),
-            el('p', null, 'and any request of a collection sent as written that the tool counts as a write. Those carry the mark ',
-                el('span', {class: 'flag'}, 'counts as a write'), ' under Collections and mapping. '
-                + 'Reads are never blocked: inquiry, subscription get and the lookups are sent as usual.'));
+            el('p', null, el('strong', null, 'A request sent as written is judged again when it is sent. '),
+                'The tool cannot tell what it does, so on production one sent with any method other than GET, HEAD or OPTIONS is blocked, '
+                + 'even when the same request is mapped to a read such as PAS inquire, and so may one whose name, url or headers read as a write. The mark ', el('span', {class: 'flag'}, 'counts as a write'),
+                ' under Collections and mapping is about a request sent as the operation it is mapped to, not about sending it as written. '
+                + 'When a send is blocked, the result says why in the tool\'s own words.'));
     }
 
     function draw() {
@@ -96,8 +123,9 @@ export function createWritesPanel(context) {
                     ? 'On the mock profile nothing leaves this machine. On the live profile a PAS submit sent now would create a real '
                         + 'prior authorization request against a real member. '
                     : 'A PAS submit sent now creates a real prior authorization request against a real member. ',
-                'The unlock is held for this browser session alone. Another browser, a restart of the tool, '
-                    + 'a switch of environment or the button below ends it.'),
+                'The unlock is held for this browser session alone, and other browsers still read as locked. '
+                    + 'It ends with any change to the configuration, made from any browser: a switch of environment, an upload of an '
+                    + 'environment or a collection. A restart of the tool or the button below ends it too.'),
                 whatIsAWrite(),
                 el('div', {class: 'button-row'},
                     lockButton()),
@@ -108,8 +136,7 @@ export function createWritesPanel(context) {
             fill(node, el('div', {class: 'config-writes config-writes--floor', role: 'region', aria: {label: 'Writes to production'}},
                 heading(2, 'Writes to production are blocked, and this installation offers no unlock'),
                 el('p', {class: 'config-writes__reason'}, access.reason),
-                el('p', null, 'The owner of this installation has set ', el('code', {class: 'literal'}, 'config-store.allow-prod-writes'),
-                    ' to false. Nothing typed on this page can override that. To test a write, use a sandbox or UAT environment.'),
+                el('p', null, 'Nothing typed on this page can override that, so no unlock is offered here.'),
                 whatIsAWrite()));
             return;
         }
@@ -119,7 +146,7 @@ export function createWritesPanel(context) {
             whatIsAWrite(),
             el('p', null, 'To send a write to ', el('strong', null, environment.name),
                 ' from this browser session, type its name below. The unlock is never remembered: it ends with the session, '
-                + 'with a restart of the tool, and as soon as another environment is made active.'),
+                + 'with a restart of the tool, and with any change to the configuration from any browser, an upload included.'),
             form,
             outcome));
     }
