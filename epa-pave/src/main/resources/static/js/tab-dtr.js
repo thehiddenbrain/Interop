@@ -27,6 +27,11 @@ let vocabulary = {outcomes: new Map(), elements: [], scenarios: null};
 let session = null;
 // The operation the latest request was for, so values for one run are looked up for that one.
 let lastOperation = 'dtr-questionnaire-package';
+// What /api/config/effective says stops the package from being fetched as things stand, or null.
+// It is the server's sentence, read when the tab is drawn and whenever the configuration changes.
+let unavailable = null;
+// The expectation the latest step went with, and its run, once it has been cleared from the field.
+let lastExpectation = null;
 
 const controls = {};
 const slots = {};
@@ -58,13 +63,15 @@ function mount(panel, application) {
     controls.preview = button('Show the request', showPackagePreview);
     controls.restart = el('p', {class: 'small dtr-restart', hidden: true},
         'Fetching the package again starts the questionnaires over: the answers typed on the right are dropped.');
+    controls.unavailable = el('div', {class: 'dtr-unavailable', hidden: true});
+    // The summary of a refused package form goes here; a refused loop or response step has its own,
+    // beside the button that sent it, in the questionnaire.
+    controls.problemHome = el('div', {class: 'dtr-problem-home'}, bench.problem);
 
     // The questionnaire field takes one url a line, and Enter in it starts the next line.
     controls.questionnaires.input.wrap = 'soft';
     bench.own.append(
         el('h2', {class: 'case-legend'}, 'DTR questionnaire package'),
-        el('p', {class: 'dtr-honest dtr-honest--lead'},
-            'There is no SMART launch here and no patient record. You type each answer yourself. Answers marked pre-populated come from the payer\'s service.'),
         controls.carried,
         el('div', {class: 'field-grid'}, controls.questionnaires.node, controls.assertionId.node, controls.date.node, controls.testerRef.node,
             controls.scenarioSlot, controls.note.node));
@@ -72,7 +79,8 @@ function mount(panel, application) {
         controls.expected.node,
         el('details', {class: 'fold'}, el('summary', null, 'Assert standard codes as well'), controls.assertions),
         controls.expectedText,
-        bench.problem,
+        controls.unavailable,
+        controls.problemHome,
         controls.restart,
         el('div', {class: 'button-row'}, controls.send, controls.preview));
     bench.track(controls.send, controls.preview);
@@ -86,6 +94,7 @@ function mount(panel, application) {
     addAssertionRow();
     drawEmptyState();
     loadVocabulary();
+    loadAvailability();
 }
 
 function onShow() {
@@ -152,6 +161,32 @@ function drawScenarioSelector(list) {
     if (list.problems && list.problems.length > 0) {
         controls.scenarioSlot.append(el('ul', {class: 'note-list small'}, list.problems.map(problem => el('li', null, problem))));
     }
+}
+
+/* ---------- whether the package can be fetched as things stand ---------- */
+
+/**
+ * The effective configuration says, per operation, why it cannot be sent as things stand. Before
+ * anything is configured on live that is the package fetch, and the tab says so on arrival, in the
+ * server's words, with the way to the Config tab, instead of offering a form that cannot send.
+ */
+async function loadAvailability() {
+    const answer = await api.get('/api/config/effective');
+    const rows = answer.kind === 'ok' && answer.body && Array.isArray(answer.body.operations) ? answer.body.operations : [];
+    const row = rows.find(operation => operation.operation === 'DTR_QUESTIONNAIRE_PACKAGE');
+    unavailable = row && (row.unavailable || row.blocked) ? (row.unavailable || row.blocked) : null;
+    drawUnavailable();
+    if (!bench.hasResult()) {
+        drawEmptyState();
+    }
+}
+
+function drawUnavailable() {
+    controls.unavailable.hidden = !unavailable;
+    fill(controls.unavailable, unavailable ? [
+        el('p', null, el('strong', null, 'The package cannot be fetched as things stand. '), unavailable),
+        el('p', null, button('Open the Config tab', () => app.navigate('config')))
+    ] : null);
 }
 
 /* ---------- what CRD handed on ---------- */
@@ -237,7 +272,37 @@ function expectedText() {
 
 function drawExpectedText() {
     const text = expectedText();
-    fill(controls.expectedText, text === '' ? null : ['Sent with the next step as ', code(text)]);
+    fill(controls.expectedText,
+        text !== '' ? ['Sent with the next step, whichever button sends it, as ', code(text), '. It is cleared once that step has a result.']
+            : lastExpectation ? ['The expectation ', code(lastExpectation.text), ' went with run ', code(lastExpectation.runId),
+                ' and was then cleared. The next step goes with none unless you choose one.'] : null);
+    if (session) {
+        session.refreshExpectation();
+    }
+}
+
+/**
+ * An expectation is about one step. Once a step it went with has a result, it is cleared, so it
+ * is never sent again with a step it was not declared for (a package expectation judging the
+ * response step, say, and writing a fail to the ledger).
+ */
+function clearExpectation(envelope) {
+    const text = expectedText();
+    if (text === '') {
+        return;
+    }
+    lastExpectation = {text, runId: envelope.runId};
+    controls.expected.select.value = '';
+    for (const row of controls.assertions.querySelectorAll('.assertion')) {
+        row.remove();
+    }
+    addAssertionRow();
+    drawExpectedText();
+}
+
+function editExpectation() {
+    controls.expected.select.scrollIntoView({block: 'center'});
+    controls.expected.select.focus({preventScroll: true});
 }
 
 /* ---------- what every step posts ---------- */
@@ -312,9 +377,39 @@ function placeAnswerProblems(answer, posted) {
 
 /* ---------- sending ---------- */
 
+/** Puts the summary of a refused form beside the button that was pressed: the package form's, or a step's. */
+function placeProblem(slot) {
+    const home = slot || controls.problemHome;
+    if (bench.problem.parentNode !== home) {
+        home.prepend(bench.problem);
+    }
+    for (const said of document.querySelectorAll('.dtr-step-again')) {
+        said.remove();
+    }
+}
+
+/** After a configuration refusal there is nothing to fetch, so the empty state stops saying to fetch. */
+function noteRefusal(reply) {
+    if (reply && reply.kind === 'conflict' && reply.body && reply.body.kind === 'CONFIGURATION' && !bench.hasResult()) {
+        bench.showEmpty(el('div', {class: 'empty-state'},
+            el('p', {class: 'empty-state__lead'}, 'No questionnaire package can be fetched until DTR is configured.'),
+            el('p', null, 'What is missing is said above, in the server\'s words. Once it is set on the Config tab, come back and fetch the package.')));
+    }
+    return reply;
+}
+
+/** The focus goes to what arrived, so a keyboard user carries on from there and not from the top of the page. */
+function focusOn(node) {
+    if (node) {
+        node.tabIndex = -1;
+        node.focus({preventScroll: true});
+    }
+}
+
 async function fetchPackage() {
     lastOperation = 'dtr-questionnaire-package';
-    const answer = await bench.call(() => api.postJson('/api/dtr/package', packageRequest()),
+    placeProblem(null);
+    const answer = await bench.call(() => api.postJson('/api/dtr/package', packageRequest()).then(noteRefusal),
         {saying: 'Fetching the questionnaire package.', control: controls.send});
     if (!answer) {
         return;
@@ -323,7 +418,9 @@ async function fetchPackage() {
     const envelope = answer.body;
     session = hasQuestionnaires(envelope) && envelope.operation === 'DTR_QUESTIONNAIRE_PACKAGE' ? createSession(envelope, hooks()) : null;
     controls.restart.hidden = !session;
+    clearExpectation(envelope);
     show(envelope);
+    focusOn(slots.preview.parentNode.querySelector('.result .verdict__headline'));
 }
 
 function hooks() {
@@ -333,7 +430,9 @@ function hooks() {
         previewLoop: entry => showLoopPreview(entry),
         // The case the latest step was sent for goes with the hand-over, as it does from the result's own button.
         nextControl: (step, envelope) => nextStepControl(app, app.caseContext.summary())(step, envelope),
-        track: (...list) => bench.track(...list)
+        track: (...list) => bench.track(...list),
+        expected: () => expectedText(),
+        editExpectation
     };
 }
 
@@ -344,8 +443,11 @@ async function sendStep(entry, kind) {
     const path = kind === 'loop' ? '/api/dtr/next-question' : '/api/dtr/response';
     const saying = kind === 'loop' ? 'Sending the answers to the service and asking for the next question.'
         : 'Putting the response together. Nothing is sent to the payer.';
+    const slot = session.problemSlot();
+    placeProblem(slot);
     const answer = await bench.call(() => api.postJson(path, request).then(reply => placeAnswerProblems(reply, posted)), {saying, control: null});
     if (!answer) {
+        sayAgain(slot, kind === 'loop' ? 'Send answers and get the next question' : 'Complete the response');
         return;
     }
     clear(slots.preview);
@@ -353,6 +455,7 @@ async function sendStep(entry, kind) {
         // A wrapped step is sent as the exception it is, one step at a time.
         session.wrap = '';
     }
+    clearExpectation(answer.body);
     session.applyResult(entry, kind, answer.body);
     show(answer.body);
     // The tester is answering questions, and the next ones are where they work, not at the top of
@@ -366,40 +469,68 @@ async function sendStep(entry, kind) {
     }
 }
 
+/** After a refused step, names the button to press again, beside the summary of what to correct. */
+function sayAgain(slot, label) {
+    if (slot && bench.problem.parentNode === slot && bench.problem.childNodes.length > 0) {
+        slot.append(el('p', {class: 'dtr-step-again'}, 'Then choose "' + label + '" again.'));
+    }
+}
+
 function show(envelope) {
     bench.showResult(envelope, {
         detailTitle: session ? 'The questionnaire, and what this step returned' : 'DTR response detail',
         detail: shownEnvelope => [session ? session.node : null, dtrDetail(shownEnvelope)]
     });
+    if (session) {
+        // The result's own next-step button is drawn afresh, so whether it is offered is settled again.
+        session.sync();
+    }
 }
 
 async function showPackagePreview() {
-    const answer = await bench.call(() => api.postJson('/api/dtr/package/preview', packageRequest()),
+    placeProblem(null);
+    const answer = await bench.call(() => api.postJson('/api/dtr/package/preview', packageRequest()).then(noteRefusal),
         {saying: 'Building the package request. Nothing is sent.', control: controls.preview});
     if (answer) {
         fill(slots.preview, requestPreviewPanel(answer.body, () => clear(slots.preview)));
         bench.say('The package request is shown. Nothing was sent.');
+        focusOn(slots.preview.querySelector('h2'));
     }
 }
 
 async function showLoopPreview(entry) {
     const request = stepRequest(entry, 'loop');
     const posted = request.answers || [];
+    const slot = session.problemSlot();
+    placeProblem(slot);
     const answer = await bench.call(() => api.postJson('/api/dtr/next-question/preview', request).then(reply => placeAnswerProblems(reply, posted)),
         {saying: 'Building the next-question request. Nothing is sent.', control: null});
-    if (answer) {
-        fill(slots.preview, requestPreviewPanel(answer.body, () => clear(slots.preview)));
-        bench.say('The next-question request is shown above the result. Nothing was sent.');
-        slots.preview.scrollIntoView({block: 'start'});
+    if (!answer) {
+        sayAgain(slot, 'Show the next-question request');
+        return;
     }
+    fill(slots.preview, requestPreviewPanel(answer.body, () => clear(slots.preview)));
+    bench.say('The next-question request is shown above the result. Nothing was sent.');
+    slots.preview.scrollIntoView({block: 'start'});
+    focusOn(slots.preview.querySelector('h2'));
 }
 
 /* ---------- before the first run ---------- */
 
 function drawEmptyState() {
     const own = bench.ownRequestActive();
+    if (unavailable) {
+        bench.showEmpty(el('div', {class: 'empty-state'},
+            el('p', {class: 'empty-state__lead'}, 'No questionnaire package can be fetched until DTR is configured.'),
+            el('p', null, unavailable),
+            el('p', null, button('Open the Config tab', () => app.navigate('config')))));
+        return;
+    }
     const parts = [
         el('p', {class: 'empty-state__lead'}, 'No questionnaire package has been fetched from this tab yet.'),
+        // Said once, where it is seen first. Once a package is here, it is said where its questions start.
+        el('p', {class: 'dtr-honest dtr-honest--lead'},
+            'There is no SMART launch here and no patient record: you type each answer yourself. Answers marked as pre-populated come from the payer\'s service.'),
         el('p', null, own
             ? 'Paste the package request body on the left, then choose "Fetch the questionnaire package". The member, provider and codes on the form are not sent with it.'
             : 'With the member ID, the ordering provider\'s NPI and a procedure code on the left, choose "Fetch the questionnaire package". '
@@ -419,7 +550,7 @@ function drawEmptyState() {
             !scenario.sentinelMemberId ? null
                 : own ? copyButton('Copy this member ID', () => scenario.sentinelMemberId)
                     : button('Use this member ID', () => app.caseContext.setMemberId(scenario.sentinelMemberId),
-                        {class: 'button--text', aria: {label: 'Use the member ID ' + scenario.sentinelMemberId}})
+                        {class: 'button--text', aria: {label: 'Use this member ID, ' + scenario.sentinelMemberId}})
         ]), {class: 'sentinels'}));
     }
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));
@@ -431,6 +562,7 @@ function onConfigChange() {
     clear(slots.preview);
     bench.markStale();
     loadVocabulary();
+    loadAvailability();
 }
 
 export default {id: 'dtr', label: 'DTR', mount, onShow, onConfigChange};

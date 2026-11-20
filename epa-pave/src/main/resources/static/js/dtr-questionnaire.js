@@ -15,6 +15,12 @@
 //
 // Whether a response is complete, which questions are enabled, what is required and what changed
 // are the server's answers to those posts. Nothing here works any of them out.
+//
+// What this does keep is which answers the server has seen: for each questionnaire, the answers as
+// they were posted with the last step that worked (its baseline). Typed answers that differ from
+// it are answers the server has not evaluated. While there are any, every enabled state on screen
+// says it is as of that step, and a hand-over to PAS is withdrawn, because PAS would receive the
+// response as last completed, without them.
 
 import {el, fill, button, code} from './dom.js';
 import {toneMark} from './marks.js';
@@ -29,6 +35,8 @@ import {changesBlock, notApplied, kindWord} from './dtr-detail.js';
  * hooks.previewLoop(entry) shows the next-question request without sending it
  * hooks.nextControl(step, envelope)  the button a result offers for its next step, or null
  * hooks.track(...controls) registers controls that are disabled while a request is on its way
+ * hooks.expected()         the expectation that goes with the next step sent, as it is sent
+ * hooks.editExpectation()  takes the tester to the expectation field
  */
 export function createSession(packageEnvelope, hooks) {
     const detail = packageEnvelope.detail || {};
@@ -46,7 +54,11 @@ export function createSession(packageEnvelope, hooks) {
             form: null,
             steps: [],
             lastFailed: null,
-            changedSince: false,
+            // The answers as posted with the last step that worked, by linkId, each as JSON text.
+            // Before any step it is empty: the package was evaluated with no answer of the tester's.
+            baseline: new Map(),
+            inFlight: new Map(),
+            heldBefore: null,
             touched: false
         };
     });
@@ -56,14 +68,71 @@ export function createSession(packageEnvelope, hooks) {
         active: 0,
         carry: (packageEnvelope.nextStep && packageEnvelope.nextStep.carry) || {},
         latest: {nextStep: packageEnvelope.nextStep, envelope: packageEnvelope},
+        // The questionnaire the latest result is about, or null when it is the package fetch.
+        latestEntry: null,
         node: el('section', {class: 'dtr-work', aria: {label: 'Answering the questionnaires'}}),
         wrap: '',
         render,
         applyResult,
         loopBody,
         responseBody,
+        sync,
+        refreshExpectation,
+        problemSlot: () => session.node.querySelector('.dtr-step-problem'),
         entry: () => entries[session.active]
     };
+
+    function snapshot(answers) {
+        const out = new Map();
+        for (const [linkId, values] of answers) {
+            if (values !== null) {
+                out.set(linkId, JSON.stringify(values));
+            }
+        }
+        return out;
+    }
+
+    /** The linkIds whose typed answer differs from what was posted with the last step that worked. */
+    function unseen(entry) {
+        const now = snapshot(entry.answers);
+        const ids = new Set([...now.keys(), ...entry.baseline.keys()]);
+        return [...ids].filter(linkId => now.get(linkId) !== entry.baseline.get(linkId));
+    }
+
+    function lastWorked(entry) {
+        return [...entry.steps].reverse().find(step => step.worked) || null;
+    }
+
+    /** The question text the server gave for a linkId, for naming it in a sentence. */
+    function textOf(entry, linkId) {
+        let found = null;
+        const walk = list => {
+            for (const item of list || []) {
+                if (!found && item.linkId && item.linkId.value === linkId && item.text && item.text.presence === 'VALUE') {
+                    found = String(item.text.value);
+                }
+                walk(item.items);
+            }
+        };
+        walk((entry.current || entry.view).items);
+        return found;
+    }
+
+    function named(entry, ids) {
+        return ids.map((linkId, index) => {
+            const text = textOf(entry, linkId);
+            return [index > 0 ? '; ' : null, code(linkId), text ? ' ' + text : null];
+        });
+    }
+
+    /** When the enabled states on screen were evaluated. */
+    function basis(entry) {
+        const worked = lastWorked(entry);
+        if (!worked) {
+            return 'the package';
+        }
+        return worked.kind === 'loop' ? 'step ' + worked.number : 'the last response step';
+    }
 
     /** What the next loop step posts for this questionnaire. */
     function loopBody(entry) {
@@ -76,6 +145,7 @@ export function createSession(packageEnvelope, hooks) {
             body.questionnaire = entry.view.json;
         }
         body.answers = postedAnswers(entry);
+        entry.inFlight = snapshot(entry.answers);
         if (session.wrap !== '') {
             body.wrapInParameter = session.wrap;
         }
@@ -86,6 +156,7 @@ export function createSession(packageEnvelope, hooks) {
     function responseBody(entry) {
         if (entry.view.kind === 'ADAPTIVE' && entry.loopJson) {
             // An adaptive response is completed by the service: the last one it returned goes as it is.
+            entry.inFlight = snapshot(entry.answers);
             return {questionnaireResponse: entry.loopJson, answers: postedAnswers(entry)};
         }
         const body = {questionnaire: entry.view.json};
@@ -93,6 +164,7 @@ export function createSession(packageEnvelope, hooks) {
             body.questionnaireResponse = entry.startResponse.json;
         }
         body.answers = postedAnswers(entry);
+        entry.inFlight = snapshot(entry.answers);
         return body;
     }
 
@@ -121,19 +193,23 @@ export function createSession(packageEnvelope, hooks) {
             tone: envelope.verdict.tone,
             headline: envelope.verdict.headline,
             worked,
+            recorded: envelope.ledger ? envelope.ledger.recorded === true : false,
             form: result.form || null
         });
         if (worked) {
+            const before = responseByLinkId(entry.response);
+            entry.heldBefore = linkId => (before.get(linkId) || {}).answers || [];
             entry.form = result.form;
             entry.current = (result.questionnaires || [])[0] || entry.current;
             entry.response = (result.questionnaireResponses || [])[0] || entry.response;
+            entry.baseline = entry.inFlight;
             if (kind === 'loop' && entry.response && entry.response.json) {
                 entry.loopJson = entry.response.json;
                 // The answers went out and are in the response now, where they are shown with their origin.
                 entry.answers.clear();
+                entry.baseline = new Map();
             }
             entry.lastFailed = null;
-            entry.changedSince = false;
         } else {
             entry.lastFailed = {headline: envelope.verdict.headline, runId: envelope.runId, kind};
         }
@@ -144,14 +220,15 @@ export function createSession(packageEnvelope, hooks) {
             session.carry = carried;
         }
         session.latest = {nextStep: envelope.nextStep, envelope};
+        session.latestEntry = entry.index;
         render();
     }
 
     function stateOf(entry) {
         const last = entry.steps.length > 0 ? entry.steps[entry.steps.length - 1] : null;
-        const lastWorked = [...entry.steps].reverse().find(step => step.worked);
-        if (lastWorked && lastWorked.form && lastWorked.form.complete) {
-            return entry.changedSince ? {code: 'changed', words: 'complete as last sent, answers changed since'} : {code: 'complete', words: 'complete'};
+        const worked = lastWorked(entry);
+        if (worked && worked.form && worked.form.complete) {
+            return unseen(entry).length > 0 ? {code: 'changed', words: 'complete as last sent, answers changed since'} : {code: 'complete', words: 'complete'};
         }
         if (last || entry.touched) {
             return {code: 'progress', words: 'in progress'};
@@ -163,10 +240,92 @@ export function createSession(packageEnvelope, hooks) {
         const entry = entries[session.active];
         fill(session.node,
             el('h4', {class: 'section-heading'}, 'Answering the questionnaire' + (entries.length === 1 ? '' : 's')),
-            el('p', {class: 'dtr-honest'}, 'You type each answer; nothing is read from a patient record, and there is no SMART launch here. '
+            // Said once, here, where the questions start.
+            el('p', {class: 'dtr-honest'}, 'There is no SMART launch here and no patient record: you type each answer yourself. '
                 + 'Answers marked as pre-populated came from the payer\'s service.'),
-            entries.length > 1 ? packageList() : null,
+            entries.length > 1 ? el('div', {class: 'dtr-package-slot'}, packageList()) : null,
             entry ? questionnaireView(entry) : null);
+        sync();
+    }
+
+    /**
+     * Brings what depends on the answers typed so far up to date, without drawing the questions
+     * again (which would take the focus out of the field being typed in): the note on answers the
+     * server has not seen, the mark at each enabled state, where each questionnaire stands, and
+     * whether "Continue in PAS" is offered. Called after every change and after a result is drawn.
+     */
+    function sync() {
+        const entry = entries[session.active];
+        if (!entry) {
+            return;
+        }
+        const ids = unseen(entry);
+        const adaptive = entry.view.kind === 'ADAPTIVE';
+        const note = session.node.querySelector('.dtr-changed');
+        const marks = session.node.querySelectorAll('.dtr-asof');
+        const atEach = marks.length > 0 ? ', and each question whose state depends on answers says so at the question' : '';
+        if (note) {
+            fill(note, ids.length === 0 ? null : adaptive
+                ? ['You have typed answers the service has not seen yet. Which questions are asked and which are enabled is as of ', basis(entry),
+                    atEach, '. "Send answers and get the next question" sends your answers.']
+                : ['You have changed answers since the server last evaluated them. Which questions are enabled and which are required is as of ',
+                    basis(entry), ', before your changes', atEach, '. Choose "Complete the response" to have them evaluated.']);
+        }
+        for (const mark of marks) {
+            mark.textContent = ids.length === 0 ? '' : '(As of ' + basis(entry) + ', before your answers.)';
+        }
+        const packageSlot = session.node.querySelector('.dtr-package-slot');
+        if (packageSlot) {
+            fill(packageSlot, packageList());
+        }
+        const nextSlot = session.node.querySelector('.dtr-next-slot');
+        if (nextSlot) {
+            fill(nextSlot, nextStepLine());
+        }
+        withdrawFromResult();
+    }
+
+    /** The questionnaires with answers the server has not seen, while the latest result offers PAS. */
+    function withheld() {
+        const latest = session.latest;
+        if (!latest || !latest.nextStep || latest.nextStep.action !== 'START_PAS') {
+            return [];
+        }
+        return entries.map(entry => ({entry, ids: unseen(entry)})).filter(pending => pending.ids.length > 0);
+    }
+
+    function withheldWords(pending) {
+        return [el('strong', null, '"Continue in PAS" is withdrawn until the response is completed again. '),
+            'Answers were changed after the response was completed, and PAS would receive the response as last completed, without them. Changed: ',
+            pending.map((one, index) => [index > 0 ? ' ' : null, entries.length > 1 ? ['In ', one.entry.view.subject, ': '] : null, named(one.entry, one.ids), '.']),
+            ' Choose ', pending.some(one => one.entry.view.kind === 'ADAPTIVE' && one.entry.loopJson)
+                ? '"Send answers and get the next question"' : '"Complete the response"',
+            ' first, or put the answers back as they were.'];
+    }
+
+    /**
+     * The result's own next-step row offers the same hand-over. It is drawn by the shared result
+     * view, which takes no say from this tab, so the button is hidden here, with the reason beside
+     * it, for as long as the hand-over would carry answers older than the ones on screen.
+     */
+    function withdrawFromResult() {
+        const result = session.node.closest('.result');
+        const row = result ? result.querySelector('.nextstep') : null;
+        if (!row) {
+            return;
+        }
+        const offered = row.querySelector('.nextstep__row > button');
+        const pending = withheld();
+        const said = row.querySelector('.dtr-withdrawn');
+        if (said) {
+            said.remove();
+        }
+        if (offered) {
+            offered.hidden = pending.length > 0;
+        }
+        if (pending.length > 0) {
+            row.append(el('p', {class: 'dtr-withdrawn'}, withheldWords(pending), ' The questions are below.'));
+        }
     }
 
     function packageList() {
@@ -197,10 +356,15 @@ export function createSession(packageEnvelope, hooks) {
             return null;
         }
         const step = latest.nextStep;
-        const control = latest.envelope && hooks.nextControl ? hooks.nextControl(step, latest.envelope) : null;
+        const pending = withheld();
+        const control = pending.length === 0 && latest.envelope && hooks.nextControl ? hooks.nextControl(step, latest.envelope) : null;
+        // The server's next step names the action; on this tab it is taken with a button of its own name.
+        const here = step.action === 'SUBMIT_RESPONSE' ? 'On this tab that is "Complete the response", below the questions.'
+            : step.action === 'ANSWER_NEXT_QUESTION' ? 'On this tab that is "Send answers and get the next question", below the questions.' : null;
         return el('div', {class: 'dtr-next'},
             el('p', null, el('span', {class: 'quiet'}, 'Still to do, as the latest result says: '), el('strong', null, step.headline),
-                step.reason ? el('span', {class: 'quiet'}, ' ' + step.reason) : null),
+                step.reason ? el('span', {class: 'quiet'}, ' ' + step.reason) : null, here ? [' ', here] : null),
+            pending.length > 0 ? el('p', {class: 'dtr-withdrawn'}, withheldWords(pending)) : null,
             control ? el('div', {class: 'button-row'}, button(control.label, control.run, {class: 'button--primary'})) : null);
     }
 
@@ -211,7 +375,20 @@ export function createSession(packageEnvelope, hooks) {
         const title = session.node.querySelector('.dtr-q__title');
         if (title) {
             title.scrollIntoView({block: 'start'});
+            // The button that was pressed is gone with the list redrawn, so the focus goes to the
+            // questionnaire it opened, from where its questions are the next stops of the Tab key.
+            title.focus({preventScroll: true});
         }
+    }
+
+    /** Which questionnaire the result at the top is about, when it is not the one open. */
+    function aboutLine(entry) {
+        if (entries.length < 2 || session.latestEntry === null || session.latestEntry === entry.index) {
+            return null;
+        }
+        const other = entries[session.latestEntry];
+        return el('p', {class: 'dtr-about'}, el('strong', null, 'The result at the top is about ', other.view.subject, ', '),
+            'the questionnaire the last step was sent for, not about this one. ', entry.view.subject, ' is ', stateOf(entry).words, '.');
     }
 
     function questionnaireView(entry) {
@@ -220,8 +397,9 @@ export function createSession(packageEnvelope, hooks) {
         const kind = entry.view.kind;
         const adaptive = kind === 'ADAPTIVE';
         const parts = [];
+        parts.push(aboutLine(entry));
         parts.push(el('div', {class: 'dtr-q__head', dataset: {field: adaptive ? 'questionnaireResponse' : 'questionnaire'}},
-            el('p', {class: 'dtr-q__title'}, entry.view.subject, ' ',
+            el('p', {class: 'dtr-q__title', tabIndex: -1}, entry.view.subject, ' ',
                 el('span', {class: 'dtr-kind dtr-kind--' + String(kind).toLowerCase()}, kindWord(kind))),
             el('p', {class: 'small quiet'}, entry.view.canonical ? code(entry.view.canonical) : 'It has no url.', ' ', entry.view.kindBasis || null)));
         parts.push(notApplied(entry.view));
@@ -230,7 +408,7 @@ export function createSession(packageEnvelope, hooks) {
                 ' The problems the server found, and its items as returned, are in the detail below.'));
             return el('div', {class: 'dtr-q'}, parts);
         }
-        parts.push(stepState(entry), nextStepLine());
+        parts.push(stepState(entry), el('div', {class: 'dtr-next-slot'}));
         const required = new Set(entry.form ? entry.form.requiredUnanswered.map(ref => ref.linkId) : []);
         const undetermined = new Map(entry.form ? entry.form.undetermined.map(ref => [ref.linkId, ref]) : []);
         const changes = entry.form ? entry.form.changes : null;
@@ -255,30 +433,21 @@ export function createSession(packageEnvelope, hooks) {
                         entry.answers.set(linkId, values);
                     }
                     entry.touched = true;
-                    if (entry.form && !entry.changedSince) {
-                        entry.changedSince = true;
-                        drawChanged();
-                    }
+                    sync();
                     drawCount();
                 }
             })));
         }
         const changedNote = el('p', {class: 'dtr-changed', role: 'status'});
-        const countNote = el('p', {class: 'small', role: 'status', aria: {live: 'polite'}});
-        const drawChanged = () => {
-            changedNote.textContent = entry.changedSince && !adaptive
-                ? 'You have changed answers since the server last saw them. Which questions are enabled and which are required is as of then: '
-                    + 'complete the response again to have them evaluated.'
-                : '';
-        };
+        const countNote = el('p', {class: 'small'});
         const drawCount = () => {
             const given = [...entry.answers.values()].filter(values => values !== null).length;
             countNote.textContent = given === 0 ? 'No answer is typed for the next step yet.'
                 : given + (given === 1 ? ' question has' : ' questions have') + ' an answer typed for the next step.';
         };
-        drawChanged();
         drawCount();
-        parts.push(changedNote);
+        // Above the questions, where it is read before the states it is about.
+        parts.splice(parts.length - 1, 0, changedNote);
         if (adaptive) {
             parts.push(stepList(entry));
         }
@@ -296,13 +465,21 @@ export function createSession(packageEnvelope, hooks) {
             // The verdict of the step is at the top of the result. It is repeated here in one quiet
             // line, because this is where the tester is working when the answer arrives.
             parts.push(el('p', {class: 'dtr-laststep', tabIndex: -1}, toneMark(last.tone), ' ',
-                el('span', {class: 'quiet'}, (last.kind === 'loop' ? 'Step ' + last.number + ' answered: ' : 'The response step answered: ')),
+                el('span', {class: 'quiet'}, (last.kind === 'loop' ? 'Step ' + last.number : 'The response step') + (last.worked ? ' answered: ' : ' did not work: ')),
                 last.headline, ' ', el('span', {class: 'quiet small'}, 'The whole result is above.')));
         }
         if (adaptive) {
+            const loops = entry.steps.filter(step => step.kind === 'loop').length;
+            const responses = sent - loops;
+            const missing = entry.steps.filter(step => !step.recorded).length;
             parts.push(el('p', {class: 'dtr-steps__count'},
-                el('strong', null, sent === 0 ? 'No step sent yet.' : sent + (sent === 1 ? ' step sent.' : ' steps sent.')),
-                ' Each step is a call to the payer and a line in the ledger. The service, not this tool, decides when the response is complete.'));
+                el('strong', null, sent === 0 ? 'No step sent yet.'
+                    : [count(loops, 'step') + ' sent to the service',
+                        responses > 0 ? ', ' + count(responses, 'response step') + ' put together in this tool' : null,
+                        missing > 0 ? [', ', el('span', {class: 'dtr-notrecorded'}, missing === sent && sent > 1 ? 'none of them recorded' : missing + ' of them NOT recorded'),
+                            ' in the ledger'] : null, '.']),
+                ' Each step to the service is a call to the payer, and the ledger keeps a line for each step it recorded, as the step list says. '
+                    + 'The service, not this tool, decides when the response is complete.'));
         }
         if (entry.lastFailed) {
             parts.push(el('div', {class: 'dtr-failed', role: 'alert'},
@@ -328,7 +505,8 @@ export function createSession(packageEnvelope, hooks) {
                     form.undetermined.map((ref, index) => [index > 0 ? '; ' : null, code(ref.linkId), ref.text ? ' ' + ref.text : null])));
             }
             if (form.changes) {
-                parts.push(changesBlock(form.changes));
+                // After a failed step this is still about the last step that worked, and says so.
+                parts.push(entry.lastFailed ? el('p', {class: 'sub-heading'}, 'At the last step that worked') : null, changesBlock(form.changes, entry.heldBefore));
             }
         }
         return parts.length > 0 ? el('div', {class: 'dtr-state-block'}, parts) : null;
@@ -341,10 +519,15 @@ export function createSession(packageEnvelope, hooks) {
         return el('details', {class: 'fold dtr-steps'},
             el('summary', null, 'The steps sent for this questionnaire', el('span', {class: 'quiet'}, String(entry.steps.length))),
             el('ol', {class: 'dtr-steps__list'}, entry.steps.map(step => el('li', null,
-                toneMark(step.tone), ' ', el('strong', null, step.outcome), ' ', code(step.runId),
-                step.kind === 'response' ? el('span', {class: 'quiet'}, ' response step, nothing sent') : null,
-                step.form ? el('div', {class: 'small'}, step.form.questionCount + ' questions, ' + step.form.answeredCount + ' answered. ',
+                toneMark(step.tone), ' ', el('strong', null, step.outcome), ' ', code(step.runId), ' ',
+                step.recorded ? el('span', {class: 'quiet'}, 'recorded') : el('strong', {class: 'dtr-notrecorded'}, 'NOT recorded'),
+                step.kind === 'response' ? el('span', {class: 'quiet'}, ', response step, nothing sent') : null,
+                step.form ? el('div', {class: 'small'}, count(step.form.questionCount, 'question') + ', ' + step.form.answeredCount + ' answered. ',
                     step.form.changes ? step.form.changes.summary : null) : el('div', {class: 'small'}, step.headline)))));
+    }
+
+    function count(number, noun) {
+        return number + ' ' + noun + (number === 1 ? '' : 's');
     }
 
     function actions(entry, countNote) {
@@ -356,6 +539,7 @@ export function createSession(packageEnvelope, hooks) {
             parts.push(el('p', null, 'This tool cannot tell how this questionnaire is meant to be answered, so both ways are offered. Choose the one its '
                 + 'description above supports.'));
         }
+        parts.push(el('p', {class: 'dtr-expect small'}));
         const row = el('div', {class: 'button-row'});
         if (loop) {
             const send = el('button', {type: 'button', class: 'button button--primary', on: {click: () => hooks.loop(entry)}}, 'Send answers and get the next question');
@@ -370,6 +554,8 @@ export function createSession(packageEnvelope, hooks) {
             row.append(complete);
         }
         parts.push(row);
+        // A refusal of the step is summed up here, beside the button that sent it.
+        parts.push(el('div', {class: 'dtr-step-problem'}));
         if (respond) {
             parts.push(el('p', {class: 'small'}, '"Complete the response" sends nothing to the payer. The response is put together inside this tool from the '
                 + 'answers, and the result says whether it is complete or which required questions are unanswered.'));
@@ -377,7 +563,22 @@ export function createSession(packageEnvelope, hooks) {
         if (loop) {
             parts.push(wrapChoice());
         }
-        return el('div', {class: 'dtr-actions'}, parts);
+        const node = el('div', {class: 'dtr-actions'}, parts);
+        node.querySelectorAll('.dtr-expect').forEach(fillExpect);
+        return node;
+    }
+
+    /** Which expectation goes with a click on the buttons below it, with the way to change it. */
+    function fillExpect(node) {
+        const text = hooks.expected ? hooks.expected() : '';
+        fill(node, 'Expected outcome sent with the next click: ',
+            text ? code(text) : el('span', {class: 'quiet'}, 'none, so that step will be unverified'), ' ',
+            hooks.editExpectation ? button('Change it', () => hooks.editExpectation(), {class: 'button--text button--small',
+                aria: {label: 'Change the expected outcome of the next step'}}) : null);
+    }
+
+    function refreshExpectation() {
+        session.node.querySelectorAll('.dtr-expect').forEach(fillExpect);
     }
 
     /**

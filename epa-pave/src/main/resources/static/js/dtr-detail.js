@@ -15,27 +15,18 @@ import {shown, shownList, presenceMark, noneMark, hasValue} from './shown.js';
 import {issuesTable} from './result.js';
 import {itemList, originMark} from './dtr-items.js';
 
-// What kind of thing came back, said before any of it. A kind this page does not know is shown under its own name.
-const RESPONSE_KINDS = {
-    PARAMETERS: 'The response is a FHIR Parameters resource, one of the two shapes a questionnaire package arrives in.',
-    BUNDLE: 'The response is a FHIR Bundle, the other shape a questionnaire package arrives in.',
-    QUESTIONNAIRE: 'The response is a Questionnaire resource on its own.',
-    QUESTIONNAIRE_RESPONSE: 'The response is a QuestionnaireResponse, which is what a step of the adaptive loop returns.',
-    OPERATION_OUTCOME: 'The response is a FHIR OperationOutcome.',
-    OTHER_JSON: 'The response is JSON, but none of the shapes above. All of it is listed under the returned fields below.',
-    NOT_JSON: 'The response body could not be read as JSON. It is shown whole under the returned fields below, and in the wire view.',
-    NO_BODY: 'The response had no body.',
-    NO_RESPONSE: 'No response arrived.',
-    NOT_SENT: 'The response was put together inside this tool.'
-};
+// The kinds of response for which nothing was read, so a list that is empty below is empty because
+// no body was read, not because the body held none. The words for every kind are the server's
+// (responseNote); the page keeps none of its own.
+const NOTHING_READ = new Set(['NO_RESPONSE', 'NO_BODY', 'NOT_SENT']);
 
 /** The DTR detail of one result. */
 export function dtrDetail(envelope) {
     const detail = envelope.detail;
     const node = el('div', {class: 'detail dtr-detail'});
-    const kind = Object.prototype.hasOwnProperty.call(RESPONSE_KINDS, detail.responseKind)
-        ? RESPONSE_KINDS[detail.responseKind] : ['Response kind ', code(String(detail.responseKind)), '.'];
-    append(node, el('p', null, kind, detail.responseNote ? [' ', detail.responseNote] : null));
+    const nothingRead = NOTHING_READ.has(detail.responseKind);
+    append(node, el('p', null, detail.responseNote ? detail.responseNote : null,
+        el('span', {class: 'small quiet'}, detail.responseNote ? ' Response kind ' : 'Response kind ', code(String(detail.responseKind)), '.')));
 
     const issues = detail.issues || [];
     if (issues.length > 0) {
@@ -54,13 +45,17 @@ export function dtrDetail(envelope) {
         append(node, part(heading(4, envelope.operation === 'DTR_QUESTIONNAIRE_PACKAGE' ? 'Questionnaires in the package' : 'The questionnaire as it now stands',
             questionnaires.length),
         detail.kindRule ? el('p', {class: 'small quiet'}, 'How the kind is told: ', detail.kindRule) : null,
-        questionnaires.length === 0 ? el('p', {class: 'quiet'}, 'The response held no questionnaire.') : questionnaires.map(questionnaireBlock)));
+        questionnaires.length === 0
+            ? el('p', {class: 'quiet'}, nothingRead ? 'None is listed, because no response body was read.' : 'The response held no questionnaire.')
+            : questionnaires.map(questionnaireBlock)));
     }
 
     const resources = detail.resources || [];
     if (resources.length > 0 || envelope.operation === 'DTR_QUESTIONNAIRE_PACKAGE') {
         append(node, part(heading(4, 'Libraries, value sets and other resources that came with them', resources.length),
-            resources.length === 0 ? el('p', {class: 'quiet'}, 'None came with the package.') : resources.map(resourceBlock)));
+            resources.length === 0
+                ? el('p', {class: 'quiet'}, nothingRead ? 'None is listed, because no response body was read.' : 'None came with the package.')
+                : resources.map(resourceBlock)));
     }
 
     const bundles = detail.bundles || [];
@@ -75,7 +70,10 @@ export function dtrDetail(envelope) {
     if (responses.length > 0 || envelope.operation !== 'DTR_QUESTIONNAIRE_PACKAGE') {
         append(node, part(heading(4, envelope.operation === 'DTR_QUESTIONNAIRE_PACKAGE' ? 'Questionnaire responses the package carried' : 'The QuestionnaireResponse in full',
             responses.length),
-        responses.length === 0 ? el('p', {class: 'quiet'}, 'This step returned no QuestionnaireResponse.') : responses.map(responseBlock)));
+        responses.length === 0
+            ? el('p', {class: 'quiet'}, nothingRead && detail.responseKind !== 'NOT_SENT' ? 'None is listed, because no response body was read.'
+                : 'This step returned no QuestionnaireResponse.')
+            : responses.map(responseBlock)));
     }
 
     append(node, requestNotes(detail));
@@ -88,12 +86,12 @@ function part(...children) {
 
 /* ---------- where the form stands ---------- */
 
-function questionRefs(list, empty) {
+function questionRefs(list, empty, extra) {
     if (!list || list.length === 0) {
         return el('span', {class: 'quiet'}, empty);
     }
     return el('ul', {class: 'plain-list'}, list.map(ref => el('li', null, code(ref.linkId), ref.text ? [' ', ref.text] : null,
-        ref.note ? el('div', {class: 'small quiet'}, ref.note) : null)));
+        ref.note ? el('div', {class: 'small quiet'}, ref.note) : null, extra ? extra(ref) : null)));
 }
 
 function formPart(form) {
@@ -119,14 +117,24 @@ function formPart(form) {
         (form.notes || []).length > 0 ? el('ul', {class: 'note-list'}, form.notes.map(note => el('li', null, note))) : null);
 }
 
-/** What changed since the previous step, as the server compared the two. Exported for the step list. */
-export function changesBlock(changes) {
+/**
+ * What changed since the previous step, as the server compared the two. Exported for the
+ * questionnaire view, which passes heldBefore(linkId): the answers the response held before the
+ * step, as the server returned them then, so a dropped answer is shown with what it was.
+ */
+export function changesBlock(changes, heldBefore) {
+    const before = ref => {
+        const held = heldBefore ? heldBefore(ref.linkId) : null;
+        return held && held.length > 0
+            ? el('div', {class: 'small'}, 'The response before this step held: ', held.map((answer, index) => [index > 0 ? '; ' : null, shown(answer)]))
+            : null;
+    };
     return el('div', {class: 'dtr-changes'},
         el('p', null, changes.summary),
         changes.compared && changes.appeared.length + changes.disappeared.length + changes.answersDropped.length > 0 ? facts([
             ['Appeared', questionRefs(changes.appeared, 'None.')],
             ['Disappeared', questionRefs(changes.disappeared, 'None.')],
-            ['Answers the service dropped', questionRefs(changes.answersDropped, 'None.')]
+            ['Answers the service dropped', questionRefs(changes.answersDropped, 'None.', before)]
         ], 'facts--ruled') : null);
 }
 
@@ -154,7 +162,7 @@ function questionnaireBlock(q) {
         el('p', {class: 'detail__item-head'},
             el('span', {class: 'sub-heading'}, q.position + '. ', q.subject),
             el('span', {class: 'dtr-kind dtr-kind--' + String(q.kind).toLowerCase()}, kindWord(q.kind))),
-        el('p', {class: 'small quiet'}, 'Found at ', code(q.foundAt), '.'),
+        el('p', {class: 'small quiet'}, 'Where it was found: ', code(q.foundAt)),
         facts([
             ['Title', shown(q.title)],
             ['Url', shown(q.url, {as: 'literal'})],
@@ -201,16 +209,11 @@ export function notApplied(q) {
         el('ul', {class: 'note-list'}, list.map(line => el('li', null, line))));
 }
 
+/**
+ * The kind of a questionnaire, as the code the server sent. The server words the kind in kindBasis,
+ * which is shown beside it; the page keeps no words of its own for the codes.
+ */
 export function kindWord(kind) {
-    if (kind === 'ADAPTIVE') {
-        return 'adaptive';
-    }
-    if (kind === 'STATIC') {
-        return 'static';
-    }
-    if (kind === 'UNDETERMINED') {
-        return 'kind undetermined';
-    }
     return String(kind);
 }
 
@@ -246,7 +249,7 @@ function responseBlock(response) {
         el('p', {class: 'detail__item-head'},
             el('span', {class: 'sub-heading'}, 'QuestionnaireResponse ', shown(response.id, {as: 'literal'})),
             el('span', {class: 'small'}, response.answeredCount + (response.answeredCount === 1 ? ' item answered' : ' items answered'))),
-        el('p', {class: 'small quiet'}, 'Found at ', code(response.foundAt), '.'),
+        el('p', {class: 'small quiet'}, 'Where it was found: ', code(response.foundAt)),
         facts([
             ['Answers questionnaire', shown(response.questionnaire, {as: 'literal'})],
             ['Status', status.presence === 'VALUE'

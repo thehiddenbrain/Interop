@@ -13,7 +13,9 @@
 //                     server reported them for the last step sent
 //
 // Whether an item is enabled is never worked out here. It is what the server said for the answers
-// it last saw, and the page says so when the tester has changed an answer since.
+// it last saw. Each item whose enablement depends on answers carries an empty .dtr-asof mark beside
+// that state, which the questionnaire fills once the tester has typed answers the server has not
+// seen, so the state reads at the item as what it is: the server's reading of earlier answers.
 
 import {el, append, button, code} from './dom.js';
 import {shown, shownList, presenceMark, hasValue} from './shown.js';
@@ -121,15 +123,17 @@ function repeatsWords(item) {
     return hasValue(item.repeats) && String(item.repeats.value) === 'true' ? 'Repeats. ' : null;
 }
 
-/** Whether the answers the server last saw enable the item, in its own words. */
+/** Whether the answers the server last saw enable the item, in its own words, with the place for saying when that was. */
 function enabledLine(item) {
+    const depends = item.enabled === 'DISABLED' || item.enabled === 'UNDETERMINED' || Boolean(item.enabledReason) || (item.enableWhen || []).length > 0;
+    const asOf = depends ? [' ', el('span', {class: 'dtr-asof'})] : null;
     if (item.enabled === 'DISABLED') {
-        return el('span', {class: 'dtr-state dtr-state--disabled'}, item.enabledReason || 'Not enabled by the answers the server last saw.');
+        return [el('span', {class: 'dtr-state dtr-state--disabled'}, item.enabledReason || 'Not enabled by the answers the server last saw.'), asOf];
     }
     if (item.enabled === 'UNDETERMINED') {
-        return el('span', {class: 'dtr-state dtr-state--undetermined'}, item.enabledReason || 'Whether it is enabled could not be judged.');
+        return [el('span', {class: 'dtr-state dtr-state--undetermined'}, item.enabledReason || 'Whether it is enabled could not be judged.'), asOf];
     }
-    return item.enabledReason ? el('span', {class: 'quiet'}, item.enabledReason) : null;
+    return [item.enabledReason ? el('span', {class: 'quiet'}, item.enabledReason) : null, asOf];
 }
 
 function undeterminedLine(item, ctx) {
@@ -161,21 +165,9 @@ function conditions(item) {
                     ? [code(condition.operator.code), condition.operator.recognised === false ? [' ', el('span', {class: 'flag'}, 'not an operator this tool knows')] : null]
                     : presenceMark(condition.operator ? condition.operator.presence : 'ABSENT')),
                 el('td', null, shown(condition.answer, {as: 'literal'})),
-                el('td', null, el('span', {class: 'dtr-condition dtr-condition--' + String(condition.state).toLowerCase()}, conditionWord(condition.state))),
+                // The state is shown as the code the server sent: the page keeps no words of its own for it.
+                el('td', null, el('span', {class: 'dtr-condition dtr-condition--' + String(condition.state).toLowerCase()}, code(String(condition.state)))),
                 el('td', null, condition.explanation || null))))));
-}
-
-function conditionWord(state) {
-    if (state === 'TRUE') {
-        return 'true';
-    }
-    if (state === 'FALSE') {
-        return 'false';
-    }
-    if (state === 'NOT_EVALUATED') {
-        return 'not evaluated';
-    }
-    return String(state);
 }
 
 function extensions(item) {
@@ -215,8 +207,16 @@ function questionItem(item, ctx) {
         flags.push(el('span', {class: 'dtr-flag dtr-flag--new'}, 'new at the last step'));
     }
     const labelId = 'dtr-q-' + (++sequence);
+    // The control is built first, so that a question answered in one input has its text as that
+    // input's real label. A question answered by a group of radio buttons or checkboxes names the
+    // group instead, and each option has a label of its own.
+    const answer = ctx.interactive && linkId ? control(item, linkId, labelId, ctx) : null;
+    const textAttrs = {class: 'dtr-question__text', id: labelId};
+    if (answer && answer.inputId) {
+        textAttrs.htmlFor = answer.inputId;
+    }
     append(node,
-        el('p', {class: 'dtr-question__text', id: labelId}, itemText(item), flags.length > 0 ? [' ', flags] : null),
+        el(answer && answer.inputId ? 'label' : 'p', textAttrs, itemText(item), flags.length > 0 ? [' ', flags] : null),
         el('p', {class: 'dtr-item__meta'}, idMeta(item), typeWords(type), '. ',
             required ? el('strong', null, 'Required. ')
                 : hasValue(item.required) ? 'Optional. '
@@ -227,8 +227,8 @@ function questionItem(item, ctx) {
         marks,
         undeterminedLine(item, ctx));
     append(node, responseLine(linkId, item, ctx));
-    if (ctx.interactive && linkId) {
-        append(node, control(item, linkId, labelId, ctx));
+    if (answer) {
+        append(node, answer.node);
     } else if (ctx.interactive) {
         append(node, el('p', {class: 'quiet small'}, 'It has no linkId, so an answer to it cannot be sent.'));
     }
@@ -328,7 +328,10 @@ function control(item, linkId, labelId, ctx) {
         if (values === null) {
             say.textContent = '';
         } else if (values.length === 0) {
-            say.textContent = 'You are taking back the answer the response holds. The next step sends this question with no answer.';
+            // A removal stays with the questionnaire: a response step starts again from the package,
+            // whose pre-populated answer would otherwise come back, so it is sent at every step.
+            say.textContent = hasHeld ? 'You are removing this answer from the response. The next step sends this question with no answer.'
+                : 'Removed: each step sends this question with no answer, so the response holds none. Type an answer to give one again.';
         } else {
             say.textContent = hasHeld ? 'Your answer replaces what the response holds when the next step is sent.' : 'Your answer goes with the next step.';
         }
@@ -351,13 +354,17 @@ function control(item, linkId, labelId, ctx) {
     } else {
         built = textControl(item, labelId, given, report, repeats, null);
     }
-    clearTyped = button('Clear what I typed', () => { built.reset(); report(null); }, {class: 'button--text button--small'});
-    box.append(el('div', {class: 'dtr-control__head'}, el('span', {class: 'dtr-control__label'}, 'Your answer for the next step'),
-        hasHeld ? button('Take back the answer the response holds', () => { built.reset(); report([]); }, {class: 'button--text button--small'}) : null,
+    clearTyped = button('Clear what I typed', () => { built.reset(); report(null); },
+        {class: 'button--text button--small', aria: {label: 'Clear what I typed for ' + linkId}});
+    box.append(el('div', {class: 'dtr-control__head'},
+        built.inputId ? el('label', {class: 'dtr-control__label', htmlFor: built.inputId}, 'Your answer for the next step')
+            : el('span', {class: 'dtr-control__label'}, 'Your answer for the next step'),
+        hasHeld ? button('Remove this answer from the response', () => { built.reset(); report([]); },
+            {class: 'button--text button--small', aria: {label: 'Remove this answer from the response, ' + linkId}}) : null,
         clearTyped),
     built.node, say);
     drawGiven(given);
-    return box;
+    return {node: box, inputId: built.inputId || null};
 }
 
 function booleanControl(labelId, given, report) {
@@ -389,12 +396,14 @@ function choiceControl(options, labelId, given, report, repeats, open) {
     let reset;
     let picked;
     if (!repeats && options.length > RADIO_LIMIT) {
-        const select = el('select', {aria: {labelledby: labelId}},
+        const selectId = 'dtr-in-' + (++sequence);
+        const select = el('select', {id: selectId},
             el('option', {value: ''}, 'No option chosen'),
             options.map(option => el('option', {value: option.answerAs, selected: chosen.has(option.answerAs)}, option.label + '  [' + option.answerAs + ']')));
         picked = () => (select.value === '' ? [] : [select.value]);
         select.addEventListener('change', () => collect(picked()));
         node = el('div', {class: 'dtr-choices'}, select);
+        node.inputId = selectId;
         reset = () => { select.value = ''; };
     } else {
         const name = 'dtr-choice-' + (++sequence);
@@ -412,7 +421,7 @@ function choiceControl(options, labelId, given, report, repeats, open) {
         other.addEventListener('input', () => collect(picked()));
         node.append(el('label', {class: 'dtr-other__label'}, 'Or an answer of your own ', other));
     }
-    return {node, reset: () => { reset(); if (other) { other.value = ''; } }};
+    return {node, inputId: node.inputId || null, reset: () => { reset(); if (other) { other.value = ''; } }};
 }
 
 // What the server accepts as plain text for each type, said where it is typed.
@@ -429,9 +438,10 @@ function textControl(item, labelId, given, report, repeats, hint) {
     const type = (item.type || {}).code;
     const long = type === 'text' || repeats;
     const start = (given || []).filter(value => typeof value === 'string');
+    const inputId = 'dtr-in-' + (++sequence);
     const input = long
-        ? el('textarea', {rows: repeats ? 3 : 4, spellcheck: false, autocomplete: 'off', aria: {labelledby: labelId}})
-        : el('input', {type: 'text', autocomplete: 'off', spellcheck: false, aria: {labelledby: labelId},
+        ? el('textarea', {id: inputId, rows: repeats ? 3 : 4, spellcheck: false, autocomplete: 'off'})
+        : el('input', {id: inputId, type: 'text', autocomplete: 'off', spellcheck: false,
             inputMode: type === 'integer' ? 'numeric' : type === 'decimal' ? 'decimal' : null,
             placeholder: type === 'date' ? 'YYYY-MM-DD' : type === 'time' ? 'HH:MM' : null});
     input.value = repeats ? start.join('\n') : start[0] || '';
@@ -444,8 +454,13 @@ function textControl(item, labelId, given, report, repeats, hint) {
         }
     });
     const words = [hint || TEXT_HINTS[type] || null, repeats ? 'It repeats: one answer on each line.' : null].filter(Boolean).join(' ');
+    const hintId = words ? 'dtr-hint-' + (++sequence) : null;
+    if (hintId) {
+        input.setAttribute('aria-describedby', hintId);
+    }
     return {
-        node: el('div', {class: 'dtr-text'}, input, words ? el('span', {class: 'field__hint'}, words) : null),
+        node: el('div', {class: 'dtr-text'}, input, words ? el('span', {class: 'field__hint', id: hintId}, words) : null),
+        inputId,
         reset: () => { input.value = ''; }
     };
 }
@@ -495,7 +510,8 @@ function quantityControl(labelId, given, report) {
  */
 function objectControl(type, labelId, given, report, why) {
     const start = given && given[0] && typeof given[0] === 'object' ? JSON.stringify(given[0]) : '';
-    const input = el('textarea', {rows: 3, class: 'literal-area', wrap: 'off', spellcheck: false, autocomplete: 'off', aria: {labelledby: labelId},
+    const inputId = 'dtr-in-' + (++sequence);
+    const input = el('textarea', {id: inputId, rows: 3, class: 'literal-area', wrap: 'off', spellcheck: false, autocomplete: 'off',
         placeholder: '{"valueString": "..."}'});
     input.value = start;
     const state = el('p', {class: 'small', role: 'status'});
@@ -527,6 +543,7 @@ function objectControl(type, labelId, given, report, why) {
         : 'The question states no type.', ' The server takes it as a FHIR answer object, which is sent as written.'].join('');
     return {
         node: el('div', {class: 'dtr-object'}, el('span', {class: 'field__hint'}, reason), input, state),
+        inputId,
         reset: () => { input.value = ''; state.textContent = ''; }
     };
 }
