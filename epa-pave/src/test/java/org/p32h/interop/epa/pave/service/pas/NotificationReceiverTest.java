@@ -650,6 +650,20 @@ class NotificationReceiverTest {
     }
 
     @Test
+    void aFieldAfterTheCutIsReadMappedAndShownAmongTheReturnedFields() {
+        String start = "{\"resourceType\":\"Bundle\",\"type\":\"history\",\"padding\":\"";
+        byte[] body = (start + "a".repeat(NotificationReceiver.MAX_KEPT_BYTES + 500) + "\",\"zzTail\":\"after the cut\"}")
+                .getBytes(StandardCharsets.UTF_8);
+        NotificationView view = receiver.receive(NotificationReceiver.Inbound.read(new ByteArrayInputStream(body)));
+        assertThat(view.truncated()).isTrue();
+        assertThat(view.payload()).hasSize(NotificationReceiver.MAX_KEPT_BYTES).doesNotContain("zzTail");
+        assertThat(view.additionalFields()).anySatisfy(field -> {
+            assertThat(field.path()).isEqualTo("zzTail");
+            assertThat(field.value()).isEqualTo("\"after the cut\"");
+        });
+    }
+
+    @Test
     void aBodyLongerThanTheReceiverHoldsIsCutAndTheRecordSaysSo() {
         String start = "{\"resourceType\":\"Bundle\",\"type\":\"history\",\"padding\":\"";
         byte[] body = (start + "a".repeat(NotificationReceiver.MAX_KEPT_BYTES + 500) + "\"}").getBytes(StandardCharsets.UTF_8);
@@ -665,13 +679,21 @@ class NotificationReceiverTest {
         assertThat(view.bytesReceived()).isEqualTo(body.length);
         assertThat(view.bytesKept()).isEqualTo(NotificationReceiver.MAX_KEPT_BYTES);
         assertThat(view.payload()).hasSize(NotificationReceiver.MAX_KEPT_BYTES).startsWith(start);
-        String cut = "The body was " + body.length + " bytes long. Only its first " + NotificationReceiver.MAX_KEPT_BYTES
-                + " bytes are held and shown, so what is read here is not all that was sent.";
+        String cut = "The body was " + body.length + " bytes long. All of it was read, and everything above comes from all of it. "
+                + "Only its first " + NotificationReceiver.MAX_KEPT_BYTES + " bytes are held, so the payload text below is cut there.";
         assertThat(view.payloadNotes()).containsExactly(cut);
         assertThat(view.verdict().supporting()).contains(cut);
-        // What was kept ends in the middle of the document, so it cannot be read as a notification.
-        assertThat(view.verdict().outcomeCode()).isEqualTo("UNREADABLE_NOTIFICATION");
-        assertThat(ledger.only().coverageCodes()).containsExactly("notification-kind=NOT_JSON", "body=truncated");
+        // What is held ends in the middle of the document, and the whole of it was read all the same:
+        // it is JSON, and a field after the cut is among the returned fields.
+        assertThat(view.kind()).isNotEqualTo(NotificationKind.NOT_JSON);
+        assertThat(ledger.only().coverageCodes()).doesNotContain("notification-kind=NOT_JSON").contains("body=truncated");
+
+        // A body whose end was never read is still only its start, and says so as before.
+        NotificationView stopped = receiver.receive(new NotificationReceiver.Inbound(inbound.kept(), NotificationReceiver.MAX_READ_BYTES, false));
+        assertThat(stopped.payloadNotes()).containsExactly("The body was longer than the " + NotificationReceiver.MAX_READ_BYTES
+                + " bytes that were read, and reading stopped there. Only its first " + NotificationReceiver.MAX_KEPT_BYTES
+                + " bytes are held and shown, so what is read here is not all that was sent.");
+        assertThat(stopped.verdict().outcomeCode()).isEqualTo("UNREADABLE_NOTIFICATION");
 
         // A body exactly as long as the receiver holds is not cut.
         NotificationReceiver.Inbound exact = NotificationReceiver.Inbound.read(new ByteArrayInputStream(new byte[NotificationReceiver.MAX_KEPT_BYTES]));
@@ -692,8 +714,8 @@ class NotificationReceiverTest {
         // Nothing stands in for the half character, and the sender is not blamed for where this tool cut.
         assertThat(view.payload()).isEqualTo(shown);
         assertThat(view.payloadNotes()).containsExactly("What is held ends inside one character. That character is left out of the text below.",
-                "The body was " + body.length + " bytes long. Only its first " + NotificationReceiver.MAX_KEPT_BYTES
-                        + " bytes are held and shown, so what is read here is not all that was sent.");
+                "The body was " + body.length + " bytes long. All of it was read, and everything above comes from all of it. "
+                        + "Only its first " + NotificationReceiver.MAX_KEPT_BYTES + " bytes are held, so the payload text below is cut there.");
 
         // The same bytes as a whole body do end in half a character, and that is the sender's.
         byte[] ending = java.util.Arrays.copyOf(body, NotificationReceiver.MAX_KEPT_BYTES);

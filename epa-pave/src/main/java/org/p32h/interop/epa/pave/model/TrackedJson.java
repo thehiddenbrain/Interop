@@ -218,6 +218,18 @@ public final class TrackedJson {
         return out;
     }
 
+    /**
+     * What is worth saying about a body that is not JSON beyond that it is not, which the screen
+     * says itself: where the parser stopped, and that a place is masked only when one is, so the
+     * error panel's "exactly as received" and this never contradict each other.
+     */
+    public static String notJsonNote(VendorExchange received) {
+        boolean masked = received.wireResponse() != null && received.wireResponse().maskedPlaces() > 0;
+        String said = (masked ? "It is shown as received except that a place repeating a secret the request carried is masked. " : "")
+                + Texts.orElse(received.parseError(), "");
+        return said.strip().isEmpty() ? null : said.strip();
+    }
+
     /** One position in the tracked document. */
     public final class Node {
 

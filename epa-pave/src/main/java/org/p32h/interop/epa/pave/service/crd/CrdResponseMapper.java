@@ -103,9 +103,7 @@ public final class CrdResponseMapper {
                 note = "The response has no body.";
             } else {
                 kind = CrdResponseKind.NOT_JSON;
-                note = ("The body could not be read as JSON. It is shown under the fields that were returned but not interpreted, "
-                        + "and in the wire view, as received except that a place repeating a secret the request carried is masked. "
-                        + Texts.orElse(exchange.parseError(), "")).strip();
+                note = TrackedJson.notJsonNote(received);
             }
         } else {
             TrackedJson tracked = TrackedJson.of(json);

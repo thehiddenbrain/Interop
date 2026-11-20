@@ -135,9 +135,7 @@ public final class PasResponseMapper {
                 note = "The response has no body.";
             } else {
                 kind = PasResponseKind.NOT_JSON;
-                note = ("The body could not be read as JSON. It is shown as received, but for any place that repeats a secret the request "
-                        + "carried, under the fields that were returned "
-                        + "but not interpreted, and in the wire view. " + Texts.orElse(exchange.parseError(), "")).strip();
+                note = TrackedJson.notJsonNote(exchange);
             }
         } else {
             TrackedJson tracked = TrackedJson.of(json);

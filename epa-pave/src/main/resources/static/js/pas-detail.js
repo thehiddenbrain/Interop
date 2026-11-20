@@ -20,7 +20,7 @@ const PAS_KINDS = {
     OPERATION_OUTCOME: 'The response is a FHIR OperationOutcome.',
     OTHER_JSON: 'The response is JSON, but none of the resources this tool reads. All of it is listed under the returned fields below.',
     NOT_JSON: 'The response body could not be read as JSON. It is shown whole under the returned fields below, and in the wire view.',
-    NO_BODY: 'The response had no body.',
+    NO_BODY: 'The response has no body.',
     NO_RESPONSE: 'No response arrived.'
 };
 
@@ -30,7 +30,7 @@ const SUBSCRIPTION_KINDS = {
     OPERATION_OUTCOME: 'The response is a FHIR OperationOutcome.',
     OTHER_JSON: 'The response is JSON, but not a subscription. All of it is listed under the returned fields below.',
     NOT_JSON: 'The response body could not be read as JSON. It is shown whole under the returned fields below, and in the wire view.',
-    NO_BODY: 'The response had no body.',
+    NO_BODY: 'The response has no body.',
     NO_RESPONSE: 'No response arrived.'
 };
 

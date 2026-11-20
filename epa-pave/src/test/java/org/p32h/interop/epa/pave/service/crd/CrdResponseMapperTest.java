@@ -579,7 +579,8 @@ class CrdResponseMapperTest {
         CrdReading truncated = mapper.read(TestExchanges.crd(200, "{\"cards\": ["));
         assertThat(truncated.outcome()).isEqualTo(CrdOutcome.MALFORMED_RESPONSE);
         assertThat(truncated.detail().responseKind()).isEqualTo(CrdResponseKind.NOT_JSON);
-        assertThat(truncated.detail().responseNote()).contains("wire view").contains("not valid JSON");
+        // Where the body is shown is said by the screen for every body of this kind; the note adds where the parser stopped.
+        assertThat(truncated.detail().responseNote()).contains("not valid JSON").doesNotContain("masked");
         // The text as received is on the result itself, not only in the wire view, which is collapsed by default.
         assertThat(truncated.additionalFields()).containsExactly(AdditionalField.unparsedBody("{\"cards\": ["));
         assertThat(truncated.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.RAW_BODY);
