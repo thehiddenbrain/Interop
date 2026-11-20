@@ -128,15 +128,15 @@ None of it is done here.
   to upload a collection or to unlock (N2). Nothing is sent. [open at this revision: being fixed]
 - An overlong UTF-8 slash, or a look-alike slash, in a path is not refused: a read reshaped with one
   goes to a locked production, and an environment on production's server with one in its base path
-  takes writes (N3; harmful only behind a server that decodes such bytes). [open at this revision:
-  being fixed]
+  takes writes (N3; harmful only behind a server that decodes such bytes).
+  [open at this revision: being fixed]
 - A received notification that repeats a secret shorter than six characters shows it in clear with no
-  note, where the wire view says such a secret was not searched for (N4). [open at this revision: being
-  fixed]
+  note, where the wire view says such a secret was not searched for (N4).
+  [open at this revision: being fixed]
 - A production environment whose port cannot be read makes every environment on its host warned that it
   shares a server "by scheme, host and port" (N5). [open at this revision: being fixed]
-- A refusal at upload quotes an address the file does not hold (V6's F-ADDR-MISQUOTE). [open at this
-  revision: being fixed]
+- A refusal at upload quotes an address the file does not hold (V6's F-ADDR-MISQUOTE).
+  [open at this revision: being fixed]
 - Not proven: IPv6 destinations (no IPv6 loopback here); a real nginx, Tomcat or IIS in front of a
   service, on which M-ENC, m3 and N3 rest; a replay or a chain that reaches the gateway against
   production on live (covered over the server by `ProductionRefusalOverTheServerTest`, D-205); a
@@ -157,13 +157,13 @@ None of it is done here.
 - No test fails if the three controllers stop passing the scenario lists' notes, which is what makes a
   file that was not read visible (N-LISTNOTES-UNTESTED). [open at this revision: being fixed]
 - With the documentation scenario `crd-04` chosen in the selector and a DTR sentinel as the member, CRD
-  names `crd-04`'s own questionnaire and DTR then says the service left one out (N-CRD04-CHOSEN). [open
-  at this revision: being fixed]
+  names `crd-04`'s own questionnaire and DTR then says the service left one out (N-CRD04-CHOSEN).
+  [open at this revision: being fixed]
 - A `crdSentinelMemberIds` entry that is the sentinel of no CRD file is not noticed, and a run then
   calls it "the CRD sentinel member ID" (N-CRDLIST-UNCHECKED). [open at this revision: being fixed]
 - Three scenario labels ("Onyx rejects with HTTP 400", "Onyx fails with HTTP 500") read as observations
-  of the vendor's service, while their `basis` says they are synthetic (V6's F-SCEN-LABELS). [open at
-  this revision: being fixed]
+  of the vendor's service, while their `basis` says they are synthetic (V6's F-SCEN-LABELS).
+  [open at this revision: being fixed]
 - Two comments say the placeholder flag means the bundled list (`CodeListSelfCheck`, `CodeSearch`), and
   the scan for an NPI outside the placeholder set does not read the Markdown files (N-STALE-JAVADOC,
   N-NPI-DOCS). [open at this revision: being fixed]
@@ -192,8 +192,8 @@ source). What is still wrong, or not seen:
 - Not seen in a browser by the fixes that made them: the chain view with a step nobody answered and "not
   measured"; the renamed Config buttons; a step done inside the tool on live; what a mock replay says
   of its scenario (also not checked over HTTP after the last change); the presences of lists on a PAS
-  inquiry, a subscription and the notification fold; the last fixes at 1920 by 1080 at all. [open at
-  this revision: being fixed]
+  inquiry, a subscription and the notification fold; the last fixes at 1920 by 1080 at all.
+  [open at this revision: being fixed]
 - Also not seen in a browser: the label of `CHECK_ENVIRONMENT` on a chain view and a suite row (tested
   through the API); the colour key's sentence on a fault played on mock; the export's new
   `answeredBy` column; the grouped wording of the History outcome filter.
@@ -258,8 +258,8 @@ source). What is still wrong, or not seen:
   in the path form ends as a bare 400 (the query form works, D-189).
 - *The tests write into the checkout.* A build leaves `config-store/` (with an `installation-salt`) and
   `run-history/` in the project directory, because tests that start the whole application use the
-  default folders; `.gitignore` keeps both out of version control (V6's F-BUILD-WRITES-TREE). [open at
-  this revision: being fixed]
+  default folders; `.gitignore` keeps both out of version control (V6's F-BUILD-WRITES-TREE).
+  [open at this revision: being fixed]
 
 **The README and the pull request draft.** The README describes `5763c41` (D-232). It is behind on
 everything merged since: the 409 at the send, the hint on the note fields, the address warnings and
@@ -387,9 +387,9 @@ build, and its patterns let several forms through. 2 majors, 7 minors.
 | V5-GATE-PATTERNS | major | Compounds, separators, `P32` inside an identifier, tracking set from a script and several characters passed | Every pattern tightened; one class holds the rules | `HouseStyleTest` | Fixed, not yet verified by another agent | D-244 |
 | V5-GATE-SCOPE | minor | Dot files, file names and commit messages not read | Files from git, names checked; commit messages said not to be read | `HouseStyleTest` | Fixed for files and names; commit messages, the draft, names of people and restating comments are not checked by any gate | D-244 |
 | V5-INVISIBLE-CHARS | minor | Raw invisible characters in test strings | Written as escapes; the gate refuses them raw | The tightened gate listed exactly the eight | Fixed, not yet verified by another agent | D-244 |
-| V5-SCREEN-ONE-ACTION-NAMES | minor | The PAS submission, the inquiry, the raw send and the uploads had several names | One name each, the button's, in labels and sentences | `NextActionVocabularyTest` | Fixed, not yet verified by another agent; renamed Config buttons not seen in a browser (being fixed) | D-243 |
-| V5-SCREEN-ERRORS-NO-ACTION | minor | Errors with no action, an API parameter's name, one check worded two ways, "What went wrong" over a refusal | Server sentences given actions and one wording | `RunControllerTest`, `ChainServiceTest`, `ApiExceptionHandlerTest` | Partly fixed: the page's "What went wrong", a refused form's label and the receiver's run id refusal are being fixed | D-243, D-246, D-249 |
-| V5-SCREEN-PLAIN-WORDS | minor | "mints", "Set this aside", the legend's frame line, bare "Close" and "Dismiss" | Reworded; Close buttons name what they close | None (no test of labels) | Partly fixed: "Dismiss" and one "Close" are being fixed | D-243, D-249 |
+| V5-SCREEN-ONE-ACTION-NAMES | minor | The PAS submission, the inquiry, the raw send and the uploads had several names | One name each, the button's, in labels and sentences | `NextActionVocabularyTest` | Fixed, not yet verified by another agent; renamed Config buttons not seen in a browser (being fixed) | D-243 [open at this revision: being fixed]
+| V5-SCREEN-ERRORS-NO-ACTION | minor | Errors with no action, an API parameter's name, one check worded two ways, "What went wrong" over a refusal | Server sentences given actions and one wording | `RunControllerTest`, `ChainServiceTest`, `ApiExceptionHandlerTest` | Partly fixed: the page's "What went wrong", a refused form's label and the receiver's run id refusal are being fixed | D-243, D-246, D-249 [open at this revision: being fixed]
+| V5-SCREEN-PLAIN-WORDS | minor | "mints", "Set this aside", the legend's frame line, bare "Close" and "Dismiss" | Reworded; Close buttons name what they close | None (no test of labels) | Partly fixed: "Dismiss" and one "Close" are being fixed | D-243, D-249 [open at this revision: being fixed]
 | V5-COMMENTS-WHAT | minor | 5 of 50 sampled comments restate the code; 3 empty banners | The five rewritten to say why; eight banners removed | None | Fixed for the sample only | D-244 |
 | V5-FIXTURE-NAMES | minor | Three invented surnames break the `Placeholder` convention | Renamed, with three more in the same files | None (test data) | Fixed; no test checks the convention | D-244 |
 
@@ -401,16 +401,16 @@ words collapsed absent, null and empty. 2 blockers, 6 majors, 6 minors.
 | --- | --- | --- | --- | --- | --- | --- |
 | F1 | blocker | `pa-needed` returned null or empty said to be "not returned" | Worded from its presence | `CrdConformanceCheckerTest` | Fixed, not yet verified by another agent | D-236 |
 | F9 | blocker | An issue's expression returned null drawn as "empty" | `IssueView` gains presences; the table draws them | `OperationOutcomesTest`, `CompletenessScreenTest` | Fixed, not yet verified by another agent | D-236 |
-| F13 | major | A repeated key: the earlier value on no screen but the wire | Every value listed on CRD, DTR, PAS, subscriptions and notifications; a finding on CRD | `CrdRepeatedKeyTest` | Partly fixed: the finding on DTR, PAS and subscriptions, and every value on a raw send and the lookups, are being fixed | D-237, D-249 |
-| F6 | major | A Patient sent to a CRD hook passed as "no determination" | Outcome `MALFORMED_RESPONSE`; the detail names the resource | `CrdOtherResourceTest` | Fixed in another form (existing outcome), not yet verified; the headline "could not be read" is being fixed | D-238, D-249 |
+| F13 | major | A repeated key: the earlier value on no screen but the wire | Every value listed on CRD, DTR, PAS, subscriptions and notifications; a finding on CRD | `CrdRepeatedKeyTest` | Partly fixed: the finding on DTR, PAS and subscriptions, and every value on a raw send and the lookups, are being fixed | D-237, D-249 [open at this revision: being fixed]
+| F6 | major | A Patient sent to a CRD hook passed as "no determination" | Outcome `MALFORMED_RESPONSE`; the detail names the resource | `CrdOtherResourceTest` | Fixed in another form (existing outcome), not yet verified; the headline "could not be read" is being fixed | D-238, D-249 [open at this revision: being fixed]
 | F2 | major | A card's source and lists absent, null and empty read alike | `CardView.source` and `lists` | `CrdCardPresenceTest` | Fixed, not yet verified by another agent | D-236 |
 | F4 | major | PAS periods collapsed | `preAuthPeriod`, `authorizedPeriod` presences | `PasPresenceTest` | Fixed, not yet verified by another agent | D-236 |
-| F5 | major | Lists headed "None returned" whatever their presence | `lists` presences on PAS, DTR and CRD views | `PasPresenceTest`, `DtrItemPresenceTest` | Fixed, not yet verified; overturns part of D-058; inquiry, subscription and notification fold not seen in a browser (being fixed) | D-236 |
+| F5 | major | Lists headed "None returned" whatever their presence | `lists` presences on PAS, DTR and CRD views | `PasPresenceTest`, `DtrItemPresenceTest` | Fixed, not yet verified; overturns part of D-058; inquiry, subscription and notification fold not seen in a browser (being fixed) | D-236 [open at this revision: being fixed]
 | F10 | major | A notification over 131072 bytes read from its start only | The whole body read, mapped and matched; only the held text cut | `NotificationReceiverTest` | Fixed, not yet verified by another agent | D-239 |
-| F3 | minor | A sub-extension with no value read as "empty" | "sent with no value" in the table and the finding | `CrdNoValueTest` | Partly fixed: the determination grid is being fixed | D-236, D-249 |
+| F3 | minor | A sub-extension with no value read as "empty" | "sent with no value" in the table and the finding | `CrdNoValueTest` | Partly fixed: the determination grid is being fixed | D-236, D-249 [open at this revision: being fixed]
 | F11 | minor | History reads absent, null and empty `pa-needed` alike | `name=(null)`, `(empty)`, `(no value)` on the line | `CrdNoValueTest` | Fixed, not yet verified; History not looked at after the change | D-236 |
 | F8 | minor | History, suite rows and chains say nothing of uninterpreted fields | Nothing: it needs a component of the ledger record | | Not fixed; given to no task (open) | D-251 |
-| F7 | minor | A sentence said twice; "exactly as received" beside a mask; mock fault headed as the environment's | Said once on CRD and PAS; "exactly as received" only when nothing was masked | `CrdResponseMapperTest`, `PasResponseMapperTest` | Partly fixed: the heading of a played fault is being fixed; DTR and subscription notes not reworded (open) | D-249, D-247 |
+| F7 | minor | A sentence said twice; "exactly as received" beside a mask; mock fault headed as the environment's | Said once on CRD and PAS; "exactly as received" only when nothing was masked | `CrdResponseMapperTest`, `PasResponseMapperTest` | Partly fixed: the heading of a played fault is being fixed; DTR and subscription notes not reworded (open) | D-249, D-247 [open at this revision: being fixed]
 | F14 | minor | The CRD mock rewrote a scenario body, losing a repeated key | Played exactly as written when a key repeats | `CrdRepeatedKeyTest` | Fixed, not yet verified by another agent | D-237 |
 | F12 | minor | "information" broke mid-word at laptop width | Wider severity column, no wrap | None (layout) | Fixed, seen at 1366 by 768 | |
 
@@ -420,12 +420,12 @@ yes, with three gaps. 3 majors, 6 minors.
 | Finding | Grade | What it found | What was done | Fails without the fix | State | Entry |
 | --- | --- | --- | --- | --- | --- | --- |
 | F-NODET-NEXT | major | "No determination" left a business tester nothing to do | `REPORT_NO_DETERMINATION`: record the run by its id and report it | `CrdServiceTest`, `CrdVerdictsTest`, `ChainServiceTest` | Fixed, not yet verified by another agent | D-241 |
-| F-LOCALSOLID | major | A step done inside the tool marked as answered by a scenario or the payer | `AnsweredBy` on the result, the ledger and the chain; a dotted mark and a key row | `DtrServiceTest`, `RunRecordTest` | Fixed, not yet verified; the History chains list and the live profile are being fixed or looked at | D-240, D-249 |
+| F-LOCALSOLID | major | A step done inside the tool marked as answered by a scenario or the payer | `AnsweredBy` on the result, the ledger and the chain; a dotted mark and a key row | `DtrServiceTest`, `RunRecordTest` | Fixed, not yet verified; the History chains list and the live profile are being fixed or looked at | D-240, D-249 [open at this revision: being fixed]
 | F-DUPCODE | major | Text left in the code box sent without being shown, repeating a code | The send is refused and the box marked; one duplicate check | `CaseCodesFrontendTest` (reads the source) | Fixed, not yet verified; behaviour seen in a browser only | D-242 |
 | F-TRACE-PAS-DTR | minor | The PAS line does not name the DTR response run | D-181 kept; History lists "Followed by" | `RunControllerTest` | Decided otherwise, with a way between the two | D-243, D-251 |
 | F-CHAIN-WORDING | minor | A replay refusal said "one step of a chain" of a single run | Says the run followed run X | `RunReplayTest` | Fixed, not yet verified by another agent | D-243 |
-| F-REPLAY-SCENARIO | minor | A mock replay said its scenario was "chosen in the scenario selector" | Says the original's scenario was sent again by its id, same by construction | `RunReplayTest` | Fixed, not yet verified; not checked over HTTP after the last change (being looked at) | D-243 |
-| F-0MS | minor | A time not measured written as 0 | Null in the ledger, empty in the export, "not measured" on screen | `RunRecordTest`, `RunCsvTest` | Fixed, not yet verified; the chain view not seen in a browser (being looked at) | D-240 |
+| F-REPLAY-SCENARIO | minor | A mock replay said its scenario was "chosen in the scenario selector" | Says the original's scenario was sent again by its id, same by construction | `RunReplayTest` | Fixed, not yet verified; not checked over HTTP after the last change (being looked at) | D-243 [open at this revision: being fixed]
+| F-0MS | minor | A time not measured written as 0 | Null in the ledger, empty in the export, "not measured" on screen | `RunRecordTest`, `RunCsvTest` | Fixed, not yet verified; the chain view not seen in a browser (being looked at) | D-240 [open at this revision: being fixed]
 | F-MRI | minor | A word typed in the code box taken as a code | The server's `shapeNote` under "not on the list"; still sent as chosen | `ProcedureCodeControllerTest` | Fixed, not yet verified by another agent | D-242 |
 | F-FILTER-LABELS | minor | Two outcome filter options were bare codes | Each protocol's wording listed | None | Fixed; the grouped version not looked at again | D-243 |
 
@@ -437,7 +437,7 @@ clone held. 1 blocker, 5 majors, 9 minors.
 | --- | --- | --- | --- | --- | --- |
 | F-PR-LIMITS | blocker | The draft said "nothing stubbed" and left out limits the README states | Level 1 described with its limits; the draft to say so | Decided; the draft's pass is started (D-250), open | D-235, D-250 |
 | F-TOKEN-BASIC | major | The token request uses HTTP Basic and no document says so | Recorded as a decision | Recorded here; the README's open items are to say so (D-250) | D-233 |
-| F-MOCK-500-HEADING | major | On mock a played 500 is headed and actioned as a fault in the environment | Decided | Being fixed | D-247 |
+| F-MOCK-500-HEADING | major | On mock a played 500 is headed and actioned as a fault in the environment | Decided | Being fixed | D-247 [open at this revision: being fixed]
 | F-SALT | major | The salt reverses member tokens and is not called a secret | Recorded as a decision | Recorded here; the README is to say so (D-250) | D-234 |
 | F-PR-ASSUMPTIONS | major | The draft's assumptions stop at D-201 and give titles only | Decided | The draft's pass is started (D-250), open | D-250 |
 | F-BEHIND | major | The README, `PROGRESS.md`, D-212, D-226 and the draft lag the merged work | These records brought up to `e1d37dc`; the README and the draft to follow | Fixed for the two record files by this pass; open for the README and the draft | D-229 to D-252, D-250 |
@@ -446,11 +446,11 @@ clone held. 1 blocker, 5 majors, 9 minors.
 | F-PR-M3 | minor | The draft's list of fixes never run against the old code leaves out m3 | Decided | Open (D-250) | D-250 |
 | F-PROG-RAWNOTE | minor | `PROGRESS.md` gave no limits of the raw send's note check | The limits are above and in D-231 | Fixed by this pass | D-231 |
 | F-README-SENT | minor | "was sent" of a submit checked on mock only | Decided | Open (D-250) | D-250 |
-| F-BUILD-WRITES-TREE | minor | Tests write `config-store/` and `run-history/` into the checkout | Decided | Being fixed | D-247 |
+| F-BUILD-WRITES-TREE | minor | Tests write `config-store/` and `run-history/` into the checkout | Decided | Being fixed | D-247 [open at this revision: being fixed]
 | F-JAVAOPTS | minor | Every JVM here disables two base64 intrinsics and no document says so | Said above under the gates | Recorded; the draft to say it (D-250) | D-250 |
 | F-CACHE-FRESH | minor | A fresh clone here compiles nothing, taking classes from the shared cache | Said above under the gates | Recorded; the integrator's gate is to say whether the cache was on | D-250 |
-| F-SCEN-LABELS | minor | Three scenario labels read as observations of the vendor | Decided | Being fixed | D-248 |
-| F-ADDR-MISQUOTE | minor | A refusal at upload quotes an address the file does not hold | Decided | Being fixed | D-247 |
+| F-SCEN-LABELS | minor | Three scenario labels read as observations of the vendor | Decided | Being fixed | D-248 [open at this revision: being fixed]
+| F-ADDR-MISQUOTE | minor | A refusal at upload quotes an address the file does not hold | Decided | Being fixed | D-247 [open at this revision: being fixed]
 
 #### The second run, on revision `0658a7c`, and the check of each fix on `9e5306d`
 
@@ -470,21 +470,21 @@ own requests and open one step away.
 | Finding | Grade | What it found | What was done | The check (`9e5306d`) | State | Entry |
 | --- | --- | --- | --- | --- | --- | --- |
 | F0 | blocker | A secret a service repeats in a notification was shown in clear | The notification is masked with every secret the tool could have sent | Closed; seen failing (`NotificationReceiverTest`, `SecretsSentBackOverTheServerTest`) | Fixed and verified | D-215 |
-| F1 | major | Note, tester reference and expectation were written as typed, member data included | Refused at the way in, checked on a note added later, and not written by the record | Partly closed; seen failing (`LedgerPhiTest`, `SuiteCasesTest`, `LedgerMemberTextTest`); open: N1, N3 | Fixed for the audit's requests and verified; neighbours being fixed | D-217, D-246 |
-| F2 | major | Ids a service supplies kept by shape alone | Kept only when they read like neither an identifier nor a date | Partly closed; seen failing (`NotificationIdsNotKeptTest`); open: N2, and N4 broken by the fix | Partly fixed; being fixed in another form (a token unless a UUID, an OID or minted) | D-218, D-246 |
+| F1 | major | Note, tester reference and expectation were written as typed, member data included | Refused at the way in, checked on a note added later, and not written by the record | Partly closed; seen failing (`LedgerPhiTest`, `SuiteCasesTest`, `LedgerMemberTextTest`); open: N1, N3 | Fixed for the audit's requests and verified; neighbours being fixed | D-217, D-246 [open at this revision: being fixed]
+| F2 | major | Ids a service supplies kept by shape alone | Kept only when they read like neither an identifier nor a date | Partly closed; seen failing (`NotificationIdsNotKeptTest`); open: N2, and N4 broken by the fix | Partly fixed; being fixed in another form (a token unless a UUID, an OID or minted) | D-218, D-246 [open at this revision: being fixed]
 | F3 | major | The member ID typed as a procedure code was written in clear | Written as `(not a code, N characters)` | Closed; seen failing (`LedgerMemberTextTest`, `LedgerPhiTest`); N7 found | Fixed and verified | D-218 |
 | F5 | minor | The configuration store keeps member data an upload holds | The upload warns by names and saved examples; the store keeps uploads whole | Closed; seen failing (`MemberDataUploadTest`); N9 found | Fixed in another form (warned, not stripped) and verified; shown on screen since D-230 | D-213, D-230 |
 | F6 | minor | The log line of an unnamed failure fired for lookups | Not written for a lookup | Closed; seen failing (`FailedCallLogTest`) | Fixed and verified | D-216 |
 | F7 | minor | Every start left an empty server folder | The server's folder is removed at stop | Closed; seen failing (`TomcatBaseDirectoryTest`) | Fixed and verified; a hard kill leaves it | D-216 |
-| N1 | major (check) | A request of the tester's own from a protocol tab is checked against nothing | | New | Being fixed | D-246 |
-| N2 | major (check) | A member ID split by separators, supplied as an id, is kept in clear | | New | Being fixed | D-246 |
-| N3 | major (check) | Month-name dates, fullwidth digits and the ID without its letter not recognised | | New | Being fixed | D-246 |
-| N4 | major (check) | Numeric ids a server mints no longer kept, so notifications no longer match | | New, broken by the F2 fix | Being fixed | D-246 |
-| N5 | minor (check) | City with postal code, and one part of a surname, accepted | | New | Being fixed | D-246 |
-| N6 | minor (check) | A name that is a common word refuses honest notes | | New | Being fixed | D-246 |
-| N7 | minor (check) | Codes of seven digits or more no longer kept | | New | Being fixed | D-246 |
-| N8 | minor (check) | The suite results file repeats a refused expectation | | New | Being fixed | D-246 |
-| N9 | minor (check) | The upload warning misses common member data names | | New | Being fixed | D-247 |
+| N1 | major (check) | A request of the tester's own from a protocol tab is checked against nothing | | New | Being fixed | D-246 [open at this revision: being fixed]
+| N2 | major (check) | A member ID split by separators, supplied as an id, is kept in clear | | New | Being fixed | D-246 [open at this revision: being fixed]
+| N3 | major (check) | Month-name dates, fullwidth digits and the ID without its letter not recognised | | New | Being fixed | D-246 [open at this revision: being fixed]
+| N4 | major (check) | Numeric ids a server mints no longer kept, so notifications no longer match | | New, broken by the F2 fix | Being fixed | D-246 [open at this revision: being fixed]
+| N5 | minor (check) | City with postal code, and one part of a surname, accepted | | New | Being fixed | D-246 [open at this revision: being fixed]
+| N6 | minor (check) | A name that is a common word refuses honest notes | | New | Being fixed | D-246 [open at this revision: being fixed]
+| N7 | minor (check) | Codes of seven digits or more no longer kept | | New | Being fixed | D-246 [open at this revision: being fixed]
+| N8 | minor (check) | The suite results file repeats a refused expectation | | New | Being fixed | D-246 [open at this revision: being fixed]
+| N9 | minor (check) | The upload warning misses common member data names | | New | Being fixed | D-247 [open at this revision: being fixed]
 
 **Guardrail audit (V3), second run.** 1 blocker, 4 majors, 4 minors. Its answer: yes, a port written
 with leading zeros took a write to production with no unlock, and an encoded `../` got a write past a
@@ -492,7 +492,7 @@ locked production as a read. The check's answer: eight closed, B1 partly.
 
 | Finding | Grade | What it found | What was done | The check (`9e5306d`) | State | Entry |
 | --- | --- | --- | --- | --- | --- | --- |
-| B1 | blocker | A port with leading zeros was not read as a production address | The address is read as the HTTP client reads it; an unreadable destination refuses a write | Partly closed; seen failing (`AddressSpellingGuardrailTest`, `DestinationOnTheWireTest`); open in the second direction (N1) | First direction fixed and verified; second being fixed | D-210, D-247 |
+| B1 | blocker | A port with leading zeros was not read as a production address | The address is read as the HTTP client reads it; an unreadable destination refuses a write | Partly closed; seen failing (`AddressSpellingGuardrailTest`, `DestinationOnTheWireTest`); open in the second direction (N1) | First direction fixed and verified; second being fixed | D-210, D-247 [open at this revision: being fixed]
 | F-SCREEN | major | After another browser's Lock, the Config tab still said writes were unlocked | Every place redrawn and the tester told once (the screens pass) | Closed, seen with two browser contexts | Fixed and verified | D-230 |
 | M-ENC | major | An encoded `../` in a run value turned a read into a write | No request leaves with an encoded separator in its path | Closed; seen failing (`EncodedSeparatorGuardrailTest`); N3 found | Fixed and verified | D-211 |
 | T1 | major | No test failed when Lock stopped locking every session | A test over the running server; the 409 at the send now carries its own sentence | Closed; seen failing (`SecondGuardrailAuditOverTheServerTest`); the new 409 seen on the jar | Fixed and verified | D-214, D-229 |
@@ -501,11 +501,11 @@ locked production as a read. The check's answer: eight closed, B1 partly.
 | m2 | minor | The unlock panel does not say what Lock does | The server's reason says it and the panel shows it | Closed, seen in a browser | Fixed and verified | D-231 |
 | m3 | minor | An environment at `/pa%2Ffhir` took writes on a production server | Nothing is sent to it, and it is warned about | Closed (through M-ENC); its overlong neighbours are N3 | Fixed and verified | D-211 |
 | m4 | minor | A non-production environment on a production server, with no word | Warned wherever it is listed, shown on screen since the screens pass | Closed; seen failing; N5 found | Fixed in another form (warned) and verified | D-212, D-230 |
-| N1 | major (check) | A production address the client cannot read is not remembered; a sandbox at its plain spelling takes writes | | New; writes arrived at a stand-in | Being fixed | D-247 |
-| N2 | major (check) | An unreadable path refused with a false cause | | New; nothing is sent | Being fixed | D-247 |
-| N3 | minor (check) | Overlong or look-alike encoded slashes not refused | | New; server-dependent | Being fixed | D-247 |
-| N4 | minor (check) | A short secret in a notification shown with no note | | New | Being fixed | D-247 |
-| N5 | minor (check) | A false "same server" warning for an unreadable production port | | New | Being fixed | D-247 |
+| N1 | major (check) | A production address the client cannot read is not remembered; a sandbox at its plain spelling takes writes | | New; writes arrived at a stand-in | Being fixed | D-247 [open at this revision: being fixed]
+| N2 | major (check) | An unreadable path refused with a false cause | | New; nothing is sent | Being fixed | D-247 [open at this revision: being fixed]
+| N3 | minor (check) | Overlong or look-alike encoded slashes not refused | | New; server-dependent | Being fixed | D-247 [open at this revision: being fixed]
+| N4 | minor (check) | A short secret in a notification shown with no note | | New | Being fixed | D-247 [open at this revision: being fixed]
+| N5 | minor (check) | A false "same server" warning for an unreadable production port | | New | Being fixed | D-247 [open at this revision: being fixed]
 
 **Fixture audit (V4), second run.** 1 blocker, 4 majors, 5 minors. Its answer: mostly yes; every
 sentinel picks its scenario and all 14 CRD, 15 DTR and 21 PAS scenarios give the outcome their label
@@ -514,7 +514,7 @@ states; four gaps. The check's answer: nine closed or recorded, F-RAW partly.
 | Finding | Grade | What it found | What was done | The check (`9e5306d`) | State | Entry |
 | --- | --- | --- | --- | --- | --- | --- |
 | F-CHAIN-DTR | blocker | A DTR sentinel taken from CRD into DTR ended as "package incomplete" | CRD names the questionnaires that DTR scenario's package holds | Closed; seen failing (`DtrSentinelJourneyTest`); six DTR sentinels driven on the real tabs into PAS; N-CRD04-CHOSEN found | Fixed and verified | D-222, D-248 |
-| F-RAW | major | Cross-protocol sentinels skipped in a pasted body | One rule for a typed and a pasted identifier | Partly closed; seen failing; 135 pairs agree; open: N-RAW-NPI | Fixed for the member ID and verified; the NPI being fixed | D-220, D-248 |
+| F-RAW | major | Cross-protocol sentinels skipped in a pasted body | One rule for a typed and a pasted identifier | Partly closed; seen failing; 135 pairs agree; open: N-RAW-NPI | Fixed for the member ID and verified; the NPI being fixed | D-220, D-248 [open at this revision: being fixed]
 | F-DUP-CRDSENT | major | Two DTR files could claim one CRD sentinel | The duplicate check covers `crdSentinelMemberIds` | Closed; seen failing; N-CRDLIST-UNCHECKED found | Fixed and verified | D-221 |
 | F-PAS-SHADOW | major | The PAS mapping of CRD sentinels was a Java map | Scenario data in the PAS files | Closed; seen failing | Fixed and verified | D-221 |
 | F-SAMPLE-LIST | major | The sample code list compared with the service as if real | A list that carries the marker is synthetic; sentences and label made true since | Closed on live; seen failing (`CodeListConformanceSeamTest`, `SampleCodeListTest`); N-STALE-JAVADOC found | Fixed and verified | D-223, D-229, D-230 |
@@ -523,14 +523,14 @@ states; four gaps. The check's answer: nine closed or recorded, F-RAW partly.
 | F-ORPHAN | minor | Files not read ignored without a word | Named in the notes and one warning; shown on screen since | Closed; seen failing; N-LISTNOTES-UNTESTED found | Fixed in another form (said) and verified | D-224, D-230 |
 | F-UNMATCHED-LOOP | minor | The sample that matches nothing sent the tester round in a loop | The next step names a sample that would match | Closed; seen failing; N-DELETED-SUB found | Fixed and verified | D-224 |
 | F-NPI-TEST | minor | A test NPI could be a real provider's | Replaced; a scan fails on any NPI outside the placeholder set | Closed; seen failing; N-NPI-DOCS found | Fixed and verified | D-224 |
-| N-RAW-NPI | major (check) | A sentinel NPI in a pasted body ignored; the README says the opposite | | New | Being fixed | D-248 |
-| N-OLD-SCENARIO-DIR | major (check) | A directory from before the mappings became data loses them silently | | New | Being fixed | D-248 |
-| N-LISTNOTES-UNTESTED | major (check) | No test fails when the list notes are dropped | | New | Being fixed | D-248 |
-| N-CRD04-CHOSEN | minor (check) | `crd-04` chosen by hand with a DTR sentinel names the wrong questionnaire | | New | Being fixed | D-248 |
-| N-CRDLIST-UNCHECKED | minor (check) | A mapping entry naming no CRD sentinel is not noticed | | New | Being fixed | D-248 |
-| N-DELETED-SUB | minor (check) | A deleted subscription treated as live | | New | Being fixed | D-246 |
-| N-STALE-JAVADOC | minor (check) | Two comments say the flag means the bundled list | | New | Being fixed | D-248 |
-| N-NPI-DOCS | minor (check) | The NPI scan does not read the Markdown files | | New | Being fixed | D-248 |
+| N-RAW-NPI | major (check) | A sentinel NPI in a pasted body ignored; the README says the opposite | | New | Being fixed | D-248 [open at this revision: being fixed]
+| N-OLD-SCENARIO-DIR | major (check) | A directory from before the mappings became data loses them silently | | New | Being fixed | D-248 [open at this revision: being fixed]
+| N-LISTNOTES-UNTESTED | major (check) | No test fails when the list notes are dropped | | New | Being fixed | D-248 [open at this revision: being fixed]
+| N-CRD04-CHOSEN | minor (check) | `crd-04` chosen by hand with a DTR sentinel names the wrong questionnaire | | New | Being fixed | D-248 [open at this revision: being fixed]
+| N-CRDLIST-UNCHECKED | minor (check) | A mapping entry naming no CRD sentinel is not noticed | | New | Being fixed | D-248 [open at this revision: being fixed]
+| N-DELETED-SUB | minor (check) | A deleted subscription treated as live | | New | Being fixed | D-246 [open at this revision: being fixed]
+| N-STALE-JAVADOC | minor (check) | Two comments say the flag means the bundled list | | New | Being fixed | D-248 [open at this revision: being fixed]
+| N-NPI-DOCS | minor (check) | The NPI scan does not read the Markdown files | | New | Being fixed | D-248 [open at this revision: being fixed]
 
 #### The first run, and the reviews
 
