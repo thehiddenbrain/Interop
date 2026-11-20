@@ -436,7 +436,7 @@ export function createCodePicker(spec) {
             checkPending();
         },
         lineChanged,
-        /** Asks the server whether the list in use is the placeholder that ships with the tool. */
+        /** Asks the server whether the list in use is a placeholder, whether the one that ships with the tool or one marked as synthetic. */
         async checkList() {
             const answer = await api.get('/api/procedure-codes/self-check');
             if (answer.kind !== 'ok') {

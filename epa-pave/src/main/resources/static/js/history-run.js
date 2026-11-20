@@ -8,7 +8,7 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, copyButton, facts, millis} from './dom.js';
-import {textField, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
+import {textField, clearFieldErrors, markFieldErrors, formProblem, LEDGER_TEXT_HINT} from './forms.js';
 import {stamp, slowFlag} from './marks.js';
 import {errorPanel} from './result.js';
 import {runLink, chainLink, suiteRunsLink, none, memberAsRecorded, outcomeOf, expectedOf, whatRan, whereRan, codes, whenFiled} from './history-common.js';
@@ -194,9 +194,8 @@ export function createRunView(app, context) {
         const text = el('textarea', {id: noteId, name: 'note', rows: 3, maxLength: 4000, value: run.note || '', aria: {describedby: noteId + '-hint'}});
         const noteField = el('div', {class: 'field field--wide', dataset: {field: 'note'}},
             el('label', {htmlFor: noteId}, 'Note on this run'), text,
-            el('span', {class: 'field__hint', id: noteId + '-hint'}, 'Kept in the ledger exactly as written and shown to anyone who reads it. '
-                + 'Do not put member data here: no name, date of birth, address or member details.'));
-        const ref = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
+            el('span', {class: 'field__hint', id: noteId + '-hint'}, LEDGER_TEXT_HINT));
+        const ref = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials', hint: LEDGER_TEXT_HINT});
         ref.set(run.testerRef || '');
         const problem = el('div');
         const receipt = el('div');

@@ -186,8 +186,19 @@ function onConfigChange(mode) {
     }
 }
 
+/**
+ * Writes were unlocked or locked again without a change of the configuration, possibly from
+ * another browser. Nothing the tab read is out of date, but every view states the write access,
+ * so each one is redrawn from the frame's new answer at once.
+ */
+function onWriteAccessChange() {
+    for (const view of built.values()) {
+        view.draw();
+    }
+}
+
 function address() {
     return current === VIEWS[0].id ? null : current;
 }
 
-export default {id: 'config', label: 'Config', mount, onShow, onConfigChange, address};
+export default {id: 'config', label: 'Config', mount, onShow, onConfigChange, onWriteAccessChange, address};

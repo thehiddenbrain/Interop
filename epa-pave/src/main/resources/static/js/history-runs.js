@@ -261,6 +261,9 @@ export function createRunsList(app, context) {
                     : 'Give a From or a To date above to replay the runs of those days and see what changed since.')));
     }
 
+    // The confirmation of a replay on screen, if one is: it says whether writes would be sent, so it is drawn again when that changes.
+    let confirming = null;
+
     function replayOpener(dates) {
         const opener = button('Replay the runs in these dates', () => confirmReplay(dates, opener), {class: 'button--quiet'});
         return opener;
@@ -272,7 +275,8 @@ export function createRunsList(app, context) {
      * where they go. The counts are read from the ledger with the dates alone, because the replay
      * takes the dates alone. Which operations write is the server's own flag on each operation.
      */
-    async function confirmReplay(dates, opener) {
+    async function confirmReplay(dates, opener, redraw) {
+        confirming = {dates, opener};
         fill(replayBox, el('p', {class: 'readout__status'}, 'Counting the runs in these dates.'));
         const counted = new URLSearchParams(dates);
         counted.set('limit', '0');
@@ -299,7 +303,7 @@ export function createRunsList(app, context) {
         const mock = mode.mode === 'mock';
         const plural = (number, one, many) => count(number) + ' ' + (number === 1 ? one : many);
         const send = button('Replay these runs', () => runReplay(dates, send), {class: 'button--primary'});
-        const cancel = button('Cancel', () => { clear(replayBox); opener.focus(); });
+        const cancel = button('Cancel', () => { confirming = null; clear(replayBox); opener.focus(); });
         fill(replayBox, el('div', {class: 'history-confirm', role: 'group', aria: {label: 'Replay these dates'}},
             el('p', null, el('strong', null, 'The ledger holds ' + plural(inDates.length, 'run', 'runs') + ' in these UTC days'),
                 FILTERS.some(([name]) => name !== 'from' && name !== 'to' && lastQuery.get(name))
@@ -320,10 +324,13 @@ export function createRunsList(app, context) {
                     environment.active ? [environment.name, ' (', environment.kind, ')'] : 'the service the configuration in force names',
                     ', against the configuration in force now. Each run sent again is recorded as a new run.']),
             el('div', {class: 'button-row'}, send, cancel)));
-        send.focus();
+        if (!redraw) {
+            send.focus();
+        }
     }
 
     async function runReplay(dates, control) {
+        confirming = null;
         control.disabled = true;
         control.setAttribute('aria-busy', 'true');
         const status = el('p', {class: 'readout__status'}, 'Sending the runs again. This takes as long as the runs themselves took.');
@@ -407,6 +414,12 @@ export function createRunsList(app, context) {
         },
         /** The filters of the list on screen, for the address. */
         query: () => lastQuery,
-        redrawChoices: drawChoices
+        redrawChoices: drawChoices,
+        /** Writes were unlocked or locked again: a confirmation on screen says whether they would be sent, so it is drawn again. */
+        writeAccessChanged() {
+            if (confirming && replayBox.isConnected && replayBox.firstChild) {
+                confirmReplay(confirming.dates, confirming.opener, true);
+            }
+        }
     };
 }

@@ -11,7 +11,7 @@
 import * as calls from './config-calls.js';
 import {el, fill, clear, button, code, table, tableRow, heading, when} from './dom.js';
 import {clearFieldErrors} from './forms.js';
-import {kindMark, none, flag, sentences, refusal, during, counted, staleRefusal} from './config-parts.js';
+import {kindMark, none, flag, sentences, refusal, during, counted, staleRefusal, addressWarnings} from './config-parts.js';
 
 // The three kinds an environment can be declared as, with what each one brings. The words after
 // the kind are this page's; the kinds are the ones the upload accepts.
@@ -175,6 +175,9 @@ export function createEnvironmentsView(context) {
         const body = [];
         for (const environment of environments) {
             body.push(row(environment));
+            if ((environment.addressWarnings || []).length > 0) {
+                body.push(addressRow(environment));
+            }
             if (removing === environment.id) {
                 body.push(removalRow(environment));
             }
@@ -224,6 +227,17 @@ export function createEnvironmentsView(context) {
         ]});
     }
 
+    /**
+     * What the tool says about the addresses of one environment, in its own sentences, on a line of
+     * its own beneath the environment, so it is read before the environment is made active: an
+     * address no write can be sent to, one nothing can be sent to, one on the server of a
+     * production environment. The sentences come with the list; this page does not sort them.
+     */
+    function addressRow(environment) {
+        return el('tr', {class: 'config-address-row' + (environment.active ? ' config-row--active' : '')}, el('td', {colSpan: 5},
+            addressWarnings(environment.name, environment.addressWarnings)));
+    }
+
     async function activate(environment) {
         clear(listStatus);
         const answer = await calls.activateEnvironment(environment.id);
@@ -232,7 +246,9 @@ export function createEnvironmentsView(context) {
         } else {
             // The variables listed are those of the active environment again, unless the tester chooses another.
             shownId = null;
-            fill(listStatus, el('p', {class: 'config-done__title'}, '"', answer.body.environment.name, '" is now the active environment.'));
+            fill(listStatus, el('p', {class: 'config-done__title'}, '"', answer.body.environment.name, '" is now the active environment.'),
+                (answer.body.addressWarnings || []).length > 0
+                    ? el('div', {role: 'alert'}, addressWarnings(answer.body.environment.name, answer.body.addressWarnings)) : null);
         }
         await context.changed();
     }

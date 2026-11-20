@@ -12,8 +12,8 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, table, facts, copyButton} from './dom.js';
-import {textField, textArea, selectField, setOptions} from './forms.js';
-import {createWorkbench, requestPreviewPanel, nextStepControl, sentinelCell} from './workbench.js';
+import {textField, textArea, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
+import {createWorkbench, requestPreviewPanel, nextStepControl, sentinelCell, scenarioLabel, scenarioListNotes, scenarioAbout} from './workbench.js';
 import {sameCase} from './handover.js';
 import {dtrDetail} from './dtr-detail.js';
 import {createSession, hasQuestionnaires} from './dtr-questionnaire.js';
@@ -58,8 +58,8 @@ function mount(panel, application) {
     controls.expected = selectField({label: 'Expected outcome of the next step sent (optional)', field: 'expected'});
     controls.assertions = el('div', {class: 'assertions'});
     controls.expectedText = el('p', {class: 'small'});
-    controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
-    controls.note = textField({label: 'Note', field: 'note', wide: true});
+    controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials', hint: LEDGER_TEXT_HINT});
+    controls.note = textField({label: 'Note', field: 'note', wide: true, hint: LEDGER_TEXT_HINT});
     controls.send = el('button', {type: 'submit', class: 'button button--primary'}, 'Fetch the questionnaire package');
     controls.preview = button('Show the request', showPackagePreview);
     controls.restart = el('p', {class: 'small dtr-restart', hidden: true},
@@ -158,7 +158,7 @@ function drawScenarioSelector(list) {
     field.select.setAttribute('aria-describedby', 'dtr-scenario-about');
     const describe = () => {
         const chosen = list.scenarios.find(scenario => scenario.id === field.value());
-        fill(description, chosen ? chosen.description : 'With none chosen here, the member ID picks the scenario.');
+        fill(description, chosen ? scenarioAbout(chosen) : 'With none chosen here, the member ID picks the scenario.');
     };
     field.select.addEventListener('change', describe);
     describe();
@@ -232,7 +232,7 @@ function addAssertionRow() {
         adder.before(row);
     } else {
         controls.assertions.append(
-            el('p', {class: 'field__hint'}, 'Each asserts one element of the step, such as questionnaire-kind = static. Every one must hold for the run to pass.'),
+            el('p', {class: 'field__hint'}, 'Each asserts one element of the step, such as questionnaire-kind = static. Every one must hold for the run to pass. ' + LEDGER_TEXT_HINT),
             row,
             el('div', {class: 'assertions__add'}, button('Add an assertion', () => addAssertionRow(), {class: 'button--text'})));
     }
@@ -521,10 +521,11 @@ function drawEmptyState() {
         parts.push(el('p', null, own
             ? 'On the mock profile a sentinel member ID inside your body selects the scenario that answers. These are the member IDs that do:'
             : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
+        parts.push(scenarioListNotes(list));
         parts.push(table([{text: '', class: 'col-5'}, {text: 'Scenario', class: 'col-45'}, {text: 'Member ID', class: 'col-25'},
             {text: '', class: 'col-25'}], list.scenarios.map(scenario => [
             {class: 'num', node: String(scenario.number)},
-            scenario.label,
+            scenarioLabel(scenario),
             sentinelCell(scenario),
             !scenario.sentinelMemberId ? null
                 : own ? copyButton('Copy this member ID', () => scenario.sentinelMemberId)

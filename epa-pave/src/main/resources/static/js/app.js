@@ -38,7 +38,8 @@ const state = {
     operations: new Map(), // operation name -> its row of /api/config/effective, as the server sent it
     operationsRead: false, // true once /api/config/effective has answered at least once
     configListeners: [],   // parts of the page told after each change of the configuration, once the operations are read again
-    placeholderList: null  // true when the code list in use is the bundled placeholder, from the self-check; null before it is read
+    placeholderList: null, // true when the code list in use is a placeholder, from the self-check; null before it is read
+    codeListSource: null   // where the code list in use was read from, as the self-check names it; null before it is read
 };
 
 const app = {
@@ -121,8 +122,14 @@ const app = {
             state.configListeners = state.configListeners.filter(each => each !== listener);
         };
     },
-    /** True when the code list in use is the bundled placeholder, false when it is not, null while that is not known. */
+    /**
+     * True when the code list in use is a placeholder, false when it is not, null while that is not
+     * known. A placeholder is the one that ships with the tool or any list whose rows say of
+     * themselves that they are not from a P32H export: the self-check decides, not this page.
+     */
     codeListIsPlaceholder: () => state.placeholderList,
+    /** Where the code list in use was read from, in the self-check's words, or null. */
+    codeListSource: () => state.codeListSource,
     /** Lets a tab update the address when it changes view, so the back button and a reload return to it. */
     addressChanged() {
         const address = '#' + addressOf(state.active);
@@ -150,7 +157,8 @@ async function start() {
 
     // The result view words an operation and the code list the way the server does. It reads them
     // through the frame, which keeps them current, so no tab has to pass them in.
-    useServerWords({operationLabel: name => app.operationLabel(name), codeListIsPlaceholder: () => app.codeListIsPlaceholder()});
+    useServerWords({operationLabel: name => app.operationLabel(name), codeListIsPlaceholder: () => app.codeListIsPlaceholder(),
+        codeListSource: () => app.codeListSource()});
 
     const first = await api.get('/api/mode');
     if (first.kind === 'ok') {
@@ -228,6 +236,20 @@ async function poll(announceSame, options) {
             }
         }
         app.chain.refresh();
+    } else if (before && JSON.stringify(before.writeAccess) !== JSON.stringify(answer.body.writeAccess)) {
+        // Writes were unlocked or locked again with no change of the configuration. A lock from any
+        // browser ends the unlock of every session and leaves the epoch where it was, so without this
+        // a panel drawn while unlocked would go on saying so beside a banner that says locked.
+        if (!quiet && relocked(before, answer.body)) {
+            notice('Writes to production were locked again. This browser did not lock them, so it may have been done from another '
+                + 'browser: locking from any browser ends the unlock of every session. Every tab now shows them as locked. '
+                + 'Unlock them again on the Config tab if they are still needed.');
+        }
+        for (const entry of state.tabs.values()) {
+            if (entry.built && entry.tab.onWriteAccessChange) {
+                entry.tab.onWriteAccessChange(answer.body, before);
+            }
+        }
     } else if (announceSame && before && !quiet) {
         // Asked for after a refusal. Saying nothing would leave the tester wondering whether the screen is current.
         notice('The screen shows the configuration now in force. ' + environmentSentence(answer.body), {plain: true});
@@ -266,11 +288,12 @@ async function readOperations() {
     }
 }
 
-/** Reads once whether the code list is the bundled placeholder. It cannot change without a restart. */
+/** Reads once whether the code list is a placeholder, and where it came from. Neither can change without a restart. */
 async function readCodeList() {
     const answer = await api.get('/api/procedure-codes/self-check');
     if (answer.kind === 'ok' && typeof answer.body.placeholder === 'boolean') {
         state.placeholderList = answer.body.placeholder;
+        state.codeListSource = typeof answer.body.source === 'string' ? answer.body.source : null;
     }
 }
 

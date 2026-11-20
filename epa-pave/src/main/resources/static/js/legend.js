@@ -64,7 +64,8 @@ export async function openLegend(dialog) {
                         'A thin black frame around a word: a mark to read, not a fault. A write, a secret, a pre-request script, a code this tool does not know.'),
                     row(el('span', {class: 'swatch swatch--edge'}),
                         'A heavy rule down the edge of a row on the Config tab: an operation that cannot be sent to a service as things are configured. '
-                        + 'In purple: one the production guardrail would refuse. The row says why.'),
+                        + 'In purple: one the production guardrail would refuse. The row says why. In black beside sentences of the tool: '
+                        + 'a warning about an uploaded file or the address of an environment, to read before using it.'),
                     row(el('span', {class: 'swatch swatch--blocked'}),
                         'A purple frame: the production guardrail. A request it refused to send, or, on the Config tab, writes it lets through while unlocked.'),
                     row(slowFlag(), 'The call completed but took longer than the threshold.')

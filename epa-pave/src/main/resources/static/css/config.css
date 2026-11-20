@@ -585,3 +585,22 @@
     padding-top: 0;
     border-top: 0;
 }
+
+/* The tool's warnings about the addresses of an environment, on their own line beneath it in the
+   list. The cell carries the row's edge, so the line reads as part of the environment above it. */
+.config-environments .config-address-row > td {
+    padding-top: 0;
+    padding-bottom: var(--gap-3);
+}
+
+.config-environments tr.config-row:has(+ .config-address-row) > td {
+    border-bottom: 0;
+}
+
+.config-address-warnings {
+    max-width: 72rem;
+}
+
+.config-address-warnings .sub-heading {
+    font-weight: 600;
+}

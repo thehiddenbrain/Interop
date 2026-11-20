@@ -10,6 +10,14 @@ import {el, append} from './dom.js';
 
 let sequence = 0;
 
+/**
+ * The hint on every field whose text the ledger keeps as typed: the note, the tester reference and
+ * the expectation of a run, on every tab, and the note editor of a run. The same words everywhere,
+ * so a tester reads one rule. The server refuses text that holds the member data of the request it
+ * goes with, but it cannot know member data the request does not carry, so the rule is said here.
+ */
+export const LEDGER_TEXT_HINT = 'The ledger keeps this as typed. Do not type member data into it.';
+
 function nextId(prefix) {
     sequence += 1;
     return prefix + '-' + sequence;

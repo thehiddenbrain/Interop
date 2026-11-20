@@ -118,8 +118,7 @@ export function createChecksView(context) {
         // to report, and a placeholder list is a known state of a fresh installation, not a fault.
         return section(false,
             list.placeholder === true
-                ? el('p', {class: 'config-check__alarm'}, 'The list in use is the synthetic placeholder, not a P32H export. '
-                    + 'Every code, line of business and vendor it gives is made up.')
+                ? el('p', {class: 'config-check__alarm'}, 'The list in use is a placeholder, not a P32H export. The self-check says why below.')
                 : el('p', {class: 'config-check__fine'}, 'The list in use is a file supplied to this installation.'),
             facts([
                 ['Source', list.source ? code(list.source) : none('not stated')],

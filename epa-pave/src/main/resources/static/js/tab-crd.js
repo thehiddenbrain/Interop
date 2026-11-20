@@ -8,9 +8,9 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
-import {textField, selectField, setOptions} from './forms.js';
+import {textField, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
 import {errorPanel, wireView, additionalFieldsSection} from './result.js';
-import {createWorkbench, requestPreviewPanel, sentinelCell} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, sentinelCell, scenarioLabel, scenarioListNotes, scenarioAbout} from './workbench.js';
 import {crdDetail} from './crd-detail.js';
 import {createComparison} from './crd-compare.js';
 import {shown, presenceMark} from './shown.js';
@@ -43,8 +43,8 @@ function mount(panel, application) {
     controls.expected = selectField({label: 'Expected outcome (optional)', field: 'expected'});
     controls.assertions = el('div', {class: 'assertions'});
     controls.expectedText = el('p', {class: 'small', id: 'crd-expected-sent'});
-    controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
-    controls.note = textField({label: 'Note', field: 'note', wide: true});
+    controls.testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials', hint: LEDGER_TEXT_HINT});
+    controls.note = textField({label: 'Note', field: 'note', wide: true, hint: LEDGER_TEXT_HINT});
     controls.send = el('button', {type: 'submit', class: 'button button--primary'}, 'Send CRD request');
     controls.preview = button('Show the request', showPreview);
     controls.discover = button('Discover the CDS services this environment offers', discover, {class: 'button--text'});
@@ -145,7 +145,7 @@ function drawScenarioSelector(list) {
     field.select.setAttribute('aria-describedby', 'crd-scenario-about');
     const describe = () => {
         const chosen = list.scenarios.find(scenario => scenario.id === field.value());
-        fill(description, chosen ? chosen.description : 'With none chosen here, the member ID picks the scenario.');
+        fill(description, chosen ? scenarioAbout(chosen) : 'With none chosen here, the member ID picks the scenario.');
     };
     field.select.addEventListener('change', describe);
     describe();
@@ -194,7 +194,7 @@ function addAssertionRow() {
         adder.before(row);
     } else {
         controls.assertions.append(
-            el('p', {class: 'field__hint'}, 'Each asserts one standard code, such as pa-needed = no-auth. Every one must hold for the run to pass.'),
+            el('p', {class: 'field__hint'}, 'Each asserts one standard code, such as pa-needed = no-auth. Every one must hold for the run to pass. ' + LEDGER_TEXT_HINT),
             row,
             el('div', {class: 'assertions__add'}, button('Add an assertion', () => addAssertionRow(), {class: 'button--text'})));
     }
@@ -543,10 +543,11 @@ function drawEmptyState() {
             ? 'On the mock profile a sentinel member ID inside your body selects the scenario that answers, unless one is chosen in the Mock '
                 + 'scenario field. These are the member IDs that do:'
             : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
+        parts.push(scenarioListNotes(list));
         parts.push(table([{text: '', class: 'col-5'}, {text: 'Scenario', class: 'col-45'}, {text: 'Member ID', class: 'col-25'},
             {text: '', class: 'col-25'}], list.scenarios.map(scenario => [
             {class: 'num', node: String(scenario.number)},
-            scenario.label,
+            scenarioLabel(scenario),
             sentinelCell(scenario),
             // The form's member is not sent with a body of the tester's own: the ID is copied, to be put into the body.
             !scenario.sentinelMemberId ? null
