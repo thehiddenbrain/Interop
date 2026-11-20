@@ -443,7 +443,7 @@ class SuiteServiceTest {
     void withNoCaseRunnerTheFeatureSaysItIsUnavailable() {
         bed.withRunner = false;
         assertThatThrownBy(() -> bed.service().start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", "")), null, null, null))
-                .isInstanceOf(BadInputException.class).hasMessage("This build cannot run a suite.");
+                .isInstanceOf(BadInputException.class).hasMessage("Suites cannot be run here: this copy of the tool was started without what runs a case. Nothing was sent.");
         // A preview needs no runner: it sends nothing.
         assertThat(bed.service().preview("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", ""))).runnable()).isTrue();
     }

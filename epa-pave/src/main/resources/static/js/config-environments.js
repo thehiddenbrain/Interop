@@ -38,7 +38,7 @@ export function createEnvironmentsView(context) {
     const confirmWords = el('span');
     const confirmField = el('div', {class: 'field config-confirm', hidden: true, dataset: {field: 'acknowledgeNotProd'}},
         el('label', {class: 'choice', htmlFor: 'config-environment-confirm'}, confirm, confirmWords));
-    const upload = el('button', {type: 'submit', class: 'button button--primary'}, 'Upload environment');
+    const upload = el('button', {type: 'submit', class: 'button button--primary'}, 'Upload an environment');
     const problem = el('div', {class: 'form-problem-slot', aria: {live: 'polite'}});
     const outcome = el('div', {class: 'config-outcome', aria: {live: 'polite'}});
     const form = el('form', {class: 'config-upload', noValidate: true, attrs: {'aria-label': 'Upload a Postman environment'}},

@@ -340,7 +340,9 @@ export function createCodePicker(spec) {
                 entry.check = !exact ? 'not-listed'
                     : rows.length === 0 ? 'other-lines'
                         : exact === entry.input.code ? 'listed' : 'other-case';
-                entry.sentence = entry.check === 'other-lines' ? answer.body.otherLines || null : null;
+                entry.sentence = entry.check === 'other-lines' ? answer.body.otherLines || null
+                    // The server says when a code not on the list does not have the shape of one. It is sent as chosen all the same.
+                    : entry.check === 'not-listed' ? answer.body.shapeNote || null : null;
             }
             draw();
         }
@@ -418,7 +420,8 @@ export function createCodePicker(spec) {
                 listSays(entry.rows, entry.line || ''));
         }
         if (entry.check === 'not-listed') {
-            return el('span', {class: 'presence presence--none'}, 'not on the list');
+            return el('span', null, el('span', {class: 'presence presence--none'}, 'not on the list'),
+                entry.sentence ? el('span', {class: 'picker__chip-sentence'}, entry.sentence) : null);
         }
         if (entry.check === 'other-lines') {
             return el('span', null, el('span', {class: 'presence presence--none'}, 'not on the list for ' + entry.line),

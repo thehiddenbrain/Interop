@@ -225,15 +225,15 @@ public class ApiExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorView> typeMismatch(MethodArgumentTypeMismatchException e) {
         String name = e.getName();
-        return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.validation("A request parameter has a value that cannot be used.",
-                List.of(new FieldError(name, "The value given for " + name + " is not valid for this parameter."))));
+        return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.validation("A value given with the request cannot be used. Nothing was done.",
+                List.of(new FieldError(name, "The value given here cannot be used. Correct it and try again."))));
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorView> missingParameter(MissingServletRequestParameterException e) {
         String name = e.getParameterName();
-        return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.validation("A required request parameter is missing.",
-                List.of(new FieldError(name, "The parameter " + name + " is required."))));
+        return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.validation("A value the request needs is missing. Nothing was done.",
+                List.of(new FieldError(name, "A value is required here."))));
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)

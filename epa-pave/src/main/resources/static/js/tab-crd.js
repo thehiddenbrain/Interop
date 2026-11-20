@@ -483,7 +483,7 @@ async function discover() {
     fill(slots.discovery, el('section', {class: 'panel'},
         el('div', {class: 'panel__head'},
             heading(2, 'CDS Hooks discovery', services.length),
-            button('Close', () => clear(slots.discovery), {class: 'button--quiet button--small'})),
+            button('Close discovery', () => clear(slots.discovery), {class: 'button--quiet button--small'})),
         found.note ? el('p', null, el('strong', null, found.note)) : null,
         facts([
             ['Url as configured', url.template ? code(url.template) : presenceMark('EMPTY')],

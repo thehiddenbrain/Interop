@@ -177,16 +177,16 @@ class RunControllerTest {
         mvc.perform(get("/api/runs").param("protocol", "fax")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("protocol"))
                 .andExpect(jsonPath("$.fieldErrors[0].message")
-                        .value("The value given for protocol is not valid. It must be one of crd, dtr, pas, subscription, lookup or raw."));
+                        .value("The value given here is not valid. It must be one of crd, dtr, pas, subscription, lookup or raw."));
         mvc.perform(get("/api/runs").param("operation", "PAS_CANCEL")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("operation"))
                 .andExpect(jsonPath("$.fieldErrors[0].message", containsString("PAS_SUBMIT, PAS_INQUIRE")));
         mvc.perform(get("/api/runs").param("result", "maybe")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("result"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given for result is not valid. It must be pass, fail or unverified."));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given here is not valid. It must be pass, fail or unverified."));
         mvc.perform(get("/api/runs").param("limit", "ten")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("limit"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given for limit is not valid. It must be a whole number."));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given here is not valid. It must be a whole number."));
         mvc.perform(get("/api/runs").param("limit", "-1")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("limit"));
         // A number is not a position in the list of protocols.
@@ -197,7 +197,7 @@ class RunControllerTest {
     void aRangeTheWrongWayRoundIs422AndEveryBadParameterIsNamedAtOnce() throws Exception {
         mvc.perform(get("/api/runs").param("from", "2026-03-11").param("to", "2026-03-10")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("from"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("The from date is after the to date."));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The From day is after the To day. Make From the earlier day, or leave one of them empty."));
         mvc.perform(get("/api/runs").param("from", "yesterday").param("protocol", "fax").param("result", "maybe").param("limit", "x"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title").value("The request has 4 problems. Nothing was done."))
@@ -302,7 +302,8 @@ class RunControllerTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
                 .andExpect(jsonPath("$.title").value("There is no run with that id."))
-                .andExpect(jsonPath("$.action").isNotEmpty());
+                .andExpect(jsonPath("$.action").value("Copy the run id from the list on the History tab, or from the result that gave it, "
+                        + "and try again."));
         // Text that is not an id is not repeated back.
         mvc.perform(get("/api/runs/{runId}", "<b>not an id</b>".replace("/", ""))).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("There is no run with that id."));
@@ -451,7 +452,7 @@ class RunControllerTest {
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("from"));
         mvc.perform(get("/api/runs/export.csv").param("from", "2026-03-11").param("to", "2026-03-10"))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("The from date is after the to date."));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The From day is after the To day. Make From the earlier day, or leave one of them empty."));
     }
 
     // ---- POST /api/runs/replay ----
@@ -520,7 +521,7 @@ class RunControllerTest {
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("from"));
         mvc.perform(post("/api/runs/replay").contentType(MediaType.APPLICATION_JSON).content("{\"from\":\"2026-03-11\",\"to\":\"2026-03-10\"}"))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("The from date is after the to date."));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The From day is after the To day. Make From the earlier day, or leave one of them empty."));
         mvc.perform(post("/api/runs/replay").contentType(MediaType.APPLICATION_JSON).content("{\"runIds\":[\"run-1\",\"\"]}"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("runIds[1]"));
         mvc.perform(post("/api/runs/replay").contentType(MediaType.APPLICATION_JSON)

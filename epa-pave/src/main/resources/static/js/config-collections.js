@@ -20,7 +20,7 @@ export function createCollectionsView(context) {
     /* ---------- the upload ---------- */
 
     const file = el('input', {type: 'file', id: 'config-collection-file', accept: '.json,application/json'});
-    const upload = el('button', {type: 'submit', class: 'button button--primary'}, 'Upload collection');
+    const upload = el('button', {type: 'submit', class: 'button button--primary'}, 'Upload a collection');
     const problem = el('div', {class: 'form-problem-slot', aria: {live: 'polite'}});
     const outcome = el('div', {class: 'config-outcome', aria: {live: 'polite'}});
     const form = el('form', {class: 'config-upload', noValidate: true, attrs: {'aria-label': 'Upload a Postman collection'}},
@@ -85,7 +85,7 @@ export function createCollectionsView(context) {
                 ? el('p', null, el('strong', null, unplaced.length === 1 ? 'One request could not be placed: ' : unplaced.length + ' requests could not be placed: '),
                     unplaced.map((request, index) => [index > 0 ? ', ' : null, request.name]),
                     '. That is not an error: ', unplaced.length === 1 ? 'it' : 'each',
-                    calls.canChangeMapping() ? ' can be sent as written, or mapped by hand below.' : ' can be sent as written from "Send a request as written".')
+                    calls.canChangeMapping() ? ' can be sent as written, or mapped by hand below.' : ' can be sent from "Send as written".')
                 : el('p', null, 'Every request was placed.'),
             scripted.length > 0
                 ? el('p', null, el('strong', null, scripted.length === 1 ? 'One request carries a Postman script' : scripted.length + ' requests carry Postman scripts'),
@@ -433,7 +433,7 @@ export function createCollectionsView(context) {
                     el('span', {class: 'small'}, code(request.method), ' ', code(request.urlTemplate), el('div', {class: 'quiet'}, request.detectionBasis || '')),
                     el('div', {class: 'config-change'},
                         button('Look at it in full', () => showInFull(collection.id, request.id), {class: 'button--text', aria: {label: 'Look at ' + request.name + ' in full'}}),
-                        button('Send it as written', () => context.go('raw', collection.id + '/' + request.id), {class: 'button--text', aria: {label: 'Send ' + request.name + ' as written'}}))
+                        button('Send as written', () => context.go('raw', collection.id + '/' + request.id), {class: 'button--text', aria: {label: 'Send as written: ' + request.name}}))
                 ]), {class: 'config-unmapped'}));
     }
 
@@ -573,7 +573,7 @@ function requestDetail(detail, close) {
     return [
         el('div', {class: 'panel__head'},
             heading(2, 'One request in full: ' + request.name),
-            button('Close', close, {class: 'button--quiet button--small'})),
+            button('Close this request', close, {class: 'button--quiet button--small'})),
         facts([
             ['Collection', detail.collectionName],
             ['Folder', (request.folderPath || []).length > 0 ? request.folderPath.join(' / ') : none('at the top of the collection')],

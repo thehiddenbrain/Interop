@@ -198,7 +198,7 @@ class ChainServiceTest {
         assertThat(stage(view, Protocol.DTR).stateLine())
                 .isEqualTo("Not needed: CRD answered \"Prior authorization is required\" and went straight on to PAS.");
         assertThat(stage(view, Protocol.PAS).state()).isEqualTo(ChainStageState.NEXT);
-        assertThat(stage(view, Protocol.PAS).stateLine()).isEqualTo("Next: submit the prior authorization request (PAS).");
+        assertThat(stage(view, Protocol.PAS).stateLine()).isEqualTo("Next: send PAS request.");
     }
 
     @Test
@@ -541,16 +541,19 @@ class ChainServiceTest {
 
     @Test
     void aListRequestThatMakesNoSenseIsRefused() {
+        // Worded as the replay words the same check, naming the fields the tester sees, with what to do.
         assertThatThrownBy(() -> chains().list(LocalDate.of(2026, 3, 11), LocalDate.of(2026, 3, 10), null))
-                .isInstanceOf(ValidationException.class);
+                .isInstanceOfSatisfying(ValidationException.class, refused -> assertThat(refused.fieldErrors().getFirst().message())
+                        .isEqualTo("The From day is after the To day. Make From the earlier day, or leave one of them empty."));
         assertThatThrownBy(() -> chains().list(null, null, 0)).isInstanceOf(ValidationException.class);
         assertThatThrownBy(() -> chains().list(null, null, ChainService.MAX_LIMIT + 1)).isInstanceOf(ValidationException.class);
     }
 
     @Test
     void everyNextActionHasAnInstructionInPlainWords() {
-        // The two DTR actions are named exactly as the DTR tab's buttons, which carry no full stop.
-        Set<NextAction> buttonNames = EnumSet.of(NextAction.SUBMIT_RESPONSE, NextAction.ANSWER_NEXT_QUESTION);
+        // The two DTR actions and the two PAS actions are named exactly as their tabs' buttons, which carry no full stop.
+        Set<NextAction> buttonNames = EnumSet.of(NextAction.SUBMIT_RESPONSE, NextAction.ANSWER_NEXT_QUESTION, NextAction.START_PAS,
+                NextAction.CHECK_STATUS);
         for (NextAction action : NextAction.values()) {
             assertThat(ChainService.instruction(action)).as(action.name()).isNotBlank();
             if (!buttonNames.contains(action)) {

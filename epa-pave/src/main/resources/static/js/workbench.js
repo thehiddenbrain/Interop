@@ -599,7 +599,7 @@ export function requestPreviewPanel(preview, close) {
     return el('section', {class: 'panel'},
         el('div', {class: 'panel__head'},
             heading(2, 'The request as it would be sent'),
-            button('Close', close, {class: 'button--quiet button--small'})),
+            button('Close the request', close, {class: 'button--quiet button--small'})),
         el('p', {class: 'quiet'}, 'Nothing was sent and nothing was recorded.'),
         preview.blocked ? el('div', {class: 'error-panel error-panel--blocked'}, el('p', {class: 'error-panel__title'}, preview.blocked)) : null,
         facts([

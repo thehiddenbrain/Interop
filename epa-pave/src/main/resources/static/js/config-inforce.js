@@ -191,7 +191,7 @@ export function createInForceView(context) {
         if (row.operation === 'UNMAPPED') {
             return requests.length > 0
                 ? [requests.length === 1 ? 'One request of a collection is not mapped. ' : requests.length + ' requests of a collection are not mapped. ',
-                    button('Send one as written', () => context.go('raw'), {class: 'button--text'})]
+                    button('Send as written', () => context.go('raw'), {class: 'button--text'})]
                 : none(((context.stored().collections || {}).collections || []).length === 0 ? 'no collection is uploaded' : 'every request is mapped');
         }
         return [
@@ -220,8 +220,8 @@ export function createInForceView(context) {
             parts.push(el('div', {class: 'small'}, row.note));
         }
         if (row.outbound && row.operation !== 'UNMAPPED') {
-            const control = button('How it resolves', () => trying.tryOperation(row.operation),
-                {class: 'button--text small', aria: {label: 'Show how ' + row.label + ' resolves'}});
+            const control = button('Show how it resolves', () => trying.tryOperation(row.operation),
+                {class: 'button--text small', aria: {label: 'Show how it resolves: ' + row.label}});
             parts.push(el('div', null, control));
         }
         return parts;

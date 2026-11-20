@@ -41,4 +41,11 @@ class NextActionVocabularyTest {
         assertThat(NextAction.SUBMIT_RESPONSE.label()).isEqualTo("Complete the response");
         assertThat(NextAction.ANSWER_NEXT_QUESTION.label()).isEqualTo("Send answers and get the next question");
     }
+
+    @Test
+    void theTwoPasActionsAreNamedAsTheButtonsOfThePasTabAre() {
+        // One action, one name: the button, the label of the next action and the sentences that name it.
+        assertThat(NextAction.START_PAS.label()).isEqualTo("Send PAS request");
+        assertThat(NextAction.CHECK_STATUS.label()).isEqualTo("Send inquiry");
+    }
 }

@@ -155,7 +155,7 @@ class PasVerdictsTest {
                 + "replaces), or the CDex operation $submit-attachment. This tool builds neither.");
         NextStepView next = next(reading);
         assertThat(next.action()).isEqualTo(NextAction.START_PAS);
-        assertThat(next.headline()).isEqualTo("Next: send the documentation the payer asked for. Submitting again from this tool sends a new "
+        assertThat(next.headline()).isEqualTo("Next: send the documentation the payer asked for. Choosing Send PAS request again sends a new "
                 + "request with the same claim identifier, which is not the PAS 2.0.1 way.");
         assertThat(next.reason()).endsWith("This tool builds neither.");
     }
@@ -277,7 +277,7 @@ class PasVerdictsTest {
     void theNextStepFollowsTheDecisionAndCarriesWhatAStatusCheckStartsFrom() {
         NextStepView pended = next(decidedAs("A4"));
         assertThat(pended.action()).isEqualTo(NextAction.CHECK_STATUS);
-        assertThat(pended.headline()).isEqualTo("Next: ask for the status with an inquiry, or wait for a notification.");
+        assertThat(pended.headline()).isEqualTo("Next: choose Send inquiry to ask for the status, or wait for a notification.");
         assertThat(pended.carry()).containsEntry(NextStepView.CARRY_CLAIM_ID, List.of("claim-test-1"))
                 .containsEntry(NextStepView.CARRY_RUN_ID, List.of(RUN)).containsEntry(NextStepView.CARRY_PROCEDURE_CODES, List.of("95810"));
         // Only the keys the next step reads, and nothing invented.
@@ -356,8 +356,8 @@ class PasVerdictsTest {
     }
 
     private static final String MAY_HAVE_ACTED = "The payer may have received the submission and acted on it.";
-    private static final String ASK_FIRST = "Next: check the environment, then ask for the status before sending again.";
-    private static final String ASK_FIRST_BECAUSE = "The payer may have received the submission and acted on it. Ask for its status with an "
+    private static final String ASK_FIRST = "Next: check the environment, then choose Send inquiry before sending again.";
+    private static final String ASK_FIRST_BECAUSE = "The payer may have received the submission and acted on it. Ask for its status with Send "
             + "inquiry first: sending it again without checking could create a second request.";
     private static final String SEND_AGAIN = "Next: check the environment, then send again.";
 
@@ -450,10 +450,10 @@ class PasVerdictsTest {
         assertThat(PasVerdicts.verdict(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT).supporting()).containsExactly(
                 "Mock scenario pas-16-timeout answered: chosen in the scenario selector.");
         NextStepView rehearsed = PasVerdicts.nextStep(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT, RUN);
-        assertThat(rehearsed.headline()).isEqualTo("Next, had this been a real service: check the environment, then ask for the status "
+        assertThat(rehearsed.headline()).isEqualTo("Next, had this been a real service: check the environment, then choose Send inquiry "
                 + "before sending again.");
-        assertThat(rehearsed.reason()).isEqualTo("Had this been a real service, the payer might have received the submission: ask for its "
-                + "status before sending it again. Sending it again without checking could create a second request.");
+        assertThat(rehearsed.reason()).isEqualTo("Had this been a real service, the payer might have received the submission: choose Send "
+                + "inquiry before sending it again. Sending it again without checking could create a second request.");
         assertThat(rehearsed.action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
         assertThat(rehearsed.carry()).containsKey(NextStepView.CARRY_RUN_ID);
         // A scenario that models a refused connection: nothing would have been delivered.

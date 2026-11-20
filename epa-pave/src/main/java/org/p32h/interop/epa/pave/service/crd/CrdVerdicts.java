@@ -394,7 +394,7 @@ public final class CrdVerdicts {
             case DOCUMENTATION_REQUIRED -> new NextStepView(NextAction.REVIEW,
                     "Next: read the response detail below. This tool cannot say what should happen next.",
                     "The response asks for documentation in a way this tool cannot act on.", carry);
-            case AUTH_REQUIRED -> new NextStepView(NextAction.START_PAS, "Next: submit the prior authorization request in PAS.",
+            case AUTH_REQUIRED -> new NextStepView(NextAction.START_PAS, "Next: choose Continue in PAS, then Send PAS request.",
                     authRequiredReason(coverage, vendor), carry);
             case NO_AUTH_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
                     "The payer answered that prior authorization is not required, so there is nothing to submit.", carry);

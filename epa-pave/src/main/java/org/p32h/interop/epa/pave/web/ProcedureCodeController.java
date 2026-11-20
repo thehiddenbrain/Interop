@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.web;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.model.CodeListSelfCheck;
 import org.p32h.interop.epa.pave.model.ProcedureCode;
@@ -59,16 +60,37 @@ public class ProcedureCodeController {
      * @param exactCode      when the query is a whole code on the list, the code as the list writes
      *                       it, whatever case the query was typed in. Left out when it is not, so
      *                       the picker can say "not on the list" without comparing text itself
+     * @param shapeNote      when the query is not on the list and does not have the shape of a CPT
+     *                       or HCPCS code, a sentence that says so. It is still sent as chosen: an
+     *                       unknown code is a negative case, and this only says what it is not.
+     *                       Left out otherwise
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({"placeholder", "query", "lineOfBusiness", "narrowed", "notice", "otherLines", "limit", "matched", "exactCode", "codes"})
+    @JsonPropertyOrder({"placeholder", "query", "lineOfBusiness", "narrowed", "notice", "otherLines", "limit", "matched", "exactCode", "shapeNote",
+            "codes"})
     public record Answer(Boolean placeholder, String query, String lineOfBusiness, boolean narrowed, String notice, String otherLines,
-                         int limit, int matched, List<ProcedureCode> codes, String exactCode) {
+                         int limit, int matched, List<ProcedureCode> codes, String exactCode, String shapeNote) {
 
         public Answer(Boolean placeholder, String query, String lineOfBusiness, boolean narrowed, String notice, String otherLines,
                       int limit, int matched, List<ProcedureCode> codes) {
-            this(placeholder, query, lineOfBusiness, narrowed, notice, otherLines, limit, matched, codes, null);
+            this(placeholder, query, lineOfBusiness, narrowed, notice, otherLines, limit, matched, codes, null, null);
         }
+    }
+
+    /**
+     * The shapes of a procedure code: a CPT code is five digits, or four digits and a letter (the
+     * category II and III codes), and a HCPCS Level II code is a letter and four digits.
+     */
+    private static final Pattern CODE_SHAPE = Pattern.compile("\\d{5}|\\d{4}[A-Za-z]|[A-Za-z]\\d{4}");
+
+    /** The sentence for a query that is not on the list and is not shaped as a code, or null. */
+    static String shapeNote(String query, String exactCode) {
+        String typed = Texts.trimToNull(query);
+        if (typed == null || exactCode != null || CODE_SHAPE.matcher(typed).matches()) {
+            return null;
+        }
+        return "\"" + typed + "\" does not have the shape of a CPT or HCPCS code (five digits, four digits and a letter, or a letter and four "
+                + "digits). It is sent as you chose it.";
     }
 
     /**
@@ -87,7 +109,7 @@ public class ProcedureCodeController {
         List<ProcedureCode> exact = Texts.blank(q) ? List.of() : codes.rowsFor(q, null, null);
         String exactCode = exact.isEmpty() ? null : exact.get(0).code();
         return new Answer(placeholder, found.query(), Texts.trimToNull(lob), found.narrowed(), found.notice(), found.otherLines(), limit,
-                found.matched(), found.codes(), exactCode);
+                found.matched(), found.codes(), exactCode, shapeNote(q, exactCode));
     }
 
     /** What the tool made of the code list. The first thing to call after dropping in a new export. */

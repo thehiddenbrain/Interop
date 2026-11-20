@@ -136,7 +136,7 @@ class CrdServiceTest {
         assertThat(result.expectation().result()).isEqualTo(TestResult.PASS);
         // What do I do next.
         assertThat(result.nextStep().action()).isEqualTo(NextAction.START_PAS);
-        assertThat(result.nextStep().headline()).isEqualTo("Next: submit the prior authorization request in PAS.");
+        assertThat(result.nextStep().headline()).isEqualTo("Next: choose Continue in PAS, then Send PAS request.");
         // And it is recorded, under the same run id the screen shows.
         assertThat(result.ledger().recorded()).isTrue();
         assertThat(ledger.only().runId()).isEqualTo(result.runId());

@@ -114,7 +114,7 @@ public class ChainService {
     /** As {@link #list(LocalDate, LocalDate, Integer)}, with the days on the given clock. Null means the days the runs' own timestamps name. */
     public List<ChainView> list(LocalDate from, LocalDate to, Integer limit, java.time.ZoneId zone) {
         if (from != null && to != null && from.isAfter(to)) {
-            throw ValidationException.of("from", "The first day is after the last day.");
+            throw ValidationException.of("from", "The From day is after the To day. Make From the earlier day, or leave one of them empty.");
         }
         if (limit != null && (limit < 1 || limit > MAX_LIMIT)) {
             throw ValidationException.of("limit", "The limit must be between 1 and " + MAX_LIMIT + ".");

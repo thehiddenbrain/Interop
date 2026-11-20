@@ -73,7 +73,7 @@ class ProcedureCodeControllerTest {
     void theTypeAheadAnswersWithTheQueryTheLineTheLimitAndTheCodes() throws Exception {
         JsonNode answer = json(mvc(), get("/api/procedure-codes").param("q", " 958 ").param("lob", "Medicare"));
 
-        assertThat(answer.propertyNames()).containsExactly("query", "lineOfBusiness", "narrowed", "limit", "matched", "codes");
+        assertThat(answer.propertyNames()).containsExactly("query", "lineOfBusiness", "narrowed", "limit", "matched", "shapeNote", "codes");
         assertThat(answer.get("query").stringValue()).isEqualTo("958");
         assertThat(answer.get("lineOfBusiness").stringValue()).isEqualTo("Medicare");
         assertThat(answer.get("narrowed").booleanValue()).isTrue();
@@ -112,6 +112,20 @@ class ProcedureCodeControllerTest {
         JsonNode unread = json(mvc(), get("/api/procedure-codes").param("q", "95811")).get("codes").get(0);
         assertThat(unread.get("authRequired").stringValue()).isEqualTo("UNKNOWN");
         assertThat(unread.get("authRequiredSource").stringValue()).isEqualTo("See policy");
+    }
+
+    @Test
+    void aWordNotOnTheListIsSaidNotToHaveTheShapeOfACodeAndAShapedOneIsNot() throws Exception {
+        JsonNode word = json(mvc(), get("/api/procedure-codes").param("q", "MRI"));
+        assertThat(word.has("exactCode")).isFalse();
+        assertThat(word.get("shapeNote").stringValue()).isEqualTo("\"MRI\" does not have the shape of a CPT or HCPCS code (five digits, "
+                + "four digits and a letter, or a letter and four digits). It is sent as you chose it.");
+        // Shaped as a code and not on the list: the chip says "not on the list", and nothing about its shape.
+        for (String shaped : List.of("E9999", "99999", "0001F", "e9999")) {
+            assertThat(json(mvc(), get("/api/procedure-codes").param("q", shaped)).has("shapeNote")).as(shaped).isFalse();
+        }
+        // On the list, whatever its shape: the list is what says it is a code.
+        assertThat(json(mvc(), get("/api/procedure-codes").param("q", "e0470")).has("shapeNote")).isFalse();
     }
 
     @Test
@@ -166,7 +180,7 @@ class ProcedureCodeControllerTest {
         assertThat(answer.get("notice").stringValue()).isEqualTo("The code list has no row for the line of business \"Dual Eligible\", so the "
                 + "codes are not narrowed to it. The list names: Medicare, Commercial and Medicare Advantage. If one of those is the same "
                 + "line under another name, add it to codelist.line-of-business-aliases.");
-        assertThat(answer.propertyNames()).containsExactly("query", "lineOfBusiness", "narrowed", "notice", "limit", "matched", "codes");
+        assertThat(answer.propertyNames()).containsExactly("query", "lineOfBusiness", "narrowed", "notice", "limit", "matched", "shapeNote", "codes");
     }
 
     @Test

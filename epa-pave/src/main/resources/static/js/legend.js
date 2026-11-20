@@ -14,7 +14,7 @@ export async function openLegend(dialog) {
     fill(dialog,
         el('div', {class: 'legend__head'},
             el('h2', {id: 'legend-title', class: 'section-heading'}, 'Colour key'),
-            button('Close', () => dialog.close(), {class: 'button--quiet button--small'})),
+            button('Close the colour key', () => dialog.close(), {class: 'button--quiet button--small'})),
         el('p', {class: 'legend__lead'},
             'The page itself has no colour. Where a colour or a mark appears, it states one of the facts below and nothing else.'),
 
@@ -62,7 +62,7 @@ export async function openLegend(dialog) {
                         + 'before the configuration changed. News about the tool itself, under the tabs: the configuration changed, or the server '
                         + 'stopped answering.'),
                     row(el('span', {class: 'swatch swatch--plain'}),
-                        'A thin black frame around a sentence of the server: an answer that is not a fault and not a result. Something not found in this tool, '
+                        'A thin black frame around a sentence: something this tool says that is neither a fault nor a result. A thing not found in this tool, '
                         + 'a problem with its configuration, or an action on the Config tab it did not make. Its own words say what to do.'),
                     row(el('span', {class: 'flag'}, 'write'),
                         'A thin black frame around a word: a mark to read, not a fault. A write, a secret, a pre-request script, a code this tool does not know.'),

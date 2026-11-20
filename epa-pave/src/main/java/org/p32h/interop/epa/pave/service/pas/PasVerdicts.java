@@ -294,16 +294,16 @@ public final class PasVerdicts {
                     "The request is cancelled, so there is no decision to wait for.", carry);
             case NO_ACTION_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
                     "The payer answered that no action is required for this request.", carry);
-            case PENDED -> new NextStepView(NextAction.CHECK_STATUS, "Next: ask for the status with an inquiry, or wait for a notification.",
+            case PENDED -> new NextStepView(NextAction.CHECK_STATUS, "Next: choose Send inquiry to ask for the status, or wait for a notification.",
                     "The request is pended: the payer has not decided yet.", carry);
             case ATTACHMENT_REQUIRED -> new NextStepView(NextAction.START_PAS,
-                    "Next: send the documentation the payer asked for. Submitting again from this tool sends a new request with the same "
+                    "Next: send the documentation the payer asked for. Choosing Send PAS request again sends a new request with the same "
                             + "claim identifier, which is not the PAS 2.0.1 way.",
                     "The payer will not decide until it has the documentation it refers to. " + GUIDE_ROUTE, carry);
             case CONTACT_PAYER -> new NextStepView(NextAction.REVIEW, "Next: contact the payer about this request. Nothing more can be done "
                     + "from this tool.", "The payer answered with the review action that asks to be contacted.", carry);
             case MIXED -> reading.decisions().stream().anyMatch(d -> d.outcome() == PasOutcome.PENDED)
-                    ? new NextStepView(NextAction.CHECK_STATUS, "Next: ask for the status of the items that are still open.",
+                    ? new NextStepView(NextAction.CHECK_STATUS, "Next: choose Send inquiry to ask for the status of the items that are still open.",
                     "At least one item is pended, so the request is not finished.", carry)
                     : new NextStepView(NextAction.REVIEW, "Next: read the decision for each item below. This tool cannot say what should "
                     + "happen next.", "The items did not all receive the same decision, so each needs its own next step.", carry);
@@ -327,7 +327,7 @@ public final class PasVerdicts {
             case REJECTED -> notAccepted(exchange, carry);
             case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> PlayedTimeouts.rehearsed(exchange,
                     afterNoUsableAnswer(outcome, exchange, operation, carry), operation.write()
-                            ? "Had this been a real service, the payer might have received the submission: ask for its status before "
+                            ? "Had this been a real service, the payer might have received the submission: choose Send inquiry before "
                             + "sending it again. Sending it again without checking could create a second request."
                             : PlayedTimeouts.aboutTheEnvironment("the member or the code"));
         };
@@ -359,8 +359,8 @@ public final class PasVerdicts {
             return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
                     "Nothing was submitted, because the request did not reach the payer. It is safe to send the same request again.", carry);
         }
-        return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then ask for the status before sending again.",
-                "The payer may have received the submission and acted on it. Ask for its status with an inquiry first: sending it "
+        return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then choose Send inquiry before sending again.",
+                "The payer may have received the submission and acted on it. Ask for its status with Send inquiry first: sending it "
                         + "again without checking could create a second request.", carry);
     }
 

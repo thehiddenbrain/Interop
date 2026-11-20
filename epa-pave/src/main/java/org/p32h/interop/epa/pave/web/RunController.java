@@ -263,7 +263,7 @@ public class RunController {
 
     private static void inOrder(List<FieldError> errors, LocalDate first, LocalDate last) {
         if (first != null && last != null && first.isAfter(last)) {
-            errors.add(new FieldError("from", "The from date is after the to date."));
+            errors.add(new FieldError("from", "The From day is after the To day. Make From the earlier day, or leave one of them empty."));
         }
     }
 

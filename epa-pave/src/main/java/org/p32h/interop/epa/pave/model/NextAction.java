@@ -17,10 +17,10 @@ public enum NextAction {
     ANSWER_NEXT_QUESTION("Send answers and get the next question"),
     /** Answer the questionnaire that was loaded and complete the response, named as the DTR tab's button is. */
     SUBMIT_RESPONSE("Complete the response"),
-    /** Submit the prior authorization request. */
-    START_PAS("Submit the prior authorization request (PAS)."),
-    /** Ask for the status of a pended authorization. */
-    CHECK_STATUS("Ask for the status of the pended authorization (PAS)."),
+    /** Submit the prior authorization request, named as the PAS tab's button that sends it is. */
+    START_PAS("Send PAS request"),
+    /** Ask for the status of a pended authorization, named as the PAS tab's button that sends the inquiry is. */
+    CHECK_STATUS("Send inquiry"),
     /** The journey is complete at this step. That is itself a finding worth recording. */
     FLOW_ENDS("Nothing more to do. The journey is complete at this step."),
     /**

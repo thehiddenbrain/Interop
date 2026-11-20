@@ -36,7 +36,7 @@ public final class Params {
         try {
             return parser.apply(value.strip());
         } catch (IllegalArgumentException e) {
-            throw ValidationException.of(name, "The value given for " + name + " is not valid. It must be " + accepted + ".");
+            throw ValidationException.of(name, "The value given here is not valid. It must be " + accepted + ".");
         }
     }
 
@@ -48,7 +48,7 @@ public final class Params {
     /** A value that must be present, parsed with the type's own parser. */
     public static <T> T required(String name, String value, Function<String, T> parser, String accepted) {
         if (Texts.blank(value)) {
-            throw ValidationException.of(name, "The parameter " + name + " is required.");
+            throw ValidationException.of(name, "A value is required here.");
         }
         return optional(name, value, parser, accepted);
     }

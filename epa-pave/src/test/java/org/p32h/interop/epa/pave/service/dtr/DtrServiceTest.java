@@ -366,7 +366,7 @@ class DtrServiceTest {
         // DTR 2.0.1 requires at least one item in a QuestionnaireResponse, so a response completed with none is not handed to PAS.
         // PAS is still the next step, and the result says that no response goes with it and why.
         assertThat(askedNothing.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
-        assertThat(askedNothing.nextStep().headline()).isEqualTo("Next: submit the prior authorization request in PAS. No questionnaire "
+        assertThat(askedNothing.nextStep().headline()).isEqualTo("Next: choose Continue in PAS, then Send PAS request. No questionnaire "
                 + "response goes with it.");
         assertThat(askedNothing.nextStep().reason()).isEqualTo("The service completed this response without asking a question. This "
                 + "response holds no item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). "

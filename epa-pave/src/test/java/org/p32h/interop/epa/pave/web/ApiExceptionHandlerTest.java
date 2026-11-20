@@ -229,12 +229,12 @@ class ApiExceptionHandlerTest {
         mvc.perform(get("/typed").param("result", "passed")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("result"))
                 .andExpect(jsonPath("$.fieldErrors[0].message")
-                        .value("The value given for result is not valid. It must be pass, fail or unverified."));
+                        .value("The value given here is not valid. It must be pass, fail or unverified."));
         // The message is this tool's own sentence. What a number parser or an enum lookup throws
         // names Java types and quotes the input, and is never passed on.
         mvc.perform(get("/typed").param("result", "pass").param("limit", "ten")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("limit"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given for limit is not valid. It must be a whole number."));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given here is not valid. It must be a whole number."));
         String protocol = mvc.perform(get("/typed").param("result", "pass").param("protocol", "fax"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("protocol"))
                 .andReturn().getResponse().getContentAsString();
