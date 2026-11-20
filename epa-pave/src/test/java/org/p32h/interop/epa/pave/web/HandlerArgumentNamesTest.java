@@ -9,6 +9,7 @@ import java.lang.reflect.Parameter;
 import java.security.CodeSource;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -77,17 +78,37 @@ class HandlerArgumentNamesTest {
 
     @Test
     void theCheckFindsEveryKindOfUnnamedArgumentAndPassesNamedOnes() {
+        String implicit = "a simple type without an annotation is read as a request parameter of its Java name";
         assertThat(argumentsRelyingOnJavaNames(Probe.class)).containsExactlyInAnyOrder(
-                "Probe.unnamed argument 0 (String id): @PathVariable without a name",
-                "Probe.unnamed argument 1 (String q): @RequestParam without a name",
-                "Probe.unnamed argument 2 (String trace): @RequestHeader without a name",
-                "Probe.unnamed argument 3 (String flavour): @CookieValue without a name",
-                "Probe.unnamed argument 4 (MultipartFile file): @RequestPart without a name",
-                "Probe.unnamed argument 5 (String seen): @RequestAttribute without a name",
-                "Probe.unnamed argument 6 (String who): @SessionAttribute without a name",
-                "Probe.unnamed argument 7 (String colour): @MatrixVariable without a name",
-                "Probe.implicit argument 0 (String plain): a simple type without an annotation is read as a request parameter of its Java name",
-                "Probe.implicit argument 1 (MultipartFile upload): a simple type without an annotation is read as a request parameter of its Java name");
+                expected("unnamed", 0, "String", "id", "@PathVariable without a name"),
+                expected("unnamed", 1, "String", "q", "@RequestParam without a name"),
+                expected("unnamed", 2, "String", "trace", "@RequestHeader without a name"),
+                expected("unnamed", 3, "String", "flavour", "@CookieValue without a name"),
+                expected("unnamed", 4, "MultipartFile", "file", "@RequestPart without a name"),
+                expected("unnamed", 5, "String", "seen", "@RequestAttribute without a name"),
+                expected("unnamed", 6, "String", "who", "@SessionAttribute without a name"),
+                expected("unnamed", 7, "String", "colour", "@MatrixVariable without a name"),
+                expected("implicit", 0, "String", "plain", implicit),
+                expected("implicit", 1, "MultipartFile", "upload", implicit));
+    }
+
+    /**
+     * The message the check gives for one argument of the probe. It holds the argument's Java name
+     * as the class file has it: the name in the source after javac -parameters, as the Gradle build
+     * compiles, and arg0, arg1 and so on after a compiler that keeps no names, as an IDE does by
+     * default. This test guards against relying on those names, so it must not rely on them
+     * itself; the method, the position and the type still point at the argument either way.
+     */
+    private static String expected(String method, int index, String type, String nameInSource, String problem) {
+        Parameter parameter = probeMethod(method).getParameters()[index];
+        String javaName = parameter.isNamePresent() ? nameInSource : parameter.getName();
+        return "Probe." + method + " argument " + index + " (" + type + " " + javaName + "): " + problem;
+    }
+
+    private static Method probeMethod(String name) {
+        List<Method> found = Arrays.stream(Probe.class.getDeclaredMethods()).filter(method -> method.getName().equals(name)).toList();
+        assertThat(found).as("probe methods named %s", name).hasSize(1);
+        return found.get(0);
     }
 
     /** Every controller and controller advice among the application's own classes, found by scanning. */
