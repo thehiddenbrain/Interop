@@ -194,8 +194,13 @@ class OnyxPasConventionsTest {
     }
 
     @Test
-    void thePlaceholderTopicCannotBeMistakenForARealOne() {
-        assertThat(OnyxPasConventions.PLACEHOLDER_TOPIC).contains("example.org").contains("placeholder");
+    void theTopicIsTheOnePas201DefinesAndTheFilterNamesTheRequestingOrganization() {
+        // PAS 2.0.1 input/resources/SubscriptionTopic.json url and canFilterBy filterParameter.
+        assertThat(OnyxPasConventions.PAS_TOPIC).isEqualTo("http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic");
+        assertThat(OnyxPasConventions.orgIdentifierFilter("http://hl7.org/fhir/sid/us-npi", " 1234567893 "))
+                .isEqualTo("orgIdentifier=http://hl7.org/fhir/sid/us-npi|1234567893");
+        assertThat(OnyxPasConventions.orgIdentifierFilter(" ", "1234567893")).isEqualTo("orgIdentifier=1234567893");
+        assertThat(OnyxPasConventions.orgIdentifierFilter(null, "1234567893")).isEqualTo("orgIdentifier=1234567893");
     }
 
     @Test

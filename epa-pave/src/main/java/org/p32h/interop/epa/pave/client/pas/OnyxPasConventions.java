@@ -16,10 +16,12 @@ import tools.jackson.databind.JsonNode;
 /**
  * ASSUMPTIONS ABOUT THE VENDOR, ALL IN ONE FILE: PAS, subscriptions and notifications.
  *
- * <p>Nothing here has been observed from the live service, and the Da Vinci PAS guide and the
- * subscriptions backport guide could not be fetched while this was written. Every url, name and
- * rule below is the builder's knowledge of those guides, or an assumption about how the vendor
- * applies them. Each rule reads a coded element or the structure of a resource, never the wording
+ * <p>Nothing here has been observed from the live service. The tool is held to PAS 2.0.1 (D-136),
+ * read from the guide's own source at its 2.0.1 tag, with the 2.2.0 ballot read for what changes.
+ * A name or rule taken from the guide says so and names the version; one marked ASSUMPTION is how
+ * this tool expects the vendor to apply the guide, or covers a case the guide does not define.
+ * The subscriptions backport 1.1.0 that PAS 2.0.1 depends on could not be read, so its names are
+ * taken from the 1.2.0 ballot. Each rule reads a coded element or the structure of a resource, never the wording
  * of a disposition or a diagnostic, and each is deliberately narrow: when a response does not
  * match a rule, nothing is inferred and the response is shown in full under the outcome its codes
  * support.
@@ -163,22 +165,44 @@ public final class OnyxPasConventions {
     public static final String PAYLOAD_CONTENT = BACKPORT + "backport-payload-content";
 
     /**
-     * ASSUMPTION: what a subscription must be subscribed to is not known. This is a placeholder
-     * that names no real topic, sent only when the tester sets none, so that a subscription made
-     * with it is rejected or visibly wrong and never quietly accepted as the right one.
+     * The subscription topic PAS 2.0.1 defines (input/resources/SubscriptionTopic.json), which both
+     * of its CapabilityStatements name: an event when a ClaimResponse result is available. The 2.2.0
+     * ballot keeps the same canonical address.
      */
-    public static final String PLACEHOLDER_TOPIC = "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status";
+    public static final String PAS_TOPIC = "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic";
 
-    /** ASSUMPTION: a subscription that calls a receiver back is a rest-hook carrying FHIR JSON. */
+    /**
+     * The filter parameter the PAS 2.0.1 topic offers (canFilterBy orgIdentifier, comparator eq).
+     * PAS 2.0.1 says a subscription SHALL be filtered by the requesting provider organization.
+     */
+    public static final String ORG_IDENTIFIER_FILTER = "orgIdentifier";
+
+    /**
+     * A filter as the backport filter-criteria string holds it: {@code orgIdentifier=system|value},
+     * or {@code orgIdentifier=value} when no system is known. This is the form the PAS 2.2.0 ballot's
+     * own example uses; the backport 1.1.0 format PAS 2.0.1 depends on could not be read here.
+     */
+    public static String orgIdentifierFilter(String system, String value) {
+        return ORG_IDENTIFIER_FILTER + "=" + (Texts.present(system) ? system.strip() + "|" : "") + value.strip();
+    }
+
+    /**
+     * A subscription that calls a receiver back is a rest-hook carrying FHIR JSON: PAS 2.0.1 says
+     * a server SHOULD support rest-hook, and the 2.2.0 ballot profile fixes it.
+     */
     public static final String DEFAULT_CHANNEL_TYPE = "rest-hook";
 
     /**
-     * ASSUMPTION: how much a notification should carry is not known. Ids only is this tool's
-     * default because it puts the least member data on the wire. The request notes say it was a default.
+     * Ids only: PAS 2.0.1 says clients and intermediaries SHALL support id-only and MAY agree on
+     * full-resource. It also puts the least member data on the wire. The PAS 2.2.0 ballot profile
+     * fixes full-resource instead, and the request notes say so.
      */
     public static final String DEFAULT_PAYLOAD_CONTENT = "id-only";
 
-    /** The status a client asks for when it creates a subscription. The service decides whether to activate it. */
+    /**
+     * The status a client asks for when it creates a subscription. The service decides whether to
+     * activate it. PAS 2.0.1 has no Subscription profile; the 2.2.0 ballot profile fixes active.
+     */
     public static final String REQUESTED = "requested";
 
     /**

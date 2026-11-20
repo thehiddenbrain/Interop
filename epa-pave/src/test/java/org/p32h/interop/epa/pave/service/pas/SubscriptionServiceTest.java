@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.p32h.interop.epa.pave.client.MockSelection;
+import org.p32h.interop.epa.pave.client.pas.OnyxPasConventions;
 import org.p32h.interop.epa.pave.client.pas.MockOnyxPasClient;
 import org.p32h.interop.epa.pave.client.pas.MockSubscriptionClient;
 import org.p32h.interop.epa.pave.client.pas.SubscriptionClient;
@@ -230,7 +231,7 @@ class SubscriptionServiceTest {
     @Test
     void aCreateReturnsTheVerdictTheNextStepAndALedgerLineThatCarriesTheNewSubscriptionsId() {
         RunEnvelope<SubscriptionDetail> result = run(CREATE, request().expected("CREATED; subscription-status=requested").testerRef("QA-17")
-                .note("first subscription").build());
+                .note("first subscription").variables(Map.of(SubscriptionRequestBuilder.VAR_ORG_IDENTIFIER, "1234567893")).build());
 
         assertThat(result.protocol()).isEqualTo(Protocol.SUBSCRIPTION);
         assertThat(result.operation()).isEqualTo(CREATE);
@@ -253,7 +254,7 @@ class SubscriptionServiceTest {
         assertThat(detail.idSource()).isEqualTo("the id of the Subscription the service returned");
         assertThat(detail.callbackUrl()).isEqualTo(RECEIVER);
         assertThat(detail.bodyBuiltByTool()).isTrue();
-        assertThat(detail.requestNotes()).anySatisfy(note -> assertThat(note).contains("placeholder and names no real topic"));
+        assertThat(detail.requestNotes()).anySatisfy(note -> assertThat(note).contains("the topic PAS 2.0.1 defines"));
         assertThat(detail.subscriptions().get(0).endpoint().value()).isEqualTo(RECEIVER);
         assertThat(result.determination()).extracting(DeterminationRow::label, DeterminationRow::code).containsExactly(
                 org.assertj.core.groups.Tuple.tuple("Subscription status", "requested"), org.assertj.core.groups.Tuple.tuple("Channel type", "rest-hook"),
@@ -263,6 +264,8 @@ class SubscriptionServiceTest {
         JsonNode sent = JsonSafe.parse(result.wire().request().body()).node();
         assertThat(sent.get("resourceType").asString()).isEqualTo("Subscription");
         assertThat(sent.at("/channel/endpoint").asString()).isEqualTo(RECEIVER);
+        assertThat(sent.get("criteria").asString()).isEqualTo(OnyxPasConventions.PAS_TOPIC);
+        assertThat(sent.at("/_criteria/extension/0/valueString").asString()).isEqualTo("orgIdentifier=1234567893");
         assertThat(result.wire().request().method()).isEqualTo("POST");
         assertThat(result.wire().request().sent()).isFalse();
         assertThat(result.wire().request().headers()).extracting(h -> h.name() + ": " + h.value()).contains("Content-Type: application/fhir+json");
@@ -283,7 +286,8 @@ class SubscriptionServiceTest {
         assertThat(record.nextAction()).isEqualTo("START_PAS");
         assertThat(record.memberId()).isNull();
         assertThat(record.procedureCodes()).isEmpty();
-        assertThat(record.unrecordedInputs()).isEmpty();
+        // The organization was typed as a value for this run, which the line names without holding it.
+        assertThat(record.unrecordedInputs()).containsExactly(RunRecord.INPUT_RUN_VALUES);
     }
 
     @Test
@@ -305,7 +309,12 @@ class SubscriptionServiceTest {
                 + "this tool's receiver, which ends in /api/pas/notifications, and send again. Until then, follow a request with an "
                 + "inquiry: that path needs no callback.");
         assertThat(finding.subject()).isEqualTo("channel.endpoint");
-        assertThat(ledger.only().findings()).containsExactly("NO_CALLBACK_URL");
+        // Nobody named the requesting organization either, and that is said first, as what the request went out without.
+        assertThat(result.findings().get(0).kind()).isEqualTo(FindingKind.REQUEST_INCOMPLETE);
+        assertThat(result.findings().get(0).title()).isEqualTo("The subscription is not filtered by the requesting organization");
+        assertThat(result.findings().get(0).detail()).startsWith("PAS 2.0.1 says the subscription SHALL be filtered by the requesting "
+                + "provider organization");
+        assertThat(ledger.only().findings()).containsExactly("REQUEST_INCOMPLETE", "NO_CALLBACK_URL");
         // And the next step is to set it, not to wait for a notification that cannot come.
         assertThat(result.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
         assertThat(result.nextStep().headline()).isEqualTo("Next: set onyx.subscription.callback-url to an address the service can reach, then "
@@ -319,8 +328,8 @@ class SubscriptionServiceTest {
         // An update that names no receiver says the same, and is not reported as done with nothing left to do.
         RunEnvelope<SubscriptionDetail> updated = service(mockClient, "mock", Map.of()).run(UPDATE, about(ID).build(), RunOrigin.manual(), null);
         assertThat(updated.verdict().outcomeCode()).isEqualTo("UPDATED");
-        assertThat(updated.findings()).extracting(Finding::kind).containsExactly(FindingKind.NO_CALLBACK_URL);
-        assertThat(ledger.last().findings()).containsExactly("NO_CALLBACK_URL");
+        assertThat(updated.findings()).extracting(Finding::kind).containsExactly(FindingKind.REQUEST_INCOMPLETE, FindingKind.NO_CALLBACK_URL);
+        assertThat(ledger.last().findings()).containsExactly("REQUEST_INCOMPLETE", "NO_CALLBACK_URL");
         assertThat(updated.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
         assertThat(updated.nextStep().reason()).startsWith("The subscription was updated without a url to call back, so no notification can "
                 + "reach this tool.");

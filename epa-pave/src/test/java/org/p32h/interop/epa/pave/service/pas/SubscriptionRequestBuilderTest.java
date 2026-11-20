@@ -43,7 +43,7 @@ class SubscriptionRequestBuilderTest {
     }
 
     @Test
-    void aCreateWithNothingStatedSendsDefaultsThatAreVisiblyPlaceholdersAndSaysSoForEachOne() {
+    void aCreateWithNothingStatedSendsThe201TopicAndDefaultsSaysSoForEachOneAndSaysFirstThatTheFilterIsMissing() {
         SubscriptionRequestBuilder.Built built = new SubscriptionRequestBuilder(RECEIVER).build(null, variables(Map.of()));
         JsonNode subscription = json(built);
 
@@ -52,9 +52,11 @@ class SubscriptionRequestBuilderTest {
         assertThat(subscription.at("/meta/profile/0").asString()).isEqualTo(OnyxPasConventions.SUBSCRIPTION_PROFILE);
         assertThat(subscription.get("status").asString()).isEqualTo("requested");
         assertThat(subscription.get("reason").asString()).isEqualTo("Prior authorization status notifications for a PAVE test run");
-        // The topic is not known, and what is sent in its place cannot be taken for a real one.
-        assertThat(subscription.get("criteria").asString()).isEqualTo(OnyxPasConventions.PLACEHOLDER_TOPIC).contains("p32h-placeholder");
+        // PAS 2.0.1 input/resources/SubscriptionTopic.json: url, named by both CapabilityStatements.
+        assertThat(subscription.get("criteria").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic");
+        // Nobody named the requesting organization, so there is nothing to filter by, and nothing is invented.
         assertThat(subscription.has("_criteria")).isFalse();
+        assertThat(built.leftOut()).containsExactly("the orgIdentifier filter PAS 2.0.1 requires");
         assertThat(subscription.has("end")).isFalse();
         assertThat(subscription.at("/channel/type").asString()).isEqualTo("rest-hook");
         assertThat(subscription.at("/channel/endpoint").asString()).isEqualTo(RECEIVER);
@@ -67,23 +69,29 @@ class SubscriptionRequestBuilderTest {
         assertThat(built.callbackUrl()).isEqualTo(RECEIVER);
         assertThat(built.callbackProblem()).isNull();
         assertThat(built.notes()).containsExactly(
+                "This subscription goes out without the orgIdentifier filter PAS 2.0.1 requires, because nobody supplied what it is built "
+                        + "from. The service may refuse it for that alone.",
                 "The status was set to requested, which is what a client asks for and leaves the service to activate. It is this tool's "
-                        + "default and not something known about the service. Set the variable subscriptionStatus to send another.",
+                        + "default and not something known about the service. PAS 2.0.1 has no Subscription profile; the PAS 2.2.0 ballot "
+                        + "fixes the status to active. Set the variable subscriptionStatus to send another.",
                 "The reason was set to Prior authorization status notifications for a PAVE test run, which is this tool's own wording. It is "
                         + "this tool's default and not something known about the service. Set the variable subscriptionReason to send another.",
-                "The subscription topic was set to " + OnyxPasConventions.PLACEHOLDER_TOPIC + ". That is a placeholder and names no real "
-                        + "topic: what the service expects here is not known. Set the variable subscriptionTopic to the topic the service "
-                        + "documents.",
-                "No filter was sent with the topic: the variable subscriptionFilter is not set. Whether the service needs one, and what it "
-                        + "must say, is not known.",
+                "The subscription topic was set to http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic, the topic PAS "
+                        + "2.0.1 defines for a prior authorization result. Set the variable subscriptionTopic to send another.",
+                "No filter was sent with the topic: neither pasRequestingOrgIdentifier nor subscriptionFilter is set. PAS 2.0.1 requires a "
+                        + "subscription to be filtered by the requesting provider organization, through the topic's filter orgIdentifier, and "
+                        + "the service may refuse it or send notifications about other organizations' requests. Set pasRequestingOrgIdentifier "
+                        + "to that organization's identifier, such as its NPI.",
                 "No heartbeat period was sent: the variable subscriptionHeartbeatSeconds is not set.",
-                "The channel type was set to rest-hook, which is the kind of channel that calls a receiver back. It is this tool's default "
-                        + "and not something known about the service. Set the variable subscriptionChannelType to send another.",
-                "The payload content was set to id-only, which puts the least member data on the wire. It is this tool's default and not "
-                        + "something known about the service. Set the variable subscriptionPayloadContent to send another.",
+                "The channel type was set to rest-hook, which is the kind of channel that calls a receiver back and the one PAS 2.0.1 says a "
+                        + "server should support. It is this tool's default and not something known about the service. Set the variable "
+                        + "subscriptionChannelType to send another.",
+                "The payload content was set to id-only, which PAS 2.0.1 requires every client to support and which puts the least member "
+                        + "data on the wire. It is this tool's default and not something known about the service. The PAS 2.2.0 ballot fixes "
+                        + "full-resource instead. Set the variable subscriptionPayloadContent to send another.",
                 "No header was asked for on the notifications. This tool's receiver accepts a notification without one.");
         // Printed, it holds neither the body nor the address of the receiver.
-        assertThat(built.toString()).isEqualTo("Built[notes=8, namesReceiver=true]");
+        assertThat(built.toString()).isEqualTo("Built[notes=9, namesReceiver=true]");
     }
 
     @Test
@@ -112,6 +120,27 @@ class SubscriptionRequestBuilderTest {
         assertThat(subscription.at("/channel/_payload/extension/0/valueCode").asString()).isEqualTo("full-resource");
         assertThat(built.notes()).containsExactly("No header was asked for on the notifications. This tool's receiver accepts a notification "
                 + "without one.");
+        assertThat(built.leftOut()).isEmpty();
+    }
+
+    @Test
+    void theFilterIsBuiltFromTheRequestingOrganizationTheTesterNames() {
+        // PAS 2.0.1 specification.md: "The Subscription parameters SHALL be identifier = [requesting provider organization id]",
+        // and SubscriptionTopic.json canFilterBy orgIdentifier. The string is the form of the 2.2.0 ballot's own example.
+        SubscriptionRequestBuilder.Built built = new SubscriptionRequestBuilder(RECEIVER).build(null, variables(Map.of(
+                "pasRequestingOrgIdentifier", "1234567893", "pasRequestingOrgIdentifierSystem", "http://hl7.org/fhir/sid/us-npi")));
+        JsonNode subscription = json(built);
+        assertThat(subscription.at("/_criteria/extension/0/url").asString()).isEqualTo(OnyxPasConventions.FILTER_CRITERIA);
+        assertThat(subscription.at("/_criteria/extension/0/valueString").asString()).isEqualTo("orgIdentifier=http://hl7.org/fhir/sid/us-npi|1234567893");
+        assertThat(built.leftOut()).isEmpty();
+        assertThat(built.notes().get(0)).doesNotStartWith("This subscription goes out without");
+
+        // With no system given, none is assumed: the filter names the identifier alone, and the note says so.
+        SubscriptionRequestBuilder.Built bare = new SubscriptionRequestBuilder(RECEIVER).build(null,
+                variables(Map.of("pasRequestingOrgIdentifier", "1234567893")));
+        assertThat(json(bare).at("/_criteria/extension/0/valueString").asString()).isEqualTo("orgIdentifier=1234567893");
+        assertThat(bare.notes()).anySatisfy(note -> assertThat(note).contains("No identifier system was given"));
+        assertThat(bare.leftOut()).isEmpty();
     }
 
     @Test
