@@ -51,7 +51,14 @@ const SOURCES = {
     UNRESOLVED: 'nowhere: it has no value'
 };
 
-export function sourceWords(source) {
+/**
+ * The layer a value came from, in words. forRun is true where the value was typed for a run of a
+ * protocol tab rather than for a try on this tab; the layer is the same, the words follow the screen.
+ */
+export function sourceWords(source, forRun) {
+    if (forRun && source === 'RUN_VALUE') {
+        return 'typed for this run';
+    }
     return Object.prototype.hasOwnProperty.call(SOURCES, source) ? SOURCES[source] : code(String(source));
 }
 

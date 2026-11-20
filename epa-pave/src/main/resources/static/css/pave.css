@@ -240,6 +240,15 @@ code, pre, .literal {
     font-weight: 600;
 }
 
+/* The ledger indicator leads to the History tab, where the ledger's state is set out in full. */
+.strip-item__link {
+    text-decoration-color: var(--line);
+}
+
+.strip-item__link:hover {
+    text-decoration-color: currentColor;
+}
+
 /* The kind of the active environment, drawn the way its banner is drawn. */
 .kind {
     display: inline-block;
@@ -293,6 +302,16 @@ code, pre, .literal {
 
 .banner__name {
     font-weight: 600;
+}
+
+/* Whether writes go to production, in two words. Unlocked is framed in white on the purple band. */
+.banner__writes {
+    font-weight: 700;
+}
+
+.banner__writes--unlocked {
+    padding: 0 8px;
+    border: 3px solid var(--white);
 }
 
 /* Production is a solid band across the whole width. It is the only solid purple on the page. */
@@ -500,7 +519,7 @@ main {
     outline-offset: 0;
 }
 
-.field > label, .field__label {
+.field > label, .field__head > label, .field__label {
     font-size: var(--text-small);
     color: var(--ink-soft);
 }
@@ -510,7 +529,7 @@ main {
     color: var(--ink-soft);
 }
 
-.field input[type="text"], .field select, .code-entry input, .assertion select, .assertion input[type="text"] {
+.field input[type="text"], .field input[type="password"], .field select, .code-entry input, .assertion select, .assertion input[type="text"] {
     width: 100%;
     height: 30px;
     padding: 2px 8px;
@@ -567,7 +586,7 @@ main {
 }
 
 /* A field the server refused. A heavy ink edge and the server's own sentence beneath it. */
-.field--invalid input[type="text"], .field--invalid select, .field--invalid .code-entry input {
+.field--invalid input[type="text"], .field--invalid input[type="password"], .field--invalid select, .field--invalid .code-entry input {
     border: 3px solid var(--ink-strong);
 }
 
@@ -1505,6 +1524,23 @@ legend, .case-legend {
     color: var(--ink-strong);
 }
 
+/* What the finding is about, above its title. Words only: a finding has no colour. */
+.finding__about {
+    margin-bottom: -4px;
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+}
+
+/* The response shown is not byte for byte what arrived, and the server's sentence says where. */
+.result__masked {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.verdict__unanswered {
+    font-weight: 600;
+}
+
 .finding__meta {
     font-size: var(--text-small);
     color: var(--ink-soft);
@@ -2114,7 +2150,7 @@ details.fold > :not(summary) {
 /* ---------- the colour key ---------- */
 
 .legend {
-    width: min(1120px, calc(100vw - 32px));
+    width: min(1480px, calc(100vw - 32px));
     max-height: calc(100vh - 48px);
     padding: var(--gap-4) var(--gap-5) var(--gap-5);
     border: 1px solid var(--ink-strong);
@@ -2141,6 +2177,53 @@ details.fold > :not(summary) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 0 var(--gap-6);
+}
+
+/* The third column, the findings, runs under the other two until there is room for it beside them. */
+.legend__columns > :nth-child(3) {
+    grid-column: 1 / -1;
+}
+
+@media (min-width: 1300px) {
+    .legend__columns {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr);
+    }
+
+    .legend__columns > :nth-child(3) {
+        grid-column: auto;
+    }
+}
+
+/* In the key the unlocked mark is shown on the band it sits on in the banner. */
+.legend__unlocked {
+    display: inline-block;
+    background: var(--purple);
+    color: var(--white);
+    outline: 4px solid var(--purple);
+}
+
+.legend__rows.legend__rows--stacked {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0;
+}
+
+.legend__rows.legend__rows--stacked dd {
+    margin-bottom: var(--gap-2);
+}
+
+.legend__finding {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.legend__unlocked {
+    font-size: var(--text-small);
+}
+
+.legend__kinds {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--text-small);
 }
 
 .legend__group {
@@ -2345,6 +2428,16 @@ details.fold > :not(summary) {
     }
 }
 
+/*
+ * On a wide screen the case takes some of the room the readout cannot use, so the details in its
+ * three-column grid are not cut off inside their inputs. The readout keeps the larger share.
+ */
+@media (min-width: 1600px) {
+    .workbench {
+        grid-template-columns: clamp(404px, 26vw, 540px) minmax(0, 1fr);
+    }
+}
+
 /* ---------- narrower than a laptop: one column, and the window scrolls ---------- */
 
 @media (max-width: 1180px) {
@@ -2401,6 +2494,30 @@ details.fold > :not(summary) {
 
     .masthead__strip {
         justify-content: flex-start;
+    }
+
+    /* The colour key goes under the tabs rather than past the edge of the window. */
+    .tab-row {
+        flex-wrap: wrap;
+        row-gap: 0;
+    }
+
+    .tabs {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    .tab {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .tab:first-child {
+        margin-left: -10px;
+    }
+
+    .strip-item {
+        white-space: normal;
     }
 }
 

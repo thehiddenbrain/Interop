@@ -66,6 +66,39 @@ export function stamp(result, size) {
         el('span', {class: 'stamp__word'}, known ? RESULT_WORDS[name] : name));
 }
 
+/**
+ * What a finding is about, by its kind. The server words every finding, and sends its kind as a
+ * name; it sends no word for what the kind is about. That is said here, in a short line above the
+ * finding's title, so that a finding about the request this tool sent is never read as a fault of
+ * the service, and the colour key lists the same groups. No group is a fault and none is coloured.
+ * A kind not listed here is drawn plainly with its name as sent.
+ */
+export const FINDING_GROUPS = [
+    {id: 'request', heading: 'About the request this tool sent, not the service',
+        kinds: ['REQUEST_INCOMPLETE', 'NO_CALLBACK_URL', 'PRE_REQUEST_SCRIPT_NOT_RUN'],
+        meaning: 'What went out, or what this tool did not do. A refusal by the service that follows from it is not a fault of the service.'},
+    {id: 'guide', heading: 'About the response, held to the guide',
+        kinds: ['REQUIRED_ELEMENT_MISSING', 'CODE_OUTSIDE_VALUE_SET', 'GUIDE_RULE_BROKEN'],
+        meaning: 'The response does not meet the version of the guide this tool is held to. The finding names the guide and the version.'},
+    {id: 'information', heading: 'Information about the response',
+        kinds: ['OTHER_VERSION_CONTENT', 'NOT_STATED'],
+        meaning: 'Something to know, which the guide does not call wrong: content a later version defines, or something the response does not state.'},
+    {id: 'codelist', heading: 'The code list beside the service',
+        kinds: ['CODE_LIST_DISAGREES_ON_AUTH', 'CODE_LIST_DISAGREES_ON_VENDOR', 'CODE_LIST_NOT_COMPARED'],
+        meaning: 'The two positions side by side, or why they could not be compared. Either side can be the wrong one.'},
+    {id: 'notification', heading: 'About a notification that arrived',
+        kinds: ['UNMATCHED_NOTIFICATION', 'UNCHECKED_NOTIFICATION'],
+        meaning: 'A notification this tool could not tie to a run, or could not check. It is kept and shown.'},
+    {id: 'timing', heading: 'About the time the call took',
+        kinds: ['SLOW_RESPONSE'],
+        meaning: 'The call completed and took longer than the threshold.'}
+];
+
+/** The group of a finding kind, or null for a kind this page does not list. */
+export function findingGroup(kind) {
+    return FINDING_GROUPS.find(group => group.kinds.includes(String(kind))) || null;
+}
+
 /** The flag for a call that completed but took longer than the threshold. */
 export function slowFlag() {
     return el('span', {class: 'flag flag--slow', title: 'The call completed but took longer than the threshold.'}, 'slow');

@@ -24,12 +24,13 @@
 
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
 import {clearFieldErrors, markFieldErrors, formProblem, unmark} from './forms.js';
-import {renderResult, errorPanel} from './result.js';
+import {renderResult, errorPanel, operationName} from './result.js';
 import {presenceMark} from './shown.js';
 import {resultWord} from './marks.js';
 import {idForms} from './lookup.js';
 import {createOwnRequest} from './own-request.js';
 import {createRunValues} from './run-values.js';
+import {sourceWords} from './config-parts.js';
 
 /**
  * Builds the two panes into a tab panel.
@@ -137,39 +138,6 @@ export function createWorkbench(app, panel, spec) {
             control.setAttribute('aria-busy', state ? 'true' : 'false');
         }
         result.setAttribute('aria-busy', state ? 'true' : 'false');
-    }
-
-    /** Shows, under the result's top line, that the body sent was the tester's own. Every protocol's detail says it the same way. */
-    function markOwnBody(envelope) {
-        const detail = envelope.detail;
-        if (!detail || detail.bodyBuiltByTool !== false) {
-            return;
-        }
-        const top = result.querySelector('.result__top');
-        if (!top) {
-            return;
-        }
-        const sentBody = envelope.wire && envelope.wire.request ? envelope.wire.request.body : null;
-        // The text that went out is the tester's, and whether it parses is a fact about that text,
-        // the same fact the box said before sending. A malformed body sent on purpose is a negative
-        // case, and an answer to it must not read as the service accepting it.
-        let parses = true;
-        if (typeof sentBody === 'string') {
-            try {
-                JSON.parse(sentBody);
-            } catch (notJson) {
-                parses = false;
-            }
-        }
-        top.after(el('div', {class: 'result__own-body'},
-            el('p', null, el('strong', null, 'A request body of your own was sent.'),
-                ' This tool did not build it from the form; it went as you wrote it, with its placeholders filled in. '
-                + 'The member, provider and codes on the form were not sent with it. The wire view shows the body.'),
-            parses ? null : el('p', null, el('strong', null, 'The body sent was not valid JSON.'),
-                envelope.profile === 'mock'
-                    ? ' On the mock profile a scenario file answers whatever the body holds, so the answer and its next step '
-                        + 'are the scenario\'s and say nothing about this body.'
-                    : ' Whatever the service answered, it answered a body that does not parse: read the answer in that light.')));
     }
 
     const bench = {
@@ -286,8 +254,8 @@ export function createWorkbench(app, panel, spec) {
          * options.detail(envelope) returns the protocol's own part; options.detailTitle is its heading.
          */
         showResult(envelope, options) {
+            // A body of the tester's own is said under the verdict by the result view itself, on every protocol.
             fill(result, renderResult(envelope, {...options, nextStepControl: nextStepControl(app, sentCase)}));
-            markOwnBody(envelope);
             drawBeforeSending();
             readout.scrollTop = 0;
             status.textContent = 'Result received. ' + envelope.verdict.headline + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
@@ -424,8 +392,20 @@ export function nextStepControl(app, forCase) {
 }
 
 /**
+ * A placeholder written the way the url as configured writes it. A collection writes most of them
+ * in double braces and the single-brace parts of a lookup url in single ones; the tester compares
+ * this with the template above it, so it must not change the form.
+ */
+function placeholderAsWritten(name, template) {
+    const doubled = '{{' + name + '}}';
+    const single = '{' + name + '}';
+    return code(typeof template === 'string' && !template.includes(doubled) && template.includes(single) ? single : doubled);
+}
+
+/**
  * The request as it would be sent: where it would go, beside the url as configured, the body the
  * tool would build, and what was left out of it. Every protocol answers its preview in this shape.
+ * Every name the server sends as a code (the operation, where a value came from) is given in words.
  */
 export function requestPreviewPanel(preview, close) {
     const url = preview.url || {};
@@ -438,12 +418,13 @@ export function requestPreviewPanel(preview, close) {
         el('p', {class: 'quiet'}, 'Nothing was sent and nothing was recorded.'),
         preview.blocked ? el('div', {class: 'error-panel error-panel--blocked'}, el('p', {class: 'error-panel__title'}, preview.blocked)) : null,
         facts([
-            ['Operation', [code(preview.operation), preview.method ? [' with ', code(preview.method)] : null]],
+            ['Operation', operationName(preview.operation)],
+            ['Method', preview.method ? code(preview.method) : null],
             ['Url as configured', url.template ? code(url.template) : presenceMark('EMPTY')],
             ['Url it resolves to', url.display ? code(url.display) : el('span', {class: 'presence presence--none'}, 'none')],
             ['Where the url comes from', url.source || null],
             ['Placeholders with no value', url.unresolved && url.unresolved.length > 0
-                ? el('strong', null, url.unresolved.map((name, index) => [index > 0 ? ', ' : null, code('{{' + name + '}}')])) : null],
+                ? el('strong', null, url.unresolved.map((name, index) => [index > 0 ? ', ' : null, placeholderAsWritten(name, url.template)])) : null],
             ['Environment', preview.environment && preview.environment.active
                 ? preview.environment.name + ' (' + preview.environment.kind + ')' : 'none active'],
             ['Collection request', preview.requestName ? [preview.requestName, preview.scripted
@@ -452,9 +433,9 @@ export function requestPreviewPanel(preview, close) {
         ], 'facts--ruled'),
         url.variables && url.variables.length > 0
             ? table(['Placeholder', 'Value shown', 'Comes from'], url.variables.map(variable => [
-                code('{{' + variable.name + '}}'),
+                placeholderAsWritten(variable.name, url.template),
                 variable.display === undefined ? presenceMark('ABSENT') : [code(variable.display), variable.secret ? ' (masked: a secret)' : null],
-                code(variable.source)]), {class: 'thirds'})
+                sourceWords(variable.source, true)]), {class: 'thirds'})
             : null,
         preview.notes && preview.notes.length > 0 ? el('ul', {class: 'note-list'}, preview.notes.map(note => el('li', null, note))) : null,
         body ? el('div', {class: 'raw-body'},
