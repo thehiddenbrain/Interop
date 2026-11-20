@@ -1079,12 +1079,17 @@ P32H export of about 7,000 rows whose header row is not known.
 43 rows, every one marked "Placeholder row. Not from a P32H export." The startup log and the
 self-check both say so.
 
+**A list says of itself whether it is synthetic.** A list in which any row's notes hold the
+sentence "Not from a P32H export." (in any letter case) is synthetic, whatever its path: the
+bundled placeholder, the shipped sample and a list of your own marked that way are all treated
+alike. A list with no such row is taken as the real one; PAVE cannot vouch that it is P32H's.
+
 **What that means for findings** (D-169): on mock, the code list is compared with each CRD answer,
-and every finding it raises says the list is the bundled placeholder, not a P32H list. On live, with
-the placeholder still in place, PAVE does not compare at all: the run carries one
-`CODE_LIST_NOT_COMPARED` finding beside the determination. The picker and the code chips say the
-list is the placeholder while it is in use. A copy of the placeholder file set as `codelist.file`
-counts as a real list: the tool cannot vouch that any file is the P32H list.
+and every finding that rests on a synthetic list says so. On live, with a synthetic list in use,
+PAVE does not compare at all: the run carries one `CODE_LIST_NOT_COMPARED` finding beside the
+determination. The picker and the code chips say "Placeholder code list in use" while a synthetic
+list is in use, the self-check answers `"placeholder":true` with a warning, and the start-up log
+says so.
 
 **Pointing at the real export.** Set `codelist.file` to its path (a relative path is resolved
 against the directory PAVE starts in) and restart:
@@ -1094,18 +1099,23 @@ against the directory PAVE starts in) and restart:
 ```
 
 `samples/codelist/sample-code-list.csv` is a sample in the shape the real export is expected to
-have, every row marked `SAMPLE ROW`. Its vendor names are real: they are the four delegated
-vendors the specification names as current (eviCore, Evolent, Carelon, Optum Post Acute), the
-specification asks for them in fixtures, and they are the only names the tool recognises as
-vendors (D-081), so a made-up name would be treated as an unknown vendor. The codes are real CPT
-and HCPCS codes. **Which code goes to which vendor, and every flag and date, is invented**: it
-follows the specialties the specification lists (sleep, imaging, genetic testing, post-acute) and
-says nothing about P32H's actual assignments. The bundled placeholder list is built the same way.
-A test loads it through the real loader, and the command above
-was run: the self-check then answered `"placeholder":false`, `"rowCount":11`,
+have, every row's notes reading "SAMPLE ROW. Not from a P32H export.", so the tool treats it as
+synthetic, exactly as it treats the bundled placeholder. Its vendor names are real: they are the
+four delegated vendors the specification names as current (eviCore, Evolent, Carelon, Optum Post
+Acute), the specification asks for them in fixtures, and they are the only names the tool
+recognises as vendors (D-081), so a made-up name would be treated as an unknown vendor. The codes
+are real CPT and HCPCS codes. **Which code goes to which vendor, and every flag and date, is
+invented**: it follows the specialties the specification lists (sleep, imaging, genetic testing,
+post-acute) and says nothing about P32H's actual assignments. The bundled placeholder list is built
+the same way. A test loads it through the real loader, and the command above was run (with the
+file's full path): the self-check then answered `"placeholder":true`, `"rowCount":11`,
 `"statingAuthRequirement":10`, `"namingVendor":7` and `"unrecognisedColumns":[]`, with each column
 found under the sample's own header (`"code":"CPT/HCPCS"`, `"authRequired":"Prior Auth Required"`,
-`"lineOfBusiness":"LOB"` and so on).
+`"lineOfBusiness":"LOB"` and so on), and the warning "This code list says of itself that it is
+synthetic: 11 of its rows carry the note "Not from a P32H export." Its tags are not P32H's, so it
+is treated as the bundled placeholder is: on live it is not compared with the service. Set
+codelist.file to the P32H export and restart." Use it to see how columns are found, not to test
+against a service.
 
 - CSV or JSON, chosen from the extension unless `codelist.format` says otherwise.
 - `codelist.delimiter`: one character, or the word `tab`.
@@ -1742,7 +1752,8 @@ section repeats what a tester or a maintainer needs to know.
 - **Suites**: whether a code assertion's value is in its value set is not checked before sending. A
   second suite started while one runs is answered 409 with kind `VALIDATION`.
 - **The code list**: no real P32H export was available, so everything about its shape is assumed.
-  A copy of the placeholder set as `codelist.file` counts as a real list.
+  A list is synthetic only when a row says so ("Not from a P32H export."); any other list is taken
+  as the real one.
 - **Fixtures**: any new top-level key in a scenario file stops the mock start until the loader
   knows it. The CRD, DTR and PAS scenario files were rewritten after the fixture audit and not
   audited again.
