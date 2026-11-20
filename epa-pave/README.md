@@ -82,10 +82,15 @@ different project; leave it alone. Every command below is run from `epa-pave/`.
 On Windows: `gradlew.bat clean build`. The first build downloads Gradle 9.5.0 and the
 dependencies, so it needs to reach `services.gradle.org` and Maven Central, or the internal
 mirrors described under [Running on a corporate workstation](#running-on-a-corporate-workstation).
-It runs TEST_COUNT_PLACEHOLDER tests and takes a few minutes. Correct output ends with:
+It runs about 2,600 tests and takes a few minutes. Correct output ends with:
 
 ```
-BUILD_TAIL_PLACEHOLDER
+> Task :verifyParametersFlag
+> Task :check
+> Task :build
+
+BUILD SUCCESSFUL in 3m 2s
+11 actionable tasks: 9 executed, 2 from cache
 ```
 
 The time and the task counts differ from machine to machine. `BUILD SUCCESSFUL` is what matters.
@@ -1600,27 +1605,39 @@ section repeats what a tester or a maintainer needs to know.
 
 ## What this README was checked against
 
-- **Revision:** branch `docs-c2` at the base commit `52469d7` with this README, the run scripts and
-  the samples added. The frontend, the audits and the follow-up branches were not on it.
-- **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0 through the wrapper, behind a TLS-inspecting
-  proxy. The Gradle cache already held the dependencies, so how long a first download takes was not
-  measured.
-- **Fresh clone:** the branch was cloned into a new directory, twice, and `./gradlew clean build`
-  ran in each: 1,844 tests passed, 2 skipped, 0 failed, both times. After a newcomer's reading
-  of this README was answered, a third fresh clone built the same way (1,846 tests, 2 skipped, 0
-  failed). The clones were made from a local copy of the branch. `git clone --branch epa-pave`
-  from GitHub was run too, on 2026-11-19: it gave commit `44c7760`, whose `epa-pave/` holds no
-  README, `run.sh`, `run.cmd` or `samples/` (see step 2).
-- **`run.sh`** was started from another directory with the jar missing: it built the jar, started on
-  the mock profile on port 8057, `curl -s localhost:8057/api/mode` answered as shown in step 5, and
-  it was stopped. `./run.sh live` was started the same way on another port and stopped. Its refusal
-  of Java 8 and of an unknown profile was checked.
-- **Every `curl` example under [Endpoints](#endpoints)** was run against the second fresh clone,
-  started with `./run.sh` on port 8057, in order, and answered the status in its comment: 66
-  examples, none different, on the third clone. `./run.sh mock --codelist.file=samples/codelist/sample-code-list.csv`
-  and `./run.sh mock --server.port=8091` were run too.
-- **Observed on the running tool, as quoted above:** the production guardrail (floor, unlock, a
-  second session, switching), the host and origin checks, the receiver, the ledger contents, the
-  lookups, the code list self-check, `POST /api/raw` sending no saved body, a key in a url shown
-  as written, `{{$randomInt}}` refused, and an unresolved url ignored on mock and refused on live.
-- **Not checked:** the screens, `run.cmd`, STS, a credentialed mirror, a token server, Onyx.
+- **Revision:** branch `docs-2` at the base commit `acfb340` (the server with every audit fix, the
+  five tabs and the pass that joined them), with this README added. Two further server tasks that
+  reword some sentences on screen were in progress elsewhere and were not on it.
+- **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0. On the machine this README was checked on every
+  Gradle command went through a shared wrapper that adds `--offline` and lets two builds run at a
+  time, and a file in the home directory caps the memory Gradle may use. `./gradlew` itself was not
+  run for this revision: its Gradle part was run through that wrapper. The build in step 3 is that
+  run of `clean build`: 2,603 tests, 2 skipped, 0 failed. No fresh clone was built for this
+  revision; `git clone --branch epa-pave` from GitHub was run on 2026-11-20 and gave a checkout
+  that holds `run.sh` (commit `f6f366d`, older than this revision).
+- **`run.sh`** was started from another directory with the jar present, as
+  `./run.sh mock --server.port=8091` (port 8057 was not used on that machine), and printed the
+  lines of step 4 with 8091 in place of 8057; `curl -s localhost:8091/api/mode` answered as step 5
+  shows, with that port. `./run.sh live --server.port=8091` and `./run.sh mock --server.port=8091
+  --codelist.file=samples/codelist/sample-code-list.csv` were run too, and its refusal of an
+  unknown profile. Building the jar from nothing through `run.sh`, and its refusal of a Java older
+  than 21, were checked on an earlier revision and not again (no `run.sh` line changed since).
+- **Every `curl` example under [Endpoints](#endpoints)** was run in order against a freshly started
+  tool on the mock profile, with `localhost:8091` in place of `localhost:8057`, and answered the
+  status in its comment: 70 examples, none different.
+- **The screens** were looked at in headless Chromium at 1366 by 768: every tab on arrival, the
+  journey under [Using the screens](#using-the-screens) from CRD to DTR to PAS with `P32H-DOC-DTR`,
+  the colour key, every part of the Config tab, History's runs, a run, chains and suite runs, and on
+  live with nothing configured the three protocol tabs. What is quoted from them is what they
+  showed. The production banner, the ledger indicator's fault states and the suite summary are
+  described from the report of the pass that joined the tabs, which saw them on the same revision.
+- **Observed on the running tool for this revision, as quoted above:** the production guardrail on
+  mock (the floor, a wrong and a right unlock, a second session, an upload that locks again, a
+  replay refused with `SEND_ON_ITS_OWN`), the host and cross-site checks, the receiver with a
+  foreign host, the lookups in both forms, a request sent as it is written with its saved body, a
+  `{part}` with no value and `{{$randomInt}}` refused, an unresolved url ignored on mock and refused
+  on live, a key in a url shown as written, the code list self-check with the sample file, and on
+  live with nothing configured and against a stand-in CRD service on a loopback port (a pass,
+  `CODE_LIST_NOT_COMPARED`, an extra field shown, the member ID tokenised in the ledger).
+- **Not checked:** `run.cmd`, STS, a mirror (with or without credentials) for this revision, a
+  token server, Onyx, a screen reader, a phone-width screen.
