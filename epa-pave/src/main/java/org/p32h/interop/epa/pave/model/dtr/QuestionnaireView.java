@@ -11,6 +11,9 @@ import java.util.List;
  * @param foundAt       where in the response it sat
  * @param subject       how it is named everywhere on the result: its title, else its url, else its position
  * @param canonical     its url, with its version after a bar when it states one. Null when it has no url
+ * @param narrative     the narrative it carries in {@code text.div}, which DTR 2.0.1 requires
+ * @param narrativeStatus the status of that narrative, {@code text.status}
+ * @param subjectType   the kinds of subject it is about, which DTR 2.0.1 fixes to Patient
  * @param profiles      the profiles it declares in {@code meta.profile}
  * @param kind          adaptive, static or undetermined
  * @param kindBasis     one plain sentence saying what on the questionnaire decided the kind
@@ -44,6 +47,9 @@ public record QuestionnaireView(
         Shown date,
         Shown publisher,
         Shown description,
+        Shown narrative,
+        Shown narrativeStatus,
+        List<Shown> subjectType,
         List<Shown> profiles,
         List<Shown> derivedFrom,
         QuestionnaireKind kind,
@@ -60,6 +66,7 @@ public record QuestionnaireView(
         String json) {
 
     public QuestionnaireView {
+        subjectType = subjectType == null ? List.of() : List.copyOf(subjectType);
         profiles = profiles == null ? List.of() : List.copyOf(profiles);
         derivedFrom = derivedFrom == null ? List.of() : List.copyOf(derivedFrom);
         items = items == null ? List.of() : List.copyOf(items);

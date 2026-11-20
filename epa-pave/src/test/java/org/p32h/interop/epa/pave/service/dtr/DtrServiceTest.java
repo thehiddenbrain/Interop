@@ -1164,7 +1164,7 @@ class DtrServiceTest {
         assertThat(fetched.detail().questionnaires().get(0).arrivedWith()).isEqualTo(carried.foundAt())
                 .isEqualTo("parameter[0].resource.entry[1].resource");
         assertThat(carried.profiles()).extracting(profile -> profile.value())
-                .containsExactly("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse-adapt");
+                .containsExactly("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse");
 
         RunEnvelope<DtrDetail> first = next(fetched);
         // The first request is the response the package carried for the questionnaire, as it arrived, with no answer. The provider on
@@ -1636,7 +1636,11 @@ class DtrServiceTest {
     void aQuestionnaireThatIsNotAdaptiveCanStillBeSentToNextQuestionAndTheResultSaysSo() {
         RunEnvelope<DtrDetail> staticPackage = fetch("P32H-DOC-DTR");
         // On mock the static scenario defines no step of the loop, so the call is refused by name and not answered with something else.
-        assertThatThrownBy(() -> service().runNextQuestion(following(staticPackage, "P32H-DOC-DTR").build(), RunOrigin.manual(), null))
+        // The package carries a draft response for it too, which names the questionnaire by canonical and does not carry it, so the
+        // questionnaire itself is posted.
+        String questionnaire = staticPackage.detail().questionnaires().get(0).json();
+        assertThatThrownBy(() -> service().runNextQuestion(following(staticPackage, "P32H-DOC-DTR").questionnaireResponse(null)
+                .questionnaire(questionnaire).build(), RunOrigin.manual(), null))
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors().get(0).message())
                         .contains("dtr-01-static-linear").contains("\"next-question\""));
         assertThat(ledger.records()).hasSize(1);
@@ -1644,12 +1648,14 @@ class DtrServiceTest {
         // Against a service that answers, it is sent, and the request notes say the questionnaire is not marked adaptive.
         String refused = "{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"error\",\"code\":\"not-supported\"}]}";
         RunEnvelope<DtrDetail> sent = service(stub(DtrFixtures.answered(EpaOperation.DTR_NEXT_QUESTION, 400, refused)), "mock", Map.of())
-                .runNextQuestion(following(staticPackage, "P32H-DOC-DTR").build(), RunOrigin.manual(), null);
+                .runNextQuestion(following(staticPackage, "P32H-DOC-DTR").questionnaireResponse(null).questionnaire(questionnaire).build(),
+                        RunOrigin.manual(), null);
         assertThat(sent.verdict().outcomeCode()).isEqualTo("REJECTED");
         assertThat(sent.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("The questionnaire is not marked as "
                 + "adaptive. Static, because it declares the standard questionnaire profile").endsWith("The next-question request is sent "
                 + "all the same."));
-        assertThat(service().previewNextQuestion(following(staticPackage, "P32H-DOC-DTR").build(), null).notes())
+        assertThat(service().previewNextQuestion(following(staticPackage, "P32H-DOC-DTR").questionnaireResponse(null).questionnaire(questionnaire)
+                .build(), null).notes())
                 .anySatisfy(note -> assertThat(note).startsWith("The questionnaire is not marked as adaptive."));
     }
 
@@ -1922,8 +1928,9 @@ class DtrServiceTest {
         assertThat(completed.at("/item/0/answer/0/valueString").asString()).isEqualTo("Medical genetics");
         assertThat(completed.at("/item/3/answer/0/valueCoding/code").asString()).isEqualTo("no");
         assertThat(answerSet(result.detail().form())).containsOnlyKeys("gen-1", "gen-2", "gen-3", "gen-4");
-        // Which coverage and order it is for stays as the payer wrote it, and nothing is added beside it.
-        assertThat(completed.get("extension")).hasSize(2).isEqualTo(JsonSafe.parse(fetched.detail().questionnaireResponses().get(0).json())
+        // Which coverage and order it is for, and what it is intended for, stay as the payer wrote them (DTR 2.0.1: two qr-context
+        // and an intendedUse), and nothing is added beside them.
+        assertThat(completed.get("extension")).hasSize(3).isEqualTo(JsonSafe.parse(fetched.detail().questionnaireResponses().get(0).json())
                 .node().get("extension"));
         // The answers that arrived still say they were pre-populated, with no author. The one the tester gave says a person gave it.
         for (int arrived = 0; arrived < 3; arrived++) {

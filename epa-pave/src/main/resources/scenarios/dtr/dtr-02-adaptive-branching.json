@@ -2,7 +2,7 @@
   "id": "dtr-02-adaptive-branching",
   "number": 2,
   "label": "Adaptive sequence, a later question depends on an earlier answer",
-  "description": "The package holds one adaptive questionnaire with no questions of its own, and the response to start it from. Each next-question call returns the questions so far. Answering yes to the first question brings one follow-up, answering no brings a different one, and changing the first answer afterwards makes the earlier follow-up disappear.",
+  "description": "The package holds one adaptive questionnaire with no questions of its own, and the response to start it from. Each next-question call returns the questions so far. Answering yes to the first question brings one follow-up, answering no brings a different one, and changing the first answer afterwards makes the earlier follow-up disappear. It models DTR 2.0.1.",
   "sentinelMemberId": "P32H-DTR-ADAPT",
   "behavior": "respond",
   "httpStatus": 200,
@@ -18,8 +18,8 @@
       "questions": "0"
     }
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
-  "assumption": "What the live service does at each of these points is not confirmed. This file models what the DTR and SDC guides publish: the questionnaire in the package declares the adaptive search profile, holds no items and carries the questionnaireAdaptive extension as a url; the package carries a QuestionnaireResponse to start from, whose questionnaire is contained in it, has no url of its own and is derived from the one in the package; each next-question answer is that response with the questions so far in the contained questionnaire; the status is in-progress while questions remain and completed at the end. It also models a service that returns the answers it was sent and drops the answer to a question it no longer asks, which the guides do not define.",
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service.",
+  "assumption": "What the live service does at each of these points is not confirmed. This file models what DTR 2.0.1 and SDC publish: the questionnaire in the package declares the adaptive search profile, holds no items and carries the questionnaireAdaptive extension as a url; the package carries a draft QuestionnaireResponse to start from, which names the coverage and the order in qr-context, states its intended use, and holds the questionnaire inside itself with no url of its own, derived from the one in the package; each next-question answer is that response with the questions so far in the contained questionnaire; the status is in-progress while questions remain and completed at the end. The draft holds no item, as SDC has the first next-question call carry none, although DTR 2.0.1 asks every QuestionnaireResponse for at least one: the two guides differ there. It also models a service that returns the answers it was sent and drops the answer to a question it no longer asks, which the guides do not define. Each step holds only what the service changes at that point, the questions and the status: the mock returns the response it was sent with those replaced, so the response that comes back carries the coverage, the order, the intended use, the subject and the time it was authored that were sent.",
   "nextQuestion": {
     "rule": "The step is chosen from the answers in the QuestionnaireResponse that was sent. Each entry lists linkIds with the answer each must have: a code or a value, (any) for any answer at all, or (none) for no answer. The first entry that fits, in the order written, names the step. Answers that fit no entry are refused.",
     "select": [
@@ -297,6 +297,10 @@
                     "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt-search"
                   ]
                 },
+                "text": {
+                  "status": "generated",
+                  "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+                },
                 "extension": [
                   {
                     "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
@@ -317,12 +321,12 @@
                 "id": "lumbar-mri-draft",
                 "meta": {
                   "profile": [
-                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse-adapt"
+                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse"
                   ]
                 },
                 "extension": [
                   {
-                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-coverage",
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
                     "valueReference": {
                       "reference": "Coverage/coverage-1"
                     }
@@ -331,6 +335,17 @@
                     "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
                     "valueReference": {
                       "reference": "ServiceRequest/service-request-1"
+                    }
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/intendedUse",
+                    "valueCodeableConcept": {
+                      "coding": [
+                        {
+                          "system": "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+                          "code": "withpa"
+                        }
+                      ]
                     }
                   }
                 ],
@@ -342,6 +357,10 @@
                       "profile": [
                         "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
                       ]
+                    },
+                    "text": {
+                      "status": "generated",
+                      "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
                     },
                     "extension": [
                       {
@@ -360,7 +379,8 @@
                 "status": "in-progress",
                 "subject": {
                   "reference": "Patient/patient-1"
-                }
+                },
+                "authored": "2026-03-10T09:00:00-04:00"
               }
             }
           ]
@@ -392,6 +412,10 @@
               "profile": [
                 "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
               ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
             },
             "extension": [
               {
@@ -457,6 +481,10 @@
               "profile": [
                 "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
               ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
             },
             "extension": [
               {
@@ -530,6 +558,10 @@
                 "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
               ]
             },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
@@ -601,6 +633,10 @@
                 "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
               ]
             },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
@@ -671,6 +707,10 @@
               "profile": [
                 "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
               ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
             },
             "extension": [
               {
@@ -750,6 +790,10 @@
                 "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
               ]
             },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
             "extension": [
               {
                 "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
@@ -827,6 +871,10 @@
               "profile": [
                 "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
               ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
             },
             "extension": [
               {

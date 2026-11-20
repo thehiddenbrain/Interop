@@ -2,13 +2,16 @@
   "id": "dtr-12-timeout",
   "number": 12,
   "label": "No response inside the read timeout",
-  "description": "The service accepts the request and does not answer inside the read timeout. The mock reports the timeout after this file's delay and does not wait for the full configured timeout.",
+  "description": "The service accepts the request and does not answer inside the read timeout. The mock reports the timeout after this file's delay and does not wait for the full configured timeout. The guide has nothing to say of a call that is not answered. The CRD sentinel member ID P32H-TIMEOUT selects it too, so a case means the same thing in CRD and in DTR.",
   "sentinelMemberId": "P32H-DTR-TIMEOUT",
+  "crdSentinelMemberIds": [
+    "P32H-TIMEOUT"
+  ],
   "behavior": "timeout",
   "delayMillis": 400,
   "expect": {
     "outcome": "TIMEOUT",
     "errorType": "TIMEOUT"
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service."
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service."
 }
