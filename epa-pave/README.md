@@ -847,27 +847,33 @@ fix's authors against stand-in servers on this machine, not for this README.
 ## The test run ledger
 
 Every run, on both profiles, is appended as one JSON line to
-`run-history/runs-YYYY-MM-DD.jsonl` (one file per day; the folder is beside `run.sh` when started
-with it, otherwise in the directory you start from; `tracking.directory` moves it). A line is
-written before the result is shown, then flushed and synced to disk (this was checked by reading
-the code: no test can observe a sync); files are never rewritten. If a write
-fails, the result says so. If the folder cannot be written at startup, the tool refuses to start
-and names the path. `GET /api/runs/health` says whether tracking is alive and how many runs were
-recorded today.
+`run-history/runs-YYYY-MM-DD.jsonl` (one file per UTC day; the folder is beside `run.sh` when
+started with it, otherwise in the directory you start from; `tracking.directory` moves it). A line
+is written before the result is shown, then flushed and synced to disk (this was checked by
+reading the code: no test can observe a sync); files are never rewritten. Files and folders the
+ledger creates are readable by their owner only where the file system allows. If a write fails,
+the result says "NOT recorded" with the reason, and the masthead's ledger indicator turns into a
+heavy frame. If the folder cannot be written at startup, the tool refuses to start and names the
+path. `GET /api/runs/health` (History, and Config, `Check this installation`) says whether
+tracking is alive, how many runs were recorded today, how many writes failed and which files hold
+lines it cannot read.
 
 **A line holds:** run id, time, protocol and operation, target, profile, environment and its kind,
 scenario, procedure codes, line of business, outcome, the standard codes returned, delegated
 vendor, HTTP status, elapsed time, error type, what was expected and the result (pass, fail or
-unverified), note, tester reference, and where they apply the chain, suite and case ids, the hook,
-the next step the result stated, the collection request used, the findings, correlation ids (claim
-id, ClaimResponse id), and the inputs the line does not hold (a hand-edited body, details typed by
-hand, values typed for one run, answers carried from an earlier step), so a replay can refuse what
-it cannot reproduce.
+unverified), note, tester reference, and where they apply the chain, suite and case ids, the run it
+replays or follows, the hook, the next step the result stated, the collection request used, the
+findings, correlation ids (claim id, ClaimResponse id), and the inputs the line does not hold (a
+hand-edited body, details typed by hand, values typed for one run, answers carried from an earlier
+step), so a replay can refuse what it cannot reproduce. A chain case also writes a line of its own
+with its result.
 
 **A line never holds**, under any setting: member first or last name, date of birth, address,
-gender, subscriber ID, or any request or response body. Observed on the running tool: after CRD,
-DTR and PAS runs, one of which sent a member named `Placeholder-Surname` born `1970-01-01`, neither
-the name, the date nor any `resourceType` appeared in the ledger file.
+gender, subscriber ID, or any request or response body. What the service or a tester can fill is
+checked before it is kept (D-151): a code or a line of business that reads like an identifier or a
+date is not kept; a line of business is written only when the code list knows it, otherwise as its
+length; a questionnaire address is kept only in a strict form. The one known gap: a one-word
+surname written where a code belongs is kept, because a single word cannot be told from a code.
 
 **The member ID policy** has two settings:
 
@@ -877,7 +883,8 @@ tracking:
   record-npi: true            # an NPI is not PHI
 ```
 
-- On mock, member IDs are synthetic and are recorded, so runs can be replayed.
+- On mock, a member ID is written in the clear only when it is a `P32H-` sentinel or an `S` and
+  nine or ten digits, so mock runs can be replayed; any other ID is replaced by a token as on live.
 - On live, by default, the member ID is replaced by a salted token (HMAC-SHA-256) and its last four
   characters, so two runs of one member can be matched without the file becoming a roster. The salt
   is created at first start in `config-store/installation-salt`, or wherever `tracking.salt-file`
@@ -888,18 +895,29 @@ tracking:
 - A run whose member ID was not recorded cannot be replayed, and replay says so rather than
   skipping it.
 
-**A note is free text that PAVE cannot vet.** `POST /api/runs/{runId}/note` keeps what you type,
-up to 4,000 characters, and writes it to disk. Do not put member data in it. The tester reference,
-the expectation and a suite's case id are written as given too.
+**A note is free text that PAVE cannot vet.** `Save the note` on a run in History, or
+`POST /api/runs/{runId}/note`, keeps what you type, up to 4,000 characters, and writes it to disk.
+Do not put member data in it. The tester reference (up to 200 characters), the expectation (up to
+1,000) and a suite's case id are written as given too. Over a limit the run is refused with 422,
+which gives the length and quotes nothing.
 
-**Export** with `GET /api/runs/export.csv?from=YYYY-MM-DD&to=YYYY-MM-DD` (both optional): UTF-8 with
-a byte order mark, newest first, one column per field. A cell that starts with `=`, `+`, `-` or `@`
-gets a leading quote so a spreadsheet shows it as text and calculates nothing.
+**The list** (`GET /api/runs`) filters by day, protocol, operation, outcome, result, chain, suite
+run and, through the API, an exact tester reference (`testerRef`). An optional `zone` (an IANA
+zone id such as `America/New_York`) makes the days those of that clock; without it every day is a
+UTC day. The History tab does not offer `testerRef` or `zone` yet.
 
-**Replay** with `POST /api/runs/replay`, by date range or run ids: each run is sent again against
-the configuration in force now and compared with the original (same, changed, not comparable, not
-replayable, blocked, not configured, invalid, error). A replayed submission is a new submission with
-a new claim id. At most 1,000 runs per replay.
+**Export** with `GET /api/runs/export.csv?from=YYYY-MM-DD&to=YYYY-MM-DD` (each optional, with
+`protocol`, `result` and `zone` too): UTF-8 with a byte order mark, newest first, one column per
+field. A cell that starts with `=`, `+`, `-` or `@` gets a leading quote so a spreadsheet shows it
+as text and calculates nothing.
+
+**Replay** with `Replay this run` in History, or `POST /api/runs/replay` by date range or run ids:
+each run is sent again against the configuration in force now and compared with the original
+(same, changed, not comparable, not replayable, blocked, not configured, invalid, error), and each
+entry carries the new run's verdict and next step. A replayed submission is a new submission with
+a new claim id. A replay never carries a production unlock. A step of a chain cannot be replayed by
+itself: to run the journey again, run it as a suite row with the protocol `chain`. A run sent with
+a body of your own cannot be replayed, because the body is not kept. At most 1,000 runs per replay.
 
 ## The procedure code list
 
@@ -910,12 +928,12 @@ P32H export of about 7,000 rows whose header row is not known.
 43 rows, every one marked "Placeholder row. Not from a P32H export." The startup log and the
 self-check both say so.
 
-**What that means for findings, on this revision:** the conformance check compares each CRD answer
-with whatever list is loaded. With the placeholder, a finding such as "the code list disagrees with
-the service" is a statement about synthetic rows, and the finding itself does not yet say that the
-placeholder was used. On mock both sides are synthetic. **On live, with the placeholder still in
-place, ignore code list findings.** A follow-up branch changes this so the finding says so, and so
-that live does not compare with the placeholder at all.
+**What that means for findings** (D-169): on mock, the code list is compared with each CRD answer,
+and every finding it raises says the list is the bundled placeholder, not a P32H list. On live, with
+the placeholder still in place, PAVE does not compare at all: the run carries one
+`CODE_LIST_NOT_COMPARED` finding beside the determination. The picker and the code chips say the
+list is the placeholder while it is in use. A copy of the placeholder file set as `codelist.file`
+counts as a real list: the tool cannot vouch that any file is the P32H list.
 
 **Pointing at the real export.** Set `codelist.file` to its path (a relative path is resolved
 against the directory PAVE starts in) and restart:
@@ -948,7 +966,10 @@ found under the sample's own header (`"code":"CPT/HCPCS"`, `"authRequired":"Prio
   of them match.
 - The flag reads the common spellings of yes and no (`Yes`, `Y`, `No`, `N`, `1`, `0` and others).
   Anything else, and a blank cell, is **not stated**: the picker shows no tag, never "No PA".
-- Dates are read as `2026-01-31`, `1/31/2026` or `20260131`. Anything else is kept as written.
+- Dates are read as `2026-01-31`, `1/31/2026` or `20260131`; a date with a time of day is read as
+  the date written. Anything else is kept as written.
+- A coding system the list gives as a label (CPT, HCPCS Level II and their spellings) is sent as
+  the matching uri, with a note; any other system that is not a uri is not sent, and is noted.
 - A file with no recognisable code column stops startup and names the headers it found. A title
   line above the header row is refused the same way.
 - `codelist.line-of-business-aliases` maps the member API's name for a line of business to the
@@ -977,17 +998,26 @@ fails on purpose and one declares no expectation. A test runs it through the rea
   starts with `#` is yours and never read. Any other unknown column stops the file, because a
   misspelt `expected` would otherwise turn every row into an unverified one.
 - The file must be UTF-8. In a spreadsheet, save as "CSV UTF-8".
-- `POST /api/suites/preview` says what the tool makes of a file without sending anything.
-- One suite runs at a time. Writes against production are reported as blocked, case by case.
+- `POST /api/suites/preview` (History, Suite runs, on choosing a file) says what the tool makes of
+  a file without sending anything: how many cases can run, and every problem at once.
+- One suite runs at a time. Writes against production are reported as blocked, case by case, and
+  counted apart from failures.
 - A suite is pinned to the configuration it started under. If the configuration changes while it
   runs (an upload, a removal, a switch of environment), it stops and says so, and the cases left
   are marked as not run. Observed: "The configuration changed while the suite was running."
-- Every case writes its own ledger line. Results can be exported as CSV.
+- Every case writes its own ledger line. The summary counts the cases by result, each group
+  labelled ("Passed", "Failed", "Unverified: nothing was declared to compare with", and the groups
+  for blocked, not valid, not configured and not run). Results can be exported as CSV, and a run can
+  be compared with an earlier one of the same file.
+- The tool holds its latest ten suite runs until it restarts; every case stays in the ledger under
+  its suite run id.
 
-**A chain** is one case carried through CRD, DTR and PAS. Start it by sending a run with
-`"chainId":"new"`; the result carries the new chain id, and later runs sent with that id join it.
-`GET /api/chains/{chainId}` shows each step, its outcome and what comes next, read back from the
-ledger. A step can be run again without the ones before it.
+**A chain** is one case carried through CRD, DTR and PAS. On the screens, tick `Run as part of a
+chain` on the CRD tab and follow the next step from tab to tab; through the API, send a run with
+`"chainId":"new"`, and later runs sent with the id the result carries join it. History, Chains, or
+`GET /api/chains/{chainId}`, shows each step, its outcome and what comes next, read back from the
+ledger. A whole chain runs unattended as a suite row with the protocol `chain`, which writes a line
+of its own with the chain's result.
 
 ## Endpoints
 
@@ -996,9 +1026,10 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 - **200** for a completed call, **including one where the service returned a fault**: the fault is
   described in the body, with the request that caused it.
 - **422** when the form failed validation (and for an unknown property in a request body, which is
-  named), and on live (and for `POST /api/raw` on mock too) when a placeholder the request needs
-  has no value (`"kind":"CONFIGURATION"`,
-  naming the variable and the active environment; see [Variables](#variables)).
+  named); on live, and for `POST /api/raw` on mock too, when a placeholder the request needs has
+  no value (`"kind":"CONFIGURATION"`, naming the variable and the active environment; see
+  [Variables](#variables)); and for `POST /api/raw` when a `{part}` of the url has no value in
+  `urlValues` (`"kind":"VALIDATION"`, field `urlValues.<name>`).
 - **403** when the production guardrail blocked a write, or when the request came from another
   site or a host name the tool does not answer to.
 - **409** when no url is configured for an operation, or the configuration changed since the screen
@@ -1023,11 +1054,14 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 | GET | `/api/config/effective` | Everything in force, secrets masked |
 | POST | `/api/config/resolve` | What a request would become, without sending it |
 | GET | `/api/members/{memberId}` | Member lookup |
+| GET | `/api/members?memberId=` | The same, with the ID in the query, for an ID that holds a slash or a backslash |
 | GET | `/api/providers/{npi}` | Provider lookup (the NPI check digit is checked first) |
+| GET | `/api/providers?npi=` | The same, with the NPI in the query |
 | GET | `/api/procedure-codes?q=&lob=` | Code type ahead |
 | GET | `/api/procedure-codes/self-check` | What the tool made of the code list |
 | POST | `/api/crd` | Run one CRD call |
 | POST | `/api/crd/preview` | The CRD request, without sending it |
+| POST | `/api/crd/compare` | Compare a pasted CRD request (`rawBody`) with the one this tool builds for the same case. Sends and records nothing |
 | GET | `/api/crd/discover` | CDS Hooks discovery |
 | GET | `/api/crd/scenarios` | CRD scenarios (mock) and the outcome vocabulary |
 | POST | `/api/dtr/package` | `$questionnaire-package` |
@@ -1051,19 +1085,19 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 | GET | `/api/pas/notifications?since=` | Notifications received, correlated to runs |
 | POST | `/api/pas/notifications/sample` | Deliver a sample notification (mock only) |
 | GET | `/api/pas/scenarios?for=` | PAS scenarios (mock) and the outcome vocabulary |
-| POST | `/api/raw` | Send one collection request: its method, url and headers, and `rawBody` if given (the saved body is not sent) |
+| POST | `/api/raw` | Send one collection request as it is written: its method, url and headers, and `rawBody` if given, else the saved body; `urlValues` fills `{parts}` of the url |
 | POST | `/api/raw/preview` | The same, without sending it |
-| GET | `/api/runs?from=&to=&protocol=&operation=&result=&outcome=&chainId=&suiteRunId=&limit=` | Query the ledger |
+| GET | `/api/runs?from=&to=&protocol=&operation=&result=&outcome=&chainId=&suiteRunId=&limit=&testerRef=&zone=` | Query the ledger |
 | GET | `/api/runs/{runId}` | One run |
 | POST | `/api/runs/{runId}/note` | Add or change a note |
-| GET | `/api/runs/export.csv?from=&to=` | CSV for sign-off |
-| POST | `/api/runs/replay` | Run again and compare |
+| GET | `/api/runs/export.csv?from=&to=&protocol=&result=&zone=` | CSV for sign-off |
+| POST | `/api/runs/replay` | Run again and compare (`runIds`, or `from` and `to` with an optional `zone`) |
 | GET | `/api/runs/health` | Is tracking alive, runs recorded today |
-| GET | `/api/chains?from=&to=&limit=` | Chains, newest first |
+| GET | `/api/chains?from=&to=&limit=&zone=` | Chains, newest first |
 | GET | `/api/chains/{chainId}` | One chain, step by step |
 | POST | `/api/suites/preview` | What the tool makes of a suite file (multipart: `file`) |
 | POST | `/api/suites` | Start a suite (multipart: `file`, optional `testerRef`, `compareWith`, `configEpoch`); answers 202 |
-| GET | `/api/suites` | Suite runs held in memory |
+| GET | `/api/suites` | Suite runs held in memory (the latest ten, until a restart) |
 | GET | `/api/suites/{suiteRunId}?rows=` | One suite run |
 | POST | `/api/suites/{suiteRunId}/stop` | Stop a running suite |
 | GET | `/api/suites/{suiteRunId}/results.csv` | Suite results as CSV |
@@ -1072,12 +1106,13 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 
 Run them in this order from `epa-pave/`, with the tool started by `./run.sh`. They upload the two
 sample Postman files first, and every identifier in them is a placeholder: `P32H-...` sentinels,
-`S123456789`-style member IDs and the NPI `1234567893`. Where an example says `RUN_ID`,
+`S123456789`-style member IDs and the NPIs `1234567893` and `9999999995`. Where an example says `RUN_ID`,
 `CHAIN_ID` or `SUITE_RUN_ID`, put in the id from an earlier answer (`runId` on any run result,
 `chainId` on the chain example, `suiteRunId` on the suite example). Two of them save a CSV file in
 the current directory (`pave-runs.csv`, `suite-results.csv`). Version control does not ignore
-those, so delete them when you are done; on live they hold ledger data. Each was run as written, with
-those three ids put in, against a fresh clone; the status each answered is in the comment above it.
+those, so delete them when you are done; on live they hold ledger data. Each was run as written,
+with those three ids put in, in this order, against a freshly started tool; the status each
+answered is in the comment above it.
 
 <!-- examples:start -->
 
@@ -1117,10 +1152,14 @@ Lookups and the code list:
 curl -s localhost:8057/api/members/P32H-PA-REQ
 # 200, FOUND: typed with spaces, sent without them, both forms in the answer
 curl -s 'localhost:8057/api/members/S12345678%20%20%2001'
+# 200, FOUND: the query form
+curl -s 'localhost:8057/api/members?memberId=P32H-PA-REQ'
 # 200, NOT_FOUND
 curl -s localhost:8057/api/members/P32H-NOMEM
 # 200, FOUND
 curl -s localhost:8057/api/providers/1234567893
+# 200, NOT_FOUND: the NPI that selects "provider not found"
+curl -s 'localhost:8057/api/providers?npi=9999999995'
 # 422: the check digit does not match, nothing was looked up
 curl -s localhost:8057/api/providers/1234567890
 # 200
@@ -1138,6 +1177,8 @@ curl -s -X POST -H 'Content-Type: application/json' -d '{"member":{"memberId":"P
 curl -s -X POST -H 'Content-Type: application/json' -d '{"member":{"memberId":"P32H-EMPTY"},"provider":{"npi":"1234567893"},"procedureCodes":[{"code":"95810"}],"dateOfService":"2026-03-02"}' localhost:8057/api/crd
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"member":{"memberId":"P32H-PA-REQ"},"provider":{"npi":"1234567893"},"procedureCodes":[{"code":"95810"}]}' localhost:8057/api/crd/preview
+# 200: compares a pasted request with the tool's own for the same case; nothing is sent or recorded
+curl -s -X POST -H 'Content-Type: application/json' -d '{"member":{"memberId":"P32H-PA-REQ"},"provider":{"npi":"1234567893"},"procedureCodes":[{"code":"95810"}],"rawBody":"{\"hook\":\"order-sign\",\"hookInstance\":\"placeholder-hook-instance\",\"context\":{}}"}' localhost:8057/api/crd/compare
 # 200
 curl -s localhost:8057/api/crd/discover
 # 200
@@ -1198,16 +1239,16 @@ curl -s localhost:8057/api/pas/notifications
 curl -s 'localhost:8057/api/pas/scenarios?for=submit'
 ```
 
-Sending a collection request (method, url and headers; a body only when you give `rawBody`):
+Sending a collection request as it is written (method, url and headers; `rawBody` if you give one, else the body saved with the request):
 
 ```bash
 # 200: on mock every raw request gets the same fixed answer, which says the mock does not model it
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-6d8194d8fa41"}}' localhost:8057/api/raw
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-6d8194d8fa41"}}' localhost:8057/api/raw/preview
-# 200: "No body will be sent, because none was supplied.", although the saved request has a body
+# 200: the preview names the saved body, "because none was supplied for this run" (bodySource saved)
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-e8574dbaa06d"}}' localhost:8057/api/raw/preview
-# 200: with rawBody, the preview shows the body that would be sent
+# 200: with rawBody, the preview shows that body in place of the saved one (bodySource supplied)
 curl -s -X POST -H 'Content-Type: application/json' -d '{"request":{"collectionId":"pave-sample-collection-632d456c","requestId":"r-e8574dbaa06d"},"rawBody":"{\"resourceType\":\"Bundle\",\"type\":\"collection\"}"}' localhost:8057/api/raw/preview
 ```
 
@@ -1216,12 +1257,14 @@ The ledger and chains:
 ```bash
 # 200
 curl -s 'localhost:8057/api/runs?protocol=CRD&limit=5'
+# 200: the days of the range on a clock other than UTC
+curl -s 'localhost:8057/api/runs?from=2026-03-01&to=2026-03-31&zone=America/New_York'
 # 200
 curl -s localhost:8057/api/runs/RUN_ID
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"note":"Checked for ticket T-0001","testerRef":"SAMPLE"}' localhost:8057/api/runs/RUN_ID/note
-# 200: writes pave-runs.csv in the current directory
-curl -s -o pave-runs.csv localhost:8057/api/runs/export.csv
+# 200: writes pave-runs.csv in the current directory, the CRD runs only
+curl -s -o pave-runs.csv 'localhost:8057/api/runs/export.csv?protocol=CRD'
 # 200
 curl -s -X POST -H 'Content-Type: application/json' -d '{"runIds":["RUN_ID"]}' localhost:8057/api/runs/replay
 # 200
