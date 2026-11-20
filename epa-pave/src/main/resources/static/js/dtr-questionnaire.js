@@ -121,7 +121,7 @@ export function createSession(packageEnvelope, hooks) {
     function named(entry, ids) {
         return ids.map((linkId, index) => {
             const text = textOf(entry, linkId);
-            return [index > 0 ? '; ' : null, code(linkId), text ? ' ' + text : null];
+            return [index > 0 ? '; ' : null, code(linkId), text ? ' "' + text + '"' : null];
         });
     }
 
