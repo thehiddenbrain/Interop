@@ -850,6 +850,10 @@ class SubscriptionServiceTest {
         assertThat(result.verdict().supporting()).anySatisfy(line -> assertThat(line).contains("Whether the call did anything is not known"));
         assertThat(result.expectation().result()).isEqualTo(TestResult.FAIL);
         assertThat(result.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        // A business tester is given something to do with it: record the run by its id and report it.
+        assertThat(result.nextStep().headline()).isEqualTo("Next: record run " + result.runId() + " as \"response not recognised\" and "
+                + "report it to the people who look after the service.");
+        assertThat(result.nextStep().reason()).endsWith("What came back is in the response detail below.");
         assertThat(result.additionalFields()).extracting(f -> f.path()).containsExactly("error");
         assertThat(result.detail().subscriptionId()).isNull();
         assertThat(ledger.only().correlation()).isEmpty();

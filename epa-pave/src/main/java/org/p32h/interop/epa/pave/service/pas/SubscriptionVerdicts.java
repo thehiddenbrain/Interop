@@ -149,6 +149,16 @@ public final class SubscriptionVerdicts {
      */
     public static NextStepView nextStep(SubscriptionReading reading, VendorExchange exchange, EpaOperation operation, String subscriptionId,
                                         String followsRunId, String callbackProblem, boolean ownBody) {
+        return nextStep(reading, exchange, operation, subscriptionId, followsRunId, callbackProblem, ownBody, null);
+    }
+
+    /**
+     * As above, naming this run where the tester is asked to record and report it.
+     *
+     * @param runId this run, or null when it is not known yet: the step then says "this run"
+     */
+    public static NextStepView nextStep(SubscriptionReading reading, VendorExchange exchange, EpaOperation operation, String subscriptionId,
+                                        String followsRunId, String callbackProblem, boolean ownBody, String runId) {
         SubscriptionOutcome outcome = reading.outcome();
         Map<String, List<String>> carry = new LinkedHashMap<>();
         carry.put(NextStepView.CARRY_SUBSCRIPTION_ID, Texts.present(subscriptionId) ? List.of(subscriptionId) : List.of());
@@ -172,8 +182,9 @@ public final class SubscriptionVerdicts {
                     "The service accepted the delete, so there is nothing further to do with this subscription.", carry);
             case NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the subscription id. The list shows the ids the service knows.",
                     "The service does not know the id that was asked for. The environment answered normally.", carry);
-            case UNRECOGNISED_RESPONSE -> new NextStepView(NextAction.REVIEW, "Next: read the response detail below. This tool cannot say "
-                    + "what should happen next.", "The response is not something this tool can read as the answer to this call.", carry);
+            case UNRECOGNISED_RESPONSE -> PasVerdicts.recordAndReport(runId, "response not recognised", "The response is not something "
+                    + "this tool can read as the answer to this call, and this tool does not guess what it means. What came back is in "
+                    + "the response detail below.", carry);
             case REJECTED -> notAccepted(exchange, carry);
             case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> PlayedTimeouts.rehearsed(exchange,
                     afterNoUsableAnswer(outcome, exchange, operation, carry), operation.write()

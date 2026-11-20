@@ -217,8 +217,9 @@ public final class NotificationVerdicts {
                     "A handshake reports on the subscription itself, not on a request.", carry);
             case HEARTBEAT_RECEIVED -> new NextStepView(NextAction.NOTHING_FURTHER, "Nothing to do. The subscription is still there.",
                     "A heartbeat means there was no event to report.", carry);
-            case UNRECOGNISED_TYPE -> new NextStepView(NextAction.REVIEW, "Next: read the notification below. This tool cannot say what "
-                    + "should happen next.", "The notification does not state a type this tool knows.", carry);
+            case UNRECOGNISED_TYPE -> new NextStepView(NextAction.REVIEW, "Next: record this notification as \"type not recognised\" and "
+                    + "report it to the people who look after the service.", "The notification does not state a type this tool knows, and "
+                    + "this tool does not guess what it is. What arrived is shown below.", carry);
             case UNMATCHED_NOTIFICATION, UNCHECKED_NOTIFICATION -> notMatched(unmatched, sample, toSeeAMatch, carry);
             case UNREADABLE_NOTIFICATION -> new NextStepView(NextAction.REVIEW, "Next: read the payload below as it arrived, and find out "
                     + "what sent it.", "The body is not a subscription notification this tool can read.", carry);

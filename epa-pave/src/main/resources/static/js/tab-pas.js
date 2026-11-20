@@ -492,7 +492,8 @@ async function subscriptionCall(kind) {
     const words = {create: 'Creating the subscription.', list: 'Listing the subscriptions.', read: 'Reading the subscription.',
         update: 'Updating the subscription.', delete: 'Deleting the subscription.'}[kind];
     const control = {create: controls.create, list: controls.list, read: controls.read, update: controls.update, delete: controls.remove}[kind];
-    const answer = await call(send, {saying: words, control});
+    // A subscription call carries nothing of the case, so text left in its code box does not hold it up.
+    const answer = await call(send, {saying: words, control, sendsCase: false});
     if (answer) {
         showRun(answer.body);
     }
@@ -788,7 +789,7 @@ async function showPreview(kind) {
         update: () => api.postJson('/api/pas/subscriptions/' + encodeURIComponent(id === '' ? '-' : id) + '/preview', subscriptionBody())
     }[kind];
     const control = {submit: controls.preview, inquire: controls.inquirePreview, create: controls.createPreview, update: controls.updatePreview}[kind];
-    const answer = await call(send, {saying: 'Building the request. Nothing is sent.', control});
+    const answer = await call(send, {saying: 'Building the request. Nothing is sent.', control, sendsCase: kind === 'submit' || kind === 'inquire'});
     if (answer) {
         const shownPanel = requestPreviewPanel(answer.body, () => clear(slots.preview));
         if (kind === 'submit') {
