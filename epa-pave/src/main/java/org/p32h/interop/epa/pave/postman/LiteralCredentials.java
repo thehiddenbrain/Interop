@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.model.Secrets;
@@ -33,6 +34,14 @@ public final class LiteralCredentials {
 
     /** A JSON member whose value is a string: the name and the value, each as written between its quotes. */
     private static final Pattern JSON_MEMBER = Pattern.compile("\"((?:[^\"\\\\]|\\\\.)*)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+
+    /**
+     * FHIR elements whose name reads as a credential and is not one. preAuthRef is the number of a
+     * prior authorization on a Claim, a ClaimResponse or an ExplanationOfBenefit: the very value a
+     * PAS tester reads, and nearly every saved PAS answer holds one. The names are FHIR's own and
+     * are matched exactly, so a field a vendor names in its own way is still judged by its name.
+     */
+    private static final Set<String> FHIR_ELEMENTS_THAT_ARE_NOT_CREDENTIALS = Set.of("preAuthRef");
 
     /** One field of a form-encoded text: what precedes it, its name and its value. */
     private static final Pattern FORM_FIELD = Pattern.compile("(^|[&?])([^=&?#\\s]+)=([^&#\\s]*)");
@@ -154,7 +163,7 @@ public final class LiteralCredentials {
             Matcher member = JSON_MEMBER.matcher(body);
             while (member.find()) {
                 String name = member.group(1);
-                if (Secrets.looksSecret(name) && literal(member.group(2))) {
+                if (Secrets.looksSecret(name) && !FHIR_ELEMENTS_THAT_ARE_NOT_CREDENTIALS.contains(name) && literal(member.group(2))) {
                     builder.mark(member.start(2), member.end(2), name, "the field " + name + " of its body");
                 }
             }

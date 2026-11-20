@@ -73,4 +73,16 @@ class LiteralCredentialsTest {
         assertThat(marked.values()).containsOnlyKeys("token as typed", "token as typed 2");
         assertThat(resolve(marked).value()).isEqualTo("[{\"token\": \"ZZA-1\"}, {\"token\": \"ZZB-2\"}]");
     }
+
+    @Test
+    void theNumberOfAPriorAuthorizationInAFhirBodyIsNotACredential() {
+        // preAuthRef is FHIR's own name for the authorization number, the value a PAS tester reads on every answer.
+        String body = "{\"resourceType\":\"ClaimResponse\",\"preAuthRef\":\"PA-PLACEHOLDER-0001\",\"access_token\":\"ZZBODYTOKEN-31\"}";
+        LiteralCredentials.Marked marked = LiteralCredentials.inBody(body);
+        assertThat(marked.found()).extracting(LiteralCredentials.Found::place).containsExactly("the field access_token of its body");
+        assertThat(marked.shown()).contains("\"preAuthRef\":\"PA-PLACEHOLDER-0001\"").doesNotContain("ZZBODYTOKEN-31");
+        // A name that only resembles it is still judged by its words.
+        assertThat(LiteralCredentials.inBody("{\"preauthref\":\"x\",\"authRef\":\"ZZREF-32\"}").found())
+                .extracting(LiteralCredentials.Found::place).containsExactly("the field authRef of its body");
+    }
 }
