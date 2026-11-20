@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-PAS-UNKNOWN-CODE",
+  "description": "Sentinel for PAS scenario 18, a review action code this tool does not know. A Medicaid member with active coverage, so a tester who looks the sentinel up before the run is shown a member and not a finding about test data.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicaid"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-PAS-UNKNOWN-CODE",
+    "firstName": "Blair",
+    "lastName": "Placeholder-PasUnknownCode",
+    "dateOfBirth": "1998-08-08",
+    "gender": "female",
+    "lineOfBusiness": "Medicaid",
+    "planName": "Synthetic Medicaid Plan",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-PAS-UNKNOWN-CODE",
+    "address": {
+      "line1": "46 Placeholder Avenue",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}
