@@ -708,6 +708,16 @@ class NotificationReceiverTest {
     }
 
     @Test
+    void aBodyLongerThanTheReceiverHoldsThatIsNotJsonSaysItsTextAfterTheCutIsShownNowhere() {
+        byte[] body = ("not json " + "a".repeat(NotificationReceiver.MAX_KEPT_BYTES + 500)).getBytes(StandardCharsets.UTF_8);
+        NotificationView view = receiver.receive(NotificationReceiver.Inbound.read(new ByteArrayInputStream(body)));
+        assertThat(view.truncated()).isTrue();
+        assertThat(view.payloadNotes()).contains("The body was " + body.length + " bytes long and is not JSON. Only its first "
+                + NotificationReceiver.MAX_KEPT_BYTES + " bytes are held and shown below. The text after them is not shown anywhere.");
+        assertThat(view.payloadNotes()).noneMatch(note -> note.contains("everything above comes from all of it"));
+    }
+
+    @Test
     void aBodyLongerThanTheReceiverHoldsIsCutAndTheRecordSaysSo() {
         String start = "{\"resourceType\":\"Bundle\",\"type\":\"history\",\"padding\":\"";
         byte[] body = (start + "a".repeat(NotificationReceiver.MAX_KEPT_BYTES + 500) + "\"}").getBytes(StandardCharsets.UTF_8);

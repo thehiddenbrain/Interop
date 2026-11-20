@@ -443,7 +443,13 @@ public class NotificationReceiver {
                     + "not searched for it. Check what is shown here before you share it.");
         }
         String cut = null;
-        if (readWhole) {
+        if (readWhole && !Texts.blank(whole) && !JsonSafe.parse(whole).ok()) {
+            // Text that is not JSON has nothing to read from it but the text itself, and a
+            // notification has no wire view: what lies after the held part is on no screen.
+            cut = "The body was " + inbound.bytesReceived() + " bytes long and is not JSON. Only its first " + inbound.kept().length
+                    + " bytes are held and shown below. The text after them is not shown anywhere.";
+            payloadNotes.add(cut);
+        } else if (readWhole) {
             cut = "The body was " + inbound.bytesReceived() + " bytes long. All of it was read, and everything above comes from all of it. "
                     + "Only its first " + inbound.kept().length + " bytes are held, so the payload text below is cut there.";
             payloadNotes.add(cut);
