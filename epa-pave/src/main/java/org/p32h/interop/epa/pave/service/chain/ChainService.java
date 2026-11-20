@@ -14,6 +14,7 @@ import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.chain.ChainRun;
 import org.p32h.interop.epa.pave.model.chain.ChainStage;
@@ -62,7 +63,29 @@ public class ChainService {
             throw new NotFoundException("The ledger holds no run of a chain with that id. A chain exists once a run has been recorded "
                     + "under it, so check that the test run ledger is switched on and writable.");
         }
-        return build(id, records);
+        ChainView built = build(id, records);
+        Integer unreadable = unreadableLines(store);
+        if (unreadable != null && unreadable > 0) {
+            // A damaged line cannot be read to tell which chain it was, so the note says it may be this one's.
+            List<String> notes = new ArrayList<>(built.notes());
+            notes.add("The ledger has " + unreadable + (unreadable == 1 ? " line" : " lines") + " it cannot read. A run of this chain may be "
+                    + "among them, so a step may be missing here. The self-check on the History tab says which file.");
+            built = new ChainView(built.chainId(), built.headline(), built.nextAction(), built.nextHeadline(), built.nextStage(), built.ended(),
+                    built.startedAt(), built.lastRunAt(), built.environment(), built.environmentKind(), built.profile(), built.target(),
+                    built.member(), built.procedureCodes(), built.stages(), built.otherRuns(), built.runCount(), built.elapsedMillis(), notes,
+                    built.caseResult(), built.caseExpected(), built.caseLine(), built.replayNote());
+        }
+        return built;
+    }
+
+    /** How many ledger lines cannot be read, or null when the ledger cannot say. */
+    private static Integer unreadableLines(RunLedger store) {
+        try {
+            return store.health().unreadableLines();
+        } catch (RuntimeException e) {
+            // The chain is still shown from what could be read. Whether lines were lost is then not known, and nothing is claimed.
+            return null;
+        }
     }
 
     /**
@@ -176,9 +199,37 @@ public class ChainService {
         if (environments.size() > 1) {
             notes.add("The runs of this chain went to more than one environment: " + String.join(", ", environments) + ".");
         }
+        // The newest case line says how the case as a whole came out. An older one was a case run before it.
+        RunRecord asCase = null;
+        for (int i = records.size() - 1; i >= 0 && asCase == null; i--) {
+            asCase = records.get(i).caseResult() != null ? records.get(i) : null;
+        }
+        TestResult caseResult = asCase == null ? null : asCase.caseResult();
+        String caseExpected = asCase == null ? null : asCase.caseExpected();
         return new ChainView(chainId, headline, next, next == null ? null : instruction(next), ended ? null : nextStage, ended,
                 first.timestamp(), latest.timestamp(), latest.environment(), latest.environmentKind(), latest.profile(), latest.target(),
-                members.size() == 1 ? members.iterator().next() : null, List.copyOf(codes), stages, others, records.size(), elapsed, notes);
+                members.size() == 1 ? members.iterator().next() : null, List.copyOf(codes), stages, others, records.size(), elapsed, notes,
+                caseResult, caseExpected, caseLine(caseResult, caseExpected),
+                // Replay sends one line again, and a later step of a chain used what the step before it handed on.
+                records.stream().anyMatch(r -> r.protocol() == Protocol.DTR || r.protocol() == Protocol.PAS) ? REPLAY_NOTE : null);
+    }
+
+    /** The sentence for a chain that has a step a replay cannot send again by itself. */
+    static final String REPLAY_NOTE = "A step of this chain after CRD cannot be replayed by itself: it used what the step before it "
+            + "handed on, which its ledger line does not hold. To run the journey again, run it as a suite row with the protocol chain.";
+
+    /** What the result of a chain run as a case means, in one sentence. */
+    static String caseLine(TestResult result, String expected) {
+        if (result == null) {
+            return null;
+        }
+        return switch (result) {
+            case PASS -> "Run as a case, the journey passed: every step the case expected something of ran and gave what it expected.";
+            case FAIL -> "Run as a case, the journey failed against what the case expected. A step that did not give what was expected "
+                    + "is marked failed on its run, and a step the case expected that has no run here was never reached.";
+            case UNVERIFIED -> Texts.blank(expected) ? "Run as a case, the journey is unverified: the case declared no expected outcome."
+                    : "Run as a case, the journey is unverified: what the case expected was not compared with an answer.";
+        };
     }
 
     private ChainStage stage(Protocol protocol, Map<Protocol, List<ChainRun>> byStage) {
@@ -236,13 +287,23 @@ public class ChainService {
                 return new ChainStage(protocol, name(protocol), ChainStageState.NOT_REACHED, "Not reached: " + shortName(from) + " answered \""
                         + said + "\" and called for nothing further, so nothing has led on to this stage.", null, List.of());
             }
-            Protocol target = next == null ? null : target(next, from);
+            if (next == null) {
+                // The record names no next step. Saying the earlier stage "has to finish" would claim it is unfinished.
+                return new ChainStage(protocol, name(protocol), ChainStageState.NOT_REACHED, "Not reached: the " + shortName(from)
+                        + " record does not say what should happen next, so nothing has led on to this stage.", null, List.of());
+            }
+            Protocol target = target(next, from);
             if (target == protocol) {
                 return new ChainStage(protocol, name(protocol), ChainStageState.NEXT, "Next: " + lowerFirst(instruction(next)), null, List.of());
             }
             if (target != null && STAGES.indexOf(target) > index) {
                 return new ChainStage(protocol, name(protocol), ChainStageState.NOT_NEEDED, "Not needed: " + shortName(from) + " answered \""
                         + said + "\" and went straight on to " + shortName(target) + ".", null, List.of());
+            }
+            if (target != null && STAGES.indexOf(target) > i) {
+                // A stage between the two is the one the journey calls for now, so that stage comes first, not the one that ran.
+                return new ChainStage(protocol, name(protocol), ChainStageState.NOT_REACHED, "Not reached: " + shortName(target)
+                        + " comes first.", null, List.of());
             }
             return new ChainStage(protocol, name(protocol), ChainStageState.NOT_REACHED, "Not reached: " + shortName(from)
                     + " has to finish first. It stands at \"" + said + "\".", null, List.of());
@@ -257,7 +318,7 @@ public class ChainService {
                 record.operation() == null ? null : record.operation().label(), record.outcome(),
                 outcomes.label(record.protocol(), record.outcome()), outcomes.tone(record.protocol(), record.outcome()),
                 record.expected(), record.result(), record.elapsedMillis(), Boolean.TRUE.equals(record.slow()), record.httpStatus(),
-                nextAction(record), record.findings(), record.scenarioId(), latestOfItsKind);
+                nextAction(record), record.findings(), record.scenarioId(), latestOfItsKind, record.caseResult());
     }
 
     /** The action a record names. A blocked run always needs the guardrail dealt with, whatever else the record says. */

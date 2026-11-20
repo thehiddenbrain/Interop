@@ -13,8 +13,13 @@ import java.util.Map;
  * @param format   "CSV" or "JSON"
  * @param columns  the column or key names as written, in the order first seen
  * @param problems what is wrong with the file as a whole. When not empty, nothing can be run
+ * @param skipped  rows left out as comments, because their first cell starts with #
  */
-public record SuiteTable(String format, List<String> columns, List<SourceRow> rows, List<String> problems) {
+public record SuiteTable(String format, List<String> columns, List<SourceRow> rows, List<String> problems, int skipped) {
+
+    public SuiteTable(String format, List<String> columns, List<SourceRow> rows, List<String> problems) {
+        this(format, columns, rows, problems, 0);
+    }
 
     public static final String CSV = "CSV";
     public static final String JSON = "JSON";

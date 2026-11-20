@@ -183,13 +183,15 @@ class SuiteServiceTest {
 
     @Test
     void aProblemOnlyTheServiceCanSeeIsReportedTheSameWay() {
-        // The row is well formed, and the service refuses it before sending: no procedure code.
-        SuiteRunView run = bed.service().start("cases.csv", suite("TC-1,crd,P32H-NO-AUTH," + NPI + ",,"), null, null, null);
+        // The row is well formed, and the service would refuse it before sending: no procedure code. The preview finds that
+        // too, so the row is reported as not valid and counted so before anything runs.
+        SuiteRunView run = bed.service().start("cases.csv", suite("TC-1,crd,P32H-NO-AUTH," + NPI + ",,", row("TC-2", "P32H-NO-AUTH", "")),
+                null, null, null);
         SuiteCaseResult invalid = run.results().get(0);
         assertThat(invalid.status()).isEqualTo(CaseStatus.INVALID);
-        assertThat(invalid.reason()).contains("procedure code");
+        assertThat(invalid.reason()).isEqualTo("procedureCodes: Choose at least one procedure code.");
         assertThat(invalid.result()).isNull();
-        assertThat(bed.ledger.records()).isEmpty();
+        assertThat(bed.ledger.records()).extracting(RunRecord::caseId).containsExactly("TC-2");
     }
 
     @Test
@@ -471,7 +473,12 @@ class SuiteServiceTest {
         bed.gateway.environment("Onyx Production", EnvironmentKind.PROD);
         SuitePreview preview = bed.service().preview("cases.csv", suite("TC-1,pas,P32H-PA-REQ," + NPI + ",95810,"));
         assertThat(preview.writeNote()).isEqualTo("1 case can create or change something on the far side. Production writes are locked. "
-                + "A suite never unlocks production writes, so it will be reported as blocked, not as failed, and nothing will be sent for it.");
+                + "A suite never unlocks production writes, so its submission will be blocked and reported as blocked, not as failed, "
+                + "and will not be sent.");
+        // A chain sends its reads before its submission is blocked, and the note says so instead of promising nothing is sent.
+        assertThat(bed.service().preview("cases.csv", suite("TC-1,chain,P32H-PA-REQ," + NPI + ",95810,")).writeNote())
+                .endsWith("A chain still sends its CRD step, and its DTR step when CRD calls for one, before its submission is blocked: "
+                        + "those are reads.");
         assertThat(preview.environment().kind()).isEqualTo(EnvironmentKind.PROD);
         assertThat(bed.service().preview("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", ""))).writeNote()).isNull();
     }

@@ -9,7 +9,6 @@ import org.p32h.interop.epa.pave.model.dtr.DtrOutcome;
 import org.p32h.interop.epa.pave.model.pas.NotificationOutcome;
 import org.p32h.interop.epa.pave.model.pas.PasOutcome;
 import org.p32h.interop.epa.pave.model.pas.SubscriptionOutcome;
-import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.MemberLookup;
 import org.p32h.interop.epa.pave.service.ProviderLookup;
 import org.p32h.interop.epa.pave.service.cases.ChainCaseStep;
@@ -25,6 +24,8 @@ import org.p32h.interop.epa.pave.service.dtr.DtrService;
 import org.p32h.interop.epa.pave.service.pas.PasCodes;
 import org.p32h.interop.epa.pave.service.pas.PasService;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
+import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.p32h.interop.epa.pave.service.suite.CsvRows;
 import org.p32h.interop.epa.pave.service.suite.SuiteFileReader;
 import org.springframework.context.annotation.Bean;
@@ -61,9 +62,15 @@ public class CaseWiring {
      * or changing a subscription.
      */
     @Bean
-    public CaseRunner caseRunner(MemberLookup members, ProviderLookup providers, CrdService crd, DtrService dtr, PasService pas,
-                                 OutcomeCatalogue outcomes, RunSupport support) {
+    public ProtocolCaseRunner caseRunner(MemberLookup members, ProviderLookup providers, CrdService crd, DtrService dtr, PasService pas,
+                                         OutcomeCatalogue outcomes, RunSupport support, ObjectProvider<ScenarioRepository> scenarios) {
+        // A row naming a scenario that does not exist is found before the suite starts, not when its case is sent.
         return new ProtocolCaseRunner(members, providers)
+                .scenarios((protocol, id) -> {
+                    ScenarioRepository repository = scenarios.getIfAvailable();
+                    return repository == null || repository.list(protocol.name().toLowerCase(java.util.Locale.ROOT)).stream()
+                            .anyMatch(scenario -> scenario.id().equals(id));
+                })
                 .register(EpaOperation.CRD_ORDER_SIGN, new CrdCaseStep(crd, EpaOperation.CRD_ORDER_SIGN))
                 .register(EpaOperation.CRD_ORDER_SELECT, new CrdCaseStep(crd, EpaOperation.CRD_ORDER_SELECT))
                 .register(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, new DtrCaseStep(dtr))

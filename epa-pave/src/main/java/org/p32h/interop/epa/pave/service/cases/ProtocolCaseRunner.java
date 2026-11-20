@@ -15,6 +15,7 @@ import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.MemberLookupResult;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.ProviderLookupResult;
+import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunOutcome;
@@ -46,6 +47,7 @@ public class ProtocolCaseRunner implements CaseRunner {
     private final ProviderLookup providers;
     private final Map<EpaOperation, CaseStep> steps = new EnumMap<>(EpaOperation.class);
     private CaseStep chain;
+    private java.util.function.BiPredicate<Protocol, String> knownScenario;
 
     public ProtocolCaseRunner(MemberLookup members, ProviderLookup providers) {
         this.members = members;
@@ -55,6 +57,15 @@ public class ProtocolCaseRunner implements CaseRunner {
     /** Says how one operation is run for a case. An operation with no step is reported as not runnable. */
     public ProtocolCaseRunner register(EpaOperation operation, CaseStep step) {
         steps.put(operation, step);
+        return this;
+    }
+
+    /**
+     * Says how to tell whether a mock scenario exists for a protocol, so a case that names one that
+     * does not is found before anything is sent. Without it the service finds it when the case runs.
+     */
+    public ProtocolCaseRunner scenarios(java.util.function.BiPredicate<Protocol, String> known) {
+        this.knownScenario = known;
         return this;
     }
 
@@ -121,6 +132,51 @@ public class ProtocolCaseRunner implements CaseRunner {
             case UNMAPPED -> "A request that is mapped to no operation is sent from the Config tab as it is. A case does not hold its body.";
             default -> "This build cannot run " + operation.label() + " from a case.";
         };
+    }
+
+    /**
+     * What the services would refuse in this case before sending anything, found from the case
+     * alone: each problem named by the column of a suite file that holds the value. Empty when
+     * nothing is found here, which is not a promise that the service accepts the case. A case
+     * this runner cannot run at all is not looked at: {@link #cannotRun} says why.
+     */
+    public List<String> refusals(CaseSpec spec) {
+        List<String> problems = new ArrayList<>();
+        if (spec == null || cannotRun(spec) != null) {
+            return problems;
+        }
+        boolean noCodes = spec.procedureCodes().stream().noneMatch(Texts::present);
+        boolean noNpi = Texts.blank(spec.npi());
+        if (spec.chain()) {
+            if (Texts.present(spec.scenarioId())) {
+                problems.add("scenarioId: " + ChainCaseStep.SCENARIO_REFUSED);
+            }
+            if (spec.operation() != null && !ChainCaseStep.startsAChain(spec.operation())) {
+                problems.add("operation: " + ChainCaseStep.OPERATION_REFUSED);
+            }
+            if (noCodes) {
+                problems.add("procedureCodes: A chain starts with CRD, which needs at least one procedure code.");
+            }
+            if (noNpi) {
+                problems.add("npi: A chain starts with CRD, which needs the ordering provider's NPI.");
+            }
+            return problems;
+        }
+        EpaOperation operation = spec.operation();
+        if (noNpi) {
+            problems.add("npi: Enter the ordering provider's NPI.");
+        }
+        if (noCodes && operation != EpaOperation.PAS_INQUIRE) {
+            // A DTR package can be asked for by questionnaire instead, and a suite row has no column for one.
+            problems.add("procedureCodes: Choose at least one procedure code.");
+        }
+        if (operation == EpaOperation.PAS_INQUIRE && Texts.blank(spec.correlation().get(RunRecord.CORR_CLAIM_ID))) {
+            problems.add("claimId: Enter the claim id of the submission to ask about.");
+        }
+        if (Texts.present(spec.scenarioId()) && knownScenario != null && !knownScenario.test(operation.protocol(), spec.scenarioId().strip())) {
+            problems.add("scenarioId: There is no " + operation.protocol().name() + " scenario with that id.");
+        }
+        return problems;
     }
 
     /** The operations this runner has a step for. */

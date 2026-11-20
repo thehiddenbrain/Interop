@@ -37,6 +37,7 @@ import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
+import org.p32h.interop.epa.pave.service.cases.ProtocolCaseRunner;
 import org.p32h.interop.epa.pave.service.chain.ChainService;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.WriteAccess;
@@ -131,50 +132,71 @@ public class SuiteService implements AutoCloseable {
         }
     }
 
-    /** What the tool makes of a suite file. Nothing is sent and nothing is kept. */
+    /**
+     * What the tool makes of a suite file. Nothing is sent and nothing is kept. A row is counted
+     * as one that can be run only when the runner has a step for it and nothing its services
+     * would refuse before sending is found in it, so the count is what will really be run.
+     */
     public SuitePreview preview(String fileName, String text) {
         SuiteDefinition definition = define(fileName, text);
         EnvironmentRef environment = gateway.activeEnvironment();
         List<SuiteRow> rows = definition.rows();
         List<SuiteRow> valid = rows.stream().filter(SuiteRow::runnable).toList();
-        List<SuitePreview.RowProblem> rowProblems = rows.stream().filter(r -> !r.runnable()).limit(LISTED_ROW_PROBLEMS)
+        List<SuiteRow> problemRows = rows.stream().filter(r -> !r.problems().isEmpty()).toList();
+        List<SuiteRow> cannotRun = rows.stream().filter(r -> r.problems().isEmpty() && r.cannotRun() != null).toList();
+        List<SuitePreview.RowProblem> rowProblems = problemRows.stream().limit(LISTED_ROW_PROBLEMS)
                 .map(r -> new SuitePreview.RowProblem(r.number(), r.caseId(), r.problems())).toList();
-        int problemRows = rows.size() - valid.size();
+        List<SuitePreview.RowProblem> notRunnable = cannotRun.stream().limit(LISTED_ROW_PROBLEMS)
+                .map(r -> new SuitePreview.RowProblem(r.number(), r.caseId(), List.of(r.cannotRun()))).toList();
         Map<String, Integer> kinds = new LinkedHashMap<>();
         for (SuiteRow row : valid) {
             kinds.merge(row.what(), 1, Integer::sum);
         }
-        int writes = (int) valid.stream().filter(SuiteRow::write).count();
+        List<SuiteRow> writes = valid.stream().filter(SuiteRow::write).toList();
         String headline;
         if (!definition.problems().isEmpty()) {
             headline = "This file cannot be run. Nothing was sent.";
         } else if (valid.isEmpty()) {
             headline = "No case in this file can be run. Nothing was sent.";
-        } else if (problemRows == 0) {
+        } else if (valid.size() == rows.size()) {
             headline = cases(rows.size()) + ", and every one can be run.";
         } else {
-            headline = cases(rows.size()) + ": " + valid.size() + " can be run, and " + problemRows + " "
-                    + (problemRows == 1 ? "has a problem and will be reported as not valid." : "have a problem and will be reported as not valid.");
+            List<String> parts = new ArrayList<>();
+            parts.add(valid.size() + " can be run");
+            if (!cannotRun.isEmpty()) {
+                parts.add(cannotRun.size() + " cannot be run in this build and will be reported as not runnable");
+            }
+            if (!problemRows.isEmpty()) {
+                parts.add(problemRows.size() + (problemRows.size() == 1 ? " has a problem" : " have a problem")
+                        + " and will be reported as not valid");
+            }
+            headline = cases(rows.size()) + ": " + (parts.size() == 2 ? parts.get(0) + ", and " + parts.get(1)
+                    : String.join(", ", parts.subList(0, parts.size() - 1)) + ", and " + parts.get(parts.size() - 1)) + ".";
         }
         return new SuitePreview(definition.name(), definition.format(), definition.runnable(), headline, rows.size(), valid.size(),
-                definition.problems(), rowProblems, problemRows,
+                definition.problems(), rowProblems, problemRows.size(),
                 kinds.entrySet().stream().map(e -> new SuitePreview.Kind(e.getKey(), e.getValue())).toList(),
-                writes, writeNote(writes, environment), (int) valid.stream().filter(r -> r.expected() != null).count(),
-                definition.columns(), epa.mode(), epa.target(), environment);
+                writes.size(), writeNote(writes, environment), (int) valid.stream().filter(r -> r.expected() != null).count(),
+                definition.columns(), epa.mode(), epa.target(), environment, notRunnable, cannotRun.size(), definition.skipped());
     }
 
-    private String writeNote(int writes, EnvironmentRef environment) {
-        if (writes == 0) {
+    /** What will happen to the rows that can create or change something, which are only rows that will run. */
+    private String writeNote(List<SuiteRow> writes, EnvironmentRef environment) {
+        if (writes.isEmpty()) {
             return null;
         }
-        String subject = writes == 1 ? "1 case can create or change something on the far side"
-                : writes + " cases can create or change something on the far side";
+        int count = writes.size();
+        String subject = count == 1 ? "1 case can create or change something on the far side"
+                : count + " cases can create or change something on the far side";
         // A suite carries no unlock, so this is the answer for every write in it.
         WriteAccess access = gateway.writeAccess(null);
         if (!access.writesAllowed()) {
+            boolean chains = writes.stream().anyMatch(SuiteRow::chain);
             return subject + ". " + access.reason() + " A suite never unlocks production writes, so "
-                    + (writes == 1 ? "it" : "each of them") + " will be reported as blocked, not as failed, and nothing will be sent for "
-                    + (writes == 1 ? "it." : "them.");
+                    + (count == 1 ? "its submission" : "the submission of each of them") + " will be blocked and reported as blocked, "
+                    + "not as failed, and will not be sent."
+                    + (chains ? " A chain still sends its CRD step, and its DTR step when CRD calls for one, before its submission is "
+                    + "blocked: those are reads." : "");
         }
         if (epa.mock()) {
             return subject + ". On the mock profile nothing leaves this machine.";
@@ -307,7 +329,9 @@ public class SuiteService implements AutoCloseable {
     }
 
     private SuiteDefinition define(String fileName, String text) {
-        return SuiteCases.define(displayName(fileName), reader.read(fileName, text), epa.mock(), outcomes);
+        CaseRunner runner = caseRunner.getIfAvailable();
+        return SuiteCases.define(displayName(fileName), reader.read(fileName, text), epa.mock(), outcomes,
+                runner instanceof ProtocolCaseRunner checks ? checks : null);
     }
 
     /** The file name without any directory, cut to a length a screen can show. */
@@ -416,9 +440,11 @@ public class SuiteService implements AutoCloseable {
 
     private SuiteCaseResult notValid(Run run, Entry entry) {
         Previous earlier = run.previous == null ? null : run.previous.get(entry.caseId.toLowerCase(Locale.ROOT));
-        return new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, SuiteRowState.DONE, CaseStatus.INVALID,
-                statusLine(CaseStatus.INVALID, null, entry.expected), entry.expected, null, null, null, null, null, false, null,
-                List.of(), null, null, List.of(), null, String.join(" ", entry.problems), List.of(), List.of(),
+        CaseStatus status = entry.cannotRun != null ? CaseStatus.NOT_RUNNABLE : CaseStatus.INVALID;
+        return new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, SuiteRowState.DONE, status,
+                statusLine(status, null, entry.expected), entry.expected, null, null, null, null, null, false, null,
+                List.of(), null, null, List.of(), null, entry.cannotRun != null ? entry.cannotRun : String.join(" ", entry.problems),
+                List.of(), List.of(),
                 earlier == null ? null : earlier.outcome(),
                 earlier == null ? null : outcomes.label(earlier.protocol(), earlier.outcome()),
                 earlier == null ? null : earlier.result(),
@@ -579,6 +605,7 @@ public class SuiteService implements AutoCloseable {
         final boolean chain;
         final String expected;
         final List<String> problems;
+        final String cannotRun;
         /** Holds the member ID. Dropped as soon as the case has run or the run has ended. */
         CaseSpec spec;
         SuiteRowState state = SuiteRowState.PENDING;
@@ -591,6 +618,7 @@ public class SuiteService implements AutoCloseable {
             this.chain = row.chain();
             this.expected = row.expected();
             this.problems = row.problems();
+            this.cannotRun = row.cannotRun();
             this.spec = row.spec();
         }
     }

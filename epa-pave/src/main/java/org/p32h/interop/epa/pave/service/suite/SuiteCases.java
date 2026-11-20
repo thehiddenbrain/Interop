@@ -17,6 +17,7 @@ import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.cases.ChainExpectation;
 import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
+import org.p32h.interop.epa.pave.service.cases.ProtocolCaseRunner;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.suite.SuiteColumns.Column;
 import org.p32h.interop.epa.pave.service.suite.SuiteTable.SourceRow;
@@ -38,6 +39,11 @@ public final class SuiteCases {
 
     private static final Pattern CASE_ID = Pattern.compile("[A-Za-z0-9 ._:/#()\\-]{1,64}");
     private static final Pattern CODE_SEPARATOR = Pattern.compile("[|;,\\s]+");
+    /**
+     * One procedure code: letters, digits, dots and hyphens, with at least one digit. Every code of
+     * the code list has one, and a word typed between codes, such as "and", has none.
+     */
+    private static final Pattern PROCEDURE_CODE = Pattern.compile("(?=[A-Za-z.\\-]*[0-9])[A-Za-z0-9.\\-]{1,20}");
     private static final Pattern CORRELATION_ID = Pattern.compile("[A-Za-z0-9\\-._:/|]{1,128}");
 
     private SuiteCases() {
@@ -49,6 +55,15 @@ public final class SuiteCases {
      * @param outcomes used to check a declared expectation before anything is sent
      */
     public static SuiteDefinition define(String name, SuiteTable table, boolean mock, OutcomeCatalogue outcomes) {
+        return define(name, table, mock, outcomes, null);
+    }
+
+    /**
+     * @param runner the runner the suite would use. It says which rows this build cannot run and
+     *               what its services would refuse before sending, so the preview counts only what
+     *               will really run. Null when there is none, and then only the file itself is checked
+     */
+    public static SuiteDefinition define(String name, SuiteTable table, boolean mock, OutcomeCatalogue outcomes, ProtocolCaseRunner runner) {
         List<String> problems = new ArrayList<>(table.problems());
         if (!problems.isEmpty()) {
             return new SuiteDefinition(name, table.format(), table.columns(), List.of(), problems);
@@ -72,9 +87,9 @@ public final class SuiteCases {
         Map<String, Integer> seen = new LinkedHashMap<>();
         List<SuiteRow> rows = new ArrayList<>();
         for (SourceRow source : table.rows()) {
-            rows.add(row(source, csv, mock, outcomes, seen));
+            rows.add(row(source, csv, mock, outcomes, seen, runner));
         }
-        return new SuiteDefinition(name, table.format(), table.columns(), rows, List.of());
+        return new SuiteDefinition(name, table.format(), table.columns(), rows, List.of(), table.skipped());
     }
 
     private static List<String> columnProblems(List<String> columns) {
@@ -102,8 +117,15 @@ public final class SuiteCases {
         return problems;
     }
 
-    private static SuiteRow row(SourceRow source, boolean csv, boolean mock, OutcomeCatalogue outcomes, Map<String, Integer> seen) {
-        List<String> problems = new ArrayList<>(source.problems());
+    private static SuiteRow row(SourceRow source, boolean csv, boolean mock, OutcomeCatalogue outcomes, Map<String, Integer> seen,
+                                ProtocolCaseRunner runner) {
+        if (!source.problems().isEmpty()) {
+            // A row whose shape is wrong has no cells to check: what it lacks would be reported as missing when it was written.
+            String caseId = "case-" + source.number();
+            seen.putIfAbsent(caseId, source.number());
+            return new SuiteRow(source.number(), caseId, null, false, false, null, null, source.problems());
+        }
+        List<String> problems = new ArrayList<>();
         Map<Column, String> cells = new EnumMap<>(Column.class);
         Map<Column, String> writtenAs = new EnumMap<>(Column.class);
         for (Map.Entry<String, String> cell : source.cells().entrySet()) {
@@ -128,11 +150,12 @@ public final class SuiteCases {
 
         String caseId = Texts.trimToNull(cells.get(Column.CASE_ID));
         if (caseId == null) {
-            // Made from the position, so the same file gives the same ids on every run and two runs can be compared.
-            caseId = "row-" + source.number();
+            // Made from the position, so the same file gives the same ids on every run and two runs can be compared. Named
+            // after the case and not the row, because a spreadsheet's row numbers count the header and any blank lines.
+            caseId = "case-" + source.number();
         } else if (!CASE_ID.matcher(caseId).matches()) {
             problems.add("The case id may hold letters, digits, spaces and . _ : / # ( ) - and at most 64 characters.");
-            caseId = "row-" + source.number();
+            caseId = "case-" + source.number();
         }
         Integer first = seen.putIfAbsent(caseId.toLowerCase(Locale.ROOT), source.number());
         if (first != null) {
@@ -163,6 +186,11 @@ public final class SuiteCases {
             problems.addAll(ChainExpectation.parse(expected, outcomes).problems());
         } else if (expected != null && target.operation() != null) {
             problems.addAll(outcomes.expectationProblems(target.operation().protocol(), expected));
+        } else if (expected != null && !readsForAnyProtocol(expected, outcomes)) {
+            // The row does not say what it runs, so its expectation cannot be checked against one protocol. Said now, so that
+            // fixing the protocol does not reveal a second problem.
+            problems.add("The expectation is not an outcome or a code assertion of crd, dtr or pas, so once the row says what it runs "
+                    + "the expectation will be refused too. Check its spelling.");
         }
         // The same limits a run form is held to, so a row is refused here, with its number, and not
         // found too long by each service in turn. The cell is never quoted: it can name a member.
@@ -171,9 +199,15 @@ public final class SuiteCases {
         Map<String, String> correlation = new LinkedHashMap<>();
         correlation(cells, Column.CLAIM_ID, RunRecord.CORR_CLAIM_ID, correlation, problems);
         correlation(cells, Column.SUBSCRIPTION_ID, RunRecord.CORR_SUBSCRIPTION_ID, correlation, problems);
+        unusedCorrelation(target, cells, problems);
 
         List<String> codes = Texts.blank(cells.get(Column.PROCEDURE_CODES)) ? List.of()
                 : Arrays.stream(CODE_SEPARATOR.split(cells.get(Column.PROCEDURE_CODES).strip())).filter(Texts::present).toList();
+        if (codes.stream().anyMatch(code -> !PROCEDURE_CODE.matcher(code).matches())) {
+            // Never quoted: a word between two codes would be sent as a code, so the cell is refused as a whole.
+            problems.add("The procedureCodes cell holds something that is not a procedure code, such as a word or a sign between two "
+                    + "codes. Separate codes with a comma, a semicolon, a bar or a space, and nothing else.");
+        }
 
         CaseSpec spec = null;
         if (problems.isEmpty()) {
@@ -192,7 +226,41 @@ public final class SuiteCases {
                     .correlation(correlation)
                     .build();
         }
-        return new SuiteRow(source.number(), caseId, target.what(), target.chain(), target.write(), expected, spec, problems);
+        String cannotRun = null;
+        if (spec != null && runner != null) {
+            cannotRun = runner.cannotRun(spec);
+            if (cannotRun == null) {
+                problems.addAll(runner.refusals(spec));
+            }
+        }
+        return new SuiteRow(source.number(), caseId, target.what(), target.chain(), target.write(), expected,
+                problems.isEmpty() ? spec : null, problems, problems.isEmpty() ? cannotRun : null);
+    }
+
+    /** True when an expectation is well formed for at least one protocol a row can run. */
+    private static boolean readsForAnyProtocol(String expected, OutcomeCatalogue outcomes) {
+        for (Protocol protocol : List.of(Protocol.CRD, Protocol.DTR, Protocol.PAS)) {
+            if (outcomes.expectationProblems(protocol, expected).isEmpty()) {
+                return true;
+            }
+        }
+        return ChainExpectation.parse(expected, outcomes).problems().isEmpty();
+    }
+
+    /**
+     * A correlation column the row's operation does not use is refused. Dropped in silence, a
+     * claim id typed on a submission would leave the tester believing it was sent; a submission
+     * run from a suite is a new request with a new claim id.
+     */
+    private static void unusedCorrelation(Target target, Map<Column, String> cells, List<String> problems) {
+        if (Texts.present(cells.get(Column.CLAIM_ID)) && (target.chain() || target.operation() != null
+                && target.operation() != EpaOperation.PAS_INQUIRE)) {
+            problems.add("The claimId column is used by a PAS inquiry only. This row runs " + (target.chain() ? "a chain" : target.what())
+                    + ", which would not send it: a submission run from a suite always gets a new claim id. Leave the cell empty.");
+        }
+        if (Texts.present(cells.get(Column.SUBSCRIPTION_ID))) {
+            problems.add("The subscriptionId column is not used by any row a suite can run. Leave the cell empty.");
+        }
     }
 
     private static void correlation(Map<Column, String> cells, Column column, String key, Map<String, String> into, List<String> problems) {

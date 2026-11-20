@@ -94,6 +94,8 @@ public final class SuiteTestBed {
         PasService pas = new PasService(OnyxProperties.defaults(), steps, new MockOnyxPasClient(scenarios, new MockExchanges(APP)), codeList,
                 support, ledgerProvider());
         return new ProtocolCaseRunner(members, providers)
+                .scenarios((protocol, id) -> scenarios.list(protocol.name().toLowerCase(java.util.Locale.ROOT)).stream()
+                        .anyMatch(scenario -> scenario.id().equals(id)))
                 .register(EpaOperation.CRD_ORDER_SIGN, new CrdCaseStep(crd, EpaOperation.CRD_ORDER_SIGN))
                 .register(EpaOperation.CRD_ORDER_SELECT, new CrdCaseStep(crd, EpaOperation.CRD_ORDER_SELECT))
                 .register(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, new DtrCaseStep(dtr))
