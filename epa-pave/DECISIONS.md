@@ -2153,9 +2153,17 @@ From the guardrail verification's F4 (D-143, rule 8), decided before the work, a
   session holding the unlock garbled by the old phrase; it is now pinned by a gateway test.
 - The two halves were built on two branches at the same time: the origin in the protocol services on
   one, the next action, the headline and the supporting line on the other. Each was checked on the
-  live profile against a stand-in playing production, which received nothing, but the gateway's own
-  sentence for a replay could not appear on either branch. The two are merged and nobody has seen
-  them together. Corrects D-023 and D-131 as noted there.
+  live profile against a stand-in playing production, which received nothing. On the protocol
+  branch, where the services pass the origin, the verification saw the gateway's own sentence for a
+  refused suite row on the running application ("a suite never carries the production unlock, so its
+  writes to production are always blocked", while a direct submission got "production writes are
+  locked for this session"); a refused replay was not tried there. On the platform branch, where the
+  services did not pass it, the gateway's generic sentence showed with the new next action and
+  headline. The chain view of a blocked replay is checked by a unit test only (`ChainServiceTest`): a
+  replay is not part of its original's chain (`RunReplay`), and on the running application a
+  replayed PAS submission did not join its original's chain, so no chain whose latest line is a
+  blocked replay was shown. The two halves are merged and nobody has seen them together. Corrects
+  D-023 and D-131 as noted there.
 
 **D-184. A request sent from the collection as it is: what goes, and to whom the token goes.**
 From the guardrail verification's F8, D-139, and the Config tab review's CFG-06 and CFG-21, decided
@@ -2185,7 +2193,11 @@ before the work, and the verification.
 - After a send that got no usable answer, the next step is chosen by the method and by whether the
   request may have reached the service (D-163): a write that may have arrived is to be checked on
   before it is sent again.
-The README still describes the body and the 422s as they were; correcting it is open work.
+The README still describes the body and the 422s as they were; correcting it is open work. At the
+revision of D-201 no screen offers `urlValues` or shows `bodySource`: the Config tab's view of a
+request sent as written was built before this entry and sends only a body (`rawBody`), so a request
+whose url holds a `{token}` cannot be sent from the Config tab. A preview of an incomplete url on mock
+is now a 422 where it was a 200 with a note, and no screen was checked against that.
 
 **D-185. A "not found" answer repeats nothing taken from the request.**
 From the edge verification's V3 (E13), decided before the work. The sentences of `RunIds`,
@@ -2330,16 +2342,17 @@ the rest. The ownership stays the map for a maintainer.
   to a shared file only adds: no exported function, option, class name or custom property is renamed,
   removed or changed in meaning.
 - Each protocol tab owns `js/tab-<tab>.js`, its own modules (`js/crd-*`, `js/dtr-*`, `js/pas-*`) and
-  `css/<tab>.css`. The case owns `js/lookup.js`, `js/code-picker.js`, `js/own-request.js` and
+  its stylesheet (`css/dtr.css`, `css/pas.css`, and `css/crd-compare.css` for the CRD tab). The case owns `js/lookup.js`, `js/code-picker.js`, `js/own-request.js` and
   `js/run-values.js` with `css/case.css`; History owns `js/tab-history.js`, `js/history-*`,
   `js/suites.js` and `js/chain.js`; Config owns `js/tab-config.js` and `js/config-*`. A tab's style
   rules go in its own stylesheet, using the custom properties and classes of `pave.css`.
 - What a tab may ask of the frame, added by the frame pass: `createWorkbench` takes
   `spec.operations`, which withholds the form while the server says the tab's first operation is
   unavailable and brings it back by itself after the next configuration change; it is off unless a tab
-  passes it, and no tab passes it at the revision of D-201 (the DTR and PAS tabs read
-  `/api/config/effective` themselves and say what is missing; the CRD tab still shows a form that
-  cannot send on live with nothing configured). `bench.showResult` honours a tab's own
+  passes it, and no tab passes it at the revision of D-201. The DTR and PAS tabs read
+  `/api/config/effective` themselves and say what is missing, with a link to Config, but still offer
+  their form (D-197); the CRD tab says nothing until a send is refused. Section 20's rule that a tab
+  does not present a form that cannot send is therefore met on no protocol tab. `bench.showResult` honours a tab's own
   `nextStepControl`, so a tab draws the control for an action it takes itself. `bench.track` keeps a
   set and lets a result's controls go with the result; `bench.untrack` exists. `app.operationRow`,
   `app.operationsRead`, `app.whenConfigChanges`, `app.ledgerHealth` and `app.refreshMode({quiet})`
@@ -2347,13 +2360,17 @@ the rest. The ownership stays the map for a maintainer.
   argument (D-196).
 - The shared client sends PUT and DELETE (`api.putJson`, `api.del`), so the Config tab now offers
   changing a mapping, taking a request off an operation and removing an environment or a collection.
-  The frame pass drove those flows in a browser on mock and on a production environment, with the
-  mouse and the keyboard. The server never answers 409 to them, so that path was never seen.
+  The frame pass drove those flows in a browser on mock and on a production environment, some with the
+  keyboard (taking a request off an operation, removing an environment that is not active, removing a
+  collection, the readiness link) and the others with the mouse (the chooser, removing the active
+  environment, removing the last one); not every flow was driven both ways. The server never answers
+  409 to them, so that path was never seen.
 - Asked of the frame and not done: `bench.clearRefusal` (an earlier 409 refusal stays above a later
   comparison), a way for the case to mark a detail "from the pasted request" and for the lookup strip
-  to show a line the page gives, a collapsed form of the chain bar at laptop height, and an action box
-  that scrolls with the form below about 800 pixels of height. Each part reported these; the pass that
-  joins the tabs is to take them up (D-200).
+  to show a line the page gives, and an action box that scrolls with the form below about 800 pixels
+  of height. Asked by the PAS tab at the same time, of a file that is History's and not the frame's: a
+  collapsed form of the chain bar (`js/chain.js`) at laptop height. Each part reported these; the pass
+  that joins the tabs is to take them up (D-200).
 
 **D-192. How a step hands the case to the next tab.**
 - A next step this tool can take is offered as a button that carries `nextStep.carry` unchanged, with
@@ -2467,7 +2484,12 @@ the rest of a resource. The server is where this is put right (D-200).
   Whether an item is enabled is never worked out in the browser; an item whose state depends on
   answers says, once answers have changed, as of which step its state is. The expectation goes with
   the next step sent and is cleared once that step has a result. A refusal of a step is shown under
-  that step's buttons. Each step says whether it was recorded.
+  that step's buttons. Each step says whether it was recorded. When the server says the package
+  operation is unavailable, the tab says so on arrival and above the Fetch button, with the server's
+  sentence and a link to Config; Fetch stays and still sends. A quantity's unit is free text, because
+  `ItemView` gives no unit constraint except as a raw extension; the answers a response holds are
+  shown beside the controls and never put back into them, because `ResponseItemView.answers` holds
+  display text, not the answer code.
 - The PAS tab: no inquiry button after a submission that failed in the environment, because choosing
   between "ask for the status first" and "safe to send again" would read outcome codes; where the
   server's next step is to check the environment and a claim id is known, "Choose the Inquire call"
@@ -2475,7 +2497,10 @@ the rest of a resource. The server is where this is put right (D-200).
   with the server's outcome, the decision when present and the matched run, trimmed to what the
   receiver holds. A preview's notes are introduced by "If it were sent as it stands, the server
   notes:", because the server words them in the past tense. The tester reference and the note show on
-  the result.
+  the result. When the server says the operation is unavailable, the tab leads with that and a link to
+  Config, and Send is made a quiet button that still sends: a refusal recorded in the ledger is a valid
+  test. Nothing shows how an inquiry's answer differs from the last one seen, because the inquiry
+  answer states no difference and the browser derives none.
 - The CRD tab: everything of sections 11, 21 and 28.3 is drawn by the CRD detail and the shared result
   view; the pass found nothing missing scenario by scenario.
 
@@ -2509,8 +2534,9 @@ The integrator's lists under "Decided otherwise" in the five task files.
   shown as returned. Working out "what changed" would match items of two documents by position and
   call a difference a change, which is a judgement nobody supplied.
 - No endpoint that works out the enabled items of a questionnaire without a run (the DTR review's
-  R02). The sentence that promised it is made true instead: the enabled state of a static
-  questionnaire's items is worked out when the response is completed in this tool.
+  R02). The sentence that promised it is to be made true instead (D-200, not done at the revision of
+  D-201): the enabled state of a static questionnaire's items is to be worked out when the response is
+  completed in this tool.
 - A malformed field on the form still refuses a comparison, because the tool cannot build its own
   side without it. Only the wording of that refusal changes.
 - No endpoint to make a mapped request the default for an operation (the frame review's FR-04,
