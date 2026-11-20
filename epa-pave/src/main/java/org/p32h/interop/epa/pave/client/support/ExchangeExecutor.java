@@ -34,6 +34,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.p32h.interop.epa.pave.service.error.Faults;
 
 /**
  * Sends one prepared call and describes what happened, for every live client.
@@ -43,19 +46,31 @@ import org.springframework.web.client.RestClient;
  * side did. It throws only when the call cannot be attempted at all, which is a configuration
  * problem and is reported before anything is sent.
  *
- * <p>Nothing here logs. The url can hold a member ID and the bodies hold member data, and an
- * exception message from the HTTP client quotes the url, so no exception message is ever copied
- * into the result either: failure details are fixed phrases chosen by exception type.
+ * <p>The url can hold a member ID and the bodies hold member data, and an exception message from
+ * the HTTP client quotes the url, so no exception message is ever copied into the result or the
+ * log: failure details are fixed phrases chosen by exception type. The one thing logged is a
+ * failure this tool could not name in plain words, with the host it was sent to and the exception
+ * types, so that whoever looks after the installation can find out what happened.
  */
 @Component
 public class ExchangeExecutor {
+
+    private static final Logger log = LoggerFactory.getLogger(ExchangeExecutor.class);
 
     /** @param interrupted true when the status and headers arrived and the body did not finish */
     private record Raw(int status, HttpHeaders headers, byte[] body, boolean interrupted) {
     }
 
-    /** @param reached whether the request can have reached the service before the call failed */
-    private record Failure(OnyxFailureType type, String detail, Reached reached) {
+    /**
+     * @param reached whether the request can have reached the service before the call failed
+     * @param unnamed true when the detail is the general sentence for a failure of a kind this
+     *                tool does not recognise, so its exception types are worth a line in the log
+     */
+    private record Failure(OnyxFailureType type, String detail, Reached reached, boolean unnamed) {
+
+        Failure(OnyxFailureType type, String detail, Reached reached) {
+            this(type, detail, reached, false);
+        }
     }
 
     private final ObjectProvider<OperationGateway> gateway;
@@ -125,6 +140,11 @@ public class ExchangeExecutor {
             // Only the send is inside this try. A defect in describing the response must surface as
             // a defect, not as "the service could not be reached".
             Failure failure = classify(e);
+            if (failure.unnamed()) {
+                // The host and the exception types and frames only. Never the path, the query, a
+                // header or a message, which can quote the url and with it a member ID.
+                log.warn("A call to the host {} failed in a way the result does not name: {}", uri.getHost(), Faults.describe(e));
+            }
             return Exchanges.failed(wireRequest, elapsedSince(started), failure.type(), failure.detail(), failure.reached());
         }
         long elapsed = elapsedSince(started);
@@ -184,11 +204,13 @@ public class ExchangeExecutor {
             }
             // Any other TLS failure can come after the handshake, with the request already on its way.
             if (t instanceof SSLException) {
-                return new Failure(OnyxFailureType.UNAVAILABLE, "The secure connection failed after it was opened ("
-                        + t.getClass().getSimpleName() + ").", Reached.CANNOT_SAY);
+                return new Failure(OnyxFailureType.UNAVAILABLE, "The secure connection could not be set up, or failed after it "
+                        + "was opened. On a network with an inspection proxy, check the trust store.", Reached.CANNOT_SAY, true);
             }
         }
-        return new Failure(OnyxFailureType.UNAVAILABLE, "The request could not be completed (" + error.getClass().getSimpleName() + ").",
-                Reached.CANNOT_SAY);
+        // A business tester cannot act on the name of a Java class, so it goes to the log, not the screen.
+        return new Failure(OnyxFailureType.UNAVAILABLE, "The connection to the service failed before an answer arrived. This tool "
+                + "cannot tell at which point, so the request may have reached the service. A proxy between this machine and the "
+                + "service is a common cause.", Reached.CANNOT_SAY, true);
     }
 }

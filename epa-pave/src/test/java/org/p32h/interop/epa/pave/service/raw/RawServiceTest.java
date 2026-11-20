@@ -155,6 +155,18 @@ class RawServiceTest {
     }
 
     @Test
+    void aTimeoutAScenarioPlaysSaysItWasPlayedAfterHowLongAndWhatLiveWouldWait() {
+        VendorExchange played = TestExchanges.timeout(EpaOperation.UNMAPPED).withElapsedMillis(400).withScenario("crd-13-timeout", "chosen");
+        RunEnvelope<RawDetail> result = run(stub(played), null, null);
+        assertThat(result.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
+        assertThat(result.error().title()).isEqualTo("A mock scenario played a timeout: it gave up after 400 ms, without waiting. On live "
+                + "this tool waits up to 15000 ms for an answer (onyx.read-timeout-ms) before it gives up.");
+        // Without a scenario, the timeout is a real one and is said as such.
+        assertThat(run(stub(TestExchanges.timeout(EpaOperation.UNMAPPED)), null, null).error().title())
+                .isEqualTo("No response arrived within the read timeout.");
+    }
+
+    @Test
     void aTesterCanDeclareTheOutcomeOrTheHttpStatusTheyExpect() {
         assertThat(run(mockClient, null, "ANSWERED").expectation().result()).isEqualTo(TestResult.PASS);
         assertThat(run(mockClient, null, "http-status=200").expectation().result()).isEqualTo(TestResult.PASS);

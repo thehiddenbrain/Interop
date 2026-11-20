@@ -95,7 +95,7 @@ class ReachedTest {
             String what = failure.getClass().getSimpleName();
             assertThat(exchange.reached()).as(what).isEqualTo(Reached.NO);
             assertThat(exchange.failureType()).as(what).isEqualTo(OnyxFailureType.UNAVAILABLE);
-            assertThat(exchange.failureDetail()).as(what).isEqualTo(detail);
+            assertThat(exchange.failureDetail()).as(what).isEqualTo(detail).doesNotContain("Exception").doesNotContain("S123456789");
             assertThat(exchange.httpStatus()).as(what).isNull();
         });
     }
@@ -106,16 +106,21 @@ class ReachedTest {
         after.put(new SocketTimeoutException("Read timed out"), "No response arrived inside the read timeout.");
         after.put(new HttpTimeoutException("request timed out"), "No response arrived inside the read timeout.");
         // The connection was there and then it was not. The request may already have been on its way.
-        after.put(new IOException("Connection reset for member S123456789"), "The request could not be completed (ResourceAccessException).");
-        after.put(new SSLException("Connection reset"), "The secure connection failed after it was opened (SSLException).");
-        after.put(new SSLProtocolException("Read timed out"), "The secure connection failed after it was opened (SSLProtocolException).");
+        // Worded for a business tester: no Java class is named, and the exception's message, which quotes a member ID here, never is.
+        String unnamed = "The connection to the service failed before an answer arrived. This tool cannot tell at which point, so the "
+                + "request may have reached the service. A proxy between this machine and the service is a common cause.";
+        String secure = "The secure connection could not be set up, or failed after it was opened. On a network with an inspection "
+                + "proxy, check the trust store.";
+        after.put(new IOException("Connection reset for member S123456789"), unnamed);
+        after.put(new SSLException("Connection reset"), secure);
+        after.put(new SSLProtocolException("Read timed out"), secure);
         // Something this tool has no name for is never taken for "nothing was sent".
-        after.put(new IllegalStateException("unexpected"), "The request could not be completed (IllegalStateException).");
+        after.put(new IllegalStateException("unexpected"), unnamed);
         after.forEach((failure, detail) -> {
             VendorExchange exchange = submitFailingWith(failure);
             String what = failure.getClass().getSimpleName();
             assertThat(exchange.reached()).as(what).isEqualTo(Reached.CANNOT_SAY);
-            assertThat(exchange.failureDetail()).as(what).isEqualTo(detail);
+            assertThat(exchange.failureDetail()).as(what).isEqualTo(detail).doesNotContain("Exception").doesNotContain("S123456789");
             assertThat(exchange.httpStatus()).as(what).isNull();
         });
         assertThat(submitFailingWith(new SocketTimeoutException("Read timed out")).failureType()).isEqualTo(OnyxFailureType.TIMEOUT);

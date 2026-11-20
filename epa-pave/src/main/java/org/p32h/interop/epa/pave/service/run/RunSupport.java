@@ -499,7 +499,15 @@ public class RunSupport {
             // No advice to send again here. This panel is the same for a read and for a write, and
             // a write that timed out may have reached the service: the next step, which knows what
             // was sent, says whether to send again or to ask first.
-            case TIMEOUT -> ErrorView.of(ErrorKind.TIMEOUT,
+            case TIMEOUT -> epa.mock() && Texts.present(exchange.scenarioId())
+                    // A scenario plays a timeout at once, so the time beside it is not how long a
+                    // service was waited for: the panel says what was played and what live would wait.
+                    ? ErrorView.of(ErrorKind.TIMEOUT, "A mock scenario played a timeout: it gave up after " + exchange.elapsedMillis()
+                            + " ms, without waiting. On live this tool waits up to " + onyx.readTimeoutMs() + " ms for an answer "
+                            + "(onyx.read-timeout-ms) before it gives up.",
+                    "Nothing was sent: this rehearses what a tester sees when a service does not answer in time. The next step says "
+                            + "whether to send again.")
+                    : ErrorView.of(ErrorKind.TIMEOUT,
                     "No response arrived within the read timeout" + (epa.mock() ? "" : " of " + onyx.readTimeoutMs() + " ms") + ".",
                     "The service may be slow or down. If it repeats, report the environment. The next step says whether to send again.");
             case UNAVAILABLE -> ErrorView.of(ErrorKind.UNREACHABLE,
