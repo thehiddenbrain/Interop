@@ -28,7 +28,7 @@ class CaseCodesFrontendTest {
     }
 
     /** The body of the first function or method named, up to its closing brace at the same indent. */
-    private static String body(String source, String opening) {
+    static String body(String source, String opening) {
         int start = source.indexOf(opening);
         assertThat(start).as(opening).isGreaterThanOrEqualTo(0);
         int lineStart = source.lastIndexOf('\n', start) + 1;
@@ -119,7 +119,7 @@ class CaseCodesFrontendTest {
     }
 
     /** The Node executable on the path, or null when there is none. */
-    private static Path node() {
+    static Path node() {
         String path = System.getenv("PATH");
         if (path == null) {
             return null;

@@ -14,6 +14,29 @@ import {runLink, chainRunsLink} from './history-common.js';
 
 const PROTOCOL_TABS = ['crd', 'dtr', 'pas'];
 
+/**
+ * The runs of a chain and the time they took, said so that the total never reads as covering a run
+ * nobody timed: a step done inside this tool is not measured, and the server's total adds only the
+ * runs that were. runCount: the runs of the chain; measured: how many of them carry a time; took:
+ * the server's total, as text.
+ */
+export function chainTotal(runCount, measured, took) {
+    const runs = String(runCount) + (runCount === 1 ? ' run' : ' runs');
+    if (measured >= runCount) {
+        return runs + ' taking ' + took + ' in all';
+    }
+    if (measured <= 0) {
+        return runs + (runCount === 1 ? ', not measured' : ', none of them measured');
+    }
+    return runs + ', ' + measured + ' of them measured, taking ' + took + ' in all';
+}
+
+/** How many runs of the chain, in its stages and outside them, carry a time the server measured. */
+function measuredRuns(chain) {
+    const runs = (chain.stages || []).flatMap(stage => stage.runs || []).concat(chain.otherRuns || []);
+    return runs.filter(run => typeof run.elapsedMillis === 'number').length;
+}
+
 export function createChain(app, bar) {
     let chainId = null;       // the chain the case on screen belongs to, once a run has started one
     let view = null;          // the last answer of GET /api/chains/{chainId}
@@ -156,8 +179,7 @@ export function chainView(chain) {
                 ['Ran against', [chain.environment ? chain.environment + (chain.environmentKind ? ' (' + chain.environmentKind + ')' : '') : 'no environment',
                     ', ', chain.profile, ' profile, target ', chain.target]],
                 ['Started', when(chain.startedAt)],
-                ['Latest run', [when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs', ' taking ',
-                    millis(chain.elapsedMillis), ' in all']]
+                ['Latest run', [when(chain.lastRunAt), ', ', chainTotal(chain.runCount, measuredRuns(chain), millis(chain.elapsedMillis))]]
             ], 'facts--ruled')));
     if (chain.notes && chain.notes.length > 0) {
         node.append(el('ul', {class: 'note-list'}, chain.notes.map(note => el('li', null, note))));
