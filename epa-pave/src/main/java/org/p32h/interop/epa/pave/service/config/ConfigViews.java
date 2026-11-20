@@ -454,11 +454,14 @@ public final class ConfigViews {
      *                      {@code writeAccess.reason}. Absent when the row is not blocked
      * @param lookupEnabled for a lookup row, whether the lookup is switched on, so that no screen
      *                      has to build a setting key from an operation name. Absent on every other row
+     * @param defaultRule   on a row with more than one request mapped to it, which of them a run uses
+     *                      when it names none, why that one, and how to have another used. Absent
+     *                      when one request or none is mapped
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record OperationRow(EpaOperation operation, String label, Protocol protocol, boolean write, boolean outbound, String method,
                                TargetView target, List<AvailableRequest> requests, String unavailable, String blocked, String note,
-                               String blockedShort, Boolean lookupEnabled) {
+                               String blockedShort, Boolean lookupEnabled, String defaultRule) {
 
         public OperationRow {
             requests = requests == null ? List.of() : List.copyOf(requests);
@@ -480,6 +483,7 @@ public final class ConfigViews {
             private String note;
             private String blockedShort;
             private Boolean lookupEnabled;
+            private String defaultRule;
 
             private Builder(EpaOperation operation) {
                 this.operation = operation;
@@ -525,9 +529,14 @@ public final class ConfigViews {
                 return this;
             }
 
+            public Builder defaultRule(String value) {
+                this.defaultRule = value;
+                return this;
+            }
+
             public OperationRow build() {
                 return new OperationRow(operation, operation.label(), operation.protocol(), operation.write(), operation.outbound(), method,
-                        target, requests, unavailable, blocked, note, blockedShort, lookupEnabled);
+                        target, requests, unavailable, blocked, note, blockedShort, lookupEnabled, defaultRule);
             }
         }
     }

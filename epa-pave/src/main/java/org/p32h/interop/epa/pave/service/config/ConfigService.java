@@ -348,8 +348,8 @@ public class ConfigService {
                     + "own. Each one is listed here and is sent raw, by naming it.").build();
         }
         CallPlan plan = gateway.describe(snapshot, CallIntent.of(operation).withUnlock(unlock));
-        row.method(plan.method())
-                .requests(mappedTo(operation, snapshot, plan.target().source() == Source.REQUEST ? plan.target().request() : null));
+        StoredCollection.Mapped used = plan.target().source() == Source.REQUEST ? plan.target().request() : null;
+        row.method(plan.method()).requests(mappedTo(operation, snapshot, used)).defaultRule(defaultRule(operation, snapshot, used));
         if (plan.refusal() != null) {
             row.blocked(plan.refusal().reason() + " " + plan.refusal().action()).blockedShort(plan.refusal().brief());
         }
@@ -441,6 +441,57 @@ public class ConfigService {
     }
 
     /** Every request mapped to the operation, in collection order, with the one a call uses by default marked. */
+    /**
+     * Which of several mapped requests a run uses when it names none, said where the choice can be
+     * seen. The rule is the gateway's: the first in the order the collections and their requests are
+     * listed, passing over a request whose name contains "error", which is a sample of a failure and
+     * is used only when it is chosen. There is no action to make a request the one used: taking the
+     * requests above it off the operation does it, so the sentence says that.
+     *
+     * @param used the request a run uses, or null when none of them is used unasked
+     * @return the sentence, or null when one request or none is mapped
+     */
+    private static String defaultRule(EpaOperation operation, ConfigSnapshot snapshot, StoredCollection.Mapped used) {
+        int mapped = 0;
+        int errorSamplesBefore = 0;
+        boolean seen = false;
+        String usedFrom = null;
+        for (StoredCollection collection : snapshot.collections()) {
+            for (StoredCollection.Mapped request : collection.requests()) {
+                if (request.effective() != operation) {
+                    continue;
+                }
+                mapped++;
+                if (request == used) {
+                    seen = true;
+                    usedFrom = collection.name();
+                } else if (!seen && errorSample(request)) {
+                    errorSamplesBefore++;
+                }
+            }
+        }
+        if (mapped < 2) {
+            return null;
+        }
+        String label = operation.label();
+        if (used == null || usedFrom == null) {
+            return "None of the " + mapped + " requests mapped to " + label + " is used when a run names none: the name of each "
+                    + "contains \"error\", so each is taken for a sample of an error, which is used only when it is chosen. To have one "
+                    + "used by every run, map to " + label + " a request whose name does not contain \"error\".";
+        }
+        String before = errorSamplesBefore == 0 ? ""
+                : ", after " + (errorSamplesBefore == 1 ? "1 request whose name contains" : errorSamplesBefore + " requests whose names contain")
+                + " \"error\" and which " + (errorSamplesBefore == 1 ? "is" : "are") + " used only when chosen";
+        return "Of the " + mapped + " requests mapped to " + label + ", a run that names none uses \"" + ConfigStore.oneLine(used.request()
+                .qualifiedName()) + "\" of the collection \"" + ConfigStore.oneLine(usedFrom) + "\", because it comes first in the order "
+                + "the collections and their requests are listed" + before + ". To have another of them used, take off " + label + " each "
+                + "request listed above that one, apart from a sample of an error.";
+    }
+
+    private static boolean errorSample(StoredCollection.Mapped request) {
+        return request.request().name().toLowerCase(java.util.Locale.ROOT).contains("error");
+    }
+
     private List<AvailableRequest> mappedTo(EpaOperation operation, ConfigSnapshot snapshot, StoredCollection.Mapped usedByDefault) {
         List<AvailableRequest> requests = new ArrayList<>();
         for (StoredCollection collection : snapshot.collections()) {

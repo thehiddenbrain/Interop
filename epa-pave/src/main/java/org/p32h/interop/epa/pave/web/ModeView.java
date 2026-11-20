@@ -18,8 +18,13 @@ import org.p32h.interop.epa.pave.service.config.WriteAccess;
  *                    since, so a tab still showing a sandbox cannot send to whatever another tab
  *                    activated
  * @param writeAccess whether a write would be sent right now for this browser session, and why
+ * @param bindAddress the address the server listens on, as configured in {@code server.address}.
+ *                    Absent when none is configured, and the server then listens on every address
+ *                    of this machine
+ * @param bindNote    what that means for a service on another machine that would call the
+ *                    notification receiver, in one sentence a business tester can act on. Always set
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
-                       WriteAccess writeAccess) {
+                       WriteAccess writeAccess, String bindAddress, String bindNote) {
 }

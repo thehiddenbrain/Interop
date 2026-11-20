@@ -570,6 +570,10 @@ class ConfigServiceTest {
         assertThat(orderSign.requests()).extracting(AvailableRequest::usedByDefault).containsExactly(true, false);
         assertThat(orderSign.requests().get(0).collectionId()).isEqualTo(vendor.id());
         assertThat(orderSign.requests().get(0).collectionName()).isEqualTo("Onyx Sandbox ePA");
+        assertThat(orderSign.defaultRule()).isEqualTo("Of the 2 requests mapped to CRD order-sign, a run that names none uses \"CRD / "
+                + "order-sign Happy Path\" of the collection \"Onyx Sandbox ePA\", because it comes first in the order the collections and "
+                + "their requests are listed. To have another of them used, take off CRD order-sign each request listed above that one, "
+                + "apart from a sample of an error.");
 
         assertThat(row(effective, EpaOperation.PAS_SUBMIT).target().scripted()).isTrue();
         // Nothing in the vendor's collection is an order-select, and that is visible, not silently absent.
@@ -587,6 +591,44 @@ class ConfigServiceTest {
         assertThat(notification.requests().get(0).usedByDefault()).isFalse();
         assertThat(notification.target()).isNull();
         assertThat(row(effective, EpaOperation.UNMAPPED).requests()).isEmpty();
+    }
+
+    @Test
+    void aRowWithSeveralRequestsSaysWhichOneARunUsesWhyAndHowToHaveAnotherUsed() {
+        ConfigFixture fixture = ConfigFixture.mock(directory.resolve("rule"));
+        fixture.collectionOf("Several", ConfigFixture.items(
+                ConfigFixture.item("order-sign Error", "POST", "https://crd.example.invalid/cds-services/order-sign-crd"),
+                ConfigFixture.item("order-sign Happy Path", "POST", "https://crd.example.invalid/cds-services/order-sign-crd"),
+                ConfigFixture.item("order-sign Other", "POST", "https://crd.example.invalid/cds-services/order-sign-crd"),
+                ConfigFixture.item("order-select Happy Path", "POST", "https://crd.example.invalid/cds-services/order-select-crd"),
+                ConfigFixture.item("inquiry Error", "POST", "https://pas.example.invalid/Claim/$inquire"),
+                ConfigFixture.item("inquiry Error Two", "POST", "https://pas.example.invalid/Claim/$inquire")));
+        Effective effective = fixture.service.effective(null);
+
+        OperationRow sign = row(effective, EpaOperation.CRD_ORDER_SIGN);
+        assertThat(sign.requests()).extracting(AvailableRequest::usedByDefault).containsExactly(false, true, false);
+        assertThat(sign.defaultRule()).isEqualTo("Of the 3 requests mapped to CRD order-sign, a run that names none uses \"order-sign "
+                + "Happy Path\" of the collection \"Several\", because it comes first in the order the collections and their requests are "
+                + "listed, after 1 request whose name contains \"error\" and which is used only when chosen. To have another of them used, "
+                + "take off CRD order-sign each request listed above that one, apart from a sample of an error.");
+        // One request: nothing to choose between, so nothing is said.
+        assertThat(row(effective, EpaOperation.CRD_ORDER_SELECT).requests()).hasSize(1);
+        assertThat(row(effective, EpaOperation.CRD_ORDER_SELECT).defaultRule()).isNull();
+        assertThat(row(effective, EpaOperation.PAS_SUBMIT).defaultRule()).isNull();
+        // Only samples of an error: none is used unasked, and taking one off would not change that.
+        OperationRow inquire = row(effective, EpaOperation.PAS_INQUIRE);
+        assertThat(inquire.requests()).extracting(AvailableRequest::usedByDefault).containsExactly(false, false);
+        assertThat(inquire.defaultRule()).isEqualTo("None of the 2 requests mapped to PAS inquire is used when a run names none: the name "
+                + "of each contains \"error\", so each is taken for a sample of an error, which is used only when it is chosen. To have one "
+                + "used by every run, map to PAS inquire a request whose name does not contain \"error\".");
+
+        // Taking the one in use off moves the run to the next one, and the sentence follows.
+        String collectionId = effective.operations().stream().filter(r -> r.operation() == EpaOperation.CRD_ORDER_SIGN).findFirst()
+                .orElseThrow().requests().get(1).collectionId();
+        fixture.service.correctMapping(collectionId, sign.requests().get(1).request().id(), EpaOperation.UNMAPPED);
+        OperationRow after = row(fixture.service.effective(null), EpaOperation.CRD_ORDER_SIGN);
+        assertThat(after.requests()).extracting(AvailableRequest::usedByDefault).containsExactly(false, true);
+        assertThat(after.defaultRule()).startsWith("Of the 2 requests mapped to CRD order-sign, a run that names none uses \"order-sign Other\"");
     }
 
     @Test
