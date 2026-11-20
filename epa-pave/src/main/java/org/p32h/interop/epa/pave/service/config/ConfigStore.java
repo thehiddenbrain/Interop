@@ -629,7 +629,9 @@ public class ConfigStore {
     private void writeAtomically(Path target, byte[] bytes) {
         Path temporary = target.resolveSibling(target.getFileName() + TEMP_MARK + UUID.randomUUID());
         try {
-            try (FileChannel channel = FileChannel.open(temporary, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            // Created for the owner alone where the file system has owners: an environment file can hold a client secret.
+            try (FileChannel channel = FileChannel.open(temporary, Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                    OwnerOnly.file())) {
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
                 while (buffer.hasRemaining()) {
                     channel.write(buffer);
@@ -717,7 +719,7 @@ public class ConfigStore {
     private void prepareDirectories() {
         for (Path each : List.of(directory, directory.resolve(ENVIRONMENTS), directory.resolve(COLLECTIONS))) {
             try {
-                Files.createDirectories(each);
+                Files.createDirectories(each, OwnerOnly.directory());
             } catch (IOException | RuntimeException e) {
                 throw new IllegalStateException("The configuration store directory " + each + " cannot be created ("
                         + e.getClass().getSimpleName() + "). Set config-store.directory to a directory this tool can create and write to.", e);
@@ -728,6 +730,9 @@ public class ConfigStore {
                 throw new IllegalStateException("The configuration store directory " + each + " is not writable ("
                         + e.getClass().getSimpleName() + "). Set config-store.directory to a directory this tool can write to.", e);
             }
+            // A folder made by an earlier version, or by hand, is closed to other accounts as well,
+            // with the files already in it.
+            OwnerOnly.restrict(each);
             // A crash between writing a temporary file and moving it leaves the temporary file
             // behind, and it can hold a credential from an upload. Nothing reads these.
             try (DirectoryStream<Path> leftovers = Files.newDirectoryStream(each, "*" + TEMP_MARK + "*")) {
