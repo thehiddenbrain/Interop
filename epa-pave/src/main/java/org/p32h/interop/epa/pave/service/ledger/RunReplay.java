@@ -98,6 +98,12 @@ public class RunReplay {
     /** What the record writes in place of a procedure code that did not have the shape of one. */
     private static final Pattern CODE_NOT_KEPT = Pattern.compile("\\(not a code, \\d+ characters\\)");
 
+    /** What the record writes in place of an expectation it did not keep. */
+    private static final Pattern EXPECTED_NOT_KEPT = Pattern.compile("\\(expectation not recorded, \\d+ characters\\)");
+
+    /** What the record writes in place of a tester reference it did not keep, which is not passed on to the run again. */
+    private static final Pattern TESTER_REF_NOT_KEPT = Pattern.compile("\\(tester reference not recorded, \\d+ characters\\)");
+
     /** What the record writes in place of text it did not keep, anywhere in a coverage code entry or a vendor name. */
     private static final Pattern TEXT_NOT_KEPT =
             Pattern.compile("\\((?:not a code|not a code entry|vendor not on the known list|" + Pattern.quote(RunRecord.READS_LIKE_AN_IDENTIFIER)
@@ -384,8 +390,13 @@ public class RunReplay {
                     + "shape of one. Running it again without it would send a different request, and the two answers could not be compared.";
         }
         if (original.procedureCodes().stream().anyMatch(code -> CODE_NOT_KEPT.matcher(code).matches())) {
-            return "A procedure code of this run was not recorded, because what was sent did not have the shape of a code. The line "
-                    + "holds a statement that something was there and not the code, so the same request cannot be sent again.";
+            return "A procedure code of this run was not recorded, because what was sent did not have the shape of a code or held the "
+                    + "member ID. The line holds a statement that something was there and not the code, so the same request cannot be "
+                    + "sent again.";
+        }
+        if (original.expected() != null && EXPECTED_NOT_KEPT.matcher(original.expected()).matches()) {
+            return "The expectation of this run was not recorded, because it was too long or held the member ID. The line holds a "
+                    + "statement that something was there and not the expectation, so a run again could not be checked against it.";
         }
         return null;
     }
@@ -417,7 +428,8 @@ public class RunReplay {
                 .dateOfService(original.dateOfService())
                 .scenarioId(original.scenarioId())
                 .expected(original.expected())
-                .testerRef(original.testerRef())
+                .testerRef(original.testerRef() == null || TESTER_REF_NOT_KEPT.matcher(original.testerRef()).matches() ? null
+                        : original.testerRef())
                 .replayOfRunId(original.runId())
                 .correlation(correlation)
                 .configEpoch(epoch)

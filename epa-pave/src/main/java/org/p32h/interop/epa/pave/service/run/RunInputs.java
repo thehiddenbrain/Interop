@@ -131,14 +131,19 @@ public final class RunInputs {
     /**
      * The checks every request shares beyond its own fields: no field the tool does not know, a
      * chain id that is blank, a request for a new one, or an id this tool minted, and the free
-     * text a run carries to the ledger within its limits.
+     * text a run carries to the ledger within its limits and free of the member data the request
+     * itself carries ({@link MemberInText}).
      */
     public RunInputs common(RunRequest request) {
         for (String key : request.unrecognised().keySet()) {
             errors.add(new FieldError(key, "This tool does not know the field \"" + key + "\". Check its spelling. Nothing was sent, "
                     + "because a field that is quietly dropped can change what a run means."));
         }
-        textForTheLedger(request.note(), request.testerRef(), request.expected())
+        Map<String, String> text = textForTheLedger(request.note(), request.testerRef(), request.expected());
+        text.forEach((field, problem) -> errors.add(new FieldError(field, problem)));
+        // Text over its limit is reported by its length and not read again, so a problem is never said twice.
+        MemberInText.problems(text.containsKey("note") ? null : request.note(), text.containsKey("testerRef") ? null : request.testerRef(),
+                        text.containsKey("expected") ? null : request.expected(), request.member(), "Nothing was sent.")
                 .forEach((field, problem) -> errors.add(new FieldError(field, problem)));
         String chainId = Texts.trimToNull(request.chainId());
         if (chainId != null && !RunRequest.NEW_CHAIN.equals(chainId) && !RunStamps.isChainId(chainId)) {

@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.IsoDates;
+import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunRecord;
@@ -18,6 +19,7 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.cases.ChainExpectation;
 import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
 import org.p32h.interop.epa.pave.service.cases.ProtocolCaseRunner;
+import org.p32h.interop.epa.pave.service.run.MemberInText;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.suite.SuiteColumns.Column;
 import org.p32h.interop.epa.pave.service.suite.SuiteTable.SourceRow;
@@ -198,8 +200,19 @@ public final class SuiteCases {
         }
         // The same limits a run form is held to, so a row is refused here, with its number, and not
         // found too long by each service in turn. The cell is never quoted: it can name a member.
-        RunInputs.textForTheLedger(Texts.trimToNull(cells.get(Column.NOTE)), Texts.trimToNull(cells.get(Column.TESTER_REF)), expected,
-                !target.chain()).values().forEach(problems::add);
+        Map<String, String> text = RunInputs.textForTheLedger(Texts.trimToNull(cells.get(Column.NOTE)),
+                Texts.trimToNull(cells.get(Column.TESTER_REF)), expected, !target.chain());
+        text.values().forEach(problems::add);
+        // The row's own member ID in its note, tester reference or expectation would undo the token
+        // the line keeps in its place. The row carries no name or date of birth to look for; the
+        // service looks for those once the member is looked up, before the case is sent.
+        String rowMember = Texts.trimToNull(cells.get(Column.MEMBER_ID));
+        if (rowMember != null) {
+            MemberInText.problems(text.containsKey("note") ? null : Texts.trimToNull(cells.get(Column.NOTE)),
+                    text.containsKey("testerRef") ? null : Texts.trimToNull(cells.get(Column.TESTER_REF)),
+                    text.containsKey("expected") ? null : expected, MemberDetail.builder().memberId(rowMember).build(),
+                    "The row was not run.").values().forEach(problems::add);
+        }
         Map<String, String> correlation = new LinkedHashMap<>();
         correlation(cells, Column.CLAIM_ID, RunRecord.CORR_CLAIM_ID, correlation, problems);
         correlation(cells, Column.SUBSCRIPTION_ID, RunRecord.CORR_SUBSCRIPTION_ID, correlation, problems);

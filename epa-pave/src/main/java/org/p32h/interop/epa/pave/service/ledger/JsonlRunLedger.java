@@ -14,6 +14,7 @@ import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.MemberInText;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.ledger.DayFiles.DayFile;
 import java.io.IOException;
@@ -572,7 +573,7 @@ public class JsonlRunLedger implements RunLedger {
                 if (!mayHoldRuns) {
                     continue;
                 }
-                RunRecord run = withNote(line, latestNotes.get(line.runId())).withCase(latestCases.get(line.runId()));
+                RunRecord run = withoutMemberText(withNote(line, latestNotes.get(line.runId())).withCase(latestCases.get(line.runId())));
                 if (accepts(query, run, file.day())) {
                     matching.add(run);
                     if (limit > 0 && matching.size() == limit) {
@@ -644,6 +645,18 @@ public class JsonlRunLedger implements RunLedger {
         return day == null ? fileDay : day;
     }
 
+    /**
+     * A run as it is shown and exported. A line written before every way in refused member data in
+     * free text, or a note line appended by such a version, can hold the member ID that the line
+     * keeps only as a token. The file is never rewritten, so such text is replaced as it is read.
+     */
+    private RunRecord withoutMemberText(RunRecord run) {
+        if (Texts.present(run.memberId()) || Texts.blank(run.memberToken())) {
+            return run;
+        }
+        return run.withoutMemberText(text -> holdsMemberOf(run, text));
+    }
+
     private static RunRecord withNote(RunRecord run, RunRecord note) {
         return note == null ? run : run.toBuilder().note(note.note()).testerRef(note.testerRef()).build();
     }
@@ -668,7 +681,7 @@ public class JsonlRunLedger implements RunLedger {
                     continue;
                 }
                 if (!LedgerLines.isNote(line)) {
-                    return Optional.of(withNote(line, latestNote).withCase(latestCase));
+                    return Optional.of(withoutMemberText(withNote(line, latestNote).withCase(latestCase)));
                 }
                 if (latestNote == null) {
                     latestNote = line;
@@ -691,6 +704,18 @@ public class JsonlRunLedger implements RunLedger {
             throw new ValidationException("The note was not added. Nothing was changed.",
                     tooLong.entrySet().stream().map(e -> new FieldError(e.getKey(), e.getValue())).toList());
         }
+        List<FieldError> member = new ArrayList<>();
+        if (holdsMemberOf(known, note)) {
+            member.add(new FieldError("note", MemberInText.message("note", List.of("the member ID of this run"),
+                    "The note was not added. Nothing was changed.")));
+        }
+        if (holdsMemberOf(known, testerRef)) {
+            member.add(new FieldError("testerRef", MemberInText.message("testerRef", List.of("the member ID of this run"),
+                    "The note was not added. Nothing was changed.")));
+        }
+        if (!member.isEmpty()) {
+            throw new ValidationException("The note was not added. Nothing was changed.", member);
+        }
         if (!enabled) {
             return new LedgerReceipt(false, known, "The note was NOT recorded: " + SWITCHED_OFF + ".", null);
         }
@@ -708,6 +733,22 @@ public class JsonlRunLedger implements RunLedger {
             }
             return new LedgerReceipt(true, current.toBuilder().note(newNote).testerRef(newTesterRef).build(), null, appended.runsToday());
         }
+    }
+
+    /**
+     * True when text a tester adds to a line holds the member ID of its run: compared with the ID
+     * where the line holds it, and otherwise by turning each candidate in the text into a token the
+     * way the ID was and comparing tokens. The ID never has to be recovered to know the note holds it.
+     */
+    private boolean holdsMemberOf(RunRecord line, String text) {
+        if (Texts.blank(text)) {
+            return false;
+        }
+        if (Texts.present(line.memberId())) {
+            return MemberInText.holdsId(text, line.memberId());
+        }
+        String token = line.memberToken();
+        return Texts.present(token) && MemberInText.holdsId(text, line.memberIdLast4(), candidate -> policy.matches(token, candidate));
     }
 
     @Override

@@ -1,0 +1,196 @@
+package org.p32h.interop.epa.pave.service.ledger;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.MEMBER_ID;
+import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.dayFile;
+import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.draft;
+import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.ledger;
+import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.lines;
+import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.recordingIds;
+
+import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.Protocol;
+import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.service.error.ValidationException;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.JsonNode;
+
+/**
+ * The three ways in the second member data audit found for a member ID, a name or a date of birth
+ * to reach a line on the live profile with the default settings: the free text typed with a run,
+ * the run's own member ID typed where a procedure code goes, and an identifier a service supplies.
+ * Each test writes through the real ledger with member IDs tokenised and reads the file back.
+ */
+class LedgerMemberTextTest {
+
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-03-10T15:00:00Z"), LedgerFixtures.ZONE);
+    private static final LocalDate TODAY = LocalDate.of(2026, 3, 10);
+    private static final String UUID = "0d1e2f3a-4b5c-4d6e-8f70-123456789abc";
+
+    @TempDir
+    Path home;
+
+    private JsonNode onlyLine() {
+        List<String> written = lines(dayFile(home, TODAY));
+        assertThat(written).hasSize(1);
+        assertThat(written.get(0)).doesNotContain("S123456789").doesNotContainIgnoringCase("s12345").doesNotContain("1961")
+                .doesNotContain("Zzlastname");
+        return JsonSafe.parse(written.get(0)).node();
+    }
+
+    private static String text(JsonNode line, String field) {
+        return JsonSafe.text(line, field);
+    }
+
+    @Test
+    void aNoteATesterReferenceOrAnExpectationThatHoldsTheRunsOwnMemberIdIsWrittenAsItsLength() {
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        String note = "Called about member s12345 6789 today";
+        ledger.record(draft("run-1", CLOCK).note(note).testerRef("QA-S123456789").expected("S-123-456-789: covered=covered")
+                .build());
+
+        JsonNode line = onlyLine();
+        assertThat(text(line, "note")).isEqualTo("(note not recorded, " + note.length() + " characters)");
+        assertThat(text(line, "testerRef")).isEqualTo("(tester reference not recorded, 13 characters)");
+        assertThat(text(line, "expected")).isEqualTo("(expectation not recorded, 30 characters)");
+        assertThat(text(line, "memberToken")).matches("[0-9a-f]{64}");
+        // Read back, the statements stay as they were written.
+        RunRecord read = ledger.find("run-1").orElseThrow();
+        assertThat(read.note()).isEqualTo("(note not recorded, " + note.length() + " characters)");
+        assertThat(read.testerRef()).isEqualTo("(tester reference not recorded, 13 characters)");
+    }
+
+    @Test
+    void freeTextThatDoesNotHoldTheMemberIdIsKeptAsTyped() {
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        ledger.record(draft("run-1", CLOCK).note("second try after the 6789 fix, ticket 12345").testerRef("QA-17").build());
+
+        List<String> written = lines(dayFile(home, TODAY));
+        JsonNode line = JsonSafe.parse(written.get(0)).node();
+        assertThat(text(line, "note")).isEqualTo("second try after the 6789 fix, ticket 12345");
+        assertThat(text(line, "testerRef")).isEqualTo("QA-17");
+    }
+
+    @Test
+    void theRunsOwnMemberIdTypedWhereAProcedureCodeGoesIsNotKeptAsACodeNorAsTheSubjectOfOne() {
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        ledger.record(draft("run-1", CLOCK).procedureCodes(List.of(MEMBER_ID, "95810", "SUBZZ9988776", "E0601"))
+                .coverageCodes(List.of(MEMBER_ID + ": covered=covered", MEMBER_ID + ", 95810: pa-needed=auth-needed",
+                        MEMBER_ID + ": (no answer)", "ServiceRequest/Zzlastname-1961-07-23: (no answer)", "95810: (no answer)",
+                        "ServiceRequest/" + UUID + ": covered=covered", MEMBER_ID + ": doc-needed=words in place of a code"))
+                .build());
+
+        JsonNode line = onlyLine();
+        assertThat(JsonSafe.elements(line.get("procedureCodes")).stream().map(JsonNode::asString).toList())
+                .containsExactly("(not a code, 10 characters)", "95810", "(not a code, 12 characters)", "E0601");
+        assertThat(JsonSafe.elements(line.get("coverageCodes")).stream().map(JsonNode::asString).toList()).containsExactly(
+                "(not a code, 10 characters): covered=covered",
+                "(not a code, 10 characters), 95810: pa-needed=auth-needed",
+                "(not a code, 10 characters): (no answer)",
+                "(not a code, 36 characters): (no answer)",
+                "95810: (no answer)",
+                "ServiceRequest/" + UUID + ": covered=covered",
+                "(not a code, 10 characters): doc-needed=(not a code, 24 characters)");
+        RunRecord read = ledger.find("run-1").orElseThrow();
+        assertThat(read.coverageCodes()).first().isEqualTo("(not a code, 10 characters): covered=covered");
+    }
+
+    @Test
+    void theMemberIdTypedAsAProcedureCodeIsNotKeptEvenWhereMemberIdsAreRecorded() {
+        JsonlRunLedger ledger = recordingIds(home, CLOCK);
+        ledger.record(draft("run-1", CLOCK).memberId("S000000222").procedureCodes(List.of("S000000222")).build());
+        RunRecord read = ledger.find("run-1").orElseThrow();
+        assertThat(read.procedureCodes()).containsExactly("(not a code, 10 characters)");
+    }
+
+    @Test
+    void anIdentifierAServiceSuppliesIsNotKeptWhenItReadsLikeAMemberIdOrADateAndTheToolsOwnAreKept() {
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        Map<String, String> correlation = new LinkedHashMap<>();
+        // The notification the auditor used: no member on the line to compare with.
+        correlation.put(RunRecord.CORR_SUBSCRIPTION_ID, "sub-S123456789");
+        correlation.put(RunRecord.CORR_CLAIM_ID, "Zzlastname-19610723");
+        correlation.put(RunRecord.CORR_CLAIM_RESPONSE_ID, "S123456789");
+        correlation.put(RunRecord.CORR_RUN_ID, "run-" + UUID);
+        ledger.record(draft("run-1", CLOCK).protocol(Protocol.SUBSCRIPTION).operation(EpaOperation.SUBSCRIPTION_NOTIFICATION).memberId(null)
+                .correlation(correlation).build());
+
+        JsonNode line = onlyLine();
+        JsonNode kept = line.get("correlation");
+        assertThat(text(kept, "subscriptionId")).isEqualTo("(not recorded, 14 characters)");
+        assertThat(text(kept, "claimId")).isEqualTo("(not recorded, 19 characters)");
+        assertThat(text(kept, "claimResponseId")).isEqualTo("(not recorded, 10 characters)");
+        assertThat(text(kept, "correlatedRunId")).isEqualTo("run-" + UUID);
+    }
+
+    @Test
+    void theIdentifiersThisToolMintsAndOnesWithoutLongDigitRunsAreKept() {
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        Map<String, String> correlation = new LinkedHashMap<>();
+        correlation.put(RunRecord.CORR_CLAIM_ID, "claim-" + UUID);
+        correlation.put(RunRecord.CORR_CLAIM_RESPONSE_ID, "claimresponse-claim-" + UUID);
+        correlation.put(RunRecord.CORR_SUBSCRIPTION_ID, "subscription-placeholder-0001");
+        correlation.put(RunRecord.CORR_SUBSCRIPTION_RUN_ID, "run-" + UUID);
+        ledger.record(draft("run-1", CLOCK).protocol(Protocol.SUBSCRIPTION).operation(EpaOperation.SUBSCRIPTION_NOTIFICATION).memberId(null)
+                .correlation(correlation).build());
+
+        JsonNode kept = JsonSafe.parse(lines(dayFile(home, TODAY)).get(0)).node().get("correlation");
+        assertThat(text(kept, "claimId")).isEqualTo("claim-" + UUID);
+        assertThat(text(kept, "claimResponseId")).isEqualTo("claimresponse-claim-" + UUID);
+        assertThat(text(kept, "subscriptionId")).isEqualTo("subscription-placeholder-0001");
+        assertThat(text(kept, "subscriptionRunId")).isEqualTo("run-" + UUID);
+        assertThat(RunRecord.keepsIdentifier("2.16.840.1.113883.4.642")).isTrue();
+        assertThat(RunRecord.keepsIdentifier("sub-S123456789")).isFalse();
+    }
+
+    @Test
+    void aNoteAddedLaterThatHoldsTheMemberIdIsRefusedWhetherTheLineHoldsTheIdOrItsToken() {
+        JsonlRunLedger tokenised = ledger(home, CLOCK);
+        tokenised.record(draft("run-1", CLOCK).build());
+        for (String note : List.of("member S123456789 again", "member s123456789", "member S12345 6789 called", "xxS123456789yy")) {
+            ValidationException refused = Assertions.catchThrowableOfType(ValidationException.class,
+                    () -> tokenised.addNote("run-1", note, null));
+            assertThat(refused).as(note).isNotNull();
+            assertThat(refused.fieldErrors()).singleElement().satisfies(error -> {
+                assertThat(error.field()).isEqualTo("note");
+                assertThat(error.message()).contains("member ID").doesNotContain("S123456789");
+            });
+        }
+        ValidationException ref = Assertions.catchThrowableOfType(ValidationException.class,
+                () -> tokenised.addNote("run-1", null, "S123456789"));
+        assertThat(ref.fieldErrors()).singleElement().satisfies(error -> assertThat(error.field()).isEqualTo("testerRef"));
+        assertThat(tokenised.addNote("run-1", "checked with the payer, ticket 6789", "QA-18").recorded()).isTrue();
+        assertThat(lines(dayFile(home, TODAY))).noneMatch(written -> written.contains("S123456789") || written.contains("s123456789"));
+
+        JsonlRunLedger recording = recordingIds(home.resolve("recording"), CLOCK);
+        recording.record(draft("run-2", CLOCK).build());
+        Assertions.assertThatThrownBy(() -> recording.addNote("run-2", "about S-1234-56789", null)).isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void aNoteAnOlderVersionAppendedWithTheMemberIdIsReplacedWhenTheLineIsReadAndExported() throws java.io.IOException {
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        ledger.record(draft("run-1", CLOCK).build());
+        // As a version before the second member data audit would have appended it: kept as typed.
+        java.nio.file.Files.writeString(dayFile(home, TODAY), "{\"recordType\":\"note\",\"runId\":\"run-1\",\"timestamp\":"
+                + "\"2026-03-10T11:05:00-04:00\",\"note\":\"old note about s12345 6789\",\"testerRef\":\"QA-S123456789\"}\n",
+                java.nio.file.StandardOpenOption.APPEND);
+
+        RunRecord read = ledger.find("run-1").orElseThrow();
+        assertThat(read.note()).isEqualTo("(note not recorded, 26 characters)");
+        assertThat(read.testerRef()).isEqualTo("(tester reference not recorded, 13 characters)");
+        String exported = new String(RunCsv.bytes(ledger.query(org.p32h.interop.epa.pave.model.RunQuery.builder().build())),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(exported).doesNotContainIgnoringCase("s12345").contains("(note not recorded, 26 characters)");
+    }
+}
