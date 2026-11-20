@@ -166,24 +166,29 @@ To stop the tool, press Ctrl+C in the terminal where it runs.
 PAVE drives the three Da Vinci operations a provider system would call, against whichever
 environment you point it at, and shows you what went over the wire and what it made of it.
 
-- **CRD**: a CDS Hooks `order-sign` or `order-select` call. The answer is read from the standard
-  coverage information codes (`covered`, `pa-needed`, `doc-needed`, `doc-purpose`, `info-needed`,
-  `satisfied-pa-id` and the delegated vendor), not from card wording. CRD never denies on clinical
-  grounds and nothing in PAVE reads a CRD answer as a denial.
+- **CRD**: a CDS Hooks `order-sign` or `order-select` call, and discovery of the CDS services an
+  environment offers. The answer is read from the standard coverage information codes (`covered`,
+  `pa-needed`, `doc-needed`, `doc-purpose`, `info-needed`, `satisfied-pa-id` and the delegated
+  vendor), not from card wording. CRD never denies on clinical grounds and nothing in PAVE reads a
+  CRD answer as a denial. A CRD request you paste can be compared, element by element, with the
+  one PAVE would build for the same case (added at the operator's request, D-118, D-119).
 - **DTR**: the payer's questionnaire, fetched with `$questionnaire-package`, answered step by step
   through `next-question` for an adaptive questionnaire, and completed into a
-  QuestionnaireResponse that PAS can carry.
-- **PAS**: `Claim/$submit` and `Claim/$inquire`, plus subscriptions (create, read, update, delete)
-  and a receiver for the notifications a payer sends back. PAS can carry a denial and PAVE shows it
-  as one.
+  QuestionnaireResponse that PAS carries.
+- **PAS**: `Claim/$submit` and `Claim/$inquire`, plus subscriptions (create, read, list, update,
+  delete) and a receiver for the notifications a payer sends back. PAS can carry a denial and PAVE
+  shows it as one. There is no claim update and no `$submit-attachment` (D-161).
+- On every protocol a tester can send a request body of their own in place of the one PAVE builds,
+  and any request of the uploaded collection can be sent as it is written (Config tab).
 - Member lookup by member ID, provider lookup by NPI, a procedure code picker backed by the P32H
   code list, a ledger of every run, replay, chains of CRD, DTR and PAS for one case, and suites of
   many cases from one file.
 
 Every result shows two things side by side, and they are different things: the **authorization
-outcome** (what the payer said, for example "The prior authorization is denied") and the **test
-result** (whether that is what you said you expected: pass, fail, or unverified when you declared
-nothing). A case you expect to be denied that comes back denied is a denial **and** a pass.
+outcome** (what the payer said, for example "The prior authorization is denied.") and the **test
+result** (whether that is what you said you expected: Passed, Failed, or Unverified when you
+declared nothing). A case you expect to be denied that comes back denied is a denial **and** a
+pass.
 
 ### What PAVE is not
 
@@ -192,18 +197,27 @@ nothing). A case you expect to be denied that comes back denied is a denial **an
 - **DTR here is the server-side operations, not a SMART launch.** There is no SMART authorization
   server, no launch handshake and no EHR embedding. When you exercise DTR in PAVE you exercise the
   `$questionnaire-package` and `next-question` operations behind a provider-facing SMART launch,
-  not the launch itself. Every DTR result says so. Do not report a DTR run here as a test of the
-  SMART launch.
-- **PAVE does not tell you what the published guides require.** Its request shapes and its reading
-  of responses were written before the guides could be read in the build environment (decisions
-  D-008 and D-130 in `DECISIONS.md`). The operator named version 2.0.1 of the guides as the one to
-  hold the tool to (D-136). On this revision the independent comparison of each protocol with
-  2.0.1 had not reported. It has since reported, on a later commit of the `epa-pave` branch
-  (`44c7760`, in `PROGRESS.md` there): **the tool does not conform to 2.0.1**, with blockers in CRD
-  and PAS and majors in all three (CRD 3 blockers, 14 majors, 9 minors; PAS 9 blockers, 11 majors,
-  6 minors; DTR 8 majors, 6 minors), not fixed at that commit. Among them: CRD calls some codes
-  2.0.1 defines non-conformant, and PAS builds bundles a validating 2.0.1 service would refuse. So
-  a conformance finding from PAVE can be wrong in either direction, and a request PAVE builds can
+  not the launch itself, and you type each answer yourself: no patient record pre-populates
+  anything, and no CQL is run. Every DTR result says so. Do not report a DTR run here as a test of
+  the SMART launch.
+- **PAVE is held to version 2.0.1 of CRD, DTR and PAS**, on the operator's word (D-136); which
+  version the vendor's sandbox follows is not known. The request shapes and the reading of
+  responses were first written without the guides (D-008, D-130), then compared with 2.0.1 by
+  auditors who wrote none of the code, and brought in line (D-140 to D-166; what each comparison
+  found and what was done is in `PROGRESS.md`). What that means on screen:
+  - every conformance finding names the guide and the version it holds the response to, for
+    example "CRD 2.0.1";
+  - content that a later version defines (the 2.2.0 ballot) is read and named with its version,
+    never called wrong;
+  - a value nobody supplied is never invented: the request goes without it, and the result says
+    what was left out and which variable would supply it (finding `REQUEST_INCOMPLETE`, D-141). A
+    service that refuses such a request is not at fault. See
+    [Variables that fill a request](#variables-that-fill-a-request).
+  
+  Limits of that comparison: US Core 3.1.1, SDC 3.0.0, HRex, the subscriptions backport, FHIR R4
+  core and the X12 code lists were not available, so their rules are not checked; the 2.0.1
+  examples were not compiled; requests are checked against hand-written 2.0.1 rules that do not
+  test slices or invariants beyond the few named in `PROGRESS.md`. A request PAVE builds can still
   be refused by a conformant service for reasons that are PAVE's.
 
 ### What a tester must not conclude
@@ -216,10 +230,11 @@ nothing). A case you expect to be denied that comes back denied is a denial **an
 - **"No determination" is not "not required".** CRD scenario 14 (`P32H-EMPTY`) returns no answer at
   all and PAVE says "The service answered but returned no determination." Scenario 2
   (`P32H-NO-AUTH`) returns `pa-needed=no-auth` and PAVE says "Prior authorization is not
-  required." (both observed). They are different
-  outcomes, with different codes in the ledger.
-- **A code list finding on the bundled placeholder list is about synthetic rows.** See
-  [The procedure code list](#the-procedure-code-list).
+  required." They are different outcomes (`NO_DETERMINATION` and `NO_AUTH_REQUIRED`), drawn in
+  different colours, with different codes in the ledger.
+- **A code list finding on the bundled placeholder list is about synthetic rows.** On mock every
+  such finding says the list is the placeholder; on live PAVE does not compare with the
+  placeholder at all. See [The procedure code list](#the-procedure-code-list).
 
 ### The notification receiver will very likely not be reachable
 
@@ -231,12 +246,14 @@ With the defaults, **no vendor can reach the receiver at all**.
 
 What to do then:
 
-- Use **polling**: submit, then inquire with `POST /api/pas/inquire`. Polling needs nothing from
-  the network beyond the outbound call and works on its own.
+- Use **polling**: submit, then inquire (the Inquire call on the PAS tab, or
+  `POST /api/pas/inquire`). Polling needs nothing from the network beyond the outbound call and
+  works on its own.
 - Subscription create, read, update and delete still work, because those are calls PAVE makes.
   Only the notifications coming back are lost.
-- On mock, `POST /api/pas/notifications/sample` delivers a sample notification through the same
-  code a real one reaches, so the receiver's behaviour can be seen without the network.
+- On mock, `POST /api/pas/notifications/sample` (the Notifications call on the PAS tab) delivers a
+  sample notification through the same code a real one reaches, so the receiver's behaviour can be
+  seen without the network.
 - To receive real notifications, someone must give the machine an address the payer can reach and
   open PAVE to it. Read [Who can reach this tool](#who-can-reach-this-tool) before doing that, and
   ask the owner of the installation first.
@@ -252,72 +269,264 @@ payer (see [Limitations](#limitations)).
 | Answers come from | scenario files in `src/main/resources/scenarios/` | the services in the active Postman environment |
 | Members and providers | synthetic fixtures in `src/main/resources/fixtures/` | the member API and the provider directory, when configured |
 | Needs | nothing | an uploaded environment, its credentials, network access |
-| Ledger records the member ID | yes, it is synthetic | no, a salted token and the last four characters, unless configured |
+| Ledger records the member ID | only a `P32H-` sentinel or an `S` and nine or ten digits; anything else as on live | no, a salted token and the last four characters, unless configured |
 | Scenario picker | yes | no: a forced outcome against a real service would be a result that did not come from it |
 
 **Every scenario is synthetic.** Sentinel member IDs select the mock scenario: `P32H-PA-REQ`
 answers "prior authorization required", `P32H-NO-AUTH` answers "not required", `P32H-EMPTY`
-answers with no determination, and so on. The full lists are served by `GET /api/crd/scenarios`,
-`GET /api/dtr/scenarios` and `GET /api/pas/scenarios`, with the outcome each one is meant to
-produce. A run can also name a scenario with `scenarioId`. Mock member fixtures use
-`P32H-...` sentinels and `S123456789`-style placeholders; the placeholder NPI is `1234567893`.
-NPI `9999999995` selects "provider not found".
+answers with no determination, and so on; a sentinel means the same case in every protocol
+(D-154). The CRD, DTR and PAS tabs list them, each with a "Use this member ID" link, and
+`GET /api/crd/scenarios`, `GET /api/dtr/scenarios` and `GET /api/pas/scenarios` serve them with
+the outcome each is meant to produce (14 CRD, 15 DTR and 21 PAS scenario files). A run can also
+name a scenario (the Mock scenario field, or `scenarioId`). Mock member fixtures use `P32H-...`
+sentinels and `S123456789`-style placeholders; the placeholder NPI is `1234567893`. NPI
+`9999999995` selects "provider not found". A damaged scenario file stops the start on mock and
+names the file (D-153).
 
 **Switching** is a restart: stop the tool and start it with `./run.sh live` (or `./run.sh` for
-mock). The mode is shown by `GET /api/mode` (and, once the screens are merged, on every screen;
-this revision has none). The application refuses to start
-when `epa.mode` and the Spring profile disagree, so the badge can never say mock while the wiring is
-live. Both profiles use the same `config-store/` and `run-history/` directories, and every ledger
-line records the profile it ran on.
+mock). The mode is shown on every tab, at the top right (`Profile mock` or `Profile live`), and by
+`GET /api/mode`. The application refuses to start when `epa.mode` and the Spring profile disagree,
+so the screen can never say mock while the wiring is live. Both profiles use the same
+`config-store/` and `run-history/` directories, and every ledger line records the profile it ran
+on.
 
 Starting on live with nothing configured was checked: the tool starts, `GET /api/mode` says
-`"mode":"live"` and that writes are refused because no environment is active, the scenario list
-is empty with the reason, a member lookup answers `DISABLED` ("Member lookup is not configured"),
-and a CRD run answers 409 ("No collection request is mapped to CRD order-sign, and onyx.crd.url is
-not set. Nothing was sent."). **Nothing has been run against Onyx or any real service.**
+`"mode":"live"` and that writes are refused because no environment is active, a member lookup
+answers `DISABLED`, and the CRD, DTR and PAS tabs each hold back their form and say "This tab
+cannot send yet", naming what is missing, with a link to the Config tab. **Nothing has been run
+against Onyx or any real service.**
 
 On mock, a short artificial delay is added to each answer so that the screens behave as they will
 on live. `app.mock-latency-enabled: false` removes it.
 
 ## Using the screens
 
-**Not checked against a screen.** The frontend is being built on its own branch and was not on the
-revision this README was checked on. This section is written from the specification (section 20)
-and from what the endpoints behind each tab do, which was checked. It does not name buttons or
-fields, because none was seen. Expect it to be revised once the screens are merged.
+Open `http://localhost:8057/`. This section takes you through the page as it is on the revision
+named at the end. Words in quotation marks are what the screen says; a button's name is given as
+it reads. Some sentences the server writes are still being reworded, so a line on your screen may
+read a little differently from one quoted here; the buttons, the order and the colours do not
+change with them.
 
-Every tab shows, at the top, the tool name and version and the **active environment with its
-kind**. A production environment is marked so that it reads as production from across the room.
-The browser tab title carries the same two facts: `PAVE 1.0.0 | <environment name>`.
+### What every tab shows
 
-- **CRD.** Pick or type a member, a provider and one or more procedure codes, optionally declare
-  what you expect, and send. The member is looked up when you leave the field (`/api/members/{id}`)
-  and the provider likewise (`/api/providers/{npi}`); found details fill the form and stay
-  editable, and an edit is marked as typed by hand. The code picker (`/api/procedure-codes`) shows
-  what the code list says about each code before you send: `PA`, `No PA`, the vendor name, or
-  nothing when the list does not say. The result (`POST /api/crd`) starts with one sentence in
-  plain words, then the standard codes, then the cards, then anything returned that the tool did
-  not interpret, then the wire view, collapsed.
-- **DTR.** Fetch the questionnaire package (`POST /api/dtr/package`), answer questions, step the
-  adaptive loop (`POST /api/dtr/next-question`) with the question count, the answers so far and the
-  completion status shown at each step, and complete the response (`POST /api/dtr/response`). The
-  completed response is handed on to PAS.
-- **PAS.** Submit (`POST /api/pas/submit`), inquire (`POST /api/pas/inquire`), manage
-  subscriptions, and see notifications as they arrive (`GET /api/pas/notifications`). Writes to a
-  production environment are blocked unless unlocked; see
-  [The production guardrail](#the-production-guardrail).
-- **History.** The ledger (`GET /api/runs`), filtered by date, protocol, outcome and result; one
-  run in full; a note on a run; CSV export; replay; the count of runs recorded today
-  (`GET /api/runs/health`), which is how you notice that tracking has stopped.
-- **Config.** Upload a Postman environment and collection, choose the active environment, see and
-  correct how each request was mapped, unlock production writes for your session, and see
-  everything in force (`GET /api/config/effective`).
+- **The masthead.** `PAVE 1.0.0` on the left. On the right: the profile (`mock` or `live`), the
+  target, the active environment with its kind, and the ledger: how many runs were recorded today,
+  as a link to History. The browser tab title carries the same facts, for example
+  `PAVE 1.0.0 | no environment | mock`.
+- **The strip under it** says where answers come from. On mock it is hatched and begins "Mock
+  profile. Scenario files answer in place of the service." A production environment puts a solid
+  purple banner on every tab that says whether writes are locked, or, once unlocked, "Writes
+  UNLOCKED for this browser session". A UAT environment puts a purple outlined banner on every
+  tab. A sandbox has none.
+- **The ledger indicator** turns into a heavy black frame when runs are not being recorded, for
+  example "Ledger tracking is OFF; latest run here NOT recorded" or "cannot write, runs NOT
+  recorded". Stop and read it before the next run: a run that was not recorded cannot be found,
+  exported or replayed.
+- **Colour key**, at the right under the masthead, says what every colour and mark means. In
+  short: the verdict strip's colour is what the service said (green for nothing further required,
+  orange for something the provider must do, magenta for a no, a hollow dashed frame for no
+  answer, cream for a member or provider the service does not know, a heavy frame for an
+  environment that failed, a purple frame for a request the guardrail refused). The test result
+  uses green for Passed and magenta for Failed and nothing else. Cream on a form field means it
+  was typed by hand or taken from a pasted request rather than given by a lookup.
+- **The chain bar.** When a case runs as a chain, a bar under the tabs shows its three stages
+  (Coverage requirements (CRD), Documentation (DTR), Prior authorization request (PAS)), what each
+  answered, the next step, and the buttons `Open the whole journey` and `Start a new case`.
 
-Before anything is uploaded, the specification says each protocol tab says what it is missing and
-points to Config; after an upload, each tab offers the requests mapped to its operations, the
-vendor's sample body can be loaded and edited, the resolved url is shown before sending, and a
-request with a pre-request script is marked. The API behind each of these was checked with the
-sample files; how the screens present them was not.
+### The case: the left side of CRD, DTR and PAS
+
+The three protocol tabs share one case, so a member, a provider and the codes typed on one tab are
+on the other two.
+
+- **Member.** Type the member ID and press Enter or `Look up member`. Found details fill the fields
+  below, each marked "from lookup", and stay editable; a field you change is marked as typed by
+  hand. A member ID typed with spaces is sent without them, and both forms are kept. "Not found"
+  is a finding about test data, not a fault, and is worded differently from a lookup that failed.
+- **Ordering provider.** The NPI, with `Look up provider`. The check digit is checked first.
+- **Procedure codes.** Type a code or words of its description; the arrows choose from the code
+  list and Enter adds. Each code shows what the list says about it: `PA`, `No PA`, a vendor name,
+  or nothing when the list does not say. While the bundled list is in use the box says
+  "Placeholder code list in use: its tags are synthetic, not P32H's."
+- **Run as part of a chain** gives the case one id in the ledger across CRD, DTR and PAS.
+- **What to send.** `Built by this tool from the form` (the default) or `A request of my own`: a
+  body you paste, sent exactly as written, with `{{placeholders}}` filled in. The tab says what the
+  ledger keeps of such a run: no member ID, provider or line of business, and no body, so it
+  cannot be replayed from the ledger alone.
+- Below the case, each tab has its own fields: the date of service, a tester reference, a note,
+  on mock a `Mock scenario` chooser ("The member ID decides" by default), and `Expected outcome
+  (optional)`. Leave the expectation empty and the run is Unverified; choose one and the run is
+  Passed or Failed. `Assert standard codes as well` adds expectations on single codes.
+- `Show the request` (on PAS also `Show the inquiry` and the like) shows the request as it would
+  be sent, the url it resolves to and what it leaves out, and sends and records nothing.
+
+On mock, before anything is uploaded, the right side of each protocol tab says what to do and lists
+the member IDs that select each scenario, each with `Use this member ID`. On live with nothing
+configured, each protocol tab holds back its form, says "This tab cannot send yet" with what is
+missing, and links to the Config tab; once an environment and a collection are active the form
+comes back, with no reload.
+
+### Reading a result: the right side, the same on every tab
+
+From the top:
+
+1. **The verdict strip**: one sentence in plain words, in the colour of the outcome, for example
+   "Documentation is required." Beneath it, the lines that support it, and at the foot `mock` when
+   a scenario answered, and the outcome code (`Outcome code DOCUMENTATION_REQUIRED`).
+2. **Test result**, beside the strip: `Passed`, `Failed` or `Unverified`, with `Expected` (what you
+   declared, or "nothing declared") and `Happened`. This is the answer to "did it match", and it is
+   a different fact from the outcome.
+3. **Next step**: what to do now, in one line, with a button where the next step is on another
+   tab, for example `Continue in DTR` after a CRD answer that asks for documentation, `Continue in
+   PAS` after a completed questionnaire, or the PAS tab's own `Send inquiry` after a pended
+   decision. "The flow ends here. Record this result." means there is nothing further to send.
+4. **Ledger**: "Recorded." with today's count, or, in a heavy frame, "NOT recorded" with the reason.
+5. **Response time**, flagged `slow` above the threshold.
+6. **Run**: the run id (`Copy run id`), the operation, the environment and profile, the chain, the
+   tester reference and the note.
+7. **Findings**: things a person should look at, grouped by what they are about (the request this
+   tool sent, the response held to the guide, the code list beside the service, and so on). A
+   finding is not a failure of the call. `REQUEST_INCOMPLETE`, for example, lists what the request
+   went out without because nobody supplied it, and the variable that would supply each.
+8. **Determination**: the standard codes returned, each with its meaning and the element it came
+   from.
+9. **The response detail**: cards and coverage information for CRD, the questionnaire for DTR, the
+   decision for each item for PAS.
+10. **Returned but not interpreted**: everything the service sent that the tool did not use, so
+    nothing is dropped in silence. "not returned", "null", "empty" and "none returned" are four
+    different statements and none is shown as a blank.
+11. **The wire view**, collapsed: the request and the response as they went over the wire. On mock
+    the request reads "not sent". See [The wire view carries member data](#the-wire-view-carries-member-data).
+
+A result made before the configuration changed is marked as such in a heavy frame. A refusal by
+the server (a field it refused, a 409, a blocked write) is shown with its own sentence, beside the
+field or the button it is about.
+
+### The CRD tab
+
+Enter the case, choose the hook (`order-sign` or `order-select`) and, if you like, `Send
+prefetch`, then `Send CRD request`. `Discover the CDS services this environment offers` asks the
+environment what it offers (CDS Hooks discovery).
+
+`A request of my own` also offers `Compare with this tool's request`: it builds PAVE's own request
+for the same case and lists where the two differ, with what each difference means; nothing is sent
+and nothing is recorded. `Fill the form from this request` takes the member, provider and codes
+from the pasted request; where it disagrees with a lookup, the lookup line says so, and `Put your
+request's values in these fields` takes the pasted values, marked "from the pasted request". When
+a collection is mapped, `The vendor's sample` loads the vendor's sample body to compare or edit.
+
+### The DTR tab
+
+What CRD handed on ("Handed on from the CRD result": the codes, the questionnaire it named, the
+coverage assertion, the order) is listed at the top of the DTR fields; without it, the package is
+asked for by the codes of the case or by a questionnaire url you type. Choose `Fetch the
+questionnaire package`. The questions appear on the right under "Answering the questionnaire",
+each with its link id, its type and whether it is required, and "In the response:" for what the
+response holds so far. Answers the payer pre-populated are marked as such; one you change is
+marked as overridden.
+
+- For a static questionnaire, answer and choose `Complete the response`. It sends nothing to the
+  payer: the response is put together inside PAVE, and the result says whether it is complete or
+  which required questions are unanswered.
+- For an adaptive questionnaire, each step sends your answers and gets the next question, with the
+  question count, the answers so far and the completion status at each step.
+- When the response is complete, the next step offers `Continue in PAS`. Change an answer after
+  that and the button is withdrawn until the response is completed again, so PAS never receives
+  answers you have since changed.
+
+### The PAS tab
+
+Choose the call at the top: `Submit`, `Inquire`, `Subscriptions` or `Notifications`.
+
+- **Submit.** The case, a claim identifier (blank: PAVE mints one, or uses the one handed on),
+  diagnosis codes, attachments, then `Send PAS request`. When DTR handed on a completed response,
+  the tab says "The answers completed in DTR will travel with this request.", and `Show the
+  request` names the QuestionnaireResponse in the bundle. The result lists the answers inside the
+  request under "The questionnaire answers in the request built", with the values you typed, and
+  shows the decision for each item: one row per item asked about, read from the review action
+  code only, never from the payer's wording.
+- **Inquire.** `Send inquiry` and `Show the inquiry`, matched by the claim identifier.
+- **Subscriptions.** `Create subscription`, `List subscriptions`, `Read subscription`, `Update
+  subscription`, `Delete subscription`, each with a preview. Create, update and delete are writes.
+- **Notifications.** What the receiver has received, correlated to runs, `Ask the receiver now`,
+  and, on mock, `Deliver a sample notification`. Read [The notification receiver will very likely
+  not be reachable](#the-notification-receiver-will-very-likely-not-be-reachable) first.
+
+On a production environment, a submit and every subscription write are refused until writes are
+unlocked on the Config tab, and the result says "Nothing was sent." with the reason in a purple
+frame. See [The production guardrail](#the-production-guardrail).
+
+### The History tab
+
+- **Runs**: the ledger, newest first, filtered by day, protocol, operation, outcome and result.
+  Above the list: whether tracking is on, how many runs were recorded today and where the file is.
+  `Export runs as CSV` downloads what the list shows. Open a run to read it from the ledger in four
+  parts, "What was expected", "What happened", "Did it match" and "What next", then what the line
+  recorded and how it ties to other runs. From there: add a note, `Replay this run`, and `Load this
+  case into the form`, which puts its member, provider and codes back on the three protocol tabs.
+- **Chains**: one row for each case followed through CRD, DTR and PAS. Open one to see its whole
+  journey on one screen: each stage with its runs, and for a stage that did not run, the reason.
+- **Suite runs**: choose a suite file; PAVE says what it would run and what is wrong with the file
+  before anything is sent. `Run suite` runs it, and the result counts the cases by result, for
+  example "Finished: 6 cases. 4 passed, 1 failed, 1 unverified." `Download a suite file template
+  (CSV)` gives the columns.
+
+Days are UTC days, as the ledger files its runs; the tab says so beside each date field.
+
+### The Config tab
+
+Five parts, chosen at the top:
+
+- **In force now**: where the tool is pointed (profile, target, environment, production or not,
+  whether writes are blocked), where uploaded files are kept, and for every operation the address
+  a run would go to, where it comes from and whether it can be sent now. With nothing uploaded it
+  walks you through the three steps: upload the environment, make it active, upload the
+  collection.
+- **Environments**: upload a Postman environment, saying whether it is `sandbox`, `uat` or `prod`
+  (the tool never guesses), make one active, remove one. On a production environment this is also
+  where writes are unlocked for this browser session, by typing the environment's name.
+- **Collections and mapping**: upload a collection, see which request each operation uses and how
+  it was mapped, change a mapping (`Choose a request`), remove a collection.
+- **Send a request as written**: any request of the collection, sent with its own method, url,
+  headers and body (`Send this request as written`, `Show the request before sending`).
+- **Check this installation**: the ledger, the code list self-check, the tool and where it is
+  pointed, in one place, with `Copy as text for support`. It holds no member data and no secret.
+
+### The journey CRD to DTR to PAS, once
+
+On mock, with nothing uploaded. Each step was walked on the running tool; what the screen said is
+quoted.
+
+1. Open the CRD tab. Type `P32H-DOC-DTR` as the member ID and press Enter: the member fields fill,
+   each marked "from lookup". Type `1234567893` as the NPI and press Enter. In the procedure codes
+   type `E0601`, press the down arrow and Enter. Tick `Run as part of a chain`.
+2. Choose `Send CRD request`. The verdict strip, in orange, says "Documentation is required.";
+   the test result says `Unverified` (nothing was declared); the next step says "Next: complete
+   the payer's documentation in DTR." with the button `Continue in DTR`. The chain bar appears.
+3. Choose `Continue in DTR`. The DTR tab opens with the same member, provider and code, and lists
+   what was handed on from the CRD result, among it the questionnaire CRD named.
+4. Choose `Fetch the questionnaire package`. The strip says "The questionnaire package was loaded
+   with one questionnaire." Four questions appear, three of them required.
+5. Answer them: Yes to the first, `17` for the Epworth score, a symptom, and a note if you like.
+   Choose `Complete the response`. The strip says "The questionnaire response is complete.", and
+   the next step says "Next: submit the prior authorization request in PAS. The completed
+   questionnaire response goes with it." with the button `Continue in PAS`.
+6. Choose `Continue in PAS`. The Submit call is open with the same case, and the tab says the
+   answers completed in DTR will travel with the request. `Show the request` shows the bundle: its
+   notes say the answers "travel in the bundle as QuestionnaireResponse/sleep-study-criteria-draft
+   and are named in the claim's supporting information", and the body holds the score 17.
+7. Choose `Send PAS request`. On mock with this member the default scenario answers: "The prior
+   authorization is approved.", with the authorization number, and the next step "The flow ends
+   here. Record this result." Under "The questionnaire answers in the request built" the four
+   answers are listed, 17 among them.
+8. `Open the whole journey` in the chain bar shows the chain in History: CRD, DTR and PAS, each with
+   its run.
+
+To see the other outcomes, choose a scenario on the PAS tab (for example pended, then `Send
+inquiry` from the next step), or start again with another member ID from the table on the CRD tab.
+Declare an `Expected outcome` before sending to get Passed or Failed in place of Unverified.
+
+What was not checked on the screens, and what they are known to get wrong, is under
+[Limitations](#limitations).
 
 ## The wire view carries member data
 
