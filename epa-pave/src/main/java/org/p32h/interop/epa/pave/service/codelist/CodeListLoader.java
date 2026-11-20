@@ -46,6 +46,14 @@ final class CodeListLoader {
     static final String PLACEHOLDER = "codelist/placeholder-codes.csv";
 
     /**
+     * The note the bundled placeholder and the sample list under {@code samples/codelist} write in
+     * every row. A list any row of which carries it in its notes says of itself that it is
+     * synthetic, and is treated as the placeholder is, wherever it was loaded from: the file is
+     * believed, not its path.
+     */
+    public static final String SYNTHETIC_MARKER = "Not from a P32H export.";
+
+    /**
      * Several times the size of the real export, which has some seven thousand rows, and low
      * enough that a wrong path fails with a sentence and not by running out of memory.
      */
@@ -103,13 +111,25 @@ final class CodeListLoader {
                     + ". Text in plain letters and digits is not affected. Export the list again as UTF-8 (in a spreadsheet, "
                     + "CSV UTF-8) and restart.");
         }
+        long marked = rows.entries.stream().filter(entry -> carriesTheMarker(entry.row().notes())).count();
+        boolean synthetic = source.placeholder() || marked > 0;
+        if (!source.placeholder() && marked > 0) {
+            warnings.add("This code list says of itself that it is synthetic: " + marked + " of its rows " + (marked == 1 ? "carries" : "carry")
+                    + " the note \"" + SYNTHETIC_MARKER + "\" Its tags are not P32H's, so it is treated as the bundled "
+                    + "placeholder is: on live it is not compared with the service. Set codelist.file to the P32H export and restart.");
+        }
         warnings.addAll(table.warnings());
         warnings.addAll(columns.warnings());
         warnings.addAll(rows.warnings());
 
-        CodeListSelfCheck selfCheck = new CodeListSelfCheck(source.name(), source.placeholder(), table.format(), rows.entries.size(),
+        CodeListSelfCheck selfCheck = new CodeListSelfCheck(source.name(), synthetic, table.format(), rows.entries.size(),
                 rows.stating, rows.namingVendor, rows.lineCounts(), columns.recognised(), columns.unrecognised(), warnings);
         return new LoadedCodeList(rows.entries, rows.lineNames, selfCheck);
+    }
+
+    /** Whether a notes cell says the row is not from a P32H export, in any letter case. */
+    static boolean carriesTheMarker(String notes) {
+        return notes != null && notes.toLowerCase(Locale.ROOT).contains(SYNTHETIC_MARKER.toLowerCase(Locale.ROOT));
     }
 
     // ---- settings ----

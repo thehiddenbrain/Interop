@@ -267,6 +267,54 @@ class CodeListConformanceSeamTest {
         }
     }
 
+    // ---- a list that says of itself that it is synthetic (F-SAMPLE-LIST) ----
+
+    @Test
+    void onLiveTheShippedSampleListIsNeverComparedBecauseItSaysItIsSynthetic() {
+        // README: ./run.sh mock --codelist.file=samples/codelist/sample-code-list.csv. Its 95810 Medicare row says PA is required.
+        ProcedureCodeService sample = new ProcedureCodeService(CodelistProperties.of(Map.of("file", "samples/codelist/sample-code-list.csv")));
+        assertThat(sample.selfCheck().placeholder()).isTrue();
+        List<Finding> findings = checkOn("live", sample, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810");
+        assertThat(kinds(findings)).containsExactly(FindingKind.CODE_LIST_NOT_COMPARED);
+        assertThat(findings.get(0).title()).isEqualTo("The code list was not compared with the service: no P32H code list is loaded");
+        // On mock the comparison runs, and what it raises says the list is synthetic.
+        Finding onMock = only(checkOn("mock", sample, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810"),
+                FindingKind.CODE_LIST_DISAGREES_ON_AUTH);
+        assertThat(onMock.detail()).endsWith("The code list here is the synthetic placeholder that ships with the tool and not a P32H list.");
+    }
+
+    @Test
+    void oneRowCarryingTheMarkerMakesAListSyntheticAndAListWithoutItIsTakenAsReal() {
+        String marked = LIST + "95999,Yes,Medicare,,1/1/2026,\n";
+        ProcedureCodeService withNotes = TestCodeLists.csv(directory, "Code,PA,Line of Business,Notes\n"
+                + "95810,Yes,Medicare,Typed by hand\n95811,No,Medicare,placeholder row. not from a p32h export.\n");
+        assertThat(withNotes.selfCheck().placeholder()).isTrue();
+        assertThat(withNotes.selfCheck().warnings()).first().asString().startsWith("This code list says of itself that it is synthetic: 1 of "
+                + "its rows carries the note");
+        assertThat(kinds(checkOn("live", withNotes, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810")))
+                .containsExactly(FindingKind.CODE_LIST_NOT_COMPARED);
+        ProcedureCodeService unmarked = TestCodeLists.csv(directory, marked);
+        assertThat(unmarked.selfCheck().placeholder()).isFalse();
+        assertThat(kinds(checkOn("live", unmarked, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810")))
+                .contains(FindingKind.CODE_LIST_DISAGREES_ON_AUTH).doesNotContain(FindingKind.CODE_LIST_NOT_COMPARED);
+    }
+
+    @Test
+    void theBundledListAndEveryListUnderSamplesCarryTheMarkerOnEveryRow() throws java.io.IOException {
+        List<ProcedureCodeService> lists = new ArrayList<>(List.of(new ProcedureCodeService(CodelistProperties.defaults())));
+        try (var files = java.nio.file.Files.list(java.nio.file.Path.of("samples/codelist"))) {
+            for (java.nio.file.Path file : files.toList()) {
+                lists.add(new ProcedureCodeService(CodelistProperties.of(Map.of("file", file.toString()))));
+            }
+        }
+        assertThat(lists).hasSizeGreaterThanOrEqualTo(2);
+        for (ProcedureCodeService list : lists) {
+            assertThat(list.selfCheck().placeholder()).as(list.selfCheck().source()).isTrue();
+            assertThat(list.search("", null, 100_000)).as(list.selfCheck().source())
+                    .allSatisfy(row -> assertThat(row.notes()).contains(CodeListLoader.SYNTHETIC_MARKER));
+        }
+    }
+
     private static List<FindingKind> kinds(List<Finding> findings) {
         return findings.stream().map(Finding::kind).toList();
     }

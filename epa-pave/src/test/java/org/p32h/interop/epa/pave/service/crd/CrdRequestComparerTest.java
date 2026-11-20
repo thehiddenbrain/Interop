@@ -47,7 +47,7 @@ class CrdRequestComparerTest {
     private static final java.time.Clock BUILT_AT = java.time.Clock.fixed(java.time.Instant.parse("2026-03-18T14:05:09Z"), java.time.ZoneOffset.UTC);
 
     /** Generated with the algorithm the application validates with, never typed by hand. */
-    static final String NPI = Npi.withCheckDigit("198765432");
+    static final String NPI = Npi.withCheckDigit("100000008");
     private static final String HOOK_INSTANCE = "11111111-1111-4111-8111-111111111111";
     private static final String SURNAME = "Placeholder-Surname";
     private static final String BIRTH_DATE = "1970-01-31";

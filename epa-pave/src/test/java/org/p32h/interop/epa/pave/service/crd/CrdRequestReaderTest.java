@@ -18,7 +18,7 @@ import org.p32h.interop.epa.pave.service.crd.CrdRequestReader.Reading;
  */
 class CrdRequestReaderTest {
 
-    private static final String NPI = Npi.withCheckDigit("198765432");
+    private static final String NPI = Npi.withCheckDigit("100000008");
     private static final String MB = "'type':{'coding':[{'system':'http://terminology.hl7.org/CodeSystem/v2-0203','code':'MB'}]}";
 
     private static Reading read(String json) {

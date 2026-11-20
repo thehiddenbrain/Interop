@@ -50,7 +50,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 class CrdServiceCompareTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-03-10T15:00:00Z"), ZoneId.of("America/New_York"));
-    private static final String NPI = Npi.withCheckDigit("198765432");
+    private static final String NPI = Npi.withCheckDigit("100000008");
 
     private final FakeGateway gateway = FakeGateway.unconfigured();
     private final InMemoryLedger ledger = new InMemoryLedger();

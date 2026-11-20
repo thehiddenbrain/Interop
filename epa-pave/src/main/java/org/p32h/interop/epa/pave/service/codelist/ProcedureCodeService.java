@@ -64,8 +64,11 @@ public class ProcedureCodeService implements ProcedureCodeDirectory {
                 check.source(), check.format(), check.rowCount(), check.statingAuthRequirement(), check.namingVendor());
         int warnings = check.warnings().size() - (check.placeholder() ? 1 : 0);
         if (check.placeholder()) {
-            // Outcome only: which list is in use.
-            log.info("The bundled placeholder code list is in use. Every row in it is synthetic. Set codelist.file to the real export.");
+            // Outcome only: which list is in use. A list loaded from codelist.file can say of itself that it is synthetic.
+            log.info(check.source().startsWith("classpath:")
+                    ? "The bundled placeholder code list is in use. Every row in it is synthetic. Set codelist.file to the real export."
+                    : "The code list in use says of itself that it is synthetic, so it is treated as the placeholder. Set codelist.file to "
+                    + "the real export.");
         }
         if (warnings > 0) {
             // A count and nothing else. The warnings themselves are served by the self-check.

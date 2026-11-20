@@ -165,6 +165,16 @@ public final class NotificationVerdicts {
     /** @param sample true when the notification is a mock scenario's sample, which the tester can deliver again */
     public static NextStepView nextStep(NotificationOutcome outcome, NotificationReading reading, String claimId, String submissionRun,
                                         String subscriptionId, Unmatched unmatched, boolean sample) {
+        return nextStep(outcome, reading, claimId, submissionRun, subscriptionId, unmatched, sample, null);
+    }
+
+    /**
+     * @param toSeeAMatch for a sample that names, on purpose, a subscription this tool did not
+     *                    create, while the ledger holds one it did: the scenario whose sample would
+     *                    be matched to that one. Null otherwise
+     */
+    public static NextStepView nextStep(NotificationOutcome outcome, NotificationReading reading, String claimId, String submissionRun,
+                                        String subscriptionId, Unmatched unmatched, boolean sample, String toSeeAMatch) {
         Map<String, List<String>> carry = new LinkedHashMap<>();
         carry.put(NextStepView.CARRY_CLAIM_ID, Texts.present(claimId) ? List.of(claimId) : List.of());
         carry.put(NextStepView.CARRY_RUN_ID, Texts.present(submissionRun) ? List.of(submissionRun) : List.of());
@@ -179,7 +189,7 @@ public final class NotificationVerdicts {
                     "A heartbeat means there was no event to report.", carry);
             case UNRECOGNISED_TYPE -> new NextStepView(NextAction.REVIEW, "Next: read the notification below. This tool cannot say what "
                     + "should happen next.", "The notification does not state a type this tool knows.", carry);
-            case UNMATCHED_NOTIFICATION, UNCHECKED_NOTIFICATION -> notMatched(unmatched, sample, carry);
+            case UNMATCHED_NOTIFICATION, UNCHECKED_NOTIFICATION -> notMatched(unmatched, sample, toSeeAMatch, carry);
             case UNREADABLE_NOTIFICATION -> new NextStepView(NextAction.REVIEW, "Next: read the payload below as it arrived, and find out "
                     + "what sent it.", "The body is not a subscription notification this tool can read.", carry);
         };
@@ -191,14 +201,19 @@ public final class NotificationVerdicts {
      * when the ledger was asked and answered. A switch expression with no default: a reason added
      * without wording it here does not compile.
      */
-    private static NextStepView notMatched(Unmatched why, boolean sample, Map<String, List<String>> carry) {
+    private static NextStepView notMatched(Unmatched why, boolean sample, String toSeeAMatch, Map<String, List<String>> carry) {
         return switch (why) {
             case NAMES_NONE -> new NextStepView(NextAction.REVIEW, "Next: read the notification below and find out what sent it.",
                     "The notification names no subscription, so it cannot be matched to one.", carry);
             // The remedy first: on this tool the usual cause is that no subscription was created here
             // yet. A subscription made elsewhere is the other cause, and comes second. What the
             // ledger holds is already said beside the verdict, so the reason does not say it again.
-            case NOT_IN_LEDGER -> new NextStepView(NextAction.REVIEW, sample
+            // A sample unmatched by design while a subscription of this tool exists: creating another changes nothing.
+            case NOT_IN_LEDGER -> sample && toSeeAMatch != null ? new NextStepView(NextAction.REVIEW, "Next: to see a notification matched "
+                    + "to the subscription this tool created, deliver the sample of scenario " + toSeeAMatch + ".",
+                    "This sample names a subscription this tool did not create, on purpose: a notification that matches nothing is "
+                            + "what it shows, and is a finding in itself. Creating another subscription would not change that.", carry)
+                    : new NextStepView(NextAction.REVIEW, sample
                     ? "Next: create a subscription with Create subscription on the PAS tab, then choose Deliver a sample notification again."
                     : "Next: create a subscription with Create subscription on the PAS tab, so that the next notification can be matched to it.",
                     "If a subscription was made another way (by another client, before this ledger began, or by another installation of "

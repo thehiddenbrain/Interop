@@ -15,11 +15,15 @@ import java.util.List;
  * @param sentinelNpis     every NPI that selects this scenario on mock, in the same order
  * @param crdSentinelMemberIds the CRD sentinel member IDs a DTR scenario also answers for, so that
  *                         a journey started at CRD reaches it. Empty for every other scenario
+ * @param notes            what a tester should know about the file that does not stop it being
+ *                         used, such as that it is the default or that its expect block claims
+ *                         another HTTP status than it answers with. Empty when there is nothing
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId,
                               String sentinelNpi, ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome,
-                              List<String> sentinelMemberIds, List<String> sentinelNpis, List<String> crdSentinelMemberIds) {
+                              List<String> sentinelMemberIds, List<String> sentinelNpis, List<String> crdSentinelMemberIds,
+                              List<String> notes) {
 
     public ScenarioSummary {
         sentinelMemberIds = sentinelMemberIds == null || sentinelMemberIds.isEmpty()
@@ -27,10 +31,18 @@ public record ScenarioSummary(String id, int number, String label, String descri
         sentinelNpis = sentinelNpis == null || sentinelNpis.isEmpty()
                 ? (sentinelNpi == null ? List.of() : List.of(sentinelNpi)) : List.copyOf(sentinelNpis);
         crdSentinelMemberIds = crdSentinelMemberIds == null ? List.of() : List.copyOf(crdSentinelMemberIds);
+        notes = notes == null ? List.of() : List.copyOf(notes);
+    }
+
+    public ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
+                           ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome, List<String> sentinelMemberIds,
+                           List<String> sentinelNpis, List<String> crdSentinelMemberIds) {
+        this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, sentinelMemberIds,
+                sentinelNpis, crdSentinelMemberIds, null);
     }
 
     public ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
                            ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome) {
-        this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, null, null, null);
+        this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, null, null, null, null);
     }
 }

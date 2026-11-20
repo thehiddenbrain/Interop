@@ -409,6 +409,44 @@ class ScenarioRepositoryTest {
                 .hasMessage("its answersDtrSentinels is not true or false.");
     }
 
+    @Test
+    void aFileThatIsNotReadTheDefaultAndAnExpectBlockAtOddsWithItsFileAreSaidAndDoNotStopTheSet(@TempDir Path dir) throws IOException {
+        // F-ORPHAN and F-V4-02-REST: none of these stops the start, and each is said, naming the file and quoting nothing of it.
+        writeGoodSet(dir);
+        Files.createDirectories(dir.resolve("crd/sub"));
+        Files.writeString(dir.resolve("crd/crd-02.json"), scenario("crd-02", 2, "\"sentinelMemberId\":\"P32H-TWO\","));
+        Files.writeString(dir.resolve("crd/crd-00-zero.json"), "{\"id\":\"crd-00-zero\",\"number\":0,\"label\":\"L\",\"httpStatus\":200,"
+                + "\"expect\":{\"outcome\":\"AUTH_REQUIRED\",\"httpStatus\":500},\"response\":{}}");
+        Files.writeString(dir.resolve("crd/notes.txt"), scenario("crd-03", 3, "\"sentinelMemberId\":\"P32H-THREE\","));
+        Files.writeString(dir.resolve("crd/sub/crd-04.json"), scenario("crd-04", 4, "\"sentinelMemberId\":\"P32H-FOUR\","));
+        ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+        ScenarioRepository.Loaded loaded = external.load("crd");
+        assertThat(loaded.problems()).isEmpty();
+        assertThat(loaded.scenarios()).extracting(Scenario::id).containsExactly("crd-00-zero", "crd-01", "crd-02");
+        assertThat(loaded.notes()).containsExactly(
+                "notes.txt: it is not read, because only files whose names end in .json are scenario files.",
+                "sub: it is a folder, and folders inside crd are not read. A scenario file belongs directly in crd.",
+                "crd-00-zero.json: it is the default, because its number (0) is the lowest. A run that neither a chosen scenario nor a "
+                        + "sentinel selects is answered from it.",
+                "crd-00-zero.json: its expect block claims HTTP 500, and the file answers with HTTP 200, so the outcome it claims may not "
+                        + "be the one it produces.");
+        // The scenario list carries the notes about each file on that file's own line.
+        assertThat(loaded.scenarios().get(0).summary().notes()).hasSize(2);
+        assertThat(loaded.scenarios().get(1).summary().notes()).isEmpty();
+        assertThat(external.select("crd", MockSelection.of(null, "S123456789", null)).scenario().id()).isEqualTo("crd-00-zero");
+        // A set with notes is still used whole, and the start is not refused.
+        external.checkEveryProtocol();
+    }
+
+    @Test
+    void theBundledSetsSayOnlyWhichFileIsTheDefault() {
+        for (String protocol : ScenarioRepository.PROTOCOLS) {
+            ScenarioRepository.Loaded loaded = bundled.load(protocol);
+            assertThat(loaded.notes()).as(protocol).singleElement().asString()
+                    .startsWith(loaded.scenarios().get(0).source() + ": it is the default, because its number (");
+        }
+    }
+
     // ---- the check at start-up ----
 
     /** A scenario directory with one good file per protocol, which the start-up check accepts. */

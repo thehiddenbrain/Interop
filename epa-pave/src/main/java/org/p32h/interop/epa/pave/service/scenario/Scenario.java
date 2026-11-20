@@ -33,11 +33,15 @@ import tools.jackson.databind.JsonNode;
  *                         sentinels so that the result can say which of the two selected it
  * @param answersDtrSentinels whether this CRD file answers every DTR sentinel member ID that is
  *                         no CRD file's own, from its {@code answersDtrSentinels}
+ * @param notes            what a tester should know about the file that does not stop it being
+ *                         used, one sentence each, naming the file. Filled when the protocol's
+ *                         files are loaded together, because it is about the file among the others
  */
 public record Scenario(String id, int number, String label, String description, String sentinelMemberId,
                        String sentinelNpi, ScenarioStep main, Map<String, ScenarioStep> steps, ScenarioExpect expect,
                        String basis, String assumption, JsonNode raw, String source, List<String> sentinelMemberIds,
-                       List<String> sentinelNpis, List<String> crdSentinelMemberIds, boolean answersDtrSentinels) {
+                       List<String> sentinelNpis, List<String> crdSentinelMemberIds, boolean answersDtrSentinels,
+                       List<String> notes) {
 
     public Scenario {
         steps = steps == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(steps));
@@ -49,6 +53,22 @@ public record Scenario(String id, int number, String label, String description, 
         sentinelMemberId = sentinelMemberIds.isEmpty() ? null : sentinelMemberIds.get(0);
         sentinelNpi = sentinelNpis.isEmpty() ? null : sentinelNpis.get(0);
         crdSentinelMemberIds = crdSentinelMemberIds == null ? List.of() : List.copyOf(crdSentinelMemberIds);
+        notes = notes == null ? List.of() : List.copyOf(notes);
+    }
+
+    /** A scenario that answers sentinels of another protocol, before anything is known about it among the other files. */
+    public Scenario(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
+                    ScenarioStep main, Map<String, ScenarioStep> steps, ScenarioExpect expect, String basis, String assumption,
+                    JsonNode raw, String source, List<String> sentinelMemberIds, List<String> sentinelNpis,
+                    List<String> crdSentinelMemberIds, boolean answersDtrSentinels) {
+        this(id, number, label, description, sentinelMemberId, sentinelNpi, main, steps, expect, basis, assumption, raw, source,
+                sentinelMemberIds, sentinelNpis, crdSentinelMemberIds, answersDtrSentinels, null);
+    }
+
+    /** The same scenario with these notes. */
+    public Scenario withNotes(List<String> more) {
+        return new Scenario(id, number, label, description, sentinelMemberId, sentinelNpi, main, steps, expect, basis, assumption, raw,
+                source, sentinelMemberIds, sentinelNpis, crdSentinelMemberIds, answersDtrSentinels, more);
     }
 
     /** A scenario with sentinels of its own only, as every file was before a file could answer another protocol's. */
@@ -56,7 +76,7 @@ public record Scenario(String id, int number, String label, String description, 
                     ScenarioStep main, Map<String, ScenarioStep> steps, ScenarioExpect expect, String basis, String assumption,
                     JsonNode raw, String source, List<String> sentinelMemberIds, List<String> sentinelNpis) {
         this(id, number, label, description, sentinelMemberId, sentinelNpi, main, steps, expect, basis, assumption, raw, source,
-                sentinelMemberIds, sentinelNpis, null, false);
+                sentinelMemberIds, sentinelNpis, null, false, null);
     }
 
     /** A scenario with at most one sentinel of each kind, as every file was before a file could name several. */
@@ -72,7 +92,7 @@ public record Scenario(String id, int number, String label, String description, 
         // ones a DTR or PAS file answers for the same case included.
         return new ScenarioSummary(id, number, label, description, sentinelMemberId, sentinelNpi,
                 main == null ? null : main.behavior(), main == null ? null : main.httpStatus(),
-                expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crdSentinelMemberIds);
+                expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crdSentinelMemberIds, notes);
     }
 
     /**

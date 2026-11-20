@@ -77,8 +77,22 @@ public class ScenarioRepository {
             "sentinelMemberIds", "sentinelNpi", "sentinelNpis", "crdSentinelMemberIds", "answersDtrSentinels", "behavior", "httpStatus", "delayMillis",
             "response", "responseText", "expect", "steps", "nextQuestion", "paths", "responses");
 
-    /** The scenarios found for a protocol, and the files that could not be used. */
-    public record Loaded(List<Scenario> scenarios, List<String> problems) {
+    /**
+     * The scenarios found for a protocol, the files that could not be used, and what a tester
+     * should know that does not stop the set being used: a file in the directory that is not read,
+     * the file that is the default, an expect block at odds with its file. Notes never stop the
+     * start, because a tester's own directory may hold work in progress, and never quote what a
+     * file holds.
+     */
+    public record Loaded(List<Scenario> scenarios, List<String> problems, List<String> notes) {
+
+        public Loaded {
+            notes = notes == null ? List.of() : List.copyOf(notes);
+        }
+
+        public Loaded(List<Scenario> scenarios, List<String> problems) {
+            this(scenarios, problems, null);
+        }
     }
 
     private final AppProperties app;
@@ -122,7 +136,8 @@ public class ScenarioRepository {
     public Loaded load(String protocolDirectory) {
         List<Scenario> scenarios = new ArrayList<>();
         List<String> problems = new ArrayList<>();
-        Map<String, String> files = readFiles(protocolDirectory, problems);
+        List<String> notes = new ArrayList<>();
+        Map<String, String> files = readFiles(protocolDirectory, problems, notes);
         if (files.isEmpty() && problems.isEmpty()) {
             problems.add(Texts.present(app.scenarioDir())
                     ? "The scenario directory " + Path.of(app.scenarioDir().strip()).resolve(protocolDirectory) + " holds no scenario files."
@@ -176,7 +191,43 @@ public class ScenarioRepository {
             }
         }
         problems.addAll(protocolRules(protocolDirectory, unique));
-        return new Loaded(List.copyOf(unique), List.copyOf(problems));
+        List<Scenario> noted = new ArrayList<>();
+        for (int i = 0; i < unique.size(); i++) {
+            List<String> about = notesAbout(unique.get(i), i == 0);
+            notes.addAll(about);
+            noted.add(about.isEmpty() ? unique.get(i) : unique.get(i).withNotes(about));
+        }
+        return new Loaded(List.copyOf(noted), List.copyOf(problems), notes);
+    }
+
+    /**
+     * What can be said of one file from what is already loaded, without running it: that it is
+     * the default, and that its expect block claims another HTTP status than the file answers
+     * with. Whether the outcome it claims is the one it produces takes the protocol's own reading
+     * of the response, which the scenario tests do for the bundled files.
+     */
+    static List<String> notesAbout(Scenario scenario, boolean first) {
+        List<String> notes = new ArrayList<>();
+        if (first) {
+            notes.add(scenario.source() + ": it is the default, because its number (" + scenario.number() + ") is the lowest. A run that "
+                    + "neither a chosen scenario nor a sentinel selects is answered from it.");
+        }
+        ScenarioExpect expect = scenario.expect();
+        ScenarioStep main = scenario.main();
+        if (expect != null && expect.httpStatus() != null && main != null && main.httpStatus() != null
+                && !expect.httpStatus().equals(main.httpStatus())) {
+            notes.add(scenario.source() + ": its expect block claims HTTP " + expect.httpStatus() + ", and the file answers with HTTP "
+                    + main.httpStatus() + ", so the outcome it claims may not be the one it produces.");
+        }
+        for (Map.Entry<String, ScenarioStep> step : scenario.steps().entrySet()) {
+            ScenarioExpect claimed = step.getValue().expect();
+            Integer status = step.getValue().httpStatus();
+            if (claimed != null && claimed.httpStatus() != null && status != null && !claimed.httpStatus().equals(status)) {
+                notes.add(scenario.source() + ": the expect block of its step \"" + step.getKey() + "\" claims HTTP " + claimed.httpStatus()
+                        + ", and the step answers with HTTP " + status + ", so the outcome it claims may not be the one it produces.");
+            }
+        }
+        return notes;
     }
 
     /**
@@ -346,7 +397,7 @@ public class ScenarioRepository {
         }
     }
 
-    private Map<String, String> readFiles(String protocolDirectory, List<String> problems) {
+    private Map<String, String> readFiles(String protocolDirectory, List<String> problems, List<String> notes) {
         Map<String, String> files = new java.util.TreeMap<>();
         if (Texts.present(app.scenarioDir())) {
             Path directory = Path.of(app.scenarioDir().strip()).resolve(protocolDirectory);
@@ -355,7 +406,18 @@ public class ScenarioRepository {
                 return files;
             }
             try (Stream<Path> stream = Files.list(directory)) {
-                for (Path path : stream.filter(p -> p.getFileName().toString().endsWith(".json")).toList()) {
+                List<Path> listed = stream.sorted().toList();
+                for (Path path : listed) {
+                    // Named so that a file saved with another extension or in a folder is not taken for a loaded one.
+                    String name = path.getFileName().toString();
+                    if (Files.isDirectory(path)) {
+                        notes.add(name + ": it is a folder, and folders inside " + protocolDirectory + " are not read. A scenario file "
+                                + "belongs directly in " + protocolDirectory + ".");
+                    } else if (!name.endsWith(".json")) {
+                        notes.add(name + ": it is not read, because only files whose names end in .json are scenario files.");
+                    }
+                }
+                for (Path path : listed.stream().filter(p -> !Files.isDirectory(p) && p.getFileName().toString().endsWith(".json")).toList()) {
                     try {
                         files.put(path.getFileName().toString(), Files.readString(path, StandardCharsets.UTF_8));
                     } catch (IOException e) {
