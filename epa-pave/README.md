@@ -323,10 +323,11 @@ change with them.
   recorded". Stop and read it before the next run: a run that was not recorded cannot be found,
   exported or replayed.
 - **Colour key**, at the right under the masthead, says what every colour and mark means. In
-  short: the verdict strip's colour is what the service said (green for nothing further required,
-  orange for something the provider must do, magenta for a no, a hollow dashed frame for no
-  answer, cream for a member or provider the service does not know, a heavy frame for an
-  environment that failed, a purple frame for a request the guardrail refused). The test result
+  short: the verdict strip's colour is what the service said (solid cyan for nothing further
+  required, solid orange for something the provider must do, an orange frame for a decision that
+  is not final, solid grey for a no, a dashed frame for no answer, cream for a member or provider
+  the service does not know, a heavy black frame for an environment that failed, a purple frame
+  for a request the guardrail refused). The test result
   uses green for Passed and magenta for Failed and nothing else. Cream on a form field means it
   was typed by hand or taken from a pasted request rather than given by a lookup.
 - **The chain bar.** When a case runs as a chain, a bar under the tabs shows its three stages
@@ -459,9 +460,10 @@ frame. See [The production guardrail](#the-production-guardrail).
 
 - **Runs**: the ledger, newest first, filtered by day, protocol, operation, outcome and result.
   Above the list: whether tracking is on, how many runs were recorded today and where the file is.
-  `Export runs as CSV` downloads what the list shows. Open a run to read it from the ledger in four
+  `Export runs as CSV` downloads the runs of the chosen days, protocol and result; the tab says
+  which filters the export does not take. Open a run to read it from the ledger in four
   parts, "What was expected", "What happened", "Did it match" and "What next", then what the line
-  recorded and how it ties to other runs. From there: add a note, `Replay this run`, and `Load this
+  recorded and how it ties to other runs. From there: `Save the note`, `Replay this run`, and `Load this
   case into the form`, which puts its member, provider and codes back on the three protocol tabs.
 - **Chains**: one row for each case followed through CRD, DTR and PAS. Open one to see its whole
   journey on one screen: each stage with its runs, and for a stage that did not run, the reason.
@@ -478,12 +480,13 @@ Five parts, chosen at the top:
 
 - **In force now**: where the tool is pointed (profile, target, environment, production or not,
   whether writes are blocked), where uploaded files are kept, and for every operation the address
-  a run would go to, where it comes from and whether it can be sent now. With nothing uploaded it
-  walks you through the three steps: upload the environment, make it active, upload the
-  collection.
+  a run would go to, where it comes from and whether it can be sent now. On a production
+  environment this is where writes are unlocked for this browser session: type the active
+  environment's name exactly and choose `Unlock production writes for this session`. With nothing
+  uploaded it walks you through the three steps: upload the environment, make it active, upload
+  the collection.
 - **Environments**: upload a Postman environment, saying whether it is `sandbox`, `uat` or `prod`
-  (the tool never guesses), make one active, remove one. On a production environment this is also
-  where writes are unlocked for this browser session, by typing the environment's name.
+  (the tool never guesses), make one active, remove one.
 - **Collections and mapping**: upload a collection, see which request each operation uses and how
   it was mapped, change a mapping (`Choose a request`), remove a collection.
 - **Send a request as written**: any request of the collection, sent with its own method, url,
@@ -530,26 +533,33 @@ What was not checked on the screens, and what they are known to get wrong, is un
 
 ## The wire view carries member data
 
-The wire view shows the request and the response exactly as they went over the wire. That is the
-point of it, and it means that **on the live profile it shows member data**: the member ID, the
-name, the date of birth, and whatever the payer sent back. The lookup results do the same.
+The wire view shows the request and the response as they went over the wire. That is the point of
+it, and it means that **on the live profile it shows member data**: the member ID, the name, the
+date of birth, and whatever the payer sent back. The lookup results, the case fields filled by a
+lookup (`Show what the lookup returned`), the request preview and a pasted request do the same.
 
 So:
 
-- Do not screenshot or screen share the wire view, a lookup result, or a request body on live
-  unless everyone who can see it may see that member's data. Collapse the wire view first.
+- Do not screenshot or screen share the wire view, a lookup result, a preview or a request body on
+  live unless everyone who can see it may see that member's data. Collapse the wire view first.
 - Do not paste a request or a response into a ledger note, a ticket or a chat. A note is free text
   and is written to disk as typed.
 - On the mock profile every member is synthetic, which is what makes the default safe to demo.
+
+What the wire view hides: credential headers (`Authorization`, `Cookie`, API key headers) show at
+most their scheme, and a secret the request carried that the service sends back (a token, a key,
+a secret variable) is masked wherever it is repeated in the response. The designed view and the
+returned fields of CRD, DTR, PAS, subscriptions and both lookups are read from that masked body
+(D-162, D-179). What it does not catch: a secret sent back re-encoded (percent, base64, another
+case), shorter than six characters, or as a JSON number; and, for a request sent from the
+collection as it is, the "returned but not interpreted" fields are built from the body as
+received, so there the page masks what it can and the server does not (D-196). A credential typed
+into a pasted CRD request is shown as typed by the comparison.
 
 PAVE never writes the wire view to disk: the ledger holds no request or response body, no name,
 date of birth, address, gender or subscriber ID under any setting. Every `/api/` response carries
 `Cache-Control: no-store`, so the browser does not keep member data in its cache either (observed
 on the running tool).
-
-One known gap on this revision: a credential that a service sends back inside a Subscription
-(`channel.header`) is hidden in the designed view but still visible in the wire view. A fix is on a
-follow-up branch.
 
 ## Who can reach this tool
 
@@ -561,30 +571,37 @@ environment is active, reading the ledger, and uploading or deleting configurati
   (decision D-115). Other machines cannot connect at all. The cost is the receiver: no vendor can
   reach `POST /api/pas/notifications` until this is changed.
 - **It answers only to `localhost`**, a loopback address, the bound address, or a host name listed
-  under `app.allowed-hosts` (D-116, D-127). A request addressed to any other name gets 403. This
-  stops a web page served from another name that points at this machine from reading answers.
-  Observed: `Host: other.example.invalid` answered 403, and with
-  `--app.allowed-hosts=pave-box.example.invalid` that name answered 200.
-- **It refuses a change that comes from another site.** A request that changes something and names
-  another origin gets 403 ("This request came from a page that is not part of this tool, so it was
-  not carried out."). A client that names no origin, such as curl or a vendor's server, is let
-  through. The session cookie, which holds the production unlock, is `SameSite=Strict` and
-  `HttpOnly`.
-- **Nothing it serves is stored by the browser** (`Cache-Control: no-store` on every response), and
-  pages load scripts, styles and data from this tool only (a Content-Security-Policy header).
+  under `app.allowed-hosts` (D-116, D-127). A request addressed to any other name gets 403 ("This
+  request was addressed to a host name this tool does not answer to."). This stops a web page
+  served from another name that points at this machine from reading answers.
+- **It refuses a request that comes from another site**, whatever its method (D-148): when the
+  browser says the request is cross-site (`Sec-Fetch-Site`), or, without that header, names
+  another origin, the answer is 403 ("This request came from a page that is not part of this
+  tool, so it was not carried out."). A link from another site still opens the page itself, never
+  an answer of the API. A client that sends neither header, such as curl or a vendor's server, is
+  let through. Observed: `/api/mode` with `Sec-Fetch-Site: cross-site` answered 403, a cross-site
+  navigation to `/` answered 200, and `Host: other.example.invalid` answered 403. The session
+  cookie, which holds the production unlock, is `SameSite=Strict` and `HttpOnly`.
+- **Nothing it serves is stored by the browser** (`Cache-Control: no-store`), pages load scripts,
+  styles and data from this tool only (a Content-Security-Policy header), no other site can frame
+  it, and no address of the tool, which can hold a member ID, is sent to another site as a
+  referrer.
+- **One limit on any request body**: 30MB (`spring.servlet.multipart.max-request-size`), held in
+  memory while it is read and never written to the temporary folder (D-149).
 
 The notification receiver is exempt from the host check, for that exact address only, because a
 vendor addresses it by whatever name it was given. Observed: a POST to `/api/pas/notifications`
-with a foreign `Host` answered 200 with no body and was recorded.
+with a foreign `Host` answered 200 with no body.
 
 **Opening it to the network.** Start with `--server.address=0.0.0.0` (or one interface address)
-and list the name others will use under `app.allowed-hosts`. This was not tried for this README:
-only `app.allowed-hosts` was, on this machine. Then every machine that can reach that
-address can do everything listed above, with nobody signing in. **Do not do this without asking
-whoever owns the installation and whoever owns the environment it points at**, and never with a
-production environment active. If the point is to receive notifications, also set
-`onyx.subscription.callback-url` (or the collection's callback variable) to the address the vendor
-can reach.
+and list the name others will use under `app.allowed-hosts`. This was not tried for this README.
+Then every machine that can reach that address can do everything listed above, with nobody
+signing in, and a browser sends no `Sec-Fetch-Site` to a name served over plain http, so the
+cross-site check rests on `Origin` there (D-148). **Do not do this without asking whoever owns the
+installation and whoever owns the environment it points at**, and never with a production
+environment active. If the point is to receive notifications, also set
+`onyx.subscription.callback-url` (or the collection's call back variable) to the address the
+vendor can reach.
 
 ## Configuration through Postman
 
