@@ -945,7 +945,8 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
 - **Configuration.** Postman environments and collections uploaded and stored as uploaded, the
   operation mapping (changed and removed from the Config tab), which request a run uses stated by the
   server, variable resolution with labels for each source, the production guardrail judged by
-  destination and reading an address as the HTTP client does, no encoded separator in a path, warnings
+  destination and reading an address as the HTTP client does, no encoded separator (`%2F`, `%5C`, `%3B`,
+  an encoded dot segment) in a path (other escapes are open, above under the guardrail), warnings
   at upload and wherever environments are listed about addresses, credentials and member data, Lock
   from any browser ending every session's unlock and worded so by the server. The token request uses
   HTTP Basic (D-233).
@@ -1017,7 +1018,9 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
     warnings about member data (seen at 1366); the server's sentence on what Lock does (seen); the raw
     send's refused note (seen at 1366).
   - *Config tab, not yet seen.* The renamed buttons were not seen in a browser. [open at this revision: being fixed]
-- The build: green on `e1d37dc` through the shared wrapper, 2767 tests, 2765 passed, 2 skipped.
+- The build: green on `e1d37dc` through the shared wrapper, 2767 tests, 2765 passed, 2 skipped, as the
+  integrator ran it once (its log, `final/build-c2.log` in the build's scratch directory, prints no total;
+  its lines name 2765 tests passed and 2 skipped). Nobody else has built this revision.
 
 | Step | State |
 | --- | --- |
