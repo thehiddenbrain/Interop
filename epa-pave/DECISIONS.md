@@ -1992,3 +1992,140 @@ operator's document, so the tool follows 2.0.1 (D-136) and this file records the
    guardrail fix changed two shared files: `model/Secrets`, for the list of names that read as a
    credential and the words that make a name a descriptor (D-144, D-147), and
    `client/lookup/LookupOutcomes`, for the sentence of a refused lookup (D-146).
+
+## Decisions of the leftover tasks and of the frontend
+
+After the fix wave, two waves of work were merged: the leftovers that the parts of the fix wave
+had left in each other's files, in two tasks (one for the three protocols, one for everything
+else), and the frontend, in parts (the frame and the files every tab shares, the CRD tab with the
+request comparison, the DTR tab and the PAS tab, on top of the case, the Config tab and the History
+tab, D-172). Each task and each part was done by one agent, attacked by a second that did not write
+it (for the frontend: used in a real browser by a reviewer), and finished by a third. The entries
+below record what they decided and what the integrator decided for them, in this order: the
+leftovers in the protocols, the leftovers outside them, the frontend, what was decided not to do,
+the work decided and not yet done, and what was decided while joining the parts. Where an entry says
+"the fix", "the verification", "the review" or "the finisher", it means the agent that did that
+work. What is still open is in `PROGRESS.md`.
+
+### The leftovers in the three protocols
+
+**D-176. CRD names a partly completed QuestionnaireResponse for DTR: it is handed on as a reference and never fetched.**
+From the CRD verification's V-01, decided before the work. The 2.0.1 `response` sub-extension of the
+coverage information is a reference to a QuestionnaireResponse the payer started. CRD now puts every
+such reference under the hand-over key `NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF`
+(`questionnaireResponseRef`), which stays apart from `CARRY_QUESTIONNAIRE_RESPONSE`: one is an
+address CRD named, the other a response the tool completed. DTR passes the key on unchanged through
+every step, and its package result says once, quoting the reference, that CRD named this response
+for DTR to start from and that the tool does not fetch it, because the DTR 2.0.1 questionnaire
+package operation has no input for it (its inputs are coverage, order, referenced, questionnaire,
+context and changedsince; checked against the operation definition in the 2.0.1 package by the fix
+and again by the verification). What the package returns is what the tool works from. PAS ignores
+the key. A reference is an address, and an address can hold an identifier: it is shown on the
+result only, never sent in the request body, never on the ledger line or in a log. The sentence that
+CRD does not hand the reference on is gone from the CRD reason.
+
+**D-177. `GUIDE_RULE_BROKEN`: what it covers, and where each protocol raises it.**
+From the CRD verification's V-07, decided before the work (D-140). The kind is for a response that
+breaks a rule of the guide that is neither a missing element nor a code outside a value set: an
+invariant, an element where it may not sit, an element sent more often than allowed.
+- CRD: rules crd-ci-q1, q3 and q5, coverage information on a card, and a part sent more than once.
+  What stays `REQUIRED_ELEMENT_MISSING` is a part that is missing or empty.
+- PAS: a review action on the ClaimResponse or directly on an item, where PAS 2.0.1 defines the
+  review action extension only for `Claim.item` and `ClaimResponse.item.adjudication` (checked
+  against the guide's source). The decision it carries is still shown. This corrects D-159, which
+  said such a review action raised no finding.
+- DTR: a package bundle whose first entry is not a Questionnaire, or that holds no entry, breaks
+  dtrb-1 and raises one finding per such bundle, naming DTR 2.0.1 and the invariant. Only bundles the
+  package is made of are judged; a bundle nested inside one is not a package bundle. The fix first
+  found no DTR misfit, because none was filed under the two old kinds; the verification pointed out
+  that dtrb-1 was said only in a verdict sentence, so a History search by kind would find the PAS
+  misplacement and not the DTR break. It was then raised. The mock scenario with an empty package
+  (`P32H-DTR-EMPTY`) now carries this finding beside its `REQUEST_INCOMPLETE`.
+- DTR's request-side rule dtrx-1 stays a gap of `REQUEST_INCOMPLETE`, since it is about what the tool
+  sends, not about what a service returned.
+
+The label the fix suggested is "Breaks a rule of the guide". The colour key of the frontend lists the
+kind under the group of findings about what the guide requires (D-195); the server serving the
+groups itself is decided and not done (D-200).
+
+**D-178. DTR builds its Patient, Coverage and orders as CRD does, and says once what the CRD profiles require.**
+From the CRD verification's V-11 and the verification of the fix.
+- The package request uses the CRD 2.0.1 builders of `CaseResources`: the Patient with its medical
+  record number from `patientMrn` and `patientMrnSystem`, the Coverage from the same payer, coverage
+  and member identifier variables CRD reads, and each order under the HCPCS address `hcpcsSystem`
+  sets (D-142), with the same note. DTR 2.0.1 fixes the Coverage it carries to CRD profile-coverage
+  and names no profile for the Patient among its referenced resources.
+- The gap list of `DtrProfileCheck` lost nothing and gained nothing: it is `Coverage.status` and
+  `Coverage.payor` when nobody supplied them. The fix walked the CRD 2.0.1 Coverage and ServiceRequest
+  snapshots: every element they require is sent except those two.
+- What CRD profile-patient requires and nobody supplied (a name, a gender, a medical record number)
+  is said once, as information, in one Patient note, which says that DTR 2.0.1 does not require it
+  here and that it is not counted among what the request leaves out. The verification found eleven
+  notes that read as a list of unmet requirements and stated the Coverage gaps twice; the
+  requirement sentences of the CRD builders are now dropped for the package (they are recognised by
+  their opening, "CRD 2.0.1 profile-"), and the Coverage gaps are said only by `DtrProfileCheck`.
+  CRD's own request notes are unchanged.
+- The earlier builders (`patient()`, `coverage()`, the five-argument `serviceRequest`, the
+  three-argument `codeableConcept`, `insurer()`) have no caller in the application now and were left
+  in the file. Removing them is decided (D-200) and not done.
+
+**D-179. A secret a service sends back is masked once, in one place, for every protocol and lookup.**
+From the PAS verification's V-01, in the form its finisher suggested, and the verification.
+- `VendorExchange.withReturnedSecretsMasked()` gives the parsed body with every place masked that
+  repeats a secret the request carried, by the same rule as the wire view (D-162). The CRD, DTR, PAS
+  and subscription mappers and both lookup mappings read through it, and so does CRD discovery.
+  `service/pas/ReturnedSecrets` is gone. The raw body, `json()` and the headers of the exchange stay
+  as received, and the wire view masks from them.
+- The name of the questionnaire a DTR next-question answer names goes to the ledger line, so it is
+  read from the masked body. The verification showed that without that, a secret echoed in the path
+  of that address reached the ledger and no test failed; there is a test now.
+- Every sentence that said a body is shown "exactly as received" now says it is shown as received
+  except that a place repeating a secret the request carried is masked.
+- The address a subscription names for call back is masked in the Subscription the tool shows (the
+  result, the wire request, the preview) by the name of its query parameter or of its secret
+  variable, and sent as written. A Subscription the service sends back holding that address is
+  masked as well. A secret written into the path of the address with no variable has no name to be
+  recognised by and is shown; the Javadoc says so.
+- Proven on the live profile against stand-ins that echoed the bearer token, an API key header and
+  the lookup's Authorization header in fields nobody anticipated, in property names and nested under
+  a key-named property: no answer, ledger line or log held any of them.
+- Not covered: a request sent from the collection as it is, whose "returned but not interpreted"
+  fields are still read from the body as received (D-196, D-200), and a secret sent back as a JSON
+  number, anywhere.
+
+**D-180. A questionnaire the service completes with no item, in a package of several, is done.**
+Decided by the integrator after the fix wave (D-166). Its response is not handed to PAS, because DTR
+2.0.1 requires at least one item and the tool does not hand PAS a response that does not conform. It
+is taken off what the hand-over lists as still to answer, so that no later step asks for it again
+and PAS is offered once the others are answered. The step that takes it off says so, naming the
+questionnaire. A journey test drives a package of two through to PAS with a single
+QuestionnaireResponse in the bundle; the verification drove the same on live against a stand-in
+that completed one questionnaire with no item.
+
+**D-181. Which run a later ledger line names as the run it follows.**
+From the suites verification's VS-11, and a finding of the verification that was refuted.
+- A CRD next step to PAS or to DTR hands on this CRD run's id (`NextStepView.CARRY_RUN_ID`), as the
+  DTR package fetch already did. A manual CRD then PAS run and a manual CRD then DTR run now write
+  `correlatedRunId` on the later line; a suite chain row still writes it once, not twice.
+- A submission to PAS made from DTR names the package fetch, not the response step whose answers it
+  carries. The verification asked for the response run. Refuted, and kept on purpose: a package can
+  hold several questionnaires, each completed by its own response run, and the submission carries all
+  of them; one `correlatedRunId` cannot name them all, and the package fetch is the one run every one
+  of them follows. The chain id ties all the lines together. `DtrHandoff` documents the rule and a
+  journey test pins it.
+
+**D-182. Smaller decisions in the protocols.**
+- On mock, a CRD run whose own body is not JSON keeps the verdict of the scenario that answered but
+  gets the next step "review" with nothing handed on: the scenario answered whatever the body held,
+  and offering DTR or PAS from that would rest on an answer no service gave. On live the service's
+  own answer decides (the case review's CASE-06).
+- The orders a tester's own CRD body carries reach the ledger line only as procedure codes, and only
+  from the order resource types; an order with no code is named "order N (no code)", never by its id,
+  and the record then keeps it only as its own statement (the member data audit's m6).
+- DTR no longer writes its own "(not a url, N characters)" where a questionnaire address belongs on
+  the ledger line: the line holds the address or the record's own "not recorded" statement, which
+  replay refuses.
+- The CRD, DTR, PAS and subscription services pass where a run came from (`withOrigin`) on every
+  call they prepare. A preview passes none. What the gateway and the result then say is D-183.
+- The sample endpoint of the notification receiver no longer repeats the run id in its two "not
+  found" sentences (D-185).
