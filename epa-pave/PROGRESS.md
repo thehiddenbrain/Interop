@@ -36,15 +36,19 @@ as a real service one day, with what an independent check of that entry found; t
 them change this file, `DECISIONS.md` and the README only, and no code. D-271 records the operator's
 question whether the tool was ready to load into STS, the first answer that was wrong in part, the
 code change it led to and what an emulation of STS showed, with what an independent check of that
-entry and the README's STS section found.
+entry and the README's STS section found. D-272 records the two runs of the real STS that followed,
+on Linux with Spring Tools 5.4.0, and the change made between them.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
-D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and one code change:
+D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and two code changes:
 `05acbf7` (D-271, merged at `a5040bd`), in which every controller argument names itself and
-`HandlerArgumentNamesTest` holds that. The whole build of `05acbf7` through the shared wrapper
-(`gw clean build`): 2872 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL. Its code is the
-code at the head, so this is now the last whole build this file can record; the integrator's gates
-run after this file, and their result is in the pull request description.
+`HandlerArgumentNamesTest` holds that, and `ace5914` (D-272, merged at `5923b3f`), which changes
+tests and adds one launch file, `PaveApplication.launch`, and no main code. The whole build of
+`05acbf7` through the shared wrapper (`gw clean build`): 2872 tests, 0 failures, 0 errors, 2
+skipped, BUILD SUCCESSFUL. The whole build of `ace5914` the same way: 2872 tests, 0 failures, 0
+errors, 2 skipped (the two that need a folder that cannot be written), BUILD SUCCESSFUL. Its code is
+the code at the head, so this is now the last whole build this file can record; the integrator's
+gates run after this file, and their result is in the pull request description.
 
 ### Open at the revision handed over, the worst first
 
@@ -135,12 +139,15 @@ has looked.
    or an early NUL byte is skipped unread; a second, weaker copy of the tracking rule; invented surnames
    and 16 files of empty banners remain. The gate does not read commit messages or the pull request
    description.
-10. **Never run or never tried.** `run.cmd` (no Windows machine); a real STS: no STS installation has
-   imported or started the project. An emulation of its compiler on Linux started the tool on mock
-   and every call and README example it tried answered as stated after `05acbf7`, but the import, the
-   launch, Windows and the tests run from the IDE were not shown (D-271; the README, "STS (Spring Tools
-   for Eclipse)"); a mirror with credentials and a token server; a screen reader, contrast, 200% zoom
-   and phone width; many states listed below under the screens as never drawn.
+10. **Never run or never tried.** `run.cmd` (no Windows machine); STS beyond what was seen. The real
+   Spring Tools 5.4.0 on Linux imported the project with its defaults and started it on mock from the
+   Boot Dashboard and with Run As, on `e70a873` and on `ace5914`; on `e70a873` it also started it on
+   live through the launch dialog and ran five test classes, three of them again on `ace5914` (D-272).
+   Not seen: Windows, a real tester at a real workstation with a corporate proxy or mirror, the
+   screens in a browser after a start from STS, the live profile against a service, the whole test
+   suite from the IDE, and STS on a release other than 5.4.0 (the README, "STS (Spring Tools for
+   Eclipse)"). Also never tried: a mirror with credentials and a token server; a screen reader,
+   contrast, 200% zoom and phone width; many states listed below under the screens as never drawn.
 11. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
     `$log-questionnaire-errors`, no CQL; DTR is the operations behind a SMART launch, not the launch; the
@@ -197,8 +204,9 @@ has looked.
   pass over the screens on `0658a7c` (D-208) and by the walkthrough on `9e285a1`. **On `902e0d9`
   they were run by the integrator through the API, not on a screen**: on the jar built from that
   content, on mock, with a script (D-267). On the code of `05acbf7` they were run in the emulation of
-  D-271, from classes the Eclipse compiler built, and held; the integrator's gates run them again on
-  the head, from a fresh clone, and that result is in the pull request description. `P32H-NO-AUTH` gave `NO_AUTH_REQUIRED`,
+  D-271, from classes the Eclipse compiler built, and held; on `e70a873` and `ace5914` they were run
+  through the API after starts from the real STS 5.4.0, and held (D-272); the integrator's gates run
+  them again on the head, from a fresh clone, and that result is in the pull request description. `P32H-NO-AUTH` gave `NO_AUTH_REQUIRED`,
   "Prior authorization is not required.", next action `FLOW_ENDS`, and `P32H-EMPTY` gave
   `NO_DETERMINATION`, "The service answered but returned no determination.", next action
   `REPORT_NO_DETERMINATION`; their two ledger lines differ in outcome and hold no raw request or
@@ -495,9 +503,8 @@ Java older than 21, and an `{{env:PAVE_...}}` reference at send time on the jar.
   near its start is skipped unread; `StaticFrontendTest` keeps a second, weaker copy of the tracking
   rule; invented surnames that do not start with `Placeholder` remain in a few tests; empty section
   banners remain in 16 main source files.
-- Documentation: a real STS (no STS installation has imported or started the project; Spring Tools 5
-  is named from its project's own pages; D-271), a mirror that needs credentials and a token server
-  were not tested. A plain `./gradlew build` can skip the sample tests after a sample is edited; `clean
+- Documentation: STS was seen on Linux with Spring Tools 5.4.0 only, not on Windows or another
+  release (D-272); a mirror that needs credentials and a token server were not tested. A plain `./gradlew build` can skip the sample tests after a sample is edited; `clean
   build` runs them.
 
 **Checked only by unit tests, by reading the source, or at the gateway, never in the running tool.** A
@@ -1291,8 +1298,9 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
 - The build: green at the content of `902e0d9` through the shared wrapper (`gw clean build`), 2870
   tests, 0 failures, 0 errors, 2 skipped, as the integrator ran it (its log, `final/build-c5.log` in the
   build's scratch directory). Nobody else has built this revision; the integrator's last gates are in
-  the pull request description. Since then `05acbf7` (D-271), whose code is the code at the head:
-  2872 tests, 0 failures, 0 errors, 2 skipped, through the same wrapper, built by the change's author.
+  the pull request description. Since then `05acbf7` (D-271): 2872 tests, 0 failures, 0 errors, 2
+  skipped, through the same wrapper, built by the change's author; and `ace5914` (D-272), whose code
+  is the code at the head: 2872 tests, 0 failures, 0 errors, 2 skipped, the same way, by its author.
 
 | Step | State |
 | --- | --- |

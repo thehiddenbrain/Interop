@@ -49,10 +49,10 @@ configuration is needed.
   by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
 - **PAVE has no sign-in** and listens on this machine only. See
   [Who can reach this tool](#who-can-reach-this-tool).
-- **No STS installation has ever imported or started PAVE.** An emulation of STS's compiler on Linux
-  ran it on mock, every endpoint and example it tried answering as stated, after one code change
-  made for it (D-271); a real STS, its import and its launch, and Windows were not tried. See
-  [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
+- **STS has been seen on Linux only.** Two agents imported and started PAVE in Spring Tools 5.4.0 on
+  Linux, on mock, and ran some of its tests there, after the changes made for it (D-271, D-272);
+  Windows and other releases were not tried. A profile typed in the launch dialog is written into a
+  tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **PAVE is not fit to be run as a shared or production service as delivered.** The operator has
   said the tool will be productionized one day, which is read here as running it that way (D-270);
   what must exist first, none of it built, is listed under
@@ -126,9 +126,9 @@ Consider enabling configuration cache to speed up this build: https://docs.gradl
 The time and the task counts differ from machine to machine. `BUILD SUCCESSFUL` is what matters.
 Two tests are skipped when the build runs as root (see [Limitations](#limitations)).
 
-Working in STS? Run this build once before or right after the import, then read
-[STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) for the import, the JDK and how to
-start the tool from there.
+Working in STS? Run this build once before the import, then read
+[STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) for the import and how to start the
+tool from there.
 
 **4. Start the tool.**
 
@@ -173,7 +173,7 @@ does. Started through `run.cmd`, Ctrl+C is followed by the prompt `Terminate bat
 answer `Y`.
 
 **From STS**, start it as [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) says, in
-place of `run.sh` or `run.cmd`; nobody has done so yet.
+place of `run.sh` or `run.cmd`; that was seen on Linux with Spring Tools 5.4.0, not on Windows.
 
 **5. Ask the tool what it is, from a second terminal.**
 
@@ -1984,117 +1984,93 @@ as `systemProp.javax.net.ssl.trustStore=...` and `systemProp.javax.net.ssl.trust
 
 ### STS (Spring Tools for Eclipse)
 
-**Not verified.** No STS installation has ever imported, built or started this project: none was
-available on the machine it was built on, so no tested minimum version is claimed. What is known
-instead comes from two places: the Spring Tools and Buildship projects' own pages and source, and an
-emulation of what STS does, run on Linux without STS (the last part of this section says what it
-showed and what it could not). In the order you need it:
+**Seen on Linux with Spring Tools 5.4.0, not on Windows.** What follows was seen in the real IDE,
+Spring Tools 5.4.0.RELEASE (Eclipse 4.41.0, that is 2026-09, with Buildship 3.1.11) on Linux, driven
+with keyboard and mouse by agents that wrote none of the tool, on `e70a873` and on `ace5914`, which
+adds the launch configuration and the test changes named below (D-272). Nobody has tried it on
+Windows or with another release. The steps, in order:
 
-**Which Spring Tools.** Use Spring Tools 5 for Eclipse. PAVE is a Spring Boot 4 application, and the
+**1. Which Spring Tools.** Use Spring Tools 5 for Eclipse. PAVE is a Spring Boot 4 application, and the
 Spring Tools changelog gives 5.0.0 (2025-12-10, built on Eclipse 2025-12) as the first release that
 states Spring Boot 4 support. The Spring Tools FAQ says that Spring Tools 5 does not run on an Eclipse
-older than 2025-12 and that Spring Tools 4 gets no more updates. The current release when these were
-read was 5.4.0. All of this was read on 2026-11-20 in the Spring Tools wiki (its Changelog and FAQ
-pages); it is what that project states, not something seen with PAVE.
+older than 2025-12 and that Spring Tools 4 gets no more updates. Both were read on 2026-11-20 in the
+Spring Tools wiki (its Changelog and FAQ pages). STS runs on a JDK 25 of its own; the project still
+needs the JDK 21 of step 1 of the checklist. STS found it by itself at startup (Window, Preferences,
+Java, Installed JREs) and every launch ran on it.
 
-**The JDK, before you import.** The project is built with Java 21 (`build.gradle` asks Gradle for a
-Java 21 toolchain), so a JDK 21 must be installed where Gradle can find it. Spring Tools 5 brings a
-JDK 25 of its own, and by default its Gradle integration uses that JDK for the import (Spring Tools
-FAQ). For an import that fails because of it, the FAQ names two remedies: Gradle 9.1.0 or later, or
-choosing another JDK in the import wizard. The project's wrapper is Gradle 9.5.0.
+**2. Clone and build once from a terminal**, as steps 2 and 3 of the
+[First run checklist](#first-run-checklist) say (`./gradlew clean build` in `epa-pave/`), so that you
+know the build works on your machine before the IDE is involved.
 
-- Point STS at a JDK 21: Window, Preferences, Java, Installed JREs, add the JDK 21 and tick it.
-  Also set Java home in the Gradle preferences, or in the import wizard, to the same JDK.
+**3. Import.** File, Import, Gradle, Existing Gradle Project. Choose the `epa-pave/` directory, not the
+repository root, and leave the Import Options page as it is. The Import Preview shows "Gradle wrapper
+from target build", Gradle 9.5.0, and as Java home the JDK 25 that STS brings (a folder under its
+`plugins/` named `org.eclipse.justj.openjdk...`). That is fine: Gradle ran the import on it with no
+dialog and no error. Press Finish; within about a minute the Package Explorer shows
+`epa-pave [boot]` and the workspace build is over. Only if the import fails:
+- Give Gradle the JDK 21: tick "Override workspace settings" on the Import Options page (Java home is
+  greyed out until then) and set Java home, or set it under Window, Preferences, Gradle. A plain
+  Eclipse imported the project this way with the same result.
+- Red markers before Gradle has fetched the dependencies are normal. If they stay, right click the
+  project and choose Gradle, Refresh Gradle Project. It was never needed.
 
-**Import.**
+**4. The Problems view** reads "0 errors, 25 warnings, 59 others".
+- 24 warnings are Java warnings (13 exception classes with no `serialVersionUID`, unused imports, two
+  unused private methods, three deprecations). They need no action.
+- "Project 'epa-pave' has no explicit encoding set": the import sets no text encoding, so files
+  inherit the workspace default, UTF-8 on the machine seen. The Gradle build reads every source as
+  UTF-8, and seven test files hold characters outside ASCII. To silence it, and before you run tests
+  where the default may not be UTF-8, set the project's Properties, Resource, Text file encoding to
+  Other, UTF-8 (not tried; it is kept under `.settings/`, which git ignores).
+- The 59 others are Spring Tools' own hints; 54 read "Unnecessary path variable definition
+  [WEB_ANNOTATION_NAMES]" and sit on the names the controllers give their request parameters and path
+  variables. **Never apply the quick fix of "Unnecessary path variable definition"**: the IDE's
+  compiler keeps no parameter names, so without those names calls such as the History list and the
+  note answer HTTP 500 (D-271), and `HandlerArgumentNamesTest` fails the build.
 
-- Import with File, Import, Gradle, Existing Gradle Project, and choose the `epa-pave/` directory,
-  not the repository root.
-- **Red markers before the first resolution finishes are normal.** The project has no classes to
-  compile against until Gradle has downloaded the dependencies.
-- **If they stay, first try Gradle, Refresh Gradle Project** (right click the project). Most
-  import problems are a refresh that never ran or ran before the mirror settings were in place.
-
-**Run the Gradle build once, before or right after the import:** `./gradlew clean build`
-(`gradlew.bat clean build` on Windows), step 3 of the [First run checklist](#first-run-checklist).
-The project model Gradle hands the import lists two folders of Gradle's own build output for the
-tests, `build/classes/java/houseStyle` and `build/resources/houseStyle` (they come from
-`testImplementation sourceSets.houseStyle.output` in `build.gradle`), and neither exists in a fresh
-clone. The build creates the first. It does not create the second: the houseStyle source set has no
-resources, and after a full build on the machine this README was checked on that folder was still
-absent. Whether Eclipse puts a build path marker on a missing folder at all could not be seen here.
-If one stays after the build, refresh the Gradle project as above. If it still names
-`build/resources/houseStyle`, creating that empty folder is the obvious thing to try; it was not tried.
-
-**Start it.** Either select the project in the Boot Dashboard and press its run button (a launch
-configuration is created the first time), or right click
+**5. Start it.** The Boot Dashboard is the view at the bottom left: expand `local`, select `epa-pave`
+and press "Start or restart", its first button. Or right click
 `src/main/java/org/p32h/interop/epa/pave/PaveApplication.java` and choose Run As, Spring Boot App.
-Both are as the Spring Tools wiki and source describe them; neither was tried. With no argument the
-tool starts on the mock profile, on port 8057 as `application.yml` sets it; the log says `No active
-profile set, falling back to 1 default profile: "mock"` (seen in the emulation, not in STS). The
-lines `Starting PAVE 1.0.0 on http://localhost:8057/ ...` and `The following 1 profile is active`
-shown under step 4 do not appear: `run.sh` prints the first and passes the profile that the second
-reports, and an STS launch does not go through `run.sh`. For another port or the live profile, give
-the tool the arguments `run.sh` passes to it, `--server.port=8091` or
-`--spring.profiles.active=live`, as program arguments of the launch; the emulation started the tool
-with `--server.port` given this way, but where an STS launch takes program arguments was not seen.
-Go on with step 5 of the checklist. The tool then writes `config-store/` and `run-history/` in the
-folder the launch runs in. By default that is the project folder, `epa-pave/`; that is inferred from
-Eclipse's defaults and was not seen. Both folders are in `.gitignore`, so the two warnings described
-under step 4 of the checklist need no action there. If you change the launch's working directory,
-the two folders go there instead.
+The project carries the launch configuration `PaveApplication.launch`, written by STS 5.4.0 itself,
+so both start `PaveApplication` with no dialog. On an older checkout without that file the first
+start asks "Choose Main Type" with `HouseStyle` selected: choose `PaveApplication` (`HouseStyle` is
+the build's style gate). The Console shows `No active profile set, falling back to 1 default profile:
+"mock"`, the two warnings of step 4 of the checklist, `Tomcat started on port 8057` and `Started
+PaveApplication`, but not the two lines `run.sh` prints; the Boot Dashboard shows
+`epa-pave [:8057]`. Go on with step 5 of the checklist. `config-store/` and `run-history/` appear in
+the project folder, the launch's working directory, and are in `.gitignore`. Stop it with the stop
+button of the Boot Dashboard or of the Console. A plain Eclipse without Spring Tools ignores the
+launch file without a word: there, use Run As, Java Application on `PaveApplication`.
 
-**Text encoding, for tests on Windows.** No file under `src/main/java` or `src/main/resources` holds a
-character outside ASCII, so the running tool does not depend on the text encoding the IDE assumes.
-Seven files under `src/test/java` do. The Gradle build reads every source as UTF-8
-(`options.encoding = 'UTF-8'` in `build.gradle`); whether the import sets the project's encoding to
-match was not seen. Before you run tests from STS on Windows, open the project's Properties, Resource,
-and set Text file encoding to UTF-8 if it is not already.
+**6. The live profile, or another port.** Run, Run Configurations, Spring Boot App, `PaveApplication`.
+`live` typed in the Profile field of the Spring Boot tab, Apply, then Run, started the tool on live
+(`"mode":"live"`, and `[profile: live]` in the Boot Dashboard). Another port goes on the Arguments tab,
+under Program arguments, as `--server.port=8091` (not tried there). **A change made there is written
+into the tracked file `PaveApplication.launch`**: with `live` in the Profile field, `git status`
+showed it modified, one line. Do not commit it: `git restore PaveApplication.launch` in `epa-pave/`
+puts it back, and so does clearing the field. Or start from a terminal with `./run.sh live`
+(`run.cmd live`), which leaves the file alone.
 
-**Tests: run them with Gradle.** `./gradlew test`, or the `clean build` of step 3, is how the tests
-have always been run. Started from STS's own JUnit launcher, some fail for reasons that are not
-defects: two tests of `HouseStyleTest` read system properties that only the Gradle test task sets
-(`pave.houseStyle.*`, in `build.gradle`), and `PaveApplicationTest` needs
-`META-INF/build-info.properties`, which only the Gradle build writes. This is read from the code: no
-test was ever started from an IDE, so there may be others.
+**7. Tests from the IDE.** Run the whole suite with Gradle (`./gradlew test`, or step 3): only five
+test classes have been started from the IDE. From STS's JUnit launcher, `HandlerArgumentNamesTest`
+passed 2 of 2, `HouseStyleTest` 8 with 2 skipped and `PaveApplicationTest` 6 with 1 skipped
+(`RunControllerTest` and `MemberInTextFormsTest` passed on `e70a873`). The three skipped,
+`HouseStyleTest.theRealProjectListsItsDotFilesAndBreaksNoRule`,
+`HouseStyleTest.theBuildRunsThisGateAsPartOfCheck` and
+`PaveApplicationTest.theVersionOnScreenIsTheVersionThatWasBuilt`, check the Gradle build's own wiring
+and run only under Gradle. Each shows under Failure Trace a sentence that ends "This JVM was not
+started by that task (no system property org.gradle.test.worker), so the test is skipped here, not
+passed."
 
-**Yellow markers to expect.** The Eclipse compiler, run here, reported no error. When it also reads
-Javadoc comments, as an IDE usually does, it reported 18 warnings in the main code (23 without), and
-6 in the tests: 13 exception classes with no `serialVersionUID`, unused imports, two unused private
-methods and one deprecated Jackson method. They need no action. STS with its own settings may count
-differently. The import sets up no annotation processing, so STS offers no completion for PAVE's
-own properties in `application.yml`; the tool runs the same.
-
-**Parameter names.** The application no longer depends on the compiler keeping parameter names: every
-controller argument names its request parameter or path variable in its annotation, and
-`HandlerArgumentNamesTest` fails the build when one does not (D-271). The Eclipse compiler keeps no
-parameter names unless a setting says so, and nothing read shows the import saying so: Buildship
-sets only the compliance, source and target level from the build (read in its source at release
-3.1.12, the latest when read). Ticking "Store information about method parameters (usable via
-reflection)" under Preferences, Java, Compiler, as the Spring Framework 6.1 release notes tell
-Eclipse users to do, or in the project's own Java compiler settings, does no harm and is not needed.
-
-- `bin/`, `.classpath`, `.project`, `.settings/` and `.factorypath` that STS creates are in
-  `.gitignore`. A launch file you save into the project is not.
-
-**What was shown without an STS, and what was not.** On Linux, an agent that wrote neither the tool
-nor the change of D-271 compiled the main sources with the Eclipse compiler (ECJ 3.46.100,
-`--release 21`, without `-parameters`) before the change and after it, and the test and houseStyle
-sources after it: no error in any of them. It started the tool from those classes with no profile
-argument, from an empty folder. On the revision before the change (`1b34181`) the tool started on
-mock and both proofs of "Prove it before handover" held, but the History list, one run, the note,
-the notifications list and the four subscription calls answered 500 with the tool's general
-internal-error body. With the change (`05acbf7`) all of them answered 200, both proofs held, and all
-70 `curl` examples under [Endpoints](#endpoints) answered the status they state. It also read the
-project model Gradle hands an Eclipse import: five source folders, Java 21, 80 classpath entries, no
-error. **Not shown:** a real STS or Eclipse, with its own compiler settings and incremental builds;
-what Buildship does with the model (the files it writes, the missing folders above, the encoding,
-which jars the main code may see); how Buildship imports a model from a Gradle version it may not
-fully support, and which Buildship and STS versions a tester will have; the Boot Dashboard and Run
-As launch (their classpath, working directory, agents, and any profile or argument they add);
-Windows (paths, encoding, line endings, `run.cmd`); `run.sh`, which was not run either; the tests
-run from the Eclipse compiler's output (they were only compiled, after the change); the screens in a
-browser; the live profile.
+**What was seen, and by whom.** On `e70a873` one agent ran STS 5.4.0 on Linux: the import, the start
+from the Boot Dashboard (after "Choose Main Type") and with Run As, both proofs of "Prove it before
+handover" and every request it tried answering 200 on mock, the live profile, and three of five test
+classes failing; a plain Eclipse 2026-09, started with Run As, Java Application, gave the same
+import, proofs and failures. On `ace5914` another agent saw the start with
+no dialog, the profile written into the file and restored, and the tests as in step 7. **Not seen by
+anyone:** Windows, `run.cmd`, a real tester at a real workstation with a corporate proxy or mirror,
+the screens in a browser after a start from STS, the live profile against a service, the whole test
+suite from the IDE, and STS on a release other than 5.4.0.
 
 ## Open items
 
@@ -2134,9 +2110,10 @@ repeat every finding id; it leaves out nothing a tester has to know.
   the plain `./gradlew clean build` twice, a build from a fresh clone with the build cache off, the
   start with `GET /api/mode`, and the changed paths. A file cannot hold the result of a build of
   the commit it is part of, so their results are in the pull request description (part 2). The last
-  whole build this README can name is that of `05acbf7` (D-271), whose code is the code handed over,
+  whole build this README can name is that of `ace5914` (D-272), whose code is the code handed over,
   through the shared wrapper: 2,872 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL. Before
-  it, `902e0d9` gave 2,870 tests, 0 failures, 0 errors, 2 skipped, "No house style violations.".
+  it, `05acbf7` (D-271) gave the same counts, and `902e0d9` 2,870 tests, 0 failures, 0 errors, 2
+  skipped, "No house style violations.".
   Every build on the machine this README was checked on went through a wrapper that adds
   `--offline`, under a cap on Gradle's memory, with every Java process run with an option that
   turns off two base64 intrinsics (see the last section).
@@ -2166,11 +2143,12 @@ repeat every finding id; it leaves out nothing a tester has to know.
   would have failed on every machine. Quote an argument with an equals sign
   (`run.cmd mock "--server.port=8091"`). If it fails, use the two commands under step 4 of the
   checklist.
-- **STS has never imported or started the project.** Spring Tools 5 is named from what its project
-  states, not from a test, and no minimum version is verified. An emulation of its compiler on Linux
-  showed the tool running on mock after the change of D-271; the import, the launch, the tests run
-  from the IDE and Windows were not shown. See
-  [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) for both lists.
+- **STS was seen on Linux with Spring Tools 5.4.0 only**, on mock: the import, the start from the
+  Boot Dashboard and Run As, the live profile through the launch dialog and five test classes
+  (D-272). No other release, no minimum version and no Windows machine was tried, and the whole
+  suite has been run with Gradle only. Typing a profile in the launch dialog writes it into the
+  tracked file `PaveApplication.launch`; do not commit that. See
+  [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **A mirror that needs credentials and a token server** were not tried.
 - **Two tests are skipped** when the build runs as root, because a read-only folder is not
   read-only for root. The same refusals are covered by tests that do run. Two tests of the screens
@@ -2399,8 +2377,8 @@ repeat every finding id; it leaves out nothing a tester has to know.
 ## What this README was checked against
 
 - **Revision:** `902e0d9`, the head of `epa-pave` when this README was last checked in full against
-  the running tool, with this README added; the code change made since, and what was run on it, are
-  in the next two bullets. That is
+  the running tool, with this README added; the code changes made since, and what was run on them,
+  are in the next three bullets. That is
   `428eff5` with the last four fixes merged (completeness on screen `fff3bd0`, the walkthrough
   `10108d4`, the ledger `54f9912`, the guardrail `ca716a1`), the merge `60876fa` that kept both
   changes to one method of the ledger record, and the test corrected in `6b7abba`. Every sentence
@@ -2410,20 +2388,22 @@ repeat every finding id; it leaves out nothing a tester has to know.
   names it below.
 - **Since `902e0d9`, the code handed over also holds `05acbf7`** (D-271, merged at `a5040bd`): every
   controller argument names itself, held by `HandlerArgumentNamesTest`. Its build through the shared
-  wrapper (`clean build`): 2,872 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL. Apart from
-  it, the commits after `902e0d9` change this README, `PROGRESS.md` and `DECISIONS.md` only.
-- **Run for the STS section, on `1b34181` (before that change) and on `05acbf7` (after it)**, by an
-  agent that wrote neither this README nor the tool nor the change, on Linux without STS: the main
-  sources compiled with the Eclipse compiler (ECJ 3.46.100, `--release 21`, without `-parameters`)
-  on both revisions, and the test and houseStyle sources on `05acbf7` only; the tool started from
-  those classes with no profile argument, from an empty folder; the two proofs of "Prove it before
-  handover" through the API, the calls the change touched (on `1b34181` all but the export, which
-  was not called there), and, on `05acbf7`, every `curl` example under [Endpoints](#endpoints) as
-  this README stood at `05acbf7` (its examples are the same at `a5040bd`): 70 examples, each
-  answered the status in its comment, the three that take a suite run id run by hand for the same
-  reason as below; and the project model Gradle hands an Eclipse import, read through Gradle's own
-  tooling library. What it found, and what it could not show, is under [STS (Spring Tools for
-  Eclipse)](#sts-spring-tools-for-eclipse).
+  wrapper (`clean build`): 2,872 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL.
+- **Since then also `ace5914`** (D-272, merged at `5923b3f`): the launch configuration
+  `PaveApplication.launch` and changes to three test classes and one test helper, no main code. Its
+  build through the same wrapper: 2,872 tests, 0 failures, 0 errors, 2 skipped; an agent that did not
+  write it built it again in its own clone of that commit, with the same counts. Apart from these two, the commits after
+  `902e0d9` change this README, `PROGRESS.md` and `DECISIONS.md` only.
+- **Run for the STS section**, on Linux, by agents that wrote neither this README nor the tool nor
+  the changes: Spring Tools 5.4.0.RELEASE (Eclipse 4.41.0, Buildship 3.1.11), driven through a
+  virtual display with keyboard and mouse with a screenshot after every step, on `e70a873` and, on a
+  new workspace, on `ace5914`; and the plain Eclipse IDE for Java Developers 2026-09 on `e70a873`.
+  `GET /api/mode` after each start, and the two proofs of "Prove it before handover" through the API
+  by script after the first start of each run; on `e70a873` also the History list, one run, the note, the export, the notifications, a
+  subscription read, the page and one stylesheet. What each run saw is under [STS (Spring Tools for
+  Eclipse)](#sts-spring-tools-for-eclipse) and in D-272. Before them, on `1b34181` and `05acbf7`, an
+  emulation of STS's compiler without STS ran the 70 `curl` examples under [Endpoints](#endpoints)
+  (D-271).
 - **Run again on `902e0d9` for this README**, on the jar the integrator built from that revision
   (`merged-902e0d9.jar`), freshly started on the mock profile on port 8194 (port 8057 was not used
   on that machine):
@@ -2449,18 +2429,18 @@ repeat every finding id; it leaves out nothing a tester has to know.
   which only the shared wrapper may run; it was last run on `e1d37dc`, and no line of it has changed
   since), the screens in a browser (the journey under [Using the screens](#using-the-screens) was
   last walked by an automated browser on `e1d37dc`, and what the last fixes changed on screen was
-  looked at by their authors only), `run.cmd`, a real STS, a mirror (with or without credentials), a
-  token server, Onyx, any behaviour on live against a stand-in, a screen reader, a phone-width
+  looked at by their authors only), `run.cmd`, STS (other than as the STS section says), a mirror
+  (with or without credentials), a token server, Onyx, any behaviour on live against a stand-in, a screen reader, a phone-width
   screen, 1920 by 1080.
 - **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0. On the machine this README was checked on every
   Gradle command went through a shared wrapper that adds `--offline` and lets two builds run at a
   time, a file in the home directory caps the memory Gradle may use, and every Java process ran with
   `_JAVA_OPTIONS` set to `-XX:+UnlockDiagnosticVMOptions
   -XX:DisableIntrinsic=_base64_encodeBlock,_base64_decodeBlock`. `./gradlew` itself was not run for
-  this revision. The last whole build this README names is that of `05acbf7` through that wrapper
-  (`clean build`): 2,872 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL; before it,
-  `902e0d9`: 2,870 tests, 0 failures, 0 errors, 2 skipped, "No house style violations.". No fresh
-  clone was built for this revision by the writer of this README; the integrator's last gates, a
+  this revision. The last whole build this README names is that of `ace5914` through that wrapper
+  (`clean build`): 2,872 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL; `05acbf7` gave the
+  same counts, and `902e0d9` 2,870 tests, 0 failures, 0 errors, 2 skipped, "No house style
+  violations.". No fresh clone was built for this revision by the writer of this README; the integrator's last gates, a
   fresh clone with the build cache off among them, run after it, and their results are in the pull
   request description. The build in step 3 of the checklist and the output of `run.sh` in step 4
   were pasted from an earlier revision (`e1d37dc`) and were not run again.

@@ -26,7 +26,8 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-227, D-252 | Four questions were put to the operator during the build and had no answer then | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request. The operator's replies, after the pull request was opened: D-269 |
 | D-269 | The operator replied to the four questions of D-227 after the pull request was opened: two answered, two not | The sandbox follows 2.0.1 on the operator's word, not observed; a vendor sample request can be shared and has not arrived; the operator does not know about the NPI's first digit and did not understand the question about the bind, so both stay as they are |
 | D-270 | Told what the bind means, the operator replied that the tool will be run as a real service one day | Nothing changes now and the tool keeps listening on this machine only. **As delivered it is not fit to be run as a shared or production service**, and the bind is not to be opened before a sign-in exists. What must exist first is in the README, "Before PAVE is run as a shared or production service" |
-| D-271 | Asked whether the tool was ready to load into STS, the integrator first answered yes for mock with one caveat; that was wrong in part | A test found 24 handler arguments in 9 handlers that took their request name from their Java name. Compiled as STS would without the parameter-names setting (the batch Eclipse compiler, an emulation, not STS), 8 of the 9 were seen answering HTTP 500 (History, one run, the note, notifications, the four subscription calls); the export was not called. Each argument now names itself, the test holds it, and the emulation saw the 8 answer 200 and the export answer through the README's example. **No real STS has imported or started the project** |
+| D-271 | Asked whether the tool was ready to load into STS, the integrator first answered yes for mock with one caveat; that was wrong in part | A test found 24 handler arguments in 9 handlers that took their request name from their Java name. Compiled as STS would without the parameter-names setting (the batch Eclipse compiler, an emulation, not STS), 8 of the 9 were seen answering HTTP 500 (History, one run, the note, notifications, the four subscription calls); the export was not called. Each argument now names itself, the test holds it, and the emulation saw the 8 answer 200 and the export answer through the README's example. **No real STS had imported or started the project** then; later one did, on Linux: D-272 |
+| D-272 | The real STS 5.4.0 has run the project on Linux, twice, with one fix between the runs | The import with every default works; a shared launch configuration starts `PaveApplication` from the Boot Dashboard without asking; three tests that need the Gradle test task are skipped outside it with a sentence that says why. A profile typed in the launch dialog is written into that tracked file. **Not seen: Windows, a real tester's workstation, any other STS release** |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -5000,3 +5001,95 @@ said so.
   nothing said about annotation processing, and two lines of the README and `PROGRESS.md` that still
   called `902e0d9` the revision last run. The integrator corrected each. Nobody has checked these last
   corrections, and the failures of those tests under an IDE are read from the code, not seen.
+- **Later (D-272):** a real STS, Spring Tools 5.4.0 on Linux, has since imported and started the
+  project, and the tests above were run from its JUnit launcher. Where this entry says that no STS
+  has imported or started the project, and that the failures under an IDE are read from the code, it
+  describes the revision it was written on; D-272 says what was seen, and the README's STS section is
+  rewritten from it. What this entry says of the houseStyle build folders and of the JDK step before
+  the import did not apply in the real IDE (D-272).
+
+**D-272. The real STS has run the project: what it showed, what was changed, and what nobody has
+seen.**
+After D-271 the operator asked the integrator to run STS itself rather than rely on an emulation.
+- **The network.** The Spring Tools download host, `cdn.spring.io`, was refused by the build machine's
+  network policy. The integrator proposed, and the operator approved, a separate cloud environment for
+  this repository that allows that one host. The Spring Tools 5.4.0 archive for Linux was downloaded
+  there, and its SHA-256 checksum matched the one published beside it.
+- **The first real run, on `e70a873`**, by an agent that wrote none of the tool, driving the IDE
+  through a virtual display with keyboard and mouse and reading a screenshot after every step. STS
+  5.4.0.RELEASE (Eclipse 4.41.0, that is 2026-09; Buildship 3.1.11; JDT core 3.47.0), running on its
+  own Java 25, on Linux. The import with every default of the wizard succeeded: Gradle ran on STS's
+  JDK 25 with the wrapper's Gradle 9.5.0, with no dialog and no error. Problems view: 0 errors, 25
+  warnings, 59 others. STS had found the machine's JDK 21 by itself and every launch ran on it. No
+  build path marker: Buildship maps the houseStyle source set to the source folder
+  `src/houseStyle/java` with an output folder of its own, and lists neither of the two Gradle build
+  folders D-271 worried about in `.classpath`. The first start from the Boot Dashboard asked "Choose
+  Main Type" with `HouseStyle` selected above `PaveApplication`; with `PaveApplication` chosen the tool
+  started on mock on port 8057, in the project folder, both proofs of "Prove it before handover" held
+  and every request tried answered 200. Run As, Spring Boot App did the same. `live` typed in the
+  Profile field of the launch's Spring Boot tab gave `"mode":"live"` (nothing configured, nothing
+  sent); program arguments are on its Arguments tab. From the IDE's JUnit launcher
+  `HandlerArgumentNamesTest` failed 1 of 2, which nobody had predicted: its own probe expected the
+  Java names of its arguments, and the IDE's compiler, with no setting for parameter names (the
+  import sets none), gave `arg0` to `arg7`. `HouseStyleTest` failed 2 of 10 and `PaveApplicationTest`
+  errored 7 of 7, both predicted by D-271, the second more widely than predicted; `RunControllerTest`
+  and a test file with characters outside ASCII passed. 54 of the 59 others are Spring Tools' hint
+  "Unnecessary path variable definition [WEB_ANNOTATION_NAMES]", on exactly the names D-271 added:
+  their quick fix would undo D-271. One warning nobody had listed: "Project 'epa-pave' has no explicit
+  encoding set"; the import sets none, and files inherit the workspace default, UTF-8 there. The run
+  listed thirteen places where the README's STS section was wrong or silent.
+- **The plain Eclipse that STS is built on**, Eclipse IDE for Java Developers 2026-09 (4.41.0, build
+  20260903), the same day on the same commit, by another agent, with Java home for Gradle set to the
+  JDK 21 as the README then said: the same import, 0 errors and 25 warnings, the tool started with
+  Run As, Java Application, the same proofs and requests, the same three test classes failing.
+- **The fix**, `ace5914`, merged at `5923b3f`. No main code changed. Three decisions:
+  1. **A shared launch configuration, not a renamed class.** `epa-pave/PaveApplication.launch` is the
+     launch configuration STS 5.4.0 itself wrote in the first run, saved in the project, without the
+     timestamp of one run and with the profile empty. With it STS has a configuration for the project
+     before the first start and does not ask for a main type. `HouseStyle` keeps its name and its
+     `main`, because the Gradle task `houseStyleCheck` runs that class and `HouseStyleTest` checks
+     the task's main class by name; renaming or moving it would change the build's gate to spare a
+     dialog.
+  2. **A test that guards against relying on parameter names must not rely on them itself.**
+     `HandlerArgumentNamesTest` builds each message it expects from the probe's class file: the name
+     in the source where the class file keeps names, as under the Gradle build with `-parameters`, and
+     the name the class file reports otherwise. Under Gradle the expected messages are the old ones,
+     character for character; the check itself is unchanged.
+  3. **Skip outside Gradle, fail under it.** The two tests of `HouseStyleTest` and the one test of
+     `PaveApplicationTest` that need what only the Gradle test task supplies (system properties set in
+     `build.gradle`, and `META-INF/build-info.properties`) are skipped outside Gradle with a sentence
+     that says why (`testsupport/GradleTestTask`). `PaveApplicationTest` takes the build information
+     through an `ObjectProvider`, so its other six tests run without it. Under Gradle they run, and the
+     fix's author saw each fail, and the build fail, when its input was taken out of `build.gradle`.
+     "Under Gradle" is the system property `org.gradle.test.worker`, which Gradle's test worker sets in
+     every test JVM it starts and no line of `build.gradle` can drop. **Limit:** if a later Gradle
+     stopped setting it, these three tests would be skipped under Gradle too and nothing would say so.
+     The wrapper pins 9.5.0, where it was seen set.
+  The whole build of `ace5914` through the shared wrapper: 2872 tests, 0 failures, 0 errors, 2 skipped
+  (the two that need a folder that cannot be written).
+- **The second real run, on `ace5914`**, by another agent that wrote neither the tool nor the fix, on
+  a new workspace. Run Configurations listed one Spring Boot App entry, `PaveApplication`, shared from
+  the project. The first press of start in the Boot Dashboard started `PaveApplication` with no
+  dialog, and so did Run As, Spring Boot App: mock, port 8057, JDK 21, both proofs held. From the
+  IDE's JUnit launcher `HandlerArgumentNamesTest` passed 2 of 2, `HouseStyleTest` gave 8 passed and 2
+  skipped, `PaveApplicationTest` 6 passed and 1 skipped, each skip showing its sentence. The Problems
+  view was unchanged: 0 errors, 25 warnings, 59 others. The same agent built the commit in its clone
+  with the same counts as above. A plain Eclipse without Spring Tools ignored the launch file
+  silently: no dialog, no log line, not listed. (That agent's report calls this Eclipse "2026-12 M3";
+  its own configuration reads 4.41.0, build 20260903, that is 2026-09, and that is what is recorded.)
+- **What a profile typed in the launch dialog does, accepted.** STS did not rewrite the tracked file
+  on start or stop. Setting a profile in the launch dialog does write into it: `git status` showed it
+  modified, the one line of `spring.boot.profile`; clearing the field restored it byte for byte. A
+  change on the Arguments tab presumably lands in the same file; that was not tried. This was
+  accepted, not changed: the shared file is what spares the main type dialog, and the README now tells a tester not to commit the change, how to undo it (`git restore
+  PaveApplication.launch`), and that `run.sh live` from a terminal leaves the file alone.
+- **What a tester is told** (README, "STS (Spring Tools for Eclipse)", rewritten from these runs and
+  shorter): what was seen and on which version, then the steps as they went. The JDK step before the
+  import and the paragraph on the two houseStyle build folders are gone, because neither applied.
+  Never apply the quick fix of "Unnecessary path variable definition". Run the whole suite with
+  Gradle.
+- **What nobody has seen:** Windows, `run.cmd`, a real tester at a real workstation with a corporate
+  proxy or mirror, the screens in a browser after a start from STS, the live profile against a
+  service, the whole test suite from the IDE (five classes were run from it), and STS on a release
+  other than 5.4.0.
+- The commit that records this changes this file, `PROGRESS.md` and the README only.
