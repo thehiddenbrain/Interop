@@ -104,10 +104,12 @@ final class ProviderResponseMapping {
      * THE ONE METHOD that turns a provider directory response into a lookup result. Mock and live
      * both call it.
      *
-     * @param exchange the call as it happened: a response, or the way it failed
+     * @param received the call as it happened: a response, or the way it failed
      * @param npi      the NPI that was asked for, already checked
      */
-    static ProviderLookupResult map(VendorExchange exchange, String npi) {
+    static ProviderLookupResult map(VendorExchange received, String npi) {
+        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        VendorExchange exchange = received.withReturnedSecretsMasked();
         // First, so a body that could not be parsed and any note about the body are never left to the wire view alone.
         List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
         TrackedJson tracked = TrackedJson.of(exchange.json());

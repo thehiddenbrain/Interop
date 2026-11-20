@@ -145,6 +145,73 @@ public record VendorExchange(
                 failureType, failureDetail, signals, scenarioId, scenarioNote, bodyNotes, reached);
     }
 
+    /**
+     * The same exchange with every place in its parsed body that repeats a secret of its request
+     * masked, for a mapper to read instead of the body as parsed. Every protocol and every lookup
+     * reads its response through this, so that the designed view and the additional fields say what
+     * the wire view says.
+     *
+     * <p>The wire view masks a secret the service sends back, but a mapper reads the parsed body,
+     * and whatever it copies into the designed view or the additional fields would otherwise show
+     * the secret on screen: a service that quotes the bearer token in a field nobody anticipated
+     * puts it in the result the browser receives. Masking the tree once, before any mapper reads
+     * it, covers every value a mapper copies, including the ones nobody thought of, with the same
+     * masks the wire view uses. A value used in logic sees the mask too. No identifier, code or
+     * authorization number this tool reads can hold a secret of the request without the service
+     * having copied it there, and then the mask is what may be shown and kept.
+     *
+     * <p>Strings and property names are searched. A secret written as a JSON number is not found,
+     * as the wire view would not find one written in any form other than its characters. Two
+     * property names that differ only in a secret would mask to the same name: the second is kept
+     * beside the first, under the name with " (again)" after it, so nothing is lost.
+     *
+     * @return this exchange when there is no parsed body or nothing in it repeats a secret
+     */
+    public VendorExchange withReturnedSecretsMasked() {
+        if (json == null || request == null) {
+            return this;
+        }
+        SentSecrets secrets = request.secrets();
+        if (secrets == null || secrets.searched() == 0) {
+            return this;
+        }
+        int[] places = {0};
+        JsonNode masked = maskReturned(json, secrets, places);
+        return places[0] == 0 ? this : withJson(masked);
+    }
+
+    private static JsonNode maskReturned(JsonNode node, SentSecrets secrets, int[] places) {
+        tools.jackson.databind.node.JsonNodeFactory factory = tools.jackson.databind.node.JsonNodeFactory.instance;
+        if (node.isObject()) {
+            tools.jackson.databind.node.ObjectNode out = factory.objectNode();
+            for (java.util.Map.Entry<String, JsonNode> property : node.properties()) {
+                SentSecrets.Masked name = secrets.mask(property.getKey());
+                places[0] += name.places();
+                String key = name.text();
+                while (out.has(key)) {
+                    key = key + " (again)";
+                }
+                out.set(key, maskReturned(property.getValue(), secrets, places));
+            }
+            return out;
+        }
+        if (node.isArray()) {
+            tools.jackson.databind.node.ArrayNode out = factory.arrayNode();
+            for (JsonNode element : node) {
+                out.add(maskReturned(element, secrets, places));
+            }
+            return out;
+        }
+        if (node.isString()) {
+            SentSecrets.Masked value = secrets.mask(node.stringValue());
+            if (value.places() > 0) {
+                places[0] += value.places();
+                return factory.stringNode(value.text());
+            }
+        }
+        return node;
+    }
+
     /** The same exchange reported with a different duration, for a test of the slow threshold. */
     public VendorExchange withElapsedMillis(long millis) {
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, millis,

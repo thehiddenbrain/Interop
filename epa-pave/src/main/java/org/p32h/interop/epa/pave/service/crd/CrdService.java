@@ -292,7 +292,8 @@ public class CrdService {
     /** Calls CDS Hooks discovery and lists the services the environment offers. Not a test run, so it is not recorded. */
     public CrdDiscovery discover() {
         PreparedCall call = gateway.prepare(CallIntent.of(EpaOperation.CRD_DISCOVERY));
-        VendorExchange exchange = client.discover(call);
+        // The services are read through the mask, as a run's response is, so a secret the service repeats is not shown here.
+        VendorExchange exchange = client.discover(call).withReturnedSecretsMasked();
         List<CrdDiscovery.Service> services = new ArrayList<>();
         List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
         if (exchange.json() != null) {
