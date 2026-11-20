@@ -42,10 +42,11 @@ public enum NextAction {
     /**
      * The production guardrail refused a write that came from a replay or a suite. Neither ever
      * carries the production unlock, so unlocking cannot help it: the write has to be sent by itself
-     * from its own tab, or the tool pointed at something that is not production.
+     * from its own tab, or the tool pointed at something that is not production. The label does not
+     * say why: the refusal beside it does, and saying it twice reads as two reasons.
      */
     SEND_ON_ITS_OWN("Send this write on its own from its tab, with production writes unlocked there, or point the tool at an "
-            + "environment that is not production. A replay or a suite never carries the production unlock."),
+            + "environment that is not production."),
     /** Look at the response detail: the tool cannot say what should happen next. */
     REVIEW("Look at the response detail. The tool cannot say what should happen next.");
 

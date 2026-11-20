@@ -312,8 +312,7 @@ public class RunSupport {
     static String stepReason(NextAction action, EpaOperation operation) {
         String subject = operation == EpaOperation.UNMAPPED ? "the request, exactly as written," : "the write";
         if (action == NextAction.SEND_ON_ITS_OWN) {
-            return "Sent on its own from a screen, " + subject + " goes out under the unlock of that browser session, which a replay or "
-                    + "a suite row never carries.";
+            return "Sent on its own from a screen, " + subject + " goes out under the production unlock of that browser session.";
         }
         return "With production writes unlocked in this browser session, where the installation allows them, " + subject
                 + " goes to the production environment; with an environment that is not production active, it goes there instead.";
