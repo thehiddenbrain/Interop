@@ -291,7 +291,11 @@ export function createRawView(context) {
             return;
         }
         clear(previewSlot);
-        bench.showResult(answer.body, {detail: rawDetail, detailTitle: 'What came back'});
+        bench.showResult(answer.body, {detail: rawDetail, detailTitle: 'What came back',
+            // On this tab the shared "Open the Config tab" would lead nowhere: the place that answers a
+            // refusal about the configuration or about locked writes is the view "In force now".
+            nextStepControl: step => (step.action === 'OPEN_CONFIG' || step.action === 'UNLOCK_OR_SWITCH'
+                ? {label: 'Go to "In force now"', run: () => context.go('inforce')} : null)});
         // The keyboard goes where the answer is, as it would on any page that changed under it.
         focusHeading(host, '.readout__result .verdict__headline');
     }

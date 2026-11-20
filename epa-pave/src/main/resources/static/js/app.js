@@ -296,8 +296,11 @@ function drawFrame() {
         const environment = mode.environment || {};
         // The browser tab carries the same facts as the masthead, so it can be told apart from the
         // other tools on the programme when it is narrowed to a few words.
+        const access = mode.writeAccess || {};
+        const unlocked = environment.active && environment.kind === 'prod' && access.production === true && access.writesAllowed === true;
         document.title = mode.name + ' ' + mode.version + ' | '
-            + (environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment') + ' | ' + mode.mode;
+            + (environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment')
+            + (unlocked ? ' | writes UNLOCKED' : '') + ' | ' + mode.mode;
     }
     drawStrip();
     drawBanners();

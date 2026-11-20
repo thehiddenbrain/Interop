@@ -994,6 +994,12 @@ legend, .case-legend {
     display: none;
 }
 
+/* A test result the page does not know: a plain frame that claims nothing, never the heavy one of a fault. */
+.stamp--other {
+    border: 1px solid var(--line);
+    font-weight: 400;
+}
+
 .testresult {
     padding-left: var(--gap-4);
     border-left: 1px solid var(--ink-strong);
@@ -1464,7 +1470,9 @@ legend, .case-legend {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(250px, 340px);
     gap: var(--gap-5);
-    align-items: stretch;
+    /* The strip is as tall as what it says. Stretched to the test result beside it, a short
+       headline left an empty box under it. */
+    align-items: start;
 }
 
 .runfacts {
@@ -1553,8 +1561,23 @@ legend, .case-legend {
 
 /* The response shown is not byte for byte what arrived, and the server's sentence says where. */
 .result__masked {
-    font-weight: 600;
     color: var(--ink-strong);
+}
+
+.result__masked-count {
+    font-weight: 600;
+}
+
+/* A long returned value: its first lines, and the whole of it one press away. */
+.additional__long > summary {
+    margin-top: 4px;
+    cursor: pointer;
+    font-size: var(--text-small);
+}
+
+/* Said under NOT recorded: what a tester does about it. */
+.ledger__todo {
+    font-weight: 600;
 }
 
 .verdict__unanswered {

@@ -62,10 +62,25 @@ export function renderResult(envelope, options) {
     root.append(section(heading(3, detailTitle),
         detailNode || el('p', {class: 'quiet'}, 'This run has no response detail. The verdict above says why.')));
 
-    root.append(additionalFieldsSection(envelope.additionalFields || []));
+    root.append(additionalFieldsSection(envelope.additionalFields || [], null, envelope.wire));
     root.append(el('section', {class: 'result__section'}, wireView(envelope.wire)));
     if (envelope.error) {
-        root.append(section(heading(3, 'What went wrong'), errorPanel(envelope.error)));
+        // A refusal is worded once by the server and sent as the headline, as the error's title
+        // and as the next step: a request the guardrail refused has its reason as the headline of
+        // the strip in the guardrail's tone. It is read in full there; here the panel says which
+        // kind of refusal it is and points to it, rather than setting the same paragraph out again.
+        const error = envelope.error;
+        const step = envelope.nextStep || {};
+        const repeated = typeof error.title === 'string'
+            && (error.title === envelope.verdict.headline || (error.kind === 'BLOCKED' && envelope.verdict.tone === 'BLOCKED'));
+        const said = {...error};
+        if (repeated) {
+            said.title = 'The headline at the top of this result says what was refused, in full.';
+        }
+        if (typeof error.action === 'string' && error.action === step.headline) {
+            said.action = 'The next step above says what to do.';
+        }
+        root.append(section(heading(3, 'What went wrong'), errorPanel(said)));
     }
     return root;
 }
@@ -191,7 +206,9 @@ function runFacts(envelope, settings) {
     if (response && response.maskedPlaces > 0) {
         // The response on screen is not byte for byte what arrived, and the place a tester reads
         // first says so, in the server's words. The wire view says it again beside the body.
-        rows.push(['Masked', el('span', {class: 'result__masked'}, response.maskNote)]);
+        rows.push(['Masked', el('span', {class: 'result__masked'},
+            el('span', {class: 'result__masked-count'}, count(response.maskedPlaces) + (response.maskedPlaces === 1 ? ' place' : ' places') + ' masked. '),
+            response.maskNote)]);
     }
     return facts(rows, 'runfacts facts--ruled');
 }
@@ -216,7 +233,9 @@ function ledgerLine(ledger, runId) {
     return el('div', {class: 'ledger ledger--missing', role: 'alert'},
         el('p', {class: 'ledger__state'}, 'NOT recorded'),
         el('p', null, 'The ledger did not keep run ', code(runId), '. It said:'),
-        el('blockquote', null, ledger.message));
+        el('blockquote', null, ledger.message),
+        // A next step of "record this result" is for the tester. With the ledger not keeping it, the record is theirs to make.
+        el('p', {class: 'ledger__todo'}, 'This run is in no ledger. If you need it, write down its run id and its result yourself.'));
 }
 
 function responseTime(timing) {
@@ -327,8 +346,118 @@ function determinationRow(row) {
 
 /* ---------- 8. the additional fields ---------- */
 
-/** Everything the response carried that the designed view did not use, each entry presented as what it is. */
-export function additionalFieldsSection(fields, title) {
+/**
+ * The returned-but-not-interpreted values as the wire view shows the body: with every secret the
+ * server masked there masked here too.
+ *
+ * The server masks a secret that a service sends back in the wire view, and says how many places
+ * it masked. Until it builds these fields from the masked body as well, they can carry the secret
+ * in clear (a stand-in that echoed the Authorization header showed it here, under a line saying it
+ * was masked). So when the wire says anything was masked, each value is taken from the masked body
+ * at the same path; one whose path cannot be found there is withheld, with a pointer to the wire
+ * view, rather than shown as it came. Nothing is un-masked and nothing is guessed: the masked text
+ * is the server's. When nothing was masked the fields are shown exactly as sent.
+ */
+function maskedLikeTheWire(fields, wire) {
+    const response = wire ? wire.response : null;
+    if (!response || !(response.maskedPlaces > 0)) {
+        return fields;
+    }
+    let masked;
+    let parsed = false;
+    if (typeof response.body === 'string') {
+        try {
+            masked = JSON.parse(response.body);
+            parsed = true;
+        } catch (notJson) {
+            parsed = false;
+        }
+    }
+    return fields.map(field => {
+        if (field.kind === 'RAW_BODY') {
+            return {...field, value: typeof response.body === 'string' ? response.body : undefined};
+        }
+        if (field.kind === 'NOTE' || field.value === undefined || field.value === null) {
+            return field;
+        }
+        const found = parsed ? atPath(masked, field.path) : {found: false};
+        if (found.found) {
+            const text = JSON.stringify(found.value);
+            // Only a value the masking changed is replaced, so a number keeps the form it arrived in.
+            return typeof found.value === 'string' && text !== field.value ? {...field, value: text} : field;
+        }
+        return {...field, value: undefined, withheld: true};
+    });
+}
+
+/**
+ * The value at a path written the way the server writes one: names joined by dots, a name holding
+ * path punctuation in double quotes, and [n] for an element of an array; "(root)" for the body.
+ * Returns {found, value}.
+ */
+function atPath(body, path) {
+    if (path === '(root)') {
+        return {found: true, value: body};
+    }
+    let at = body;
+    let index = 0;
+    const text = String(path);
+    let first = true;
+    while (index < text.length) {
+        if (text[index] === '[') {
+            const close = text.indexOf(']', index);
+            const position = close > index ? Number(text.slice(index + 1, close)) : NaN;
+            if (!Array.isArray(at) || !Number.isInteger(position) || position < 0 || position >= at.length) {
+                return {found: false};
+            }
+            at = at[position];
+            index = close + 1;
+            first = false;
+            continue;
+        }
+        if (!first) {
+            if (text[index] !== '.') {
+                return {found: false};
+            }
+            index++;
+        }
+        let name = '';
+        if (text[index] === '"') {
+            index++;
+            while (index < text.length && text[index] !== '"') {
+                if (text[index] === '\\' && index + 1 < text.length) {
+                    index++;
+                }
+                name += text[index];
+                index++;
+            }
+            if (text[index] !== '"') {
+                return {found: false};
+            }
+            index++;
+        } else {
+            while (index < text.length && text[index] !== '.' && text[index] !== '[') {
+                name += text[index];
+                index++;
+            }
+        }
+        if (at === null || typeof at !== 'object' || Array.isArray(at) || !Object.prototype.hasOwnProperty.call(at, name)) {
+            return {found: false};
+        }
+        at = at[name];
+        first = false;
+    }
+    return {found: true, value: at};
+}
+
+/**
+ * Everything the response carried that the designed view did not use, each entry presented as what it is.
+ * wire, optional: the wire view of the same answer. When it is given and says secrets were masked,
+ * the values are drawn masked as the wire's body is (see maskedLikeTheWire). Pass it wherever the
+ * answer has one.
+ */
+export function additionalFieldsSection(givenFields, title, wire) {
+    const fields = wire ? maskedLikeTheWire(givenFields, wire) : givenFields;
     const label = title || 'Returned but not interpreted';
     if (fields.length === 0) {
         return section(heading(3, label, 0), el('p', {class: 'quiet'}, 'Nothing was returned that is not shown above.'));
@@ -358,10 +487,27 @@ export function additionalFieldsTable(fields) {
     return table(['Path', 'Presence', 'Value as returned'], fields.map(field => [
         code(field.path),
         field.presence === 'VALUE' ? el('span', {class: 'quiet small'}, 'value') : presenceMark(field.presence),
-        field.value !== undefined && field.value !== null ? code(field.value)
+        field.withheld ? el('span', {class: 'quiet small'}, 'withheld here: secrets were masked in this response and this value could not be matched '
+            + 'to the masked body. The wire view shows the body as masked.')
+            : field.value !== undefined && field.value !== null ? longValue(String(field.value))
             // An explicit null has no text beyond the word itself, and the word is the literal that was returned.
             : field.presence === 'NULL' ? code('null') : el('span', {class: 'quiet small'}, 'no text given')
     ]), {class: 'additional'});
+}
+
+// A value longer than this is shown by its start, with the whole of it in a fold beneath.
+const LONG_VALUE = 600;
+
+/** A returned value as literal text. A very long one is folded: nothing is cut, it is one press away. */
+function longValue(value) {
+    if (value.length <= LONG_VALUE) {
+        return code(value);
+    }
+    return el('div', null,
+        code(value.slice(0, LONG_VALUE / 2) + ' ...'),
+        el('details', {class: 'additional__long'},
+            el('summary', null, 'Show all ' + count(value.length) + ' characters'),
+            code(value)));
 }
 
 /* ---------- 9. the wire view ---------- */

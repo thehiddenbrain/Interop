@@ -41,7 +41,10 @@ export function resultWord(result) {
 
 /** The class that draws a tone. A tone this page does not know gets no colour, which is the honest fallback. */
 export function toneClass(tone) {
-    return 'tone--' + token(tone || 'NEUTRAL');
+    const name = String(tone || 'NEUTRAL');
+    // A tone the key does not list is drawn as the key's "information, with no judgement attached",
+    // and keeps its own name as a class beside it.
+    return TONES.some(([known]) => known === name) ? 'tone--' + token(name) : 'tone--NEUTRAL tone--' + token(name);
 }
 
 /** A small square in the tone's colour and form. */

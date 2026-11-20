@@ -346,8 +346,9 @@ export function createWorkbench(app, panel, spec) {
                 return null;
             }
             fill(refusal, errorPanel(answer.body),
-                // The answer to a problem with the configuration is on the Config tab, so the way there is offered with it.
-                answer.body.kind === 'CONFIGURATION'
+                // The answer to a problem with the configuration is on the Config tab, so the way there
+                // is offered with it, unless this workbench is on the Config tab already.
+                answer.body.kind === 'CONFIGURATION' && !panel.closest('#panel-config')
                     ? el('p', {class: 'readout__way'}, button('Open the Config tab', () => app.navigate('config'))) : null);
             if (answer.kind === 'conflict') {
                 // The usual cause is that the configuration changed under this screen. Reading the mode
@@ -376,7 +377,11 @@ export function createWorkbench(app, panel, spec) {
                 nextStepControl: (step, shownEnvelope) => (own ? own(step, shownEnvelope) : null) || shared(step, shownEnvelope)}));
             drawBeforeSending();
             readout.scrollTop = 0;
-            status.textContent = 'Result received. ' + envelope.verdict.headline + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
+            // The line announced is short: a headline worded into a paragraph is read in the strip, and
+            // here the server's short label of the outcome stands for it.
+            const headline = String(envelope.verdict.headline || '');
+            const said = headline.length > 120 && envelope.verdict.outcomeLabel ? envelope.verdict.outcomeLabel : headline;
+            status.textContent = 'Result received. ' + said + (/[.!?]$/.test(said) ? '' : '.') + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
             // A result has arrived under the configuration now in force, so a notice about the change has done its work.
             app.clearNotices();
             app.ledgerReceipt(envelope.ledger);
