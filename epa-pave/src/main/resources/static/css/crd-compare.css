@@ -163,10 +163,34 @@
     overflow-wrap: anywhere;
 }
 
+/* A long value is shown in a box of whole lines, so its last visible line is never cut in half. */
 .crd-value--long {
     display: block;
-    max-height: 9rem;
+    line-height: 20px;
+    max-height: calc(7 * 20px);
     overflow: auto;
+}
+
+/* ---------- a comparison that no longer answers what is on the form ---------- */
+
+.crd-cmp__flag:empty, .crd-cmp__stale:empty, .crd-docs__stale:empty {
+    display: none;
+}
+
+.crd-cmp__flag {
+    margin-left: var(--gap-3);
+}
+
+.crd-cmp__stale-list {
+    margin: 4px 0 0 1.2em;
+    font-weight: 400;
+}
+
+/* With the documents, where the eye is while the list is read: a heavy rule, as the stale mark of a result has. */
+.crd-docs__stale {
+    padding: 2px var(--gap-2);
+    border-left: 4px solid var(--ink-strong);
+    font-size: var(--text-small);
 }
 
 /* ---------- the documents beside the list ---------- */
@@ -445,4 +469,10 @@
     max-width: 100%;
     white-space: normal;
     text-align: left;
+}
+
+/* A prefetch template breaks where it offers a break, and inside a name only when nothing else fits. */
+.crd-prefetch .literal {
+    overflow-wrap: break-word;
+    word-break: normal;
 }

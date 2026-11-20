@@ -302,14 +302,19 @@ function useBuilt() {
 /**
  * Puts on the form each value the comparison read out of the pasted request: the hook, the
  * member, the provider, the codes and the date of service. A value the form already had was used
- * as it is by the comparison and is left alone. Returns what was filled and what was left, in
- * words, for the comparison to say.
+ * as it is by the comparison and is left alone.
  *
- * A detail of the member or the provider is put in its field as typing would put it, so the case
- * marks it as typed by hand: a lookup did not give it. The member ID and the NPI are looked up,
- * as they are when a tester types one and leaves the field.
+ * The member ID and the NPI are put in first and looked up, as they are when a tester types one
+ * and leaves the field. The details the pasted request holds (a name, a birth date, a plan) are
+ * then set beside what the lookup found, and never typed over it unasked: the lookup may have
+ * found another person under the same identifier, and a request built from both would be about
+ * two people. A detail the lookup gave no value for is typed in from the pasted request. A detail
+ * that disagrees with the lookup is listed, with a button that puts the pasted value in its field.
+ *
+ * Resolves to the report, in words, for the comparison to say:
+ * {filled, typedIn, sameAsLookup, fromLookup, disagree, applyPasted, leftAlone, lookups}.
  */
-function fillFromComparison(answer) {
+async function fillFromComparison(answer) {
     const filled = [];
     const leftAlone = [];
     const codes = new Map();
@@ -349,14 +354,10 @@ function fillFromComparison(answer) {
         } else if (source.field === 'provider.npi') {
             npi = value;
             filled.push(label + ' ' + value + ', looked up');
+        } else if (detailInput(source.field)) {
+            details.push({field: source.field, label, value});
         } else {
-            const input = app.caseContext.node.querySelector('[data-field="' + source.field + '"] input');
-            if (input) {
-                details.push([input, value]);
-                filled.push(label);
-            } else {
-                leftAlone.push(label + ' (the form has no field for it)');
-            }
+            leftAlone.push(label + ' (the form has no field for it)');
         }
     }
     for (const entry of answer.notFound || []) {
@@ -365,23 +366,100 @@ function fillFromComparison(answer) {
     if (memberId !== null) {
         app.caseContext.setMemberId(memberId);
     }
-    const npiInput = app.caseContext.node.querySelector('[data-field="provider.npi"] input');
+    const npiInput = detailInput('provider.npi');
     if (npi !== null && npiInput) {
         npiInput.value = npi;
         npiInput.dispatchEvent(new Event('input', {bubbles: true}));
         // Leaving the field is what looks an NPI up.
         npiInput.dispatchEvent(new FocusEvent('blur'));
     }
-    // The details go in after their identifier, so the identifier's lookup keeps them as typed.
-    for (const [input, value] of details) {
-        input.value = value;
-        input.dispatchEvent(new Event('input', {bubbles: true}));
-    }
     if (codes.size > 0) {
         app.caseContext.setCodes(Array.from(codes.keys()).sort((one, other) => Number(one) - Number(other)).map(key => codes.get(key)));
     }
     drawExpectedText();
-    return {filled, leftAlone};
+    await lookupsSettled();
+
+    const typedIn = [];
+    const sameAsLookup = [];
+    const disagree = [];
+    for (const detail of details) {
+        const input = detailInput(detail.field);
+        const onForm = input.value.trim();
+        if (onForm === detail.value) {
+            sameAsLookup.push(detail.label);
+        } else if (onForm === '') {
+            typeInto(input, detail.value);
+            typedIn.push(detail.label + ' ' + detail.value);
+        } else {
+            disagree.push({label: detail.label, pasted: detail.value, onForm, input});
+        }
+    }
+    // What the lookups put on the form that the pasted request did not hold: it goes out with the
+    // request all the same, so it is named.
+    const pastedFields = new Set(details.map(detail => detail.field));
+    const fromLookup = [];
+    for (const field of app.caseContext.node.querySelectorAll('.field--fromlookup[data-field]')) {
+        const input = field.querySelector('input');
+        if (input && !pastedFields.has(field.dataset.field) && input.value.trim() !== '') {
+            const label = field.querySelector('label');
+            fromLookup.push((label ? label.textContent : field.dataset.field) + ' ' + input.value.trim());
+        }
+    }
+    return {
+        filled, typedIn, sameAsLookup, fromLookup, leftAlone,
+        disagree: disagree.map(entry => ({label: entry.label, pasted: entry.pasted, onForm: entry.onForm})),
+        lookups: lookupSentences(memberId !== null, npi !== null),
+        /** Puts the pasted value in every field that disagreed with the lookup, when the tester asks for it. */
+        applyPasted() {
+            for (const entry of disagree) {
+                typeInto(entry.input, entry.pasted);
+            }
+            return disagree.map(entry => entry.label);
+        }
+    };
+}
+
+/** The input of a field of the case, by the name the request gives it, or null. */
+function detailInput(field) {
+    return app.caseContext.node.querySelector('[data-field="' + field + '"] input');
+}
+
+/** Puts a value in a field of the case as typing would, so the case marks where it came from as it does for typing. */
+function typeInto(input, value) {
+    input.value = value;
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+}
+
+/**
+ * Resolves once no lookup of the case is on its way: each lookup marks its button busy while it
+ * waits for an answer. A lookup that never ends is given up on after a while, and the details are
+ * then set beside whatever the form holds.
+ */
+function lookupsSettled() {
+    const busy = () => app.caseContext.node.querySelector('.lookup-action[aria-busy="true"]') !== null;
+    return new Promise(resolve => {
+        const started = Date.now();
+        const check = () => {
+            if (!busy() || Date.now() - started > 20000) {
+                resolve();
+            } else {
+                window.setTimeout(check, 100);
+            }
+        };
+        check();
+    });
+}
+
+/** How each lookup the fill made ended, in the lookup's own sentence as its strip shows it. */
+function lookupSentences(member, provider) {
+    const out = [];
+    for (const [asked, field, name] of [[member, 'member.memberId', 'Member lookup'], [provider, 'provider.npi', 'Provider lookup']]) {
+        const state = asked ? app.caseContext.node.querySelector('[data-field="' + field + '"] .lookup-strip__state') : null;
+        if (state && state.textContent.trim() !== '') {
+            out.push(name + ': ' + state.textContent.trim());
+        }
+    }
+    return out;
 }
 
 /* ---------- discovery ---------- */
@@ -406,14 +484,14 @@ async function discover() {
             ['Where the url comes from', url.source || null]
         ], 'facts--ruled'),
         services.length === 0 ? el('p', null, 'The answer listed no services.')
-            : table([{text: 'Service id', class: 'col-22'}, {text: 'Hook', class: 'col-12'}, {text: 'Title', class: 'col-22'},
-                {text: 'Description', class: 'col-30'}, {text: 'Prefetch', class: 'col-14'}], services.map(service => [
+            : table([{text: 'Service id', class: 'col-17'}, {text: 'Hook', class: 'col-12'}, {text: 'Title', class: 'col-17'},
+                {text: 'Description', class: 'col-22'}, 'Prefetch'], services.map(service => [
                 shown(service.id, {as: 'literal'}),
                 shown(service.hook, {as: 'literal'}),
                 shown(service.title),
                 shown(service.description),
                 service.prefetch && service.prefetch.length > 0
-                    ? el('ul', {class: 'plain-list'}, service.prefetch.map(entry => el('li', null, code(entry.key), ' ', shown(entry.template, {as: 'literal'}))))
+                    ? el('ul', {class: 'plain-list crd-prefetch'}, service.prefetch.map(entry => el('li', null, code(entry.key), ' ', template(entry.template))))
                     : el('span', {class: 'presence presence--none'}, 'none declared')
             ])),
         found.error ? errorPanel(found.error) : null,
@@ -421,6 +499,22 @@ async function discover() {
         el('section', {class: 'result__section'}, wireView(found.wire))));
     slots.discovery.scrollIntoView({block: 'start'});
     bench.say('Discovery answered with ' + services.length + (services.length === 1 ? ' service.' : ' services.'));
+}
+
+/**
+ * A prefetch template, set so that a narrow column breaks it after a slash, a dot, a question
+ * mark, an ampersand or an equals sign, and inside a name only when nothing else fits. The text
+ * is unchanged: what is copied is the template as the service declared it.
+ */
+function template(value) {
+    if (!value || value.presence !== 'VALUE') {
+        return shown(value, {as: 'literal'});
+    }
+    const node = el('code', {class: 'literal'});
+    for (const part of String(value.value).split(/(?<=[/.?&=])/)) {
+        node.append(part, el('wbr'));
+    }
+    return node;
 }
 
 /* ---------- before the first run ---------- */

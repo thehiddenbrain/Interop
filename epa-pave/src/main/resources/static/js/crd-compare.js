@@ -40,6 +40,11 @@ export function createComparison(spec) {
     const {app, bench, ownRequest, slot} = spec;
     let busy = false;
     let drawn = null;
+    // The question the comparison on screen answers: what was compared, the text in the box then,
+    // and the form as it stood. When any of it changes, the comparison says it is out of date.
+    let asked = null;
+    // Set when a later Compare was refused, so the comparison on screen is not read as its answer.
+    let refusedSince = null;
     // Counts the questions about the vendor's sample, so only the answer to the latest is drawn.
     let sampleAsked = 0;
 
@@ -71,8 +76,74 @@ export function createComparison(spec) {
         if (event.target.name === 'crd-hook') {
             refreshSample();
         }
+        checkStale();
     });
+    bench.form.addEventListener('input', checkStale);
+    app.caseContext.onChange(checkStale);
     refreshSample();
+
+    /**
+     * The form as a comparison reads it, in one text: the hook, the case, the date, prefetch and
+     * values for one run. What says nothing about the request built (the expectation, the tester's
+     * reference, the note, the chain, the scenario and the configuration epoch, which has its own
+     * mark) is left out, and so is an empty member, provider or code list, so choosing between the
+     * box and the form does not by itself read as a change of the form.
+     */
+    function formKey() {
+        const request = {...spec.buildRequest()};
+        for (const name of ['rawBody', 'configEpoch', 'testerRef', 'note', 'expected', 'chainId', 'scenarioId']) {
+            delete request[name];
+        }
+        for (const [name, value] of Object.entries(request)) {
+            if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)
+                || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) {
+                delete request[name];
+            }
+        }
+        return JSON.stringify(request);
+    }
+
+    /** What has changed since the comparison on screen was asked for, in sentences. Empty when nothing has. */
+    function changesSince() {
+        if (!asked) {
+            return [];
+        }
+        const out = [];
+        if (asked.kind === 'box') {
+            if (!ownRequest.active()) {
+                out.push('"Built by this tool from the form" is now chosen, and this comparison is of the text that was in the box.');
+            } else if (ownRequest.text().trim() === '') {
+                out.push('The box has been emptied since this comparison. The text it shows as your request is the text that was compared.');
+            } else if (ownRequest.text() !== asked.text) {
+                out.push('The text in the box has changed since this comparison.');
+            }
+        }
+        if (formKey() !== asked.form) {
+            out.push('The form has changed since this comparison (the hook, the case, the date of service, prefetch or values for this run).');
+        }
+        return out;
+    }
+
+    /** Marks the comparison on screen as out of date, or clears the mark, and says so once when it first goes out of date. */
+    function checkStale() {
+        if (!drawn) {
+            return;
+        }
+        const reasons = refusedSince ? [refusedSince].concat(changesSince()) : changesSince();
+        const was = drawn.isOutOfDate();
+        drawn.outOfDate(reasons);
+        if (reasons.length > 0 && !was) {
+            bench.say('The comparison on screen is out of date. ' + reasons[0] + ' Compare again to update it.');
+        }
+    }
+
+    /** Gives the focus back after a compare, unless a marked field or the comparison has taken it. */
+    function keepFocus(control) {
+        const at = document.activeElement;
+        if (!at || at === document.body || at.disabled) {
+            control.focus();
+        }
+    }
 
     /** Asks the server for the comparison: of the text in the box, or of the vendor's sample. */
     async function compare(what) {
@@ -91,17 +162,23 @@ export function createComparison(spec) {
                 fill(bench.problem, formProblem(nothing, markFieldErrors([ownRequest.field],
                     [{field: 'rawBody', message: 'Paste the request body here.'}])));
                 bench.say(nothing.title);
+                refused(nothing.title);
                 return;
             }
             about = {kind: 'box', words: 'the request in the box'};
         } else {
             const sample = await vendorSample();
             if (!sample) {
+                refused('There is no vendor\'s sample to compare.');
+                keepFocus(sampleButton);
                 return;
             }
             request = {...request, rawBody: sample.body};
             about = {kind: 'sample', words: 'the vendor\'s sample, from the collection request ' + sample.name, name: sample.name};
         }
+        const used = what === 'box' ? compareButton : sampleButton;
+        // Taken before the request leaves, so the comparison is checked against the question it answers.
+        const question = {kind: what, text: ownRequest.text(), form: formKey()};
         setBusy(true);
         bench.say('Building this tool\'s request and comparing it with ' + about.words + '. Nothing is sent.');
         let answer;
@@ -111,18 +188,34 @@ export function createComparison(spec) {
             setBusy(false);
         }
         if (answer.kind === 'ok') {
-            draw(answer.body, about);
+            draw(answer.body, about, question);
             return;
         }
         bench.say(answer.body.title);
         if (answer.kind === 'form') {
             fill(bench.problem, formProblem(answer.body, markFieldErrors([bench.form], answer.body.fieldErrors)));
+            refused(answer.body.title);
+            keepFocus(used);
             return;
         }
-        fill(slot, el('section', {class: 'panel'}, heading(2, 'The comparison could not be made'), errorPanel(answer.body)));
+        // The answer is about this question, so it takes the place of an earlier comparison.
+        drawn = null;
+        asked = null;
+        const panel = el('section', {class: 'panel', tabIndex: -1}, heading(2, 'The comparison could not be made'), errorPanel(answer.body));
+        fill(slot, panel);
+        panel.focus();
         if (answer.kind === 'conflict') {
             app.refreshMode();
         }
+    }
+
+    /** A Compare was refused before any comparison was made: the one on screen, if any, answers an earlier one. */
+    function refused(title) {
+        if (!drawn) {
+            return;
+        }
+        refusedSince = 'The latest Compare was refused (' + title.replace(/\.$/, '') + '), so this is the answer to an earlier one.';
+        checkStale();
     }
 
     function setBusy(state) {
@@ -207,12 +300,16 @@ export function createComparison(spec) {
 
     /* ---------- the comparison ---------- */
 
-    function draw(answer, about) {
+    function draw(answer, about, question) {
+        asked = question;
+        refusedSince = null;
         drawn = drawComparison(answer, about, {
             close: () => {
                 clear(slot);
                 drawn = null;
+                asked = null;
                 bench.say('The comparison is closed.');
+                (ownRequest.active() ? compareButton : sampleButton).focus();
             },
             fill: () => spec.fill(answer),
             useBuilt: spec.useBuilt,
@@ -220,7 +317,11 @@ export function createComparison(spec) {
         });
         fill(slot, drawn.node);
         drawn.node.scrollIntoView({block: 'start'});
-        bench.say('Comparison ready. ' + answer.headline);
+        // The focus goes to the headline, so a keyboard user carries on from the answer and not from the top of the page.
+        drawn.focus();
+        // A comparison that could not be made is not announced as ready: the server's headline says what happened.
+        bench.say(answer.comparable ? 'Comparison ready. ' + answer.headline : answer.headline);
+        checkStale();
     }
 
     return {
@@ -255,17 +356,27 @@ export function drawComparison(answer, about, actions) {
     const caveat = answer.comparable && notes.length > 0 ? notes[0] : null;
     const otherNotes = caveat ? notes.slice(1) : notes;
 
+    // Out of date, the comparison says so at its head, in the summary line when it is folded, and
+    // with the documents, which stay pinned in view while the list is read.
+    const staleFlag = el('span', {class: 'crd-cmp__flag'});
+    const staleNote = el('div', {class: 'crd-cmp__stale'});
+    const staleShort = el('p', {class: 'crd-docs__stale'});
+    let outOfDate = false;
+    const headline = el('p', {class: 'crd-cmp__headline', tabIndex: -1}, answer.headline);
     const head = el('summary', {class: 'crd-cmp__summary'},
         el('span', {class: 'crd-cmp__title'}, 'Your request beside the one this tool builds'),
+        staleFlag,
         el('span', {class: 'quiet'}, answer.headline));
     const body = el('div', {class: 'crd-cmp__body'});
     const root = el('details', {class: 'crd-cmp', open: true, aria: {label: 'Comparison of two CRD requests'}}, head, body);
 
     body.append(
+        staleNote,
         el('div', {class: 'crd-cmp__head'},
-            el('p', {class: 'small'}, 'Compared: ', about.words, '. ', el('strong', null, 'Nothing was sent to the service and nothing was recorded.')),
+            el('p', {class: 'small'}, 'Compared: ', about.words, ', as it stood when Compare was pressed. ',
+                el('strong', null, 'Nothing was sent to the service and nothing was recorded.')),
             button('Close the comparison', actions.close, {class: 'button--quiet button--small'})),
-        el('p', {class: 'crd-cmp__headline'}, answer.headline));
+        headline);
     if (caveat) {
         body.append(el('p', {class: 'crd-cmp__caveat'}, caveat));
     }
@@ -291,10 +402,18 @@ export function drawComparison(answer, about, actions) {
     const caseRead = casePart(answer, actions);
     body.append(caseRead);
 
-    const docs = documents(answer);
+    const docs = documents(answer, staleShort);
     if (answer.comparable) {
         const list = differenceList(answer, docs);
+        docs.setOrder(list.order);
         docs.onChoose((index, from) => list.reveal(index, from));
+        // A row reached with Tab is scrolled into view by the browser, which knows nothing of the
+        // documents pinned above the list and leaves the row under them. It is moved out from under them.
+        list.node.addEventListener('focusin', event => {
+            if (docs.pinned()) {
+                window.requestAnimationFrame(() => keepInView(event.target, docs.node));
+            }
+        });
         body.append(el('section', {class: 'crd-cmp__part crd-cmp__workspace'}, docs.node, list.node));
     } else {
         body.append(el('section', {class: 'crd-cmp__part'}, docs.node));
@@ -304,6 +423,26 @@ export function drawComparison(answer, about, actions) {
         node: root,
         fold() {
             root.open = false;
+        },
+        focus() {
+            headline.focus({preventScroll: true});
+        },
+        isOutOfDate: () => outOfDate,
+        /** Says what has changed since this comparison was made, or, given nothing, takes the mark away. */
+        outOfDate(reasons) {
+            outOfDate = reasons.length > 0;
+            root.classList.toggle('crd-cmp--stale', outOfDate);
+            if (!outOfDate) {
+                clear(staleNote);
+                clear(staleFlag);
+                clear(staleShort);
+                return;
+            }
+            fill(staleFlag, el('span', {class: 'flag'}, 'out of date'));
+            fill(staleNote, el('div', {class: 'result__stale', role: 'status'},
+                el('p', null, 'This comparison is out of date. Compare again to update it.'),
+                el('ul', {class: 'crd-cmp__stale-list'}, reasons.map(reason => el('li', null, reason)))));
+            fill(staleShort, el('strong', null, 'Out of date: '), reasons[0], ' Compare again to update it.');
         },
         markStale() {
             if (!root.querySelector('.result__stale')) {
@@ -322,21 +461,13 @@ function casePart(answer, actions) {
     const notFound = answer.notFound || [];
     const fromYours = sources.filter(source => source.source === 'YOUR_REQUEST');
     const part = el('section', {class: 'crd-cmp__part'});
-    const outcome = el('div', {class: 'crd-cmp__filled', role: 'status', aria: {live: 'polite'}});
+    // Not a live region: the report takes the focus when it is drawn, and is read from there.
+    const outcome = el('div', {class: 'crd-cmp__filled', aria: {label: 'What filling the form did'}});
 
     part.append(el('div', {class: 'crd-cmp__part-head'},
         el('h3', {class: 'sub-heading'}, typeof answer.toolBody === 'string'
             ? 'The case this tool built its request for' : 'The case as far as it could be put together: this tool built no request from it'),
-        fromYours.length > 0 ? button('Fill the form from this request', () => {
-            const report = actions.fill();
-            fill(outcome,
-                el('p', null, el('strong', null, report.filled.length > 0 ? 'Filled: ' : 'Nothing was filled.'),
-                    report.filled.length > 0 ? report.filled.join('; ') + '.' : null),
-                report.leftAlone.length > 0 ? el('p', null, el('strong', null, 'Left alone: '), report.leftAlone.join('; ') + '.') : null,
-                el('p', null, 'The form now holds the values filled, and the rest as they were. To send the request this tool builds from it, choose ',
-                    '"Built by this tool from the form", then "Send CRD request".', ' ',
-                    button('Switch to the request built by this tool', actions.useBuilt, {class: 'button--text'})));
-        }) : null));
+        fromYours.length > 0 ? fillButton(actions, outcome) : null));
     part.append(el('p', {class: 'small quiet'}, sources.length === 0
         ? 'The comparison names no value of the case.'
         : 'Where the form had a value it was used. Where it had none, the value was read out of your request, from the place shown.'));
@@ -368,6 +499,58 @@ function casePart(answer, actions) {
                 (entry.candidates || []).length > 0 ? candidates(entry, actions) : null)))));
     }
     return part;
+}
+
+/**
+ * The button that fills the form from the pasted request, and what it then says: what was filled,
+ * what the lookups it made found, every detail where the pasted request and the lookup disagree,
+ * and what now comes from the lookup and not from the pasted request.
+ */
+function fillButton(actions, outcome) {
+    const list = (title, items) => (items.length > 0 ? el('p', null, el('strong', null, title), items.join('; ') + '.') : null);
+    const control = button('Fill the form from this request', async () => {
+        control.disabled = true;
+        fill(outcome, el('p', null, 'Filling the form and looking up the member and the provider it names.'));
+        let report;
+        try {
+            report = await actions.fill();
+        } finally {
+            control.disabled = false;
+        }
+        const disagree = report.disagree.length === 0 ? null : el('div', {class: 'crd-cmp__disagree'},
+            el('p', null, el('strong', null, 'The lookup and your request disagree. '),
+                'The form keeps what the lookup found, so the request built now is about the ', el('em', null, 'looked up'),
+                ' person in these details, not the one in your request:'),
+            table([{text: 'Detail', class: 'col-25'}, 'On the form, from the lookup', 'In your request'], report.disagree.map(entry => [
+                entry.label, code(entry.onForm), code(entry.pasted)])),
+            el('p', null, button('Put your request\'s values in these fields', event => {
+                const done = report.applyPasted();
+                const pressed = event.currentTarget;
+                pressed.replaceWith(el('span', {role: 'status'}, 'Put in: ' + done.join('; ') + '. The form marks them as changed by hand, '
+                    + 'and the ledger notes that the run used values the lookup does not give back.'));
+            }, {class: 'button--quiet button--small'})));
+        fill(outcome,
+            el('p', null, el('strong', null, report.filled.length > 0 ? 'Filled: ' : 'Nothing was filled.'),
+                report.filled.length > 0 ? report.filled.join('; ') + '.' : null),
+            report.lookups.length > 0 ? el('ul', {class: 'plain-list'}, report.lookups.map(sentence => el('li', null, sentence))) : null,
+            list('Typed in from your request, as no lookup gave a value (the form marks these as by hand): ', report.typedIn),
+            list('Already on the form with the same value: ', report.sameAsLookup),
+            disagree,
+            list('From the lookup, not from your request, and sent with the request built: ', report.fromLookup),
+            list('Left alone: ', report.leftAlone),
+            el('p', null, 'This comparison was made before the form was filled. Compare again to see the request built from the form as it is now, '
+                + 'or choose "Built by this tool from the form", then "Send CRD request". ',
+                button('Switch to the request built by this tool', actions.useBuilt, {class: 'button--text'})));
+        focusReport(outcome);
+    });
+    return control;
+}
+
+/** The report of a fill takes the focus, so a keyboard user reads it next. */
+function focusReport(node) {
+    node.tabIndex = -1;
+    node.focus({preventScroll: true});
+    node.scrollIntoView({block: 'nearest'});
 }
 
 /** Values that disagree with each other, each with its place, for the tester to choose one. */
@@ -421,6 +604,15 @@ function differenceList(answer, docs) {
     const rows = new Map();
     const groups = new Map();
     const node = el('div', {class: 'crd-diffs'});
+    // The differences in the order they are drawn: group by group, as the server orders the groups.
+    // They are numbered in this order, and Previous and Next walk it, so the numbers run down the page.
+    const order = [];
+    const row = entry => {
+        order.push(entry.index);
+        const drawn = differenceRow(entry.difference, entry.index, order.length, docs);
+        rows.set(entry.index, drawn);
+        return drawn;
+    };
 
     if (differences.length === 0) {
         node.append(el('p', null, 'There is nothing to list.'));
@@ -431,11 +623,7 @@ function differenceList(answer, docs) {
             el('summary', null, group.label, el('span', {class: 'quiet'}, members.length === 1 ? '1 difference' : members.length + ' differences')),
             group.description ? el('p', {class: 'small quiet crd-group__about'}, group.description) : null,
             members.length === 0 ? el('p', {class: 'small'}, 'None.')
-                : el('ol', {class: 'crd-group__list'}, members.map(entry => {
-                    const row = differenceRow(entry.difference, entry.index, docs);
-                    rows.set(entry.index, row);
-                    return row;
-                })));
+                : el('ol', {class: 'crd-group__list'}, members.map(row)));
         groups.set(group.group, details);
         node.append(details);
     }
@@ -444,37 +632,34 @@ function differenceList(answer, docs) {
     if (uncounted.length > 0) {
         node.append(el('details', {class: 'crd-group fold', open: true},
             el('summary', null, 'In a group this page does not know', el('span', {class: 'quiet'}, String(uncounted.length))),
-            el('ol', {class: 'crd-group__list'}, uncounted.map(entry => {
-                const row = differenceRow(entry.difference, entry.index, docs);
-                rows.set(entry.index, row);
-                return row;
-            }))));
+            el('ol', {class: 'crd-group__list'}, uncounted.map(row))));
     }
 
     return {
         node,
+        order,
         /**
          * Opens the group of a difference and marks its row as chosen. Chosen in a document, the
          * row is brought into view below the documents; chosen in the list, it stays where the
          * tester chose it, unless the documents had to be brought into view instead.
          */
         reveal(index, from) {
-            const row = rows.get(index);
-            if (!row) {
+            const chosen = rows.get(index);
+            if (!chosen) {
                 return;
             }
-            const group = row.closest('details');
+            const group = chosen.closest('details');
             if (group) {
                 group.open = true;
             }
             for (const other of rows.values()) {
-                other.classList.toggle('crd-diff--chosen', other === row);
-                other.querySelector('.crd-diff__go').setAttribute('aria-current', other === row ? 'true' : 'false');
+                other.classList.toggle('crd-diff--chosen', other === chosen);
+                other.querySelector('.crd-diff__go').setAttribute('aria-current', other === chosen ? 'true' : 'false');
             }
             if (from === 'list' && !docs.pinned()) {
                 return;
             }
-            keepInView(row, docs.pinned() ? docs.node : null);
+            keepInView(chosen, docs.pinned() ? docs.node : null);
         }
     };
 }
@@ -498,23 +683,34 @@ function scrollerOf(node) {
 function keepInView(row, pinnedAbove) {
     const scroller = scrollerOf(row);
     const page = scroller === document.scrollingElement;
-    const box = page ? {top: 0, bottom: window.innerHeight} : scroller.getBoundingClientRect();
-    const margin = 8;
-    const top = Math.max(box.top, pinnedAbove ? pinnedAbove.getBoundingClientRect().bottom : box.top) + margin;
-    const bottom = box.bottom - margin;
-    const at = row.getBoundingClientRect();
-    let delta = 0;
-    if (at.top < top) {
-        delta = at.top - top;
-    } else if (at.bottom > bottom) {
-        // A row taller than the room left is shown from its top.
-        delta = Math.min(at.bottom - bottom, at.top - top);
-    }
-    if (delta !== 0) {
+    // Measured again after each move: documents not yet pinned move with the scroll until they
+    // reach the top, so where their bottom ends up is known only once the scroll has happened.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        const box = page ? {top: 0, bottom: window.innerHeight} : scroller.getBoundingClientRect();
+        const margin = 8;
+        const top = Math.max(box.top, pinnedAbove ? pinnedAbove.getBoundingClientRect().bottom : box.top) + margin;
+        const bottom = box.bottom - margin;
+        const at = row.getBoundingClientRect();
+        let delta = 0;
+        if (at.top < top) {
+            delta = at.top - top;
+        } else if (at.bottom > bottom) {
+            // A row taller than the room left is shown from its top.
+            delta = Math.min(at.bottom - bottom, at.top - top);
+        }
+        delta = Math.round(delta);
+        if (delta === 0) {
+            return;
+        }
+        const before = page ? window.scrollY : scroller.scrollTop;
         if (page) {
             window.scrollBy(0, delta);
         } else {
             scroller.scrollTop += delta;
+        }
+        if ((page ? window.scrollY : scroller.scrollTop) === before) {
+            // The scroller is at its end and can move no further.
+            return;
         }
     }
 }
@@ -525,11 +721,11 @@ function resourceOf(path) {
     return found ? found[1] : null;
 }
 
-function differenceRow(difference, index, docs) {
+function differenceRow(difference, index, number, docs) {
     const resource = resourceOf(difference.path);
     const go = el('button', {type: 'button', class: 'crd-diff__go', aria: {current: 'false'}, dataset: {diff: String(index)},
         on: {click: () => docs.chooseFromList(index)}},
-        el('span', {class: 'crd-diff__number'}, String(index + 1)),
+        el('span', {class: 'crd-diff__number'}, String(number)),
         el('span', {class: 'crd-diff__where'}, code(difference.path),
             resource ? el('span', {class: 'small quiet crd-diff__in'}, 'in the ' + resource) : null),
         el('span', {class: 'crd-diff__kind'}, difference.kindLabel || difference.kind));
@@ -557,8 +753,10 @@ function differenceRow(difference, index, docs) {
  * the tester switches that off. A pane never holds on to the page: when it has scrolled to its
  * end, the page scrolls on.
  */
-function documents(answer) {
+function documents(answer, staleShort) {
     const differences = answer.comparable ? answer.differences || [] : [];
+    // The order the list draws the differences in. Until the list says, the server's own.
+    let order = differences.map((difference, index) => index);
     const tool = pane('This tool\'s request', answer.toolBody, answer.comparable
         ? null : 'This tool did not build its request, so there is nothing to show on this side.');
     const yours = pane('Your request', answer.yourBody, null);
@@ -591,7 +789,9 @@ function documents(answer) {
         if (differences.length === 0) {
             return;
         }
-        const next = chosen === null ? (delta > 0 ? 0 : differences.length - 1) : (chosen + delta + differences.length) % differences.length;
+        const at = chosen === null ? -1 : order.indexOf(chosen);
+        const position = at < 0 ? (delta > 0 ? 0 : order.length - 1) : (at + delta + order.length) % order.length;
+        const next = order[position];
         choose(next, 'documents');
         chooseListener(next, 'documents');
     };
@@ -605,7 +805,7 @@ function documents(answer) {
         const toolAt = tool.place(difference.toolPointer, yours.pointerLines, difference.yourPointer, differences, 'tool');
         const yoursAt = yours.place(difference.yourPointer, tool.pointerLines, difference.toolPointer, differences, 'yours');
         window.requestAnimationFrame(() => { syncing = false; });
-        fill(where, el('strong', null, 'Difference ' + (index + 1) + ' of ' + differences.length + ': '), code(difference.path),
+        fill(where, el('strong', null, 'Difference ' + (order.indexOf(index) + 1) + ' of ' + differences.length + ': '), code(difference.path),
             toolAt.exact ? null : el('span', null, ' Not in this tool\'s request: its pane shows the nearest element both requests have.'),
             yoursAt.exact ? null : el('span', null, ' Not in your request: its pane shows the nearest element both requests have.'));
         // Pinned, the documents are in view whenever the list is. Where they are not pinned, a
@@ -626,6 +826,7 @@ function documents(answer) {
             answer.comparable && differences.length > 0 ? el('span', {class: 'crd-docs__step'},
                 button('Previous difference', () => step(-1), {class: 'button--quiet button--small'}),
                 button('Next difference', () => step(1), {class: 'button--quiet button--small'})) : null),
+        staleShort,
         where,
         el('div', {class: 'crd-docs__panes'}, tool.node, yours.node),
         answer.comparable && differences.length > 0 ? el('p', {class: 'small quiet crd-docs__key'},
@@ -647,6 +848,9 @@ function documents(answer) {
     return {
         node,
         pinned,
+        setOrder(list) {
+            order = list;
+        },
         /** Chooses a difference from its row in the list. */
         chooseFromList(index) {
             choose(index, 'list');
