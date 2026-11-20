@@ -11,8 +11,7 @@
 import * as calls from './config-calls.js';
 import {el, fill, clear, button, code, table, tableRow, heading, when} from './dom.js';
 import {clearFieldErrors} from './forms.js';
-import {errorPanel} from './result.js';
-import {kindMark, none, flag, sentences, refusal, during, counted, readAgainAfter} from './config-parts.js';
+import {kindMark, none, flag, sentences, refusal, during, counted, staleRefusal} from './config-parts.js';
 
 // The three kinds an environment can be declared as, with what each one brings. The words after
 // the kind are this page's; the kinds are the ones the upload accepts.
@@ -229,7 +228,7 @@ export function createEnvironmentsView(context) {
         clear(listStatus);
         const answer = await calls.activateEnvironment(environment.id);
         if (answer.kind !== 'ok') {
-            fill(listStatus, errorPanel(answer.body), readAgainAfter(answer));
+            fill(listStatus, staleRefusal(answer, 'the environment "' + environment.name + '"'));
         } else {
             // The variables listed are those of the active environment again, unless the tester chooses another.
             shownId = null;
@@ -265,7 +264,7 @@ export function createEnvironmentsView(context) {
         const answer = await calls.removeEnvironment(environment.id);
         removing = null;
         if (answer.kind !== 'ok') {
-            fill(listStatus, errorPanel(answer.body), readAgainAfter(answer));
+            fill(listStatus, staleRefusal(answer, 'the environment "' + environment.name + '"'));
         } else {
             const done = answer.body;
             fill(listStatus, el('div', {class: 'config-done'},

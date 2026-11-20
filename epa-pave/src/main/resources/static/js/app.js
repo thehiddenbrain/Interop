@@ -34,6 +34,7 @@ const state = {
     health: null,         // the last answer of /api/runs/health, or null before the first
     healthUnread: false,  // true when the last ask of /api/runs/health got no usable answer
     stripKey: null,       // what the environment strip was last drawn from, so a poll that changes nothing is silent
+    stripSaid: undefined, // what was last announced about the strip; undefined until it is first drawn
     operations: new Map(), // operation name -> its row of /api/config/effective, as the server sent it
     operationsRead: false, // true once /api/config/effective has answered at least once
     configListeners: [],   // parts of the page told after each change of the configuration, once the operations are read again
@@ -61,8 +62,13 @@ const app = {
     },
     notice,
     clearNotices: () => clear(document.getElementById('notices')),
-    /** Re-reads /api/mode now. Used after the server says the configuration changed. */
-    refreshMode: () => poll(true),
+    /**
+     * Re-reads /api/mode now. Used after the server says the configuration changed.
+     * options.quiet: the caller has said on screen what it changed (the Config tab after one of its
+     * own actions), so no notice is raised for it, except that production writes were locked again,
+     * which is said wherever the tester is.
+     */
+    refreshMode: options => poll(true, options),
     /**
      * Tells the frame what the ledger did with the latest run, for the indicator in the masthead.
      * The ledger's own state is read again at once, so the count and any failure are current.
@@ -177,7 +183,8 @@ async function start() {
 
 /* ---------- /api/mode and the epoch ---------- */
 
-async function poll(announceSame) {
+async function poll(announceSame, options) {
+    const quiet = Boolean(options && options.quiet);
     // The ledger is asked on the same beat as the mode, and on its own: a ledger that stops
     // recording is news whether or not the configuration moved.
     readHealth();
@@ -203,7 +210,7 @@ async function poll(announceSame) {
         app.clearNotices();
     }
     if (changed) {
-        if (before) {
+        if (before && (!quiet || relocked(before, answer.body))) {
             notice('The configuration changed. ' + environmentSentence(answer.body) + ' Every tab now shows it.'
                 + (relocked(before, answer.body) ? ' Writes to production were unlocked and are locked again: the server locks them on any change '
                     + 'to the configuration. Unlock them again on the Config tab if they are still needed.' : ''));
@@ -221,7 +228,7 @@ async function poll(announceSame) {
             }
         }
         app.chain.refresh();
-    } else if (announceSame && before) {
+    } else if (announceSame && before && !quiet) {
         // Asked for after a refusal. Saying nothing would leave the tester wondering whether the screen is current.
         notice('The screen shows the configuration now in force. ' + environmentSentence(answer.body), {plain: true});
     }
@@ -296,6 +303,27 @@ function drawFrame() {
     drawBanners();
 }
 
+/**
+ * The strip is not a live region: a new count of today's runs after every run would be read out
+ * on top of the result's own status line. What is announced, from a small region of its own, is a
+ * change of where the tool is pointed or of what the ledger is doing, once, and only after the
+ * first drawing, which describes the page as it opens.
+ */
+function announceStrip(text) {
+    if (state.stripSaid === undefined) {
+        state.stripSaid = text;
+        return;
+    }
+    if (text === state.stripSaid) {
+        return;
+    }
+    state.stripSaid = text;
+    const region = document.getElementById('strip-news');
+    if (region) {
+        region.textContent = text;
+    }
+}
+
 function stripItem(label, value, extraClass) {
     return el('span', {class: 'strip-item' + (extraClass ? ' ' + extraClass : '')},
         el('span', {class: 'strip-item__label'}, label), el('span', {class: 'strip-item__value'}, value));
@@ -316,6 +344,11 @@ function drawStrip() {
         return;
     }
     const environment = mode.environment || {};
+    const ledger = ledgerItem();
+    announceStrip([state.pollFailed ? 'The server is not answering.' : null,
+        'Profile ' + mode.mode + ', target ' + mode.target + ', '
+        + (environment.active ? 'environment ' + environment.name + ' (' + environment.kind + ').' : 'no environment active.'),
+        ledger.state].filter(Boolean).join(' '));
     const items = [];
     if (state.pollFailed) {
         items.push(stripItem('Server', 'not answering', 'strip-item--alarm'));
@@ -325,7 +358,7 @@ function drawStrip() {
     items.push(stripItem('Environment', environment.active
         ? [environment.name, el('span', {class: 'kind kind--' + token(environment.kind)}, environment.kind)]
         : 'none active'));
-    items.push(ledgerItem());
+    items.push(ledger.node);
     fill(strip, items);
 }
 
@@ -334,10 +367,15 @@ function drawStrip() {
  *
  * Quiet while the ledger is recording: the count of today's runs, where today is the UTC day the
  * ledger files runs under, and it says so. Loud, in words, when tracking is off, when the ledger
- * cannot write, when a write has failed since the tool started, when today's count cannot be read,
- * and when the latest run made from this page was not recorded: the receipt of a run is the last
- * word about that run, whatever the ledger says of itself. The words lead to the History tab,
- * whose health panel says what each state means and what to do.
+ * cannot write, when today's count cannot be read, and when the latest run made from this page was
+ * not recorded: the receipt of a run is the last word about that run, whatever the ledger says of
+ * itself. A write that failed earlier, while the ledger records again now, is said in visible words
+ * beside the quiet count, never only in a tooltip, and not in the heavy frame: the frame means the
+ * ledger is not recording now. The words lead to the History tab, whose health panel says what each
+ * state means and what to do.
+ *
+ * Returns {node, state}: state is a short sentence of what the ledger is doing, without the count,
+ * so a change of it can be announced and a new count alone is not.
  */
 function ledgerItem() {
     const health = state.health;
@@ -346,6 +384,7 @@ function ledgerItem() {
     if (state.healthUnread) {
         problems.push(['state cannot be read', 'The tool did not answer when asked whether the ledger is recording.']);
     }
+    let failed = null;
     if (health) {
         if (!health.enabled) {
             problems.push(['tracking is OFF', 'Tracking is switched off: runs made now are not recorded anywhere.']);
@@ -353,8 +392,7 @@ function ledgerItem() {
             problems.push(['cannot write, runs NOT recorded', 'The ledger cannot write to its folder: runs made now are NOT recorded.']);
         }
         if (health.failedWrites > 0) {
-            const failed = health.failedWrites.toLocaleString() + (health.failedWrites === 1 ? ' write failed' : ' writes failed');
-            problems.push([failed, failed.charAt(0).toUpperCase() + failed.slice(1) + ' since the tool started. Those runs are not in the ledger.']);
+            failed = health.failedWrites.toLocaleString() + (health.failedWrites === 1 ? ' write failed' : ' writes failed');
         }
         if (health.enabled && typeof health.runsToday !== 'number') {
             problems.push(['today\'s count unreadable', 'The ledger could not read today\'s file, so it cannot say how many runs it holds. That is not the same as none.']);
@@ -363,25 +401,40 @@ function ledgerItem() {
     if (receipt && !receipt.recorded) {
         problems.push(['latest run here NOT recorded', 'The latest run made from this page was NOT recorded. Its result quotes what the ledger said.']);
     }
+    const toHistory = ' The History tab says what it means and what to do.';
     if (problems.length > 0) {
-        return ledgerLink(problems.map(([words]) => words).join('; '), 'strip-item--alarm',
-            problems.map(([, sentence]) => sentence).join(' ') + ' The History tab says what it means and what to do.');
+        if (failed) {
+            problems.push([failed, failed.charAt(0).toUpperCase() + failed.slice(1) + ' since the tool started. Those runs are not in the ledger.']);
+        }
+        const words = problems.map(([each]) => each).join('; ');
+        const sentence = problems.map(([, each]) => each).join(' ') + toHistory;
+        return {node: ledgerLink(words, 'strip-item--alarm', sentence), state: 'Ledger: ' + words + '.'};
     }
     const counted = health && typeof health.runsToday === 'number' ? health.runsToday
         : receipt && typeof receipt.runsToday === 'number' ? receipt.runsToday : null;
     if (counted === null) {
-        return stripItem('Ledger', 'not read yet');
+        return {node: stripItem('Ledger', 'not read yet'), state: null};
     }
     const day = new Date().toISOString().slice(0, 10);
-    return ledgerLink(counted.toLocaleString() + (counted === 1 ? ' run' : ' runs') + ' today (UTC)', null,
-        'Recording. Counted over the UTC day ' + day + ', which is how the ledger files its runs, not the date on your clock.');
+    const recording = 'Recording. Counted over the UTC day ' + day + ', which is how the ledger files its runs, not the date on your clock.';
+    const earlier = failed ? failed + ' earlier, since the tool started' : null;
+    const sentence = recording + (earlier ? ' ' + earlier.charAt(0).toUpperCase() + earlier.slice(1)
+        + ': those runs are not in the ledger. It records again now.' : '') + toHistory;
+    return {node: ledgerLink(counted.toLocaleString() + (counted === 1 ? ' run' : ' runs') + ' today (UTC)', null, sentence, earlier),
+        state: 'Ledger recording.' + (earlier ? ' ' + earlier.charAt(0).toUpperCase() + earlier.slice(1) + '.' : '')};
 }
 
-/** The indicator as a link to the History tab, where the health of the ledger is set out in full. */
-function ledgerLink(text, extraClass, title) {
-    return el('span', {class: 'strip-item' + (extraClass ? ' ' + extraClass : ''), title},
+/**
+ * The indicator as a link to the History tab, where the health of the ledger is set out in full.
+ * The sentence is the title for a mouse, and is part of the link's name for assistive technology,
+ * so a keyboard or screen reader user is not left without it. earlier, when given, is said in
+ * visible words after the link.
+ */
+function ledgerLink(text, extraClass, sentence, earlier) {
+    return el('span', {class: 'strip-item' + (extraClass ? ' ' + extraClass : ''), title: sentence},
         el('span', {class: 'strip-item__label'}, 'Ledger'),
-        el('a', {class: 'strip-item__value strip-item__link', href: '#history'}, text));
+        el('a', {class: 'strip-item__value strip-item__link', href: '#history'}, text, el('span', {class: 'visually-hidden'}, '. ' + sentence)),
+        earlier ? el('span', {class: 'strip-item__earlier'}, '; ' + earlier) : null);
 }
 
 function drawBanners() {

@@ -207,6 +207,14 @@ export function createWorkbench(app, panel, spec) {
         }
     }
 
+    /** Returns the focus to the control that started a call, when the focus fell to the page meanwhile. */
+    function giveFocusBack(control) {
+        const now = document.activeElement;
+        if (control && control.isConnected && !control.disabled && !control.closest('[hidden]') && (!now || now === document.body)) {
+            control.focus({preventScroll: true});
+        }
+    }
+
     function setBusy(state, control) {
         busy = state;
         for (const each of tracked) {
@@ -304,6 +312,10 @@ export function createWorkbench(app, panel, spec) {
                 status.textContent = nothing.title;
                 return null;
             }
+            // The control that started the call. Disabling it while the call is out drops the focus
+            // to the page, so it is given back when the call is done, unless the tester has moved on.
+            const starter = options.control || (document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+                ? document.activeElement : null);
             setBusy(true, options.control);
             status.textContent = options.saying;
             let answer;
@@ -316,6 +328,9 @@ export function createWorkbench(app, panel, spec) {
             } finally {
                 // Whatever happened, the controls come back: a tester is never left with a dead form.
                 setBusy(false, options.control);
+                // Before anything else is drawn, so a form problem can still move the focus to the
+                // field it marks, which is a deliberate move and wins.
+                giveFocusBack(starter);
             }
             if (answer.kind === 'ok' || answer.kind === 'result') {
                 return answer;

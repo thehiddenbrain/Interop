@@ -277,10 +277,19 @@ code, pre, .literal {
     background: var(--hatch);
 }
 
-/* Something about the tool itself that must not be missed: the server is silent, a run was not recorded. */
+/* Something about the tool itself that must not be missed: the server is silent, a run was not recorded.
+   A block of its own, so at a narrow width its words wrap inside one whole frame. */
 .strip-item--alarm .strip-item__value {
+    display: inline-block;
+    max-width: 100%;
     padding: 0 6px;
     border: 3px solid var(--ink-strong);
+}
+
+/* Writes that failed earlier while the ledger records again: in words beside the count, without the frame. */
+.strip-item__earlier {
+    color: var(--ink-strong);
+    font-weight: 600;
 }
 
 .banner {
@@ -2281,6 +2290,16 @@ details.fold > :not(summary) {
 
 .swatch--blocked {
     border: 3px solid var(--purple);
+}
+
+.swatch--plain {
+    border: 1px solid var(--ink-strong);
+}
+
+/* The edge rule of a row on the Config tab, drawn as config.css draws it. */
+.swatch--edge {
+    border-left: 4px solid var(--ink-strong);
+    border-bottom: 1px solid var(--line);
 }
 
 /* ---------- the working area keeps the frame in view ---------- */

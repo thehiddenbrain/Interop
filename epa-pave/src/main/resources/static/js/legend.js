@@ -53,8 +53,14 @@ export function openLegend(dialog) {
                         + 'recording, or a run was not recorded. A field or a form the server refused, with its sentence beneath it. A result made '
                         + 'before the configuration changed. News about the tool itself, under the tabs: the configuration changed, or the server '
                         + 'stopped answering.'),
+                    row(el('span', {class: 'swatch swatch--plain'}),
+                        'A thin black frame around a sentence of the server: an answer that is not a fault and not a result. Something not found in this tool, '
+                        + 'a problem with its configuration, or an action on the Config tab it did not make. Its own words say what to do.'),
                     row(el('span', {class: 'flag'}, 'write'),
                         'A thin black frame around a word: a mark to read, not a fault. A write, a secret, a pre-request script, a code this tool does not know.'),
+                    row(el('span', {class: 'swatch swatch--edge'}),
+                        'A heavy rule down the edge of a row on the Config tab: an operation that cannot be sent to a service as things are configured. '
+                        + 'In purple: one the production guardrail would refuse. The row says why.'),
                     row(el('span', {class: 'swatch swatch--blocked'}),
                         'A purple frame: the production guardrail. A request it refused to send, or, on the Config tab, writes it lets through while unlocked.'),
                     row(slowFlag(), 'The call completed but took longer than the threshold.')
