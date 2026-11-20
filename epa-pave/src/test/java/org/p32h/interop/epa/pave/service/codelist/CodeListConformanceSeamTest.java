@@ -236,16 +236,14 @@ class CodeListConformanceSeamTest {
         ProcedureCodeService bundled = new ProcedureCodeService(CodelistProperties.defaults());
         Finding onAuth = only(checkOn("mock", bundled, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810"),
                 FindingKind.CODE_LIST_DISAGREES_ON_AUTH);
-        assertThat(onAuth.detail()).isEqualTo("One of them is wrong, and this tool cannot tell which. The code list here is the synthetic "
-                + "placeholder that ships with the tool and not a P32H list.");
+        assertThat(onAuth.detail()).isEqualTo("One of them is wrong, and this tool cannot tell which. The code list in use says of itself that it is synthetic, so it is not a P32H list.");
         Finding onVendor = only(checkOn("mock", bundled, response(paNeeded("auth-needed"), vendor("Carelon")), "Medicare",
                 LocalDate.of(2026, 3, 20), "70553"), FindingKind.CODE_LIST_DISAGREES_ON_VENDOR);
         assertThat(onVendor.codeListSays()).isEqualTo("The code list routes this code to Evolent (rows for Medicare).");
-        assertThat(onVendor.detail()).endsWith("The code list here is the synthetic placeholder that ships with the tool and not a P32H list.");
+        assertThat(onVendor.detail()).endsWith("The code list in use says of itself that it is synthetic, so it is not a P32H list.");
         Finding missing = only(checkOn("mock", bundled, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "99999"),
                 FindingKind.CODE_LIST_NOT_COMPARED);
-        assertThat(missing.detail()).isEqualTo("The code list has no row for 99999 on 2026-03-20. The code list here is the synthetic "
-                + "placeholder that ships with the tool and not a P32H list.");
+        assertThat(missing.detail()).isEqualTo("The code list has no row for 99999 on 2026-03-20. The code list in use says of itself that it is synthetic, so it is not a P32H list.");
     }
 
     @Test
@@ -260,9 +258,9 @@ class CodeListConformanceSeamTest {
         for (String[] one : cases) {
             Finding finding = only(checkOn("live", bundled, one[1], "Medicare", LocalDate.of(2026, 3, 20), one[0]), FindingKind.CODE_LIST_NOT_COMPARED);
             assertThat(finding.title()).as(one[0]).isEqualTo("The code list was not compared with the service: no P32H code list is loaded");
-            assertThat(finding.detail()).isEqualTo("No P32H code list is loaded. The tool is using the synthetic placeholder list that ships "
-                    + "with it, which says nothing about real codes, so nothing was compared with the service's answer. Set codelist.file "
-                    + "to the P32H export and restart the tool.");
+            assertThat(finding.detail()).isEqualTo("No P32H code list is loaded. The code list in use says of itself that it is synthetic (its rows carry the note "
+                    + "\"Not from a P32H export.\"), so it says nothing about real codes, and nothing was compared with the service's "
+                    + "answer. Set codelist.file to the P32H export and restart the tool.");
             assertThat(finding.subject()).isNull();
         }
     }
@@ -280,7 +278,7 @@ class CodeListConformanceSeamTest {
         // On mock the comparison runs, and what it raises says the list is synthetic.
         Finding onMock = only(checkOn("mock", sample, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810"),
                 FindingKind.CODE_LIST_DISAGREES_ON_AUTH);
-        assertThat(onMock.detail()).endsWith("The code list here is the synthetic placeholder that ships with the tool and not a P32H list.");
+        assertThat(onMock.detail()).endsWith("The code list in use says of itself that it is synthetic, so it is not a P32H list.");
     }
 
     @Test
@@ -291,8 +289,18 @@ class CodeListConformanceSeamTest {
         assertThat(withNotes.selfCheck().placeholder()).isTrue();
         assertThat(withNotes.selfCheck().warnings()).first().asString().startsWith("This code list says of itself that it is synthetic: 1 of "
                 + "its rows carries the note");
-        assertThat(kinds(checkOn("live", withNotes, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810")))
-                .containsExactly(FindingKind.CODE_LIST_NOT_COMPARED);
+        List<Finding> onLive = checkOn("live", withNotes, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810");
+        assertThat(kinds(onLive)).containsExactly(FindingKind.CODE_LIST_NOT_COMPARED);
+        // A tester's own list is not the one that ships with the tool, and the findings do not say it is: they say what the
+        // list says of itself, which is as true of the bundled placeholder and of the sample.
+        Finding onMock = only(checkOn("mock", withNotes, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810"),
+                FindingKind.CODE_LIST_DISAGREES_ON_AUTH);
+        for (String detail : List.of(onLive.get(0).detail(), onMock.detail())) {
+            assertThat(detail).contains("The code list in use says of itself that it is synthetic").doesNotContain("ships with")
+                    .doesNotContain("placeholder");
+        }
+        // The note it quotes is the loader's own marker.
+        assertThat(onLive.get(0).detail()).contains("\"" + CodeListLoader.SYNTHETIC_MARKER + "\"");
         ProcedureCodeService unmarked = TestCodeLists.csv(directory, marked);
         assertThat(unmarked.selfCheck().placeholder()).isFalse();
         assertThat(kinds(checkOn("live", unmarked, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810")))

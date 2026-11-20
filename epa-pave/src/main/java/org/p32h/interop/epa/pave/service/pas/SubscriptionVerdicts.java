@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.pas;
 
+import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.NextAction;
@@ -89,7 +90,9 @@ public final class SubscriptionVerdicts {
                     ? "The service answered with no body" + status(exchange) + "."
                     : "The service answered with a body that could not be read" + status(exchange) + ".";
         };
-        if (outcome.fault()) {
+        // A played timeout is described once, by the error panel beside the verdict, and what a real
+        // one would mean for a write is said by the next step, as what it would mean.
+        if (outcome.fault() && !exchange.playedTimeout()) {
             if (Texts.present(exchange.failureDetail())) {
                 supporting.add(exchange.failureDetail());
             }
@@ -172,7 +175,11 @@ public final class SubscriptionVerdicts {
             case UNRECOGNISED_RESPONSE -> new NextStepView(NextAction.REVIEW, "Next: read the response detail below. This tool cannot say "
                     + "what should happen next.", "The response is not something this tool can read as the answer to this call.", carry);
             case REJECTED -> notAccepted(exchange, carry);
-            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> afterNoUsableAnswer(outcome, exchange, operation, carry);
+            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> PlayedTimeouts.rehearsed(exchange,
+                    afterNoUsableAnswer(outcome, exchange, operation, carry), operation.write()
+                            ? "Had this been a real service, the service might have received the request and applied it: list the "
+                            + "subscriptions before sending it again."
+                            : PlayedTimeouts.aboutTheEnvironment("the subscription"));
         };
     }
 

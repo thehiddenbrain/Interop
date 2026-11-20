@@ -64,6 +64,17 @@ final class LookupReader {
 
     private static final Read NOT_RETURNED = new Read(Shown.absent(), null, null, null);
 
+    /**
+     * The fields with each one whose value holds a mask marked as such. Only a response in which
+     * this tool masked something is looked at, so a mask found is the tool's own and never text a
+     * service happened to send in the same shape.
+     *
+     * @param anyMasked true when masking the response changed it
+     */
+    static List<LookupField> markMasked(List<LookupField> fields, boolean anyMasked) {
+        return anyMasked ? fields.stream().map(LookupField::markedIfMasked).toList() : fields;
+    }
+
     private final List<TrackedJson.Node> scopes;
 
     /** @param scopes the record first, then the objects that wrap it, nearest first */

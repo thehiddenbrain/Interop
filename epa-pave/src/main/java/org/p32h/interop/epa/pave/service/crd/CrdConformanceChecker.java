@@ -29,9 +29,11 @@ import java.util.Set;
  * <p>When the two could not be compared for a code, that is a finding too, with the reason. A
  * result with no disagreement must mean the two agree, never that nothing was looked at.
  *
- * <p><b>The placeholder list is never passed off as the P32H list.</b> With no export configured
- * the tool loads the synthetic list that ships with it, so that it runs on a fresh checkout. What
- * that list says about a code was made up.
+ * <p><b>A synthetic list is never passed off as the P32H list.</b> With no export configured the
+ * tool loads the synthetic list that ships with it, so that it runs on a fresh checkout, and any
+ * other list whose rows carry the marker "Not from a P32H export." says of itself
+ * that it is synthetic too, as the sample under samples/ does. What such a list says about a code
+ * was made up, and both are treated alike.
  * <ul>
  *   <li>Anywhere but on the mock profile nothing is compared with it. A disagreement between a
  *       real service and invented rows is a finding about neither, and a tester would take it to
@@ -47,11 +49,13 @@ public final class CrdConformanceChecker {
     public static final ConformanceScope SCOPE = CrdGuideRules.SCOPE;
 
     private static final String NO_P32H_LIST_TITLE = "The code list was not compared with the service: no P32H code list is loaded";
-    private static final String NO_P32H_LIST_DETAIL = "No P32H code list is loaded. The tool is using the synthetic placeholder list that "
-            + "ships with it, which says nothing about real codes, so nothing was compared with the service's answer. Set codelist.file "
-            + "to the P32H export and restart the tool.";
-    private static final String PLACEHOLDER_NOTE = "The code list here is the synthetic placeholder that ships with the tool and not a "
-            + "P32H list.";
+    // Both sentences hold for every list that says of itself it is synthetic: the bundled placeholder,
+    // the sample under samples/ and a tester's own list whose rows carry the marker. None of them is
+    // named as the one that ships with the tool.
+    private static final String NO_P32H_LIST_DETAIL = "No P32H code list is loaded. The code list in use says of itself that it is "
+            + "synthetic (its rows carry the note \"Not from a P32H export.\"), so it says nothing about real codes, "
+            + "and nothing was compared with the service's answer. Set codelist.file to the P32H export and restart the tool.";
+    private static final String PLACEHOLDER_NOTE = "The code list in use says of itself that it is synthetic, so it is not a P32H list.";
 
     private final ProcedureCodeDirectory codeList;
     private final boolean mockProfile;

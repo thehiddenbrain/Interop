@@ -342,8 +342,8 @@ public class ChainService {
 
     /**
      * The action a record names. A blocked run always needs the guardrail dealt with, whatever else
-     * the record says; a blocked replay or suite row says so in its own action, because unlocking
-     * cannot help it.
+     * the record says; a blocked suite row says so in its own action, because unlocking cannot help
+     * it. A replay is never part of a chain, so its blocked line never reaches a chain view.
      */
     private static NextAction nextAction(RunRecord record) {
         if (RunOutcome.BLOCKED.name().equals(record.outcome())) {

@@ -140,9 +140,9 @@ class PlaceholderOnTheLiveProfileTest {
         JsonNode finding = aboutTheCodeList.get(0);
         assertThat(finding.get("kind").stringValue()).isEqualTo("CODE_LIST_NOT_COMPARED");
         assertThat(finding.get("title").stringValue()).isEqualTo("The code list was not compared with the service: no P32H code list is loaded");
-        assertThat(finding.get("detail").stringValue()).isEqualTo("No P32H code list is loaded. The tool is using the synthetic placeholder "
-                + "list that ships with it, which says nothing about real codes, so nothing was compared with the service's answer. Set "
-                + "codelist.file to the P32H export and restart the tool.");
+        assertThat(finding.get("detail").stringValue()).isEqualTo("No P32H code list is loaded. The code list in use says of itself that it is synthetic (its rows carry the note "
+                    + "\"Not from a P32H export.\"), so it says nothing about real codes, and nothing was compared with the service's "
+                    + "answer. Set codelist.file to the P32H export and restart the tool.");
         // As the browser gets it: no code is named and neither side is given a position.
         assertThat(finding.propertyNames()).containsExactlyInAnyOrder("kind", "title", "detail", "group", "groupLabel");
 

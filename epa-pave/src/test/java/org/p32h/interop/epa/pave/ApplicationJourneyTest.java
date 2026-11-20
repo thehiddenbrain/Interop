@@ -114,6 +114,10 @@ class ApplicationJourneyTest {
         assertThat(replay.get("runnerAvailable").booleanValue()).isTrue();
         assertThat(replay.get("results").get(0).get("status").stringValue()).isEqualTo("same");
         assertThat(replay.get("results").get(0).get("replayed").get("replayOfRunId").stringValue()).isEqualTo(runId);
+        // A replay never joins its original's chain: its line holds no chain, and the chain still holds the original alone.
+        String replayedId = replay.get("results").get(0).get("replayed").get("runId").stringValue();
+        assertThat(json(get("/api/runs/" + replayedId), 200).hasNonNull("chainId")).isFalse();
+        assertThat(json(get("/api/runs").param("chainId", chainId), 200).get("count").intValue()).isEqualTo(1);
     }
 
     @Test

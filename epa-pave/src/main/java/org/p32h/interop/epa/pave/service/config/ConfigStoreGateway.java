@@ -184,8 +184,7 @@ public class ConfigStoreGateway implements OperationGateway {
             // What changed is the lock, not the configuration, and the sending layer is told so in
             // those words. A change of configuration that also dropped the unlock is said as such.
             if (store.epoch() == epoch) {
-                throw new ConfigurationChangedException("Production writes were locked again before this write was sent, so it was not "
-                        + "sent. Unlock them on the Config tab by typing the environment name, then send it again.");
+                throw ConfigurationChangedException.writesLockedAgain();
             }
             return Long.MIN_VALUE;
         };

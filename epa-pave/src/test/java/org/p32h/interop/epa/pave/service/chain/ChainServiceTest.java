@@ -341,15 +341,18 @@ class ChainServiceTest {
     }
 
     @Test
-    void aBlockedReplayOrSuiteLineKeepsItsOwnActionAndABlockedLineWithNoneIsToldToUnlock() {
+    void aBlockedSuiteRowKeepsItsOwnActionAndABlockedLineWithNoneIsToldToUnlock() {
+        // A suite row that runs the protocol chain is the one blocked line a chain can hold that carries no unlock: a replay
+        // never joins a chain (RunReplay), so its blocked line is never in a chain view.
         String chainId = RunStamps.newChainId();
-        RunRecord replayed = RunRecord.builder().runId(RunStamps.newRunId()).timestamp("2026-03-10T10:01:00.000-05:00").protocol(Protocol.PAS)
+        RunRecord suiteRow = RunRecord.builder().runId(RunStamps.newRunId()).timestamp("2026-03-10T10:01:00.000-05:00").protocol(Protocol.PAS)
                 .operation(EpaOperation.PAS_SUBMIT).target("onyx").profile("mock").outcome("BLOCKED").errorType(RunRecord.ERROR_BLOCKED)
-                .result(TestResult.UNVERIFIED).chainId(chainId).nextAction(NextAction.SEND_ON_ITS_OWN).memberId("P32H-PA-REQ").build();
-        ledger.record(replayed);
+                .result(TestResult.UNVERIFIED).chainId(chainId).suiteRunId("suite-0001").caseId("case-1").nextAction(NextAction.SEND_ON_ITS_OWN)
+                .memberId("P32H-PA-REQ").build();
+        ledger.record(suiteRow);
         ChainView view = chains().view(chainId);
         ChainStage pas = stage(view, Protocol.PAS);
-        // Unlocking cannot help a replay or a suite row, so the chain view does not tell it to.
+        // Unlocking cannot help a suite row, so the chain view does not tell it to.
         assertThat(pas.latest().nextAction()).isEqualTo(NextAction.SEND_ON_ITS_OWN);
         assertThat(view.nextAction()).isEqualTo(NextAction.SEND_ON_ITS_OWN);
         assertThat(pas.state()).isEqualTo(ChainStageState.NEEDS_ATTENTION);

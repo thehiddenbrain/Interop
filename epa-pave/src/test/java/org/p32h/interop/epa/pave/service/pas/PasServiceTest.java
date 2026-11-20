@@ -1293,8 +1293,11 @@ class PasServiceTest {
         // The scenario models a service that took the submission and did not answer: ask before sending again.
         RunEnvelope<PasDetail> timeout = submit("P32H-PAS-TIMEOUT");
         assertThat(timeout.verdict().outcomeCode()).isEqualTo("TIMEOUT");
-        assertThat(timeout.verdict().supporting()).contains("The payer may have received the submission and acted on it.");
-        assertThat(timeout.nextStep().headline()).isEqualTo("Next: check the environment, then ask for the status before sending again.");
+        // Said as what a real timeout would mean, beside a panel that says nothing was sent.
+        assertThat(timeout.verdict().supporting()).noneMatch(line -> line.contains("may have received"));
+        assertThat(timeout.nextStep().headline()).isEqualTo("Next, had this been a real service: check the environment, then ask for the "
+                + "status before sending again.");
+        assertThat(timeout.nextStep().reason()).startsWith("Had this been a real service, the payer might have received the submission");
         // The scenario models a refused connection: nothing was submitted.
         RunEnvelope<PasDetail> down = submit("P32H-PAS-DOWN");
         assertThat(down.verdict().outcomeCode()).isEqualTo("UNREACHABLE");

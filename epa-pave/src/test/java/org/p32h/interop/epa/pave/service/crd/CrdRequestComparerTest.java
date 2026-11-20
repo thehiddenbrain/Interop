@@ -293,7 +293,7 @@ class CrdRequestComparerTest {
         RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(sent).build());
         assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE);
         // The code list would have led this tool to the same system, so there is nothing to note.
-        assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
+        assertThat(comparison.notes()).isEmpty();
     }
 
     private static final String OWN_SYSTEM = "Left to work the system out for itself";
@@ -415,7 +415,7 @@ class CrdRequestComparerTest {
             assertThat(comparison.notes()).as(name).noneMatch(note -> note.contains(SAME_TEXT));
         }
         String sent = sent(form("order-select", 3, true).build());
-        assertThat(compare(CrdRunRequest.builder().rawBody(sent).build()).notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
+        assertThat(compare(CrdRunRequest.builder().rawBody(sent).build()).notes()).isEmpty();
     }
 
     // ---- a request shaped the way a vendor might shape it ----
@@ -488,7 +488,7 @@ class CrdRequestComparerTest {
                 org.assertj.core.groups.Tuple.tuple(DifferenceGroup.LABELS, 4), org.assertj.core.groups.Tuple.tuple(DifferenceGroup.EVERY_CALL, 2),
                 org.assertj.core.groups.Tuple.tuple(DifferenceGroup.NOT_CLASSIFIED, 1));
         assertThat(comparison.counts().get(0).label()).isEqualTo("How the request is built");
-        assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
+        assertThat(comparison.notes()).containsExactly(
                 "Your request states the system of the code at context.draftOrders.entry[1].resource.codeCodeableConcept.coding[0].code, and "
                         + "the tool's request was built with that system. Left to work the system out for itself, from the code list or else "
                         + "from the format of the code, this tool writes urn:oid:2.16.840.1.113883.6.285.",
@@ -723,8 +723,8 @@ class CrdRequestComparerTest {
                 + "built for order-select, so that the two can be compared.");
         assertThat(source(comparison, "hook").source()).isEqualTo(CaseValue.Source.YOUR_REQUEST);
         // When the form says the same, or says nothing, there is nothing to note.
-        assertThat(compare(form("order-select", 1, true).rawBody(sent).build()).notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
-        assertThat(compare(form(null, 1, true).rawBody(sent).build()).notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
+        assertThat(compare(form("order-select", 1, true).rawBody(sent).build()).notes()).isEmpty();
+        assertThat(compare(form(null, 1, true).rawBody(sent).build()).notes()).isEmpty();
     }
 
     @Test
@@ -782,7 +782,7 @@ class CrdRequestComparerTest {
                 + "the tool's points at a Patient that the tool's request does not contain, and yours points at a Patient that your request "
                 + "does not contain. Whether the two name the same Patient cannot be seen from the requests.");
         // Stated as a fact about each request, in the same words for both.
-        assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
+        assertThat(comparison.notes()).containsExactly(
                 "Your request states the system of the code at context.draftOrders.entry[1].resource.code.coding[0].code, and the tool's "
                         + "request was built with that system. Left to work the system out for itself, from the code list or else from the "
                         + "format of the code, this tool writes urn:oid:2.16.840.1.113883.6.285.",
@@ -810,7 +810,7 @@ class CrdRequestComparerTest {
         gateway.variable("fhirServer", "https://ehr.example.invalid/fhir");
         RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(withServer).includePrefetch(false)
                 .member(MemberDetail.builder().memberId("S123456789").build()).provider(ProviderDetail.builder().npi(NPI).build()).build());
-        assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
+        assertThat(comparison.notes()).containsExactly(
                 "Your request states the system of the code at context.draftOrders.entry[1].resource.code.coding[0].code, and the tool's "
                         + "request was built with that system. Left to work the system out for itself, from the code list or else from the "
                         + "format of the code, this tool writes urn:oid:2.16.840.1.113883.6.285.",
@@ -897,7 +897,7 @@ class CrdRequestComparerTest {
         String twice = sent.replaceFirst("\\{", "{\"hook\": \"order-sign\",");
         RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(twice).build());
         assertThat(comparison.comparable()).isTrue();
-        assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
+        assertThat(comparison.notes()).containsExactly(
                 "Your request has a key that appears more than once in one object. Only the last value of such a key is shown and was compared.");
         assertThat(comparison.hook()).isEqualTo("order-select");
         assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE);
@@ -910,7 +910,7 @@ class CrdRequestComparerTest {
         String pasted = sent.replace("\"" + SURNAME + "\"", "\"{{memberSurname}}\"").replace("\"Given\"", "\"{{ memberFirst }}\"");
         RequestComparison comparison = compare(form("order-sign", 1, true).rawBody(pasted).build());
         assertThat(comparison.comparable()).isTrue();
-        assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
+        assertThat(comparison.notes()).containsExactly(
                 "Your request has placeholders with no value: {{memberSurname}}, {{memberFirst}}. It was compared as pasted, with every "
                         + "placeholder left in place. A value is looked for among the values typed for this run, in the active environment and in "
                         + "application.yml, and not in the variables of a collection.");
@@ -922,7 +922,7 @@ class CrdRequestComparerTest {
         RequestComparison filled = compare(form("order-sign", 1, true).rawBody(pasted)
                 .variables(Map.of("memberSurname", SURNAME, "memberFirst", "Given")).build());
         assertThat(lines(filled)).containsExactly(ONLY_HOOK_INSTANCE);
-        assertThat(filled.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
+        assertThat(filled.notes()).isEmpty();
         assertThat(filled.yourBody()).isEqualTo(sent);
     }
 
@@ -1055,8 +1055,10 @@ class CrdRequestComparerTest {
         for (RequestComparison comparison : List.of(notJson, otherHook, compared)) {
             assertThat(comparison.caveat()).isEqualTo(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
         }
-        // A comparable answer still carries it first among its notes, where the screens read it today.
-        assertThat(compared.notes().get(0)).isEqualTo(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
+        // Said once: the caveat is not repeated among the notes of any answer.
+        for (RequestComparison comparison : List.of(notJson, otherHook, compared)) {
+            assertThat(comparison.notes()).doesNotContain(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
+        }
     }
 
     @Test

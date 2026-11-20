@@ -94,6 +94,11 @@ class SecretsSentBackOverTheServerTest {
             body.put("resourceType", "Bundle").put("type", "collection").putArray("entry");
         } else if (path.endsWith("/Subscription")) {
             body.put("resourceType", "Subscription").put("id", "sub-echo-1").put("status", "requested");
+        } else if (path.contains("/Member/")) {
+            // A secret inside a field the case would take, beside one that holds none.
+            body.put("firstName", "Avery key " + key).put("lastName", "Placeholder-Surname");
+        } else if (path.contains("/Provider/")) {
+            body.put("name", "Placeholder Clinic tenant " + tenant).put("specialty", "Sleep Medicine");
         }
         ObjectNode extra = body.putObject("vendorExtra");
         extra.put("echoedAuthorization", String.valueOf(authorization));
@@ -200,6 +205,15 @@ class SecretsSentBackOverTheServerTest {
             + "\"lineOfBusiness\":\"Medicare\"},\"provider\":{\"npi\":\"1234567893\"},\"procedureCodes\":[{\"code\":\"95810\"}],"
             + "\"dateOfService\":\"2026-03-20\"%s}";
 
+    private static JsonNode field(JsonNode lookup, String name) {
+        for (JsonNode field : JsonSafe.elements(lookup, "fields")) {
+            if (name.equals(JsonSafe.presentText(field, "name"))) {
+                return field;
+            }
+        }
+        throw new AssertionError("No field " + name);
+    }
+
     @Test
     void noAnswerTheBrowserReceivesHoldsASecretTheServiceSentBack() throws Exception {
         String environment = "{\"name\": \"echo-sandbox\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + url("/fhir") + "\"}, "
@@ -242,6 +256,20 @@ class SecretsSentBackOverTheServerTest {
                 assertThat(answer.getValue().body()).as(answer.getKey() + " holds " + secret).doesNotContain(secret);
             }
         }
+        // A lookup field whose value holds a mask says so, so that the case is not given the mask text as data. A field
+        // that holds no mask carries neither the flag nor the note.
+        JsonNode member = JsonSafe.parse(answers.get("member lookup").body()).node();
+        assertThat(member.get("status").asString()).isEqualTo("FOUND");
+        assertThat(field(member, "firstName").get("value").get("value").asString()).isEqualTo("Avery key [secret x-api-key header]");
+        assertThat(field(member, "firstName").get("masked").asBoolean()).isTrue();
+        assertThat(field(member, "firstName").get("note").asString()).isEqualTo("This value holds a secret the request sent, which this tool "
+                + "masked, so it is not what the service returned and is not offered for the case.");
+        assertThat(field(member, "lastName").has("masked")).isFalse();
+        assertThat(field(member, "lastName").has("note")).isFalse();
+        JsonNode provider = JsonSafe.parse(answers.get("provider lookup").body()).node();
+        assertThat(field(provider, "name").get("masked").asBoolean()).isTrue();
+        assertThat(field(provider, "specialty").has("masked")).isFalse();
+
         // The raw send lists what came back in its own words: the echoed values are there, masked.
         assertThat(answers.get("raw send").body()).contains("vendorExtra.echoedKey").contains("[secret x-api-key header]")
                 .contains("[secret tenantSecret]");

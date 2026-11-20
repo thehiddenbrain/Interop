@@ -159,8 +159,10 @@ class RawServiceTest {
         VendorExchange played = TestExchanges.timeout(EpaOperation.UNMAPPED).withElapsedMillis(400).withScenario("crd-13-timeout", "chosen");
         RunEnvelope<RawDetail> result = run(stub(played), null, null);
         assertThat(result.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
-        assertThat(result.error().title()).isEqualTo("A mock scenario played a timeout: the scenario reports giving up after 400 ms, and nothing was waited for. On live "
-                + "this tool waits up to 15000 ms for an answer (onyx.read-timeout-ms) before it gives up.");
+        assertThat(result.error().title()).isEqualTo("A mock scenario played a timeout. Nothing was sent and no environment failed: the "
+                + "response time shown, 400 ms, is the scenario's own delay.");
+        assertThat(result.error().action()).isEqualTo("Had this been a real service, this tool would have waited up to 15000 ms for an answer "
+                + "(onyx.read-timeout-ms) before giving up. The next step says what a tester would do then.");
         // Without a scenario, the timeout is a real one and is said as such.
         assertThat(run(stub(TestExchanges.timeout(EpaOperation.UNMAPPED)), null, null).error().title())
                 .isEqualTo("No response arrived within the read timeout.");

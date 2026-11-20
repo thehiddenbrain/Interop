@@ -36,11 +36,12 @@ public class ProcedureCodeController {
     /**
      * What the type-ahead answers.
      *
-     * @param placeholder    true when the codes come from the synthetic placeholder list that ships
-     *                       with the tool, which is what is loaded while {@code codelist.file} is
-     *                       blank. Left out when a list was configured. The codes still carry what
-     *                       the placeholder states, so the picker shows its tags; this is what lets
-     *                       the screen say beside every tag that it is not from a P32H list
+     * @param placeholder    true when the list in use is synthetic: the placeholder that ships with
+     *                       the tool, which is loaded while {@code codelist.file} is blank, or a
+     *                       configured list whose rows say of themselves that they are synthetic.
+     *                       Left out for any other list. The codes still carry what the list states,
+     *                       so the picker shows its tags; this is what lets the screen say beside
+     *                       every tag that it is not from a P32H list
      * @param query          the query as it was searched, without the white space around it. Left out when none was given
      * @param lineOfBusiness the line of business that was asked for. Left out when none was given
      * @param narrowed       true when the codes were narrowed to that line and to the rows that state no line

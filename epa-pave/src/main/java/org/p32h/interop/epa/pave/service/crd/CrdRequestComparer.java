@@ -156,9 +156,8 @@ public final class CrdRequestComparer {
         for (Difference difference : result.differences()) {
             counted.merge(difference.group(), 1, Integer::sum);
         }
-        List<String> all = new ArrayList<>();
-        all.add(WHAT_IT_CANNOT_SHOW);
-        all.addAll(notes);
+        // The caveat is the answer's own component on every comparison, so it is not repeated here.
+        List<String> all = new ArrayList<>(notes);
         all.addAll(result.notes());
         systemsLeftToThisTool(built, reading, variables, all);
         otherOrderTypes(reading, all);

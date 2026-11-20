@@ -229,6 +229,7 @@ final class ProviderResponseMapping {
                 city.field("city", "City"),
                 state.field("state", "State"),
                 postalCode.field("postalCode", "Postal code"));
+        fields = LookupReader.markMasked(fields, exchange != received);
 
         String message;
         if (!attention.isEmpty()) {

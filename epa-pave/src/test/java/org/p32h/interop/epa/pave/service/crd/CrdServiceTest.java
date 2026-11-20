@@ -529,9 +529,16 @@ class CrdServiceTest {
         assertThat(timeout.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
         assertThat(timeout.error().httpStatus()).isNull();
         assertThat(timeout.verdict().headline()).isEqualTo("The service did not answer in time.");
-        // On mock the timeout is a scenario's short delay, and the result says so beside its response time (frame review FR-16).
-        assertThat(timeout.verdict().supporting()).anySatisfy(line -> assertThat(line).contains(org.p32h.interop.epa.pave.model.VendorExchange
-                .SIMULATED_TIMEOUT));
+        // On mock the timeout is a scenario's short delay. The error panel says once that it was played, that nothing was sent
+        // and that no environment failed, and that the time shown is the delay (frame review FR-16). The verdict names the
+        // scenario and does not say it again, and the next step speaks of what a real timeout would mean.
+        assertThat(timeout.error().title()).startsWith("A mock scenario played a timeout. Nothing was sent and no environment failed: "
+                + "the response time shown, ").endsWith(" ms, is the scenario's own delay.");
+        assertThat(timeout.verdict().supporting()).singleElement().satisfies(line -> assertThat(line).startsWith("Mock scenario crd-13-timeout"));
+        assertThat(timeout.nextStep().headline()).isEqualTo("Next, had this been a real service: check the environment, then send again.");
+        assertThat(timeout.nextStep().reason()).isEqualTo("Had this been a real service, a timeout would be a finding about the environment, "
+                + "not about the member or the code.");
+        assertThat(timeout.nextStep().action()).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.CHECK_ENVIRONMENT);
         OnyxCrdClient unreachable = stub(TestExchanges.unavailable(EpaOperation.CRD_ORDER_SIGN));
         RunEnvelope<CrdDetail> down = service(unreachable, "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(down.error().kind()).isEqualTo(ErrorKind.UNREACHABLE);
@@ -986,7 +993,7 @@ class CrdServiceTest {
 
     // ---- the placeholder code list, which must never read as the P32H list ----
 
-    private static final String PLACEHOLDER_NOTE = "The code list here is the synthetic placeholder that ships with the tool and not a P32H list.";
+    private static final String PLACEHOLDER_NOTE = "The code list in use says of itself that it is synthetic, so it is not a P32H list.";
 
     /** The list as it loads on a fresh checkout, with codelist.file blank: the synthetic rows bundled with the tool. */
     private static ProcedureCodeService bundledPlaceholder() {
@@ -1023,9 +1030,9 @@ class CrdServiceTest {
         assertThat(aboutTheCodeList(result)).singleElement().satisfies(f -> {
             assertThat(f.kind()).isEqualTo(FindingKind.CODE_LIST_NOT_COMPARED);
             assertThat(f.title()).isEqualTo("The code list was not compared with the service: no P32H code list is loaded");
-            assertThat(f.detail()).isEqualTo("No P32H code list is loaded. The tool is using the synthetic placeholder list that ships "
-                    + "with it, which says nothing about real codes, so nothing was compared with the service's answer. Set codelist.file "
-                    + "to the P32H export and restart the tool.");
+            assertThat(f.detail()).isEqualTo("No P32H code list is loaded. The code list in use says of itself that it is synthetic (its rows carry the note "
+                    + "\"Not from a P32H export.\"), so it says nothing about real codes, and nothing was compared with the service's "
+                    + "answer. Set codelist.file to the P32H export and restart the tool.");
             // It is about the run, not about one code, and it states no position for either side.
             assertThat(f.subject()).isNull();
             assertThat(f.codeListSays()).isNull();

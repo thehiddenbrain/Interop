@@ -112,6 +112,10 @@ class CrdControllerTest {
         assertThat(result.at("/error/kind").asString()).isEqualTo("VENDOR_ERROR");
         assertThat(result.at("/error/httpStatus").asInt()).isEqualTo(500);
         assertThat(result.at("/wire/request/body").asString()).contains("\"hook\"");
+        // The issue's empty expression is in the issues table as returned empty, and not listed again as not interpreted.
+        assertThat(result.at("/error/issues/0/expressionPresent").asBoolean()).isTrue();
+        assertThat(result.at("/error/issues/0/expression")).isEmpty();
+        assertThat(result.get("additionalFields").toString()).doesNotContain("expression");
         JsonNode timeout = run(mvc("mock"), body("P32H-TIMEOUT", ""), 200);
         assertThat(timeout.at("/error/kind").asString()).isEqualTo("TIMEOUT");
         // Not found is an answer about test data, so it has no error panel at all.
@@ -286,8 +290,10 @@ class CrdControllerTest {
         assertThat(answer.at("/counts/0/label").asString()).isEqualTo("How the request is built");
         assertThat(answer.at("/counts/0/count").asInt()).isEqualTo(25);
         assertThat(answer.at("/counts/0/description").asString()).isNotBlank();
-        assertThat(answer.at("/notes/0").asString()).startsWith("This comparison shows where the two requests differ. It cannot show which one "
+        // The caveat is said once, as its own component, and not again among the notes.
+        assertThat(answer.at("/caveat").asString()).startsWith("This comparison shows where the two requests differ. It cannot show which one "
                 + "the service expects");
+        assertThat(answer.get("notes").toString()).doesNotContain("This comparison shows where the two requests differ");
         // One difference, in full.
         assertThat(answer.get("differences")).hasSize(34);
         JsonNode first = answer.at("/differences/0");
