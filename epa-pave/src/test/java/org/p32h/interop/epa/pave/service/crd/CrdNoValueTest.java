@@ -66,6 +66,41 @@ class CrdNoValueTest {
     }
 
     @Test
+    void theRecordKeepsTheReadingsOwnStatementsOfACodeSentWithNothingInIt() {
+        // The ledger checks every coverage code it is given. A null pa-needed written as "(null)"
+        // must reach History as that, not as a six-character value that is not a code.
+        String covered = "{\"url\":\"covered\",\"valueCode\":\"covered\"}";
+        List<String> written = new java.util.ArrayList<>();
+        for (String paNeeded : List.of("{\"url\":\"pa-needed\",\"valueCode\":null}", "{\"url\":\"pa-needed\",\"valueCode\":\"\"}",
+                "{\"url\":\"pa-needed\"}")) {
+            org.p32h.interop.epa.pave.model.RunRecord record = record(mapper.read(TestExchanges.crd(200, body(covered + "," + paNeeded)))
+                    .ledgerCodes());
+            org.p32h.interop.epa.pave.model.RunRecord readBack = org.p32h.interop.epa.pave.model.JsonSafe.mapper().readValue(
+                    org.p32h.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(record), org.p32h.interop.epa.pave.model.RunRecord.class);
+            assertThat(readBack.coverageCodes()).isEqualTo(record.coverageCodes());
+            written.add(record.coverageCodes().get(1));
+        }
+        assertThat(written).containsExactly("pa-needed=(null)", "pa-needed=(empty)", "pa-needed=(no value)");
+        // Before a code that was asked about, too; and a real value that is not a code still gives only its length.
+        assertThat(record(List.of("95810: pa-needed=(null)", "pa-needed=(nulls)", "pa-needed=(null) and more")).coverageCodes())
+                .containsExactly("95810: pa-needed=(null)", "pa-needed=(not a code, 7 characters)", "pa-needed=(not a code, 15 characters)");
+    }
+
+    @Test
+    void aReturnedCodeThatReadsLikeOneOfTheStatementsIsNotWrittenAsOne() {
+        String body = body("{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"pa-needed\",\"valueCode\":\"(null)\"}");
+        assertThat(record(mapper.read(TestExchanges.crd(200, body)).ledgerCodes()).coverageCodes())
+                .containsExactly("covered=covered", "pa-needed=(not a code, 6 characters)");
+    }
+
+    private static org.p32h.interop.epa.pave.model.RunRecord record(List<String> coverageCodes) {
+        return org.p32h.interop.epa.pave.model.RunRecord.builder().runId("run-1").timestamp("2026-03-10T10:00:00.000-05:00")
+                .protocol(org.p32h.interop.epa.pave.model.Protocol.CRD).operation(org.p32h.interop.epa.pave.model.EpaOperation.CRD_ORDER_SIGN)
+                .outcome("NO_DETERMINATION").result(org.p32h.interop.epa.pave.model.TestResult.UNVERIFIED).coverageCodes(coverageCodes)
+                .build();
+    }
+
+    @Test
     void theFindingSaysWhichOfTheTwoItWas() {
         assertThat(about(findings("{\"url\":\"covered\"}"), "covered")).contains("it carries no value[x] at all");
         assertThat(about(findings("{\"url\":\"covered\",\"valueCode\":\"\"}"), "covered")).contains("its value is empty")

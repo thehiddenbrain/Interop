@@ -202,7 +202,8 @@ public final class CrdResponseMapper {
         CrdOutcome overall = CrdOutcomeRules.overall(exchange, outcomes, unanswered.size());
         // JSON that is not a CDS Hooks response answered nothing, and must never pass as a service
         // that answered and said nothing: that is NO_DETERMINATION, and a test expecting it would pass.
-        if (kind == CrdResponseKind.OTHER_JSON && overall == CrdOutcome.NO_DETERMINATION) {
+        // An OperationOutcome sent with a success status is such JSON too; its issues stay issues.
+        if ((kind == CrdResponseKind.OTHER_JSON || kind == CrdResponseKind.OPERATION_OUTCOME) && overall == CrdOutcome.NO_DETERMINATION) {
             overall = CrdOutcome.MALFORMED_RESPONSE;
         }
         return new CrdReading(detail, overall, requested, unanswered,

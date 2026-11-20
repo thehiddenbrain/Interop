@@ -15,10 +15,12 @@ import java.util.List;
  * @param locationPresent    whether the issue held a {@code location} element at all, whatever its value
  * @param expressionPresence what the issue held for {@code expression}: not returned, null, empty or a value
  * @param locationPresence   what the issue held for {@code location}: not returned, null, empty or a value
+ * @param detailsPresence    what the issue held for {@code details}: not returned, null, empty or a value. The text
+ *                           and the codings alone are not returned all three times, so the screen reads this
  */
 public record IssueView(Shown severity, Shown code, Shown diagnostics, Shown detailsText, List<Shown> detailsCodes,
                         List<Shown> expression, List<Shown> location, boolean expressionPresent, boolean locationPresent,
-                        Presence expressionPresence, Presence locationPresence) {
+                        Presence expressionPresence, Presence locationPresence, Presence detailsPresence) {
 
     public IssueView {
         detailsCodes = detailsCodes == null ? List.of() : List.copyOf(detailsCodes);
@@ -34,13 +36,25 @@ public record IssueView(Shown severity, Shown code, Shown diagnostics, Shown det
         }
         expressionPresent = expressionPresence != Presence.ABSENT;
         locationPresent = locationPresence != Presence.ABSENT;
+        if (detailsPresence == null) {
+            detailsPresence = !detailsCodes.isEmpty() || detailsText != null && detailsText.presence() != Presence.ABSENT
+                    ? Presence.VALUE : Presence.ABSENT;
+        }
+    }
+
+    /** An issue whose details are known only from its text and codings. */
+    public IssueView(Shown severity, Shown code, Shown diagnostics, Shown detailsText, List<Shown> detailsCodes,
+                     List<Shown> expression, List<Shown> location, boolean expressionPresent, boolean locationPresent,
+                     Presence expressionPresence, Presence locationPresence) {
+        this(severity, code, diagnostics, detailsText, detailsCodes, expression, location, expressionPresent, locationPresent,
+                expressionPresence, locationPresence, null);
     }
 
     /** An issue read from a response whose two lists are known only to be held or not. */
     public IssueView(Shown severity, Shown code, Shown diagnostics, Shown detailsText, List<Shown> detailsCodes,
                      List<Shown> expression, List<Shown> location, boolean expressionPresent, boolean locationPresent) {
         this(severity, code, diagnostics, detailsText, detailsCodes, expression, location, expressionPresent, locationPresent,
-                null, null);
+                null, null, null);
     }
 
     private static Presence held(boolean present, List<Shown> entries) {

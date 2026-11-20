@@ -98,6 +98,28 @@ class CrdRepeatedKeyTest {
                 .doesNotContain("wrong");
     }
 
+    private List<String> repeatedTitles(String body) {
+        var exchange = TestExchanges.crd(200, body);
+        return new CrdConformanceChecker(new FakeCodeList(), EpaProperties.of(Map.of("mode", "mock")))
+                .check(mapper.read(exchange), exchange, null, null).stream().map(Finding::title)
+                .filter(title -> title.contains("times in one object")).toList();
+    }
+
+    @Test
+    void whetherTheViewReadAKeyIsDecidedAtItsOwnPlaceAndNotByWhatLiesBeneathIt() {
+        // The kept card carries a field this tool does not know: cards was still read.
+        assertThat(repeatedTitles("{\"cards\":[{\"summary\":\"ZZ-DROPPED-CARD\"}],"
+                + "\"cards\":[{\"summary\":\"Kept card\",\"zzVendorExtra\":1}]}"))
+                .containsExactly("cards is sent 2 times in one object");
+        // A key repeated inside the kept value lists its own values beneath cards: cards was still read.
+        assertThat(repeatedTitles("{\"cards\":[{\"summary\":\"ZZ-DROPPED-CARD\"}],"
+                + "\"cards\":[{\"summary\":\"ZZ-ONE\",\"summary\":\"Kept card\"}]}"))
+                .containsExactlyInAnyOrder("cards[0].summary is sent 2 times in one object", "cards is sent 2 times in one object");
+        // A key no view reads, with everything beneath it unread, is listed and raises no finding.
+        assertThat(repeatedTitles("{\"cards\":[],\"zzVendor\":{\"a\":1},\"zzVendor\":{\"a\":2,\"b\":[]}}")).isEmpty();
+        assertThat(repeatedTitles("{\"cards\":[],\"zzVendor\":{},\"zzVendor\":[]}")).isEmpty();
+    }
+
     @Test
     void theMockPlaysABodyThatRepeatsAKeyExactlyAsWritten(@TempDir Path dir) throws IOException {
         Path bundled = Path.of("src/main/resources/scenarios");

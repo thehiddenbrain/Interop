@@ -151,10 +151,14 @@ public final class TrackedJson {
      *
      * @param values the JSON text of each value in the order sent, masked where it repeats a secret the request carried
      */
-    public record RepeatedKeyRead(String path, List<String> values) {
+    public record RepeatedKeyRead(String path, List<String> values, String pointer) {
 
         public RepeatedKeyRead {
             values = values == null ? List.of() : List.copyOf(values);
+        }
+
+        public RepeatedKeyRead(String path, List<String> values) {
+            this(path, values, null);
         }
 
         /** Prints the path and how many values, never a value: a value can be member data. */
@@ -173,12 +177,35 @@ public final class TrackedJson {
      * @param unread the fields returned but not interpreted, as the mapper listed them
      */
     public static List<Finding> repeatedKeyFindings(VendorExchange exchange, List<AdditionalField> unread) {
+        return repeatedKeyFindings(exchange == null ? null : exchange.json(), repeatedKeys(exchange), unread);
+    }
+
+    /**
+     * As {@link #repeatedKeyFindings(VendorExchange, List)}, for a reader that parses a body itself,
+     * such as the notification receiver.
+     *
+     * @param kept   the parsed body, which holds the last value of each repeated key
+     * @param parsed the parse that found the repeated keys
+     */
+    public static List<Finding> repeatedKeyFindings(JsonNode kept, JsonSafe.Parsed parsed, List<AdditionalField> unread) {
+        if (parsed == null || !parsed.repeatedKeys()) {
+            return List.of();
+        }
+        return repeatedKeyFindings(kept, parsed.repeated().stream().map(key -> new RepeatedKeyRead(key.path(), key.values(), key.pointer()))
+                .toList(), unread);
+    }
+
+    private static List<Finding> repeatedKeyFindings(JsonNode kept, List<RepeatedKeyRead> repeated, List<AdditionalField> unread) {
         List<Finding> out = new ArrayList<>();
-        for (RepeatedKeyRead key : repeatedKeys(exchange)) {
-            boolean listedUnread = unread != null && unread.stream().filter(field -> field.kind() == AdditionalField.Kind.FIELD)
-                    .map(AdditionalField::path)
-                    .anyMatch(path -> path.equals(key.path()) || path.startsWith(key.path() + ".") || path.startsWith(key.path() + "["));
-            if (listedUnread) {
+        Set<String> unreadPaths = new HashSet<>();
+        if (unread != null) {
+            unread.stream().filter(field -> field.kind() == AdditionalField.Kind.FIELD).forEach(field -> unreadPaths.add(field.path()));
+        }
+        for (RepeatedKeyRead key : repeated) {
+            // The view read the key when it read anything of the value kept at the key's own place.
+            // A field it did not know inside that value, or the listed values of a key repeated
+            // further down, does not make the key unread: only every leaf of it unread does.
+            if (unreadAtItsPlace(kept, key, unreadPaths)) {
                 continue;
             }
             List<String> said = new ArrayList<>();
@@ -197,6 +224,41 @@ public final class TrackedJson {
         return out;
     }
 
+    /**
+     * True when every leaf of the value kept at a repeated key's place is among the unread fields,
+     * so no designed view read it. A place the kept body does not hold (a key repeated inside a
+     * value that a later one replaced) was read by nobody.
+     */
+    private static boolean unreadAtItsPlace(JsonNode kept, RepeatedKeyRead key, Set<String> unreadPaths) {
+        if (unreadPaths.contains(key.path())) {
+            return true;
+        }
+        JsonNode value = kept == null || key.pointer() == null ? null : kept.at(key.pointer());
+        if (value == null || value.isMissingNode()) {
+            return key.pointer() != null || unreadPaths.stream().anyMatch(path -> path.startsWith(key.path() + ".")
+                    || path.startsWith(key.path() + "["));
+        }
+        List<String> leaves = new ArrayList<>();
+        leaves(value, key.path(), leaves);
+        return unreadPaths.containsAll(leaves);
+    }
+
+    private static void leaves(JsonNode node, String path, List<String> out) {
+        if (node.isObject() && !node.isEmpty()) {
+            for (Map.Entry<String, JsonNode> property : node.properties()) {
+                leaves(property.getValue(), path + "." + displayName(property.getKey()), out);
+            }
+        } else if (node.isArray() && !node.isEmpty()) {
+            int index = 0;
+            for (JsonNode element : node) {
+                leaves(element, path + "[" + index + "]", out);
+                index++;
+            }
+        } else {
+            out.add(path);
+        }
+    }
+
     /** Every key the response body repeats, with its values masked as the wire view masks them. Empty when none repeats. */
     public static List<RepeatedKeyRead> repeatedKeys(VendorExchange exchange) {
         if (exchange == null || exchange.json() == null || Texts.blank(exchange.responseBody())) {
@@ -213,7 +275,8 @@ public final class TrackedJson {
             for (String value : key.values()) {
                 values.add(secrets == null || secrets.searched() == 0 ? value : secrets.mask(value).text());
             }
-            out.add(new RepeatedKeyRead(secrets == null || secrets.searched() == 0 ? key.path() : secrets.mask(key.path()).text(), values));
+            out.add(new RepeatedKeyRead(secrets == null || secrets.searched() == 0 ? key.path() : secrets.mask(key.path()).text(), values,
+                    key.pointer()));
         }
         return out;
     }

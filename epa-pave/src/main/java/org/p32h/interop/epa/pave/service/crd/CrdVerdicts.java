@@ -502,6 +502,10 @@ public final class CrdVerdicts {
         if (kind == CrdResponseKind.NO_BODY) {
             return "The service answered with no body" + status(exchange) + ".";
         }
+        if (kind == CrdResponseKind.OPERATION_OUTCOME) {
+            return "The service answered with a FHIR OperationOutcome, not a CDS Hooks response" + status(exchange)
+                    + ". Its issues are listed in the response detail.";
+        }
         if (kind != CrdResponseKind.OTHER_JSON) {
             return "The service answered with a body that could not be read" + status(exchange) + ".";
         }
