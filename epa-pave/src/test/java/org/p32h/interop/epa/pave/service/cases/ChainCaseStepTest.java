@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -29,15 +28,9 @@ import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.MemberLookupResult;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.ProviderLookupResult;
-import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.service.RunLedger;
-import org.p32h.interop.epa.pave.service.config.CallIntent;
-import org.p32h.interop.epa.pave.service.config.OperationGateway;
-import org.p32h.interop.epa.pave.service.config.PreparedCall;
-import org.p32h.interop.epa.pave.service.config.ProdUnlock;
-import org.p32h.interop.epa.pave.service.config.WriteAccess;
 import org.p32h.interop.epa.pave.service.crd.CrdService;
 import org.p32h.interop.epa.pave.service.dtr.DtrService;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
@@ -71,50 +64,6 @@ class ChainCaseStepTest {
             MemberIds.forms(id), null, List.of(), List.of(), List.of(), null, null, "message");
     private final org.p32h.interop.epa.pave.service.ProviderLookup providers = npi -> new ProviderLookupResult(LookupStatus.FOUND, npi,
             ProviderDetail.builder().npi(npi).lastName("Provider").build(), List.of(), List.of(), List.of(), null, null, "message");
-
-    /** A gateway that answers as the fake does, except for the operations it is told to refuse or fail on. */
-    private static final class StepGateway implements OperationGateway {
-        private final FakeGateway delegate;
-        private final Map<EpaOperation, RuntimeException> failures = new EnumMap<>(EpaOperation.class);
-
-        StepGateway(FakeGateway delegate) {
-            this.delegate = delegate;
-        }
-
-        StepGateway failing(EpaOperation operation, RuntimeException failure) {
-            failures.put(operation, failure);
-            return this;
-        }
-
-        @Override
-        public PreparedCall prepare(CallIntent intent) {
-            RuntimeException failure = failures.get(intent.operation());
-            if (failure != null) {
-                throw failure;
-            }
-            return delegate.prepare(intent);
-        }
-
-        @Override
-        public ResolvedText resolve(String template, Map<String, String> runValues) {
-            return delegate.resolve(template, runValues);
-        }
-
-        @Override
-        public EnvironmentRef activeEnvironment() {
-            return delegate.activeEnvironment();
-        }
-
-        @Override
-        public WriteAccess writeAccess(ProdUnlock unlock) {
-            return delegate.writeAccess(unlock);
-        }
-
-        @Override
-        public long epoch() {
-            return delegate.epoch();
-        }
-    }
 
     private ObjectProvider<RunLedger> ledgerProvider() {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();

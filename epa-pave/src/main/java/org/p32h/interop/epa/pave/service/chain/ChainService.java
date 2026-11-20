@@ -303,7 +303,7 @@ public class ChainService {
     }
 
     /** The instruction for an action, in plain words. The run itself gave a fuller reason on screen; the ledger keeps the action. */
-    static String instruction(NextAction action) {
+    public static String instruction(NextAction action) {
         return switch (action) {
             case START_DTR -> "Answer the payer's questionnaire (DTR).";
             case ANSWER_NEXT_QUESTION -> "Answer the next question of the questionnaire (DTR).";

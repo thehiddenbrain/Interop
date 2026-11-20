@@ -116,7 +116,7 @@ class SuiteControllerTest {
         assertThat(response.getContentType()).isEqualTo("text/csv;charset=UTF-8");
         assertThat(response.getHeader("Content-Disposition")).isEqualTo("attachment; filename=\"suite-results-" + id + ".csv\"");
         String csv = response.getContentAsString(StandardCharsets.UTF_8);
-        assertThat(csv).startsWith("suiteRunId,suiteName,row,caseId,");
+        assertThat(csv).startsWith("\uFEFFsuiteRunId,suiteName,suiteState,");
         assertThat(csv.split("\r\n")).hasSize(3);
         assertThat(csv).doesNotContain("P32H-NO-AUTH");
     }

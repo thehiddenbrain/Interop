@@ -63,7 +63,7 @@ class SuiteServiceTest {
         assertThat(run.finishedAt()).isNotNull();
         // Every case here has something for a person to look at. The test code list holds no row for 95810,
         // so nothing was compared, and the empty answer is missing what the guide requires.
-        assertThat(run.counts()).isEqualTo(new SuiteCounts(3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0));
+        assertThat(run.counts()).isEqualTo(new SuiteCounts(3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0));
         assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_NOT_COMPARED", 2), Map.entry("REQUIRED_ELEMENT_MISSING", 1));
 
         assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("TC-1", "TC-2", "TC-3");
@@ -214,7 +214,8 @@ class SuiteServiceTest {
         assertThat(run.counts().failed()).isZero();
         assertThat(run.counts().unverified()).isZero();
         assertThat(run.headline()).isEqualTo("Finished: 1 case. 1 blocked.");
-        assertThat(run.notes()).containsExactly("1 case was blocked by the production guardrail. Nothing was sent for it. "
+        assertThat(run.notes()).containsExactly("1 case was blocked by the production guardrail. The write that was blocked was not sent; the steps of a chain before it were, "
+                + "and its row says which. "
                 + "A blocked case is not a failed case.");
         assertThat(run.environment()).isEqualTo(new EnvironmentRef("Onyx Production", EnvironmentKind.PROD));
         // A suite never carries the unlock for production writes.
@@ -235,7 +236,10 @@ class SuiteServiceTest {
         SuiteRunView run = bed.service().start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", ""), row("TC-2", "P32H-NO-AUTH", ""),
                 row("TC-3", "P32H-NO-AUTH", ""), row("TC-4", "P32H-NO-AUTH", "")), null, null, null);
         assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
-        assertThat(run.stopReason()).startsWith("The configuration changed while the suite was running.");
+        // What changed is not known here, so the reason does not say where the cases left would have gone.
+        assertThat(run.stopReason()).isEqualTo(SuiteService.configurationChanged()).doesNotContain("target");
+        assertThat(run.stopReason()).startsWith("The configuration was changed while the suite was running. The suite stopped so that "
+                + "every case of it ran under one configuration");
         assertThat(run.headline()).isEqualTo("Stopped after 2 of 4 cases. 2 unverified, 2 not run.");
         assertThat(run.results()).extracting(SuiteCaseResult::state)
                 .containsExactly(SuiteRowState.DONE, SuiteRowState.DONE, SuiteRowState.NOT_RUN, SuiteRowState.NOT_RUN);
@@ -597,10 +601,16 @@ class SuiteServiceTest {
         assertThat(run.state()).isEqualTo(SuiteState.COMPLETED);
         assertThat(run.results()).allSatisfy(row -> {
             assertThat(row.status()).isEqualTo(CaseStatus.NOT_RUNNABLE);
-            assertThat(row.reason()).startsWith("This tool failed while running the case.").contains("Reference");
-            assertThat(row.statusLine()).isEqualTo("Not sent: this case cannot be run from a suite.");
+            // A failure of the tool is not a case that cannot be run, and it never says nothing was sent.
+            assertThat(row.faultReference()).isNotBlank();
+            assertThat(row.reason()).startsWith("This tool failed while running the case. Whether a request left for it is not known")
+                    .endsWith("Reference " + row.faultReference() + ".");
+            assertThat(row.statusLine()).isEqualTo("Tool failure: this tool failed while running the case, so whether a request left is "
+                    + "not known. The reason gives the reference.");
         });
-        assertThat(run.headline()).isEqualTo("Finished: 2 cases. 2 not runnable.");
+        assertThat(run.headline()).isEqualTo("Finished: 2 cases. 2 tool failures.");
+        assertThat(run.counts().toolFailed()).isEqualTo(2);
+        assertThat(run.counts().notRunnable()).isZero();
         assertThat(output.getAll()).contains("A suite case failed inside this tool").doesNotContain("S123456789").doesNotContain("exploded");
     }
 
