@@ -5,8 +5,7 @@ Where the build is, what is done, what remains. Updated at every commit.
 ## Current position
 
 **Read this first.** The revision that holds this file is later than `7dade28`, which the rest of
-this section describes. Merged since, and built together through the shared wrapper with 2667 tests
-(2665 passed, 2 skipped as explained below, none failed):
+this section describes. Merged since:
 
 - the pass that joined the five tabs into one tool, and a second pass that made the screens read what
   the server now says. On the real tabs, on mock: `P32H-NO-AUTH` and `P32H-EMPTY` were seen side by
@@ -19,31 +18,36 @@ this section describes. Merged since, and built together through the shared wrap
 - the README, brought up to the tool as built, screens included. It quotes some sentences of the
   screen that later work reworded, and those quotes have not been checked again;
 - the two server tasks of what the reviews of the screens asked of the server (D-200);
-- the fixes for what the second fixture audit found (see below).
+- the fixes for what the second run of three audits found (see below).
 
 **The audits of section 27, second run, on revision `0658a7c`.** Three ran, each by an agent that
 wrote none of the tool: member data (V2), the production guardrail (V3) and fixtures (V4). They
-found defects that are **not all fixed at this revision**:
+found defects. **The fixes are merged at this revision, and nobody but the author of each fix has
+checked it yet:**
 
-- V3, a blocker, **not fixed here**: an address whose port is written with leading zeros is not
-  recognised as the address of a production environment, so a write can reach production with no
-  unlock. Also not fixed here: an encoded separator in a value typed for one run can hide a path from
-  the guardrail; no test fails when the Lock action stops locking every session; the Config tab of
-  another session keeps saying writes are unlocked after a lock until it is reloaded.
-- V2, a blocker, **not fixed here**: a secret a service repeats inside a notification is shown in
-  clear. Also not fixed here: a member ID, a name or a date of birth can still reach a ledger line
-  and the export through a note, a tester reference or an expectation typed with a run, through a
-  procedure code field, and through an identifier a service supplies.
-- V4, fixed at this revision and not yet checked by anybody but the author of the fix: a DTR
-  sentinel taken from CRD into DTR ended as "package incomplete"; the mapping of one protocol's
-  sentinels to another's scenario was skipped for a pasted body and, for PAS, written in Java; the
-  sample code list was compared with the service as if it were real; an NPI in the tests could have
-  been a real provider's. Left as a known limit: a scenario file whose stated outcome contradicts its
-  own body is not detected at start.
+- V3, a blocker: an address whose port is written with leading zeros was not recognised as the
+  address of a production environment, so a write could reach production with no unlock. The tool
+  now reads an address as the client that sends it does, refuses a write whose destination it cannot
+  read, and lets no request leave with an encoded separator in its path. A test now fails when the
+  Lock action stops locking every session. **Not fixed here:** the Config tab of another session
+  keeps saying writes are unlocked after a lock until it is reloaded (the server refuses the write).
+- V2, a blocker: a secret a service repeats inside a notification was shown in clear, and is now
+  masked. A member ID, a name or a date of birth could reach a ledger line and the export through a
+  note, a tester reference or an expectation typed with a run, through a procedure code field, and
+  through an identifier a service supplies: each way in is now refused or not written. A name or a
+  birth date of somebody the request does not carry cannot be recognised in a note, and member data
+  must not be typed into one.
+- V4: a DTR sentinel taken from CRD into DTR ended as "package incomplete"; the mapping of one
+  protocol's sentinels to another's scenario was skipped for a pasted body and, for PAS, written in
+  Java; the sample code list was compared with the service as if it were real; an NPI in the tests
+  could have been a real provider's. All fixed. Left as a known limit: a scenario file whose stated
+  outcome contradicts its own body is not detected at start.
 
-The fixes for V2 and V3 are being made on branches of their own. V1, V5, V6 and V7, the walkthrough
-by a business tester, and a build from a fresh clone have not run. The decisions made since D-201
-are not in `DECISIONS.md` yet.
+The integrator built the line with these fixes through the shared wrapper: 2707 tests, 2705 passed,
+2 skipped, none failed. V1, V5, V6 and V7, the walkthrough by a business tester, a check of each fix
+above by an agent that did not write it, and a build from a fresh clone have not run. The decisions
+made since D-201 are not in `DECISIONS.md` yet, and the README does not yet describe what these
+fixes changed.
 
 This describes revision `7dade28` on branch `epa-pave`, which is on the remote. It holds the line
 of the fix wave (`33893aa`), the two tasks that closed what the fix wave left between its parts
