@@ -283,6 +283,23 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
+    void aRequestBodyThatRepeatsAKeyIsRefusedByNameAndNeitherValueIsQuoted() throws Exception {
+        // The last value would otherwise win in silence, and the request would say two things.
+        String refused = mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberId\":\"S123456789\",\"memberId\":\"S987654321\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.kind").value("VALIDATION"))
+                .andExpect(jsonPath("$.title").value("The request repeats the field \"memberId\" inside one object. Nothing was sent."))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("memberId"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("This field is given more than once. Keep one, so the request says one thing."))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(refused).doesNotContain("S123456789").doesNotContain("S987654321");
+        // The same key in two different objects is not a repeat.
+        mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON).content("{\"memberId\":\"S123456789\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void aBodyThatIsJsonOfTheWrongShapeNamesTheFieldAndNeverQuotesTheValue() throws Exception {
         String wrongList = mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memberId\":\"S123456789\",\"codes\":\"Placeholder-Surname\"}"))

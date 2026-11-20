@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.model.Texts;
 import tools.jackson.databind.exc.UnrecognizedPropertyException;
 import tools.jackson.databind.DatabindException;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.StreamReadException;
 import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.model.ErrorView;
 import org.p32h.interop.epa.pave.model.FieldError;
@@ -21,6 +22,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.tomcat.util.http.InvalidParameterException;
 import org.apache.tomcat.util.http.fileupload.impl.FileCountLimitExceededException;
 import org.apache.tomcat.util.http.fileupload.impl.FileSizeLimitExceededException;
@@ -65,6 +68,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    /** How the JSON parser names a key it found twice in one object, when told to refuse one. */
+    private static final Pattern REPEATED_KEY = Pattern.compile("^Duplicate Object property \"(.*)\"");
 
     private static final Set<String> KNOWN_METHODS = Set.of("GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "TRACE", "CONNECT");
 
@@ -156,6 +162,12 @@ public class ApiExceptionHandler {
                         "The request has a field this tool does not know. Nothing was sent.",
                         List.of(new FieldError(name, "This tool does not know the field \"" + name + "\". Check its spelling."))));
             }
+            String repeated = t instanceof StreamReadException read ? repeatedKey(read) : null;
+            if (repeated != null) {
+                return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.validation(
+                        "The request repeats the field \"" + repeated + "\" inside one object. Nothing was sent.",
+                        List.of(new FieldError(repeated, "This field is given more than once. Keep one, so the request says one thing."))));
+            }
             if (t instanceof DatabindException mismatch) {
                 String where = place(mismatch);
                 return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.validation(
@@ -166,6 +178,35 @@ public class ApiExceptionHandler {
         return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.of(ErrorKind.VALIDATION,
                 "The request body is missing or is not valid JSON. Nothing was sent.",
                 "Send a JSON body in the shape this endpoint expects."));
+    }
+
+    /**
+     * The place of a key repeated inside one object, from a parser told to refuse one, as property
+     * names and positions only; null for any other failure to read. The name is the parser's own
+     * report of the key, which the sender wrote and which holds no value.
+     */
+    private static String repeatedKey(StreamReadException error) {
+        Matcher named = REPEATED_KEY.matcher(Texts.orElse(error.getOriginalMessage(), ""));
+        if (!named.find()) {
+            return null;
+        }
+        // The parser stands on the repeated key when it refuses it, so its path ends with the key.
+        String path = error.processor() == null || error.processor().streamReadContext() == null ? ""
+                : error.processor().streamReadContext().pathAsPointer().toString();
+        StringBuilder out = new StringBuilder();
+        for (String step : path.split("/")) {
+            if (step.isEmpty()) {
+                continue;
+            }
+            if (step.chars().allMatch(Character::isDigit)) {
+                out.append('[').append(step).append(']');
+            } else {
+                out.append(out.length() == 0 ? "" : ".").append(step.replace("~1", "/").replace("~0", "~"));
+            }
+        }
+        String key = named.group(1);
+        String place = out.toString();
+        return place.equals(key) || place.endsWith("." + key) ? place : place + (place.isEmpty() ? "" : ".") + key;
     }
 
     /** Where in the body a value could not be bound, as property names and positions only. */

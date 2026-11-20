@@ -109,6 +109,9 @@ class PaveApplicationTest {
         assertThat(mapper.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)).isTrue();
         assertThat(mapper.isEnabled(EnumFeature.FAIL_ON_NUMBERS_FOR_ENUMS)).isTrue();
         assertThat(TestMvc.mapper().isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)).isTrue();
+        // A key given twice in one object is refused, never read as its last value.
+        assertThat(mapper.isEnabled(tools.jackson.core.StreamReadFeature.STRICT_DUPLICATE_DETECTION)).isTrue();
+        assertThat(TestMvc.mapper().isEnabled(tools.jackson.core.StreamReadFeature.STRICT_DUPLICATE_DETECTION)).isTrue();
     }
 
     @Test
