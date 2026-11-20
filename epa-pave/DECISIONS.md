@@ -18,10 +18,11 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-143 | The production guardrail judges where a request goes, not only which environment is active | The guardrail audit got writes through to production four ways before this; how it was closed, and what it still cannot see (D-145) |
 | D-141 | A value nobody supplied is never invented, and a request says what it left out | A service that refuses such a request is not at fault, and the result says so |
 | D-190, D-206 to D-208 | The frontend is merged and joined into one tool, and the screens read the server's words | The two proofs before handover were seen on the real tabs on mock by browser scripts (D-208); an automated walkthrough by an agent playing a business tester ran on `9e285a1` and is not a sign-off; no person has used the tool |
-| D-236 to D-244 | The fixes for the house style, completeness and walkthrough audits are merged | An independent check was running when D-259 was written; only the check of the style gate had reported (D-258) |
+| D-236 to D-244 | The fixes for the house style, completeness and walkthrough audits are merged | An independent check of them found some open one step away and new findings (D-258, D-260); the last fixes followed (D-262 to D-265) |
 | D-213 | The configuration store keeps uploads exactly as uploaded, and can therefore hold member data an uploaded environment or collection contains | It qualifies section 15's rule that no member data is persisted. The upload warns by the names of variables and saved examples; nothing is stripped |
 | D-210 to D-218, D-245 | The second audits of member data, the guardrail and fixtures found blockers, and their fixes are merged | Each fix was checked by an agent that did not write it (D-245): most closed, and several open one step away, among them a production address the client cannot read. Four tasks fixed them afterwards (D-253 to D-256), checked by nobody but their authors when D-259 was written; what they left is D-257. What is still open is first in `PROGRESS.md` |
-| D-253 to D-259 | The four tasks that closed what the checks of the V2, V3 and V4 fixes and V6 found are merged | Checked by nobody but their authors when D-259 was written; what they left, a played 500's next step on mock among it, is D-257 |
+| D-253 to D-259 | The four tasks that closed what the checks of the V2, V3 and V4 fixes and V6 found are merged | Checked by the last independent check (D-260); what they left is D-257 |
+| D-260 to D-268 | The last check found blockers and majors in four parts; four last fixes followed and are merged | **The last fixes are checked by nobody but their authors, and no check follows them** (D-268). What they left was not applied (D-266). What is open is first in `PROGRESS.md` |
 | D-227, D-252 | Four questions put to the operator have no answer | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
@@ -1385,6 +1386,8 @@ generic sentence, D-214.)
   token, only to decide whether to add the "not attached" note. The token is never attached.
 (What the second guardrail audit found that this list did not name is closed by D-210 to D-212.
 What the guardrail still does not see after it is in D-225.)
+Later: the second bullet is replaced by D-265 item 1. A production environment whose address comes from
+an operating system variable is refused at upload and at activation.
 
 **D-146. A lookup the guardrail refuses is a fault of kind `BLOCKED`, not a lookup that is switched off.**
 The audit found a refused lookup shown as disabled. It now has status `FAULT`, error kind `BLOCKED`
@@ -4244,6 +4247,7 @@ Every line of D-246 was done, each with a test its author saw fail with the chan
    are read, not a name or a date of birth (as for the raw send, D-231); the body is checked as typed,
    before `{{placeholders}}` are filled, so an ID only a placeholder brings in is not seen. On the jar
    the author saw the refusal for CRD only; DTR and PAS are covered by `OwnBodyMemberTextTest`.
+   Later: the placeholder limit is replaced by D-262 item 1, with its own limits.
 2. **Other ways of writing the same data** (item 2). Text is brought to NFKC before every comparison,
    in `MemberInText` and in `RunRecord.holdsMember`. The longest run of six or more digits of the ID is
    looked for alone; in the record that search skips UUIDs, whose digits are nobody's. On a line that
@@ -4268,7 +4272,8 @@ Every line of D-246 was done, each with a test its author saw fail with the chan
    or a date" is gone. Limits that stand: a ClaimResponse id that holds the submission's own member ID
    with separators (`S123-456-789` on a run for `S123456789`) is still written as `(not recorded, N
    characters)` by the earlier rule, so a notification carrying it is not matched; and lines the first
-   fix wrote that way under a subscription or ClaimResponse id cannot be matched either.
+   fix wrote that way under a subscription or ClaimResponse id cannot be matched either. Later: the first
+   of these limits is closed for new lines by D-262 item 2; the second stands.
 4. **Short names** (item 4): a first or last name is looked for alone only at four letters or more; a
    shorter one only beside the other name, in either order, separated by spaces or a comma.
 5. **Parts of names and addresses** (item 5): each part of a hyphenated or two-word surname of four
@@ -4280,6 +4285,7 @@ Every line of D-246 was done, each with a test its author saw fail with the chan
    throws counts as holding nothing. The author asks that the static mutable hook be reviewed: the
    alternative, the check in the ledger policy, would have changed what other services' tests on the
    frozen `InMemoryLedger` assert. Not checked on the jar: no loaded list held a long code.
+   Replaced by D-262 item 3: the hook is gone, and the list is asked only when a line is written.
 7. **Suite results** (item 7): a row whose expectation was refused for member data, by the row check or
    the service's, or for its length, carries the refusal sentence in place of the expectation, on
    screen and in `results.csv`.
@@ -4306,7 +4312,7 @@ against loopback stand-ins, the proof of a blocked write being that nothing arri
    host ends at the first colon outside an IPv6 literal, NFKC and lower case), and persisted as the bare
    host. When an environment of the same name is uploaded again as prod, its unreadable remembered
    entries are dropped, since that upload succeeds only with readable addresses; its readable ones stay,
-   as before. Whole-host remembering applies only to production: a sandbox's own unreadable address
+   as before. (Later: replaced by D-265 item 2, which drops them only for an upload on the same host.) Whole-host remembering applies only to production: a sandbox's own unreadable address
    keeps its earlier lenient reading for comparison and is still refused at send. A secret anywhere in
    the value keeps it out of every view and the store, as before.
 2. **The cause of a refusal** (item 2). An absolute url whose scheme, host and port read correctly and
@@ -4455,6 +4461,8 @@ as still open; the ledger fix replaced it (D-253 item 9), and the source holds t
 neighbour remains: the DTR, PAS and subscription services refuse a hand-off whose `carry.runId` is not a
 run id with "The run this step follows from must be a run id this tool returned.", a field the page
 fills and the tester does not type; it says nothing of what to do.
+Later: every item above still stands at `902e0d9` (D-266), except the static hook, which D-262 item 3
+removed. The played-fault next step has a new neighbour: the DTR package played malformed (D-265).
 
 ### The independent check of the last fixes
 
@@ -4477,6 +4485,7 @@ the tracking rule in `StaticFrontendTest` (STYLE2-SECOND-COPY); the surnames (ST
 banners (STYLE2-BANNERS-REMAIN). None is fixed. The check found none of the missed characters in the tree
 and ran only the tests concerned, not the full build. The other five parts had not reported; what they
 find is for the integrator to record.
+Later: all six parts reported. What each found is D-260; what was done about it D-261 to D-266.
 
 ### Joining the parts
 
@@ -4501,3 +4510,288 @@ four closing tasks, merged in this order: fixtures at `f710265`, screens at `973
    does on screen or on the jar repeats what the fix's author reports seeing.
 4. The pull request draft was brought to 58,000 characters or fewer by saying each finding, assumption and
    gate once, with the detail left to `PROGRESS.md` and this file.
+
+## Decisions of the last check, the last fixes, and how the checking ended
+
+After the revision of D-259 (`428eff5`), the integrator merged into `epa-pave`: the records and README
+pass that settled the marked lines (`final-touch` at `c4bc498`, D-253 to D-259), and four last fixes,
+one for each part of the last independent check that found a blocker or a major: completeness on
+screen (`last-render` at `fff3bd0`), the walkthrough (`last-uat` at `10108d4`), the ledger
+(`last-ledger` at `54f9912`) and the guardrail (`last-guardrail`, its content at `49ae839`, merged at
+`7df9718`; its last commit `ca716a1`, which changes no content, merged at `902e0d9`). The revision these
+entries describe is `902e0d9`, the head of the branch as it is pushed, before the commit that adds these
+records. **The four last fixes have been checked by nobody but their authors, and nobody will check
+them before the tool is handed over** (D-268). Each entry below says what the fix's author reports and
+what was checked in the code of `902e0d9` where a check was cheap; where a report and the code disagree,
+the entry says so and follows the code.
+
+**D-260. The last independent check: what each of its six parts found.**
+Six agents that wrote neither the tool nor the fixes checked the fixes of D-236 to D-256, each finding
+by finding, with the fix taken out where a test was named, and looked for new findings beside each.
+Five examined `98effa6` (the line with the ledger, screens and fixture closing tasks merged), the
+guardrail part `428eff5`. Their answers:
+- *The house style gate:* reported before D-259 was written and recorded in D-258. 3 closed, 3 partly
+  closed, 6 new minors.
+- *Completeness on screen:* no. Of 14 findings 7 closed (F1, F2, F3, F4, F7 apart from a known mock
+  heading, F10, F12), 5 partly closed (F5, F6, F9, F13, F14), 2 open (F8, decided and given to no task
+  by D-251; F11, whose fix History undid: a null `pa-needed` read "(not a code, 6 characters)"). New: 1
+  blocker (NEW-1, that History sentence), 4 majors (NEW-2 a repeated key with something unread under it
+  gets no finding; NEW-3 an OperationOutcome at HTTP 200 passes as no determination; NEW-4 an issue's
+  details null or empty drawn "not returned"; NEW-6 the page's drawing of the presences is held only by
+  tests that read the script's text), 5 minors (NEW-5, NEW-7 to NEW-10).
+- *The fixtures:* yes. All 7 lines closed, each seen to fail with its fix undone. 4 new minors
+  (N-CHOSEN-BODY-NOTE, N-ANSWERING-NOTE, N-DESC-OTHER-SENTINEL, N-INQUIRE-LIST-HIDES-MAPPING).
+- *The ledger:* no. 5 lines closed (N5, N6, N7, N-DELETED-SUB, the run id sentence), 4 closed for the
+  auditor's own request and open one step away (N1, N3, N2 with N4, N8). New: 3 majors (NF1 a supplied
+  id holding the member ID not kept as a token, so its notification is not matched; NF2 a body that
+  names the member through a placeholder checked against nothing; NF3 a line written with a listed code
+  reads "not a code" once the list changes, which the last fix broke), 4 minors (NF4 to NF7).
+- *The walkthrough:* no. 10 of 13 closed (F-TRACE-PAS-DTR in the form decided), 3 partly closed
+  (F-NODET-NEXT on CRD only, F-DUPCODE, V5-SCREEN-ERRORS-NO-ACTION). New: 4 majors (N-PAS-NODECISION,
+  N-SUB-LOCKOUT which the last fix broke, N-DUPCODE-UNTESTED, N-NOTIF-SERVICE), 4 minors (N-CHAIN-TOTAL,
+  N-REPLAY-UNTESTED, N-REPLAY-NOTFOUND, N-TRACE-TWO).
+- *The guardrail:* not every finding closed. Of 9 lines 5 closed (N2, N4, N9, F-ADDR-MISQUOTE,
+  F-BUILD-WRITES-TREE), 4 partly closed (N1, closed for every spelling written in the environment file
+  and open for an address from `application.yml` or an operating system variable; N3; N5;
+  F-MOCK-500-HEADING). New: 3 majors (G2-1 a production address not written in the environment is never
+  remembered, and a sandbox at it sends writes with no unlock; G2-2 a whole host remembered for an
+  unreadable address is forgotten when the same name is uploaded at another host; G2-3 the DTR package
+  a scenario plays malformed headed as a fault in the environment), 6 minors (G2-4 to G2-9).
+Each finding, its grade and what became of it is in the table of the last check in `PROGRESS.md`.
+
+**D-261. What the integrator decided from the last check.**
+Four tasks were written, one for each part that found a blocker or a major: `TASK_LAST_LEDGER`,
+`TASK_LAST_RENDER`, `TASK_LAST_UAT`, `TASK_LAST_GUARDRAIL`. Each named the lines to fix in order, the
+minors to do only if the rest was green, and the lines to record and not fix. The style gate and the
+fixtures were given no fix: their parts found minors only, and each finding of theirs that is not closed
+is open at the revision handed over. Every task was told it was the last change before handover, to keep
+each change as small as the finding, to write a test that fails without it and see it fail, to leave the
+code as it was where a finding could not be closed safely, and to fail closed in the guardrail.
+Decided in the task files, beside "fix it":
+1. *Ledger.* A body of the tester's own is read for identifiers as it will be sent, with its
+   placeholders filled by the gateway's own resolution (NF2). Every supplied identifier that is not a
+   UUID, an OID or one the tool minted is a token, also when it holds the run's member ID (NF1). What a
+   line says was decided when it was written; reading a line never judges it again by a list that may
+   have changed (NF3). NF6 recorded, not fixed.
+2. *Completeness.* The record keeps `(null)`, `(empty)` and `(no value)` as it keeps `(no answer)`
+   (NEW-1). A body that says it is an OperationOutcome gets the outcome of an answer that is not what
+   the operation returns (NEW-3). Whether a view reads a repeated key is decided at the key's own place
+   (NEW-2). NEW-6 and F8 recorded, not fixed.
+3. *Walkthrough.* The rule that nothing the tester did not see as part of the case is sent stands, and
+   is applied only to a call that sends the case (N-SUB-LOCKOUT). A notification a scenario played was
+   answered by a mock scenario (N-NOTIF-SERVICE). Every outcome whose next step said only that the tool
+   cannot say what should happen next gets the two lines of D-241 (N-PAS-NODECISION).
+   N-REPLAY-NOTFOUND, N-REPLAY-UNTESTED and N-TRACE-TWO recorded, not fixed.
+4. *Guardrail.* What is remembered for a production environment is read from the address the tool
+   would send to, through every layer the gateway resolves; a production address that cannot be
+   resolved to one the client reads is refused at upload and at activation with a sentence that names
+   the variable (G2-1). Nothing with a scheme and a host is dropped from what is remembered unless a
+   production environment is uploaded, readable, on that same host (G2-2). G2-6, G2-7 and G2-9
+   recorded, not fixed.
+
+**D-262. The last ledger fix (`last-ledger`): what was done.**
+Lines 1 to 6 done, line 7 recorded; each with a test its author saw fail with the change undone, except
+NF7 (a sentence of a page, no test). Checked by its author on the jar, on live with default tracking,
+against the checker's stand-in, through the API; nothing in a browser.
+1. **NF2.** `RunInputs.common` reads the identifiers of a body of the tester's own from the body as it
+   will be sent, filled by `OperationGateway.resolve` (run values, then the active environment, then
+   `application.yml`). The protocol services build `RunInputs` with a clock only, so a Spring component
+   (`service/run/OwnBodyPlaceholders`, present at `902e0d9`) hands the resolution to it through a static
+   hook at start. Limits that stand: collection variables are not used (that resolution has no collection
+   layer); when any placeholder has no value the body is read as typed (on live the call is then refused
+   for the missing value anyway); a service built by hand without that component checks the body as
+   typed; on the jar only CRD was tried, DTR and PAS share the code path and no test covers them with a
+   placeholder. Replaces the limit "checked as typed, before placeholders are filled" of D-253 item 1.
+2. **NF1.** `claimId`, `claimResponseId` and `subscriptionId` are handled before the member ID branch of
+   `RunRecord.checkedCorrelation`, so such a value is one identifier, written as a token (in clear only on
+   a line whose member ID is in clear). On the jar ClaimResponse ids holding the member ID with and
+   without separators were tokens and their notifications were matched. A claim id the tester types on an
+   inquiry that holds the member ID is a token too. Replaces the limit of D-253 item 3 for new lines;
+   lines the first fix wrote as "not recorded" stay unmatched.
+3. **NF3.** The record checks a code and each part of a coverage code's subject only for its shape and
+   for the run's own member ID, on writing and on reading. Whether one reads like an identifier or a date,
+   and whether the code list holds it, is judged once, by the ledger when it writes the line
+   (`RunRecord.withCodesJudgedAtWriting` from `TrackingPolicy.apply`). The static hook
+   `RunRecord.codesOnTheList` is gone (checked: no longer in the source). Replaces D-253 item 6. Cost that
+   stands: a line written before `ffb336e` that holds an identifier-like code on a line with no member ID
+   in clear now shows that code when read; no such build was handed over, and old ledgers were not
+   searched for such lines.
+4. **NF4.** An expectation refused for member data, by the row check or by the service once the member
+   is looked up, is replaced in the suite results by the refusal sentence, and the term problems that
+   quote it are left out. Limit that stands: an expectation that holds a date of birth or a name and is
+   also malformed is refused for its shape before the lookup, no check refuses it for member data, and
+   the results repeat it in the expected column.
+5. **NF5.** The date of birth is also looked for as `MMDDYYYY` and `DDMMYYYY`, with up to two separators
+   after a month name (`Jul. 23rd`) and with an apostrophe before a two-digit year. A date written in
+   words is not looked for.
+6. **NF7.** The History sentence under a token says "not as the identifier itself", true of an identifier
+   a service gave and of one a tester typed. No test; the author saw the jar serve the new script.
+7. **NF6, recorded.** A supplied identifier of 64 hexadecimal characters is taken for the ledger's own
+   token, and one shaped like a UUID for nobody's data, so either is written in clear whatever its
+   digits. Telling the ledger's tokens from such a value needs a change of the line's shape, which is not
+   made now.
+
+**D-263. The last completeness fix (`last-render`): what was done.**
+Lines 1 to 5 done, line 6 recorded. For NEW-1 to NEW-5, NEW-7 and NEW-10 its author ran each new test
+with the fix removed and saw it fail; NEW-8 is page code with no build test; the NEW-9 test asserts a
+sentence that did not exist before and was not run against the old code. Checked by its author on the
+jar with the checker's scenario files and in a browser at 1366 by 768.
+1. **NEW-1.** `RunRecord.codeEntry` keeps `(null)`, `(empty)` and `(no value)` after a coverage element
+   name as written, on building and on reading (checked in the source). A code the service returned spelt
+   exactly like one of these is written `(not a code, N characters)` by the CRD reading.
+2. **NEW-3.** A FHIR OperationOutcome answered with a 2xx status is `MALFORMED_RESPONSE`, never
+   `NO_DETERMINATION`; its issues are shown as issues; with 4xx or 5xx it stays `REJECTED` or
+   `SERVICE_ERROR`. "No coverage information" is raised only for a CDS Hooks response. The headline is
+   kept under 120 characters, because the workbench announces the outcome label in place of a longer
+   one. The shortened headline was not looked at in a browser.
+3. **NEW-2.** A repeated key counts as read by a designed view unless its own path is unread or every
+   leaf of the value kept at its JSON Pointer is unread.
+4. **NEW-4.** `IssueView.detailsPresence`; details sent as `{}` are consumed and shown as empty; an
+   expression of `[null]` reads "a list of one entry: null".
+5. **Minors.** NEW-7: a readable answer of the wrong kind at 2xx takes `REPORT_NO_DETERMINATION`. NEW-8:
+   the value-set sentence only when the item names a value set. NEW-10: a notification's errors and
+   further resources say which of the three presences they were, and a repeated key a notification view
+   reads raises the finding. NEW-5: the PAS mock plays a scenario body that repeats a key as written and
+   says so. NEW-9: a notification over the size kept that is not JSON says its text after the cut is shown
+   nowhere.
+6. **Recorded, stands as a limit.** NEW-6: the drawing of the presences on the page is held only by tests
+   that read the script's text; the build has no browser. F8: History, a suite row and a chain say
+   nothing of fields the tool did not interpret (D-251).
+
+**D-264. The last walkthrough fix (`last-uat`): what was done.**
+Lines 1 to 5 done (line 3 in part), line 6 recorded; tests its author saw fail with the change undone,
+four mutations for line 4. Checked by its author in a browser at 1366 by 768 on mock; nothing on live,
+nothing at 1920.
+1. **N-SUB-LOCKOUT.** Text left in the code box blocks a send only when the call sends the case: the case
+   is shown and no request of the tester's own is chosen, unless the tab passes `sendsCase: false`. The PAS
+   tab passes it for every subscription call and preview. Send inquiry and its preview still refuse such
+   text, because the case's member and provider are sent.
+2. **N-DUPCODE-UNTESTED.** The decision is one exported function (`textLeftToRefuse` in `workbench.js`),
+   run by `CaseCodesFrontendTest` through Node. Where no `node` is on the path that test is skipped and
+   does not fail, because a build machine without Node is a supported machine. The build still cannot see
+   how the page finds the box or that no request leaves.
+3. **N-NOTIF-SERVICE.** A notification is answered by `SCENARIO` on mock and `SERVICE` on live
+   (`AnsweredBy.of`, checked). Limit: one posted to the receiver by hand on mock is recorded as
+   `SCENARIO`, and lines written between `98effa6` and `428eff5` with `SERVICE` beside a scenario id are
+   read as written. The exact rule, by the line's scenario id, needs a change in `RunRecord`'s builder.
+4. **N-PAS-NODECISION, in part.** PAS no decision, decision code not recognised and items decided
+   differently, a subscription response not recognised and a notification of an unknown type give the two
+   lines of D-241: record the run by its id as what came back and report it, then the way to the detail.
+   They keep the action `REVIEW`, so History, its filter and the chain view still show `REVIEW`'s label
+   ("The tool cannot say what should happen next"). CRD, DTR and the raw send were not in the fix's files
+   and still give the old line.
+5. **N-CHAIN-TOTAL.** The chain view says how many of its runs were measured; the server's total is
+   unchanged.
+6. **Recorded.** N-REPLAY-NOTFOUND (a replay of an unknown run id answers with the general action),
+   N-REPLAY-UNTESTED (no test holds that a replay on mock uses the rewritten scenario sentence),
+   N-TRACE-TWO (when two responses were completed from one package, nothing says which the PAS
+   submission carried: a limit of D-181).
+
+**D-265. The last guardrail fix (`last-guardrail`): what was done.**
+Lines 1 to 4 done, line 5 recorded; each with a test its author saw fail with the change undone, and
+lines 1 to 3 and G2-4 and G2-8 proved by its author on the jar against loopback listeners, the proof being
+that nothing arrived. G2-5 was not run on the jar.
+1. **G2-1.** What is remembered for a production environment is read through the layers the gateway
+   sends through: the environment, each collection's variables, then `application.yml`
+   (`onyx.variables`); a url-forming name the environment does not define is read from those layers too.
+   The operating system and run values are never read for this. A production environment is refused at
+   upload, at activation and at unlock (422, naming the variable and why) when one of its addresses
+   cannot be read the way the client reads it, has no value in any layer, or is built from an operating
+   system variable, known only at the moment of sending (checked in `ConfigStore`). An address a
+   production environment leaves to a collection or `application.yml` is attributed to it only when no
+   other production environment names it as its own. A non-production environment is now judged at
+   upload through `application.yml` and collection variables as well. **This replaces the second bullet
+   of D-145**: a production environment whose address comes from an operating system variable is now
+   refused, so it is never active with an address the tool cannot remember.
+2. **G2-2.** An unreadable remembered entry (a whole host, or an open port with a kept path) is dropped
+   only when a production environment of the same name is uploaded with a readable address on the same
+   host. An upload at another host, a delete, and another production environment on that host each leave
+   it. Replaces the rule of D-254 item 1 that any upload of the same name dropped it.
+3. **G2-3.** On mock the DTR package played malformed takes the played heading and an action beginning
+   "Nothing left this machine". Its next step is not reworded (D-266).
+4. **Minors.** G2-4: a character above 0x7F written raw in a path counts as the escape the client sends,
+   with the same refusal and upload warning; query, fragment and host untouched. G2-8: an address that
+   starts with `http:` or `https:` and has no authority after `//` is one the client cannot read. G2-5: the
+   whole-host warning only for an entry that stands for a whole host; a kept path is described as that
+   path and every path beneath it on every port.
+5. **Limits that stand.** A production environment refused at upload is not stored, so nothing is
+   remembered for it, and a sandbox at that address is not refused until the production environment is
+   uploaded with its address written plainly (seen on the jar by the author). The `onyx.<protocol>.url`
+   fallback settings are not read as an address of any production environment, being the same for every
+   environment. Addresses that live only in a collection's variables were proved by gateway tests, not on
+   the jar. IPv6 and TLS listeners were not tried. Recorded, not fixed: G2-6 (an earlier-version
+   production active, whose address cannot be read, is offered an unlock that is always refused), G2-7 (a
+   mock member lookup that plays a timeout is headed as a fault in the environment), G2-9 (the member data
+   warning at upload misses `MBRID` in capitals, `mobile` and `addr`, and catches `webhookAddress`).
+
+### What stands open after the last fixes
+
+**D-266. What the last fixers left for somebody else was not applied.**
+Each of the four last fixers listed changes in files that were not its own. **None was applied**: each
+would have been one more change that nobody checks (D-268). Each is open at the revision handed over and
+listed in `PROGRESS.md` as what a tester meets. Checked in the source of `902e0d9`:
+- Discovering the CDS services on the CRD tab is refused when text is left in the procedure code box,
+  although discovery sends nothing of the case (`tab-crd.js`, `discover()` passes no `sendsCase: false`).
+- The next step still says only that the tool cannot say what should happen next for CRD
+  documentation required that cannot be acted on, `AUTH_NOT_STATED`, an unrecognised code and mixed
+  (`CrdVerdicts`), for DTR (`DtrVerdicts`) and for a request sent as it is (`RawService`).
+- History, its "Next action" filter and the chain view show a PAS run with no decision under the label of
+  `NextAction.REVIEW`, where the PAS tab gives the two lines.
+- A notification posted by hand to the receiver on mock is recorded as answered by a mock scenario, and
+  lines written between `98effa6` and `428eff5` with `SERVICE` beside a scenario id are read as written.
+- A replay of a run id that does not exist answers with the general action (`RunReplay`), and the
+  replay's sentence for a mock scenario has no test at the level of the replay.
+- The subscription mock and the sample notification still write a scenario body out again
+  (`MockSubscriptionClient`, `MockNotifications`), so a scenario file of those two kinds that repeats a
+  key loses its earlier values on mock and nothing on screen says so.
+- History, a suite row and a chain say nothing of fields the tool did not interpret (F8).
+- The label of the CRD outcome `MALFORMED_RESPONSE` still speaks of a body that could not be read, now
+  also for an OperationOutcome at HTTP 200.
+- On mock, the next step of the DTR package played malformed still says to report a defect in the
+  service, as the next step of every played HTTP 500 or unreachable service still says to check the
+  environment (D-257).
+The items of D-257 not named here also stand. The minors of the style gate check (D-258) and the four
+new minors of the fixture check (D-260) were given no fix and stand.
+
+### Joining the last fixes, and how the checking ended
+
+**D-267. Decisions made while joining the last fixes.**
+1. Three of the four merges were clean. One needed the integrator's hand and was checked by nothing but
+   the build: `60876fa`. The ledger fix and the completeness fix both changed `RunRecord.codeEntry`, the
+   branch for a named coverage entry; both changes are kept, the ledger fix's reading of the subject of an
+   entry and the completeness fix's rule that `(null)`, `(empty)` and `(no value)` are kept as
+   `(no answer)` is.
+2. One test was corrected by the integrator (`6b7abba`). `LedgerMemberTextTest.onlyLine()` looked for
+   the four digits of a year anywhere in a ledger line; the line holds tokens of random hexadecimal
+   digits, so the test failed by chance about once in a hundred builds. It now looks for the year where
+   it stands as a number of its own, and for the date in the two spellings the tests write. The
+   integrator read the other assertions of this kind and found none that searches text holding random
+   tokens. It was found only because a build happened to fail: a build that is green twice does not
+   prove that no test of this kind is left.
+3. The line at this content was built by the integrator through the shared wrapper (`gw clean build`):
+   2870 tests, 0 failures, 0 errors, 2 skipped (the two that need a folder that cannot be written, which a
+   build running as root cannot make), "No house style violations.", BUILD SUCCESSFUL in 4m 31s. Each
+   fixer's own count was taken on its own branch before the merges (ledger 2834, completeness 2836,
+   walkthrough 2837, guardrail 2841); only 2870 is the count of the line handed over.
+4. On the jar of that build, on mock, the integrator ran the two proofs of "Prove it before handover"
+   through the API with a script, not in a browser: `P32H-NO-AUTH` and `P32H-EMPTY` gave different
+   outcomes, headlines, next actions and ledger lines, and neither line holds a raw request or response;
+   the QuestionnaireResponse DTR completed for `P32H-DOC-DTR` was in the PAS request as previewed and as
+   sent, with the same answers and status completed, and the PAS submission was approved. This is the
+   only thing run on the merged line beside the build. Nobody opened a browser on `902e0d9`; the screens
+   were last looked at by the four last fixers, each on its own branch before the merges.
+5. The integrator's last gates (the plain `./gradlew clean build` twice, a build from a fresh clone with
+   the build cache off, the start with `GET /api/mode`, the changed paths) run after these records, on
+   the commit that holds them. A file cannot hold the result of a build of the commit it is part of, so
+   their result is in the pull request description (part 2), and this file and `PROGRESS.md` record the
+   last whole build they can: the one of `902e0d9` above.
+
+**D-268. How the checking ended: three rounds, and a last round of fixes nobody checked.**
+Three rounds of checking ran: the audits (V1 to V7 and the walkthrough), a check of their fixes (D-245),
+and a check of those fixes (D-258, D-260). Each round found something real, and in each the fixes of the
+round before had broken something (D-260 names NF3, NEW-1 and N-SUB-LOCKOUT). A last round of fixes
+(D-262 to D-265) followed, and **no check follows it**: a check that always finds something has to stop
+somewhere, and the operator was waiting. The operator was told that what is open goes first in the pull
+request description and that the last fixes are marked as checked by their authors only. What is open at
+the revision handed over is listed, the worst first, at the top of `PROGRESS.md`, and is not hidden. The
+four questions put to the operator that are still unanswered stay as D-227 records them.
