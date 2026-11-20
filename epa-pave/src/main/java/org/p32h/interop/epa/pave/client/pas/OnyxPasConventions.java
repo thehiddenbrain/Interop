@@ -224,16 +224,21 @@ public final class OnyxPasConventions {
     private OnyxPasConventions() {
     }
 
+    /** True when an extension url is an item extension of PAS, by its canonical url or, served from another host, by its last segment. */
+    public static boolean pasExtension(String extensionUrl, String canonical) {
+        return extensionUrl != null && (extensionUrl.equals(canonical) || extensionUrl.endsWith(canonical.substring(canonical.lastIndexOf('/'))));
+    }
+
     /** True when an extension url is the review action extension. A copy served from another host is accepted by its last segment. */
     public static boolean reviewAction(String extensionUrl) {
         return extensionUrl != null && (extensionUrl.equals(REVIEW_ACTION) || extensionUrl.endsWith("/extension-reviewAction"));
     }
 
     /**
-     * ASSUMPTION: the decision code of a review action sits in a part named by the full
-     * reviewActionCode url, as the later versions of the guide have it, or in a part named
-     * {@code code}, as the earlier ones had it. Both are read, because which version the vendor
-     * follows is not known.
+     * The decision code of a review action sits in a part named by the full reviewActionCode url,
+     * as PAS 2.0.1 and the 2.2.0 ballot both write it. A part named {@code code} is read as the
+     * same thing, because that is the slice name the guide gives it and a vendor may write it so.
+     * The second surgical opinion part is {@code secondSurgicalOpinionFlag}, as PAS 2.0.1 names it.
      */
     public static ReviewPart reviewPart(String partUrl) {
         if (partUrl == null) {
@@ -245,7 +250,7 @@ public final class OnyxPasConventions {
         return switch (partUrl) {
             case "number" -> ReviewPart.NUMBER;
             case "reasonCode" -> ReviewPart.REASON;
-            case "secondSurgicalOpinionNeeded" -> ReviewPart.SECOND_SURGICAL_OPINION;
+            case "secondSurgicalOpinionFlag" -> ReviewPart.SECOND_SURGICAL_OPINION;
             default -> ReviewPart.OTHER;
         };
     }

@@ -116,6 +116,13 @@ public final class PasVerdicts {
                 supporting.add("This is a finding about the claim id that was asked about, not about the environment.");
                 yield "The service does not recognise this authorization request.";
             }
+            case NO_MATCHING_AUTHORIZATION -> {
+                supporting.add("PAS 2.0.1 answers an inquiry with one ClaimResponse for each prior authorization that matches it. This "
+                        + "answer holds none, so the payer holds no authorization matching what was asked about.");
+                supporting.add("This is an answer about the claim identifier and the items that were asked about. It is not a decision "
+                        + "and not a fault of the environment.");
+                yield "No prior authorization matches this inquiry.";
+            }
             case REJECTED -> "The service did not accept the request as sent" + status(exchange) + ".";
             case SERVICE_ERROR -> "The service failed" + status(exchange) + ".";
             case TIMEOUT -> "The service did not answer in time.";
@@ -152,19 +159,36 @@ public final class PasVerdicts {
         }
         // Worth saying only where the result names items: a decision each of them shows was not stated for it alone.
         if (decisions.stream().anyMatch(d -> d.subject() != null) && decisions.stream().allMatch(d -> d.source() == DecisionSource.RESPONSE)) {
-            out.add("The decision is stated once for the response as a whole, not item by item.");
+            out.add("The decision is stated once for the response as a whole, not item by item. PAS 2.0.1 places a review action on "
+                    + "each item's adjudication, not on the ClaimResponse itself; it was read all the same.");
+        } else if (reading.detail().claimResponses().stream().anyMatch(r -> !r.reviewActions().isEmpty())) {
+            out.add("A review action sat on the ClaimResponse itself. PAS 2.0.1 places a review action on each item's adjudication only; "
+                    + "it was read all the same.");
+        }
+        if (reading.detail().claimResponses().stream().flatMap(r -> r.items().stream()).anyMatch(i -> !i.reviewActions().isEmpty())) {
+            out.add("A review action sat on an item itself, not on its adjudication, where PAS 2.0.1 places it. It was read all the same.");
+        }
+        // The authorization number and period of each item, from where PAS 2.0.1 puts them.
+        boolean named = reading.several();
+        for (PasDecision decision : decisions) {
+            String who = named && decision.subject() != null ? decision.subject() + ": " : "";
+            if (!decision.authorizationNumbers().isEmpty()) {
+                out.add(who + "Authorization number: " + String.join(", ", decision.authorizationNumbers()) + ".");
+            }
+            String period = period(decision.authorizedFrom(), decision.authorizedTo());
+            if (period != null) {
+                out.add(who + period);
+            }
         }
         for (ClaimResponseView response : reading.detail().claimResponses()) {
             String name = reading.detail().claimResponses().size() > 1 ? response.label() + ": " : "";
+            // ClaimResponse.preAuthRef is kept as a further source: no PAS 2.0.1 example uses it.
             if (response.preAuthRef().hasValue()) {
                 out.add(name + "Authorization number: " + response.preAuthRef().value() + ".");
             }
-            if (response.preAuthPeriodStart().hasValue() && response.preAuthPeriodEnd().hasValue()) {
-                out.add(name + "Authorized from " + response.preAuthPeriodStart().value() + " to " + response.preAuthPeriodEnd().value() + ".");
-            } else if (response.preAuthPeriodStart().hasValue()) {
-                out.add(name + "Authorized from " + response.preAuthPeriodStart().value() + ".");
-            } else if (response.preAuthPeriodEnd().hasValue()) {
-                out.add(name + "Authorized until " + response.preAuthPeriodEnd().value() + ".");
+            String whole = period(response.preAuthPeriodStart().orNull(), response.preAuthPeriodEnd().orNull());
+            if (whole != null) {
+                out.add(name + whole);
             }
             if (response.documentationWanted() && outcome != PasOutcome.ATTACHMENT_REQUIRED) {
                 out.add(name + "The response also refers to a request for documentation that is not shown as closed.");
@@ -175,6 +199,17 @@ public final class PasVerdicts {
             }
         }
         return out;
+    }
+
+    /** A period as a sentence, or null when neither end is stated. */
+    private static String period(String from, String to) {
+        if (Texts.present(from) && Texts.present(to)) {
+            return "Authorized from " + from + " to " + to + ".";
+        }
+        if (Texts.present(from)) {
+            return "Authorized from " + from + ".";
+        }
+        return Texts.present(to) ? "Authorized until " + to + "." : null;
     }
 
     /** One line for each decision, so no item's decision is read as another's. */
@@ -201,7 +236,8 @@ public final class PasVerdicts {
             case UNRECOGNISED_CODE -> "a decision code this tool does not recognise";
             case MIXED -> "review actions that disagree with each other";
             case NO_DECISION -> "no decision was returned for this item. That is not an approval";
-            case ATTACHMENT_REQUIRED, REQUEST_ERRORS, MEMBER_NOT_FOUND, PROVIDER_NOT_FOUND, AUTHORIZATION_NOT_FOUND, REJECTED,
+            case ATTACHMENT_REQUIRED, REQUEST_ERRORS, MEMBER_NOT_FOUND, PROVIDER_NOT_FOUND, AUTHORIZATION_NOT_FOUND, NO_MATCHING_AUTHORIZATION,
+                    REJECTED,
                     SERVICE_ERROR, TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> lower(outcome.label());
         };
     }
@@ -258,6 +294,9 @@ public final class PasVerdicts {
             case AUTHORIZATION_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA,
                     "Next: check the claim id against the submission it should belong to.",
                     "The service does not recognise the request that was asked about. The environment answered normally.", carry);
+            case NO_MATCHING_AUTHORIZATION -> new NextStepView(NextAction.FIX_TEST_DATA,
+                    "Next: check the claim identifier and the items of the inquiry against the submission it asks about.",
+                    "The payer holds no prior authorization matching what the inquiry asked about. The environment answered normally.", carry);
             case REJECTED -> notAccepted(exchange, carry);
             case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> afterNoUsableAnswer(outcome, exchange, operation, carry);
         };
@@ -347,6 +386,14 @@ public final class PasVerdicts {
                         PasCodes.REVIEW_REASON, true, Presence.VALUE)));
                 decision.errorCodes().forEach(code -> rows.add(new DeterminationRow(subject, "Error", code, null, PasCodes.ERROR_CODE, true,
                         Presence.VALUE)));
+                // Where PAS 2.0.1 puts an item's authorization number and period.
+                decision.authorizationNumbers().forEach(number -> rows.add(new DeterminationRow(subject, "Authorization number", number,
+                        null, PasCodes.REVIEW_ACTION_NUMBER, true, Presence.VALUE)));
+                String period = period(decision.authorizedFrom(), decision.authorizedTo());
+                if (period != null) {
+                    rows.add(new DeterminationRow(subject, "Authorized period", Texts.orElse(decision.authorizedFrom(), "") + "/"
+                            + Texts.orElse(decision.authorizedTo(), ""), period, PasCodes.ITEM_PRE_AUTH_PERIOD, true, Presence.VALUE));
+                }
             }
             CodedValue status = response.outcome();
             rows.add(new DeterminationRow(whole, "Processing status", status.code(), status.display(), PasCodes.CLAIM_OUTCOME,

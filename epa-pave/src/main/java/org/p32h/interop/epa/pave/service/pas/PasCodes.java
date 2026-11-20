@@ -13,10 +13,11 @@ import java.util.Set;
  * The coded values this tool knows for PAS, subscriptions and notifications, with a plain language
  * meaning for each code.
  *
- * <p>The implementation guides could not be fetched while this was built, so the value sets below
- * are the builder's knowledge of them: the X12 review action codes a PAS ClaimResponse carries, the
- * FHIR ClaimResponse outcome codes, the R4 subscription status codes and the notification types and
- * payload contents of the subscriptions backport. A code outside its value set is never hidden and
+ * <p>The value sets below are the X12 review action codes a PAS ClaimResponse carries, the FHIR
+ * ClaimResponse outcome codes, the R4 subscription status codes and the notification types and
+ * payload contents of the subscriptions backport. PAS 2.0.1 binds the review action to the X12 306
+ * list and does not print it, so the meanings of the codes beyond A1, A3 and A4, which the guide's
+ * examples use, are the builder's knowledge of that X12 list and have not been checked against it. A code outside its value set is never hidden and
  * never mapped to the nearest known one. It is shown as "Unrecognised code: X".
  */
 public final class PasCodes {
@@ -29,6 +30,10 @@ public final class PasCodes {
     public static final String CLAIM_OUTCOME = "claim-outcome";
     /** The code of an error the ClaimResponse reported. */
     public static final String ERROR_CODE = "error-code";
+    /** The authorization number of one item: the number part of its review action, in PAS 2.0.1. */
+    public static final String REVIEW_ACTION_NUMBER = "authorization-number";
+    /** The period an item's authorization is valid for: its itemPreAuthPeriod extension, in PAS 2.0.1. */
+    public static final String ITEM_PRE_AUTH_PERIOD = "authorized-period";
 
     public static final String SUBSCRIPTION_STATUS = "subscription-status";
     public static final String CHANNEL_TYPE = "channel-type";

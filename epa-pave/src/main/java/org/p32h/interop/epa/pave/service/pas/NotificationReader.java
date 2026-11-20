@@ -264,16 +264,29 @@ public final class NotificationReader {
                 || reference.equals(JsonSafe.presentText(entry, "fullUrl"));
     }
 
-    /** What the body carries that can tie it to a submission, read from the resources themselves and from what the events name. */
+    /**
+     * What the body carries that can tie it to a submission, read from the resources themselves and
+     * from what the events name.
+     *
+     * <p>The claim identifier is the one the tool put on the claim, as the payer echoes it: in
+     * ClaimResponse.request.identifier, else in ClaimResponse.identifier, which is where every
+     * PAS 2.0.1 example echoes it. A ClaimResponse inside a bundle the notification carries counts
+     * too. The reference to the claim is not used: its id is the payer's own, or a local one every
+     * bundle shares.
+     */
     private static NotificationReading.Identifiers identifiers(PasResponseMapper.Carried carried, List<JsonNode> otherEntries,
                                                                List<String> focusReferences, List<String> contextReferences) {
-        String claimId = null;
+        List<JsonNode> responses = new ArrayList<>();
         for (JsonNode entry : otherEntries) {
-            JsonNode resource = JsonSafe.child(entry, "resource");
-            if (claimId == null && "ClaimResponse".equals(JsonSafe.text(resource, "resourceType"))) {
-                // The identifier the tool put on the claim, as the payer echoes it. The reference to the
-                // claim is not used: its id is the payer's own, or a local one every bundle shares.
-                claimId = JsonSafe.presentText(JsonSafe.at(resource, "request", "identifier", "value"));
+            claimResponsesIn(JsonSafe.child(entry, "resource"), responses);
+        }
+        String claimId = null;
+        for (JsonNode resource : responses) {
+            claimId = Texts.firstPresent(claimId, JsonSafe.presentText(JsonSafe.at(resource, "request", "identifier", "value")));
+        }
+        for (JsonNode resource : responses) {
+            for (JsonNode identifier : JsonSafe.elements(resource, "identifier")) {
+                claimId = Texts.firstPresent(claimId, JsonSafe.presentText(identifier, "value"));
             }
         }
         String claimResponseId = PasReading.claimResponseId(carried.claimResponses());
@@ -285,6 +298,18 @@ public final class NotificationReader {
             }
         }
         return new NotificationReading.Identifiers(claimId, claimResponseId, PasReading.authorizationRef(carried.claimResponses()));
+    }
+
+    /** Every ClaimResponse a resource is or holds as a bundle entry, at any depth. */
+    private static void claimResponsesIn(JsonNode resource, List<JsonNode> out) {
+        String type = JsonSafe.text(resource, "resourceType");
+        if ("ClaimResponse".equals(type)) {
+            out.add(resource);
+        } else if ("Bundle".equals(type)) {
+            for (JsonNode entry : JsonSafe.elements(resource, "entry")) {
+                claimResponsesIn(JsonSafe.child(entry, "resource"), out);
+            }
+        }
     }
 
     /** The value of a parameter for the screen. One that was sent with no value is empty, not absent. */

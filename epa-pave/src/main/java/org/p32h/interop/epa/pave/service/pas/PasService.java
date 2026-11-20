@@ -269,7 +269,7 @@ public class PasService {
 
     private Interpreted interpret(RunRequest request, EpaOperation operation, PreparedCall call, VendorExchange exchange, SentClaim sent,
                                   Map<String, String> known, String followsRunId, List<String> leftOut) {
-        PasReading reading = mapper.read(exchange, sent);
+        PasReading reading = mapper.read(exchange, sent, operation == EpaOperation.PAS_INQUIRE);
         PasOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
 

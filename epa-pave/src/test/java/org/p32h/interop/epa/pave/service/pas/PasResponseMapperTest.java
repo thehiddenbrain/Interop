@@ -204,7 +204,7 @@ class PasResponseMapperTest {
                 + "\",\"valueCodeableConcept\":{\"coding\":[{\"system\":\"" + PasJson.X12_306 + "\",\"code\":\"A1\",\"display\":\"Certified in total\"}]}},"
                 + "{\"url\":\"number\",\"valueString\":\"PA-PLACEHOLDER-0001\"},"
                 + "{\"url\":\"reasonCode\",\"valueCodeableConcept\":{\"coding\":[{\"system\":\"https://example.org/p32h-placeholder/reason\",\"code\":\"R1\"}]}},"
-                + "{\"url\":\"secondSurgicalOpinionNeeded\",\"valueBoolean\":false},"
+                + "{\"url\":\"secondSurgicalOpinionFlag\",\"valueBoolean\":false},"
                 + "{\"url\":\"vendorPart\",\"valueString\":\"extra\"}"))))), sent("95810"));
         ReviewActionView view = only(reading).items().get(0).adjudications().get(0).reviewActions().get(0);
         assertThat(view.code().code()).isEqualTo("A1");
