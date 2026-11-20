@@ -59,8 +59,58 @@ that wrote none of the tool:
   response inside the tool is marked as if a scenario or the payer had answered; text left in the
   procedure code box is sent without being shown. It is an automated walkthrough and not a sign-off.
 
-Not run yet: V6 (honesty), and the check of each fix for the second run of V2, V3 and V4 by an
-agent that did not write it. The decisions made since D-228 are not in `DECISIONS.md` yet.
+**Fixes for those audits, merged at this revision and checked by nobody but their authors.** The
+integrator built the line with them through the shared wrapper: 2767 tests, 2765 passed, 2 skipped,
+none failed.
+
+- V7: the two blockers and the majors were fixed (a value returned as null is said to be null; an
+  issue's expression and location carry their presence; the designed views of CRD, DTR and PAS say
+  not returned, null or empty in words; every value of a repeated key is listed, with a finding on
+  CRD; a resource of another kind sent in answer to a CRD hook is no longer "no determination"; a
+  notification larger than what is kept is read whole). **Left open:** the finding for a repeated
+  key is not raised on DTR and PAS, and a raw send and the lookups still list only the last value;
+  the headline for a resource of another kind still says the body "could not be read"; History, a
+  suite row and a chain say nothing of fields the tool did not interpret.
+- The walkthrough: "no determination" now tells a business tester what to do; a step done inside the
+  tool is marked as answered by nobody, in the ledger, the export, History and the colour key; text
+  left in the code box refuses the send; a request body that repeats a key is refused; the PAS
+  submission and the inquiry each have one name. **Left open:** the error panel is still headed
+  "What went wrong" over a refusal by the guardrail; the list of chains in History does not draw
+  the new mark; none of it was looked at at 1920 by 1080.
+- V5: the style rules live in one class that the build's gate and a test both run; the test fails
+  when the gate is taken out of the build; the patterns were tightened and found eight raw invisible
+  characters in test strings, now written as escapes. The gate cannot read commit messages.
+
+**The honesty audit (V6), on revision `9e5306d`.** Every test count, the examples of the README, the
+build and the fresh clone held. **Open at this revision:** the draft of the pull request description
+said "nothing stubbed" while, in the X12 275 attachment mode, the tool names the document and sends
+nothing, and its list of what is not done left out limits the README states; no document records
+that the token request authenticates the client by HTTP Basic; on mock a fault a scenario played is
+still headed as a fault in the environment; the README does not call the ledger's salt a secret,
+although with it a member ID is recovered from its token at once; tests write `config-store/` and
+`run-history/` into the checkout.
+
+**The check of each fix for the second run of V2, V3 and V4, by agents that wrote none of them, on
+revision `9e5306d`.** Each closed finding has a test the checker saw fail with the fix undone.
+
+- V3, the guardrail: eight of nine closed. **The blocker is closed in one direction and open in the
+  other at this revision:** a production environment whose own address the client cannot read is not
+  remembered as production, and a sandbox written at the plain spelling of that address then sends
+  writes there with no unlock. Also open: a value typed for a run that makes the path of a url
+  unreadable is refused with the wrong cause; an overlong encoding of a slash is not refused.
+- V2, member data: five of seven closed. **Open at this revision:** a note sent with a request of
+  the tester's own from a protocol tab is checked against nothing; a date of birth written with the
+  month's name, and the member ID in fullwidth digits or without its letter, are not recognised; a
+  member ID with separators in it, supplied by a service as an identifier, is kept in clear; and the
+  fix stopped keeping the plain numbers many servers mint, so a notification on such a subscription
+  is no longer matched to its run.
+- V4, fixtures: nine of ten closed or recorded. **Open at this revision:** a sentinel NPI in a pasted
+  body is ignored, while the README says it selects; a scenario directory of a tester's own from
+  before the mappings became data loses them without a word; no test fails if the notes of the
+  scenario lists are dropped.
+
+Four tasks are fixing these now. The decisions made since D-228 are not in `DECISIONS.md` yet, and
+the README and the draft of the pull request description are behind on everything in this note.
 
 This describes revision `5763c41` on branch `epa-pave`, which is on the remote. It holds the line of
 `7dade28` (the fix wave, the two leftover tasks and the five tabs), the pass that joined the tabs
