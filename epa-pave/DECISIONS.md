@@ -2335,6 +2335,8 @@ From the ledger leftovers, the suites and chain verifications (F7, VS-4) and the
   a bare 400. Without the parameter the answer is the 422 a blank identifier gets, so nothing can be
   listed. `LookupControllerTest` had pinned a 404 for `GET /api/members`; it now pins that 422 and that
   no lookup was asked, which the integrator accepted by merging it.
+  (By the rule of D-211, an identifier holding `/`, `\` or `;` that the configured lookup address puts
+  into its path is refused before it is sent. Nobody has tried that with a lookup.)
 - The frozen test helper `testsupport/InMemoryLedger` was given the new filters by the fix. The
   verification objected that it is frozen and that a second copy of the filters can drift; the
   finisher restored it. The `zone` and `testerRef` filters are tested on `JsonlRunLedger` only.
