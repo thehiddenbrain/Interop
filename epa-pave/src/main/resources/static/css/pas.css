@@ -327,3 +327,32 @@
     width: 14px;
     height: 9px;
 }
+
+/* ---------- the questionnaire answers in a request ---------- */
+
+.pas-answers, .pas-answers__one {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+}
+
+.pas-answers__one + .pas-answers__one {
+    padding-top: var(--gap-3);
+    border-top: 1px solid var(--rule);
+}
+
+.pas-answers__table td {
+    vertical-align: top;
+}
+
+/* A question opened by an answer, or inside a group, sits under the one it belongs to. */
+.pas-answer--nested td:first-child {
+    padding-left: var(--gap-5);
+}
+
+/* Answers handed on that are not in the body: something a tester must not miss before sending. */
+.pas-answers__missing {
+    padding: 6px var(--gap-3);
+    border: 3px solid var(--ink-strong);
+    color: var(--ink-strong);
+}

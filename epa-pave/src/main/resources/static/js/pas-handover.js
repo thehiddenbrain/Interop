@@ -11,6 +11,7 @@
 import {el, fill, clear, button, code, facts} from './dom.js';
 import {runLink} from './history-common.js';
 import {indent} from './own-request.js';
+import {answersTable} from './pas-answers.js';
 
 const ANSWERS = 'questionnaireResponse';
 
@@ -75,7 +76,10 @@ export function createHandover(spec) {
                 el('label', {class: 'choice', htmlFor: 'pas-send-answers'}, box, 'Send the completed answers with this request'),
                 responses.map((text, index) => el('details', {class: 'fold'},
                     el('summary', null, responses.length === 1 ? 'Look at the answers' : 'Look at questionnaire response ' + (index + 1)),
-                    el('pre', {class: 'body-text', tabIndex: 0, aria: {label: 'A completed questionnaire response'}}, pretty(text))))));
+                    readable(text),
+                    el('details', {class: 'fold'}, el('summary', null, 'As DTR handed it on', el('span', {class: 'quiet'}, String(text).length + ' characters')),
+                        el('pre', {class: 'body-text', tabIndex: 0, aria: {label: 'A completed questionnaire response'}}, pretty(text))))),
+                el('p', {class: 'small'}, '"Show the request" lists the answers as they stand inside the request body that would be sent.')));
         }
         if (others.length > 0) {
             parts.push(el('p', {class: 'small'}, changed ? 'What was handed on:' : 'What goes with the next request, unchanged:'),
@@ -114,6 +118,8 @@ export function createHandover(spec) {
         redraw: draw,
         /** The hand-over in force, or null: none, set aside, or for another case. */
         current: () => (applies() ? handed : null),
+        /** How many completed questionnaire responses the hand-over in force carries, and whether the tester chose to leave them out. */
+        answersState: () => ({handed: applies() ? answers().length : 0, withheld: applies() && answers().length > 0 && !sendAnswers}),
         /**
          * What a submission posts as carry: the hand-over unchanged, without the answers when the
          * tester chose to leave them out. Undefined when nothing applies to the case on screen.
@@ -129,6 +135,20 @@ export function createHandover(spec) {
             return out;
         }
     };
+}
+
+/** The answers of a handed-on questionnaire response as a table, or a sentence when the text is not a QuestionnaireResponse. */
+function readable(text) {
+    let parsed = null;
+    try {
+        parsed = JSON.parse(text);
+    } catch (notJson) {
+        return el('p', {class: 'small'}, 'It is not JSON, so its answers cannot be listed. It is shown below as it came.');
+    }
+    if (!parsed || parsed.resourceType !== 'QuestionnaireResponse') {
+        return el('p', {class: 'small'}, 'It is not a QuestionnaireResponse, so its answers cannot be listed. It is shown below as it came.');
+    }
+    return answersTable(parsed, true);
 }
 
 /** A questionnaire response is JSON text. It is indented for reading; anything that is not JSON is shown as it came. */

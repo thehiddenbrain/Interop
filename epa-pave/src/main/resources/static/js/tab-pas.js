@@ -20,6 +20,7 @@ import {createExpectation} from './pas-expectation.js';
 import {createAttachments} from './pas-attachments.js';
 import {createHandover} from './pas-handover.js';
 import {createNotifications} from './pas-notifications.js';
+import {answersInRequest, responsesInBody} from './pas-answers.js';
 import {runLink} from './history-common.js';
 import {bringIntoPane} from './case-context.js';
 
@@ -271,10 +272,31 @@ function submitRequest() {
 }
 
 async function sendSubmit() {
+    // What the hand-over held when the request left, so the result says what went with it even if the tester changes it afterwards.
+    const answers = controls.handover.answersState();
     const answer = await bench.call(() => api.postJson('/api/pas/submit', submitRequest()), {saying: 'Sending the PAS request.', control: controls.submit});
     if (answer) {
         showRun(answer.body);
+        showAnswersSent(answer.body, answers);
     }
+}
+
+/**
+ * Puts the questionnaire answers the request body carried on the result, just above the wire view
+ * that holds the body itself. Shown when DTR handed answers on or the body holds some; a submission
+ * that had nothing to do with DTR gets no section about it.
+ */
+function showAnswersSent(envelope, answers) {
+    const request = envelope.wire && envelope.wire.request ? envelope.wire.request : null;
+    const wire = bench.form.closest('.workbench').querySelector('.readout__result details.wire');
+    if (!request || !wire) {
+        return;
+    }
+    if (answers.handed === 0 && responsesInBody(request.body).found.length === 0) {
+        return;
+    }
+    wire.closest('.result__section').before(el('section', {class: 'result__section'},
+        answersInRequest({body: request.body, when: request.sent ? 'sent' : 'built', handed: answers.handed, withheld: answers.withheld})));
 }
 
 /* ---------- inquire ---------- */
@@ -606,7 +628,21 @@ async function showPreview(kind) {
     const control = {submit: controls.preview, inquire: controls.inquirePreview, create: controls.createPreview, update: controls.updatePreview}[kind];
     const answer = await bench.call(send, {saying: 'Building the request. Nothing is sent.', control});
     if (answer) {
-        fill(slots.preview, requestPreviewPanel(answer.body, () => clear(slots.preview)));
+        const shownPanel = requestPreviewPanel(answer.body, () => clear(slots.preview));
+        if (kind === 'submit') {
+            // The answers are read out of the body the preview shows, and set above it, so a tester sees them before the long text.
+            const answers = controls.handover.answersState();
+            if (answers.handed > 0 || responsesInBody(answer.body.body).found.length > 0) {
+                const section = answersInRequest({body: answer.body.body, when: 'preview', handed: answers.handed, withheld: answers.withheld});
+                const bodyPart = shownPanel.querySelector('.raw-body');
+                if (bodyPart) {
+                    bodyPart.before(section);
+                } else {
+                    shownPanel.append(section);
+                }
+            }
+        }
+        fill(slots.preview, shownPanel);
         bench.say('The request is shown. Nothing was sent.');
     }
 }
