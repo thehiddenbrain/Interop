@@ -5,10 +5,14 @@ Where the build is, what is done, what remains. Updated at every commit.
 ## Current position
 
 This describes revision `33893aa` on branch `epa-pave`: every fix branch of the audit wave, the
-request comparison (D-119, D-170) and the documentation, merged. The integrator observed
-`./gradlew build` green on it with 2515 tests passing and 3 skipped (skipped because the build runs
-as root, for which a read-only folder is not read-only; the same refusals are covered by tests that
-did run). The decisions of that wave are D-140 to D-175.
+request comparison (D-119, D-170) and the documentation, merged. The integrator's build of it was
+green and printed 2515 passed lines, 3 skipped lines and no failure. The XML test reports of a build
+of the same code (branch `records`, which changes only this file and `DECISIONS.md`) count 2517
+tests: 2515 passed, 2 skipped, none failed. The two skipped tests need a folder that cannot be
+written (`ConfigStoreTest.aDirectoryThatCannotBeWrittenFailsAtStartupNamingThePath`,
+`JsonlRunLedgerTest.startupFailsWhenTheDirectoryIsReadOnly`), which a build running as root cannot
+make; the same refusals are covered by tests that did run. Where the third skipped line of the
+integrator's build came from was not established. The decisions of that wave are D-140 to D-175.
 
 ### Not done, not verified, or known to be wrong
 
@@ -23,7 +27,9 @@ did run). The decisions of that wave are D-140 to D-175.
   (no-auth told apart from no determination, on screen and in the ledger) cannot be shown on screen,
   because there is no frontend in this revision; the ledger and API half is covered by tests.
 - No fresh-clone build of this revision. The README's author built from fresh clones of earlier
-  revisions. Spine 5 has not started: nothing is pushed and there is no pull request.
+  revisions. Spine 5 has not run as a step: the branch `epa-pave` is on the remote at `33893aa`, and
+  has been pushed at every integration since the first, but the two clean builds and the
+  fresh-clone build have not been done and there is no pull request.
 - **Nothing has been run against the vendor's service.** Every result in this file, and every result
   any agent reported, is on the mock profile or against stand-in servers on loopback ports.
 - The tool is held to version 2.0.1 of CRD, DTR and PAS (D-136). The build prompt names other
@@ -35,9 +41,12 @@ did run). The decisions of that wave are D-140 to D-175.
   tab and the CRD tab with the request comparison view, with the shared frame. Every sentence of the
   README about the screens is marked as not checked.
 
-**Open at this revision, being worked on now on other branches.** These are the changes one fix
-needed in another fix's files (D-140 to D-175 say what was decided about each). None of them is on
-this line.
+**Open at this revision, being worked on now on other branches.** These are what each fix and each
+finished frontend part left for someone else: the changes one fix needed in another's files, and
+what the finished tabs need from the server or the shared frame (D-140 to D-175 say what was
+decided about each). All of it is open at `33893aa`. The server lines are being worked on now on
+two branches (`seams-protocol`, `seams-platform`), the frontend lines with the shared frame and
+the tabs being built. None of it is on this line, and none of it is done until it is merged.
 - CRD and DTR: the CRD 2.0.1 `response` reference is shown and not handed on to DTR (D-156). Broken
   guide rules are filed as `REQUIRED_ELEMENT_MISSING` for want of a kind of their own (D-140). DTR's
   package request still builds its Patient, Coverage and orders the old way: no medical record
@@ -52,7 +61,13 @@ this line.
 - A manual CRD then PAS, or CRD then DTR, run writes no `correlatedRunId` on the later line (D-156).
 - A request sent from the collection as it is: attaches the token by host alone (D-098, D-143 rule 7);
   does not send the body saved in the collection (D-139); says "sent" on mock; cannot complete a url
-  that holds a `{token}`.
+  that holds a `{token}`. After a send that got no usable answer it says "check the environment,
+  then send again", even for a POST, PUT or DELETE that may have reached the service: it does not
+  use whether the request reached it, as PAS does (D-163), so it can invite a second prior
+  authorization.
+- A CRD run on mock with a body of the tester's own that is not valid JSON still offers PAS as the
+  next step (the case review's CASE-06). A run with the tester's own body records no member, NPI or
+  line of business (D-172), and nothing on its ledger line tells two such runs apart (CASE-05).
 - Four "not found" sentences repeat an identifier taken from the request (D-150).
 - The order a CRD request carries on its ledger line from a tester's own body (member data audit m6),
   and the DTR service writing its own "not a url" statement where a questionnaire address belongs.
@@ -62,23 +77,42 @@ this line.
 - What the finished tabs need from the server: labels for variable sources, whether a lookup is
   switched on, a short sentence for a blocked row, the words for each next action, a replay that
   returns what the new run found, filters on the export, a tester reference filter, an optional time
-  zone for dates, labels for suite counts, and labels for lookup statuses and `exactCode`.
+  zone for dates, labels for suite counts, labels for lookup statuses and `exactCode`, and a label
+  for the authorization requirement of a procedure code row (CASE-14).
 - Fixtures: the scenario list shows only the first sentinel of a file; a damaged scenario set is
   reported on a suite row as "not valid" and a chain row loses the CRD run it made; the lookup
   fixtures accept two files claiming one identifier and a repeated key; beans only mock uses exist on
   live and no test starts the live context.
 - Ledger: a suite row's over-long expectation is still quoted back; the code list's CSV records print
   their cells in `toString`; `RunController` keeps its own copies of the ledger's limits; the
-  `RunLedger` Javadoc does not say what the policy does on mock; the DTR case step can split a "not
-  recorded" statement into addresses. Replay's refusal of a step that used what an earlier step handed
+  `RunLedger` Javadoc does not say what the policy does on mock, nor that `query` and `find` apply
+  case lines; the DTR case step can split a "not recorded" statement into addresses. The History
+  tab's fix reported that the server kept saying "The ledger cannot write" after the ledger folder
+  was restored, until a restart; nobody has looked into it. Replay's refusal of a step that used what an earlier step handed
   on does not point to the suite row of protocol `chain`; the ledger's health does not say which
   file holds an unreadable line.
 - A lookup identifier holding `%2F` ends as a generic 400 from the server.
+- Suites: a second suite started while one runs is answered 409 with kind `VALIDATION`, not a kind
+  for a busy tool (suites review m8). `SuiteCases` still refuses a hook with "The hook must be
+  order-sign or order-select." rather than the CRD service's sentence about what is built.
+- Fixtures: the CRD fix left old wording in two files it did not own: a literal "Existing
+  authorization" row in `RedactionTest`, and the description of the member fixture
+  `p32h-pa-sat.json`, which still says "already satisfied".
 - Frontend lines for the frame: the shared client has no PUT or DELETE; the mock note shows on a
   blocked result; the ledger indicator in the masthead does not poll the ledger's health; the colour
   key lacks the unlocked-production and sandbox entries; the case pane does not widen on a wide
   screen and the colour key button runs off a phone-width screen; a run id in the result view is not
-  a link.
+  a link. The result view shows the line "the body the tester supplied was sent" only inside the
+  CRD detail, not under the verdict for every protocol, and its member ID line does not show the
+  typed and sent forms so that spaces can be seen. Two selectors of the shared stylesheet are too
+  narrow, so the case restyles a label and a password field itself. The request preview of the
+  workbench shows the raw codes `ENVIRONMENT` and `UNMAPPED with GET`, and writes a url token as
+  `{{id}}` (CFG-16).
+- For the tabs being built: the DTR packages of scenarios 1, 4, 8 and 13 carry a draft the screen
+  must post on the response step and the first loop step, and `dtrIntendedUse` has no form field.
+- When the frontend is merged, someone must check that a page of it is not refused when a link
+  from another site leads to it: such a navigation is refused whenever its handler is a controller
+  method (D-148), so a page served through a controller method would be.
 
 **Limits each part reports that are still true.**
 - CRD: US Core 3.1.1 PractitionerRole was not checked (the package is not here; it may require both a
@@ -89,13 +123,16 @@ this line.
   US Core 3.1.1, HRex, the subscriptions backport 1.1.0 and the X12 code lists were not available; the
   2.0.1 examples were not compiled; the request was checked against hand-written 2.0.1 rules that do
   not test slices or invariants. Mock X12 reason and category codes are placeholders. A secret sent
-  back as a JSON number is not masked.
+  back as a JSON number is not masked. The guide's PAS Task route to CDex is not modelled by any
+  scenario (MOCK-03).
 - DTR: SDC 3.0.0, US Core 3.1.1, FHIR R4 core and the 2.0.1 narrative pages are not here, so only the
   invariants dtrx-1 and dtrb-1 are evaluated and the next-question address is an assumption. An
   answer's author carries no role. `$expand` and `$log-questionnaire-errors` are not implemented. A
   failure of the tool inside the response step, which sends nothing, answers 500 and writes no ledger
   line (from the first DTR report, not checked again). Nothing of DTR was run against a stand-in
-  server.
+  server. The rules DTR-07 names are recognised by their extension urls and were tested only with
+  made-up questionnaires, never with a real one. The gap sentences of the DTR profile check were not
+  mutation-tested one by one.
 - The chain: a DTR package that goes straight on to PAS is driven by no test and no mock scenario.
 - The guardrail: everything in D-145. The rule that refuses a call a run value pointed elsewhere while
   it carries a secret was checked for protocol calls and a subscription read, not for a request sent
@@ -106,13 +143,19 @@ this line.
   collection file keeps the value on disk.
 - The HTTP edge: only Linux, curl, raw sockets and headless Chrome were used; Windows, Firefox and
   Safari were not tried. `OPTIONS *` carries none of the tool's headers (D-150). A hard kill during an
-  upload was checked by hand once, with no automated test.
+  upload was checked by hand once, with no automated test. A cross-site request that carries neither
+  `Sec-Fetch-Site` nor `Origin` is let through: under an `app.allowed-hosts` name served over plain
+  http, or from an older browser, another page's image or link still reaches a read (D-148). Several
+  uploads of 30MB held in memory at once (D-149) were never tried. The sentences for an upload of 60
+  parts, a long file name and a 3MB field rest only on `EdgeOverTheServerTest`.
 - The ledger: a one-word surname written where a code belongs is kept (D-151). The live profile was
   checked in unit tests only. Folders and day files made before the fix keep their old modes. Flush
   and sync are checked by reading the code. Two instances on one ledger directory are not
   coordinated. A note written after the clock was set back across midnight is on disk and not applied.
 - Fixtures: any new top-level key in a scenario file stops the mock start until it is added to the
-  loader's list. A file numbered 0 still becomes the default for unmatched IDs, and an `expect` block
+  loader's list. For a chain row that meets a damaged scenario set, the code keeps and names the
+  steps already sent (any failure of a later step ends the chain with an unverified case line,
+  D-167), but files the row as not valid; this was not run against a damaged set. A file numbered 0 still becomes the default for unmatched IDs, and an `expect` block
   that contradicts its body is still listed as the expected outcome.
 - Suites: whether a code assertion's value is in its value set is not checked before sending. A
   well-formed chain id the tool never issued is accepted. The test ledger does not apply case lines
@@ -136,13 +179,16 @@ this line.
 - The wire view: a secret sent back re-encoded (percent, base64, another case) or shorter than six
   characters is not found.
 - Documentation: `run.cmd` has never been run. STS, a mirror that needs credentials and a token
-  server were not tested. The GitHub branch holds none of this until it is pushed. A plain
+  server were not tested. A plain
   `./gradlew build` can skip the sample tests after a sample is edited; `clean build` runs them. The
   README states what a request sent from the collection as it is sends, and will need changing when
   D-139 is closed.
 
 **Checked only by unit tests or at the gateway, never in the running tool.** A chain interrupted
 part way writing its case line, and the write note of a suite on a production target (VS-6, VS-7);
+a failure of the tool inside a step, which in the running application can only be caused by
+editing code; whether a chain's DTR step can produce each fault outcome it is offered (not checked
+one by one);
 the lock that lands between preparing and sending; the replay paths for a refused claim id and an
 authorization number in several groups; the reached/not reached split for TLS failures, against a
 real endpoint; the ledger on the live profile; the masking of a returned secret in CRD, DTR and
@@ -197,12 +243,17 @@ F2 (a secret in a production address shown and stored), F3 (an environment's sec
 where a run value pointed), F5 (`..;`), F6 (credentials in urlencoded bodies and collection helpers
 not named), F7 (a second mapped request lost the token), F9 (an audience or portal url made a whole
 host production), F10 to F14 (wording, `sigFormat`, the lock sentence, a test, the lookup sentence):
-fixed (D-144). F4 (blocker, the refusal through the running application): partly fixed, open. F8
-(a request sent from the collection as it is attaches the token by host): not fixed, open. F15 (the
-fix edited a shared type to meet the task): a scope question, accepted at the merge.
+fixed (D-144); F13 for the decode step only, since the separate host check has no test that fails
+without it (the whole-url check already covers the host). F4 (blocker, the refusal through the
+running application): partly fixed, open. F8 (a request sent from the collection as it is attaches
+the token by host): not fixed, open. F15 (the fix edited `model/Secrets` and
+`client/lookup/LookupOutcomes`, outside its files): accepted by the integrator at the merge (D-175,
+item 9).
 
-**Fixture audit (V4).** 1 blocker, 4 majors, 6 minors. Every synthetic NPI passed the tool's check and
-all 240 scenario runs gave what their files claim.
+**Fixture audit (V4).** 1 blocker, 4 majors, 6 minors. On the revision before the fixes, every
+synthetic NPI passed the tool's check and all 240 scenario runs gave what their files claim. The
+CRD, DTR and PAS scenario files have been rewritten since (and PAS scenario 21 added) and not
+audited again.
 
 | Finding | What it found | State | Entry |
 | --- | --- | --- | --- |
@@ -281,7 +332,7 @@ should name the exceptions) done in D-150; V6 (the 400 sentence names the query)
 | F4 blocker | A chain's result lived only in memory | Fixed: a case line in the ledger | D-167 |
 | F5 blocker | The comparison with an earlier run used the last step | Fixed | D-167 |
 | F6 blocker | A failed chain's status line named no step | Fixed | D-167 |
-| F7 major | D-131 said a replay can run a chain; it cannot | Fixed in another form: D-131 corrected (D-138); the chain view says it, for the right steps only after the verification. Replay's own sentence does not point to the suite row yet (open) | D-138, D-167 |
+| F7 major | D-131 said a replay can run a chain; it cannot | Fixed in another form: D-131 corrected (D-138); the chain view says it, for the right steps only after the verification. Replay's own sentence does not point to the suite row yet (open). A later step is still marked not replayable when all it was handed was the procedure codes its line already holds | D-138, D-167 |
 | F8 major | The preview overstated what can run | Fixed | D-168 |
 | F9 major | Chain rules had no test | Fixed (one mutation survived, then fixed) | |
 | F10 major | Only one DTR route reachable in a chain on mock | Fixed | D-154 |
@@ -328,7 +379,7 @@ completeness guards that had to list the two new fields.
 
 Its verification: V-01 (major, the `response` reference) open; V-02 to V-04 (no test for three rules)
 and V-05, V-06, V-08, V-09 (wording) fixed; V-07 (no kind for a broken rule) open; V-10 (tests edited
-outside the CRD files) on the merged line; V-11 (DTR's Patient and orders) open; V-12 (scenario
+outside the CRD files) accepted by the integrator at the merge (D-175, item 9); V-11 (DTR's Patient and orders) open; V-12 (scenario
 labels) decided otherwise, D-174.
 
 **PAS compared with 2.0.1.** 9 blockers, 11 majors, 6 minors.
@@ -349,7 +400,7 @@ labels) decided otherwise, D-174.
 | MOCK-01, MOCK-02 major | Scenario shapes | Fixed, verified; responses still refer to resources they do not carry | D-159, D-174 |
 | PAS-14 minor | A review action outside its place | Fixed in another form: flagged, no finding | D-159 |
 | PAS-15 minor | A code sent without its system | Fixed | D-158 |
-| MOCK-03 minor | Scenario 7 and 8 shapes | Fixed | D-159 |
+| MOCK-03 minor | Scenario 7 and 8 shapes | Fixed; the guide's PAS Task route to CDex is not modelled | D-159 |
 | SUB-03 minor | Subscription defaults | Fixed | D-160 |
 | SPEC-01, SPEC-02 minor | The build prompt against 2.0.1 | Recorded | D-173 |
 
@@ -403,7 +454,8 @@ needs the server or the shared frame is in the open list above. None of it is in
 - **The HTTP edge**: bound to this machine, the request guard, no-store, the body limit.
 - **README, `run.sh`, `run.cmd` and samples** (a Postman environment and collection, a code list, a
   suite).
-- The build: 2515 tests passing and 3 skipped, observed by the integrator on `33893aa`.
+- The build: green on `33893aa`; 2517 tests in the XML reports, 2515 passed and 2 skipped (see the
+  top of this file for the integrator's printed count).
 - No frontend.
 
 | Step | State |
@@ -419,11 +471,11 @@ needs the server or the shared frame is in the open list above. None of it is in
 | Wave C: C1 frontend | three parts finished on branches, three being built with the frame. None merged |
 | Wave C: C2 docs and scripts | merged. `run.cmd` never run |
 | Wave C: C3 verification V1 to V7 | V2, V3, V4 ran once before the fixes. V1, V5, V6, V7 not run |
-| Spine 5: clean build twice, fresh-clone build, push, pull request | not started |
+| Spine 5: clean build twice, fresh-clone build, push, pull request | not run as a step. The branch is pushed at every integration (at `33893aa` now); the clean builds, the fresh-clone build and the pull request have not been done |
 
 ### How the build got here
 
-**Interrupted twice.** About an hour into Waves A and B every background agent was stopped at once
+**Interrupted three times.** About an hour into Waves A and B every background agent was stopped at once
 by a usage limit. What each had written survived in its worktree, and each half-built package was
 handed to a new agent in the same worktree; since then every agent commits a checkpoint after each
 green slice. The verifier planned after each wave package was dropped then, and the section 27
@@ -431,7 +483,9 @@ agents and independent reviews took its place. Late in the build the machine res
 out of memory with nine build daemons of two gigabytes each running. Nothing on disk was lost; each
 task was handed on in its worktree, and the number of agents running at once was halved. From then
 on the work not yet merged is also kept on the remote, on the session's own branch, as commits that
-change no file and only hold the other branches' heads.
+change no file and only hold the other branches' heads. The machine restarted a second time, again
+when several builds ran side by side, and again nothing on disk was lost. Since then every build on
+the machine goes through one lock.
 
 **Added by the operator during the build (D-118, D-119, D-136):** paste a request of your own and send
 it; compare a pasted CRD request with the tool's own, each difference explained; hold the tool to
