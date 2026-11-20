@@ -668,7 +668,15 @@ environment and of `application.yml`, the access token it holds, the client secr
 credentials of the address to call back. A notification that had something masked says so: "1
 place in this payload is masked because it repeats a secret this tool could have sent to the
 service ... What is shown is therefore not exactly what was received." This was checked by the
-fix's author against a stand-in on this machine, not for this README.
+fix's author, and again by an agent that did not write the fix, against stand-ins on this machine,
+not for this README. A secret shorter than six characters repeated in a notification is shown in
+clear, and, unlike the wire view, the notification does not say that a secret was too short to
+search for [open at this revision: being fixed].
+
+A lookup field whose value holds masked text is marked `masked` and is not taken into the case:
+"This value holds a secret the request sent, which this tool masked, so it is not what the
+service returned and is not offered for the case." (seen by the fix's author on live against a
+stand-in, not for this README).
 
 PAVE never writes the wire view to disk: the ledger holds no request or response body, no name,
 date of birth, address, gender or subscriber ID under any setting. Every `/api/` response carries
@@ -751,7 +759,13 @@ curl -s -X POST localhost:8057/api/config/environments/pave-sample-sandbox-977ed
   it `prod` is the way through. The address is read the way the HTTP client reads it, so another
   spelling of the same address (a port written with leading zeros, for example) is the same
   address. Observed: with `http://127.0.0.1:18742/fhir` uploaded as `prod`, an environment at
-  `http://127.0.0.1:0018742/fhir` declared `sandbox` was refused, naming the production one.
+  `http://127.0.0.1:0018742/fhir` declared `sandbox` was refused, naming the production one. The
+  refusal quotes the address as PAVE read it (`http://127.0.0.1:18742/fhir`), not as the file
+  writes it [open at this revision: being fixed].
+- **A production environment whose own address PAVE cannot read** (a port with a plus sign, a
+  backslash in the path, a colon with nothing after it) is not remembered as production, and a
+  sandbox uploaded afterwards at the plain spelling of that address is accepted and sent writes
+  with no unlock. Write a production address plainly [open at this revision: being fixed].
 - **Address warnings.** The upload answer, the environment list (`addressWarnings`) and the answer
   of a switch warn about three things, without refusing the file: an address whose scheme, host and
   port PAVE cannot read the way the HTTP client reads them (a port above 65535, a host in a form the
@@ -760,9 +774,13 @@ curl -s -X POST localhost:8057/api/config/environments/pave-sample-sandbox-977ed
   a non-production environment on the same scheme, host and port as a production environment under
   another base path, which PAVE treats as not production because the base path differs ("If that
   server routes this path to production, upload this environment with the kind prod."). All three
-  were observed on mock.
+  were observed on mock, in the upload answer and in the environment list. When the production
+  environment's own port could not be read, this last warning still speaks of "the same server, by
+  scheme, host and port" [open at this revision: being fixed].
 - **Member data in the file.** A variable whose name reads as member data (a member, patient or
-  subscriber identifier or name, a first or last name, a birth date) is named in a warning. See
+  subscriber identifier or name, a first or last name, a birth date) is named in a warning
+  (observed with `patientLastName`). Names such as `mbrId`, `ssn`, `MBI`, `mrn`, `medicaidId`,
+  `address` or `phone` are not recognised [open at this revision: being fixed]. See
   [Member data in an uploaded file](#member-data-in-an-uploaded-file).
 - Uploading never activates. Activating switches every tab at runtime, with no restart and no
   reload, and drops any production unlock.
@@ -870,6 +888,12 @@ verbatim in `config-store/`. So:
 - **A credential typed into a collection** (a header, a query value or a body field whose name
   reads as a credential) is named at upload and masked wherever the collection is shown (D-147).
   The collection file on disk keeps the value.
+- **The ledger's salt.** `config-store/installation-salt` (or `tracking.salt-file`) turns each
+  member ID into the token the ledger keeps. It is a secret: the token is a plain HMAC-SHA-256 of
+  the member ID under the salt, so whoever holds the salt and the ledger, which keeps the last four
+  characters beside the token, gets a short member ID back at once by trying candidates. Keep the
+  salt where the ledger is not, never copy it with the ledger or its export, and never commit it
+  (`config-store/` is in `.gitignore`).
 - **What masking does not catch.** Because masking goes by name, a key written inside a url, or
   held by a variable with an ordinary name, is shown as written, in the upload answer, in
   `GET /api/config/effective`, in `POST /api/config/resolve` and in the wire view. Observed: an
@@ -923,7 +947,11 @@ stays until the environment or collection is removed.
   member's data**: replace member IDs, names and dates of birth with placeholders before export,
   and remove saved example responses taken from real calls.
 
-**Access tokens.** OAuth2 client credentials are requested when `onyx.auth.enabled` is true. The
+**Access tokens.** OAuth2 client credentials are requested when `onyx.auth.enabled` is true, with
+the client authenticated by HTTP Basic (the client id and secret in an `Authorization: Basic`
+header, `grant_type=client_credentials` in the form body). Whether the vendor wants that,
+credentials in the form body or a signed JWT assertion is an open item (see
+[Open items](#open-items)); a vendor that wants another method answers 401. The
 four `onyx.auth` values are resolved like any placeholder, so they can point at the environment's
 variables, for example `--onyx.auth.enabled=true --onyx.auth.token-url={{tokenUrl}}
 --onyx.auth.client-id={{clientId}} --onyx.auth.client-secret={{clientSecret}}`. The token goes only
@@ -968,8 +996,11 @@ A PAS submit against production creates a real prior authorization request again
 
   Checked with an environment uploaded as `prod` and the floor set on the command line
   (`--config-store.allow-prod-writes=true`): the name in other capitals answered 422; the exact
-  name unlocked, and a submit in that session was sent, while the same submit from another session
-  was blocked ("this call carries no production unlock"). The unlock lives in server memory, in
+  name unlocked, with the answer "Production writes are unlocked for this session on "...". Any
+  change to the configuration locks them again. Locking them again, from this or any other browser,
+  ends the unlock of every session."; a submit in that session was let through (on mock, answered
+  by its scenario), while the same submit from another session was blocked ("this call carries no
+  production unlock"). The unlock lives in server memory, in
   that session only, and is never written anywhere, so it does not survive a restart. Any change
   to the configuration, including an upload or switching environment, drops it (observed).
   `{"action":"lock"}` locks again. An unlock is for the environment it names: a write to another
@@ -982,7 +1013,11 @@ A PAS submit against production creates a real prior authorization request again
   production".** A write that would go to such an address (a port above 65535, a host in a form the
   client refuses) is refused with 403, naming the variable and its layer, the request or the
   `application.yml` setting it came from: "Blocked: the address it would go to could not be read."
-  This was checked by the fix's author on live against stand-ins; on mock a protocol run does not
+  When it is only the path that cannot be read, because a value typed for the run holds a space or
+  a stray `%`, the refusal still blames the host, the port or the base address and points at the
+  wrong remedy; nothing is sent [open at this revision: being fixed].
+  This was checked by the fix's author on live against stand-ins, and again by an agent that did
+  not write the fix; on mock a protocol run does not
   resolve its url (see [Variables](#variables)), so there the run is answered from its scenario
   (observed: a PAS submit with such an environment active answered as its scenario says).
 - **No request leaves with an encoded separator in its path**: an encoded slash, backslash,
@@ -992,15 +1027,18 @@ A PAS submit against production creates a real prior authorization request again
   url part or the request, never the value. A query string is not touched. Observed on mock:
   `crdOrderSignServiceId` typed for one run as `..%2F..%2FClaim%2F%24submit` answered "CRD
   order-sign was not sent: the path of its url holds an encoded separator (%2F), which came from
-  the variable "crdOrderSignServiceId" (typed for this run). ..."
+  the variable "crdOrderSignServiceId" (typed for this run). ..." An overlong or look-alike
+  encoding of a slash (`%c0%af`, `%E2%88%95`) is not caught, which matters only for a server that
+  decodes such bytes [open at this revision: being fixed].
 - **Lock, from any browser, locks every session** (D-144). Observed on mock: session A unlocked and
   sent a submit; session B posted `{"action":"lock"}`; A's next submit answered 403, "... production
   writes are locked for this session. An earlier unlock no longer applies, because the
   configuration has changed or writes were locked again since. Nothing was sent." A write A had
-  already prepared when B locked is refused when it is sent, with 409 (tested in the build over the
-  running server). On this revision the 409 reads "The configuration changed while this request was
-  being prepared. Nothing was sent.", and the Config tab of session A goes on saying that writes are
-  unlocked until it is reloaded, while the server refuses the write.
+  already prepared when B locked is refused when it is sent, with 409: "Production writes were
+  locked again before this write was sent, so it was not sent." (tested in the build over the
+  running server, and seen on live against a stand-in by the agent that checked the fix). Session
+  A's page is redrawn as locked within a few seconds, with a notice that writes were locked again,
+  possibly from another browser (seen by that agent in a browser, not for this README).
 - **The "not production" acknowledgement** (`acknowledgeNotProd`) covers that environment's own
   addresses only. "Reads as production" means the text `prod` in its name or a url, and nothing
   cleverer.
@@ -1016,8 +1054,10 @@ on the revision before the first fix wave; each was fixed and the fix attacked b
 (`PROGRESS.md`). V3 ran again on revision `0658a7c` and found a write to production through a port
 written with leading zeros, an encoded separator that hid a path, a raw send refused for an untrue
 reason, no test that Lock locks every session, and a secret shown in clear in a notification. Each
-is fixed on this revision (the rules above); no agent but each fix's author has checked those fixes
-yet. The behaviour above was observed on mock, where the guardrail behaves as on live (D-021),
+was fixed, and an agent that wrote none of the fixes checked them on revision `9e5306d`: eight of
+nine closed; the port written with leading zeros closed in one direction and open in the other
+(the production address PAVE cannot read, above), with three smaller neighbours open, each marked
+above. The behaviour above was observed on mock, where the guardrail behaves as on live (D-021),
 except where a sentence says otherwise.
 
 ## The test run ledger
