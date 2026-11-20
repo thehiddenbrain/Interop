@@ -1,9 +1,14 @@
 package org.p32h.interop.epa.pave.service.cases;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.p32h.interop.epa.pave.model.Expectations;
 import org.p32h.interop.epa.pave.model.OutcomeCode;
 import org.p32h.interop.epa.pave.model.Protocol;
@@ -76,14 +81,52 @@ public final class OutcomeCatalogue {
     }
 
     /**
-     * What is wrong with a declared expectation for this protocol. Empty when it is blank, well
-     * formed, or the protocol is not registered, in which case the service that runs it decides.
+     * What is wrong with a declared expectation for this protocol. Empty when it is blank or well
+     * formed. Two things are refused for any protocol, because neither could ever be met: a cell
+     * of separators alone, and two different outcomes, since a run has one. Beyond that a protocol
+     * that is not registered is left to the service that runs it.
      */
     public List<String> expectationProblems(Protocol protocol, String expected) {
-        Entry entry = protocol == null ? null : entries.get(protocol);
-        if (entry == null) {
-            return List.of();
+        List<String> problems = new ArrayList<>();
+        if (Texts.present(expected)) {
+            List<String> terms = Arrays.stream(expected.split("[;\\r\\n]")).filter(Texts::present).map(String::strip).toList();
+            if (terms.isEmpty()) {
+                // A cell of separators alone reads as an expectation and would compare nothing.
+                problems.add(NO_TERMS);
+                return problems;
+            }
+            Set<String> bare = new LinkedHashSet<>();
+            for (String term : terms) {
+                String code = bareOutcome(term);
+                if (code != null) {
+                    bare.add(code);
+                }
+            }
+            if (bare.size() > 1) {
+                problems.add("The expectation names more than one outcome: " + String.join(" and ", bare) + ". A run has exactly one "
+                        + "outcome and every term must hold, so this could never pass. Keep the one you expect.");
+            }
         }
-        return Expectations.problems(expected, entry.vocabulary(), entry.elements());
+        Entry entry = protocol == null ? null : entries.get(protocol);
+        if (entry != null) {
+            problems.addAll(Expectations.problems(expected, entry.vocabulary(), entry.elements()));
+        }
+        return problems;
+    }
+
+    /** The problem with an expectation that holds separators and nothing else. */
+    public static final String NO_TERMS = "The expectation holds no outcome and no code assertion, only separators. Write an outcome "
+            + "code, for example AUTH_REQUIRED, or leave the cell empty to run the case unverified.";
+
+    /**
+     * The outcome a term names when it is a bare outcome and not a code assertion, written as a
+     * code is written, or null for a code assertion. The same reading the comparison applies.
+     */
+    public static String bareOutcome(String term) {
+        if (Texts.blank(term) || term.contains("=")) {
+            return null;
+        }
+        String code = term.strip().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
+        return code.isEmpty() ? null : code;
     }
 }
