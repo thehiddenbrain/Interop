@@ -127,4 +127,37 @@ class PlayedTimeoutOverTheServerTest {
         assertThat(body.at("/kind").asString()).isEqualTo("VALIDATION");
         assertThat(body.at("/heading").asString()).isEqualTo("A problem with what was submitted");
     }
+
+    @Test
+    void theChainViewAndTheSuiteVocabularySayWhatIsTrueOfAPlayedTimeout() throws Exception {
+        String body = "{\"member\":{\"memberId\":\"P32H-TIMEOUT\",\"firstName\":\"Given\",\"lastName\":\"Placeholder-Surname\","
+                + "\"lineOfBusiness\":\"Medicare\"},\"provider\":{\"npi\":\"1234567893\"},\"procedureCodes\":[{\"code\":\"95810\"}],"
+                + "\"dateOfService\":\"2026-03-20\",\"chainId\":\"new\"}";
+        HttpResponse<String> run = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/crd"))
+                .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(run.statusCode()).as(run.body()).isEqualTo(200);
+        String chainId = JsonSafe.parse(run.body()).node().at("/chainId").asString();
+        assertThat(chainId).startsWith("chain-");
+
+        HttpResponse<String> chain = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                + "/api/chains/" + chainId)).GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(chain.statusCode()).as(chain.body()).isEqualTo(200);
+        JsonNode view = JsonSafe.parse(chain.body()).node();
+        assertThat(view.at("/nextAction").asString()).isEqualTo("CHECK_ENVIRONMENT");
+        String label = "Check the environment. No usable answer came back: on the live profile the service failed or could not be "
+                + "reached, and on the mock profile a scenario played that, with nothing sent.";
+        assertThat(view.at("/nextHeadline").asString()).isEqualTo(label);
+
+        // A suite row names its next action by the words the scenarios endpoints serve.
+        HttpResponse<String> scenarios = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                + "/api/crd/scenarios")).GET().build(), HttpResponse.BodyHandlers.ofString());
+        List<String> labels = new ArrayList<>();
+        JsonSafe.parse(scenarios.body()).node().get("nextActions").forEach(option -> {
+            if ("CHECK_ENVIRONMENT".equals(option.at("/code").asString())) {
+                labels.add(option.at("/label").asString());
+            }
+        });
+        assertThat(labels).containsExactly(label);
+    }
 }

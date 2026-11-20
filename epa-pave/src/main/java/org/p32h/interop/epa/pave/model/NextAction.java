@@ -36,8 +36,13 @@ public enum NextAction {
     FIX_REQUEST("Check what was sent. The service did not accept the request."),
     /** The payer asked for more information before it can answer. Supply it and send again. */
     SUPPLY_INFORMATION("Supply the information the payer asked for and send again."),
-    /** The service failed or could not be reached. Check the environment. */
-    CHECK_ENVIRONMENT("Check the environment. The service failed or could not be reached."),
+    /**
+     * No usable answer came back. Check the environment. On the mock profile this follows a fault a
+     * scenario played, where nothing was sent and no service failed, and the chain view and the
+     * suite rows show this label for it as well, so it says both.
+     */
+    CHECK_ENVIRONMENT("Check the environment. No usable answer came back: on the live profile the service failed or could not be "
+            + "reached, and on the mock profile a scenario played that, with nothing sent."),
     /** The tool is not configured to send this. Open Config. */
     OPEN_CONFIG("Open Config. The tool is not configured to send this."),
     /** The production guardrail refused. Unlock writes or switch environment. */
