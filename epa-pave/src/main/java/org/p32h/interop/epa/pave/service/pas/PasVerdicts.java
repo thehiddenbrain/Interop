@@ -275,6 +275,19 @@ public final class PasVerdicts {
      *                     submission it asked about for an inquiry. Null when that is not known
      */
     public static NextStepView nextStep(PasReading reading, VendorExchange exchange, EpaOperation operation, String followsRunId) {
+        return nextStep(reading, exchange, operation, followsRunId, null);
+    }
+
+    /**
+     * What the tester should do next, tied to what the response said, naming this run where the
+     * tester is asked to record and report it.
+     *
+     * @param followsRunId the run a later step should be linked to: this run for a submission, the
+     *                     submission it asked about for an inquiry. Null when that is not known
+     * @param runId        this run, or null when it is not known yet: the step then says "this run"
+     */
+    public static NextStepView nextStep(PasReading reading, VendorExchange exchange, EpaOperation operation, String followsRunId,
+                                        String runId) {
         PasOutcome outcome = reading.outcome();
         // What a status check or a resubmission starts from. Carried whatever the outcome, so a
         // tester can ask for the status of any submission that has a claim id.
@@ -305,13 +318,15 @@ public final class PasVerdicts {
             case MIXED -> reading.decisions().stream().anyMatch(d -> d.outcome() == PasOutcome.PENDED)
                     ? new NextStepView(NextAction.CHECK_STATUS, "Next: choose Send inquiry to ask for the status of the items that are still open.",
                     "At least one item is pended, so the request is not finished.", carry)
-                    : new NextStepView(NextAction.REVIEW, "Next: read the decision for each item below. This tool cannot say what should "
-                    + "happen next.", "The items did not all receive the same decision, so each needs its own next step.", carry);
-            case UNRECOGNISED_CODE -> new NextStepView(NextAction.REVIEW, "Next: read the response detail below. This tool cannot say what "
-                    + "should happen next.", "The response carries a decision code this tool does not know the meaning of.", carry);
-            case NO_DECISION -> new NextStepView(NextAction.REVIEW, "Next: read the response detail below. This tool cannot say what should "
-                    + "happen next.", "The response carries no review action, so it does not say whether the request is approved, pended "
-                    + "or denied.", carry);
+                    : recordAndReport(runId, "items decided differently", "The items did not all receive the same decision and none "
+                    + "is pended, so there is no one next step for the request, and this tool does not pick one. The decision for each "
+                    + "item is below.", carry);
+            case UNRECOGNISED_CODE -> recordAndReport(runId, "decision code not recognised", "The response carries a decision code this "
+                    + "tool does not know the meaning of, and this tool does not guess what it means. The code is in the response detail "
+                    + "below.", carry);
+            case NO_DECISION -> recordAndReport(runId, "no decision returned", "The response carries no review action, so it does not say "
+                    + "whether the request is approved, pended or denied, and this tool does not guess. What came back is in the response "
+                    + "detail below.", carry);
             case REQUEST_ERRORS -> new NextStepView(NextAction.FIX_REQUEST, "Next: read the errors below, correct the request and submit it again.",
                     "The payer could not process the request as it was sent.", carry);
             case MEMBER_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the member ID against the test data.",
@@ -368,6 +383,21 @@ public final class PasVerdicts {
      * The next step when the service answered with a 4xx status. The body is not always at fault:
      * the same outcome covers credentials that were not accepted and an address that does not exist.
      */
+    /**
+     * The next step when the service answered with nothing this tool can act on. The headline is for
+     * the business tester, who can act on the result without reading the response: record the run
+     * by its id as what came back, and report it. The reason keeps the way to the detail for whoever
+     * looks into it. Neither says whose fault it is, nor guesses what the answer meant. The action
+     * stays REVIEW, so the ledger, History and a chain read these runs as they did.
+     *
+     * @param recordAs what the run is recorded as, in a few plain words
+     */
+    static NextStepView recordAndReport(String runId, String recordAs, String reason, Map<String, List<String>> carry) {
+        String which = Texts.present(runId) ? "run " + runId : "this run";
+        return new NextStepView(NextAction.REVIEW, "Next: record " + which + " as \"" + recordAs + "\" and report it to the people who "
+                + "look after the service.", reason, carry);
+    }
+
     private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry) {
         int status = exchange.httpStatus() == null ? 0 : exchange.httpStatus();
         if (status == 401 || status == 403) {

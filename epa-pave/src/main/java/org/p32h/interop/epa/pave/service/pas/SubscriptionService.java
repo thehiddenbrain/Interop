@@ -162,7 +162,7 @@ public class SubscriptionService {
             // Only the reading and wording of the response is inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one run.
             read = interpret(request, operation, call, exchange, id, known, followsRunId, sendsBody, ownBody, callbackProblem, leftOut,
-                    callbackUrl);
+                    callbackUrl, runId);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -208,7 +208,7 @@ public class SubscriptionService {
 
     private Interpreted interpret(SubscriptionRequest request, EpaOperation operation, PreparedCall call, VendorExchange exchange, String askedId,
                                   Map<String, String> known, String followsRunId, boolean sendsBody, boolean ownBody, String callbackProblem,
-                                  List<String> leftOut, String callbackUrl) {
+                                  List<String> leftOut, String callbackUrl, String runId) {
         SubscriptionReading reading = mapper.read(exchange, operation, askedId);
         SubscriptionOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
@@ -260,7 +260,7 @@ public class SubscriptionService {
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, List.of(), reading.answers(),
                 SubscriptionOutcome.values(), PasCodes.SUBSCRIPTION_ELEMENTS);
         NextStepView nextStep = SubscriptionVerdicts.nextStep(reading, exchange, operation, subscriptionId, followsRunId,
-                sendsBody ? callbackProblem : null, ownBody);
+                sendsBody ? callbackProblem : null, ownBody, runId);
         // The error panel is for a fault. An id the service does not know is a finding about the
         // id and is presented as an answer, even though it arrived with an error status.
         ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;

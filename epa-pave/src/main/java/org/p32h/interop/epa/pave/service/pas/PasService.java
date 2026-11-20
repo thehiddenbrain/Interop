@@ -222,7 +222,7 @@ public class PasService {
         try {
             // Only the reading and wording of the response is inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one run.
-            read = interpret(request, operation, call, exchange, sent, known, followsRunId, leftOut);
+            read = interpret(request, operation, call, exchange, sent, known, followsRunId, leftOut, runId);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -272,7 +272,7 @@ public class PasService {
     }
 
     private Interpreted interpret(RunRequest request, EpaOperation operation, PreparedCall call, VendorExchange exchange, SentClaim sent,
-                                  Map<String, String> known, String followsRunId, List<String> leftOut) {
+                                  Map<String, String> known, String followsRunId, List<String> leftOut, String runId) {
         PasReading reading = mapper.read(exchange, sent, operation == EpaOperation.PAS_INQUIRE);
         PasOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
@@ -290,7 +290,7 @@ public class PasService {
         VerdictView verdict = PasVerdicts.verdict(reading, exchange, operation);
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 PasOutcome.values(), PasCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = PasVerdicts.nextStep(reading, exchange, operation, followsRunId);
+        NextStepView nextStep = PasVerdicts.nextStep(reading, exchange, operation, followsRunId, runId);
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
         ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;
