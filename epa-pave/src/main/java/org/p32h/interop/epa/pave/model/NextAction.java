@@ -10,10 +10,13 @@ package org.p32h.interop.epa.pave.model;
 public enum NextAction {
     /** Answer the payer's questionnaire. */
     START_DTR("Answer the payer's questionnaire (DTR)."),
-    /** Answer the next adaptive question. */
-    ANSWER_NEXT_QUESTION("Answer the next question of the questionnaire (DTR)."),
-    /** Answer the questionnaire that was loaded and submit the response. */
-    SUBMIT_RESPONSE("Answer the questionnaire that was loaded and submit the response (DTR)."),
+    /**
+     * Answer the next adaptive question. The label is the name of the DTR tab's button that does
+     * it, so the next step and the screen give the action one name.
+     */
+    ANSWER_NEXT_QUESTION("Send answers and get the next question"),
+    /** Answer the questionnaire that was loaded and complete the response, named as the DTR tab's button is. */
+    SUBMIT_RESPONSE("Complete the response"),
     /** Submit the prior authorization request. */
     START_PAS("Submit the prior authorization request (PAS)."),
     /** Ask for the status of a pended authorization. */

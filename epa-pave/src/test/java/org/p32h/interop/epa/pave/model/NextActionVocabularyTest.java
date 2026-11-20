@@ -35,4 +35,10 @@ class NextActionVocabularyTest {
         assertThat(NextAction.SEND_ON_ITS_OWN.label()).doesNotStartWith("Unlock").startsWith("Send this write on its own from its tab")
                 .doesNotContain("never carries");
     }
+
+    @Test
+    void theTwoDtrActionsAreNamedAsTheButtonsOfTheDtrTabAre() {
+        assertThat(NextAction.SUBMIT_RESPONSE.label()).isEqualTo("Complete the response");
+        assertThat(NextAction.ANSWER_NEXT_QUESTION.label()).isEqualTo("Send answers and get the next question");
+    }
 }

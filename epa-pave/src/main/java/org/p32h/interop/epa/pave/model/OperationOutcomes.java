@@ -38,7 +38,8 @@ public final class OperationOutcomes {
                 location.add(element.shown());
             }
             issues.add(new IssueView(issue.shown("severity"), issue.shown("code"), issue.shown("diagnostics"),
-                    details.exists() ? details.shown("text") : Shown.absent(), detailsCodes, expression, location));
+                    details.exists() ? details.shown("text") : Shown.absent(), detailsCodes, expression, location,
+                    issue.child("expression").exists(), issue.child("location").exists()));
         }
         return issues;
     }

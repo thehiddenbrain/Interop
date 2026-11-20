@@ -192,7 +192,7 @@ public class ExchangeExecutor {
                 return new Failure(OnyxFailureType.UNAVAILABLE, "The connection was refused or could not be opened.", Reached.NO);
             }
             if (t instanceof UnknownHostException || t instanceof UnresolvedAddressException) {
-                return new Failure(OnyxFailureType.UNAVAILABLE, "The host name could not be resolved.", Reached.NO);
+                return new Failure(OnyxFailureType.UNAVAILABLE, "The name of the service's host could not be found.", Reached.NO);
             }
             if (t instanceof NoRouteToHostException) {
                 return new Failure(OnyxFailureType.UNAVAILABLE, "There is no network route to the host.", Reached.NO);
@@ -200,7 +200,8 @@ public class ExchangeExecutor {
             // The handshake comes before the request, so when it fails nothing of the request was sent.
             if (t instanceof SSLHandshakeException || t instanceof SSLPeerUnverifiedException) {
                 return new Failure(OnyxFailureType.UNAVAILABLE,
-                        "The TLS handshake failed. On a network with an inspection proxy, check the trust store.", Reached.NO);
+                        "The secure connection could not be set up: the TLS handshake failed. On a network with an inspection "
+                        + "proxy, check the trust store.", Reached.NO);
             }
             // Any other TLS failure can come after the handshake, with the request already on its way.
             if (t instanceof SSLException) {
