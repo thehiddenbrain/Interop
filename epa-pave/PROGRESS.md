@@ -80,17 +80,19 @@ the tabs being built. None of it is on this line, and none of it is done until i
   zone for dates, labels for suite counts, labels for lookup statuses and `exactCode`, and a label
   for the authorization requirement of a procedure code row (CASE-14).
 - Fixtures: the scenario list shows only the first sentinel of a file; a damaged scenario set is
-  reported on a suite row as "not valid" and a chain row loses the CRD run it made; the lookup
-  fixtures accept two files claiming one identifier and a repeated key; beans only mock uses exist on
-  live and no test starts the live context.
+  reported on a suite row as "not valid", a chain row included (in the code at this revision such a
+  chain keeps and names the steps it already sent, since any failure of a later step ends the chain
+  with an unverified case line, D-167; this was not run against a damaged set); the lookup fixtures
+  accept two files claiming one identifier and a repeated key; beans only mock uses exist on live
+  and no test starts the live context.
 - Ledger: a suite row's over-long expectation is still quoted back; the code list's CSV records print
   their cells in `toString`; `RunController` keeps its own copies of the ledger's limits; the
   `RunLedger` Javadoc does not say what the policy does on mock, nor that `query` and `find` apply
   case lines; the DTR case step can split a "not recorded" statement into addresses. The History
   tab's fix reported that the server kept saying "The ledger cannot write" after the ledger folder
-  was restored, until a restart; nobody has looked into it. Replay's refusal of a step that used what an earlier step handed
-  on does not point to the suite row of protocol `chain`; the ledger's health does not say which
-  file holds an unreadable line.
+  was restored, until a restart; nobody has looked into it. Replay's refusal of a step that used
+  what an earlier step handed on does not point to the suite row of protocol `chain`; the ledger's
+  health does not say which file holds an unreadable line.
 - A lookup identifier holding `%2F` ends as a generic 400 from the server.
 - Suites: a second suite started while one runs is answered 409 with kind `VALIDATION`, not a kind
   for a busy tool (suites review m8). `SuiteCases` still refuses a hook with "The hook must be
@@ -153,9 +155,7 @@ the tabs being built. None of it is on this line, and none of it is done until i
   and sync are checked by reading the code. Two instances on one ledger directory are not
   coordinated. A note written after the clock was set back across midnight is on disk and not applied.
 - Fixtures: any new top-level key in a scenario file stops the mock start until it is added to the
-  loader's list. For a chain row that meets a damaged scenario set, the code keeps and names the
-  steps already sent (any failure of a later step ends the chain with an unverified case line,
-  D-167), but files the row as not valid; this was not run against a damaged set. A file numbered 0 still becomes the default for unmatched IDs, and an `expect` block
+  loader's list. A file numbered 0 still becomes the default for unmatched IDs, and an `expect` block
   that contradicts its body is still listed as the expected outcome.
 - Suites: whether a code assertion's value is in its value set is not checked before sending. A
   well-formed chain id the tool never issued is accepted. The test ledger does not apply case lines
@@ -179,20 +179,19 @@ the tabs being built. None of it is on this line, and none of it is done until i
 - The wire view: a secret sent back re-encoded (percent, base64, another case) or shorter than six
   characters is not found.
 - Documentation: `run.cmd` has never been run. STS, a mirror that needs credentials and a token
-  server were not tested. A plain
-  `./gradlew build` can skip the sample tests after a sample is edited; `clean build` runs them. The
+  server were not tested. A plain `./gradlew build` can skip the sample tests after a sample is
+  edited; `clean build` runs them. The
   README states what a request sent from the collection as it is sends, and will need changing when
   D-139 is closed.
 
 **Checked only by unit tests or at the gateway, never in the running tool.** A chain interrupted
 part way writing its case line, and the write note of a suite on a production target (VS-6, VS-7);
 a failure of the tool inside a step, which in the running application can only be caused by
-editing code; whether a chain's DTR step can produce each fault outcome it is offered (not checked
-one by one);
-the lock that lands between preparing and sending; the replay paths for a refused claim id and an
-authorization number in several groups; the reached/not reached split for TLS failures, against a
-real endpoint; the ledger on the live profile; the masking of a returned secret in CRD, DTR and
-the lookups, which do not have it.
+editing code; the lock that lands between preparing and sending; the replay paths for a refused
+claim id and an authorization number in several groups; the split of TLS failures into reached and
+not reached, which was never tried against a real endpoint; the ledger on the live profile. Not
+checked at all: whether a chain's DTR step can produce each fault outcome a suite file may expect
+of it.
 
 ### What the audits found and what was done
 
@@ -270,7 +269,9 @@ audited again.
 | V4-11 minor | The NPI check is Luhn only | Not changed: a question for the operator | D-153 |
 
 Its verification: VF-01 (blocker, a damaged scenario set reported on a suite row as "not valid", and a
-chain loses its CRD run) partly fixed, rest open. VF-02 to VF-06 (no test that the start-up check
+chain loses its CRD run) partly fixed: the refusal has a type of its own, and the row still says
+"not valid" (open). That a chain now keeps the steps it sent follows, in the code, from the chain
+fix (D-167); it was not run against a damaged set. VF-02 to VF-06 (no test that the start-up check
 runs, the identifier scan missed prefixes, live locked out by mock files, a sentence naming a Java
 method, unknown keys quoted) fixed (D-153).
 
