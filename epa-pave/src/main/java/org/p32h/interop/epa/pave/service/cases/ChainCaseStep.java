@@ -101,7 +101,8 @@ public final class ChainCaseStep implements CaseStep {
         String hook = spec.operation() == EpaOperation.CRD_ORDER_SELECT ? CrdRunRequest.ORDER_SELECT : CrdRunRequest.ORDER_SIGN;
 
         List<RunEnvelope<?>> done = new ArrayList<>();
-        // A case that already belongs to a chain joins it. Otherwise this journey starts one.
+        // NEW_CHAIN and not blank: a blank chain id means a run that belongs to no chain, and the
+        // steps this journey runs after the first one need a chain to join.
         String chainId = Texts.orElse(Texts.trimToNull(spec.chainId()), RunRequest.NEW_CHAIN);
         // The first call is not caught here: nothing has been sent before it, so the runner reports it as for any case.
         RunEnvelope<?> first = crd.run(CrdCaseStep.request(context, hook, expectation.of(Protocol.CRD), chainId), context.origin(), null);

@@ -89,7 +89,7 @@ class MemberLookupServiceTest {
 
     @Test
     void aBlankIdIsRefusedBeforeAnyLookup() {
-        for (String blank : Arrays.asList(null, "", "   ", "\t\n", "  ")) {
+        for (String blank : Arrays.asList(null, "", "   ", "\t\n", "\u00a0\u2003")) {
             assertThatThrownBy(() -> service.lookup(blank)).isInstanceOfSatisfying(ValidationException.class, e -> {
                 assertThat(e.fieldErrors()).containsExactly(new FieldError("memberId", "Enter a member ID. Nothing was looked up."));
                 assertThat(e.getMessage()).isEqualTo("There is no member ID to look up. Nothing was sent.");

@@ -41,8 +41,6 @@ final class Wording {
         return value.isArray() ? "an empty list" : value.isObject() ? "an empty object" : "an empty text";
     }
 
-    // ---- an element only one request has ----
-
     static String onlyMember(boolean tool, JsonNode value) {
         return switch (JsonSafe.presence(value)) {
             case NULL -> side(tool) + " has this element, written as an explicit null, and " + other(tool) + " does not have it at all.";
@@ -93,8 +91,6 @@ final class Wording {
         return tool ? "The tool's list has a reference here with no counterpart in your list."
                 : "Your list has a reference here with no counterpart in the tool's list.";
     }
-
-    // ---- an element both have ----
 
     static String differentType(JsonNode tool, JsonNode yours) {
         JsonType toolType = JsonType.of(tool);
@@ -214,8 +210,6 @@ final class Wording {
         return " The tool's was built from what was read out of yours, so the two are compared with each other.";
     }
 
-    // ---- labels and references ----
-
     static String differentIds(String resourceType, int following) {
         String start = "The two requests give this " + resourceType + " different ids. An id is a label inside one request. ";
         if (following == 0) {
@@ -312,8 +306,6 @@ final class Wording {
                 + " the request carries. The " + resourceType + " that " + there + " carries in its place is labelled differently, so in "
                 + there + " the same text does not point at that " + resourceType + ".";
     }
-
-    // ---- what the engine could not do ----
 
     static String notClassified(boolean known) {
         return known ? " This tool does not say which group a difference in the value of this element belongs to."

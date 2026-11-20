@@ -224,7 +224,11 @@ public final class JsonComparer {
         }
     }
 
-    /** Two resources that were compared with each other, as each document's index knows them. */
+    /**
+     * A matched pair held as the index entries, not as the bare resources: whether a reference
+     * followed a renamed resource depends on its id and on the full url of its entry, and the full
+     * url belongs to the bundle entry, not to the resource.
+     */
     private record Pair(ResourceIndex.Resource tool, ResourceIndex.Resource yours) {
 
         /**

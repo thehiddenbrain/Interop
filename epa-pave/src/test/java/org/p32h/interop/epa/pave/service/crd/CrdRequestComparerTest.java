@@ -53,8 +53,8 @@ class CrdRequestComparerTest {
     private static final String BIRTH_DATE = "1970-01-31";
     private static final String ONLY_HOOK_INSTANCE = "hookInstance | DIFFERENT_VALUE | EVERY_CALL";
     /** The names, dates of birth and addresses of every fixture: none may appear in a sentence. */
-    static final String[] MEMBER_DATA = {SURNAME, BIRTH_DATE, "Given", "Sample-Member", "Robin", "Quinn", "1968-04-12",
-            "1 Placeholder Street", "Sampletown", "Sample-Provider", "Alex", "Form-Surname"};
+    static final String[] MEMBER_DATA = {SURNAME, BIRTH_DATE, "Given", "Placeholder-Sample-Member", "Robin", "Quinn", "1968-04-12",
+            "1 Placeholder Street", "Sampletown", "Placeholder-Sample-Provider", "Alex", "Placeholder-Form-Surname"};
 
     private final FakeGateway gateway = new FakeGateway();
     private final FakeCodeList codeList = new FakeCodeList();
@@ -634,17 +634,17 @@ class CrdRequestComparerTest {
     @Test
     void aValueOnTheFormIsUsedAndReportedAsTheFormsAndTheRestIsReadFromThePastedRequest() {
         RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json"))
-                .member(MemberDetail.builder().memberId("S123456789").lastName("Form-Surname").build()).dateOfService("2026-04-01").build());
+                .member(MemberDetail.builder().memberId("S123456789").lastName("Placeholder-Form-Surname").build()).dateOfService("2026-04-01").build());
         assertThat(source(comparison, "member.lastName").source()).isEqualTo(CaseValue.Source.FORM);
         assertThat(source(comparison, "member.lastName").path()).isNull();
-        assertThat(source(comparison, "member.lastName").value().value()).isEqualTo("Form-Surname");
+        assertThat(source(comparison, "member.lastName").value().value()).isEqualTo("Placeholder-Form-Surname");
         assertThat(source(comparison, "member.firstName").source()).isEqualTo(CaseValue.Source.YOUR_REQUEST);
         assertThat(source(comparison, "dateOfService").source()).isEqualTo(CaseValue.Source.FORM);
         // What the form says differently is a difference in the case.
         Difference family = at(comparison, "prefetch[Patient].name[0].family");
         assertThat(line(family)).isEqualTo("prefetch[Patient].name[0].family | DIFFERENT_VALUE | CASE");
-        assertThat(family.toolValue().value()).isEqualTo("Form-Surname");
-        assertThat(family.yourValue().value()).isEqualTo("Sample-Member");
+        assertThat(family.toolValue().value()).isEqualTo("Placeholder-Form-Surname");
+        assertThat(family.yourValue().value()).isEqualTo("Placeholder-Sample-Member");
         assertThat(family.what()).isEqualTo("The family name.");
         assertThat(at(comparison, "context.draftOrders.entry[ServiceRequest #1].resource.occurrenceDateTime").explanation())
                 .startsWith("The two requests hold different text here. This tool sends the date of service as a date");
@@ -665,7 +665,7 @@ class CrdRequestComparerTest {
         assertThat(name.note()).isEqualTo("Your request holds this for another member ID than the one on the form, so it was not used.");
         // The provider is the same one, so the provider's name is still read.
         assertThat(source(comparison, "provider.lastName").source()).isEqualTo(CaseValue.Source.YOUR_REQUEST);
-        assertThat(comparison.toolBody()).contains("S999999999").doesNotContain("Sample-Member").doesNotContain("1968-04-12").contains("Sample-Provider");
+        assertThat(comparison.toolBody()).contains("S999999999").doesNotContain("Placeholder-Sample-Member").doesNotContain("1968-04-12").contains("Placeholder-Sample-Provider");
         assertThat(lines(comparison)).contains("prefetch[Patient].name | ONLY_IN_YOURS | BUILD", "prefetch[Patient].birthDate | ONLY_IN_YOURS | BUILD",
                 "prefetch[Coverage].subscriberId | ONLY_IN_YOURS | BUILD");
     }
@@ -678,7 +678,7 @@ class CrdRequestComparerTest {
                 + "for the provider on the form, and the provider's name in your request was not used for it.");
         assertThat(notFound(comparison, "provider.lastName").note()).isEqualTo("Your request holds this for another NPI than the one on the form, "
                 + "so it was not used.");
-        assertThat(comparison.toolBody()).contains("1234567893").doesNotContain("Sample-Provider");
+        assertThat(comparison.toolBody()).contains("1234567893").doesNotContain("Placeholder-Sample-Provider");
         Difference npi = at(comparison, "prefetch[Practitioner].identifier[http://hl7.org/fhir/sid/us-npi].value");
         assertThat(npi.group()).isEqualTo(DifferenceGroup.CASE);
         assertThat(npi.what()).isEqualTo("The value of one identifier of the practitioner, such as an NPI.");
@@ -1145,8 +1145,8 @@ class CrdRequestComparerTest {
         assertThat(printed).hasSizeGreaterThan(60);
         for (Object value : printed) {
             assertThat(value.toString()).as(value.getClass().getSimpleName()).doesNotContain("S123456789").doesNotContain("S987654321")
-                    .doesNotContain("Sample-Member").doesNotContain("Robin").doesNotContain("1968-04-12").doesNotContain(NPI)
-                    .doesNotContain("Sample-Provider").doesNotContain("hookInstance\"").doesNotContain("resourceType").doesNotContain("pat-8842")
+                    .doesNotContain("Placeholder-Sample-Member").doesNotContain("Robin").doesNotContain("1968-04-12").doesNotContain(NPI)
+                    .doesNotContain("Placeholder-Sample-Provider").doesNotContain("hookInstance\"").doesNotContain("resourceType").doesNotContain("pat-8842")
                     .doesNotContain("Placeholder Street");
         }
         assertThat(compared.toString()).isEqualTo("RequestComparison[comparable=true, differences=34]");

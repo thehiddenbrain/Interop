@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.model.compare.RequestComparison;
+import org.p32h.interop.epa.pave.style.HouseStyle;
 
 /**
  * What every sentence of a comparison is held to, for the tests of the comparison.
@@ -22,23 +23,7 @@ final class CompareWords {
     private static final List<Pattern> VERDICTS = List.of(word("must"), word("requires"), word("should send"), word("is wrong"),
             word("is correct"));
 
-    // The house style rules of build.gradle, put together from pieces as they are there, so that
-    // this file does not hold the text it looks for.
-    private static final List<Pattern> HOUSE_STYLE = List.of(
-            Pattern.compile(range(0x2012, 0x2015)),
-            Pattern.compile(range(0x2018, 0x201F)),
-            Pattern.compile("(?i)\\b(?:" + String.join("|", "seam" + "less\\w*", "ro" + "bust\\w*", "lever" + "ag\\w*",
-                    "del" + "v(?:e[sd]?|ing)\\b", "sle" + "ek\\w*", "cutting" + "[ -]" + "edge", "best" + "[ -]in[ -]" + "class") + ")"),
-            Pattern.compile("(?i)" + "letter" + "-" + "spacing"),
-            Pattern.compile("(?i)(?<![a-z0-9])" + "p" + "32" + "(?!h)"),
-            Pattern.compile("(?i)" + "x" + "engine"));
-
     private CompareWords() {
-    }
-
-    /** A character class from two code points, so no character outside ASCII is written in this file. */
-    private static String range(int from, int to) {
-        return "[" + Character.toString(from) + "-" + Character.toString(to) + "]";
     }
 
     private static Pattern word(String words) {
@@ -50,9 +35,9 @@ final class CompareWords {
         for (Pattern verdict : VERDICTS) {
             assertThat(verdict.matcher(text).find()).as("\"" + text + "\" says what a service expects or which request is right: " + verdict).isFalse();
         }
-        for (Pattern rule : HOUSE_STYLE) {
-            assertThat(rule.matcher(text).find()).as("\"" + text + "\" breaks the house style: " + rule).isFalse();
-        }
+        // The rules the build holds the source tree to, from the one class that holds them, since a
+        // sentence put together at run time is in no file the build reads.
+        assertThat(HouseStyle.checkText("sentence", text)).as("\"" + text + "\" breaks the house style").isEmpty();
         // Plain ASCII throughout, which is what the screen and a pasted message to a vendor both show unchanged.
         assertThat(text.chars().allMatch(c -> c >= 32 && c < 127)).as("\"" + text + "\" is plain ASCII").isTrue();
     }

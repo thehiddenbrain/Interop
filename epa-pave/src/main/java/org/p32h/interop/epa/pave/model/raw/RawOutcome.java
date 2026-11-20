@@ -17,7 +17,11 @@ public enum RawOutcome implements OutcomeCode {
     SERVICE_ERROR("The service failed", Tone.FAULT, true),
     TIMEOUT("The service did not answer in time", Tone.FAULT, true),
     UNREACHABLE("The service could not be reached", Tone.FAULT, true),
-    /** The response started and did not finish. */
+    /**
+     * Only a body cut off part way. The shared classification also calls a complete body that is not
+     * JSON malformed; here that is ANSWERED_NOT_JSON, since a request this tool does not interpret
+     * may answer with something other than JSON.
+     */
     MALFORMED_RESPONSE("The service started to answer and the answer did not arrive in full", Tone.FAULT, true);
 
     private final String label;

@@ -52,7 +52,7 @@ class LookupLoggingTest {
             {
               "memberId": "S12345678   01",
               "firstName": "Zebediah-Placeholder",
-              "lastName": "Quillfeather-Placeholder",
+              "lastName": "Placeholder-Quillfeather",
               "dateOfBirth": "07/19/1961",
               "gender": "nonbinary-placeholder",
               "lineOfBusiness": "Medicare-Placeholder-Line",
@@ -72,7 +72,7 @@ class LookupLoggingTest {
 
     private static final String NPI = Npi.withCheckDigit("123456789");
     private static final String PROVIDER_URL = "https://directory.example.invalid/providers?npi=" + NPI;
-    private static final String PROVIDER = "{\"npi\":\"" + NPI + "\",\"firstName\":\"Peregrine-Placeholder\",\"lastName\":\"Thistlewood-Placeholder\","
+    private static final String PROVIDER = "{\"npi\":\"" + NPI + "\",\"firstName\":\"Peregrine-Placeholder\",\"lastName\":\"Placeholder-Thistlewood\","
             + "\"specialty\":\"Sleep-Medicine-Placeholder\",\"networkStatus\":\"Out of network\",\"phone\":\"617-555-0142\"}";
     private static final List<String> PROVIDER_DATA = List.of(NPI, "directory.example.invalid", "Peregrine", "Thistlewood",
             "Sleep-Medicine-Placeholder", "Out of network", "617-555-0142");
@@ -111,7 +111,7 @@ class LookupLoggingTest {
             results.add(members(Map.of()).lookup(FORMS));
             server.reset();
             server.expect(requestTo(MEMBER_URL)).andRespond(withStatus(HttpStatus.NOT_FOUND)
-                    .body("{\"message\":\"No member S1234567801, Quillfeather-Placeholder\"}").contentType(MediaType.APPLICATION_JSON));
+                    .body("{\"message\":\"No member S1234567801, Placeholder-Quillfeather\"}").contentType(MediaType.APPLICATION_JSON));
             results.add(members(Map.of()).lookup(FORMS));
             server.reset();
             server.expect(requestTo(MEMBER_URL)).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -133,7 +133,7 @@ class LookupLoggingTest {
         // The lookups ended the ways this test means them to, with the member data in the results, where it belongs.
         assertThat(results).extracting(MemberLookupResult::status).containsExactly(LookupStatus.FOUND, LookupStatus.NOT_FOUND,
                 LookupStatus.FAULT, LookupStatus.FAULT, LookupStatus.FAULT, LookupStatus.DISABLED);
-        assertThat(results.get(0).member().lastName()).isEqualTo("Quillfeather-Placeholder");
+        assertThat(results.get(0).member().lastName()).isEqualTo("Placeholder-Quillfeather");
         assertThat(results.get(0).member().dateOfBirth()).isEqualTo("1961-07-19");
         assertThat(results.get(0).attention()).isNotEmpty();
         assertThat(results.get(0).wire().request().url()).isEqualTo(MEMBER_URL);
@@ -175,7 +175,7 @@ class LookupLoggingTest {
 
         assertThat(results).extracting(ProviderLookupResult::status).containsExactly(LookupStatus.FOUND, LookupStatus.NOT_FOUND,
                 LookupStatus.FAULT, LookupStatus.DISABLED);
-        assertThat(results.get(0).provider().lastName()).isEqualTo("Thistlewood-Placeholder");
+        assertThat(results.get(0).provider().lastName()).isEqualTo("Placeholder-Thistlewood");
         assertThat(own).containsExactly(
                 "INFO " + PROVIDER_LOGGER + ": Provider lookup ended FOUND with HTTP status 200",
                 "INFO " + PROVIDER_LOGGER + ": Provider lookup ended NOT_FOUND with HTTP status 404",

@@ -1,6 +1,10 @@
 package org.p32h.interop.epa.pave.model.chain;
 
-/** Where one stage of a chain stands. */
+/**
+ * Where one stage of a chain stands. Kept apart from the outcome of the stage's last run, because
+ * four of these states describe a stage with no run at all, and an outcome cannot say why a run is
+ * missing.
+ */
 public enum ChainStageState {
     /** The stage ran and handed on to a later stage, or ended the journey. */
     DONE,

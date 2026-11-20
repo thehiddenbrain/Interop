@@ -144,12 +144,12 @@ class CrdRequestReaderTest {
 
     @Test
     void theMembersDetailsAreReadFromThePatientAndTheCoverage() {
-        Reading reading = read(request("'patientId':'p1'", "'who':{'resourceType':'Patient','id':'p1','name':[{'family':'Sample-Member',"
-                + "'given':['Robin','Quinn']},{'family':'Earlier-Name'}],'birthDate':'1968-04-12','gender':'female'},"
+        Reading reading = read(request("'patientId':'p1'", "'who':{'resourceType':'Patient','id':'p1','name':[{'family':'Placeholder-Sample-Member',"
+                + "'given':['Robin','Quinn']},{'family':'Placeholder-Earlier-Name'}],'birthDate':'1968-04-12','gender':'female'},"
                 + "'cov':{'resourceType':'Coverage','id':'c1','status':'active','subscriberId':'SUB-PLACEHOLDER-1','class':["
                 + "{'type':{'coding':[{'code':'group'}]},'value':'GROUP-PLACEHOLDER'},"
                 + "{'type':{'coding':[{'system':'http://terminology.hl7.org/CodeSystem/coverage-class','code':'plan'}]},'value':'PLAN-PLACEHOLDER'}]}"));
-        assertFound(reading, CaseField.MEMBER_LAST_NAME, "Sample-Member", "prefetch.who.name[0].family");
+        assertFound(reading, CaseField.MEMBER_LAST_NAME, "Placeholder-Sample-Member", "prefetch.who.name[0].family");
         assertFound(reading, CaseField.MEMBER_FIRST_NAME, "Robin", "prefetch.who.name[0].given[0]");
         assertFound(reading, CaseField.MEMBER_DATE_OF_BIRTH, "1968-04-12", "prefetch.who.birthDate");
         assertFound(reading, CaseField.MEMBER_GENDER, "female", "prefetch.who.gender");
@@ -209,13 +209,13 @@ class CrdRequestReaderTest {
 
     private static final String PRACTITIONER = "'doc':{'resourceType':'Practitioner','id':'prac-1','identifier':["
             + "{'system':'https://directory.example.invalid/ids','value':'OTHER-PLACEHOLDER'},{'system':'http://hl7.org/fhir/sid/us-npi','value':'" + NPI + "'}],"
-            + "'name':[{'family':'Sample-Provider','given':['Alex']}]}";
+            + "'name':[{'family':'Placeholder-Sample-Provider','given':['Alex']}]}";
 
     @Test
     void theNpiIsReadFromThePractitionerTheUserIdNames() {
         Reading reading = read(request("'userId':'Practitioner/prac-1'", PRACTITIONER));
         assertFound(reading, CaseField.NPI, NPI, "prefetch.doc.identifier[1].value");
-        assertFound(reading, CaseField.PROVIDER_LAST_NAME, "Sample-Provider", "prefetch.doc.name[0].family");
+        assertFound(reading, CaseField.PROVIDER_LAST_NAME, "Placeholder-Sample-Provider", "prefetch.doc.name[0].family");
         assertFound(reading, CaseField.PROVIDER_FIRST_NAME, "Alex", "prefetch.doc.name[0].given[0]");
         assertThat(Npi.isValid(reading.value(CaseField.NPI))).isTrue();
     }
@@ -431,9 +431,9 @@ class CrdRequestReaderTest {
     void nothingTheReaderHandsBackPrintsAValue() {
         Reading reading = read(request("'patientId':'p1','userId':'Practitioner/prac-1','draftOrders':{'entry':[{'resource':{"
                 + orderOn("'occurrenceDateTime':'2026-03-20'") + "}}]}", "'who':{'resourceType':'Patient','id':'p1','identifier':[{" + MB
-                + ",'value':'S123456789'}],'name':[{'family':'Sample-Member'}],'birthDate':'1968-04-12'}," + PRACTITIONER));
+                + ",'value':'S123456789'}],'name':[{'family':'Placeholder-Sample-Member'}],'birthDate':'1968-04-12'}," + PRACTITIONER));
         String printed = reading + " " + reading.found(CaseField.MEMBER_ID) + " " + reading.orders() + " " + reading.missing();
-        assertThat(printed).doesNotContain("S123456789").doesNotContain("Sample-Member").doesNotContain("1968-04-12").doesNotContain(NPI)
+        assertThat(printed).doesNotContain("S123456789").doesNotContain("Placeholder-Sample-Member").doesNotContain("1968-04-12").doesNotContain(NPI)
                 .doesNotContain("95810");
         assertThat(reading.found(CaseField.MEMBER_ID).toString()).isEqualTo("Found[prefetch.who.identifier[0].value]");
         assertThat(reading.orders().get(0).toString()).isEqualTo("Order[ServiceRequest at context.draftOrders.entry[0].resource]");
