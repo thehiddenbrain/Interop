@@ -236,7 +236,7 @@ export function createRawView(context) {
             el('label', {htmlFor: id}, placeholder(variable.name), variable.secret ? [' ', flag('secret')] : null),
             input,
             el('span', {class: 'field__hint'}, variable.resolved
-                ? ['Now: ', code(variable.display), ', from ', sourceWords(variable.source), '.']
+                ? ['Now: ', code(variable.display), ' (', sourceWords(variable), ')']
                 : [el('strong', null, 'No value. '), variable.reason || '']));
     }
 

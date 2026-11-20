@@ -600,7 +600,7 @@ export function requestPreviewPanel(preview, close) {
             ? table(['Placeholder', 'Value shown', 'Comes from'], url.variables.map(variable => [
                 placeholderAsWritten(variable.name, url.template),
                 variable.display === undefined ? presenceMark('ABSENT') : [code(variable.display), variable.secret ? ' (masked: a secret)' : null],
-                sourceWords(variable.source, true)]), {class: 'thirds'})
+                sourceWords(variable)]), {class: 'thirds'})
             : null,
         preview.notes && preview.notes.length > 0 ? el('ul', {class: 'note-list'}, preview.notes.map(note => el('li', null, note))) : null,
         body ? el('div', {class: 'raw-body'},
