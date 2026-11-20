@@ -159,25 +159,25 @@ public class PasController {
     }
 
     @GetMapping("/subscriptions/{id}")
-    public ResponseEntity<RunEnvelope<SubscriptionDetail>> readSubscription(@PathVariable String id, @RequestParam Map<String, String> parameters,
+    public ResponseEntity<RunEnvelope<SubscriptionDetail>> readSubscription(@PathVariable("id") String id, @RequestParam Map<String, String> parameters,
                                                                            HttpServletRequest http) {
         return RunResponses.of(subscriptions.run(EpaOperation.SUBSCRIPTION_GET, fromParameters(id, parameters), RunOrigin.manual(),
                 SessionUnlock.from(http)));
     }
 
     @PutMapping("/subscriptions/{id}")
-    public ResponseEntity<RunEnvelope<SubscriptionDetail>> updateSubscription(@PathVariable String id, @RequestBody SubscriptionRequest request,
+    public ResponseEntity<RunEnvelope<SubscriptionDetail>> updateSubscription(@PathVariable("id") String id, @RequestBody SubscriptionRequest request,
                                                                              HttpServletRequest http) {
         return RunResponses.of(subscriptions.run(EpaOperation.SUBSCRIPTION_UPDATE, about(id, request), RunOrigin.manual(), SessionUnlock.from(http)));
     }
 
     @PostMapping("/subscriptions/{id}/preview")
-    public RequestPreview previewUpdateSubscription(@PathVariable String id, @RequestBody SubscriptionRequest request, HttpServletRequest http) {
+    public RequestPreview previewUpdateSubscription(@PathVariable("id") String id, @RequestBody SubscriptionRequest request, HttpServletRequest http) {
         return subscriptions.preview(EpaOperation.SUBSCRIPTION_UPDATE, about(id, request), SessionUnlock.from(http));
     }
 
     @DeleteMapping("/subscriptions/{id}")
-    public ResponseEntity<RunEnvelope<SubscriptionDetail>> deleteSubscription(@PathVariable String id, @RequestParam Map<String, String> parameters,
+    public ResponseEntity<RunEnvelope<SubscriptionDetail>> deleteSubscription(@PathVariable("id") String id, @RequestParam Map<String, String> parameters,
                                                                              HttpServletRequest http) {
         return RunResponses.of(subscriptions.run(EpaOperation.SUBSCRIPTION_DELETE, fromParameters(id, parameters), RunOrigin.manual(),
                 SessionUnlock.from(http)));
@@ -269,7 +269,7 @@ public class PasController {
      * notification it already shows, and gets only what arrived since.
      */
     @GetMapping("/notifications")
-    public NotificationList notifications(@RequestParam(required = false) String since) {
+    public NotificationList notifications(@RequestParam(name = "since", required = false) String since) {
         return receiver.list(since);
     }
 

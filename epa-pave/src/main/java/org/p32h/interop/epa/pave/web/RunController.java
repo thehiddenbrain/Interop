@@ -125,12 +125,18 @@ public class RunController {
      * returned: the history screen should give one, and the answer says when it cut the list short.
      */
     @GetMapping
-    public RunList query(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
-                         @RequestParam(required = false) String protocol, @RequestParam(required = false) String operation,
-                         @RequestParam(required = false) String result, @RequestParam(required = false) String outcome,
-                         @RequestParam(required = false) String chainId, @RequestParam(required = false) String suiteRunId,
-                         @RequestParam(required = false) String limit, @RequestParam(required = false) String testerRef,
-                         @RequestParam(required = false) String zone, @RequestParam(required = false) String follows) {
+    public RunList query(@RequestParam(name = "from", required = false) String from,
+                         @RequestParam(name = "to", required = false) String to,
+                         @RequestParam(name = "protocol", required = false) String protocol,
+                         @RequestParam(name = "operation", required = false) String operation,
+                         @RequestParam(name = "result", required = false) String result,
+                         @RequestParam(name = "outcome", required = false) String outcome,
+                         @RequestParam(name = "chainId", required = false) String chainId,
+                         @RequestParam(name = "suiteRunId", required = false) String suiteRunId,
+                         @RequestParam(name = "limit", required = false) String limit,
+                         @RequestParam(name = "testerRef", required = false) String testerRef,
+                         @RequestParam(name = "zone", required = false) String zone,
+                         @RequestParam(name = "follows", required = false) String follows) {
         List<FieldError> errors = new ArrayList<>();
         java.time.ZoneId clock = read(errors, () -> Params.zone("zone", zone));
         LocalDate first = read(errors, () -> Params.date("from", from));
@@ -182,9 +188,11 @@ public class RunController {
      * JSON error shape, not as CSV, when a date cannot be read.
      */
     @GetMapping("/export.csv")
-    public ResponseEntity<byte[]> export(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
-                                         @RequestParam(required = false) String protocol, @RequestParam(required = false) String result,
-                                         @RequestParam(required = false) String zone) {
+    public ResponseEntity<byte[]> export(@RequestParam(name = "from", required = false) String from,
+                                         @RequestParam(name = "to", required = false) String to,
+                                         @RequestParam(name = "protocol", required = false) String protocol,
+                                         @RequestParam(name = "result", required = false) String result,
+                                         @RequestParam(name = "zone", required = false) String zone) {
         List<FieldError> errors = new ArrayList<>();
         java.time.ZoneId clock = read(errors, () -> Params.zone("zone", zone));
         LocalDate first = read(errors, () -> Params.date("from", from));
@@ -226,7 +234,7 @@ public class RunController {
 
     /** One run with its latest note. Answers 404 when the ledger holds no run with that id. */
     @GetMapping("/{runId}")
-    public RunRecord one(@PathVariable String runId) {
+    public RunRecord one(@PathVariable("runId") String runId) {
         return ledger.find(runId).orElseThrow(() -> RunIds.notFound(runId));
     }
 
@@ -236,7 +244,7 @@ public class RunController {
      * be read, gives neither value or gives one that is too long, and 404 when there is no such run.
      */
     @PostMapping("/{runId}/note")
-    public NoteResult note(@PathVariable String runId, @RequestBody NoteRequest request) {
+    public NoteResult note(@PathVariable("runId") String runId, @RequestBody NoteRequest request) {
         List<FieldError> errors = new ArrayList<>();
         if (request.note() == null && request.testerRef() == null) {
             errors.add(new FieldError("note", "Give a note, a tester reference or both. Nothing was changed."));
