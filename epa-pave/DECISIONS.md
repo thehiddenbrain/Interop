@@ -19,8 +19,11 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-141 | A value nobody supplied is never invented, and a request says what it left out | A service that refuses such a request is not at fault, and the result says so |
 | D-190, D-206 to D-208 | The frontend is merged and joined into one tool, and the screens read the server's words | The two proofs before handover were seen on the real tabs on mock by browser scripts (D-208); no business tester has used the tool |
 | D-213 | The configuration store keeps uploads exactly as uploaded, and can therefore hold member data an uploaded environment or collection contains | It qualifies section 15's rule that no member data is persisted. The upload warns by the names of variables and saved examples; nothing is stripped |
-| D-210 to D-218 | The second audits of member data, the guardrail and fixtures found blockers, and their fixes are merged | No fix has been checked by an agent that did not write it. What is still open is first in `PROGRESS.md` |
-| D-227 | Four questions put to the operator have no answer | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request |
+| D-210 to D-218, D-245 | The second audits of member data, the guardrail and fixtures found blockers, and their fixes are merged | Each fix was checked by an agent that did not write it (D-245): most closed, and several open one step away, among them a production address the client cannot read. Four tasks are fixing them, decided in D-246 to D-249 and not done at the revision of D-252. What is still open is first in `PROGRESS.md` |
+| D-227, D-252 | Four questions put to the operator have no answer | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request |
+| D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
+| D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
+| D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
 
 ## Build and environment
 
@@ -108,6 +111,9 @@ be skipped as up to date. Its patterns are assembled from fragments so the build
 contain the text it forbids. The generated `gradlew` script contains a copyright sign and
 guillemets from Gradle itself. Those are not among the forbidden characters and the script is
 not hand-edited.
+(Replaced by D-244: the rules live in one class that the gate's task and a test both run, the files
+come from git with their names checked, a test fails if the gate is taken out of the build, and
+angle quotation marks are refused everywhere but `gradlew`.)
 
 ## Shared contracts (Spine 1)
 
@@ -399,6 +405,8 @@ is matched ignoring case and compared under the response's spelling.
 A run with one answer writes `pa-needed=no-auth` as before. A run with several writes
 `95810: pa-needed=auth-needed`, and an unanswered code is written `95811: (no answer)`, so a replay
 in which two codes swap answers no longer writes an identical line.
+(Extended by D-236: a `covered`, `pa-needed` or `doc-needed` sent null, empty or with no value is
+written `name=(null)`, `name=(empty)` or `name=(no value)`.)
 
 **D-057. The mock answers every order it is sent.**
 A scenario file holds the answer for one order. When a request carries several, the mock repeats
@@ -413,6 +421,9 @@ a value. Asking for the elements of an array never marks it. An empty array ther
 among the returned fields unless the view states the emptiness itself, which keeps `"links": []`
 apart from no links at all without a presence flag beside every list. An empty string, array and
 object keep their JSON text so they can be told apart.
+(Overturned in part by D-236: a designed view now says in words whether a value or a list was not
+returned, returned null or returned empty, from presences the server sends. The rule for the tracked
+reads stands.)
 
 **D-059. What a resource holds beyond what the tool reads is shown with its action.**
 An action's resource is listed in full beside the action (`ActionView.resource`), so an echoed
@@ -1114,6 +1125,8 @@ not to amend the earlier one. An inquiry does use the identifier of the submissi
   `x12-275` the tool only names the attachment on the claim and sends no attachment.
 (The claim identifier after "attachment required" stays as written here; why is under D-161. The
 subscription topic a run does not name is now the one PAS 2.0.1 defines, D-160.)
+(Changed by D-239: the receiver reads, maps and matches the whole body, up to 8 MiB; only the text
+it holds is cut at 131072 bytes.)
 
 **D-134. From the DTR report: how the questionnaire steps are handled.**
 - A response from the adaptive loop is tied to the questionnaire it completes by `derivedFrom`
@@ -1169,6 +1182,9 @@ Not true at the revision of D-175: the refusal a tester meets on replay does not
 suite row, and there is no screen on that line. Both are open work.)
 (Both done by the revision of D-201: the replay refusal points to the suite row (D-189), and the
 History tab is on the line, offering no replay on a line the ledger says replay refuses (D-172).)
+(Since D-243 the refusal of a replay of such a step says that the run followed run X and was handed
+its case, so it cannot be sent again alone; it calls it a step of a chain only when the line carries
+a chain id.)
 
 **D-139. "Send a request from the collection as it is" does not send the body saved in the collection. D-097 overstated it.**
 Found by the newcomer who followed the README. `POST /api/raw` sends the method, the address and
@@ -1496,6 +1512,10 @@ cannot be told from a code by its shape and the record never holds the name to c
 (Extended after the second member data audit by D-217 to D-219: the note, the tester reference
 and the expectation, every procedure code and the subject of every coverage code, and the
 identifiers a service supplies are now checked as well. The known gap stands.)
+(Decided again for identifiers a service supplies in D-246, item 3, not done at the revision of
+D-252: such an identifier is written in clear only when it is a UUID, an OID or one the tool minted,
+and as a token otherwise. A code the code list holds is to be kept whatever its shape, D-246, item
+6.)
 
 **D-152. Replay refuses a line whose correlation value was not kept, and the redaction test finds records by itself.**
 Replay treats a refused correlation value as a missing input only where a case sends that value (a
@@ -1729,6 +1749,8 @@ collection as it is, whose "returned but not interpreted" fields are still read 
 received; until the server does it, the page masks them, D-196. The JSON number is still not masked.)
 (Both done since: the raw send reads the masked body (D-205) and a JSON number is masked (D-202). A
 received notification is masked with every secret the tool could have sent, D-215.)
+(A received notification is to say so too when a secret was too short to search for, D-247, item 4;
+decided, not done at the revision of D-252.)
 
 **D-163. Whether a failed call may have reached the service, and other words a result now chooses with care.**
 From the PAS follow-up.
@@ -2152,6 +2174,8 @@ From the suites verification's VS-11, and a finding of the verification that was
   of them; one `correlatedRunId` cannot name them all, and the package fetch is the one run every one
   of them follows. The chain id ties all the lines together. `DtrHandoff` documents the rule and a
   journey test pins it.
+(Stands, D-243 and D-251: the walkthrough asked again for the response run, and it was decided
+otherwise. History lists the runs that follow a run, so the response run is reached in two steps.)
 
 **D-182. Smaller decisions in the protocols.**
 - On mock, a CRD run whose own body is not JSON keeps the verdict of the scenario that answered but
@@ -2390,6 +2414,10 @@ exports (D-191).
 `StaticServerWordsTest` fails if a removed copy comes back. The `sameCase` copies went in the join,
 D-206. One copy of the server's words remains at the revision of D-228: the label beside a code
 list finding says "the bundled placeholder" for any list that says it is synthetic, D-223.)
+(Since D-231 the server gives every error its heading and the page keeps only the style of each
+kind; the code list label takes its words from the self-check, D-230. Absent, null and empty are
+said in words in every designed view since D-236. At the revision of D-252 the page still heads the
+error panel "What went wrong" itself, D-249.)
 
 **D-191. Who owns which file of the frontend, and what a tab may ask of the frame.**
 The parts were built at the same moment by different agents, so each owned files and was forbidden
@@ -2522,6 +2550,8 @@ back address is drawn as needing nothing further. Changing the tones is decided 
 (Changed since, D-203: a completed DTR response is in the tone that asks for action, a created
 subscription and an unmatched notification are neutral. The key draws its finding groups from the
 server, D-207.)
+(Added since: a row for a step nobody answered, D-240; the black side rule of a warning about an
+upload or an address, D-230; on mock a fault of the service is one a scenario played, D-231.)
 
 **D-196. What the page does about a secret a service sends back, until the server masks it everywhere.**
 The frame review found the bearer token a stand-in echoed shown in clear under "Returned but not
@@ -2765,6 +2795,7 @@ From the CRD review's CMP-6, CMP-7, CMP-10 and CMP-12 and the protocol half of D
   preview and the designed view, and a delivered notification is masked for the credentials of the
   address to call back. Secrets the environment and the token service hold were not reachable from
   the receiver at this point; that gap was confirmed by the second audits and closed by D-215.
+(The caveat left `notes`, D-229.)
 
 **D-203. Tones say what the answer means for whoever must act, and the DTR and PAS answers carry their own words.**
 From the DTR review (R02, R04, R05, R09, R16, R18), the PAS review (R02, R05, R06, R11, R12, R15) and
@@ -2814,6 +2845,8 @@ From the protocol half of D-200, item 1, and FR-16 and CRD-2.
   NPI, stop the start naming both (`LookupFixturesTest`). It pins behaviour that was already there.
 - The protocol task changed one count in `PasControllerTest`, a test of the other task (9 scenarios
   answering an inquiry became 11). The integrator accepted it at the merge (D-228).
+(The sentence `VendorExchange.withScenario` added was removed by D-229: the error panel alone says
+that a timeout was played.)
 
 **D-205. The platform half: words the server gained, refusals that say what happened, and two halves of a rule seen together.**
 From the frame review (FR-01, FR-03, FR-04, FR-07, FR-08, FR-11, FR-13, FR-16, FR-17), the CRD review
@@ -2874,6 +2907,8 @@ From the frame review (FR-01, FR-03, FR-04, FR-07, FR-08, FR-11, FR-13, FR-16, F
 - The platform task changed one line of a CRD test of the other task (`PlaceholderOnTheLiveProfileTest`
   now lists `group` and `groupLabel` among a finding's properties). The integrator accepted it at the
   merge (D-228).
+(A played timeout is said once since D-229 and headed as played since D-231; the label of
+`CHECK_ENVIRONMENT` was made true on mock, D-231.)
 
 ### The screens joined, and reading what the server says
 
@@ -2945,6 +2980,8 @@ From `TASK_JOIN2`, on revision `0658a7c`, which holds the two server tasks.
   run is still answered from a scenario where the raw send refuses the same request (decided,
   D-226); the body source is served as a code only and the page shows the server's sentence instead
   (no decision has been made about this one).
+(The two items handed to the server and decided were done, D-229: the masked lookup field and the
+raw resolve note. The body source of a raw send is still undecided at the revision of D-252.)
 
 **D-208. What the passes proved on the real tabs, and a replay never joins a chain.**
 - The two proofs of "Prove it before handover" were seen on the real tabs, on mock, by the second pass,
@@ -2967,6 +3004,8 @@ From `TASK_JOIN2`, on revision `0658a7c`, which holds the two server tasks.
   the running tool by the second pass. `ChainServiceTest` pins what a chain view says for a blocked
   replay, a state the tool cannot reach. Decided: a replay never joins a chain, and the test and the
   comments are to be brought into line with that (D-226).
+(Brought into line, D-229: `ChainServiceTest` pins a blocked suite row instead, and a test pins that
+a replay's line holds no chain id.)
 
 **D-209. The README brought up to the tool as built, and the pull request draft.**
 From `TASK_DOCS2`, on the line with the join and before the server tasks for the screens were merged.
@@ -2984,6 +3023,8 @@ From `TASK_DOCS2`, on the line with the join and before the server tasks for the
   non-ASCII character and names the generating tool, which the house style and the rule against
   naming a tool as an author both forbid. Which wins is the integrator's to decide before it is
   posted; nothing is posted yet.
+(The README was brought up to `5763c41` by D-232; the last pass is D-250. Which wins in the draft's
+footer is still undecided.)
 
 ### The second audits, and their fixes
 
@@ -3026,6 +3067,9 @@ stand-ins playing production, the audit's requests were refused and the stand-in
 nothing. Not proven: IPv6, because this machine has no IPv6 loopback and that test returned early;
 and the fix's tests were not run against the code before it (the B1 tests use the new methods and
 would not compile there). The only evidence that B1 was open before is the audit's.
+(Checked by an agent that did not write the fix, D-245: closed in the first direction, open in the
+second for a production address the client cannot read. Decided in D-247, item 1, not done at the
+revision of D-252.)
 
 **D-211. No request leaves with an encoded separator in its path.**
 From the guardrail audit's M-ENC (major) and m3 (minor). A value typed for one run holding `..%2F`
@@ -3046,6 +3090,8 @@ it used to be sent percent-encoded inside one segment (D-184); six existing test
 search with `%2F` in its query arrived at a sandbox stand-in unchanged in
 `SecondGuardrailAuditOverTheServerTest`, and was not tried by hand. How a real nginx or Tomcat in
 front of a service decodes was tested neither by the audit nor by the fix.
+(Checked and closed, D-245. Extended by D-247, item 3, decided and not done: a percent-escape of a
+byte above 0x7F is to be refused as well.)
 
 **D-212. What the Config answers warn about an address.**
 From the guardrail audit's m4 (minor), B1 and M-ENC. Three warnings, in the upload answer's
@@ -3061,6 +3107,8 @@ From the guardrail audit's m4 (minor), B1 and M-ENC. Three warnings, in the uplo
   described, so a production environment uploaded later also warns on the sandbox.
 No screen shows `addressWarnings` at the revision of D-228 (D-226); the upload answer carries the
 same sentences.
+(Shown on screen since D-230, under each listed environment and after a switch. The "same server"
+warning for a production port that could not be read is to be reworded, D-247, item 5.)
 
 **D-213. The configuration store keeps uploads as they are, and can therefore hold member data. The upload warns; nothing is stripped.**
 From the member data audit's F5 (minor). **This qualifies the rule of section 15 that no member data
@@ -3081,6 +3129,8 @@ never inspected, so member data under a name the list does not know is kept with
 sample collection carries saved examples, so its upload now warns; one assertion of the sample
 files' test was changed for that (D-228). Covered by `MemberDataUploadTest`, not run against the
 code before the fix.
+(The upload's member data warnings are shown on the Config tab since D-230. More variable names are
+decided, D-247, item 9.)
 
 **D-214. Lock, from any browser, locks every session, and now a test fails if it stops.**
 From the guardrail audit's T1 (major), F-SCREEN (major) and m2 (minor). D-144's rule stands: a Lock
@@ -3098,6 +3148,9 @@ tab of a session that was unlocked goes on saying writes are unlocked until it i
 the banner beside it says locked (F-SCREEN), and the unlock panel does not say that Lock ends every
 session's unlock (m2). The server refuses the write, so nothing reaches production; the screen says
 something false. Both are the screens' to fix, decided and not done (D-226).
+(Done since: the 409 at the send carries the refusal's own sentence, D-229; the Config tab of a
+session that was unlocked is redrawn, and the tester told, after a lock from another browser, D-230;
+the server's unlocked reason says what Lock does, D-231. Checked closed, D-245.)
 
 **D-215. A received notification is masked with everything the tool could have sent to the service.**
 From the guardrail audit's GAP1 and the member data audit's F0 (blocker). A secret a service repeated
@@ -3116,6 +3169,7 @@ was received. `SecretsSentBackOverTheServerTest` delivers a notification that re
 four kinds; none appears in the answer or in the list. With the receiver given no secrets, it
 failed. On the jar the four appeared 0 times in the list, the ledger and the log. The limits of the
 wire view's search apply (D-162): a secret shorter than six characters, or re-encoded, is not found.
+(Checked closed, D-245. A short secret is to get a note, D-247, item 4.)
 
 **D-216. The guardrail's smaller decisions.**
 - A raw send of a request mapped to an operation is refused on locked production "because a request
@@ -3170,6 +3224,10 @@ request does not carry, so member data must not be typed into them. On the jar, 
 tracking: each of the audit's ways in gave 422 on its field, and a refused note on the CRD tab was
 marked and its sentence shown (1366 by 768 only). The run forms carry no hint before the refusal
 (D-226).
+(Since D-231 a request sent as written checks its free text against the identifiers its body states,
+and every run form carries the hint since D-230. The check found a request of the tester's own from
+a protocol tab checked against nothing, and month-name dates and other forms of the ID not
+recognised, D-245; decided in D-246, items 1, 2, 4 and 5, not done at the revision of D-252.)
 
 **D-218. What the ledger keeps of a procedure code, and of an identifier a service supplies.**
 From the member data audit's F3 and F2 (major). Before, the run's own member ID typed where a
@@ -3204,6 +3262,10 @@ component was renamed or removed, and the eight lines the audit's live run wrote
 new code with none unreadable. One test of replay was changed because a 64-hex claim id holding a
 run of ten digits is no longer kept; it now asserts the statement and that replay never passes it
 on.
+(Overturned for identifiers a service supplies by D-246, item 3, decided and not done at the
+revision of D-252: shape cannot settle it, so such an identifier is kept in clear only when it is a
+UUID, an OID or one the tool minted, and as a token otherwise. The check found numeric ids no longer
+matched and punctuated member IDs kept, D-245.)
 
 **D-219. What a ledger line says in the place of a value that was not kept, and what replay does with it.**
 A line never holds a value the record refused, and never drops it in silence: it holds a statement
@@ -3219,6 +3281,8 @@ this run was not recorded, because what was sent did not have the shape of a cod
 ID. ..." and "The expectation of this run was not recorded, ... so a run again could not be checked
 against it."); a tester reference statement is not carried into the new run. A statement is never
 sent as if it were a value.
+(Under D-246, item 3, an identifier kept as a token is to be said to be one on the line, and replay
+to refuse a case that needs it with a sentence of its own; decided, not done.)
 
 **D-220. One rule chooses a mock scenario, for a typed identifier and one found in a pasted body alike.**
 From the fixture audit's F-RAW (major). The cross-protocol sentinels of D-154 were honoured by DTR in
@@ -3232,6 +3296,8 @@ on that, never on the wording of the note: the PAS inquiry refusal used to read 
 says "found in the request body" when it was. The hand-written alias pass in the DTR mock, the
 pre-pass in the CRD mock and the Java map of the PAS mock are gone. A test checks, for each
 protocol, that a pasted identifier picks the same scenario by the same rule as the typed one.
+(The check found a sentinel NPI in a pasted body ignored, D-245; the rule is to hold for the NPI
+too, D-248, item 1, not done at the revision of D-252.)
 
 **D-221. The sentinels of another protocol are data in the scenario files, and claimed like a file's own.**
 From the fixture audit's F-PAS-SHADOW, F-DUP-CRDSENT (major) and F-PAS-CRDMAP-HIDDEN (minor). The CRD
@@ -3248,6 +3314,8 @@ the same CRD sentinel and the second never answered.
   within a file and across files, and refuses naming both files ("... is already claimed by ... One
   sentinel selects one scenario."). The entries must be `P32H-` sentinels.
 Scenarios are data: a QA author can change the mapping without compiling.
+(A mapping entry that names no CRD sentinel, and a directory written before this change, are to be
+noted at load, D-248, items 2 and 5; not done.)
 
 **D-222. On mock, what CRD names for a DTR sentinel follows that sentinel.**
 From the fixture audit's F-CHAIN-DTR (blocker). CRD answered every DTR sentinel with scenario 4, which
@@ -3264,6 +3332,8 @@ the carry CRD hands on, and the same as suite rows of the protocol chain, assert
 stated outcome; with the change switched off it failed with exactly the six rows the audit reported.
 Seen in the browser at 1366 by 768 and 1920 by 1080: CRD with `P32H-DTR-ADAPT`, "Continue in DTR",
 and the package loaded with one questionnaire. A chain suite was not driven by hand on the jar.
+(Checked closed, D-245. The rule is to hold also when the documentation scenario is chosen by hand,
+D-248, item 4; not done.)
 
 **D-223. A code list says of itself that it is synthetic, and the tool believes the file, not its path.**
 From the fixture audit's F-SAMPLE-LIST (major). D-169 marked only the bundled list as the placeholder,
@@ -3280,6 +3350,8 @@ sentences of `CrdConformanceChecker` and the label of a code list finding on scr
 "the synthetic placeholder that ships with the tool" or "the bundled placeholder", which is not true
 of the sample or of a tester's own marked list; and the README presents the sample's self-check
 without the warning. Each is decided and not done (D-226).
+(Both sentences and the screen label were made true, D-229 and D-230. Two comments still say the
+flag means the bundled list, D-248, item 7.)
 
 **D-224. The fixtures' smaller decisions.**
 - **Test NPIs.** A ten-digit number in a test resource and in four test classes passed the NPI check
@@ -3308,6 +3380,8 @@ without the warning. Each is decided and not done (D-226).
 - **Known limit.** An `expect` block whose outcome contradicts what its file produces, with the same
   HTTP status, is not detected at start: it would mean running each protocol's response mapper at
   load time. The scenario list still advertises such an outcome.
+(The notes are shown on screen since D-230. No test fails if the controllers drop the list's notes;
+tests are decided, D-248, item 3. The `expect` outcome limit stands.)
 
 ### Decided not to do, and known limits
 
@@ -3349,6 +3423,7 @@ Left by the protocol task for the screens with no decision, because no task line
 a collection request's name, the tool-side hook instance written as a sentence (always one
 difference), how an inquiry's answer differs from the last one seen, `ResponseItemView.answers` as
 codes, and a quantity's unit constraint.
+(Continued by D-251.)
 
 ### Work decided and not done at the revision of D-228
 
@@ -3402,6 +3477,8 @@ say what became of each.
    V3 and V4 in its part on the verification agents and a place for the check of each fix by an agent
    that did not write it. The draft's list of decision entries stops at D-201; entries after it are
    to be added.
+(What became of each: the server, D-229; the screens, D-230; the README and the draft, D-232; what
+the first two left each other, D-231.)
 
 ### Questions the operator has not answered
 
@@ -3420,6 +3497,7 @@ say what became of each.
 4. **Whether a sample request from the UM vendor, with no real member data, can be shared** for the
    request comparison (D-119). The comparison has met no real vendor request; its vendor-shaped test
    request is hand-written, so how the vendor's own request differs from the tool's is not known.
+(Still unanswered at the revision of D-252, which records one more exchange with the operator.)
 
 ### Joining the parts
 
@@ -4040,8 +4118,10 @@ marked `[open at this revision: being fixed]`.
 **D-251. Decided otherwise in the last audits' fixes, and the limits the fixes and the checks report.**
 Decided, each with its reason: by the integrator in its task files, or by the agent that did the work
 where marked so.
-- **No comparison, item by item, of what was asked with what was returned** (the PAS review's R07): the
-  decision of D-199 stands; the PAS detail shows each item's decision and the wire view the rest.
+- **No comparison, item by item, of what was asked with what was returned** (the PAS review's R07): D-199
+  stands. Every item is shown as returned, with its adjudication and extensions; working out "what
+  changed" would match the items of two documents by position and call a difference a change, a
+  judgement nobody supplied.
 - **No endpoint that works out which questionnaire items are enabled without a run** (D-199): the DTR tab
   says the enabled items are worked out each time the response is completed (D-203).
 - **A PAS line names the package fetch it follows, not the response run** (the walkthrough's
