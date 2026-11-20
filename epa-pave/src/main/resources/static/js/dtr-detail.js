@@ -118,17 +118,13 @@ function formPart(form) {
 }
 
 /**
- * What changed since the previous step, as the server compared the two. Exported for the
- * questionnaire view, which passes heldBefore(linkId): the answers the response held before the
- * step, as the server returned them then, so a dropped answer is shown with what it was.
+ * What changed since the previous step, as the server compared the two. A dropped answer comes
+ * with the values it had, as the server read them from the response before the step.
  */
-export function changesBlock(changes, heldBefore) {
-    const before = ref => {
-        const held = heldBefore ? heldBefore(ref.linkId) : null;
-        return held && held.length > 0
-            ? el('div', {class: 'small'}, 'The response before this step held: ', held.map((answer, index) => [index > 0 ? '; ' : null, shown(answer)]))
-            : null;
-    };
+export function changesBlock(changes) {
+    const before = ref => Array.isArray(ref.values) && ref.values.length > 0
+        ? el('div', {class: 'small'}, 'The response before this step held: ', ref.values.map((value, index) => [index > 0 ? '; ' : null, el('strong', null, value)]))
+        : null;
     return el('div', {class: 'dtr-changes'},
         el('p', null, changes.summary),
         changes.compared && changes.appeared.length + changes.disappeared.length + changes.answersDropped.length > 0 ? facts([
@@ -161,7 +157,7 @@ function questionnaireBlock(q) {
     return el('div', {class: 'detail__item'},
         el('p', {class: 'detail__item-head'},
             el('span', {class: 'sub-heading'}, q.position + '. ', q.subject),
-            el('span', {class: 'dtr-kind dtr-kind--' + String(q.kind).toLowerCase()}, kindWord(q.kind))),
+            el('span', {class: 'dtr-kind dtr-kind--' + String(q.kind).toLowerCase()}, kindWord(q))),
         el('p', {class: 'small quiet'}, 'Where it was found: ', code(q.foundAt)),
         facts([
             ['Title', shown(q.title)],
@@ -173,7 +169,7 @@ function questionnaireBlock(q) {
             ['Status', status.presence === 'VALUE'
                 ? [code(status.code), status.display ? ' ' + status.display : null, status.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a status this tool knows')] : null]
                 : presenceMark(status.presence || 'ABSENT')],
-            ['Kind', [kindWord(q.kind), q.kindBasis ? el('div', {class: 'small'}, q.kindBasis) : null]],
+            ['Kind', [kindWord(q), q.kindBasis ? el('div', {class: 'small'}, q.kindBasis) : null]],
             ['Questions', q.questionCount + (q.questionCount === 1 ? ' question, ' : ' questions, ') + q.requiredCount + ' marked required'],
             ['Arrived with a response', q.arrivedWith ? ['Yes, at ', code(q.arrivedWith), '. Answering starts from it.'] : 'No'],
             ['Derived from', shownList(q.derivedFrom, {as: 'literal'})],
@@ -210,11 +206,11 @@ export function notApplied(q) {
 }
 
 /**
- * The kind of a questionnaire, as the code the server sent. The server words the kind in kindBasis,
- * which is shown beside it; the page keeps no words of its own for the codes.
+ * The kind of a questionnaire in the server's words (kindLabel), or the code it sent when it sent
+ * no words. Why it is of that kind is the server's kindBasis, shown beside it where there is room.
  */
-export function kindWord(kind) {
-    return String(kind);
+export function kindWord(view) {
+    return view && view.kindLabel ? view.kindLabel : String(view ? view.kind : '');
 }
 
 /* ---------- a library, a value set or another resource ---------- */

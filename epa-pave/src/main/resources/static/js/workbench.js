@@ -536,7 +536,7 @@ export function nextStepControl(app, forCase) {
         // The tab offers its own control for that step, or none.
         const here = TAB_OF_PROTOCOL[envelope.protocol] || null;
         const goTo = tabId => () => {
-            app.carryTo(tabId, {carry: step.carry || {}, fromRunId: envelope.runId, fromProtocol: envelope.protocol, chainId: envelope.chainId, forCase});
+            app.carryTo(tabId, {carry: step.carry || {}, carryLabels: step.carryLabels || {}, fromRunId: envelope.runId, fromProtocol: envelope.protocol, chainId: envelope.chainId, forCase});
             app.navigate(tabId);
         };
         if (step.action === 'START_DTR' && here !== 'dtr') {

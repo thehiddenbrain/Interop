@@ -165,8 +165,9 @@ function conditions(item) {
                     ? [code(condition.operator.code), condition.operator.recognised === false ? [' ', el('span', {class: 'flag'}, 'not an operator this tool knows')] : null]
                     : presenceMark(condition.operator ? condition.operator.presence : 'ABSENT')),
                 el('td', null, shown(condition.answer, {as: 'literal'})),
-                // The state is shown as the code the server sent: the page keeps no words of its own for it.
-                el('td', null, el('span', {class: 'dtr-condition dtr-condition--' + String(condition.state).toLowerCase()}, code(String(condition.state)))),
+                // The state in the server's words, with the code it sent beside them.
+                el('td', null, el('span', {class: 'dtr-condition dtr-condition--' + String(condition.state).toLowerCase()},
+                    condition.stateLabel ? [condition.stateLabel, ' '] : null, code(String(condition.state)))),
                 el('td', null, condition.explanation || null))))));
 }
 

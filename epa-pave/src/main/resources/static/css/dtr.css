@@ -29,24 +29,6 @@
     min-width: 0;
 }
 
-.dtr-carried__table {
-    font-size: var(--text-small);
-}
-
-.dtr-carried__table {
-    table-layout: auto;
-}
-
-/* The name a value was handed on as is short and is read whole; the value beside it wraps. */
-.dtr-carried__table td:first-child {
-    width: 1%;
-    white-space: nowrap;
-}
-
-.dtr-carried__table td + td {
-    overflow-wrap: anywhere;
-}
-
 .dtr-carried__stale {
     font-size: var(--text-small);
 }

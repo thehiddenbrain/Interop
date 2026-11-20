@@ -80,10 +80,16 @@ export function createHandover(spec) {
         }
         if (others.length > 0) {
             parts.push(el('p', {class: 'small'}, changed ? 'What was handed on:' : 'What goes with the next request, unchanged:'),
-                facts(others.map(([key, values]) => [key, valuesOf(key, values)]), 'facts--ruled pas-handover__facts'));
+                facts(others.map(([key, values]) => [carriedName(key), valuesOf(key, values)]), 'facts--ruled handed-on pas-handover__facts'));
         }
         parts.push(el('p', null, button('Set this hand-over aside', () => { dismissed = true; draw(); spec.changed(); }, {class: 'button--text'})));
         fill(node, parts);
+    }
+
+    /** A key of what was handed on, in the server's words, with the key beside them; the key alone when it sent none. */
+    function carriedName(key) {
+        const label = handed.carryLabels ? handed.carryLabels[key] : null;
+        return label ? [label, ' ', el('span', {class: 'small quiet'}, '(', code(key), ')')] : code(key);
     }
 
     function valuesOf(key, values) {
