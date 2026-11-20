@@ -360,7 +360,10 @@ public class ConfigStore {
                     continue;
                 }
                 if (parsed.request(old.request().id()) == null) {
-                    warnings.add("The correction that mapped \"" + old.request().qualifiedName() + "\" to " + old.correction().label()
+                    // "Unmapped request" is the label of no operation, so taking a request off is never said as mapping it.
+                    warnings.add((old.correction() == EpaOperation.UNMAPPED
+                            ? "The correction that took \"" + old.request().qualifiedName() + "\" off every operation"
+                            : "The correction that mapped \"" + old.request().qualifiedName() + "\" to " + old.correction().label())
                             + " was dropped, because the new file has no request with that name in that folder.");
                 } else {
                     corrections.put(old.request().id(), old.correction());

@@ -1103,7 +1103,10 @@ public class ConfigStoreGateway implements OperationGateway {
 
     private Refusal guard(ConfigSnapshot snapshot, CallIntent intent, Target target, String because, UrlForms.Filled filled, Origin origin) {
         StoredEnvironment active = snapshot.active();
-        String what = intent.operation().label() + (target.requestName() == null ? "" : " with the request \"" + target.requestName() + "\"");
+        // A request mapped to nothing is named as itself: "Unmapped request" is the label of no operation.
+        String what = intent.operation() == EpaOperation.UNMAPPED && target.requestName() != null
+                ? "The request \"" + target.requestName() + "\", sent as written,"
+                : intent.operation().label() + (target.requestName() == null ? "" : " with the request \"" + target.requestName() + "\"");
         String why = because == null ? "" : " It counts as a write because " + because + ".";
         boolean complete = filled != null && filled.complete();
 

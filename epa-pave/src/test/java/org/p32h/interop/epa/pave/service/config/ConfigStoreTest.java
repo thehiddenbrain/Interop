@@ -208,7 +208,7 @@ class ConfigStoreTest {
         String renamed = PostmanFiles.text(PostmanFiles.VENDOR_COLLECTION).replace("\"inquiry Happy Path\"", "\"status check\"");
         ConfigStore.CollectionUpload upload = fixture.store.uploadCollection("renamed.json", renamed.getBytes(StandardCharsets.UTF_8));
 
-        assertThat(upload.warnings()).contains("The correction that mapped \"PAS / inquiry Happy Path\" to Unmapped request was dropped, "
+        assertThat(upload.warnings()).contains("The correction that took \"PAS / inquiry Happy Path\" off every operation was dropped, "
                 + "because the new file has no request with that name in that folder.");
         assertThat(upload.collection().requests()).allMatch(mapped -> mapped.correction() == null);
     }
