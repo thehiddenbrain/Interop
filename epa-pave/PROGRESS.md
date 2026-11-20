@@ -37,7 +37,7 @@ the leftover tasks and the frontend are D-176 to D-201.
   now untrue: those that say a request sent from the collection as it is does not send the saved body
   (lines 422 to 428, 762, 909, 916, 1194 to 1195, 1228, as the leftover tasks counted them), that the
   wire view shows exactly what went over the wire (line 314), the known gap about a credential in a
-  Subscription's channel header (lines 330 to 332, 1162 to 1163), and what a raw send answers for a url
+  Subscription's channel header (lines 331 to 333, 1162 to 1163), and what a raw send answers for a url
   with a part or a placeholder missing (lines 448 to 449, 707 to 709). It also lacks the query form of
   the lookups, the new filters of History, `urlValues` and the masking of a call back address.
 
@@ -59,12 +59,18 @@ answers inside the outgoing PAS request were seen only with a DTR answer injecte
 what the screen still shows because the server owns the words.
 - *Every tab (the frame).* Section 20's "before anything is uploaded, each protocol tab says plainly
   what it is missing and links to Config; it does not present a form that cannot send" is not met on
-  the CRD tab: the workbench's readiness option exists and no tab passes it (the DTR and PAS tabs read
-  the configuration themselves and do say it). The browser keeps its own grouping of finding kinds.
-  The colour key is wrong for three server tones (D-195). Asked of the frame and not done: clearing an
-  earlier 409 refusal when a comparison is drawn, marking a case detail as from a pasted request, a
-  collapsed chain bar at laptop height (it takes about 170 pixels above the PAS panes), an action box
-  that scrolls below about 800 pixels, determination cells that wrap mid-value. At phone width the
+  any protocol tab. The DTR and PAS tabs read the configuration themselves and say what is missing,
+  with a link to Config, but still present their form: PAS keeps Send (made quiet, and a refusal is
+  recorded on purpose), DTR keeps Fetch. The CRD tab says nothing until a send is refused. The
+  workbench's readiness option exists and no tab passes it. The browser keeps its own grouping of
+  finding kinds. The colour key is wrong for three server tones (D-195). Asked of the frame and not
+  done: clearing an earlier 409 refusal when a comparison is drawn, marking a case detail as from a
+  pasted request, an action box that scrolls below about 800 pixels, determination cells that wrap
+  mid-value. Asked of History's `js/chain.js` and not done: a collapsed chain bar at laptop height (it
+  takes about 170 pixels above the PAS panes). The frame's fix pass did not open the DTR and PAS tabs,
+  and its colour key and other-tab shots at 1920 were not taken (those at 1366 were looked at). The
+  frame pass did not reread the Config tab's files against the Config review's CFG-01 to CFG-22; it
+  drove only the flows it names. At phone width the
   History runs table and the CRD elements table run past the edge. No screen reader was used on any
   tab, contrast was never measured, 200% zoom was never tried, and `prefers-reduced-motion` was
   checked only by reading the stylesheets. Behaviour on screen has no test in the build: it was
@@ -78,7 +84,10 @@ what the screen still shows because the server owns the words.
   a Java class (CRD-3). The vendor's sample passes through the browser. The tool's own hook instance
   is a sentence, so it is always one difference. Not checked: production and blocked writes on this
   tab, a ledger that cannot record, the keyboard through the code picker, the live profile beyond
-  laptop size, every scenario's screenshot at both sizes.
+  laptop size, every scenario's screenshot at both sizes. The slow-response flag was seen only on mock
+  with a lowered threshold, never forced on live. When a pasted request and the case disagree, only a
+  member ID gets a "Use this member ID" button; two dates of service that disagree are listed with the
+  server's sentence and no button.
 - *DTR tab.* Still on screen because the server owns the words: "This tool shows and hides them as
   the answers change" (untrue of the screen), the tone of a completed response, next steps that name
   the actions in other words than the buttons, a verdict strip of six to ten technical lines, the raw
@@ -87,14 +96,22 @@ what the screen still shows because the server owns the words.
   open choice from a value set only, a repeating text question, a questionnaire of undetermined kind.
   Not sent: a wrapped next-question step, a package request of the tester's own. Not seen: "could not
   be reached" on live, a blocked write, the UAT banner, History's view and replay of DTR runs. Most
-  states were seen at 1366 by 768 only.
+  states were seen at 1366 by 768 only. A quantity's unit is free text, because the server gives no
+  unit constraint (`ItemView`); an answer the response holds is never put back into a control, because
+  the server gives display text, not the answer code (`ResponseItemView.answers`).
 - *PAS tab.* What changed per item from what was asked is not shown (decided not to be built, D-199).
   The tab still words where a decision was stated, how attachments travelled and whether the receiver
   can be reached, because the server gives no sentence (and no bind address). A preview's notes are
   in the past tense. A subscription created with no call back address is said to call back one the
   mock invented. An unmatched notification sends the tester after whoever created the subscription
   and repeats its reason. The mock timeout scenario tells the tester to inquire, and an inquiry with
-  the same sentinel is refused. Where a subscription value given for one run came from is not said.
+  the same sentinel is refused. Where a subscription value given for one run came from is not said, and
+  a run-value field for a builder variable such as `subscriptionHeartbeatSeconds` reads "Where the
+  request uses it was not reported.", because `/api/config/resolve` does not describe builder
+  variables. "Show how the answer differs from the last one seen" is not built: the inquiry answer
+  states no difference. The blank "Meaning" cell the review saw on a subscription status row was not
+  reproduced, and whether every protocol's determination grid writes "no meaning to state" was not
+  checked.
   Not checked: production with writes allowed and unlocked, live with an unreachable sandbox, a failing
   ledger, masking of a channel header on screen, the chain joined from the PAS tab, inquiry scenarios
   other than `pas-05`, 1920 by 1080 for production, 422 and live states, a payload over the 131072-byte
@@ -107,7 +124,11 @@ what the screen still shows because the server owns the words.
   to Unmapped request" (FR-08). A blocked request sent as written repeats its refusal in the next step
   (FR-13). "problem(s)" and "Nothing was sent" after a preview or an unlock (FR-17). The screen does
   not read `sourceLabel`, `lookupEnabled` or `blockedShort` yet. The 409 path of a mapping change and
-  a 422 on a mapping have never been seen on screen.
+  a 422 on a mapping have never been seen on screen. A request sent from the collection as it is: the
+  screen has no field for `urlValues` and does not show `bodySource` (its view was built before
+  D-184), so a request whose url holds a `{token}` cannot be sent from the Config tab. A preview of an
+  incomplete url on mock is now a 422 where it was a 200 with a note; no screen was checked against
+  that.
 - *History tab.* It does not read the new labels and filters (the next action words, suite count
   labels, `testerRef`, `matched`, the export filters, `zone`, the replay's verdict and next step,
   `unreadableFiles`) and still says every date is a UTC day.
@@ -124,14 +145,17 @@ what the screen still shows because the server owns the words.
   wire view masks it (FR-01). The page covers this as a stopgap (D-196). No test searches the whole
   answer of every endpoint for an echoed secret. A secret returned as a JSON number is masked nowhere.
 - *Production refusals of a replay or a suite row.* The services pass their origin and the result
-  heads the next step with `SEND_ON_ITS_OWN`; the two halves were built and checked apart, and are
-  merged and not yet seen together (D-183). The independent verifier of the platform half saw the
-  generic refusal sentence, because on its branch the services did not pass where a run came from.
-- *`/api/config/effective`, `/api/mode`, the configuration's 404s, every 422.* As in the Config tab
-  above, and: no bind address on `/api/mode`; no group for a finding kind; counts written "(s)"; a 422
+  heads the next step with `SEND_ON_ITS_OWN`; the two halves were built and checked apart (D-183). On
+  the protocol branch, where the services pass the origin, the protocol verifier saw the gateway's own
+  sentence for a refused suite row on the running application; a refused replay was not tried there.
+  On the platform branch, where they did not, the gateway's generic sentence showed with the new next
+  action and headline. The two halves are merged and nobody has seen them together.
+- *`/api/config/effective`, `/api/mode`, `/api/config/resolve`, the configuration's 404s, every 422.*
+  As in the Config tab above, and: no bind address on `/api/mode`; no description of builder variables
+  on `/api/config/resolve`; no group for a finding kind; counts written "(s)"; a 422
   worded for a send on every call.
 - *CRD.* `POST /api/crd/compare` returns a pasted credential as typed and its caveat only as the first
-  note of a comparable answer; it cannot take a collection request by name; a pasted request for
+  note of a comparable answer; it cannot take a collection request by name; it ignores `configEpoch`; a pasted request for
   another hook is answered comparable with a note. The CRD tab, DTR and PAS items above that name
   server words.
 - *DTR.* No label for the questionnaire kind, the condition states or the hand-over keys; the dropped
@@ -169,7 +193,10 @@ what the screen still shows because the server owns the words.
   rules DTR-07 names were tested only with made-up questionnaires, never with a real one, and the gap
   sentences of the DTR profile check were not mutation-tested one by one.
 - The chain: a DTR package that goes straight on to PAS is driven by no test and no mock scenario.
-- The guardrail: everything in D-145. How a real FHIR server acts on `//`, `;`, `..;` or an encoded
+- The guardrail: everything in D-145. The rule that refuses a call a run value pointed elsewhere while
+  it carries a secret sits in the gateway, so a request sent from the collection as it is passes
+  through it, but it was checked only for protocol calls and a subscription read, never for such a
+  request in the running application. How a real FHIR server acts on `//`, `;`, `..;` or an encoded
   slash inside a path segment was not checked; the tool sends the form it judged. A lock that lands
   between preparing and sending a write is tested at the gateway only.
 - Credentials: one typed into a path segment or a host of a collection is shown as written; a secret in
@@ -215,9 +242,16 @@ part way writing its case line, and the write note of a suite on a production ta
 the tool inside a step; the lock that lands between preparing and sending; the replay paths for a
 refused claim id and an authorization number in several groups; the split of TLS failures into
 reached and not reached; the ledger on the live profile; the chain view of a blocked replay
-(`SEND_ON_ITS_OWN` on the chain view); a callback address the service echoes in its Subscription
-(a unit test through the mock client; the verification saw it on live as well). Not checked at all:
-whether a chain's DTR step can produce each fault outcome a suite file may expect of it.
+(`SEND_ON_ITS_OWN` on the chain view, `ChainServiceTest`): a replay is not part of its original's
+chain (`RunReplay`), and on the running application a replayed PAS submission did not join its
+original's chain, so no chain whose latest line is a blocked replay could be shown. Not checked at
+all: whether a chain's DTR step can produce each fault outcome a suite file may expect of it.
+
+**Seen once on the running application, against a stand-in, and pinned by a unit test.** A secret in
+the call back address that the service echoes in its Subscription is masked in every view of the
+answer: the protocol verifier saw it on live against a stand-in that echoed the address, and
+`SubscriptionServiceTest.aSecretInTheAddressToCallBackThatTheServiceEchoesInItsSubscriptionIsMaskedInEveryViewOfTheAnswer`
+pins it.
 
 ### What the audits found and what was done
 
@@ -473,7 +507,7 @@ second half of CMP-2 (a detail taken from a pasted request is marked "by hand").
 | Finding | What it found | State | Entry |
 | --- | --- | --- | --- |
 | FR-01 blocker | A secret the service echoed shown in clear under "returned but not interpreted" | The page masks it as a stopgap; the server masks it for CRD, DTR, PAS and lookups, not for a request sent as written (open) | D-179, D-196 |
-| FR-02 major | A form that cannot send is shown on live with nothing configured | Partly: the workbench can withhold it, no tab turns that on; DTR and PAS say what is missing themselves, CRD does not (open) | D-191 |
+| FR-02 major | A form that cannot send is shown on live with nothing configured | Partly: the workbench can withhold it, no tab turns that on; DTR and PAS say what is missing themselves and still offer the form, CRD says nothing (open) | D-191 |
 | FR-03 major | "Can it be sent" looks at the url only | Not fixed: server (open) | D-200 |
 | FR-04 major | No way to see or choose which mapped request an operation uses | Partly: the page states the rule and names the request a run uses; no endpoint to choose, decided; the server's sentence is decided (open) | D-199, D-200 |
 | FR-05 major | The ledger indicator stayed in the fault frame after recording worked again | Fixed | D-197 |
@@ -522,7 +556,7 @@ second half of CMP-2 (a detail taken from a pasted request is marked "by hand").
 | R03 major | The package's expectation applied again to the response step | Fixed | D-197 |
 | R04 major | A completed response drawn as "nothing further is required" | Not fixed: server tone (open) | D-195, D-200 |
 | R05 major | The browser kept words for codes | Fixed in the tab (codes shown); the server's labels open | D-200 |
-| R06 major | The form drawn when DTR is not configured | Fixed: the tab says what is missing on arrival | D-191 |
+| R06 major | The form drawn when DTR is not configured | Partly: the tab says what is missing on arrival; the form and Fetch are still offered (open) | D-191, D-197 |
 | R07 major | Focus lost after three updates | Fixed | |
 | R08 major | A step's refusal shown beside the wrong button | Fixed | D-197 |
 | R09 major | One action, two names | Tab part fixed; the server's labels open | D-200 |
@@ -553,7 +587,7 @@ second half of CMP-2 (a detail taken from a pasted request is marked "by hand").
 | R11 minor | An unmatched notification in the tone for unknown member data | Tab part fixed; the tone open | D-195, D-200 |
 | R12 minor | The browser words decision sources, attachments, reachability | Not fixed: server (open) | D-200 |
 | R13 minor | Small layout faults | Tab part fixed; determination cells wrapping mid-value open (frame) | |
-| R14 minor | A form offered although every send is refused | Fixed: the tab says what is missing | |
+| R14 minor | A form offered although every send is refused | Partly: the tab says what is missing; the form is still offered and Send, made quiet, still sends (open) | D-191, D-197 |
 | R15 minor | Preview notes in the past tense | Tab introduces them; the server's tense open | D-200 |
 | R16 minor | Tester reference and note not on the result | Fixed | D-197 |
 
@@ -586,15 +620,16 @@ second half of CMP-2 (a detail taken from a pasted request is marked "by hand").
     the colour key, the shared result view (verdict, test result, next step, ledger line, findings,
     determination, detail, returned fields, wire, errors), the workbench, the case context, the
     hand-over. Seen: the four ledger states, a blocked result on mock, every key entry, the masking of
-    returned values, the Config mapping and removal flows with mouse and keyboard on mock and on a
-    production environment. The readiness option was seen only by injecting it into a tab in the
+    returned values, the Config mapping and removal flows on mock and on a production environment, some
+    with the keyboard and the others with the mouse (not every flow both ways). The readiness option was seen only by injecting it into a tab in the
     browser.
   - *The case* (member and provider lookup, code picker, a request of the tester's own, values for one
     run): seen in every lookup state on mock in the review before the fix wave merged (D-172).
   - *CRD tab and the comparison*: every one of the 14 scenarios ran through the real form, the
     comparison in each state the pass names (identical, one value different, the two vendor fixtures,
     no prefetch, another hook, not JSON, empty, very large, markup), fill and send, discovery. Live only
-    at laptop size, against an unreachable address and a stub of the agent's own.
+    at laptop size: the pass against an unreachable address, the review also against a loopback stub
+    of its own.
   - *DTR tab*: the 15 scenarios swept at 1366 by 768, a static questionnaire to a complete response, a
     required question left unanswered, the adaptive loop to completion with a question appearing and
     one disappearing, a loop failing in the middle, a pre-populated answer overridden, two
@@ -728,7 +763,7 @@ level 1 asks of it, the optional capabilities of section 28 included: CRD, DTR a
 not stubbed, the chain, suites, conformance checking and response times, with the gaps listed under
 "Not done" above. The frontend is on the line with all five tabs, and none of them is a stub. Level 1
 is still not claimed: the five tabs have not been used together, section 20's rule that a tab does not
-present a form that cannot send is not met on the CRD tab, the screens do not yet read what the server
+present a form that cannot send is met on no protocol tab, the screens do not yet read what the server
 gained after their base, and the gates of section 27 and "Prove it before handover" have not run. The
 level delivered is stated at the top of the handover once the pass that joins the tabs is merged and
 those gates have run.
