@@ -109,7 +109,7 @@ class RunRecordTest {
         assertThat(refused.answeredBy()).isEqualTo(AnsweredBy.NOT_SENT);
         assertThat(refused.elapsedMillis()).isNull();
         RunRecord arrived = minimal().protocol(Protocol.PAS).operation(EpaOperation.SUBSCRIPTION_NOTIFICATION).profile("mock").build();
-        assertThat(arrived.answeredBy()).isEqualTo(AnsweredBy.SERVICE);
+        assertThat(arrived.answeredBy()).isEqualTo(AnsweredBy.SCENARIO);
         assertThat(arrived.elapsedMillis()).isNull();
         // A line that is not a run says nothing about who answered.
         assertThat(RunRecord.caseLine("run-1", "2026-01-05T10:15:30.000-05:00", "chain-1", "suite-1", "c1", null, TestResult.PASS)
