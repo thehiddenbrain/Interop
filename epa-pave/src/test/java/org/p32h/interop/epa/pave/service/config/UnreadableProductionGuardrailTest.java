@@ -187,6 +187,25 @@ class UnreadableProductionGuardrailTest {
     }
 
     @Test
+    void aSandboxRefusedForAnAddressItCannotReadIsQuotedAsTheFileWritesIt() {
+        // F-ADDR-MISQUOTE of the honesty audit: the refusal quoted http://127.0.0.1/fhir, which the file does not hold.
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = on(profile).allowProdWrites().build();
+            fixture.environmentOf("V6 P", EnvironmentKind.PROD, "baseUrl", "http://127.0.0.1:18742/fhir");
+            assertThatThrownBy(() -> fixture.store.uploadEnvironment("s.json", environment("V6 S", "baseUrl", "http://127.0.0.1:99999/fhir"),
+                    EnvironmentKind.SANDBOX, true)).as(profile).isInstanceOf(ValidationException.class)
+                    .hasMessage("This environment was declared as sandbox, and its address \"http://127.0.0.1:99999/fhir\", in the variable "
+                            + "\"baseUrl\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is an "
+                            + "address of the production environment \"V6 P\", or lies above or beneath one. It was not stored.");
+            // An address that reads well is quoted as this tool reads it, as before.
+            assertThatThrownBy(() -> fixture.store.uploadEnvironment("s.json", environment("V6 S", "baseUrl", "http://127.0.0.1:018742/fhir"),
+                    EnvironmentKind.SANDBOX, true)).as(profile).isInstanceOf(ValidationException.class)
+                    .hasMessageStartingWith("This environment was declared as sandbox, and its address http://127.0.0.1:18742/fhir is an "
+                            + "address of the production environment \"V6 P\"");
+        }
+    }
+
+    @Test
     void aProductionEnvironmentThatACollectionMakesUnreadableProtectsItsHostAndCannotBeUnlocked() {
         for (String profile : PROFILES) {
             ConfigFixture fixture = on(profile).allowProdWrites().build();
