@@ -120,6 +120,21 @@ class ScenarioRepositoryTest {
     }
 
     @Test
+    void theListedSummaryNamesEverySentinelOfAScenarioAndNotOnlyTheFirst() {
+        Scenario several = ScenarioRepository.parse("x.json", "{\"id\":\"x-1\",\"number\":1,\"label\":\"L\",\"sentinelMemberId\":\"P32H-A\","
+                + "\"sentinelMemberIds\":[\"P32H-B\"],\"sentinelNpis\":[\"1234567893\",\"9999999995\"],\"httpStatus\":200,\"response\":{}}");
+        assertThat(several.summary().sentinelMemberIds()).isEqualTo(several.sentinelMemberIds()).contains("P32H-A", "P32H-B");
+        assertThat(several.summary().sentinelMemberId()).isEqualTo("P32H-A");
+        assertThat(several.summary().sentinelNpis()).containsExactly("1234567893", "9999999995");
+        assertThat(several.summary().crdSentinelMemberIds()).isEmpty();
+        // A DTR scenario lists the CRD sentinels it also answers for, so a journey started at CRD can be traced to it.
+        Scenario noProvider = bundled.list("dtr").stream().filter(s -> "P32H-DTR-NOPROV".equals(s.sentinelMemberId())).findFirst()
+                .orElseThrow();
+        assertThat(noProvider.summary().crdSentinelMemberIds()).containsExactly("P32H-NOPROV");
+        assertThat(noProvider.summary().sentinelNpis()).containsExactly("9999999995");
+    }
+
+    @Test
     void handEditedSpellingsAreForgivenAndRealMistakesAreNamed() {
         Scenario lenient = ScenarioRepository.parse("x.json",
                 "{\"id\":\"x-1\",\"number\":\"7\",\"label\":\"L\",\"behavior\":\" Timeout \",\"delayMillis\":\"250\"}");

@@ -173,6 +173,33 @@ class LookupOverTheServerTest {
     }
 
     @Test
+    void anIdentifierHoldingASlashIsLookedUpThroughTheQueryAndAnswersWithTheStatusInWords() throws IOException {
+        // In the path the server refuses an encoded slash before any controller runs, with a page that says nothing true.
+        assertThat(ask("/api/members/S123%2F456789", ownHost()).status()).isEqualTo(400);
+        // In the query it is part of the identifier, and the lookup answers as for any other.
+        Answer slashed = ask("/api/members?memberId=S123%2F456789", ownHost());
+        assertThat(slashed.status()).isEqualTo(200);
+        assertThat(slashed.json().at("/memberId/typed").asString()).isEqualTo("S123/456789");
+        assertThat(slashed.json().get("status").asString()).isEqualTo("NOT_FOUND");
+        assertThat(slashed.json().get("statusLabel").asString()).isEqualTo("Not found");
+        Answer backslashed = ask("/api/members?memberId=S123%5C456789", ownHost());
+        assertThat(backslashed.status()).isEqualTo(200);
+        assertThat(backslashed.json().at("/memberId/typed").asString()).isEqualTo("S123\\456789");
+
+        Answer found = ask("/api/members?memberId=P32H-PA-REQ", ownHost());
+        assertThat(found.json().get("status").asString()).isEqualTo("FOUND");
+        assertThat(found.json().get("statusLabel").asString()).isEqualTo("Found");
+        assertThat(found.headers().get("Cache-Control")).isEqualTo("no-store");
+        Answer provider = ask("/api/providers?npi=1234567893", ownHost());
+        assertThat(provider.json().get("statusLabel").asString()).isEqualTo("Found");
+        // Still one identifier and one record: with none, the same refusal as a blank one, and nothing is listed.
+        Answer none = ask("/api/members", ownHost());
+        assertThat(none.status()).isEqualTo(422);
+        assertThat(none.json().at("/fieldErrors/0/field").asString()).isEqualTo("memberId");
+        assertThat(ask("/api/providers?npi=1234567890", ownHost()).status()).isEqualTo(422);
+    }
+
+    @Test
     void anIdentifierRefusedBeforeAnyLookupIs422ThroughTheServerToo() throws IOException {
         Answer blank = ask("/api/members/%20%20", ownHost());
         assertThat(blank.status()).isEqualTo(422);

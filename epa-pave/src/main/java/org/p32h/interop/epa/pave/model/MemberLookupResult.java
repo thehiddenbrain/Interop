@@ -29,6 +29,12 @@ public record MemberLookupResult(LookupStatus status, MemberIdForms memberId, Me
         additionalFields = additionalFields == null ? List.of() : List.copyOf(additionalFields);
     }
 
+    /** The status in words, served beside the code so that no screen keeps its own copy. Never read from a request. */
+    @com.fasterxml.jackson.annotation.JsonProperty(value = "statusLabel", access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    public String statusLabel() {
+        return status == null ? null : status.label();
+    }
+
     /** Redacted, because it carries member data. */
     @Override
     public String toString() {

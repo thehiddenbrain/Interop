@@ -23,6 +23,12 @@ public record ProviderLookupResult(LookupStatus status, String npi, ProviderDeta
         additionalFields = additionalFields == null ? List.of() : List.copyOf(additionalFields);
     }
 
+    /** The status in words, served beside the code so that no screen keeps its own copy. Never read from a request. */
+    @com.fasterxml.jackson.annotation.JsonProperty(value = "statusLabel", access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    public String statusLabel() {
+        return status == null ? null : status.label();
+    }
+
     /** Prints the status only. The provider, the fields and the wire view come from a response. */
     @Override
     public String toString() {

@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.scenario;
 
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.ScenarioSummary;
 import java.util.List;
 import java.util.Map;
@@ -54,9 +55,13 @@ public record Scenario(String id, int number, String label, String description, 
     }
 
     public ScenarioSummary summary() {
+        // Every sentinel is listed, so a tester can find each ID that reaches the scenario. The CRD
+        // aliases a DTR file names are read from the file itself, where the DTR mock reads them.
+        List<String> crd = JsonSafe.elements(raw, "crdSentinelMemberIds").stream().map(JsonSafe::presentText)
+                .filter(java.util.Objects::nonNull).toList();
         return new ScenarioSummary(id, number, label, description, sentinelMemberId, sentinelNpi,
                 main == null ? null : main.behavior(), main == null ? null : main.httpStatus(),
-                expect == null ? null : expect.outcome());
+                expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crd);
     }
 
     /**
