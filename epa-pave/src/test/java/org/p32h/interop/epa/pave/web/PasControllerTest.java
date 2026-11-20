@@ -223,6 +223,20 @@ class PasControllerTest {
     }
 
     @Test
+    void anAttachmentMayCarryItsDocumentTypeAndCategoryAndAMisspeltPartOfEitherIsRefusedByName() throws Exception {
+        MockMvc mvc = mvc("mock");
+        // The document type and category an attachment may carry, for US Core 3.1.1 DocumentReference, are read by those names.
+        JsonNode typed = send(mvc, json(post("/api/pas/submit/preview"), submission("P32H-PAS-APPROVED", ",\"attachments\":[{\"title\":"
+                + "\"Report\",\"contentType\":\"text/plain\",\"text\":\"Placeholder report.\",\"type\":{\"code\":\"11506-3\",\"system\":"
+                + "\"http://loinc.org\"},\"category\":{\"code\":\"clinical-note\",\"system\":"
+                + "\"http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category\"}}]")), 200);
+        assertThat(typed.get("body").asString()).contains("\"11506-3\"").contains("\"clinical-note\"");
+        mvc.perform(json(post("/api/pas/submit"), submission("P32H-PAS-APPROVED", ",\"attachments\":[{\"title\":\"Report\","
+                + "\"contentType\":\"text/plain\",\"text\":\"x\",\"type\":{\"kode\":\"11506-3\"}}]")))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("kode"));
+    }
+
+    @Test
     void aSubmissionTheGuardrailRefusesIs403WithTheWholeResultAsItsBodyAndALedgerLine() throws Exception {
         gateway.failing(blocked(EpaOperation.PAS_SUBMIT));
         JsonNode result = send(mvc("live"), json(post("/api/pas/submit"), submission("S123456789", ",\"expected\":\"APPROVED\"")), 403);

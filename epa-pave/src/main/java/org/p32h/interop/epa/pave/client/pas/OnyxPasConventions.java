@@ -61,6 +61,10 @@ public final class OnyxPasConventions {
      * ClaimResponse refers to is carried with one of these statuses. A reference whose resource is
      * not carried has no visible status, and is treated as open: the element it sits in exists to
      * ask for more information, and closing it unseen would hide a request from the tester.
+     *
+     * <p>PAS 2.0.1 fixes the status of a PASCommunicationRequest to active, so a service that
+     * follows it never sends one of these, and shows that documentation was accepted by a later
+     * decision instead. The rule is kept for a service that does not follow the profile.
      */
     private static final Set<String> CLOSED_REQUEST_STATUSES = Set.of("completed", "revoked", "entered-in-error");
 

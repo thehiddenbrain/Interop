@@ -333,7 +333,29 @@ public final class PasResponseMapper {
                 resource.shown("created"), FhirViews.reference(resource.child("insurer")), FhirViews.reference(resource.child("requestor")),
                 outcome, resource.shown("disposition"), resource.shown("preAuthRef"), periodStart, periodEnd, requestShown,
                 requestIdentifier, identifiers, responseActions.stream().map(Action::view).toList(), decision, decisions, itemViews,
-                errors, attachments, notes, extensions, subsetted(resource.raw()));
+                errors, attachments, notes, extensions, subsetted(resource.raw()), addItemReviewActions(resource));
+    }
+
+    /**
+     * Where review actions sit on ClaimResponse.addItem.adjudication, read without consuming, so the
+     * added items are still listed as returned. An added item is the payer's own and answers none
+     * of the requested items by its sequence, so its review action is not taken as a decision.
+     */
+    private static List<String> addItemReviewActions(TrackedJson.Node resource) {
+        List<String> out = new ArrayList<>();
+        List<JsonNode> added = JsonSafe.elements(resource.raw(), "addItem");
+        for (int i = 0; i < added.size(); i++) {
+            List<JsonNode> adjudications = JsonSafe.elements(added.get(i), "adjudication");
+            for (int j = 0; j < adjudications.size(); j++) {
+                List<JsonNode> extensions = JsonSafe.elements(adjudications.get(j), "extension");
+                for (int k = 0; k < extensions.size(); k++) {
+                    if (OnyxPasConventions.reviewAction(JsonSafe.presentText(extensions.get(k), "url"))) {
+                        out.add(resource.path() + ".addItem[" + i + "].adjudication[" + j + "].extension[" + k + "]");
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     /**

@@ -45,6 +45,23 @@ class PasFindingsTest {
     }
 
     @Test
+    void aReviewActionOnAnAddedItemIsNamedAsBallotContentAndDecidesNothing() {
+        // PAS 2.2.0 ballot: addItem.adjudication.extension[reviewAction] 0..1 MS. PAS 2.0.1 ClaimResponse.fsh has no such slice.
+        String body = bundle(claimResponse("\"outcome\":\"complete\"", items(decided(1, "A1")),
+                "\"addItem\":[{\"itemSequence\":[1],\"adjudication\":[{\"category\":{\"coding\":[{\"code\":\"submitted\"}]},"
+                        + "\"extension\":[" + PasJson.action("A3") + "]}]}]"));
+        PasReading reading = new PasResponseMapper().read(response(200, body), sent("E0601"));
+        assertThat(reading.outcome()).isEqualTo(org.p32h.interop.epa.pave.model.pas.PasOutcome.APPROVED);
+        List<Finding> found = PasFindings.check(reading);
+        assertThat(found).extracting(Finding::kind).containsExactly(FindingKind.OTHER_VERSION_CONTENT);
+        assertThat(found.get(0).detail()).contains("The PAS 2.2.0 ballot defines a review action there; PAS 2.0.1, the version this tool "
+                + "is held to, does not.");
+        assertThat(found.get(0).subject()).isEqualTo("entry[0].resource.addItem[0].adjudication[0].extension[0]");
+        // Nothing of it is dropped: the added item is listed among the fields returned.
+        assertThat(reading.additionalFields()).anySatisfy(field -> assertThat(field.path()).startsWith("entry[0].resource.addItem"));
+    }
+
+    @Test
     void aResponseTaggedSubsettedRaisesNothingAboutTheItemsItLeavesOut() {
         String subset = bundle(claimResponse("\"meta\":{\"security\":[{\"system\":\"http://terminology.hl7.org/CodeSystem/v3-ObservationValue\","
                 + "\"code\":\"SUBSETTED\"}]}", "\"outcome\":\"complete\"", items(decided(1, "A1"))));

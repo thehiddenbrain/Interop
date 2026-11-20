@@ -43,6 +43,13 @@ final class PasFindings {
     static List<Finding> check(PasReading reading) {
         List<Finding> findings = new ArrayList<>();
         for (ClaimResponseView response : reading.detail().claimResponses()) {
+            if (!response.addItemReviewActions().isEmpty()) {
+                findings.add(new Finding(FindingKind.OTHER_VERSION_CONTENT, "A review action on an item the payer added",
+                        "The response carries a review action on ClaimResponse.addItem. The PAS 2.2.0 ballot defines a review action "
+                                + "there; PAS 2.0.1, the version this tool is held to, does not. It is listed among the fields returned but "
+                                + "not interpreted, and decides nothing for the items that were requested.",
+                        String.join("; ", response.addItemReviewActions()), null, null));
+            }
             CodedValue status = response.outcome();
             if (status.code() != null && !status.recognised()) {
                 findings.add(new Finding(FindingKind.CODE_OUTSIDE_VALUE_SET, "The ClaimResponse outcome code is not one this tool knows",
