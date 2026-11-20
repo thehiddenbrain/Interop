@@ -408,3 +408,10 @@
         border-top: 1px solid var(--line);
     }
 }
+
+/* ---------- the CRD response detail ---------- */
+
+/* The detail list has four parts: CRD 2.0.1 adds a qualification, and the 2.2.0 ballot a category. */
+.detail .grid.detail-list th:nth-child(3), .detail .grid.detail-list th:nth-child(4) {
+    width: 9rem;
+}

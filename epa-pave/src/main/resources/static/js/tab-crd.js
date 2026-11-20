@@ -80,7 +80,7 @@ function mount(panel, application) {
     slots.compare = bench.slot('compare');
     comparison = createComparison({
         app, bench, ownRequest: controls.ownRequest, slot: slots.compare,
-        buildRequest, operation, fill: fillFromComparison, useBuilt, useMemberId: value => app.caseContext.setMemberId(value),
+        buildRequest: compareRequest, operation, fill: fillFromComparison, useBuilt, useMemberId: value => app.caseContext.setMemberId(value),
         track: (...list) => bench.track(...list)
     });
     addAssertionRow();
@@ -245,6 +245,27 @@ function buildRequest() {
     return request;
 }
 
+/**
+ * What a comparison posts: the run request with the pasted text, and the case on the form even
+ * while a request of the tester's own is chosen. A run leaves the form's case out then, because
+ * the body is what goes; a comparison builds this tool's request from the form where the form has
+ * a value, and reads only the rest out of the pasted text.
+ */
+function compareRequest() {
+    const request = buildRequest();
+    const onForm = app.caseContext.request();
+    for (const name of ['member', 'provider']) {
+        if (Object.keys(onForm[name] || {}).length > 0) {
+            request[name] = onForm[name];
+            request[name + 'Overrides'] = onForm[name + 'Overrides'];
+        }
+    }
+    if ((onForm.procedureCodes || []).length > 0) {
+        request.procedureCodes = onForm.procedureCodes;
+    }
+    return request;
+}
+
 async function send() {
     const answer = await bench.call(() => api.postJson('/api/crd', buildRequest()), {saying: 'Sending the CRD request.', control: controls.send});
     if (answer) {
@@ -261,6 +282,8 @@ async function showPreview() {
         {saying: 'Building the request. Nothing is sent.', control: controls.preview});
     if (answer) {
         fill(slots.preview, requestPreviewPanel(answer.body, () => clear(slots.preview)));
+        // Whatever the readout was scrolled to, the request asked for is brought into view.
+        slots.preview.scrollIntoView({block: 'start'});
         bench.say('The request is shown. Nothing was sent.');
     }
 }
@@ -393,6 +416,7 @@ async function discover() {
         found.error ? errorPanel(found.error) : null,
         additionalFieldsSection(found.additionalFields || []),
         el('section', {class: 'result__section'}, wireView(found.wire))));
+    slots.discovery.scrollIntoView({block: 'start'});
     bench.say('Discovery answered with ' + services.length + (services.length === 1 ? ' service.' : ' services.'));
 }
 

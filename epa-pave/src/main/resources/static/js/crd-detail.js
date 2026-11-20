@@ -62,6 +62,7 @@ export function crdDetail(envelope, vocabulary) {
         actions.map(action => actionBlock(action))));
 
     node.append(requestNotes(detail));
+    node.append(conformanceScope(detail.conformance));
     return node;
 }
 
@@ -88,16 +89,32 @@ function coverageBlock(item, vocabulary) {
         codedRow('info-needed', item.infoNeeded, true),
         valueRow('satisfied-pa-id', shown(item.satisfiedPaId, {as: 'literal'})),
         valueRow('questionnaire', shownList(item.questionnaires, {as: 'literal'})),
+        valueRow('response', [shownList(item.responses, {as: 'literal'}), (item.responses || []).length > 0
+            ? el('div', {class: 'small quiet'}, 'A partly completed QuestionnaireResponse that DTR can start from. The next step says whether it is handed on.')
+            : null]),
         valueRow('reason', shownList(item.reasons)),
         valueRow('coverage', shown(item.coverage, {as: 'literal'})),
         valueRow('coverage-assertion-id', shown(item.coverageAssertionId, {as: 'literal'})),
         valueRow('date', shown(item.date, {as: 'literal'}))
     ];
+    if ((item.laterReasonCodes || []).length > 0) {
+        // Read and named, never called wrong: a later version of the guide defines these codes.
+        rows.push(valueRow('reason codes of a later version', el('ul', {class: 'plain-list'}, item.laterReasonCodes.map(entry => el('li', null, code(entry))))));
+    }
+    if (item.authOutOfNetworkOnly === true || item.authOutOfNetworkOnly === false) {
+        rows.push(valueRow('auth-out-network-only', [code(String(item.authOutOfNetworkOnly)), ' ', item.authOutOfNetworkOnly
+            ? 'The detail says authorization is needed only out of network.'
+            : 'The detail says authorization is not limited to out of network.']));
+    }
     const block = el('div', {class: 'detail__item'},
         el('p', {class: 'detail__item-head'},
             el('span', {class: 'sub-heading'}, 'Answer for ', code(item.subject || 'the request')),
             item.outcome ? outcome(known ? known.label : item.outcome, known ? known.tone : null) : null),
-        el('p', {class: 'small quiet'}, 'Found at ', code(item.foundAt), '. Applies to ', shown(item.appliesTo, {as: 'literal'}), '.'));
+        el('p', {class: 'small quiet'}, 'Found at ', code(item.foundAt), '. Applies to ', shown(item.appliesTo, {as: 'literal'}), '. ',
+            (item.procedureCodes || []).length > 0
+                ? ['The answer for the requested ', item.procedureCodes.length === 1 ? 'code ' : 'codes ',
+                    item.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)]), '.']
+                : 'It cannot be told which requested code this answer is for.'));
     if (item.delegatedVendor) {
         // Where the request routes is the answer testers most often need, so it is not left in a table row.
         block.append(el('p', {class: 'vendor-callout'}, 'Delegated vendor: ', el('strong', null, item.delegatedVendor),
@@ -109,13 +126,14 @@ function coverageBlock(item, vocabulary) {
     block.append(el('p', {class: 'sub-heading'}, 'Detail list (' + details.length + ')'));
     block.append(details.length === 0
         ? el('p', {class: 'quiet'}, 'The extension carried no detail entries.')
-        : table(['Code', 'Value', 'Qualifier'], details.map(entry => [shown(entry.code), shown(entry.value), shown(entry.qualifier)]),
-            {class: 'detail-list'}));
+        : table(['Code', 'Value', 'Qualification', 'Category'], details.map(entry => [shown(entry.code), shown(entry.value),
+            shown(entry.qualification), shown(entry.category)]), {class: 'detail-list'}));
 
     const others = item.otherSubExtensions || [];
     if (others.length > 0) {
         block.append(el('p', {class: 'sub-heading'}, 'Other sub-extensions (' + others.length + ')'),
-            table(['Url', 'Value'], others.map(entry => [code(entry.url), shown(entry.value, {as: 'literal'})]), {class: 'pairs'}));
+            table(['Url', 'Value', 'Defined in'], others.map(entry => [code(entry.url), shown(entry.value, {as: 'literal'}),
+                entry.definedIn || el('span', {class: 'quiet small'}, 'not stated')]), {class: 'pairs'}));
     }
     return block;
 }
@@ -134,7 +152,8 @@ function codedRow(name, values, repeats) {
     return [code(name),
         lines(list.map(value => (value.presence === 'VALUE' ? code(String(value.code)) : presenceMark(value.presence || 'ABSENT')))),
         lines(list.map(value => (value.presence === 'VALUE'
-            ? [value.display || null, value.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a code this tool knows')] : null]
+            ? [value.display || null, value.version ? el('span', {class: 'small quiet'}, ' ' + value.version) : null,
+                value.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a code this tool knows')] : null]
             : null)))];
 }
 
@@ -233,4 +252,30 @@ function requestNotes(detail) {
             el('ul', {class: 'note-list'}, notes.map(note => el('li', null, note)))));
     }
     return part.childNodes.length > 0 ? part : null;
+}
+
+/* ---------- what the conformance check judged by ---------- */
+
+/**
+ * Which rules of the guide the findings above were checked against, and which were not, in the
+ * server's words. The version is named in each, so a finding is never read as a judgement against
+ * another version of the guide.
+ */
+function conformanceScope(scope) {
+    if (!scope) {
+        return null;
+    }
+    const applied = scope.applied || [];
+    const notApplied = scope.notApplied || [];
+    return el('section', {class: 'detail__part'},
+        el('details', {class: 'fold'},
+            el('summary', null, 'What the conformance check judged by',
+                el('span', {class: 'quiet'}, (scope.version || 'no version named') + ': ' + applied.length + ' rules applied, '
+                    + notApplied.length + ' not applied')),
+            el('p', {class: 'small'}, 'The findings above that are about the guide were checked against ', scope.version
+                ? el('strong', null, scope.version) : 'a version the result does not name', ', and these rules only.'),
+            el('p', {class: 'sub-heading'}, 'Applied (' + applied.length + ')'),
+            applied.length === 0 ? el('p', {class: 'quiet'}, 'None.') : el('ul', {class: 'note-list'}, applied.map(rule => el('li', null, rule))),
+            el('p', {class: 'sub-heading'}, 'Not applied (' + notApplied.length + ')'),
+            notApplied.length === 0 ? el('p', {class: 'quiet'}, 'None.') : el('ul', {class: 'note-list'}, notApplied.map(rule => el('li', null, rule)))));
 }
