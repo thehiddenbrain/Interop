@@ -399,13 +399,13 @@ export function createNotifications(spec) {
                     ['ClaimResponse id', item.claimResponseId ? code(item.claimResponseId) : el('span', {class: 'presence presence--none'}, 'none named')],
                     ['Bundle', ['type ', shown(item.bundleType, {as: 'literal'}), ', id ', shown(item.bundleId, {as: 'literal'})]],
                     ['Bundle timestamp', shown(item.bundleTimestamp, {as: 'literal'})],
-                    ['Errors the service reports', shownList(item.errors)],
+                    ['Errors the service reports', listOf(item.errors, item.errorsPresence)],
                     ['Sample', item.sample ? ['delivered on the mock profile from scenario ', code(item.scenarioId || 'unknown'), '. It did not come from a service.'] : null]
                 ], 'facts--ruled')),
             events.length > 0 ? el('div', null, heading(4, 'Events', events.length),
                 table(['Number', 'When', 'About', 'Further resources'], events.map(event => [
                     shown(event.eventNumber, {as: 'literal'}), shown(event.timestamp, {as: 'literal'}), shown(event.focus, {as: 'literal'}),
-                    shownList(event.additionalContext, {as: 'literal'})]))) : el('p', {class: 'quiet'}, 'It reports no event.'),
+                    listOf(event.additionalContext, event.additionalContextPresence, {as: 'literal'})]))) : el('p', {class: 'quiet'}, 'It reports no event.'),
             (item.claimResponses || []).map((response, index) => el('div', null,
                 heading(4, 'The ClaimResponse it carries' + ((item.claimResponses.length > 1) ? ' (' + (index + 1) + ')' : '')),
                 claimResponseBlock(response, spec.vocabulary(), 0))),
@@ -567,4 +567,19 @@ export function createNotifications(spec) {
         /** The latest list of notification scenarios, for redrawing the sample form when the mode changes. */
         scenarios: () => scenarios
     };
+}
+
+/**
+ * A list a notification carries, or what it was when it holds no entry: not returned, null or
+ * empty, as the server says. A value that is not a list is shown among the fields returned but not
+ * interpreted. An answer that carries no presence is drawn as before.
+ */
+function listOf(values, presence, options) {
+    if (Array.isArray(values) && values.length > 0) {
+        return shownList(values, options);
+    }
+    if (presence === 'VALUE') {
+        return el('span', {class: 'small'}, 'not a list: shown among the fields returned but not interpreted');
+    }
+    return presence ? presenceMark(presence) : shownList(values, options);
 }

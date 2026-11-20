@@ -31,20 +31,26 @@ public record NotificationReading(NotificationKind kind, String kindNote, Status
      * @param subscription       the subscription the notification arrives on, as it refers to it
      * @param subscriptionId     the id read from that reference, or null when it names none
      * @param errors             the errors the service reports on the subscription, as returned
+     * @param errorsPresence     what the notification held for its errors: not returned, null, empty or a value
      */
     public record Status(CodedValue type, CodedValue subscriptionStatus, Shown subscription, String subscriptionId, Shown topic,
-                         Shown eventsSinceSubscriptionStart, List<NotificationEventView> events, List<Shown> errors) {
+                         Shown eventsSinceSubscriptionStart, List<NotificationEventView> events, List<Shown> errors,
+                         org.p32h.interop.epa.pave.model.Presence errorsPresence) {
 
         public Status {
             // Blank is made null here, so "names none" is one state wherever the id is asked for.
             subscriptionId = Texts.trimToNull(subscriptionId);
             events = events == null ? List.of() : List.copyOf(events);
             errors = errors == null ? List.of() : List.copyOf(errors);
+            if (errorsPresence == null) {
+                errorsPresence = errors.isEmpty() ? org.p32h.interop.epa.pave.model.Presence.ABSENT
+                        : org.p32h.interop.epa.pave.model.Presence.VALUE;
+            }
         }
 
         static Status none() {
             return new Status(CodedValue.notReturned(), CodedValue.notReturned(), Shown.absent(), null, Shown.absent(), Shown.absent(),
-                    List.of(), List.of());
+                    List.of(), List.of(), null);
         }
     }
 

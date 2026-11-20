@@ -7,6 +7,7 @@ import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.Finding;
 import org.p32h.interop.epa.pave.model.FindingKind;
 import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
@@ -471,7 +472,8 @@ public class NotificationReceiver {
                     .subscriptionStatus(reading.status().subscriptionStatus()).subscription(reading.status().subscription())
                     .subscriptionId(reading.status().subscriptionId()).topic(reading.status().topic())
                     .eventsSinceSubscriptionStart(reading.status().eventsSinceSubscriptionStart()).events(reading.status().events())
-                    .errors(reading.status().errors()).payloadContent(reading.payloadContent()).bundleType(reading.carried().bundleType())
+                    .errors(reading.status().errors())
+                    .errorsPresence(reading.status().errorsPresence()).payloadContent(reading.payloadContent()).bundleType(reading.carried().bundleType())
                     .bundleId(reading.carried().bundleId()).bundleTimestamp(reading.carried().bundleTimestamp())
                     .claimResponses(reading.carried().claimResponses()).otherResources(reading.carried().otherResources())
                     .issues(reading.carried().issues()).subscriptionRunId(read.links().subscriptionRunId())
@@ -555,6 +557,12 @@ public class NotificationReceiver {
         }
         unrecognised(findings, "notification type", PasCodes.NOTIFICATION_TYPE, status.type());
         unrecognised(findings, "subscription status", PasCodes.SUBSCRIPTION_STATUS, status.subscriptionStatus());
+        // A key sent twice where the notification view read it: the value shown is the last, and
+        // every value is said here, as for the answers of the services.
+        JsonSafe.Parsed parsed = JsonSafe.parse(text);
+        if (parsed.ok()) {
+            findings.addAll(TrackedJson.repeatedKeyFindings(parsed.node(), parsed, reading.additionalFields()));
+        }
 
         List<String> codes = new ArrayList<>();
         codes.add("notification-kind=" + reading.kind().name());

@@ -291,4 +291,27 @@ class NotificationReaderTest {
         assertThat(reading.additionalFields().get(0).value()).contains("repeats a key");
         assertThat(reading.status().type().code()).isEqualTo("handshake");
     }
+
+    @Test
+    void theErrorsAndFurtherResourcesOfANotificationSayWhetherTheyWereNotReturnedNullEmptyOrAValue() {
+        String head = "{\"resourceType\":\"SubscriptionStatus\",\"status\":\"active\",\"type\":\"event-notification\","
+                + "\"subscription\":{\"reference\":\"Subscription/" + SUBSCRIPTION + "\"},\"notificationEvent\":[";
+        NotificationReading nulls = reader.read(head + "{\"eventNumber\":1,\"additionalContext\":null}],\"error\":null}");
+        NotificationReading empties = reader.read(head + "{\"eventNumber\":1,\"additionalContext\":[]}],\"error\":[]}");
+        NotificationReading absent = reader.read(head + "{\"eventNumber\":1}]}");
+        assertThat(List.of(nulls, empties, absent)).extracting(one -> one.status().errorsPresence())
+                .containsExactly(org.p32h.interop.epa.pave.model.Presence.NULL, org.p32h.interop.epa.pave.model.Presence.EMPTY,
+                        org.p32h.interop.epa.pave.model.Presence.ABSENT);
+        assertThat(List.of(nulls, empties, absent)).extracting(one -> one.status().events().get(0).additionalContextPresence())
+                .containsExactly(org.p32h.interop.epa.pave.model.Presence.NULL, org.p32h.interop.epa.pave.model.Presence.EMPTY,
+                        org.p32h.interop.epa.pave.model.Presence.ABSENT);
+        // An empty list the view says is empty is not listed again; null stays among the returned fields.
+        assertThat(empties.additionalFields()).extracting(org.p32h.interop.epa.pave.model.AdditionalField::path)
+                .doesNotContain("error", "notificationEvent[0].additionalContext");
+        assertThat(nulls.additionalFields()).extracting(org.p32h.interop.epa.pave.model.AdditionalField::path)
+                .contains("error", "notificationEvent[0].additionalContext");
+        // The R4 form has no list to be null or empty: errors are parameters, held or not.
+        NotificationReading parameters = reader.read(NotificationJson.status(SUBSCRIPTION, "heartbeat"));
+        assertThat(parameters.status().errorsPresence()).isEqualTo(org.p32h.interop.epa.pave.model.Presence.ABSENT);
+    }
 }

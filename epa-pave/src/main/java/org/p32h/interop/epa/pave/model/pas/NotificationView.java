@@ -6,6 +6,7 @@ import org.p32h.interop.epa.pave.model.Finding;
 import org.p32h.interop.epa.pave.model.IssueView;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
 import org.p32h.interop.epa.pave.model.NextStepView;
+import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.VerdictView;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
@@ -51,6 +52,8 @@ import java.util.List;
  * @param truncated          true when the body was cut. The payload then is not all that was sent
  * @param additionalFields   everything the notification carried that the fields above did not use
  * @param ledger             what the ledger did with the notification's line
+ * @param errorsPresence     what the notification held for its errors: not returned, null, empty or a
+ *                           value, which the list of errors alone cannot say
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record NotificationView(
@@ -88,7 +91,8 @@ public record NotificationView(
         boolean truncated,
         List<String> payloadNotes,
         List<AdditionalField> additionalFields,
-        LedgerReceipt ledger) {
+        LedgerReceipt ledger,
+        Presence errorsPresence) {
 
     public NotificationView {
         events = events == null ? List.of() : List.copyOf(events);
@@ -148,6 +152,7 @@ public record NotificationView(
         private List<String> payloadNotes = List.of();
         private List<AdditionalField> additionalFields = List.of();
         private LedgerReceipt ledger;
+        private Presence errorsPresence;
 
         private Builder() {
         }
@@ -322,6 +327,11 @@ public record NotificationView(
             return this;
         }
 
+        public Builder errorsPresence(Presence value) {
+            this.errorsPresence = value;
+            return this;
+        }
+
         public Builder ledger(LedgerReceipt value) {
             this.ledger = value;
             return this;
@@ -335,7 +345,7 @@ public record NotificationView(
             return new NotificationView(id, receivedAt, sample, scenarioId, verdict, nextStep, kind, type, subscriptionStatus, subscription,
                     subscriptionId, topic, eventsSinceSubscriptionStart, events, errors, payloadContent, bundleType, bundleId, bundleTimestamp,
                     claimResponses, otherResources, issues, subscriptionRunId, correlatedRunId, claimId, claimResponseId, correlationNotes,
-                    findings, payload, bytesReceived, bytesKept, truncated, payloadNotes, additionalFields, ledger);
+                    findings, payload, bytesReceived, bytesKept, truncated, payloadNotes, additionalFields, ledger, errorsPresence);
         }
     }
 }

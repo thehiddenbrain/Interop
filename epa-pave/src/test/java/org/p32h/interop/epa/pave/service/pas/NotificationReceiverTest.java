@@ -1181,4 +1181,19 @@ class NotificationReceiverTest {
         assertThatThrownBy(() -> receiver.deliverSample(request)).as("expected a validation error on " + field)
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::field).containsExactly(field));
     }
+
+    @Test
+    void aKeyTheNotificationViewReadsThatIsSentTwiceRaisesAFindingWithEveryValue() {
+        String body = bundle(status(SUBSCRIPTION, "heartbeat")).replaceFirst("\"type\":\"history\"", "\"type\":\"batch\",\"type\":\"history\"");
+        NotificationView view = receive(body);
+        assertThat(view.findings()).filteredOn(f -> f.title().equals("type is sent 2 times in one object")).singleElement()
+                .satisfies(f -> {
+                    assertThat(f.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
+                    assertThat(f.detail()).contains("first \"batch\", then \"history\"");
+                });
+        assertThat(view.errorsPresence()).isEqualTo(org.p32h.interop.epa.pave.model.Presence.ABSENT);
+        // Without the repeat there is no such finding.
+        assertThat(receive(bundle(status(SUBSCRIPTION, "heartbeat"))).findings()).extracting(Finding::title)
+                .noneMatch(title -> title.contains("times in one object"));
+    }
 }
