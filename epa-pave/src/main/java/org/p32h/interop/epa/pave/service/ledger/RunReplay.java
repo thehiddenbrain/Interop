@@ -9,6 +9,8 @@ import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.model.VerdictView;
+import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
@@ -155,7 +157,7 @@ public class RunReplay {
                     new FieldError("runIds", "Give a date range in from and to, or the ids of the runs in runIds, or both.")));
         }
         if (from != null && to != null && from.isAfter(to)) {
-            throw ValidationException.of("from", "The from date is after the to date.");
+            throw ValidationException.of("from", "The From day is after the To day. Make From the earlier day, or leave one of them empty.");
         }
         List<String> notes = new ArrayList<>();
         List<RunRecord> selected = ids.isEmpty() ? oldestFirst(from, to, zone, notes) : byId(ids, ranged, from, to, zone);
@@ -360,7 +362,36 @@ public class RunReplay {
         };
         // What the new run found, only when the entry speaks of the very run the runner made.
         boolean same = replayed != null && replayed.runId() != null && replayed.runId().equals(entry.replayRunId());
-        return same ? entry.withFound(outcome.verdict(), outcome.nextStep()) : entry;
+        return same ? entry.withFound(replayedScenarioSaid(original, outcome.verdict()), outcome.nextStep()) : entry;
+    }
+
+    /**
+     * The verdict of a replay on mock, with the line that names the scenario saying what happened:
+     * nobody chose it, the replay sent the scenario the original run recorded, and so the answer is
+     * that scenario's again by construction, whatever a sentinel would select today.
+     */
+    static VerdictView replayedScenarioSaid(RunRecord original, VerdictView found) {
+        if (found == null || Texts.blank(original.scenarioId())) {
+            return found;
+        }
+        // The line can go on to say what the scenario does with the request; that part is kept.
+        String chosen = "Mock scenario " + original.scenarioId().strip() + " answered: " + ScenarioRepository.CHOSEN_BY_ID + ".";
+        List<String> supporting = found.supporting().stream().map(line -> !line.startsWith(chosen) ? line
+                : "Mock scenario " + original.scenarioId().strip() + " answered: the scenario the original run recorded, sent again by its id. "
+                        + "On the mock profile a replay is therefore answered as the original run was, by construction, whatever its "
+                        + "member ID would select today." + line.substring(chosen.length())).toList();
+        return new VerdictView(found.headline(), found.outcomeCode(), found.outcomeLabel(), found.tone(), supporting);
+    }
+
+    /**
+     * What is true of a run that was handed its case by an earlier one: it followed that run, so it
+     * cannot be sent again alone. It is called a step of a chain only when it carries a chain id.
+     */
+    private static String followedAnEarlierRun(RunRecord original) {
+        String earlier = original.correlation().get(RunRecord.CORR_RUN_ID);
+        return " This run followed " + (Texts.present(earlier) ? "run " + earlier : "an earlier run") + " and was handed its case by it, so "
+                + "it cannot be sent again alone." + (Texts.present(original.chainId()) ? " It is one step of chain " + original.chainId() + "." : "")
+                + " To run the journey again, run it as a suite row with the protocol chain.";
     }
 
     /** Why the line alone cannot rebuild the request that was sent, or null when it can. */
@@ -372,8 +403,7 @@ public class RunReplay {
         if (!original.unrecordedInputs().isEmpty()) {
             List<String> words = original.unrecordedInputs().stream().map(RunReplay::inWords).toList();
             // A step of a chain is run again as part of its journey, which the chain view points to in the same words.
-            String journey = original.unrecordedInputs().contains(RunRecord.INPUT_PRIOR_STEP) ? " This run is one step of a chain, and "
-                    + "cannot be replayed by itself. To run the journey again, run it as a suite row with the protocol chain." : "";
+            String journey = original.unrecordedInputs().contains(RunRecord.INPUT_PRIOR_STEP) ? followedAnEarlierRun(original) : "";
             return "This run sent something its ledger line does not hold: " + String.join("; ", words) + ". Running it again from the "
                     + "line would send a different request, and the two answers could not be compared." + journey;
         }

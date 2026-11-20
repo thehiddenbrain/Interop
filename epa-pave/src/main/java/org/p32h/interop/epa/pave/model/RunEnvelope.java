@@ -29,6 +29,9 @@ import java.util.List;
  * @param additionalFields everything the response carried that the designed view did not use
  * @param error            set when the call failed, was refused, or the tool failed after it
  * @param ledger           what the ledger did with this run. Checked by the screen on every result
+ * @param answeredBy       who answered: the service, a mock scenario, or nobody. The strip draws
+ *                         the mock's hatch, or the mark of a step nobody answered, from this alone.
+ *                         Worked out by {@link AnsweredBy#of} when the builder is not told
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record RunEnvelope<D>(
@@ -38,6 +41,7 @@ public record RunEnvelope<D>(
         EpaOperation operation,
         EnvironmentRef environment,
         String profile,
+        AnsweredBy answeredBy,
         VerdictView verdict,
         ExpectationView expectation,
         NextStepView nextStep,
@@ -73,6 +77,7 @@ public record RunEnvelope<D>(
         private EpaOperation operation;
         private EnvironmentRef environment;
         private String profile;
+        private AnsweredBy answeredBy;
         private VerdictView verdict;
         private ExpectationView expectation;
         private NextStepView nextStep;
@@ -115,6 +120,11 @@ public record RunEnvelope<D>(
 
         public Builder<D> profile(String value) {
             this.profile = value;
+            return this;
+        }
+
+        public Builder<D> answeredBy(AnsweredBy value) {
+            this.answeredBy = value;
             return this;
         }
 
@@ -184,7 +194,10 @@ public record RunEnvelope<D>(
             if (verdict == null || expectation == null || nextStep == null || ledger == null) {
                 throw new IllegalStateException("A run result needs a verdict, an expectation, a next step and a ledger receipt.");
             }
-            return new RunEnvelope<>(runId, chainId, protocol, operation, environment, profile, verdict, expectation,
+            // The same rule as the ledger line's, and the same test of a refusal the screen applies.
+            boolean refused = verdict.tone() == Tone.BLOCKED || (error != null && error.kind() == ErrorKind.BLOCKED);
+            AnsweredBy who = answeredBy != null ? answeredBy : AnsweredBy.of(operation, profile, refused);
+            return new RunEnvelope<>(runId, chainId, protocol, operation, environment, profile, who, verdict, expectation,
                     nextStep, determination, detail, findings, additionalFields, wire, error, ledger, timing);
         }
     }

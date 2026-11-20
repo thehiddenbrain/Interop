@@ -257,7 +257,7 @@ public final class NotificationVerdicts {
                     "The notification carries the ClaimResponse, and its review action is a final decision.", carry);
         }
         if (Texts.present(claimId)) {
-            return new NextStepView(NextAction.CHECK_STATUS, "Next: ask for the status of the request with an inquiry.",
+            return new NextStepView(NextAction.CHECK_STATUS, "Next: choose Send inquiry to ask for the status of the request.",
                     decisions.isEmpty() ? "The notification says that something changed on the request and does not carry the decision."
                             : "The ClaimResponse the notification carries does not state a final decision.", carry);
         }

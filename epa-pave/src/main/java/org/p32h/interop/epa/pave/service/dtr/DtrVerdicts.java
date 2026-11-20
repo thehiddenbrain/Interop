@@ -377,12 +377,12 @@ public final class DtrVerdicts {
         List<String> going = carry.getOrDefault(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of());
         String headline;
         if (!itemless) {
-            headline = "Next: submit the prior authorization request in PAS. The completed questionnaire "
+            headline = "Next: choose Continue in PAS, then Send PAS request. The completed questionnaire "
                     + (going.size() > 1 ? "responses go" : "response goes") + " with it.";
         } else if (going.isEmpty()) {
-            headline = "Next: submit the prior authorization request in PAS. No questionnaire response goes with it.";
+            headline = "Next: choose Continue in PAS, then Send PAS request. No questionnaire response goes with it.";
         } else {
-            headline = "Next: submit the prior authorization request in PAS. The completed responses of the other questionnaires go with it, "
+            headline = "Next: choose Continue in PAS, then Send PAS request. The completed responses of the other questionnaires go with it, "
                     + "and this one does not.";
         }
         return new NextStepView(NextAction.START_PAS, headline, itemless ? why + " " + NOT_CARRIED + done(done) : why, carry);

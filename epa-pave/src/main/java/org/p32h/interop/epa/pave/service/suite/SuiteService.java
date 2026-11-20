@@ -225,7 +225,7 @@ public class SuiteService implements AutoCloseable {
     public SuiteRunView start(String fileName, String text, String testerRef, String compareWith, Long configEpoch) {
         CaseRunner runner = caseRunner.getIfAvailable();
         if (runner == null) {
-            throw new BadInputException("This build cannot run a suite.", "Run the cases one at a time from their tabs.");
+            throw new BadInputException("Suites cannot be run here: this copy of the tool was started without what runs a case. Nothing was sent.", "Run the cases one at a time from their tabs.");
         }
         // Recorded on every case that gives none of its own, so it is held to the limit a run's is.
         String refProblem = RunInputs.textForTheLedger(null, testerRef, null).get("testerRef");

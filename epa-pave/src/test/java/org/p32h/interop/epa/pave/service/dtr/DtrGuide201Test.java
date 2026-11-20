@@ -282,7 +282,7 @@ class DtrGuide201Test {
         assertThat(result.nextStep().action()).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.START_PAS);
         assertThat(result.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
         // The headline does not claim a response that is not handed on.
-        assertThat(result.nextStep().headline()).isEqualTo("Next: submit the prior authorization request in PAS. No questionnaire response "
+        assertThat(result.nextStep().headline()).isEqualTo("Next: choose Continue in PAS, then Send PAS request. No questionnaire response "
                 + "goes with it.");
         assertThat(result.nextStep().reason()).isEqualTo("Every required question that is enabled has an answer. This response holds no "
                 + "item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). This tool does not "

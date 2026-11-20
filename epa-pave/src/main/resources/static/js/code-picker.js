@@ -61,6 +61,8 @@ export function createCodePicker(spec) {
     // Two notes of one line each: whether the list in use is the placeholder, and a list that did not answer.
     const listNote = el('p', {class: 'picker__note'});
     const failNote = el('p', {class: 'picker__note', aria: {live: 'polite'}});
+    // Says that a code was not added because the case holds it already, so nothing vanishes in silence.
+    const repeatNote = el('p', {class: 'picker__note', aria: {live: 'polite'}});
     const node = el('div', {class: 'case-group field picker', dataset: {field: 'procedureCodes'}},
         el('label', {htmlFor: ids.input, class: 'case-legend'}, 'Procedure codes'),
         listNote,
@@ -70,11 +72,13 @@ export function createCodePicker(spec) {
             'Arrows choose from the code list, Enter adds. A code not on the list is added as typed. Several can be pasted at once, '
             + 'separated by commas or spaces.'),
         status,
+        repeatNote,
         failNote);
 
     /* ---------- typing and the keyboard ---------- */
 
     input.addEventListener('input', () => {
+        clear(repeatNote);
         // A paste of several codes is added at once: the list cannot answer for many codes in one question.
         if (CODE_SEPARATORS.test(input.value.trim())) {
             close();
@@ -249,8 +253,8 @@ export function createCodePicker(spec) {
 
     function choose(option) {
         const first = option.rows[0];
-        addEntry({code: option.code, system: first.system, description: first.description},
-            {rows: option.rows, check: 'listed', line: spec.lineOfBusiness()});
+        sayRepeated(addEntry({code: option.code, system: first.system, description: first.description},
+            {rows: option.rows, check: 'listed', line: spec.lineOfBusiness()}) ? [] : [option.code]);
         input.value = '';
         close();
         draw();
@@ -262,18 +266,21 @@ export function createCodePicker(spec) {
         if (typed.length === 0) {
             return;
         }
-        for (const value of typed) {
-            addEntry({code: value}, null);
-        }
+        sayRepeated(typed.filter(value => !addEntry({code: value}, null)));
         input.value = '';
         close();
         draw();
         checkPending();
     }
 
+    /**
+     * Adds a code to the case unless the case holds it already. Every way a code gets into the
+     * case comes through here, so the same code is never sent twice. Returns false when nothing
+     * was added.
+     */
     function addEntry(candidate, known) {
-        if (!candidate || !candidate.code || entries.some(existing => existing.code === String(candidate.code))) {
-            return;
+        if (!candidate || !candidate.code || entries.some(existing => existing.input.code === String(candidate.code))) {
+            return false;
         }
         const kept = {code: String(candidate.code)};
         if (candidate.system) {
@@ -289,6 +296,18 @@ export function createCodePicker(spec) {
             line: known ? known.line : null,
             sentence: null
         }]);
+        return true;
+    }
+
+    /** Says which codes were not added because the case holds them already. */
+    function sayRepeated(repeated) {
+        const distinct = [...new Set(repeated.filter(value => value))];
+        if (distinct.length === 0) {
+            clear(repeatNote);
+            return;
+        }
+        fill(repeatNote, distinct.map((value, index) => [index > 0 ? ', ' : null, code(value)]),
+            distinct.length === 1 ? ' is in the case already, and is not added twice.' : ' are in the case already, and are not added twice.');
     }
 
     /**
@@ -321,7 +340,9 @@ export function createCodePicker(spec) {
                 entry.check = !exact ? 'not-listed'
                     : rows.length === 0 ? 'other-lines'
                         : exact === entry.input.code ? 'listed' : 'other-case';
-                entry.sentence = entry.check === 'other-lines' ? answer.body.otherLines || null : null;
+                entry.sentence = entry.check === 'other-lines' ? answer.body.otherLines || null
+                    // The server says when a code not on the list does not have the shape of one. It is sent as chosen all the same.
+                    : entry.check === 'not-listed' ? answer.body.shapeNote || null : null;
             }
             draw();
         }
@@ -399,7 +420,8 @@ export function createCodePicker(spec) {
                 listSays(entry.rows, entry.line || ''));
         }
         if (entry.check === 'not-listed') {
-            return el('span', {class: 'presence presence--none'}, 'not on the list');
+            return el('span', null, el('span', {class: 'presence presence--none'}, 'not on the list'),
+                entry.sentence ? el('span', {class: 'picker__chip-sentence'}, entry.sentence) : null);
         }
         if (entry.check === 'other-lines') {
             return el('span', null, el('span', {class: 'presence presence--none'}, 'not on the list for ' + entry.line),
@@ -410,10 +432,12 @@ export function createCodePicker(spec) {
 
     return {
         node,
+        /**
+         * The codes of the case, as the chips show them. Text still in the box is not one of them:
+         * nothing the tester did not see as part of the case is sent. The workbench refuses a send
+         * while there is any, so it is never dropped in silence either.
+         */
         values() {
-            // A code still sitting in the box is part of what the tester means to send. It is
-            // moved into the list first, so that the list on screen is the list that goes out.
-            commitTyped();
             return entries.map(entry => ({...entry.input}));
         },
         /** The codes in the list as it stands, without touching what is being typed. */
@@ -421,12 +445,13 @@ export function createCodePicker(spec) {
             return entries.map(entry => ({...entry.input}));
         },
         add(candidate) {
-            addEntry(candidate, null);
+            sayRepeated(addEntry(candidate, null) ? [] : [typeof candidate === 'string' ? candidate : candidate && candidate.code]);
             draw();
             checkPending();
         },
         replace(candidates) {
             entries = [];
+            clear(repeatNote);
             for (const candidate of candidates || []) {
                 addEntry(typeof candidate === 'string' ? {code: candidate} : candidate, null);
             }

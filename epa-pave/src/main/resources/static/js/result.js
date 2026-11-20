@@ -17,7 +17,7 @@
 
 import {el, append, button, code, facts, table, heading, copyButton, count, millis, token} from './dom.js';
 import {shown, shownList, presenceMark} from './shown.js';
-import {toneClass, stamp, slowFlag, mockMark} from './marks.js';
+import {toneClass, stamp, slowFlag, mockMark, localMark, answeredByNobody} from './marks.js';
 import {runLink} from './history-common.js';
 // lookup.js imports this file as well. The cycle is harmless: idForms is only called while a
 // result is drawn, long after both modules have loaded.
@@ -101,14 +101,23 @@ function refusedBeforeSending(envelope) {
 
 function verdictStrip(envelope) {
     const verdict = envelope.verdict;
-    // The hatch says a scenario file answered. A request refused before it was sent was answered
-    // by nothing, so on the mock profile it says that instead, and carries no hatch.
+    // Who answered is the server's to say. The hatch says a scenario file answered. A request
+    // refused before it was sent, and a step done inside this tool, were answered by nobody, so
+    // neither carries the hatch; the step done here is drawn as a frame, never filled, because a
+    // filled strip is an answer from the payer. A result from a server too old to say keeps the
+    // rule it was drawn by before.
     const refused = refusedBeforeSending(envelope);
     const mock = envelope.profile === 'mock';
-    const answeredByScenario = mock && !refused;
-    const strip = el('div', {class: 'verdict ' + toneClass(verdict.tone) + (answeredByScenario ? ' verdict--mock' : '')});
+    const answeredBy = envelope.answeredBy || (refused ? 'NOT_SENT' : mock ? 'SCENARIO' : 'SERVICE');
+    const answeredByScenario = answeredBy === 'SCENARIO';
+    const local = answeredByNobody(answeredBy);
+    const strip = el('div', {class: 'verdict ' + toneClass(verdict.tone) + (answeredByScenario ? ' verdict--mock' : '')
+        + (local ? ' verdict--local' : '')});
     if (answeredByScenario) {
         strip.append(el('span', {class: 'visually-hidden'}, 'Mock profile: this answer came from a scenario file. '));
+    }
+    if (local) {
+        strip.append(el('span', {class: 'visually-hidden'}, 'Nobody answered this step: it was done inside this tool. '));
     }
     // A headline is one sentence, set large. A refusal can word its reason into a paragraph, which
     // at that size fills the screen and hides the test result beside it, so a long one is set smaller.
@@ -121,6 +130,7 @@ function verdictStrip(envelope) {
     }
     strip.append(el('p', {class: 'verdict__foot'},
         answeredByScenario ? mockMark() : null,
+        local ? localMark() : null,
         mock && refused ? el('span', {class: 'verdict__unanswered'}, 'Mock profile, and no scenario answered: the request was refused before it was sent.') : null,
         el('span', null, 'Outcome code ', code(verdict.outcomeCode, 'verdict__code'))));
     return strip;

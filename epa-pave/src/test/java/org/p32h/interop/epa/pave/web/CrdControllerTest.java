@@ -139,8 +139,24 @@ class CrdControllerTest {
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("expected"));
         mvc.perform(post("/api/crd").contentType(MediaType.APPLICATION_JSON).content("{\"member\": "))
                 .andExpect(status().isUnprocessableContent());
+        // A key given twice, at the top or inside the member, is refused by its place, never read as its last value.
+        mvc.perform(post("/api/crd").contentType(MediaType.APPLICATION_JSON).content("{\"member\":{\"memberId\":\"P32H-NO-AUTH\"},"
+                        + "\"member\":{\"memberId\":\"P32H-EMPTY\"},\"provider\":{\"npi\":\"1234567893\"},\"procedureCodes\":[{\"code\":\"95810\"}],"
+                        + "\"dateOfService\":\"2026-03-02\"}"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("member"));
+        mvc.perform(post("/api/crd").contentType(MediaType.APPLICATION_JSON).content("{\"member\":{\"memberId\":\"P32H-NO-AUTH\","
+                        + "\"memberId\":\"P32H-EMPTY\"},\"provider\":{\"npi\":\"1234567893\"},\"procedureCodes\":[{\"code\":\"95810\"}]}"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("member.memberId"));
         assertThat(ledger.records()).isEmpty();
         assertThat(gateway.intents()).isEmpty();
+    }
+
+    @Test
+    void aBodyOfTheTestersOwnIsTextAndARepeatedKeyInsideItIsPassedOnAsWritten() throws Exception {
+        String own = "{\"hook\":\"order-sign\",\"hook\":\"order-select\"}";
+        mvc("mock").perform(post("/api/crd").contentType(MediaType.APPLICATION_JSON)
+                        .content(body("P32H-NO-AUTH", ",\"rawBody\":" + JsonSafe.mapper().writeValueAsString(own))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.wire.request.body").value(own));
     }
 
     @Test

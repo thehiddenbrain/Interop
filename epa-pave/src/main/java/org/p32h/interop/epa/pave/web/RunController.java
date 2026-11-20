@@ -130,7 +130,7 @@ public class RunController {
                          @RequestParam(required = false) String result, @RequestParam(required = false) String outcome,
                          @RequestParam(required = false) String chainId, @RequestParam(required = false) String suiteRunId,
                          @RequestParam(required = false) String limit, @RequestParam(required = false) String testerRef,
-                         @RequestParam(required = false) String zone) {
+                         @RequestParam(required = false) String zone, @RequestParam(required = false) String follows) {
         List<FieldError> errors = new ArrayList<>();
         java.time.ZoneId clock = read(errors, () -> Params.zone("zone", zone));
         LocalDate first = read(errors, () -> Params.date("from", from));
@@ -155,7 +155,9 @@ public class RunController {
         // A parameter that is there and blank, as a form sends an empty field, is not a filter.
         RunQuery question = RunQuery.builder().from(first).to(last).protocol(onlyProtocol).operation(onlyOperation)
                 .result(onlyResult).outcome(Texts.trimToNull(outcome)).chainId(Texts.trimToNull(chainId))
-                .suiteRunId(Texts.trimToNull(suiteRunId)).testerRef(Texts.trimToNull(testerRef)).zone(clock).limit(toRead).build();
+                .suiteRunId(Texts.trimToNull(suiteRunId)).testerRef(Texts.trimToNull(testerRef)).zone(clock).limit(toRead)
+                // The runs that name the given run as the one they follow, so a run view can lead on to them.
+                .correlation(Texts.present(follows) ? RunRecord.CORR_RUN_ID : null, Texts.trimToNull(follows)).build();
         List<RunRecord> runs = ledger.query(question);
         boolean truncated = limited && runs.size() > most;
         List<RunRecord> shown = truncated ? List.copyOf(runs.subList(0, most)) : runs;
@@ -263,7 +265,7 @@ public class RunController {
 
     private static void inOrder(List<FieldError> errors, LocalDate first, LocalDate last) {
         if (first != null && last != null && first.isAfter(last)) {
-            errors.add(new FieldError("from", "The from date is after the to date."));
+            errors.add(new FieldError("from", "The From day is after the To day. Make From the earlier day, or leave one of them empty."));
         }
     }
 

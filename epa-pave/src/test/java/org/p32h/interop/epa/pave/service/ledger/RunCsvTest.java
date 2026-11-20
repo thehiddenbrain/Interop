@@ -179,6 +179,7 @@ class RunCsvTest {
         // The result of a chain case as a whole, which its case line gives the last step when the line is read.
         expected.put("caseExpected", "crd: AUTH_REQUIRED; pas: PENDED");
         expected.put("caseResult", "fail");
+        expected.put("answeredBy", "SERVICE");
         assertThat(cells).containsExactlyEntriesOf(expected);
         // Nothing in the record was left without an expectation above.
         assertThat(expected.keySet()).containsExactlyElementsOf(RunCsv.header());
@@ -196,7 +197,8 @@ class RunCsvTest {
         // Never the word null, which a reader would take for a value.
         assertThat(RunCsv.text(List.of(minimal("run-1").build()))).doesNotContain("null");
         assertThat(cells.get("slow")).isEqualTo("false");
-        assertThat(cells.get("elapsedMillis")).isEqualTo("0");
+        // Nothing measured is an empty cell, never 0.
+        assertThat(cells.get("elapsedMillis")).isEmpty();
         assertThat(cells.get("result")).isEqualTo("unverified");
         assertThat(cells.get("errorType")).isEqualTo("NONE");
     }

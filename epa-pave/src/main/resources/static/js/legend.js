@@ -3,7 +3,7 @@
 // fact is drawn changes the key with it.
 
 import {el, fill, button, code} from './dom.js';
-import {TONES, RESULTS, findingGroupsOf, toneMark, stamp, slowFlag, mockMark} from './marks.js';
+import {TONES, RESULTS, findingGroupsOf, toneMark, stamp, slowFlag, mockMark, localMark} from './marks.js';
 import * as api from './api.js';
 import {presenceMark, noneMark} from './shown.js';
 
@@ -14,7 +14,7 @@ export async function openLegend(dialog) {
     fill(dialog,
         el('div', {class: 'legend__head'},
             el('h2', {id: 'legend-title', class: 'section-heading'}, 'Colour key'),
-            button('Close', () => dialog.close(), {class: 'button--quiet button--small'})),
+            button('Close the colour key', () => dialog.close(), {class: 'button--quiet button--small'})),
         el('p', {class: 'legend__lead'},
             'The page itself has no colour. Where a colour or a mark appears, it states one of the facts below and nothing else.'),
 
@@ -23,7 +23,10 @@ export async function openLegend(dialog) {
                 group('What the service said',
                     'The verdict strip at the top of a result, and the square in front of an outcome in a table. '
                     + 'A solid colour is an answer from the payer. A hollow frame is no answer from the payer, and the frame says why.',
-                    TONES.map(([tone, meaning]) => row(toneMark(tone), meaning))),
+                    [TONES.map(([tone, meaning]) => row(toneMark(tone), meaning)),
+                        row(toneMark('ACTION', 'NOBODY'),
+                            [localMark(), ' A step done inside this tool, such as completing a questionnaire response: nothing was sent and '
+                            + 'nobody answered. The dotted frame is in the colour of what the step means, and is never filled, because no payer answered.'])]),
 
                 group('The test result',
                     'Whether the outcome matched what the tester declared. It is a different fact from what the service said, '
@@ -40,7 +43,7 @@ export async function openLegend(dialog) {
                     row(el('span', {class: 'kind kind--uat'}, 'uat'), 'UAT. A banner in purple outline stays at the top of every tab.'),
                     row(el('span', {class: 'kind kind--sandbox'}, 'sandbox'), 'A sandbox. It has no banner: nothing about it needs a warning.'),
                     row(mockMark(), 'The mock profile. A scenario file answered in place of the service, and nothing left this machine. '
-                        + 'A request this tool refused carries no hatch: nothing answered it.')
+                        + 'A request this tool refused, and a step done inside this tool, carry no hatch: nothing answered them.')
                 ]),
 
                 group('Marks', null, [
@@ -59,7 +62,7 @@ export async function openLegend(dialog) {
                         + 'before the configuration changed. News about the tool itself, under the tabs: the configuration changed, or the server '
                         + 'stopped answering.'),
                     row(el('span', {class: 'swatch swatch--plain'}),
-                        'A thin black frame around a sentence of the server: an answer that is not a fault and not a result. Something not found in this tool, '
+                        'A thin black frame around a sentence: something this tool says that is neither a fault nor a result. A thing not found in this tool, '
                         + 'a problem with its configuration, or an action on the Config tab it did not make. Its own words say what to do.'),
                     row(el('span', {class: 'flag'}, 'write'),
                         'A thin black frame around a word: a mark to read, not a fault. A write, a secret, a pre-request script, a code this tool does not know.'),

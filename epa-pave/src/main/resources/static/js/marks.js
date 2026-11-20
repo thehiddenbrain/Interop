@@ -47,14 +47,25 @@ export function toneClass(tone) {
     return TONES.some(([known]) => known === name) ? 'tone--' + token(name) : 'tone--NEUTRAL tone--' + token(name);
 }
 
-/** A small square in the tone's colour and form. */
-export function toneMark(tone) {
-    return el('span', {class: 'tone-mark ' + toneClass(tone), aria: {hidden: 'true'}});
+/**
+ * True when the server says nobody answered the run: a step done inside this tool. Its tone is
+ * still drawn, as a dotted frame and never filled, because a filled colour is an answer from the
+ * payer. A refusal is the server's NOT_SENT and is drawn by its own tone, as before.
+ */
+export function answeredByNobody(answeredBy) {
+    return answeredBy === 'NOBODY';
+}
+
+/** A small square in the tone's colour and form, as a dotted frame for a step nobody answered. */
+export function toneMark(tone, answeredBy) {
+    return el('span', {class: 'tone-mark ' + toneClass(tone) + (answeredByNobody(answeredBy) ? ' tone-mark--local' : ''),
+        aria: {hidden: 'true'}});
 }
 
 /** An outcome in words with its tone mark in front, for tables and lists. */
-export function outcome(label, tone) {
-    return el('span', {class: 'outcome'}, toneMark(tone), el('span', {class: 'outcome__label'}, label));
+export function outcome(label, tone, answeredBy) {
+    return el('span', {class: 'outcome'}, toneMark(tone, answeredBy), el('span', {class: 'outcome__label'}, label),
+        answeredByNobody(answeredBy) ? el('span', {class: 'visually-hidden'}, ' (done inside this tool: nobody answered)') : null);
 }
 
 /**
@@ -96,4 +107,9 @@ export function slowFlag() {
 /** The mark that says an answer came from a mock scenario and not from the service. */
 export function mockMark() {
     return el('span', {class: 'mock-mark'}, el('span', {class: 'hatch', aria: {hidden: 'true'}}), 'mock');
+}
+
+/** The mark that says nobody answered: the step was done inside this tool and nothing was sent. */
+export function localMark() {
+    return el('span', {class: 'local-mark'}, 'done in this tool, nobody answered');
 }

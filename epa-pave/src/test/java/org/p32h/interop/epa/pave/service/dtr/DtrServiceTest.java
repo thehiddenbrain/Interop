@@ -22,6 +22,7 @@ import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
+import org.p32h.interop.epa.pave.model.AnsweredBy;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.model.FieldError;
@@ -365,7 +366,7 @@ class DtrServiceTest {
         // DTR 2.0.1 requires at least one item in a QuestionnaireResponse, so a response completed with none is not handed to PAS.
         // PAS is still the next step, and the result says that no response goes with it and why.
         assertThat(askedNothing.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
-        assertThat(askedNothing.nextStep().headline()).isEqualTo("Next: submit the prior authorization request in PAS. No questionnaire "
+        assertThat(askedNothing.nextStep().headline()).isEqualTo("Next: choose Continue in PAS, then Send PAS request. No questionnaire "
                 + "response goes with it.");
         assertThat(askedNothing.nextStep().reason()).isEqualTo("The service completed this response without asking a question. This "
                 + "response holds no item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). "
@@ -1810,7 +1811,11 @@ class DtrServiceTest {
         assertThat(record.result()).isEqualTo(TestResult.FAIL);
         assertThat(record.coverageCodes()).containsExactly("response-status=in-progress", "questions=5", "answered=2", "required-unanswered=2");
         assertThat(record.httpStatus()).isNull();
-        assertThat(record.elapsedMillis()).isZero();
+        // Nothing was sent, so nothing was timed, and nobody answered: not a scenario, not the service.
+        assertThat(record.elapsedMillis()).isNull();
+        assertThat(record.answeredBy()).isEqualTo(AnsweredBy.NOBODY);
+        assertThat(result.answeredBy()).isEqualTo(AnsweredBy.NOBODY);
+        assertThat(fetched.answeredBy()).isEqualTo(AnsweredBy.SCENARIO);
         assertThat(record.errorType()).isEqualTo("NONE");
         assertThat(record.scenarioId()).isNull();
         assertThat(record.environment()).isEqualTo("Onyx Sandbox");

@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.cfg.EnumFeature;
 import tools.jackson.databind.json.JsonMapper;
@@ -21,6 +22,11 @@ import tools.jackson.databind.json.JsonMapper;
  * unknown properties, because a line written by a later version must still be readable.
  *
  * <p>A number is never read as an enum by its position in the declaration.
+ *
+ * <p>A key repeated inside one object is an error, as it is in a scenario file and a suite file.
+ * Read leniently, the last value would win in silence, and a scripted request could run another
+ * case than the one its author reads in it. A body of the tester's own travels inside a request
+ * as text and is not read here, so it is passed on as written.
  */
 @Configuration
 public class JacksonConfig {
@@ -30,7 +36,8 @@ public class JacksonConfig {
      * tests build their mapper with the same call, so a test sees what the running application does.
      */
     public static JsonMapper.Builder strict(JsonMapper.Builder builder) {
-        return builder.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).enable(EnumFeature.FAIL_ON_NUMBERS_FOR_ENUMS);
+        return builder.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).enable(EnumFeature.FAIL_ON_NUMBERS_FOR_ENUMS)
+                .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION);
     }
 
     /** Runs after the framework's own customizer, which switches the first of these off. */

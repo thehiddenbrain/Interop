@@ -70,22 +70,26 @@ export async function loadVocabulary() {
 
         /**
          * Every outcome code of the protocols given (or of every protocol), each once, for the
-         * outcome filter. A code that two protocols word differently is offered under its code.
+         * outcome filter. A code that two protocols word differently is offered once, with the
+         * words of each protocol before its own name, so no choice is left as a bare code.
          */
         outcomeChoices(protocols) {
             const wanted = protocols && protocols.length > 0 ? protocols : Array.from(byProtocol.keys());
             const seen = new Map();
             for (const protocol of wanted) {
                 for (const option of (byProtocol.get(protocol) || new Map()).values()) {
-                    const earlier = seen.get(option.code);
-                    if (!earlier) {
-                        seen.set(option.code, {code: option.code, label: option.label});
-                    } else if (earlier.label !== option.label) {
-                        earlier.label = null;
-                    }
+                    const earlier = seen.get(option.code) || {code: option.code, words: []};
+                    earlier.words.push({protocol, label: option.label});
+                    seen.set(option.code, earlier);
                 }
             }
-            return Array.from(seen.values());
+            return Array.from(seen.values()).map(entry => {
+                const labels = [...new Set(entry.words.map(word => word.label).filter(Boolean))];
+                // Each set of words once, after every protocol that uses it.
+                const byWords = labels.map(label => entry.words.filter(word => word.label === label).map(word => word.protocol).join(' and ')
+                    + ': ' + label);
+                return {code: entry.code, label: labels.length === 0 ? null : labels.length === 1 ? labels[0] : byWords.join('; ')};
+            });
         }
     };
 }

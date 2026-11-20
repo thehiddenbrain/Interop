@@ -1264,7 +1264,7 @@ class PasServiceTest {
         VendorExchange timeout = TestExchanges.timeout(EpaOperation.PAS_SUBMIT);
         RunEnvelope<PasDetail> result = service(stub(timeout), "live", Map.of(), Map.of()).runSubmit(submission("S123456789").build(), RunOrigin.manual(), null);
         assertThat(result.verdict().supporting()).contains("The payer may have received the submission and acted on it.");
-        assertThat(result.nextStep().headline()).isEqualTo("Next: check the environment, then ask for the status before sending again.");
+        assertThat(result.nextStep().headline()).isEqualTo("Next: check the environment, then choose Send inquiry before sending again.");
         // The claim id to ask about is handed on, so the tester does not have to find it.
         assertThat(result.nextStep().carry()).containsKeys(NextStepView.CARRY_CLAIM_ID, NextStepView.CARRY_RUN_ID);
         // The panel beside it does not tell the tester to send again while the next step says to ask first.
@@ -1295,8 +1295,8 @@ class PasServiceTest {
         assertThat(timeout.verdict().outcomeCode()).isEqualTo("TIMEOUT");
         // Said as what a real timeout would mean, beside a panel that says nothing was sent.
         assertThat(timeout.verdict().supporting()).noneMatch(line -> line.contains("may have received"));
-        assertThat(timeout.nextStep().headline()).isEqualTo("Next, had this been a real service: check the environment, then ask for the "
-                + "status before sending again.");
+        assertThat(timeout.nextStep().headline()).isEqualTo("Next, had this been a real service: check the environment, then choose Send "
+                + "inquiry before sending again.");
         assertThat(timeout.nextStep().reason()).startsWith("Had this been a real service, the payer might have received the submission");
         // The scenario models a refused connection: nothing was submitted.
         RunEnvelope<PasDetail> down = submit("P32H-PAS-DOWN");

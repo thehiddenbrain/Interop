@@ -105,9 +105,9 @@ class PlayedTimeoutOverTheServerTest {
         assertThat(submission.at("/verdict/supporting")).hasSize(1);
         assertThat(submission.at("/nextStep/action").asString()).isEqualTo("CHECK_ENVIRONMENT");
         assertThat(submission.at("/nextStep/headline").asString()).isEqualTo("Next, had this been a real service: check the environment, "
-                + "then ask for the status before sending again.");
+                + "then choose Send inquiry before sending again.");
         assertThat(submission.at("/nextStep/reason").asString()).isEqualTo("Had this been a real service, the payer might have received the "
-                + "submission: ask for its status before sending it again. Sending it again without checking could create a second request.");
+                + "submission: choose Send inquiry before sending it again. Sending it again without checking could create a second request.");
         // The claim id to ask about is still handed on, as after a real timeout.
         assertThat(submission.at("/nextStep/carry/claimId")).hasSize(1);
     }

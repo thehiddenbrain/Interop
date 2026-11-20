@@ -124,7 +124,7 @@ class ConfigControllerTest {
         mvc.perform(multipart("/api/config/environments").file(file(PostmanFiles.SANDBOX_ENVIRONMENT)).param("kind", "staging"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("kind"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given for kind is not valid. It must be sandbox, uat or prod."));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given here is not valid. It must be sandbox, uat or prod."));
         mvc.perform(multipart("/api/config/environments").file(file(PostmanFiles.SANDBOX_ENVIRONMENT)).param("kind", "sandbox")
                         .param("acknowledgeNotProd", "maybe"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("acknowledgeNotProd"));
@@ -461,7 +461,7 @@ class ConfigControllerTest {
         mvc.perform(json(put(url), "{\"requestId\": \"" + inquiry.requestId() + "\", \"operation\": \"PAS_APPROVE\"}"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("operation"))
-                .andExpect(jsonPath("$.fieldErrors[0].message", startsWith("The value given for operation is not valid. It must be one of CRD_ORDER_SIGN, ")));
+                .andExpect(jsonPath("$.fieldErrors[0].message", startsWith("The value given here is not valid. It must be one of CRD_ORDER_SIGN, ")));
         // A number is never taken for a position in the list of operations.
         mvc.perform(json(put(url), "{\"requestId\": \"" + inquiry.requestId() + "\", \"operation\": 6}"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("operation"));

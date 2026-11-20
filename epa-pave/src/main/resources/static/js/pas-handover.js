@@ -82,7 +82,7 @@ export function createHandover(spec) {
             parts.push(el('p', {class: 'small'}, changed ? 'What was handed on:' : 'What goes with the next request, unchanged:'),
                 facts(others.map(([key, values]) => [carriedName(key), valuesOf(key, values)]), 'facts--ruled handed-on pas-handover__facts'));
         }
-        parts.push(el('p', null, button('Set this hand-over aside', () => { dismissed = true; draw(); spec.changed(); }, {class: 'button--text'})));
+        parts.push(el('p', null, button('Send nothing that was handed on', () => { dismissed = true; draw(); spec.changed(); }, {class: 'button--text'})));
         fill(node, parts);
     }
 

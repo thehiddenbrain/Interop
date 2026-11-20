@@ -114,7 +114,7 @@ public class ChainService {
     /** As {@link #list(LocalDate, LocalDate, Integer)}, with the days on the given clock. Null means the days the runs' own timestamps name. */
     public List<ChainView> list(LocalDate from, LocalDate to, Integer limit, java.time.ZoneId zone) {
         if (from != null && to != null && from.isAfter(to)) {
-            throw ValidationException.of("from", "The first day is after the last day.");
+            throw ValidationException.of("from", "The From day is after the To day. Make From the earlier day, or leave one of them empty.");
         }
         if (limit != null && (limit < 1 || limit > MAX_LIMIT)) {
             throw ValidationException.of("limit", "The limit must be between 1 and " + MAX_LIMIT + ".");
@@ -337,7 +337,8 @@ public class ChainService {
                 record.operation() == null ? null : record.operation().label(), record.outcome(),
                 outcomes.label(record.protocol(), record.outcome()), outcomes.tone(record.protocol(), record.outcome()),
                 record.expected(), record.result(), record.elapsedMillis(), Boolean.TRUE.equals(record.slow()), record.httpStatus(),
-                nextAction(record), record.findings(), record.scenarioId(), latestOfItsKind, record.caseResult());
+                nextAction(record), record.findings(), record.scenarioId(), latestOfItsKind, record.caseResult(),
+                record.answeredBy());
     }
 
     /**
@@ -371,7 +372,8 @@ public class ChainService {
             case START_PAS, CHECK_STATUS -> Protocol.PAS;
             // Neither names a stage. One says the journey is over, the other that nothing follows from the call.
             case FLOW_ENDS, NOTHING_FURTHER -> null;
-            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REVIEW -> stage;
+            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REPORT_NO_DETERMINATION,
+                 REVIEW -> stage;
         };
     }
 
@@ -382,7 +384,8 @@ public class ChainService {
      */
     static boolean attention(NextAction action) {
         return switch (action) {
-            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REVIEW -> true;
+            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REPORT_NO_DETERMINATION,
+                 REVIEW -> true;
             case START_DTR, ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE, START_PAS, CHECK_STATUS, FLOW_ENDS, NOTHING_FURTHER -> false;
         };
     }

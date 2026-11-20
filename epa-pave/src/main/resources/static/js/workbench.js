@@ -212,6 +212,17 @@ export function createWorkbench(app, panel, spec) {
         }
     }
 
+    /**
+     * The text typed in the procedure code box of the case and not added, when the case is on this
+     * tab. The case is one, moved to whichever protocol tab is open, so on any other tab, the
+     * Config tab among them, nothing typed there is this call's business.
+     */
+    function typedNotAdded() {
+        const box = panel.contains(app.caseContext.node)
+            ? app.caseContext.node.querySelector('[data-field="procedureCodes"] input[role="combobox"]') : null;
+        return box ? box.value.trim() : '';
+    }
+
     /** Returns the focus to the control that started a call, when the focus fell to the page meanwhile. */
     function giveFocusBack(control) {
         const now = document.activeElement;
@@ -330,6 +341,17 @@ export function createWorkbench(app, panel, spec) {
                 status.textContent = nothing.title;
                 return null;
             }
+            const typed = typedNotAdded();
+            if (typed !== '') {
+                // Text left in the code box is not part of the case on screen, so it is never sent,
+                // and the send is refused rather than made without it: the tester decides which.
+                const left = {title: 'Nothing was sent: "' + typed + '" was typed in the procedure code box and not added to the case.',
+                    action: 'Choose Add code to add it, or clear the box, then send again.', fieldErrors: []};
+                fill(problem, formProblem(left, markFieldErrors([app.caseContext.node],
+                    [{field: 'procedureCodes', message: 'Typed and not added. Choose Add code, or clear the box.'}])));
+                status.textContent = left.title;
+                return null;
+            }
             // The control that started the call. Disabling it while the call is out drops the focus
             // to the page, so it is given back when the call is done, unless the tester has moved on.
             const starter = options.control || (document.activeElement instanceof HTMLElement && document.activeElement !== document.body
@@ -338,8 +360,7 @@ export function createWorkbench(app, panel, spec) {
             status.textContent = options.saying;
             let answer;
             try {
-                // The request is built first: building it moves a code still being typed into the
-                // list. The case is read after that, so it is the case that went out.
+                // The request is built first and the case read after it, so the case kept is the one that went out.
                 const sending = send();
                 sentCase = app.caseContext.summary();
                 answer = await sending;
@@ -578,7 +599,7 @@ export function requestPreviewPanel(preview, close) {
     return el('section', {class: 'panel'},
         el('div', {class: 'panel__head'},
             heading(2, 'The request as it would be sent'),
-            button('Close', close, {class: 'button--quiet button--small'})),
+            button('Close the request', close, {class: 'button--quiet button--small'})),
         el('p', {class: 'quiet'}, 'Nothing was sent and nothing was recorded.'),
         preview.blocked ? el('div', {class: 'error-panel error-panel--blocked'}, el('p', {class: 'error-panel__title'}, preview.blocked)) : null,
         facts([

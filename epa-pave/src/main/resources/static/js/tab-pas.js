@@ -25,8 +25,8 @@ import {runLink} from './history-common.js';
 import {bringIntoPane} from './case-context.js';
 
 const MODES = [
-    {id: 'submit', label: 'Submit', use: 'submit'},
-    {id: 'inquire', label: 'Inquire', use: 'inquire'},
+    {id: 'submit', label: 'Send PAS request', use: 'submit'},
+    {id: 'inquire', label: 'Send inquiry', use: 'inquire'},
     {id: 'subscriptions', label: 'Subscriptions', use: 'subscription'},
     {id: 'notifications', label: 'Notifications', use: 'notification'}
 ];
@@ -221,7 +221,7 @@ function primaryAction() {
 function buildSubmit() {
     controls.handover = createHandover({caseNow: () => app.caseContext.summary(), changed: () => {}});
     controls.claimId = textField({label: 'Claim identifier', field: 'claimId', literal: true, wide: true,
-        hint: 'Blank: the tool mints one for this submission, or uses the one an earlier step handed on. An inquiry and a notification are matched by it.'});
+        hint: 'Blank: the tool creates one for this submission, or uses the one an earlier step handed on. An inquiry and a notification are matched by it.'});
     controls.date = textField({label: 'Date of service', field: 'dateOfService', placeholder: 'YYYY-MM-DD'});
     controls.diagnoses = textField({label: 'Diagnosis codes', field: 'diagnosisCodes', literal: true, placeholder: 'such as G47.33',
         hint: 'Separate codes with a comma or a space. Optional.'});
@@ -640,7 +640,7 @@ function drawWriteBox() {
             el('p', null, el('strong', null, 'Writes are blocked. '), refused,
                 // Where an owner has locked the installation there is no unlock to go to: the banner above says so, and no way is offered.
                 access.floorAllows === false ? 'The banner above says why.'
-                    : ['Unlock on the ', button('Config tab', () => app.navigate('config'), {class: 'button--text', aria: {label: 'Open the Config tab'}}), '.'])));
+                    : ['Unlock them on the Config tab. ', button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'})])));
         return;
     }
     if (access.production) {
@@ -773,10 +773,10 @@ function drawResubmit() {
         el('p', null, el('strong', null, 'Sending again after run '), runLink(resubmitting.runId), el('strong', null, ', where the payer asked for documentation.')),
         reused
             ? el('p', null, 'The claim identifier field holds that request\'s identifier, ', code(resubmitting.claimId),
-                ', so "Send PAS request" sends a new request with the same claim identifier. Clear the field to have the tool mint a new one.')
+                ', so "Send PAS request" sends a new request with the same claim identifier. Clear the field to have the tool create a new one.')
             : el('p', null, 'The claim identifier field no longer holds that request\'s identifier, so this send is not tied to it.'),
         el('p', {class: 'small'}, 'The next step of that run says: ', el('q', null, resubmitting.headline)),
-        el('p', null, button('Set this aside', () => { resubmitting = null; drawResubmit(); }, {class: 'button--text'})));
+        el('p', null, button('Stop resubmitting run ' + resubmitting.runId, () => { resubmitting = null; drawResubmit(); }, {class: 'button--text'})));
 }
 
 async function showPreview(kind) {

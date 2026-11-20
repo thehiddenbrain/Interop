@@ -1,4 +1,4 @@
-// "Send a request as written": any request of the vendor's collection, sent exactly as the vendor
+// "Send as written": any request of the vendor's collection, sent exactly as the vendor
 // wrote it, with its placeholders filled in, before any of the tool's own mapping is involved.
 //
 // It is built on the workbench every protocol tab uses, so sending, the request before it is
@@ -38,7 +38,7 @@ export function createRawView(context) {
     const reload = button('Load the sample body again', () => loadBody(true), {class: 'button--text'});
     const testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials', hint: LEDGER_TEXT_HINT});
     const note = textField({label: 'Note', field: 'note', hint: LEDGER_TEXT_HINT});
-    const sendButton = el('button', {type: 'submit', class: 'button button--primary'}, 'Send this request as written');
+    const sendButton = el('button', {type: 'submit', class: 'button button--primary'}, 'Send as written');
     const previewButton = button('Show the request', preview);
     const previewSlot = bench.slot('preview');
     bench.track(sendButton, previewButton, requestSelect);
@@ -118,7 +118,7 @@ export function createRawView(context) {
         const collections = (context.stored().collections || {}).collections || [];
         bench.showEmpty(chosen
             ? el('div', {class: 'empty-state'},
-                el('p', null, 'Send it with "Send this request as written", or look at it first with "Show the request". '
+                el('p', null, 'Send it with "Send as written", or look at it first with "Show the request". '
                     + 'What comes back appears here.'))
             : emptyState(collections.length));
     }

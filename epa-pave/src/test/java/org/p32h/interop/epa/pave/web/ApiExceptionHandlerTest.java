@@ -229,12 +229,12 @@ class ApiExceptionHandlerTest {
         mvc.perform(get("/typed").param("result", "passed")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("result"))
                 .andExpect(jsonPath("$.fieldErrors[0].message")
-                        .value("The value given for result is not valid. It must be pass, fail or unverified."));
+                        .value("The value given here is not valid. It must be pass, fail or unverified."));
         // The message is this tool's own sentence. What a number parser or an enum lookup throws
         // names Java types and quotes the input, and is never passed on.
         mvc.perform(get("/typed").param("result", "pass").param("limit", "ten")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("limit"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given for limit is not valid. It must be a whole number."));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The value given here is not valid. It must be a whole number."));
         String protocol = mvc.perform(get("/typed").param("result", "pass").param("protocol", "fax"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("protocol"))
                 .andReturn().getResponse().getContentAsString();
@@ -278,6 +278,23 @@ class ApiExceptionHandlerTest {
                 .andExpect(jsonPath("$.kind").value("VALIDATION"))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("membrId"))
                 .andExpect(jsonPath("$.fieldErrors[0].message").value("This tool does not know the field \"membrId\". Check its spelling."));
+        mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON).content("{\"memberId\":\"S123456789\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void aRequestBodyThatRepeatsAKeyIsRefusedByNameAndNeitherValueIsQuoted() throws Exception {
+        // The last value would otherwise win in silence, and the request would say two things.
+        String refused = mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberId\":\"S123456789\",\"memberId\":\"S987654321\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.kind").value("VALIDATION"))
+                .andExpect(jsonPath("$.title").value("The request repeats the field \"memberId\" inside one object. Nothing was sent."))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("memberId"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("This field is given more than once. Keep one, so the request says one thing."))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(refused).doesNotContain("S123456789").doesNotContain("S987654321");
+        // The same key in two different objects is not a repeat.
         mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON).content("{\"memberId\":\"S123456789\"}"))
                 .andExpect(status().isOk());
     }

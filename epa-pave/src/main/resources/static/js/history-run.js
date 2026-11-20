@@ -34,6 +34,9 @@ const TAB_OF = {CRD: 'crd', DTR: 'dtr', PAS: 'pas'};
 // configuration, so the button stays after those.
 const FINAL = new Set(['not-replayable', 'invalid']);
 
+/** How many of the runs that follow a run its view lists. */
+const FOLLOWERS_SHOWN = 20;
+
 export function createRunView(app, context) {
     let openId = null;
     const node = el('div', {class: 'history-run'});
@@ -126,7 +129,7 @@ export function createRunView(app, context) {
                         ['Ran against', [whereRan(run), ', ', run.profile || 'no', ' profile, target ', run.target || 'not stated']],
                         ['Url came from', run.targetSource ? ['the collection request ', el('strong', null, run.targetSource)]
                             : el('span', {class: 'quiet'}, 'the fallback settings, or nothing was configured')],
-                        ['Elapsed', [millis(run.elapsedMillis), run.slow ? [' ', slowFlag()] : null]],
+                        ['Elapsed', [millis(run.elapsedMillis) || none('not measured'), run.slow ? [' ', slowFlag()] : null]],
                         [member.label, member.node],
                         ['NPI', run.npi ? code(run.npi) : none('not recorded')],
                         ['Date of service', run.dateOfService ? code(run.dateOfService) : none('not recorded')],
@@ -171,6 +174,31 @@ export function createRunView(app, context) {
         return el('div', {class: 'history-run__answer'}, el('h3', {class: 'history-run__question'}, question), el('div', null, body));
     }
 
+    /**
+     * The runs that name this one as the run they follow, read from the ledger, so a QA analyst
+     * goes from a step to the steps after it as easily as back: from a package fetch to the
+     * response completed from it, and from there to the submission that carried its answers.
+     */
+    function followers(run) {
+        const slot = el('div', {class: 'history-run__followers', aria: {live: 'polite'}},
+            el('span', {class: 'small quiet'}, 'Reading the runs that follow this one.'));
+        api.get('/api/runs?follows=' + encodeURIComponent(run.runId) + '&limit=' + FOLLOWERS_SHOWN).then(answer => {
+            if (openId !== run.runId) {
+                return;
+            }
+            if (answer.kind !== 'ok') {
+                fill(slot, el('p', {class: 'small'}, 'The runs that follow this one could not be read: ', answer.body.title));
+                return;
+            }
+            const runs = answer.body.runs || [];
+            fill(slot, runs.length === 0 ? none('no run names this one as the run it follows')
+                : [el('ul', {class: 'plain-list'}, runs.map(each => el('li', null, runLink(each.runId), ' ',
+                    whatRan(context.vocabulary(), each), ', ', outcomeOf(context.vocabulary(), each)))),
+                answer.body.truncated ? el('p', {class: 'small'}, 'Only the newest ' + FOLLOWERS_SHOWN + ' are listed.') : null]);
+        });
+        return slot;
+    }
+
     function ties(run) {
         const rows = [];
         rows.push(['Chain', run.chainId ? [chainLink(run.chainId), el('div', {class: 'small quiet'}, 'Opens the whole journey of this case.')]
@@ -184,6 +212,7 @@ export function createRunView(app, context) {
             const label = Object.prototype.hasOwnProperty.call(CORRELATION, key) ? CORRELATION[key] : key;
             rows.push([label, RUN_KEYS.has(key) && /^run-/.test(value) ? runLink(value) : code(value)]);
         }
+        rows.push(['Followed by', followers(run)]);
         return facts(rows, 'facts--ruled');
     }
 

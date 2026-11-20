@@ -27,6 +27,7 @@ public final class RunIds {
      * came from the address or the body of the request, and the answer is no place to echo it.
      */
     public static NotFoundException notFound(String runId) {
-        return new NotFoundException("There is no run with that id.");
+        return new NotFoundException("There is no run with that id.",
+                "Copy the run id from the list on the History tab, or from the result that gave it, and try again.");
     }
 }

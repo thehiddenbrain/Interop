@@ -25,7 +25,7 @@ const VIEWS = [
     {id: 'inforce', label: 'In force now', create: createInForceView},
     {id: 'environments', label: 'Environments', create: createEnvironmentsView},
     {id: 'collections', label: 'Collections and mapping', create: createCollectionsView},
-    {id: 'raw', label: 'Send a request as written', create: createRawView},
+    {id: 'raw', label: 'Send as written', create: createRawView},
     {id: 'checks', label: 'Check this installation', create: createChecksView}
 ];
 

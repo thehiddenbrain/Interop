@@ -17,10 +17,10 @@ public enum NextAction {
     ANSWER_NEXT_QUESTION("Send answers and get the next question"),
     /** Answer the questionnaire that was loaded and complete the response, named as the DTR tab's button is. */
     SUBMIT_RESPONSE("Complete the response"),
-    /** Submit the prior authorization request. */
-    START_PAS("Submit the prior authorization request (PAS)."),
-    /** Ask for the status of a pended authorization. */
-    CHECK_STATUS("Ask for the status of the pended authorization (PAS)."),
+    /** Submit the prior authorization request, named as the PAS tab's button that sends it is. */
+    START_PAS("Send PAS request"),
+    /** Ask for the status of a pended authorization, named as the PAS tab's button that sends the inquiry is. */
+    CHECK_STATUS("Send inquiry"),
     /** The journey is complete at this step. That is itself a finding worth recording. */
     FLOW_ENDS("Nothing more to do. The journey is complete at this step."),
     /**
@@ -55,6 +55,14 @@ public enum NextAction {
      */
     SEND_ON_ITS_OWN("Send this write on its own from its tab, with production writes unlocked there, or point the tool at an "
             + "environment that is not production."),
+    /**
+     * The service answered and said nothing about prior authorization either way. A business tester
+     * can act on that without reading the response: it is a result to record and to report to the
+     * people who look after the service. The words blame nobody and say nothing about whether
+     * authorization is needed, because the answer does not.
+     */
+    REPORT_NO_DETERMINATION("Record the run as \"no determination returned\" and report it to the people who look after the "
+            + "service. The answer does not say whether prior authorization is needed."),
     /** Look at the response detail: the tool cannot say what should happen next. */
     REVIEW("Look at the response detail. The tool cannot say what should happen next.");
 

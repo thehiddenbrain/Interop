@@ -20,7 +20,7 @@ export function createWritesPanel(context) {
     const node = el('section', {class: 'result__section config-writes-section'});
     const typed = el('input', {type: 'text', id: 'config-unlock-name', autocomplete: 'off', spellcheck: false});
     const problem = el('div', {class: 'form-problem-slot'});
-    const unlock = el('button', {type: 'submit', class: 'button button--primary'}, 'Unlock production writes for this session');
+    const unlock = el('button', {type: 'submit', class: 'button button--primary'}, 'Unlock production writes for this browser session');
     const form = el('form', {class: 'config-unlock', noValidate: true, attrs: {'aria-label': 'Unlock production writes for this browser session'}},
         el('div', {class: 'field', dataset: {field: 'environment'}},
             el('label', {htmlFor: 'config-unlock-name'}, 'Type the name of the active environment, exactly as it is written above'),

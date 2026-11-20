@@ -53,6 +53,12 @@ import tools.jackson.databind.JsonNode;
 @Component
 public class ScenarioRepository {
 
+    /**
+     * How a scenario chosen by its id is said to have been chosen. A replay on mock sends the id the
+     * original run recorded the same way, and says so in its own words in place of these.
+     */
+    public static final String CHOSEN_BY_ID = "chosen in the scenario selector";
+
     /** Every protocol directory the mock clients read. Each must exist and hold at least one scenario. */
     public static final List<String> PROTOCOLS = List.of("crd", "dtr", "pas", "raw");
 
@@ -310,8 +316,9 @@ public class ScenarioRepository {
         if (selection != null && Texts.present(selection.scenarioId())) {
             String wanted = selection.scenarioId().strip();
             return scenarios.stream().filter(s -> s.id().equals(wanted)).findFirst()
-                    .map(s -> new ScenarioSelection(s, "chosen in the scenario selector", ScenarioSelection.By.CHOSEN, false, null))
-                    .orElseThrow(() -> ValidationException.of("scenarioId", "There is no scenario with id \"" + wanted + "\"."));
+                    .map(s -> new ScenarioSelection(s, CHOSEN_BY_ID, ScenarioSelection.By.CHOSEN, false, null))
+                    .orElseThrow(() -> ValidationException.of("scenarioId", "There is no scenario with id \"" + wanted
+                            + "\". Choose one from the Mock scenario list, or leave it empty to let the member ID choose."));
         }
         if (selection != null && Texts.present(selection.memberId())) {
             ScenarioSelection byMember = byMemberId(protocolDirectory, scenarios, Set.of(memberKey(selection.memberId())), false);

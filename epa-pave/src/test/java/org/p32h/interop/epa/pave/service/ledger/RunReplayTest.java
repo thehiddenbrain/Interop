@@ -19,6 +19,8 @@ import org.p32h.interop.epa.pave.model.LedgerReceipt;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.OnyxFailureType;
 import org.p32h.interop.epa.pave.model.Protocol;
+import org.p32h.interop.epa.pave.model.Tone;
+import org.p32h.interop.epa.pave.model.VerdictView;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.service.CaseRunner;
@@ -630,7 +632,7 @@ class RunReplayTest {
         RunReplay replay = replay();
 
         assertThatThrownBy(() -> replay.replay(ELEVENTH, TENTH, null)).isInstanceOfSatisfying(ValidationException.class,
-                refused -> assertThat(refused.fieldErrors()).containsExactly(new FieldError("from", "The from date is after the to date.")));
+                refused -> assertThat(refused.fieldErrors()).containsExactly(new FieldError("from", "The From day is after the To day. Make From the earlier day, or leave one of them empty.")));
         assertThatThrownBy(() -> replay.replay(null, null, java.util.Arrays.asList("run-1", " "))).isInstanceOfSatisfying(ValidationException.class,
                 refused -> assertThat(refused.fieldErrors()).extracting(FieldError::field).containsExactly("runIds[1]"));
         assertThatThrownBy(() -> replay.replay(null, null, java.util.Arrays.asList((String) null))).isInstanceOf(ValidationException.class);
@@ -783,6 +785,38 @@ class RunReplayTest {
     }
 
     @Test
+    void aRunHandedItsCaseIsSaidToHaveFollowedTheRunItFollowedAndIsCalledAStepOfAChainOnlyWithAChainId() {
+        InMemoryLedger lines = new InMemoryLedger();
+        lines.record(draft("alone", clock).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).outcome("APPROVED")
+                .correlation(java.util.Map.of(RunRecord.CORR_RUN_ID, "run-earlier")).unrecordedInputs(List.of(RunRecord.INPUT_PRIOR_STEP)).build());
+        lines.record(draft("chained", clock).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).outcome("APPROVED")
+                .chainId("chain-1").correlation(java.util.Map.of(RunRecord.CORR_RUN_ID, "run-earlier"))
+                .unrecordedInputs(List.of(RunRecord.INPUT_PRIOR_STEP)).build());
+        ReplayReport report = replayOver(lines, new FakeRunner(lines), null).replay(null, null, List.of("alone", "chained"));
+
+        assertThat(report.results()).filteredOn(entry -> entry.runId().equals("alone")).singleElement().satisfies(entry ->
+                assertThat(entry.reason()).endsWith("This run followed run run-earlier and was handed its case by it, so it cannot be sent "
+                        + "again alone. To run the journey again, run it as a suite row with the protocol chain.").doesNotContain("chain-"));
+        assertThat(report.results()).filteredOn(entry -> entry.runId().equals("chained")).singleElement().satisfies(entry ->
+                assertThat(entry.reason()).contains("This run followed run run-earlier").contains(" It is one step of chain chain-1."));
+    }
+
+    @Test
+    void aReplayOnMockSaysTheScenarioWasTheOneTheOriginalRecordedAndNotChosen() {
+        RunRecord original = draft("run-1", clock).scenarioId("crd-02-no-auth").build();
+        VerdictView found = new VerdictView("Prior authorization is not required.", "NO_AUTH_REQUIRED", "Prior authorization is not required",
+                Tone.CLEAR, List.of("Mock scenario crd-02-no-auth answered: chosen in the scenario selector. What it does with the order.",
+                "Another line."));
+        assertThat(RunReplay.replayedScenarioSaid(original, found).supporting()).containsExactly(
+                "Mock scenario crd-02-no-auth answered: the scenario the original run recorded, sent again by its id. On the mock profile a "
+                        + "replay is therefore answered as the original run was, by construction, whatever its member ID would select today. "
+                        + "What it does with the order.",
+                "Another line.");
+        // A live replay names no scenario, and its lines are left as they are.
+        assertThat(RunReplay.replayedScenarioSaid(draft("run-2", clock).profile("live").scenarioId(null).build(), found)).isSameAs(found);
+    }
+
+    @Test
     void theLimitIsOnWhatWouldBeSentAndNotOnWhatIsSelected() {
         // A day of chained runs: for each request that can be sent again there are lines that cannot,
         // such as a step that used what an earlier one handed on. Those are reported and cost the service nothing.
@@ -806,8 +840,8 @@ class RunReplayTest {
         assertThat(report.results()).filteredOn(entry -> entry.runId().equals("step-0")).singleElement()
                 .satisfies(entry -> assertThat(entry.reason()).isEqualTo("This run sent something its ledger line does not hold: answers "
                         + "or identifiers handed on by an earlier step. Running it again from the line would send a different request, and "
-                        + "the two answers could not be compared. This run is one step of a chain, and cannot be replayed by itself. To run "
-                        + "the journey again, run it as a suite row with the protocol chain."));
+                        + "the two answers could not be compared. This run followed an earlier run and was handed its case by it, so it "
+                        + "cannot be sent again alone. To run the journey again, run it as a suite row with the protocol chain."));
         // One more that can be sent, and the whole request is refused.
         many.record(draft("one-too-many", clock).build());
         runner.asked.clear();

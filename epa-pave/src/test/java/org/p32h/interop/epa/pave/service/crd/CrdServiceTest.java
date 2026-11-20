@@ -136,7 +136,7 @@ class CrdServiceTest {
         assertThat(result.expectation().result()).isEqualTo(TestResult.PASS);
         // What do I do next.
         assertThat(result.nextStep().action()).isEqualTo(NextAction.START_PAS);
-        assertThat(result.nextStep().headline()).isEqualTo("Next: submit the prior authorization request in PAS.");
+        assertThat(result.nextStep().headline()).isEqualTo("Next: choose Continue in PAS, then Send PAS request.");
         // And it is recorded, under the same run id the screen shows.
         assertThat(result.ledger().recorded()).isTrue();
         assertThat(ledger.only().runId()).isEqualTo(result.runId());
@@ -206,7 +206,7 @@ class CrdServiceTest {
         assertThat(emptyRow.presence()).isEqualTo(Presence.ABSENT);
 
         assertThat(noAuth.nextStep().action()).isEqualTo(NextAction.FLOW_ENDS);
-        assertThat(empty.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(empty.nextStep().action()).isEqualTo(NextAction.REPORT_NO_DETERMINATION);
 
         // The same expectation passes for one and fails for the other.
         assertThat(noAuth.expectation().result()).isEqualTo(TestResult.PASS);
@@ -324,7 +324,25 @@ class CrdServiceTest {
         run("P32H-DOC-DTR");
         run("P32H-PA-REQ");
         run("P32H-EMPTY");
-        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsExactly("FLOW_ENDS", "START_DTR", "START_PAS", "REVIEW");
+        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsExactly("FLOW_ENDS", "START_DTR", "START_PAS",
+                "REPORT_NO_DETERMINATION");
+    }
+
+    @Test
+    void noDeterminationTellsABusinessTesterToRecordAndReportTheRunByItsIdAndGuessesNothing() {
+        RunEnvelope<CrdDetail> result = run("P32H-EMPTY");
+
+        assertThat(result.nextStep().action()).isEqualTo(NextAction.REPORT_NO_DETERMINATION);
+        assertThat(result.nextStep().headline()).isEqualTo("Next: record run " + result.runId()
+                + " as \"no determination returned\" and report it to the people who look after the service.");
+        // The second line is the way to the detail, for whoever looks into it, and says nothing either way.
+        assertThat(result.nextStep().reason()).isEqualTo("The answer does not say whether prior authorization is needed, and this "
+                + "tool does not guess. What came back is in the response detail below.");
+        assertThat(NextAction.REPORT_NO_DETERMINATION.label()).doesNotContain("vendor").doesNotContain("defect").doesNotContain("not required");
+        // What keeps it apart from "not required" is unchanged.
+        assertThat(result.verdict().headline()).isEqualTo("The service answered but returned no determination.");
+        assertThat(result.verdict().tone()).isNotEqualTo(run("P32H-NO-AUTH").verdict().tone());
+        assertThat(ledger.records().getFirst().nextAction()).isEqualTo("REPORT_NO_DETERMINATION");
     }
 
     @Test

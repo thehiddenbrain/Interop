@@ -161,7 +161,8 @@ class ChainServiceTest {
         // No determination does not end the journey. Nobody knows yet whether authorization is needed.
         assertThat(empty.ended()).isFalse();
         assertThat(empty.headline()).isEqualTo("Coverage requirements (CRD): The service returned no determination. "
-                + "Next: look at the response detail. The tool cannot say what should happen next.");
+                + "Next: record the run as \"no determination returned\" and report it to the people who look after the service. "
+                + "The answer does not say whether prior authorization is needed.");
         assertThat(stage(empty, Protocol.CRD).state()).isEqualTo(ChainStageState.NEEDS_ATTENTION);
         assertThat(stage(empty, Protocol.DTR).state()).isEqualTo(ChainStageState.NOT_REACHED);
         assertThat(stage(empty, Protocol.DTR).stateLine())
@@ -197,7 +198,7 @@ class ChainServiceTest {
         assertThat(stage(view, Protocol.DTR).stateLine())
                 .isEqualTo("Not needed: CRD answered \"Prior authorization is required\" and went straight on to PAS.");
         assertThat(stage(view, Protocol.PAS).state()).isEqualTo(ChainStageState.NEXT);
-        assertThat(stage(view, Protocol.PAS).stateLine()).isEqualTo("Next: submit the prior authorization request (PAS).");
+        assertThat(stage(view, Protocol.PAS).stateLine()).isEqualTo("Next: send PAS request.");
     }
 
     @Test
@@ -230,7 +231,9 @@ class ChainServiceTest {
                 .containsExactly(ChainStageState.DONE, ChainStageState.DONE, ChainStageState.DONE);
         assertThat(done.runCount()).isEqualTo(5);
         assertThat(stage(done, Protocol.PAS).runs()).extracting(ChainRun::what).containsExactly("PAS submit", "PAS inquire");
-        assertThat(done.elapsedMillis()).isGreaterThanOrEqualTo(160);
+        // The package fetch, the submission and the inquiry were each written with 40 ms. The response
+        // completed inside the tool sent nothing, was not timed and adds nothing.
+        assertThat(done.elapsedMillis()).isEqualTo(120);
         assertThat(done.member()).isEqualTo("P32H-DOC-DTR");
         assertThat(done.notes()).isEmpty();
     }
@@ -538,16 +541,19 @@ class ChainServiceTest {
 
     @Test
     void aListRequestThatMakesNoSenseIsRefused() {
+        // Worded as the replay words the same check, naming the fields the tester sees, with what to do.
         assertThatThrownBy(() -> chains().list(LocalDate.of(2026, 3, 11), LocalDate.of(2026, 3, 10), null))
-                .isInstanceOf(ValidationException.class);
+                .isInstanceOfSatisfying(ValidationException.class, refused -> assertThat(refused.fieldErrors().getFirst().message())
+                        .isEqualTo("The From day is after the To day. Make From the earlier day, or leave one of them empty."));
         assertThatThrownBy(() -> chains().list(null, null, 0)).isInstanceOf(ValidationException.class);
         assertThatThrownBy(() -> chains().list(null, null, ChainService.MAX_LIMIT + 1)).isInstanceOf(ValidationException.class);
     }
 
     @Test
     void everyNextActionHasAnInstructionInPlainWords() {
-        // The two DTR actions are named exactly as the DTR tab's buttons, which carry no full stop.
-        Set<NextAction> buttonNames = EnumSet.of(NextAction.SUBMIT_RESPONSE, NextAction.ANSWER_NEXT_QUESTION);
+        // The two DTR actions and the two PAS actions are named exactly as their tabs' buttons, which carry no full stop.
+        Set<NextAction> buttonNames = EnumSet.of(NextAction.SUBMIT_RESPONSE, NextAction.ANSWER_NEXT_QUESTION, NextAction.START_PAS,
+                NextAction.CHECK_STATUS);
         for (NextAction action : NextAction.values()) {
             assertThat(ChainService.instruction(action)).as(action.name()).isNotBlank();
             if (!buttonNames.contains(action)) {
@@ -569,7 +575,7 @@ class ChainServiceTest {
         // The actions that ask a person to fix or check something. Nothing further asks for nothing.
         assertThat(Arrays.stream(NextAction.values()).filter(ChainService::attention)).containsExactlyInAnyOrder(NextAction.FIX_TEST_DATA,
                 NextAction.FIX_REQUEST, NextAction.SUPPLY_INFORMATION, NextAction.CHECK_ENVIRONMENT, NextAction.OPEN_CONFIG,
-                NextAction.UNLOCK_OR_SWITCH, NextAction.SEND_ON_ITS_OWN, NextAction.REVIEW);
+                NextAction.UNLOCK_OR_SWITCH, NextAction.SEND_ON_ITS_OWN, NextAction.REPORT_NO_DETERMINATION, NextAction.REVIEW);
         assertThat(ChainService.attention(NextAction.NOTHING_FURTHER)).isFalse();
     }
 }
