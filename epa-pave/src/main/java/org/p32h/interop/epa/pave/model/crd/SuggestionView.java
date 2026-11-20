@@ -18,4 +18,10 @@ public record SuggestionView(Shown label, Shown uuid, Shown isRecommended, List<
         actions = actions == null ? List.of() : List.copyOf(actions);
         lists = lists == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(lists));
     }
+
+    /** Prints where it sits and nothing it holds: every value in it comes from a response. */
+    @Override
+    public String toString() {
+        return "SuggestionView[actions=" + actions.size() + "]";
+    }
 }

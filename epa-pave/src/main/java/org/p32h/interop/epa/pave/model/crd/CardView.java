@@ -40,4 +40,10 @@ public record CardView(
         suggestions = suggestions == null ? List.of() : List.copyOf(suggestions);
         overrideReasons = overrideReasons == null ? List.of() : List.copyOf(overrideReasons);
     }
+
+    /** Prints where it sits and nothing it holds: every value in it comes from a response. */
+    @Override
+    public String toString() {
+        return "CardView[" + index + "]";
+    }
 }

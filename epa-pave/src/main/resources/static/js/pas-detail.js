@@ -12,7 +12,7 @@
 import {el, append, code, facts, table, heading} from './dom.js';
 import {shown, shownList, presenceMark, noneMark, hasValue} from './shown.js';
 import {outcome} from './marks.js';
-import {additionalFieldsTable, issuesTable} from './result.js';
+import {additionalFieldsTable, issuesTable, listState, listValue} from './result.js';
 
 const PAS_KINDS = {
     BUNDLE: 'The response is a FHIR Bundle and was read entry by entry.',
@@ -116,10 +116,10 @@ export function claimResponseBlock(response, vocabulary, number) {
     }
     block.append(decisionsPart(response, vocabulary));
     block.append(wholePart(response, vocabulary));
-    block.append(awaitedPart(response.attachments || []));
-    block.append(errorsPart(response.errors || []));
-    block.append(processNotesPart(response.processNotes || []));
-    block.append(itemsPart(response.items || []));
+    block.append(awaitedPart(response.attachments || [], response.lists));
+    block.append(errorsPart(response.errors || [], response.lists));
+    block.append(processNotesPart(response.processNotes || [], response.lists));
+    block.append(itemsPart(response.items || [], response.lists));
     return block;
 }
 
@@ -174,14 +174,28 @@ function authorization(decision) {
     const numbers = decision.authorizationNumbers || [];
     const from = decision.authorizedFrom;
     const to = decision.authorizedTo;
-    if (numbers.length === 0 && !from && !to) {
+    // Null when no item carried the itemPreAuthPeriod extension; otherwise what its period was.
+    const period = decision.authorizedPeriod || null;
+    if (numbers.length === 0 && !from && !to && !period) {
         // Neither a number nor a period: one mark says it, where two would fill the cell with absences.
         return noneMark();
     }
     return el('div', null,
         numbers.length > 0 ? el('div', null, numbers.map((value, index) => [index > 0 ? ', ' : null, code(value, 'pas-authno')]))
             : el('div', null, 'Number ', noneMark()),
-        el('div', {class: 'small'}, 'Valid from ', from ? code(from) : presenceMark('ABSENT'), ' to ', to ? code(to) : presenceMark('ABSENT')));
+        el('div', {class: 'small'}, period && period !== 'VALUE' ? periodWords(period)
+            : ['Valid from ', from ? code(from) : presenceMark('ABSENT'), ' to ', to ? code(to) : presenceMark('ABSENT')]));
+}
+
+/**
+ * An itemPreAuthPeriod extension that holds no period. Sent with no valuePeriod at all, with a
+ * null one and with an empty one are three different answers, and none has a start or an end.
+ */
+function periodWords(period) {
+    if (period === 'ABSENT') {
+        return [code('itemPreAuthPeriod'), ' was sent with no ', code('valuePeriod'), ' in it'];
+    }
+    return [code('itemPreAuthPeriod'), ' ', code('valuePeriod'), ' ', presenceMark(period)];
 }
 
 /* ---------- the response as a whole ---------- */
@@ -194,14 +208,17 @@ function wholePart(response, vocabulary) {
                 ['What it establishes', outcomeOf(vocabulary, response.decision)],
                 ['Authorization number', [shown(response.preAuthRef, {as: 'literal'}),
                     el('div', {class: 'small quiet'}, 'ClaimResponse.preAuthRef. PAS 2.0.1 puts an item\'s number on its review action, in the table above.')]],
-                ['Authorized period', ['from ', shown(response.preAuthPeriodStart, {as: 'literal'}), ' to ', shown(response.preAuthPeriodEnd, {as: 'literal'})]],
+                ['Authorized period', response.preAuthPeriod && response.preAuthPeriod !== 'VALUE'
+                    // A period that is not there, null or empty has no start and no end to speak of.
+                    ? [code('preAuthPeriod'), ' ', presenceMark(response.preAuthPeriod)]
+                    : ['from ', shown(response.preAuthPeriodStart, {as: 'literal'}), ' to ', shown(response.preAuthPeriodEnd, {as: 'literal'})]],
                 ['Outcome code', [coded(response.outcome), el('div', {class: 'small quiet'}, 'How far processing got, not what was decided.')]],
                 ['Disposition', [shown(response.disposition, {as: 'block'}),
                     el('div', {class: 'small quiet'}, 'The payer\'s wording. It is shown and never read as a decision.')]],
                 ['Answers to', [shown(response.request, {as: 'literal'}), hasValue(response.requestIdentifier)
                     ? el('div', {class: 'small'}, 'Claim identifier ', shown(response.requestIdentifier, {as: 'literal'})) : null]],
                 ['Claim identifier echoed', hasValue(response.requestIdentifier) ? null : shown(response.requestIdentifier)],
-                ['Identifiers', shownList(response.identifiers, {as: 'literal'})]
+                ['Identifiers', listValue(response.lists, 'identifier', response.identifiers, {as: 'literal'})]
             ], 'facts--ruled'),
             facts([
                 ['Id', shown(response.id, {as: 'literal'})],
@@ -247,10 +264,11 @@ function reviewActionBlock(action) {
 
 /* ---------- what is still awaited ---------- */
 
-function awaitedPart(attachments) {
+function awaitedPart(attachments, lists) {
     if (attachments.length === 0) {
         return el('section', {class: 'detail__part'}, heading(4, 'Documentation the payer asks for', 0),
-            el('p', {class: 'quiet'}, 'The response refers to no request for supporting documentation.'));
+            el('p', {class: 'quiet'}, 'The response refers to no request for supporting documentation.'),
+            sentEmpty(lists, 'communicationRequest'));
     }
     return el('section', {class: 'detail__part'}, heading(4, 'Documentation the payer asks for', attachments.length),
         attachments.map(item => el('div', {class: 'detail__item'},
@@ -270,10 +288,10 @@ function awaitedPart(attachments) {
 
 /* ---------- errors and process notes ---------- */
 
-function errorsPart(errors) {
+function errorsPart(errors, lists) {
     if (errors.length === 0) {
         return el('section', {class: 'detail__part'}, heading(4, 'Errors the payer returned', 0),
-            el('p', {class: 'quiet'}, 'The ClaimResponse lists no errors.'));
+            listState(lists, 'error', 0) || el('p', {class: 'quiet'}, 'The ClaimResponse lists no errors.'));
     }
     return el('section', {class: 'detail__part'}, heading(4, 'Errors the payer returned', errors.length),
         table([{text: 'Code', class: 'col-30'}, {text: 'Where in the request', class: 'col-30'}, 'Item, detail, sub-detail', 'Follow-up'],
@@ -286,10 +304,10 @@ function errorsPart(errors) {
             ]), {class: 'pas-errors'}));
 }
 
-function processNotesPart(notes) {
+function processNotesPart(notes, lists) {
     if (notes.length === 0) {
         return el('section', {class: 'detail__part'}, heading(4, 'Process notes', 0),
-            el('p', {class: 'quiet'}, 'The ClaimResponse carries no process notes.'));
+            listState(lists, 'processNote', 0) || el('p', {class: 'quiet'}, 'The ClaimResponse carries no process notes.'));
     }
     return el('section', {class: 'detail__part'}, heading(4, 'Process notes', notes.length),
         table([{text: 'Number', class: 'col-12'}, {text: 'Type', class: 'col-18'}, 'Text, as the payer wrote it'], notes.map(note => [
@@ -298,10 +316,10 @@ function processNotesPart(notes) {
 
 /* ---------- the items in full ---------- */
 
-function itemsPart(items) {
+function itemsPart(items, lists) {
     const part = el('section', {class: 'detail__part'});
     if (items.length === 0) {
-        part.append(heading(4, 'Items as returned', 0), el('p', {class: 'quiet'}, 'The ClaimResponse lists no items.'));
+        part.append(heading(4, 'Items as returned', 0), listState(lists, 'item', 0) || el('p', {class: 'quiet'}, 'The ClaimResponse lists no items.'));
         return part;
     }
     part.append(el('details', {class: 'fold'},
@@ -316,7 +334,7 @@ function itemsPart(items) {
             (item.reviewActions || []).length > 0
                 ? [el('p', {class: 'sub-heading'}, 'Review actions on the item itself'), item.reviewActions.map(reviewActionBlock)] : null,
             el('p', {class: 'sub-heading'}, 'Adjudications (' + (item.adjudications || []).length + ')'),
-            (item.adjudications || []).length === 0 ? el('p', {class: 'quiet'}, 'None returned.')
+            (item.adjudications || []).length === 0 ? listState(item.lists, 'adjudication', 0) || el('p', {class: 'quiet'}, 'None returned.')
                 : item.adjudications.map(adjudication => el('div', {class: 'detail__nested'},
                     facts([
                         ['Category', shown(adjudication.category, {as: 'literal'})],
@@ -327,10 +345,23 @@ function itemsPart(items) {
                     ], 'facts--ruled'),
                     (adjudication.reviewActions || []).map(reviewActionBlock),
                     (adjudication.extensions || []).length > 0
-                        ? [el('p', {class: 'sub-heading'}, 'Other extensions'), extensionList(adjudication.extensions)] : null)),
-            (item.extensions || []).length > 0 ? [el('p', {class: 'sub-heading'}, 'Extensions on the item'), extensionList(item.extensions)] : null,
-            (item.noteNumbers || []).length > 0 ? el('p', null, 'Process notes ', shownList(item.noteNumbers, {as: 'literal'})) : null))));
+                        ? [el('p', {class: 'sub-heading'}, 'Other extensions'), extensionList(adjudication.extensions)]
+                        : sentEmpty(adjudication.lists, 'extension'))),
+            (item.extensions || []).length > 0 ? [el('p', {class: 'sub-heading'}, 'Extensions on the item'), extensionList(item.extensions)]
+                : sentEmpty(item.lists, 'extension'),
+            (item.noteNumbers || []).length > 0 ? el('p', null, 'Process notes ', shownList(item.noteNumbers, {as: 'literal'}))
+                : sentEmpty(item.lists, 'noteNumber')))));
     return part;
+}
+
+/**
+ * A list the view leaves out when it holds nothing, said when it was nonetheless sent: as null, or
+ * empty. One that was not returned is the usual case for these, and is not said on every item.
+ * One with entries, all of them drawn somewhere else (a review action is an extension), is not
+ * nothing, and is not said either.
+ */
+function sentEmpty(lists, name) {
+    return lists && (lists[name] === 'NULL' || lists[name] === 'EMPTY') ? listState(lists, name, 0) : null;
 }
 
 /* ---------- the rest of the answer ---------- */

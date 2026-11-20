@@ -719,3 +719,44 @@ function issueList(values, presence, present) {
     }
     return shownList(values, {as: 'literal'});
 }
+
+/* ---------- a repeating element with nothing in it ---------- */
+
+/**
+ * What a repeating element of a designed view was, when the view has no entry of it to show.
+ * An empty list on screen cannot say whether the element was not returned, returned as null or
+ * returned empty, so each view sends the presence of its lists beside them (lists, keyed by the
+ * element's name as the response spells it) and this says it in words: "links not returned",
+ * "links null", "links empty". Null when there are entries to show, and when the answer carries
+ * no presence for the element, so the caller keeps its own words for an older answer.
+ */
+export function listState(lists, name, count) {
+    if (count > 0 || !lists || !lists[name]) {
+        return null;
+    }
+    return el('p', null, listWords(lists[name], name));
+}
+
+/**
+ * The same words inside a row of facts, for a list drawn as the value of the row. A list with
+ * entries is drawn as it was; one with none says what it was, and only an answer with no
+ * presence for it falls back to the mark that claims nothing more than "none returned".
+ */
+export function listValue(lists, name, values, options) {
+    if (Array.isArray(values) && values.length > 0) {
+        return shownList(values, options);
+    }
+    if (!lists || !lists[name]) {
+        return shownList(values, options);
+    }
+    return listWords(lists[name], name);
+}
+
+function listWords(presence, name) {
+    if (presence === 'VALUE') {
+        // Something that is not a list, or a list none of whose entries is the shape the view
+        // reads. Either way it stays among the fields returned but not interpreted.
+        return [code(name), ' was returned, and none of its entries could be read as one.'];
+    }
+    return [code(name), ' ', presenceMark(presence)];
+}

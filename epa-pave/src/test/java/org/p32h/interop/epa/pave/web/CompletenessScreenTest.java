@@ -8,6 +8,13 @@ import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.p32h.interop.epa.pave.model.IssueView;
+import org.p32h.interop.epa.pave.model.crd.CardView;
+import org.p32h.interop.epa.pave.model.crd.SuggestionView;
+import org.p32h.interop.epa.pave.model.dtr.ItemView;
+import org.p32h.interop.epa.pave.model.pas.AdjudicationView;
+import org.p32h.interop.epa.pave.model.pas.ClaimResponseView;
+import org.p32h.interop.epa.pave.model.pas.PasDecision;
+import org.p32h.interop.epa.pave.model.pas.PasItemView;
 
 /**
  * Section 21 on the designed views: where a view states a value or heads a list, it says in words
@@ -25,7 +32,16 @@ class CompletenessScreenTest {
 
     private static final List<Read> READS = List.of(
             new Read("result.js", "issue.expressionPresence", IssueView.class, "expressionPresence"),
-            new Read("result.js", "issue.locationPresence", IssueView.class, "locationPresence"));
+            new Read("result.js", "issue.locationPresence", IssueView.class, "locationPresence"),
+            new Read("crd-detail.js", "card.source", CardView.class, "source"),
+            new Read("crd-detail.js", "card.lists", CardView.class, "lists"),
+            new Read("crd-detail.js", "suggestion.lists", SuggestionView.class, "lists"),
+            new Read("pas-detail.js", "response.preAuthPeriod", ClaimResponseView.class, "preAuthPeriod"),
+            new Read("pas-detail.js", "response.lists", ClaimResponseView.class, "lists"),
+            new Read("pas-detail.js", "decision.authorizedPeriod", PasDecision.class, "authorizedPeriod"),
+            new Read("pas-detail.js", "item.lists", PasItemView.class, "lists"),
+            new Read("pas-detail.js", "adjudication.lists", AdjudicationView.class, "lists"),
+            new Read("dtr-items.js", "item.lists", ItemView.class, "lists"));
 
     @Test
     void everyPresenceAScriptDrawsIsOnTheRecordTheServerSends() throws IOException {

@@ -9,9 +9,9 @@
 // It is never read as markdown or as markup.
 
 import {el, append, code, facts, table, heading, externalLink} from './dom.js';
-import {shown, shownList, presenceMark, noneMark, hasValue} from './shown.js';
+import {shown, shownList, presenceMark, hasValue} from './shown.js';
 import {outcome} from './marks.js';
-import {additionalFieldsTable, issuesTable} from './result.js';
+import {additionalFieldsTable, issuesTable, listState, listValue} from './result.js';
 
 // What kind of thing came back, said before any of it is shown. A kind this page does not know
 // is shown under its own name.
@@ -92,14 +92,14 @@ function coverageBlock(item, vocabulary) {
         codedRow('covered', [item.covered]),
         codedRow('pa-needed', [item.paNeeded]),
         codedRow('doc-needed', [item.docNeeded]),
-        codedRow('doc-purpose', item.docPurpose, true),
-        codedRow('info-needed', item.infoNeeded, true),
+        codedRow('doc-purpose', item.docPurpose),
+        codedRow('info-needed', item.infoNeeded),
         valueRow('satisfied-pa-id', shown(item.satisfiedPaId, {as: 'literal'})),
-        valueRow('questionnaire', shownList(item.questionnaires, {as: 'literal'})),
-        valueRow('response', [shownList(item.responses, {as: 'literal'}), (item.responses || []).length > 0
+        valueRow('questionnaire', repeated(item.questionnaires, {as: 'literal'})),
+        valueRow('response', [repeated(item.responses, {as: 'literal'}), (item.responses || []).length > 0
             ? el('div', {class: 'small quiet'}, 'A partly completed QuestionnaireResponse that DTR can start from. The next step says whether it is handed on.')
             : null]),
-        valueRow('reason', shownList(item.reasons)),
+        valueRow('reason', repeated(item.reasons)),
         valueRow('coverage', shown(item.coverage, {as: 'literal'})),
         valueRow('coverage-assertion-id', shown(item.coverageAssertionId, {as: 'literal'})),
         valueRow('date', shown(item.date, {as: 'literal'}))
@@ -135,7 +135,7 @@ function coverageBlock(item, vocabulary) {
     const details = item.details || [];
     block.append(el('p', {class: 'sub-heading'}, 'Detail list (' + details.length + ')'));
     block.append(details.length === 0
-        ? el('p', {class: 'quiet'}, 'The extension carried no detail entries.')
+        ? el('p', null, code('detail'), ' ', presenceMark('ABSENT'))
         : table(['Code', 'Value', 'Qualification', 'Category'], details.map(entry => [shown(entry.code), shown(entry.value),
             shown(entry.qualification), shown(entry.category)]), {class: 'detail-list'}));
 
@@ -151,12 +151,14 @@ function coverageBlock(item, vocabulary) {
 /**
  * One coded element of the extension: its name as the response spells it, the code or codes
  * returned, and what the tool says each means. The code is what QA signs off against, so it has
- * a column to itself. An element that can repeat and came back with nothing says so.
+ * a column to itself. A sub-extension that can repeat is a list only on this page: in the
+ * response each is a sub-extension of its own, so none of them means none was returned, and that
+ * is said as "not returned". A null or an empty one is an entry, and is drawn as one.
  */
-function codedRow(name, values, repeats) {
+function codedRow(name, values) {
     const list = Array.isArray(values) ? values.filter(Boolean) : [];
     if (list.length === 0) {
-        return [code(name), repeats ? noneMark() : presenceMark('ABSENT'), null];
+        return [code(name), presenceMark('ABSENT'), null];
     }
     const lines = cells => (cells.length === 1 ? cells[0] : el('ul', {class: 'plain-list'}, cells.map(cell => el('li', null, cell))));
     return [code(name),
@@ -165,6 +167,11 @@ function codedRow(name, values, repeats) {
             ? [value.display || null, value.version ? el('span', {class: 'small quiet'}, ' ' + value.version) : null,
                 value.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a code this tool knows')] : null]
             : null)))];
+}
+
+/** The values of a sub-extension that can repeat. None of them is a sub-extension not returned, as for a coded one. */
+function repeated(values, options) {
+    return Array.isArray(values) && values.length > 0 ? shownList(values, options) : presenceMark('ABSENT');
 }
 
 /** One element of the extension that is a plain value and not a code. */
@@ -183,24 +190,21 @@ function cardBlock(card, total) {
             el('span', {class: 'small'}, 'indicator ', shown(card.indicator, {as: 'literal'}))),
         el('div', {class: 'card-summary'}, shown(card.summary)),
         facts([
-            ['Detail', shown(card.detail, {as: 'block'})],
-            ['Source', [shown(card.sourceLabel), hasValue(card.sourceUrl) ? [' ', shown(card.sourceUrl, {as: 'link', label: 'Open the source'})] : null]],
-            ['Source url', hasValue(card.sourceUrl) ? null : shown(card.sourceUrl)],
-            ['Source icon', shown(card.sourceIcon, {as: 'literal'})],
-            ['Source topic', shown(card.sourceTopic, {as: 'literal'})],
+            ['Detail', shown(card.detail, {as: 'block'})]
+        ].concat(sourceRows(card), [
             ['Selection behaviour', shown(card.selectionBehavior, {as: 'literal'})],
             ['Uuid', shown(card.uuid, {as: 'literal'})],
-            ['Override reasons', shownList(card.overrideReasons, {as: 'literal'})]
-        ], 'facts--ruled'));
+            ['Override reasons', listValue(card.lists, 'overrideReasons', card.overrideReasons, {as: 'literal'})]
+        ]), 'facts--ruled'));
 
     block.append(el('p', {class: 'sub-heading'}, 'Links (' + links.length + ')'));
     block.append(links.length === 0
-        ? el('p', {class: 'quiet'}, 'The card carried no links.')
+        ? listState(card.lists, 'links', 0) || el('p', {class: 'quiet'}, 'The card carried no links.')
         : table(['Label', 'Type', 'Address', 'App context'], links.map(linkRow), {class: 'card-links'}));
 
     block.append(el('p', {class: 'sub-heading'}, 'Suggestions (' + suggestions.length + ')'));
     if (suggestions.length === 0) {
-        block.append(el('p', {class: 'quiet'}, 'The card carried no suggestions.'));
+        block.append(listState(card.lists, 'suggestions', 0) || el('p', {class: 'quiet'}, 'The card carried no suggestions.'));
     }
     suggestions.forEach((suggestion, index) => {
         const actions = suggestion.actions || [];
@@ -210,9 +214,27 @@ function cardBlock(card, total) {
                 ['Uuid', shown(suggestion.uuid, {as: 'literal'})],
                 ['Recommended', shown(suggestion.isRecommended, {as: 'literal'})]
             ], 'facts--ruled'),
-            actions.length === 0 ? el('p', {class: 'quiet'}, 'This suggestion carried no actions.') : actions.map(action => actionBlock(action))));
+            actions.length === 0 ? listState(suggestion.lists, 'actions', 0) || el('p', {class: 'quiet'}, 'This suggestion carried no actions.')
+                : actions.map(action => actionBlock(action))));
     });
     return block;
+}
+
+/**
+ * The source of a card. Its label, url, icon and topic say what was inside it; whether the source
+ * itself was not returned, null or empty is its own fact, and when it is one of those the four
+ * rows inside it would only repeat "not returned" for a source that was there.
+ */
+function sourceRows(card) {
+    if (card.source && card.source !== 'VALUE') {
+        return [['Source', [code('source'), ' ', presenceMark(card.source)]]];
+    }
+    return [
+        ['Source label', [shown(card.sourceLabel), hasValue(card.sourceUrl) ? [' ', shown(card.sourceUrl, {as: 'link', label: 'Open the source'})] : null]],
+        ['Source url', hasValue(card.sourceUrl) ? null : shown(card.sourceUrl)],
+        ['Source icon', shown(card.sourceIcon, {as: 'literal'})],
+        ['Source topic', shown(card.sourceTopic, {as: 'literal'})]
+    ];
 }
 
 function linkRow(link) {
