@@ -272,11 +272,14 @@ public class ConfigStoreGateway implements OperationGateway {
 
     /** The refusal of a call whose path holds an encoded separator. It names what supplied it, never the value. */
     private static BadInputException encodedSeparator(CallPlan plan, String encoded) {
-        String what = encoded.startsWith("%") ? "an encoded separator (" + encoded + ")" : encoded;
+        String what = UrlNormal.aboveAscii(encoded) ? "a percent-escape of a byte above 0x7F (" + encoded + "), which a FHIR path never "
+                + "needs and which a server can read as an overlong or look-alike separator"
+                : encoded.startsWith("%") ? "an encoded separator (" + encoded + ")" : encoded;
         return new BadInputException(plan.intent().operation().label() + " was not sent: the path of its url holds " + what + ", which "
                 + "came from " + encodedFrom(plan) + ". A server in front of the service can decode it before it reads the path, and "
                 + "then the request addresses something other than what this tool judged it to be.",
-                "Nothing was sent. Remove the encoded slash, backslash, semicolon or dot segment from that value. A value that needs "
+                "Nothing was sent. Remove the encoded slash, backslash, semicolon, dot segment or escape above 0x7F from that value. "
+                        + "A value that needs "
                         + "such a character belongs in the query, after the question mark, where it is sent as it is.");
     }
 

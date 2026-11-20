@@ -533,8 +533,9 @@ public final class UrlNormal {
     /**
      * What in the path of a url a server in front of a service could read as a separator once it
      * decodes it, or null when there is nothing of that kind: an encoded slash ({@code %2F}), an
-     * encoded backslash ({@code %5C}), an encoded semicolon ({@code %3B}), or a segment that is a
-     * dot segment once decoded ({@code %2E%2E}). Letter case does not matter, and the path is
+     * encoded backslash ({@code %5C}), an encoded semicolon ({@code %3B}), a segment that is a
+     * dot segment once decoded ({@code %2E%2E}), or an escape of a byte above 0x7F, which an
+     * overlong or look-alike form of a separator is written with. Letter case does not matter, and the path is
      * decoded again and again, so {@code %252F} counts. Only the path is read: the query and the
      * fragment keep whatever escapes they carry, as a FHIR search needs.
      *
@@ -565,6 +566,10 @@ public final class UrlNormal {
                     return escape;
                 }
             }
+            String high = escapeAboveAscii(upper);
+            if (high != null) {
+                return high;
+            }
             String decoded = decodedOnce(path);
             // A dot segment that was written as one is left to the normal form. One that only
             // appears once an escape is decoded is hidden from it.
@@ -580,6 +585,26 @@ public final class UrlNormal {
             path = decoded;
         }
         return null;
+    }
+
+    /**
+     * The first percent-escape of a byte above 0x7F, or null. A FHIR path is plain ASCII, and such
+     * an escape can be read as a separator by a server that decodes an overlong UTF-8 form
+     * ({@code %C0%AF} for a slash) or folds a look-alike character ({@code %E2%88%95}, the division
+     * slash) into one.
+     */
+    private static String escapeAboveAscii(String upper) {
+        for (int i = 0; i < upper.length(); i++) {
+            if (upper.charAt(i) == '%' && hex(upper, i + 1) >= 0x80) {
+                return upper.substring(i, i + 3);
+            }
+        }
+        return null;
+    }
+
+    /** True when the escape found by {@link #encodedSeparator} is one of a byte above 0x7F. */
+    public static boolean aboveAscii(String escape) {
+        return escape != null && escape.startsWith("%") && hex(escape, 1) >= 0x80;
     }
 
     /** How many segments of a path are {@code .} or {@code ..}, a segment ending at a slash, a backslash or a semicolon. */
