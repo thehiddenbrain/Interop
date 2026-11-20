@@ -55,6 +55,14 @@ public enum NextAction {
      */
     SEND_ON_ITS_OWN("Send this write on its own from its tab, with production writes unlocked there, or point the tool at an "
             + "environment that is not production."),
+    /**
+     * The service answered and said nothing about prior authorization either way. A business tester
+     * can act on that without reading the response: it is a result to record and to report to the
+     * people who look after the service. The words blame nobody and say nothing about whether
+     * authorization is needed, because the answer does not.
+     */
+    REPORT_NO_DETERMINATION("Record the run as \"no determination returned\" and report it to the people who look after the "
+            + "service. The answer does not say whether prior authorization is needed."),
     /** Look at the response detail: the tool cannot say what should happen next. */
     REVIEW("Look at the response detail. The tool cannot say what should happen next.");
 

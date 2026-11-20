@@ -301,6 +301,14 @@ public final class CrdVerdicts {
      * the next step, and to say when the journey ends, which is itself a finding worth recording.
      */
     public static NextStepView nextStep(CrdReading reading, VendorExchange exchange) {
+        return nextStep(reading, exchange, null);
+    }
+
+    /**
+     * The next step, worded with the id of the run it belongs to where the tester is asked to
+     * record or report that run. Null when there is no run, as for a preview.
+     */
+    public static NextStepView nextStep(CrdReading reading, VendorExchange exchange, String runId) {
         CrdOutcome outcome = reading.outcome();
         List<CoverageInformationView> coverage = reading.detail().coverageInformation();
 
@@ -411,11 +419,26 @@ public final class CrdVerdicts {
                     new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
                             "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry),
                     PlayedTimeouts.aboutTheEnvironment("the member or the code"));
-            case NO_DETERMINATION, AUTH_NOT_STATED, UNRECOGNISED_CODE, MIXED -> new NextStepView(NextAction.REVIEW,
+            case NO_DETERMINATION -> noDetermination(runId, carry);
+            case AUTH_NOT_STATED, UNRECOGNISED_CODE, MIXED -> new NextStepView(NextAction.REVIEW,
                     "Next: read the response detail below. This tool cannot say what should happen next.",
                     outcome == CrdOutcome.MIXED ? "Not every answer in the response is the same, so each needs its own next step."
                             : "The response does not carry an authorization answer this tool can act on.", carry);
         };
+    }
+
+    /**
+     * The next step when the service answered and returned no determination. The headline is for
+     * the business tester, who can act on the result without reading the response; the reason
+     * keeps the way to the detail for whoever looks into it. Neither says whose fault it is or
+     * whether authorization is needed, because the answer says neither.
+     */
+    private static NextStepView noDetermination(String runId, Map<String, List<String>> carry) {
+        String which = Texts.present(runId) ? "run " + runId : "this run";
+        return new NextStepView(NextAction.REPORT_NO_DETERMINATION, "Next: record " + which + " as \"no determination returned\" and "
+                + "report it to the people who look after the service.",
+                "The answer does not say whether prior authorization is needed, and this tool does not guess. What came back is in "
+                        + "the response detail below.", carry);
     }
 
     /**

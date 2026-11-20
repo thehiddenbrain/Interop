@@ -161,7 +161,8 @@ class ChainServiceTest {
         // No determination does not end the journey. Nobody knows yet whether authorization is needed.
         assertThat(empty.ended()).isFalse();
         assertThat(empty.headline()).isEqualTo("Coverage requirements (CRD): The service returned no determination. "
-                + "Next: look at the response detail. The tool cannot say what should happen next.");
+                + "Next: record the run as \"no determination returned\" and report it to the people who look after the service. "
+                + "The answer does not say whether prior authorization is needed.");
         assertThat(stage(empty, Protocol.CRD).state()).isEqualTo(ChainStageState.NEEDS_ATTENTION);
         assertThat(stage(empty, Protocol.DTR).state()).isEqualTo(ChainStageState.NOT_REACHED);
         assertThat(stage(empty, Protocol.DTR).stateLine())
@@ -569,7 +570,7 @@ class ChainServiceTest {
         // The actions that ask a person to fix or check something. Nothing further asks for nothing.
         assertThat(Arrays.stream(NextAction.values()).filter(ChainService::attention)).containsExactlyInAnyOrder(NextAction.FIX_TEST_DATA,
                 NextAction.FIX_REQUEST, NextAction.SUPPLY_INFORMATION, NextAction.CHECK_ENVIRONMENT, NextAction.OPEN_CONFIG,
-                NextAction.UNLOCK_OR_SWITCH, NextAction.SEND_ON_ITS_OWN, NextAction.REVIEW);
+                NextAction.UNLOCK_OR_SWITCH, NextAction.SEND_ON_ITS_OWN, NextAction.REPORT_NO_DETERMINATION, NextAction.REVIEW);
         assertThat(ChainService.attention(NextAction.NOTHING_FURTHER)).isFalse();
     }
 }

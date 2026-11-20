@@ -164,7 +164,7 @@ class CrdVerdictsTest {
         assertThat(next("P32H-ERR500").action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
         assertThat(next("P32H-TIMEOUT").action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
         // The service said nothing, so the tool does not pretend to know what comes next.
-        assertThat(next("P32H-EMPTY").action()).isEqualTo(NextAction.REVIEW);
+        assertThat(next("P32H-EMPTY").action()).isEqualTo(NextAction.REPORT_NO_DETERMINATION);
     }
 
     @Test
