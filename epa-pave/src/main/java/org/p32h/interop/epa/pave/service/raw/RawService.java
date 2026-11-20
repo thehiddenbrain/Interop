@@ -249,7 +249,11 @@ public class RawService {
                                ErrorView error, Timing timing) {
     }
 
-    private Interpreted interpret(RawRunRequest request, PreparedCall call, VendorExchange exchange, String bodySource) {
+    private Interpreted interpret(RawRunRequest request, PreparedCall call, VendorExchange received, String bodySource) {
+        // Read through the masks the wire view uses, as every protocol and lookup does: a service
+        // that quotes a secret of the request back would otherwise put it in clear among the
+        // additional fields, beside a wire view that hides it.
+        VendorExchange exchange = received.withReturnedSecretsMasked();
         RawOutcome outcome = outcome(exchange);
         Timing timing = support.timing(exchange);
 
