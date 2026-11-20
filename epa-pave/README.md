@@ -1657,10 +1657,12 @@ section repeats what a tester or a maintainer needs to know.
 - **Nothing has been run against Onyx or any real service.** Every live check used a stand-in on a
   loopback port.
 - Of the verification agents of section 27 of the specification, the member data audit (V2), the
-  guardrail audit (V3) and the fixture audit (V4) ran once, before the fixes, and have not run
-  again; the build audit from a fresh clone (V1), the house style audit (V5), the honesty audit
-  (V6) and the completeness audit on screen (V7) have not run. The house style rules are enforced
-  by the build on every file, which is not the same as the audit.
+  guardrail audit (V3) and the fixture audit (V4) ran twice: once before the first fix wave, and
+  again on revision `0658a7c`. What the second run found is fixed on this revision, and **no agent
+  but the author of each fix has checked those fixes yet**. The build audit from a fresh clone
+  (V1), the house style audit (V5), the honesty audit (V6) and the completeness audit on screen
+  (V7) have not run. The house style rules are enforced by the build on every file, which is not
+  the same as the audit.
 - No business tester has used the tool. The journey under
   [Using the screens](#using-the-screens) was walked by an automated browser, not by a person.
 - **`run.cmd` has not been run.** No Windows machine was available. It was written to do what
@@ -1672,29 +1674,54 @@ section repeats what a tester or a maintainer needs to know.
 - **Two tests are skipped** when the build runs as root, because a read-only folder is not
   read-only for root. The same refusals are covered by tests that do run.
 
+**Member data and the guardrail: what the audits' fixes left**
+
+- **A note, a tester reference or an expectation** is refused only for member data the same
+  request carries. Somebody else's name or date of birth, a name the request does not carry, a
+  member or subscriber ID under six letters and digits and an address line under five characters
+  are written as typed. A suite row is checked at preview for its own member ID only; the rest is
+  checked when the case runs. Old ledger lines that hold a name or a date of birth in a note are
+  still shown and exported as written.
+- **A one-word surname** written where a code or an id belongs (a subscription id such as
+  `sub-Zzlastname`, a code such as `covered=Zzlastname`) is kept (D-151).
+- **The configuration store** keeps uploads whole, member data included; the upload warning goes
+  by variable names and by saved examples, not by values.
+- **The guardrail** does not see another DNS name for a production host, or a production address
+  that comes from an operating system variable or a secret (see
+  [The production guardrail](#the-production-guardrail)). An IPv6 address was not checked against a
+  listener (the build machine has no IPv6 loopback). How a real server in front of a service decodes
+  an escaped path was not tested: the encoded separator rule refuses rather than finds out. A
+  replay that reaches the gateway against production on live was not exercised.
+- **A write refused at the moment of sending**, because writes were locked in between, answers 409
+  with the general sentence "The configuration changed while this request was being prepared.
+  Nothing was sent." rather than saying that writes were locked again.
+- If the process is killed outright, the embedded server's working folder `pave-server-*` is left
+  under the temporary directory; a normal stop removes it.
+
 **The screens**
 
 - Before anything is uploaded on live, the protocol tabs hold back their form; on mock they offer
   it, because scenario files answer.
-- Some sentences on screen are the server's and are still being reworded: the DTR verdict carries
-  six to ten supporting lines; a completed DTR response is coloured as "nothing further is
-  required" although its next step is PAS; "This tool shows and hides them as the answers change"
-  is not true of a static questionnaire (its enabled items are worked out when the response is
-  completed); a PAS preview's notes are in the past tense; counts read "(s)"; a service that could
-  not be reached is named by a Java class; a mock timeout answers in about 400 ms under words that
-  say the service timed out.
-- The CRD comparison shows a credential in a pasted request as typed, and omits its caveat when the
-  two requests cannot be compared.
-- PAS: on mock, a subscription created with no call back address is said to call back one the mock
-  made up; an unmatched notification sends the tester after whoever created the subscription; the
-  timeout scenario says to inquire, and an inquiry with the same member is refused. What changed
-  per item between two answers is not shown.
-- Config: an operation is said to "still run" when a header or the body of its request holds a
-  placeholder with no value; which of several mapped requests an operation uses is said only in
-  the page's own words; the Config tab has no field for `urlValues`, so a request whose url holds a
-  `{part}` cannot be sent from it (use `POST /api/raw`).
-- History offers no `testerRef` or `zone` filter, and says every date is a UTC day.
+- **After Lock in another browser**, the Config tab of a session that had unlocked goes on saying
+  that writes are unlocked until it is reloaded. The server refuses the write; only the page is
+  wrong.
+- The note, tester reference and expectation fields carry no hint that member data must not be
+  typed into them; the refusal marks the field once the server has refused.
+- The Config tab shows the address warnings only in the answer of an upload, not in the list of
+  environments or after a switch. The scenario tables do not show the scenario files' notes.
+- The label beside a code list finding says "the bundled placeholder, not a P32H list", and the
+  CRD findings speak of "the synthetic placeholder that ships with the tool", for any synthetic
+  list, the shipped sample and a marked list of your own included.
+- On mock, a played timeout is said twice, by the verdict and by the error panel, and on a PAS
+  submission the two halves disagree (the payer may have received it, and nothing was sent). For a
+  raw request whose url still has a part with no value, the address table says the run is
+  answered from a scenario while the preview and the send refuse it with 422. A lookup field whose
+  value holds masked text can be taken into the case as if it were the member's. An issue element
+  sent as an empty list is shown twice.
+- History offers no `zone` filter, and says every date is a UTC day.
 - The case: when a pasted request disagrees with a lookup, the lookup strip says only "Found."
+- Not seen on screen: a notification that matches nothing or names an id the ledger does not keep,
+  the answers an adaptive questionnaire dropped, and a CRD coverage section with no "applies to".
 - Seen in a browser at 1366 by 768 and, for some states, 1920 by 1080, mostly on mock. At phone
   width the History runs table and the CRD elements table run past the edge. No screen reader was
   used, contrast was never measured, 200% zoom was never tried. Behaviour on screen has no test in
@@ -1730,10 +1757,6 @@ section repeats what a tester or a maintainer needs to know.
   standard FHIR operation paths and `/cds-services`.
 - Concurrency in the configuration store (two uploads or a switch at the same moment) is reasoned
   about and not tested.
-- The guardrail does not see another DNS name for a production host, or a production address that
-  comes from an operating system variable or a secret (see
-  [The production guardrail](#the-production-guardrail)). How a real FHIR server acts on `//`, `;`,
-  `..;` or an encoded slash inside a path segment was not checked.
 - A key written into a url, or held by a variable with an ordinary name, or typed into a path
   segment or a host of a collection, is shown as written (see [Secrets](#secrets)). A secret a
   service sends back re-encoded, shorter than six characters, or as a JSON number, is not masked;
@@ -1758,8 +1781,8 @@ section repeats what a tester or a maintainer needs to know.
   A list is synthetic only when a row says so ("Not from a P32H export."); any other list is taken
   as the real one.
 - **Fixtures**: any new top-level key in a scenario file stops the mock start until the loader
-  knows it. The CRD, DTR and PAS scenario files were rewritten after the fixture audit and not
-  audited again.
+  knows it. A scenario file whose `expect` outcome contradicts its own body is not detected at
+  start. The fixture audit (V4) ran a second time on `0658a7c`; its fixes have not been audited.
 - **The HTTP edge**: only Linux, curl, raw sockets and headless Chromium were used. `OPTIONS *`
   carries none of the tool's headers. A cross-site request that carries neither `Sec-Fetch-Site`
   nor `Origin` is let through.
