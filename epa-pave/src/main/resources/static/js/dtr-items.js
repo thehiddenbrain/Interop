@@ -531,21 +531,6 @@ function objectControl(type, labelId, given, report, why) {
     };
 }
 
-/** Every question of a list of items, flattened, with its linkId. */
-export function questionsOf(items) {
-    const out = [];
-    const walk = list => {
-        for (const item of list || []) {
-            if (item.question) {
-                out.push(item);
-            }
-            walk(item.items);
-        }
-    };
-    walk(items);
-    return out;
-}
-
 /** The answers a response holds, by linkId, from its items. */
 export function responseByLinkId(response) {
     const map = new Map();

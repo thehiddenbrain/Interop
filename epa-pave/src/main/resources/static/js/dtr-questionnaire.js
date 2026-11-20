@@ -17,9 +17,8 @@
 // are the server's answers to those posts. Nothing here works any of them out.
 
 import {el, fill, button, code} from './dom.js';
-import {hasValue} from './shown.js';
 import {toneMark} from './marks.js';
-import {itemList, questionsOf, responseByLinkId} from './dtr-items.js';
+import {itemList, responseByLinkId} from './dtr-items.js';
 import {changesBlock, notApplied, kindWord} from './dtr-detail.js';
 
 /**
@@ -410,9 +409,4 @@ export function createSession(packageEnvelope, hooks) {
 /** True when a package result holds a questionnaire to answer. */
 export function hasQuestionnaires(envelope) {
     return Boolean(envelope && envelope.detail && (envelope.detail.questionnaires || []).length > 0);
-}
-
-/** The linkIds of the questions a questionnaire view now holds. */
-export function linkIdsOf(view) {
-    return questionsOf(view ? view.items : []).filter(item => hasValue(item.linkId)).map(item => String(item.linkId.value));
 }
