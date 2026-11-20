@@ -43,6 +43,9 @@ import tools.jackson.databind.JsonNode;
  */
 class CrdRequestComparerTest {
 
+    /** When the request is built, fixed so that two builds of one case are the same request, authoredOn included. */
+    private static final java.time.Clock BUILT_AT = java.time.Clock.fixed(java.time.Instant.parse("2026-03-18T14:05:09Z"), java.time.ZoneOffset.UTC);
+
     /** Generated with the algorithm the application validates with, never typed by hand. */
     static final String NPI = Npi.withCheckDigit("198765432");
     private static final String HOOK_INSTANCE = "11111111-1111-4111-8111-111111111111";
@@ -57,7 +60,7 @@ class CrdRequestComparerTest {
     private final FakeCodeList codeList = new FakeCodeList();
 
     private CrdRequestBuilder builder() {
-        return new CrdRequestBuilder(codeList);
+        return new CrdRequestBuilder(codeList, BUILT_AT);
     }
 
     private Function<String, ResolvedText> variables(Map<String, String> typedForThisRun) {
@@ -253,7 +256,7 @@ class CrdRequestComparerTest {
                         tuple("procedureCodes[0].description", "context.draftOrders.entry[0].resource.code.coding[0].display", "Sleep study, attended"),
                         tuple("procedureCodes[1].code", "context.draftOrders.entry[1].resource.code.coding[0].code", "E0601"),
                         tuple("procedureCodes[1].system", "context.draftOrders.entry[1].resource.code.coding[0].system",
-                                "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"),
+                                "urn:oid:2.16.840.1.113883.6.285"),
                         tuple("procedureCodes[2].code", "context.draftOrders.entry[2].resource.code.coding[0].code", "70553"),
                         tuple("procedureCodes[2].system", "context.draftOrders.entry[2].resource.code.coding[0].system", "http://www.ama-assn.org/go/cpt"),
                         tuple("dateOfService", "context.draftOrders.entry[0].resource.occurrenceDateTime", "2026-03-20"));
@@ -297,17 +300,17 @@ class CrdRequestComparerTest {
 
     @Test
     void aSystemReadFromThePastedRequestIsUsedAndTheResultSaysWhichOneThisToolWritesByItself() {
-        // The sample writes its HCPCS code under another system than the one this tool takes from the format of the code.
-        String pasted = fixture("vendor-shaped-order-sign.json").replace("https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
-                "urn:oid:2.16.840.1.113883.6.285");
+        // The sample writes its HCPCS code under the cms.gov address, the one CRD 2.0.1 names for a DeviceRequest. By
+        // itself this tool writes HCPCS on an order under the address the CRD 2.0.1 ServiceRequest value set names.
+        String pasted = fixture("vendor-shaped-order-sign.json");
         RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(pasted).build());
         // Used as read, so that the two orders describe the same code. Unsaid, that would hide how this tool itself writes the code.
         assertThat(JsonSafe.parse(comparison.toolBody()).node().at("/context/draftOrders/entry/1/resource/code/coding/0/system").asString())
-                .isEqualTo("urn:oid:2.16.840.1.113883.6.285");
+                .isEqualTo("https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets");
         assertThat(comparison.notes()).contains("Your request states the system of the code at "
                 + "context.draftOrders.entry[1].resource.codeCodeableConcept.coding[0].code, and the tool's request was built with that system. "
                 + "Left to work the system out for itself, from the code list or else from the format of the code, this tool writes "
-                + "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets.");
+                + "urn:oid:2.16.840.1.113883.6.285.");
         assertThat(comparison.notes()).filteredOn(note -> note.contains(OWN_SYSTEM)).hasSize(1);
 
         // A code whose format says nothing, under a system only the sample knows: by itself this tool writes none.
@@ -317,7 +320,8 @@ class CrdRequestComparerTest {
                 + "the system out for itself, from the code list or else from the format of the code, this tool writes none.");
 
         // Where this tool writes the same system by itself there is nothing to note.
-        assertThat(compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json")).build()).notes())
+        assertThat(compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json").replace(
+                "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets", "urn:oid:2.16.840.1.113883.6.285")).build()).notes())
                 .noneMatch(note -> note.contains(OWN_SYSTEM));
     }
 
@@ -440,12 +444,13 @@ class CrdRequestComparerTest {
                 order + ".resource.intent | DIFFERENT_VALUE | BUILD",
                 // The sample holds a date and time, and the tool sends a date.
                 order + ".resource.occurrenceDateTime | DIFFERENT_VALUE | CASE",
+                // This tool writes the moment it builds the request, which CRD 2.0.1 requires and nobody supplies.
+                order + ".resource.authoredOn | DIFFERENT_VALUE | EVERY_CALL",
                 order + ".resource.requester.reference | DIFFERENT_VALUE | BUILD",
                 order + ".resource.meta | ONLY_IN_YOURS | BUILD",
                 // The extra extension.
                 order + ".resource.extension | ONLY_IN_YOURS | BUILD",
                 order + ".resource.encounter | ONLY_IN_YOURS | BUILD",
-                order + ".resource.authoredOn | ONLY_IN_YOURS | BUILD",
                 order + ".fullUrl | ONLY_IN_YOURS | BUILD",
                 // The second order is a DeviceRequest in the sample and a ServiceRequest in the tool's request.
                 "context.draftOrders.entry[ServiceRequest #2] | ONLY_IN_TOOL | BUILD",
@@ -476,17 +481,22 @@ class CrdRequestComparerTest {
         assertThat(comparison.comparable()).isTrue();
         assertThat(comparison.whyNot()).isNull();
         assertThat(comparison.hook()).isEqualTo("order-sign");
-        assertThat(comparison.headline()).isEqualTo("The two requests differ in 34 places: 26 in how the request is built, 2 in the case they "
-                + "describe, 4 in labels, 1 that differs on every call, and 1 that this tool does not classify.");
+        assertThat(comparison.headline()).isEqualTo("The two requests differ in 34 places: 25 in how the request is built, 2 in the case they "
+                + "describe, 4 in labels, 2 that differ on every call, and 1 that this tool does not classify.");
         assertThat(comparison.counts()).extracting(GroupCount::group, GroupCount::count).containsExactly(
-                org.assertj.core.groups.Tuple.tuple(DifferenceGroup.BUILD, 26), org.assertj.core.groups.Tuple.tuple(DifferenceGroup.CASE, 2),
-                org.assertj.core.groups.Tuple.tuple(DifferenceGroup.LABELS, 4), org.assertj.core.groups.Tuple.tuple(DifferenceGroup.EVERY_CALL, 1),
+                org.assertj.core.groups.Tuple.tuple(DifferenceGroup.BUILD, 25), org.assertj.core.groups.Tuple.tuple(DifferenceGroup.CASE, 2),
+                org.assertj.core.groups.Tuple.tuple(DifferenceGroup.LABELS, 4), org.assertj.core.groups.Tuple.tuple(DifferenceGroup.EVERY_CALL, 2),
                 org.assertj.core.groups.Tuple.tuple(DifferenceGroup.NOT_CLASSIFIED, 1));
         assertThat(comparison.counts().get(0).label()).isEqualTo("How the request is built");
         assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
+                "Your request states the system of the code at context.draftOrders.entry[1].resource.codeCodeableConcept.coding[0].code, and "
+                        + "the tool's request was built with that system. Left to work the system out for itself, from the code list or else "
+                        + "from the format of the code, this tool writes urn:oid:2.16.840.1.113883.6.285.",
                 "Your request carries an order as a DeviceRequest. This tool builds a ServiceRequest for each procedure code, so the two orders "
                         + "are different kinds of resource and each is listed whole.",
                 FHIR_SERVER_NOTE);
+        assertThat(at(comparison, order + ".resource.authoredOn").explanation()).endsWith("This tool writes the moment it builds the request "
+                + "as authoredOn, so its value is new on every call.");
     }
 
     @Test
@@ -549,7 +559,8 @@ class CrdRequestComparerTest {
         assertThat(at(comparison, "prefetch[Patient].identifier[no system]").explanation()).isEqualTo("This list is matched by system. The tool's "
                 + "request has an element with no system that your request has no counterpart for. The other request has an unmatched element "
                 + "here too: the two were not compared with each other, because they do not share a system. This tool writes the member ID "
-                + "as an identifier typed MB, with a system only when the variable memberIdSystem has a value.");
+                + "as an identifier typed MB, with a system only when the variable memberIdSystem has a value, and a medical record number "
+                + "typed MR only when the variable patientMrn has a value.");
 
         // The element nobody described is listed, is not put in a group, and says so.
         Difference unknown = at(comparison, "vendorTraceId");
@@ -636,7 +647,7 @@ class CrdRequestComparerTest {
         assertThat(family.what()).isEqualTo("The family name.");
         assertThat(at(comparison, "context.draftOrders.entry[ServiceRequest #1].resource.occurrenceDateTime").explanation())
                 .startsWith("The two requests hold different text here. This tool sends the date of service as a date");
-        assertThat(comparison.headline()).startsWith("The two requests differ in 35 places: 26 in how the request is built, 3 in the case they describe");
+        assertThat(comparison.headline()).startsWith("The two requests differ in 35 places: 25 in how the request is built, 3 in the case they describe");
     }
 
     @Test
@@ -751,11 +762,13 @@ class CrdRequestComparerTest {
                 "context.selections[0] | ONLY_IN_TOOL | BUILD",
                 first + ".id | DIFFERENT_VALUE | LABELS",
                 first + ".subject.reference | DIFFERENT_VALUE | BUILD",
+                first + ".authoredOn | ONLY_IN_TOOL | BUILD",
                 first + ".requester.reference | DIFFERENT_VALUE | BUILD",
                 first + ".insurance[0].reference | DIFFERENT_VALUE | BUILD",
                 first + ".quantityQuantity | ONLY_IN_YOURS | BUILD",
                 second + ".id | DIFFERENT_VALUE | LABELS",
                 second + ".subject.reference | DIFFERENT_VALUE | BUILD",
+                second + ".authoredOn | ONLY_IN_TOOL | BUILD",
                 second + ".requester.reference | DIFFERENT_VALUE | BUILD",
                 second + ".insurance[0].reference | DIFFERENT_VALUE | BUILD");
         // The selection of the second order follows its relabelling. The first order is selected by the tool only.
@@ -769,6 +782,9 @@ class CrdRequestComparerTest {
                 + "does not contain. Whether the two name the same Patient cannot be seen from the requests.");
         // Stated as a fact about each request, in the same words for both.
         assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
+                "Your request states the system of the code at context.draftOrders.entry[1].resource.code.coding[0].code, and the tool's "
+                        + "request was built with that system. Left to work the system out for itself, from the code list or else from the "
+                        + "format of the code, this tool writes urn:oid:2.16.840.1.113883.6.285.",
                 "Your request points at a PractitionerRole it does not carry, at context.userId, "
                         + "context.draftOrders.entry[0].resource.requester.reference, and context.draftOrders.entry[1].resource.requester.reference. "
                         + "It names no fhirServer to fetch it from.",
@@ -794,8 +810,11 @@ class CrdRequestComparerTest {
         RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(withServer).includePrefetch(false)
                 .member(MemberDetail.builder().memberId("S123456789").build()).provider(ProviderDetail.builder().npi(NPI).build()).build());
         assertThat(comparison.notes()).containsExactly(CrdRequestComparer.WHAT_IT_CANNOT_SHOW,
+                "Your request states the system of the code at context.draftOrders.entry[1].resource.code.coding[0].code, and the tool's "
+                        + "request was built with that system. Left to work the system out for itself, from the code list or else from the "
+                        + "format of the code, this tool writes urn:oid:2.16.840.1.113883.6.285.",
                 FHIR_SERVER_NOTE);
-        assertThat(lines(comparison)).doesNotContain("fhirServer | ONLY_IN_YOURS | BUILD").hasSize(13);
+        assertThat(lines(comparison)).doesNotContain("fhirServer | ONLY_IN_YOURS | BUILD").hasSize(15);
     }
 
     @Test

@@ -2,7 +2,7 @@
   "id": "crd-05-info-needed",
   "number": 5,
   "label": "Additional information needed",
-  "description": "The payer cannot answer until it knows who will perform the service and where. The coverage information sits on a suggestion action, to exercise that placement.",
+  "description": "The payer cannot answer until it knows who will perform the service and where, and says coverage and prior authorization are conditional on that. The coverage information sits on the order inside a card suggestion: a resource CRD 2.0.1 allows it on, though whether 2.0.1 expects it there or in a system action is in pages its package does not ship. Models CRD 2.0.1.",
   "sentinelMemberId": "P32H-INFO",
   "behavior": "respond",
   "httpStatus": 200,
@@ -17,7 +17,7 @@
       "info-needed": "performer"
     }
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service.",
   "response": {
     "cards": [
       {

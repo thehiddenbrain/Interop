@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.crd;
 
+import org.p32h.interop.epa.pave.client.crd.OnyxCrdConventions;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
@@ -29,6 +30,19 @@ import java.util.Set;
  */
 public final class CrdVerdicts {
 
+    /**
+     * The outcomes after which documentation or information wanted decides the next step. A
+     * service that is not covered, a coverage that is not active, a member or a provider not found,
+     * an answer that differs by code and a fault each keep their own next step.
+     */
+    private static final Set<CrdOutcome> DTR_FOLLOWS = Set.of(CrdOutcome.AUTH_REQUIRED, CrdOutcome.NO_AUTH_REQUIRED,
+            CrdOutcome.AUTH_SATISFIED, CrdOutcome.PERFORMER_AUTH, CrdOutcome.DOCUMENTATION_REQUIRED, CrdOutcome.INFORMATION_NEEDED,
+            CrdOutcome.CONDITIONAL, CrdOutcome.AUTH_NOT_STATED);
+
+    /** Said when the payer asks who performs the service or where, which the form has no field for. */
+    static final String OWN_REQUEST = "This tool's form has no field for the performer or the location of the service, so they can be "
+            + "supplied only in a request of your own, pasted as the body.";
+
     private CrdVerdicts() {
     }
 
@@ -46,10 +60,15 @@ public final class CrdVerdicts {
         String headline = switch (outcome) {
             case AUTH_REQUIRED -> "Prior authorization is required.";
             case NO_AUTH_REQUIRED -> "Prior authorization is not required.";
-            case AUTH_SATISFIED -> "Prior authorization is already satisfied.";
+            case AUTH_SATISFIED -> "Prior authorization requirements are already met.";
             case PERFORMER_AUTH -> "The performing provider must obtain prior authorization.";
             case DOCUMENTATION_REQUIRED -> {
                 for (CoverageInformationView view : coverage) {
+                    // An answer that is partly conditional gets a "Definite" line that already
+                    // states a recognised pa-needed, so it is not said twice in a row.
+                    if (partlyConditional(view) && view.paNeeded().code() != null && view.paNeeded().recognised()) {
+                        continue;
+                    }
                     supporting.add(prefix(view, named) + "Prior authorization: "
                             + (view.paNeeded().code() == null ? "not stated" : lower(view.paNeeded().display())) + ".");
                 }
@@ -79,6 +98,11 @@ public final class CrdVerdicts {
                 yield "The service returned a code this tool does not recognise.";
             }
             case MIXED -> {
+                boolean byCoverage = differByCoverageOnly(reading);
+                if (byCoverage) {
+                    supporting.add("The response answers under more than one coverage, and the coverages do not give the same "
+                            + "answer. That is a difference between the member's coverages, not between the codes.");
+                }
                 for (CoverageInformationView view : coverage) {
                     // An answer that could not be tied to a requested code is said to be exactly that,
                     // so nobody reads it as the answer for the code beside it.
@@ -90,7 +114,8 @@ public final class CrdVerdicts {
                     supporting.add(label + ": no answer was returned for this code. That is not an answer that prior "
                             + "authorization is not required.");
                 }
-                yield "The codes in this order did not all receive the same answer.";
+                yield byCoverage ? "The member's coverages did not all give the same answer."
+                        : "The codes in this order did not all receive the same answer.";
             }
             case NO_DETERMINATION -> {
                 supporting.add("This is not the same as an answer that prior authorization is not required. The service has said nothing either way.");
@@ -117,24 +142,40 @@ public final class CrdVerdicts {
         return VerdictView.of(outcome, headline, dedupe(supporting));
     }
 
-    /** What the codes say beyond the headline: the vendor, the documentation, the information wanted. */
+    /**
+     * What the codes say beyond the headline, element by element: what is definite and what is
+     * conditional, the vendor, the documentation and what it is for, the information wanted, and
+     * the reason the payer gave.
+     */
     private static List<String> facets(List<CoverageInformationView> coverage, boolean named) {
         List<String> out = new ArrayList<>();
         for (CoverageInformationView view : coverage) {
             String prefix = prefix(view, named);
+            List<String> definite = new ArrayList<>();
+            List<String> conditional = new ArrayList<>();
+            sort(view.covered(), "coverage", definite, conditional);
+            sort(view.paNeeded(), "prior authorization", definite, conditional);
+            sort(view.docNeeded(), "documentation", definite, conditional);
+            // Only an answer that is partly conditional is spelled out element by element. Where
+            // nothing is conditional the headline already says what is definite.
+            if (!conditional.isEmpty()) {
+                if (!definite.isEmpty()) {
+                    out.add(prefix + "Definite: " + String.join("; ", definite) + ".");
+                }
+                out.add(prefix + "Conditional on information not yet supplied: " + String.join(", ", conditional) + ".");
+            }
+            if (Boolean.TRUE.equals(view.authOutOfNetworkOnly())) {
+                out.add(prefix + "The payer adds that prior authorization is needed only if the service is delivered out of network "
+                        + "(detail auth-out-network-only).");
+            }
             if (Texts.present(view.delegatedVendor())) {
                 out.add(prefix + "It routes to the delegated vendor " + view.delegatedVendor() + ".");
             }
             if (view.satisfiedPaId().hasValue()) {
-                out.add(prefix + "Existing authorization: " + view.satisfiedPaId().value() + ".");
+                out.add(prefix + "Identifier the payer gives for the requirements already met: " + view.satisfiedPaId().value() + ".");
             }
             if (wantsDocumentation(view)) {
-                StringBuilder sentence = new StringBuilder(view.docNeeded().display());
-                List<String> purposes = view.docPurpose().stream().filter(p -> p.code() != null).map(p -> lower(p.display())).toList();
-                if (!purposes.isEmpty()) {
-                    sentence.append(": ").append(String.join(", ", purposes));
-                }
-                out.add(prefix + sentence + ".");
+                out.add(prefix + view.docNeeded().display() + ", " + purpose(view) + ".");
             }
             List<String> wanted = view.infoNeeded().stream().filter(i -> i.code() != null).map(i -> lower(i.display())).toList();
             if (!wanted.isEmpty()) {
@@ -143,8 +184,99 @@ public final class CrdVerdicts {
             if (view.questionnaires().stream().anyMatch(Shown::hasValue)) {
                 out.add(prefix + "A payer questionnaire is named for this service.");
             }
+            if (view.responses().stream().anyMatch(Shown::hasValue)) {
+                out.add(prefix + "A partly completed questionnaire response is named for DTR to start from: "
+                        + String.join(", ", view.responses().stream().filter(Shown::hasValue).map(Shown::value).toList()) + ".");
+            }
+            List<String> reasons = view.reasons().stream().filter(Shown::hasValue).map(CrdVerdicts::reason).toList();
+            if (!reasons.isEmpty()) {
+                out.add(prefix + "Reason the payer gives: " + String.join("; ", reasons) + ".");
+            }
         }
         return out;
+    }
+
+    /**
+     * A reason as the verdict states it: as returned, with its meaning for a code this tool can
+     * read. A CRD 2.0.1 code gets its 2.0.1 meaning, and a later version's code that version's,
+     * named as such.
+     */
+    private static String reason(Shown reason) {
+        String value = reason.value();
+        if (value.contains(OnyxCrdConventions.REASON_GOLD_CARD)) {
+            return value + " (" + CrdCodes.JUDGED_BY + " gold-card: the ordering practitioner has been granted gold card status with "
+                    + "this payer or coverage type)";
+        }
+        if (value.contains(OnyxCrdConventions.REASON_DETAIL_CODE)) {
+            return value + " (" + CrdCodes.JUDGED_BY + " detail-code: the ordered code is too general for the payer to decide "
+                    + "coverage or prior authorization, and a more detailed code is needed)";
+        }
+        for (String later : List.of(OnyxCrdConventions.LATER_NO_MEMBER_FOUND, OnyxCrdConventions.LATER_NO_ACTIVE_COVERAGE,
+                OnyxCrdConventions.LATER_AUTH_OUT_NETWORK)) {
+            if (value.contains(later)) {
+                return value + " (a " + CrdCodes.LATER + " code, not in " + CrdCodes.JUDGED_BY + ": " + CrdGuideRules.laterReasonMeaning(later) + ")";
+            }
+        }
+        return value;
+    }
+
+    /** True when covered, pa-needed or doc-needed is a recognised conditional, which is when {@link #facets} spells the answer out element by element. */
+    private static boolean partlyConditional(CoverageInformationView view) {
+        return conditional(view.covered()) || conditional(view.paNeeded()) || conditional(view.docNeeded());
+    }
+
+    private static boolean conditional(CodedValue value) {
+        return value.code() != null && value.recognised() && value.is("conditional");
+    }
+
+    /** Puts one element of an answer under definite or conditional. An element not returned, or not recognised, goes under neither. */
+    private static void sort(CodedValue value, String name, List<String> definite, List<String> conditional) {
+        if (value.code() == null || !value.recognised()) {
+            return;
+        }
+        if (value.is("conditional")) {
+            conditional.add(name);
+        } else {
+            definite.add(name + ": " + lower(value.display()));
+        }
+    }
+
+    /** What the documentation an answer asks for is for, in words, from its doc-purpose codes. */
+    static String purpose(CoverageInformationView view) {
+        List<String> purposes = new ArrayList<>();
+        for (CodedValue value : view.docPurpose()) {
+            if (value.code() == null) {
+                continue;
+            }
+            String words = switch (value.code()) {
+                case "withpa" -> "to go with the prior authorization request";
+                case "withclaim" -> "to go with the claim";
+                case "withorder" -> "to go with the order";
+                case "retain-doc" -> "to keep in the record as evidence of medical necessity";
+                case "OTH" -> "for a purpose the payer did not code";
+                default -> "for a purpose this tool does not recognise (" + value.code() + ")";
+            };
+            if (!purposes.contains(words)) {
+                purposes.add(words);
+            }
+        }
+        return purposes.isEmpty() ? "and the response does not say what it is for (no doc-purpose)" : String.join(" and ", purposes);
+    }
+
+    /**
+     * True when every difference between the answers is a difference between coverages: within each
+     * coverage the answers agree and no order went unanswered.
+     */
+    private static boolean differByCoverageOnly(CrdReading reading) {
+        List<CoverageInformationView> coverage = reading.detail().coverageInformation();
+        if (!reading.unanswered().isEmpty()) {
+            return false;
+        }
+        Map<String, Set<CrdOutcome>> byCoverage = new LinkedHashMap<>();
+        for (CoverageInformationView view : coverage) {
+            byCoverage.computeIfAbsent(Texts.orElse(view.coverage().orNull(), ""), key -> new LinkedHashSet<>()).add(view.outcome());
+        }
+        return byCoverage.size() > 1 && byCoverage.values().stream().allMatch(outcomes -> outcomes.size() == 1);
     }
 
     /**
@@ -161,6 +293,10 @@ public final class CrdVerdicts {
         List<String> assertionIds = new ArrayList<>();
         List<String> orders = new ArrayList<>();
         List<String> vendors = new ArrayList<>();
+        List<String> purposes = new ArrayList<>();
+        List<String> responses = new ArrayList<>();
+        List<String> information = new ArrayList<>();
+        boolean performerOrLocation = false;
         for (CoverageInformationView view : coverage) {
             view.questionnaires().stream().filter(Shown::hasValue).map(Shown::value).forEach(q -> addOnce(questionnaires, q));
             if (wantsDocumentation(view) || view.questionnaires().stream().anyMatch(Shown::hasValue)) {
@@ -171,47 +307,77 @@ public final class CrdVerdicts {
                 if (view.appliesTo().hasValue()) {
                     addOnce(orders, view.appliesTo().value());
                 }
+                view.docPurpose().stream().filter(p -> p.code() != null).forEach(p -> addOnce(purposes, p.code()));
+                view.responses().stream().filter(Shown::hasValue).forEach(r -> addOnce(responses, r.value()));
+            }
+            for (CodedValue info : view.infoNeeded()) {
+                if (info.code() != null) {
+                    addOnce(information, lower(info.display()));
+                    performerOrLocation |= info.is("performer") || info.is("location");
+                }
             }
             if (Texts.present(view.delegatedVendor())) {
                 addOnce(vendors, view.delegatedVendor());
             }
         }
-        CardLinkView dtrLink = reading.detail().cards().stream().map(CardView::links).flatMap(List::stream)
+        CardLinkView smartLink = reading.detail().cards().stream().map(CardView::links).flatMap(List::stream)
                 .filter(link -> "smart".equalsIgnoreCase(link.type().orNull())).findFirst().orElse(null);
         Map<String, List<String>> carry = new LinkedHashMap<>();
         carry.put(NextStepView.CARRY_PROCEDURE_CODES, reading.requestedCodes());
         carry.put(NextStepView.CARRY_QUESTIONNAIRE, questionnaires);
         carry.put(NextStepView.CARRY_COVERAGE_ASSERTION_ID, assertionIds);
         carry.put(NextStepView.CARRY_ORDER, orders);
-        if (dtrLink != null) {
-            // The first SMART link only, so the url and the appContext carried belong to one link.
-            carry.put(NextStepView.CARRY_DTR_LINK_URL, dtrLink.url().hasValue() ? List.of(dtrLink.url().value()) : List.of());
+        carry.put(NextStepView.CARRY_DOC_PURPOSE, purposes);
+        if (smartLink != null) {
+            // Carried as what it is, a SMART link, and only the first, so the url and the appContext
+            // belong to one link. It does not decide whether DTR is next: doc-needed does.
+            carry.put(NextStepView.CARRY_DTR_LINK_URL, smartLink.url().hasValue() ? List.of(smartLink.url().value()) : List.of());
             carry.put(NextStepView.CARRY_DTR_APP_CONTEXT,
-                    dtrLink.appContext().hasValue() ? List.of(dtrLink.appContext().value()) : List.of());
+                    smartLink.appContext().hasValue() ? List.of(smartLink.appContext().value()) : List.of());
         }
         carry.put(NextStepView.CARRY_DELEGATED_VENDOR, vendors);
 
-        boolean documentationWanted = coverage.stream().anyMatch(CrdVerdicts::wantsDocumentation);
-        boolean dtrOffered = !questionnaires.isEmpty() || dtrLink != null;
         String vendor = vendors.isEmpty() ? null : String.join(" and ", vendors);
+        String asked = information.isEmpty() ? null : "The payer also asks for: " + String.join("; ", information) + "."
+                + (performerOrLocation ? " " + OWN_REQUEST : "");
+
+        if (DTR_FOLLOWS.contains(outcome)) {
+            List<CoverageInformationView> documentation = coverage.stream().filter(CrdVerdicts::wantsDocumentation).toList();
+            if (!documentation.isEmpty()) {
+                StringBuilder reason = new StringBuilder("The response asks for documentation");
+                List<String> forWhat = documentation.stream().map(CrdVerdicts::purpose).distinct().toList();
+                reason.append(", ").append(String.join("; ", forWhat)).append(". In ").append(CrdCodes.JUDGED_BY)
+                        .append(" a doc-needed answer is itself what says DTR is to be used, whatever pa-needed says.");
+                if (!responses.isEmpty()) {
+                    reason.append(" A partly completed questionnaire response is named for DTR to start from.");
+                } else if (questionnaires.isEmpty()) {
+                    reason.append(" No questionnaire is named, so DTR asks the payer for its package by the order and the coverage.");
+                }
+                if (!responses.isEmpty()) {
+                    reason.append(" This tool does not yet hand that response on to DTR: it is shown on the result.");
+                }
+                if (asked != null) {
+                    reason.append(" ").append(asked);
+                }
+                return new NextStepView(NextAction.START_DTR, "Next: complete the payer's documentation in DTR.", reason.toString(), carry);
+            }
+            if (!information.isEmpty()) {
+                return new NextStepView(NextAction.SUPPLY_INFORMATION, "Next: supply what the payer asked for and send CRD again.",
+                        "The payer cannot give a firm answer from what it was sent. " + asked, carry);
+            }
+        }
 
         return switch (outcome) {
-            case DOCUMENTATION_REQUIRED -> dtrOffered
-                    ? new NextStepView(NextAction.START_DTR, "Next: answer the payer's questionnaire in DTR.",
-                    "The response asks for documentation and names a questionnaire or a DTR link.", carry)
-                    : new NextStepView(NextAction.START_PAS, "Next: submit the prior authorization request in PAS, with the documentation.",
-                    "The response asks for documentation but names no questionnaire and carries no DTR link.", carry);
-            case AUTH_REQUIRED -> dtrOffered && documentationWanted
-                    ? new NextStepView(NextAction.START_DTR, "Next: answer the payer's questionnaire in DTR.",
-                    "Prior authorization is required and the response names a questionnaire or a DTR link.", carry)
-                    : new NextStepView(NextAction.START_PAS, "Next: submit the prior authorization request in PAS.",
-                    vendor != null
-                            ? "Prior authorization is required and routes to " + vendor + "."
-                            : "Prior authorization is required and no documentation is asked for first.", carry);
+            case DOCUMENTATION_REQUIRED -> new NextStepView(NextAction.REVIEW,
+                    "Next: read the response detail below. This tool cannot say what should happen next.",
+                    "The response asks for documentation in a way this tool cannot act on.", carry);
+            case AUTH_REQUIRED -> new NextStepView(NextAction.START_PAS, "Next: submit the prior authorization request in PAS.",
+                    authRequiredReason(coverage, vendor), carry);
             case NO_AUTH_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
                     "The payer answered that prior authorization is not required, so there is nothing to submit.", carry);
             case AUTH_SATISFIED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
-                    "An authorization already on file covers this service, so there is nothing to submit.", carry);
+                    "The payer answered that the requirements prior authorization would check are already met, so prior "
+                            + "authorization can be bypassed and there is nothing to submit.", carry);
             case NOT_COVERED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
                     "The service is not a covered benefit, so there is no authorization to request.", carry);
             case COVERAGE_INACTIVE -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
@@ -231,9 +397,24 @@ public final class CrdVerdicts {
                     "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
             case NO_DETERMINATION, AUTH_NOT_STATED, UNRECOGNISED_CODE, MIXED -> new NextStepView(NextAction.REVIEW,
                     "Next: read the response detail below. This tool cannot say what should happen next.",
-                    outcome == CrdOutcome.MIXED ? "The codes in this order did not all receive the same answer, so each needs its own next step."
+                    outcome == CrdOutcome.MIXED ? "Not every answer in the response is the same, so each needs its own next step."
                             : "The response does not carry an authorization answer this tool can act on.", carry);
         };
+    }
+
+    /**
+     * Why PAS is next when prior authorization is required. A doc-needed of conditional is not a
+     * "no": CRD 2.0.1 defines it as a decision that cannot be made without more information, so
+     * the reason says documentation may still be asked for.
+     */
+    private static String authRequiredReason(List<CoverageInformationView> coverage, String vendor) {
+        boolean documentationConditional = coverage.stream().anyMatch(view -> conditional(view.docNeeded()));
+        String base = vendor != null ? "Prior authorization is required and routes to " + vendor + "." : null;
+        if (documentationConditional) {
+            return (base != null ? base : "Prior authorization is required.") + " Documentation may be needed once the payer has more "
+                    + "information: doc-needed is conditional.";
+        }
+        return base != null ? base : "Prior authorization is required and no documentation is asked for first.";
     }
 
     /**
@@ -258,8 +439,9 @@ public final class CrdVerdicts {
                 "The service did not accept the request as it was sent.", carry);
     }
 
+    /** True when the answer asks for documentation: doc-needed clinical, admin or both, or the 2.2.0 ballot's patient. */
     static boolean wantsDocumentation(CoverageInformationView view) {
-        return view.docNeeded().code() != null && !view.docNeeded().is("no-doc");
+        return view.docNeeded().code() != null && CrdCodes.DOCUMENTATION_WANTED.contains(view.docNeeded().code());
     }
 
     private static String prefix(CoverageInformationView view, boolean named) {

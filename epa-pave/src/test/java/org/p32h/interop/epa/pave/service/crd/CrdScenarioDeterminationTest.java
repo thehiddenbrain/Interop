@@ -132,24 +132,85 @@ class CrdScenarioDeterminationTest {
         assertThat(exchange.scenarioNote()).contains("repeated here for each of the 2 orders sent");
         assertThat(exchange.responseBody()).contains("service-request-2");
 
-        // One order is answered from the file exactly as written.
+        // One order is answered with one update, which carries the order that was sent.
         VendorExchange single = client.hook(TestPreparedCalls.unconfigured(EpaOperation.CRD_ORDER_SIGN),
                 ResolvedText.plain(orders("95810")), MockSelection.of("crd-01-pa-required", null, null));
-        assertThat(single.scenarioNote()).isEqualTo("chosen in the scenario selector");
+        assertThat(single.scenarioNote()).isEqualTo("chosen in the scenario selector. " + ECHO_NOTE);
         assertThat(single.responseBody()).doesNotContain("service-request-2");
+    }
+
+    private static final String ECHO_NOTE = "Each update carries the order the request sent, as a CDS service sends it back, with the "
+            + "scenario's coverage information on it";
+
+    @Test
+    void eachMockUpdateEchoesTheWholeOrderTheRequestSentWithTheScenariosAnswerOnIt() {
+        // CRD201-18: CRD 2.0.1 profile-servicerequest requires code, authoredOn and requester, so an echoed
+        // order cut down to an id and an extension teaches a shape no profile allows.
+        String body = "{\"hook\":\"order-sign\",\"context\":{\"draftOrders\":{\"resourceType\":\"Bundle\",\"entry\":["
+                + "{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-1\",\"status\":\"draft\",\"intent\":\"order\","
+                + "\"code\":{\"coding\":[{\"code\":\"95810\"}]},\"subject\":{\"reference\":\"Patient/patient-1\"},"
+                + "\"authoredOn\":\"2026-03-18T14:05:09Z\",\"requester\":{\"reference\":\"PractitionerRole/practitioner-role-1\"}}},"
+                + "{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-2\",\"code\":{\"coding\":[{\"code\":\"70553\"}]},"
+                + "\"authoredOn\":\"2026-03-18T14:05:09Z\"}}]}}}";
+        for (String scenario : List.of("crd-01-pa-required", "crd-02-no-auth", "crd-03-pa-satisfied", "crd-04-doc-dtr", "crd-06-not-covered",
+                "crd-08-coverage-inactive", "crd-10-delegated-vendor")) {
+            VendorExchange exchange = client.hook(TestPreparedCalls.unconfigured(EpaOperation.CRD_ORDER_SIGN), ResolvedText.plain(body),
+                    MockSelection.of(scenario, null, null));
+            tools.jackson.databind.JsonNode actions = org.p32h.interop.epa.pave.model.JsonSafe.parse(exchange.responseBody()).node()
+                    .get("systemActions");
+            assertThat(actions).as(scenario).hasSize(2);
+            assertThat(actions.at("/0/resource/code/coding/0/code").asString()).as(scenario).isEqualTo("95810");
+            assertThat(actions.at("/0/resource/authoredOn").asString()).as(scenario).isEqualTo("2026-03-18T14:05:09Z");
+            assertThat(actions.at("/0/resource/requester/reference").asString()).as(scenario).isEqualTo("PractitionerRole/practitioner-role-1");
+            assertThat(actions.at("/0/resource/extension/0/url").asString()).as(scenario).isEqualTo(CrdCodes.COVERAGE_INFORMATION);
+            // The second order is echoed as itself, not as a copy of the first.
+            assertThat(actions.at("/1/resource/id").asString()).as(scenario).isEqualTo("service-request-2");
+            assertThat(actions.at("/1/resource/code/coding/0/code").asString()).as(scenario).isEqualTo("70553");
+            assertThat(exchange.scenarioNote()).as(scenario).endsWith(ECHO_NOTE);
+            CrdReading reading = mapper.read(exchange, SentOrder.fromBody(body));
+            assertThat(reading.unanswered()).as(scenario).isEmpty();
+            assertThat(reading.detail().coverageInformation()).extracting(CoverageInformationView::subject).as(scenario)
+                    .containsExactly("95810", "70553");
+        }
+    }
+
+    @Test
+    void everyDtrSentinelGetsTheDocumentationAnswerSoAJourneyWithItReachesDtr() {
+        // F10 of the chain review: without this, a DTR sentinel got the default CRD answer and went straight to PAS.
+        List<String> dtrSentinels = scenarios.list("dtr").stream().map(Scenario::sentinelMemberId)
+                .filter(org.p32h.interop.epa.pave.model.Texts::present).toList();
+        assertThat(dtrSentinels).hasSizeGreaterThanOrEqualTo(15).contains("P32H-DTR-ADAPT", "P32H-DTR-EMPTY", "P32H-DTR-TWO", "P32H-DTR-ERR500");
+        for (String sentinel : dtrSentinels) {
+            VendorExchange exchange = call(null, sentinel.toLowerCase(java.util.Locale.ROOT), "1234567893");
+            assertThat(exchange.scenarioId()).as(sentinel).isEqualTo("crd-04-doc-dtr");
+            CrdReading reading = mapper.read(exchange);
+            assertThat(reading.outcome()).as(sentinel).isEqualTo(CrdOutcome.DOCUMENTATION_REQUIRED);
+            assertThat(CrdVerdicts.nextStep(reading, exchange).action()).as(sentinel).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.START_DTR);
+            if (!sentinel.equals("P32H-DOC-DTR")) {
+                assertThat(exchange.scenarioNote()).as(sentinel).startsWith("selected because " + sentinel + " is the sentinel member ID of "
+                        + "DTR scenario dtr-").contains("CRD answers documentation required for every DTR sentinel");
+            }
+        }
+        // A CRD sentinel keeps its own scenario, a chosen scenario wins, and the sentinel NPI still selects provider-not-found.
+        assertThat(call(null, "P32H-NO-AUTH", "1234567893").scenarioId()).isEqualTo("crd-02-no-auth");
+        assertThat(call("crd-02-no-auth", "P32H-DTR-ADAPT", "1234567893").scenarioId()).isEqualTo("crd-02-no-auth");
+        assertThat(call(null, "S123456789", "9999999995").scenarioId()).isEqualTo("crd-09-provider-not-found");
     }
 
     @Test
     void anAnswerOnTheCardItselfCannotBeTiedToOneOfSeveralCodesAndIsNotAssumedToCoverThem() {
-        // Scenario 3 puts its coverage information on the card, attached to no order. With one
-        // code there is nothing else it could be about. With two, saying which would be a guess.
-        CrdReading one = mapper.read(client.hook(TestPreparedCalls.unconfigured(EpaOperation.CRD_ORDER_SIGN),
-                ResolvedText.plain(orders("95810")), MockSelection.of("crd-03-pa-satisfied", null, null)), SentOrder.fromBody(orders("95810")));
+        // Coverage information on the card itself is attached to no order. With one code there is
+        // nothing else it could be about. With two, saying which would be a guess. No bundled
+        // scenario puts it there any more (CRD 2.0.1 does not allow it on a card), so the body is here.
+        String onTheCard = "{\"cards\":[{\"summary\":\"s\",\"indicator\":\"info\",\"source\":{\"label\":\"l\"},\"extension\":[{\"url\":\""
+                + CrdCodes.COVERAGE_INFORMATION + "\",\"extension\":[{\"url\":\"covered\",\"valueCode\":\"covered\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"satisfied\"},{\"url\":\"satisfied-pa-id\",\"valueString\":\"PA-PLACEHOLDER-0001\"}]}]}]}";
+        CrdReading one = mapper.read(org.p32h.interop.epa.pave.testsupport.TestExchanges.crd(200, onTheCard), SentOrder.fromBody(orders("95810")));
         assertThat(one.outcome()).isEqualTo(CrdOutcome.AUTH_SATISFIED);
         assertThat(one.detail().coverageInformation().get(0).procedureCodes()).containsExactly("95810");
+        assertThat(one.detail().coverageInformation().get(0).onACard()).isTrue();
 
-        CrdReading two = mapper.read(client.hook(TestPreparedCalls.unconfigured(EpaOperation.CRD_ORDER_SIGN),
-                ResolvedText.plain(orders("95810", "95811")), MockSelection.of("crd-03-pa-satisfied", null, null)),
+        CrdReading two = mapper.read(org.p32h.interop.epa.pave.testsupport.TestExchanges.crd(200, onTheCard),
                 SentOrder.fromBody(orders("95810", "95811")));
         assertThat(two.outcome()).isEqualTo(CrdOutcome.MIXED);
         assertThat(two.detail().coverageInformation().get(0).procedureCodes()).isEmpty();
@@ -242,8 +303,12 @@ class CrdScenarioDeterminationTest {
     void theThreePlacementsOfCoverageInformationAreAllFoundInTheBundledScenarios() {
         assertThat(read("P32H-PA-REQ").detail().coverageInformation().get(0).foundAt())
                 .isEqualTo("systemActions[0].resource.extension[0]");
+        // CRD201-16: scenario 3 now answers in a system action, as CRD 2.0.1 allows. A card is read as well, but no
+        // bundled scenario teaches it (see anAnswerOnTheCardItselfCannotBeTiedToOneOfSeveralCodesAndIsNotAssumedToCoverThem).
         assertThat(read("P32H-PA-SAT").detail().coverageInformation().get(0).foundAt())
-                .isEqualTo("cards[0].extension[0]");
+                .isEqualTo("systemActions[0].resource.extension[0]");
+        assertThat(scenarios.list("crd")).allSatisfy(scenario -> assertThat(mapper.read(call(scenario.id(), null, null)).detail()
+                .coverageInformation()).as(scenario.id()).noneMatch(CoverageInformationView::onACard));
         assertThat(read("P32H-INFO").detail().coverageInformation().get(0).foundAt())
                 .isEqualTo("cards[0].suggestions[0].actions[0].resource.extension[0]");
     }
@@ -274,5 +339,19 @@ class CrdScenarioDeterminationTest {
         assertThat(reading.detail().coverageInformation().get(0).satisfiedPaId().value()).isEqualTo("PA-PLACEHOLDER-0001");
         assertThat(codes(reading)).containsEntry("satisfied-pa-id", List.of("PA-PLACEHOLDER-0001"));
         assertThat(reading.ledgerCodes()).noneMatch(code -> code.contains("PA-PLACEHOLDER-0001"));
+    }
+
+    @Test
+    void mockDiscoveryShowsAConfigurationOptionWithACrd201CardTypeAndSaysItIsIllustrative() {
+        // CRD201-23: CRD 2.0.1 CDSHookServicesExtensionConfiguration binds code to its cardType value set.
+        tools.jackson.databind.JsonNode services = org.p32h.interop.epa.pave.model.JsonSafe.parse(client.discover(
+                TestPreparedCalls.unconfigured(EpaOperation.CRD_DISCOVERY)).responseBody()).node().get("services");
+        tools.jackson.databind.JsonNode option = services.at("/0/extension/davinci-crd.configuration-options/0");
+        assertThat(option.get("code").asString()).isEqualTo("coverage-info");
+        assertThat(option.get("type").asString()).isEqualTo("boolean");
+        assertThat(option.get("name").asString()).isNotBlank();
+        assertThat(option.get("description").asString()).isNotBlank();
+        assertThat(services.at("/0/prefetch/patient").asString()).isEqualTo("Patient/{{context.patientId}}");
+        assertThat(services.at("/0/description").asString()).contains("illustrative").contains("CRD 2.0.1");
     }
 }

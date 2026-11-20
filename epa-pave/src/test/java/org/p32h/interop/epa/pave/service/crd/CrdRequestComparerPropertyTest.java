@@ -37,6 +37,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 class CrdRequestComparerPropertyTest {
 
+    /** When the request is built, fixed so that two builds of one case are the same request, authoredOn included. */
+    private static final java.time.Clock BUILT_AT = java.time.Clock.fixed(java.time.Instant.parse("2026-03-18T14:05:09Z"), java.time.ZoneOffset.UTC);
+
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
     private static final String HOOK_INSTANCE = "11111111-1111-4111-8111-111111111111";
     private static final String ONLY_HOOK_INSTANCE = "hookInstance | DIFFERENT_VALUE | EVERY_CALL";
@@ -45,7 +48,7 @@ class CrdRequestComparerPropertyTest {
     private final FakeCodeList codeList = new FakeCodeList();
 
     private CrdRequestBuilder builder() {
-        return new CrdRequestBuilder(codeList);
+        return new CrdRequestBuilder(codeList, BUILT_AT);
     }
 
     private Function<String, ResolvedText> variables(Map<String, String> typedForThisRun) {

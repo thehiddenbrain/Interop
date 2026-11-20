@@ -62,9 +62,11 @@ class SuiteServiceTest {
         assertThat(run.startedAt()).isNotNull();
         assertThat(run.finishedAt()).isNotNull();
         // Every case here has something for a person to look at. The test code list holds no row for 95810,
-        // so nothing was compared, and the empty answer is missing what the guide requires.
+        // so nothing was compared, and the empty answer states no coverage information, which CRD 2.0.1 does not require.
         assertThat(run.counts()).isEqualTo(new SuiteCounts(3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0));
-        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_NOT_COMPARED", 2), Map.entry("REQUIRED_ELEMENT_MISSING", 1));
+        // Each case gives the member ID alone, so each request went without what CRD 2.0.1 requires of a Patient.
+        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_NOT_COMPARED", 2), Map.entry("NOT_STATED", 1),
+                Map.entry("REQUEST_INCOMPLETE", 3));
 
         assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("TC-1", "TC-2", "TC-3");
         SuiteCaseResult passed = run.results().get(0);
@@ -118,16 +120,18 @@ class SuiteServiceTest {
                 "TC-1,crd,P32H-NO-AUTH," + NPI + ",95811,NO_AUTH_REQUIRED",
                 "TC-2,crd,P32H-NO-AUTH," + NPI + ",95811,NO_AUTH_REQUIRED",
                 row("TC-3", "P32H-NO-AUTH", "NO_AUTH_REQUIRED")), null, null, null);
-        assertThat(run.results().get(0).findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH");
+        // REQUEST_INCOMPLETE: the case gives the member ID alone, and CRD 2.0.1 requires more of a Patient.
+        assertThat(run.results().get(0).findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH", "REQUEST_INCOMPLETE");
         // The case still passed: it got the outcome it declared. The disagreement is for a person to look at.
         assertThat(run.results().get(0).result()).isEqualTo(TestResult.PASS);
-        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_DISAGREES_ON_AUTH", 2), Map.entry("CODE_LIST_NOT_COMPARED", 1));
+        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_DISAGREES_ON_AUTH", 2), Map.entry("CODE_LIST_NOT_COMPARED", 1),
+                Map.entry("REQUEST_INCOMPLETE", 3));
         assertThat(run.counts().withFindings()).isEqualTo(3);
         assertThat(run.counts().passed()).isEqualTo(3);
         // The list has no row for 95810, which is said, so a row with no disagreement is not read as agreement.
-        assertThat(run.results().get(2).findings()).containsExactly("CODE_LIST_NOT_COMPARED");
+        assertThat(run.results().get(2).findings()).containsExactly("CODE_LIST_NOT_COMPARED", "REQUEST_INCOMPLETE");
         // The ledger line of the case carries the same kinds.
-        assertThat(bed.ledger.records().get(0).findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH");
+        assertThat(bed.ledger.records().get(0).findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH", "REQUEST_INCOMPLETE");
     }
 
     @Test

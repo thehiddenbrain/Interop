@@ -161,7 +161,7 @@ class CrdServiceTest {
         assertThat(record.procedureCodes()).containsExactly("95810");
         assertThat(record.lineOfBusiness()).isEqualTo("Medicare");
         assertThat(record.outcome()).isEqualTo("AUTH_REQUIRED");
-        assertThat(record.coverageCodes()).containsExactly("covered=covered", "pa-needed=auth-needed", "doc-needed=no-doc");
+        assertThat(record.coverageCodes()).containsExactly("covered=covered", "pa-needed=auth-needed");
         assertThat(record.delegatedVendor()).isEqualTo("Evolent");
         assertThat(record.httpStatus()).isEqualTo(200);
         assertThat(record.elapsedMillis()).isGreaterThanOrEqualTo(0);
@@ -214,7 +214,7 @@ class CrdServiceTest {
         RunRecord emptyRecord = ledger.records().get(1);
         assertThat(noAuthRecord.outcome()).isEqualTo("NO_AUTH_REQUIRED");
         assertThat(emptyRecord.outcome()).isEqualTo("NO_DETERMINATION");
-        assertThat(noAuthRecord.coverageCodes()).containsExactly("covered=covered", "pa-needed=no-auth", "doc-needed=no-doc");
+        assertThat(noAuthRecord.coverageCodes()).containsExactly("covered=covered", "pa-needed=no-auth");
         assertThat(emptyRecord.coverageCodes()).isEmpty();
         assertThat(noAuthRecord.result()).isEqualTo(TestResult.PASS);
         assertThat(emptyRecord.result()).isEqualTo(TestResult.FAIL);
@@ -223,10 +223,12 @@ class CrdServiceTest {
         assertThat(emptyRecord.errorType()).isEqualTo("NONE");
         assertThat(noAuthRecord.httpStatus()).isEqualTo(200);
         assertThat(emptyRecord.httpStatus()).isEqualTo(200);
-        assertThat(emptyRecord.findings()).containsExactly("REQUIRED_ELEMENT_MISSING");
+        // CRD 2.0.1 does not require coverage information, so its absence is information (CRD201-15).
+        // The form here gives the member ID alone, so the request went without what CRD 2.0.1 requires of a Patient (REQUEST_INCOMPLETE).
+        assertThat(emptyRecord.findings()).containsExactly("NOT_STATED", "REQUEST_INCOMPLETE");
         // The code list in this test has no row for the code, and the result says the two were not
         // compared. No finding at all would have read as agreement.
-        assertThat(noAuthRecord.findings()).containsExactly("CODE_LIST_NOT_COMPARED");
+        assertThat(noAuthRecord.findings()).containsExactly("CODE_LIST_NOT_COMPARED", "REQUEST_INCOMPLETE");
     }
 
     @Test
@@ -499,6 +501,18 @@ class CrdServiceTest {
         assertThat(malformed.wire().response().parsed()).isFalse();
         assertThat(ledger.records()).extracting(RunRecord::errorType)
                 .containsExactly("BAD_REQUEST", "SERVER_ERROR", "TIMEOUT", "UNAVAILABLE", "MALFORMED_RESPONSE");
+    }
+
+    @Test
+    void everyResultSaysWhichRulesOfCrd201TheCheckerAppliedFaultsAndEmptyAnswersIncluded() {
+        // V-02 and CRD201-08: silence about a rule the checker does not apply is not read as a pass.
+        for (String sentinel : List.of("P32H-PA-REQ", "P32H-EMPTY", "P32H-ERR500", "P32H-BAD400")) {
+            assertThat(run(sentinel).detail().conformance()).as(sentinel).isEqualTo(CrdConformanceChecker.SCOPE);
+        }
+        OnyxCrdClient unreachable = stub(TestExchanges.unavailable(EpaOperation.CRD_ORDER_SIGN));
+        assertThat(service(unreachable, "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null).detail()
+                .conformance()).isEqualTo(CrdConformanceChecker.SCOPE);
+        assertThat(CrdConformanceChecker.SCOPE.version()).isEqualTo("CRD 2.0.1");
     }
 
     // ---- validation: nothing sent, nothing recorded ----
@@ -905,7 +919,9 @@ class CrdServiceTest {
     private static String noAuthFor(int order) {
         return "{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-" + order + "\","
                 + "\"extension\":[{\"url\":\"http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information\",\"extension\":["
-                + "{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"}]}]}}";
+                + "{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}},"
+                + "{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"},"
+                + "{\"url\":\"date\",\"valueDate\":\"2026-01-15\"},{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-" + order + "\"}]}]}}";
     }
 
     private static List<Finding> aboutTheCodeList(RunEnvelope<CrdDetail> result) {
@@ -940,7 +956,7 @@ class CrdServiceTest {
                 .doesNotContain(FindingKind.CODE_LIST_DISAGREES_ON_AUTH, FindingKind.CODE_LIST_DISAGREES_ON_VENDOR);
         // The ledger line says the same, so a history row or a suite count cannot report a disagreement either.
         assertThat(ledger.only().profile()).isEqualTo("live");
-        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_NOT_COMPARED");
+        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_NOT_COMPARED", "REQUEST_INCOMPLETE");
     }
 
     @Test
@@ -957,7 +973,7 @@ class CrdServiceTest {
         assertThat(aboutTheCodeList(result).get(0).detail()).isEqualTo("One of them is wrong, and this tool cannot tell which. " + PLACEHOLDER_NOTE);
         assertThat(aboutTheCodeList(result).get(0).codeListSays()).isEqualTo("The code list says prior authorization is required (rows for Medicare).");
         assertThat(aboutTheCodeList(result).get(1).detail()).isEqualTo("The code list has no row for 99999 on 2026-03-20. " + PLACEHOLDER_NOTE);
-        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH", "CODE_LIST_NOT_COMPARED");
+        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH", "CODE_LIST_NOT_COMPARED", "REQUEST_INCOMPLETE");
     }
 
     @Test
@@ -989,6 +1005,46 @@ class CrdServiceTest {
         assertThat(preview.blocked()).isNull();
         assertThat(ledger.records()).isEmpty();
         assertThatThrownBy(() -> service().preview(request(" ").build(), null)).isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void aPreviewCarriesARealHookInstanceAndSaysANewOneIsMadeWhenTheRequestIsSent() {
+        // CRD201-22: the preview may be sent as the tester's own body, so its hookInstance must be a real id, not a sentence.
+        RequestPreview preview = service().preview(request("S123456789").build(), null);
+        String hookInstance = JsonSafe.parse(preview.body()).node().get("hookInstance").asString();
+        assertThat(java.util.UUID.fromString(hookInstance).toString()).isEqualTo(hookInstance);
+        assertThat(preview.notes()).contains("The hookInstance " + hookInstance + " was made for this preview. A new one is made each time "
+                + "the request is sent.");
+        // What CRD 2.0.1 requires and was not supplied is counted first, as on a run.
+        assertThat(preview.notes().get(0)).startsWith("This request leaves out ").contains("that the CRD 2.0.1 profiles require");
+    }
+
+    @Test
+    void aHookThisToolDoesNotBuildIsRefusedWithWhatItDoesBuild() {
+        // CRD201-22: say plainly which hooks and order types are not built.
+        assertThatThrownBy(() -> service().run(request("S123456789").hook("order-dispatch").build(), RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                    assertThat(error.field()).isEqualTo("hook");
+                    assertThat(error.message()).isEqualTo("This tool builds order-sign and order-select requests only. CRD 2.0.1 also "
+                            + "lists the hooks appointment-book, encounter-start, encounter-discharge and order-dispatch, and this tool "
+                            + "builds none of them. Its orders are ServiceRequests only: it does not build a DeviceRequest, "
+                            + "MedicationRequest, NutritionOrder, CommunicationRequest, Appointment or VisionPrescription.");
+                }));
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
+    void aRunWhoseRequestLeftOutWhatCrd201RequiresCarriesOneFindingThatNamesIt() {
+        RunEnvelope<CrdDetail> result = service().run(request("P32H-NO-AUTH").build(), RunOrigin.manual(), null);
+        assertThat(result.findings()).filteredOn(f -> f.kind() == FindingKind.REQUEST_INCOMPLETE).singleElement().satisfies(f -> {
+            assertThat(f.title()).startsWith("The request was sent without ").endsWith(" CRD 2.0.1 requires");
+            assertThat(f.detail()).contains("Patient.identifier:MRIdentifier (CRD 2.0.1 profile-patient), supplied by the variables "
+                    + "patientMrn and patientMrnSystem");
+        });
+        assertThat(result.detail().requestNotes().get(0)).startsWith("This request leaves out ");
+        // A body of the tester's own was not built by this tool, so nothing is said about what it left out.
+        RunEnvelope<CrdDetail> own = service().run(CrdRunRequest.builder().rawBody("{\"hook\":\"order-sign\"}").build(), RunOrigin.manual(), null);
+        assertThat(own.findings()).extracting(Finding::kind).doesNotContain(FindingKind.REQUEST_INCOMPLETE);
     }
 
     @Test

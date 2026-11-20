@@ -31,6 +31,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 class CrdRequestComparerFindingsTest {
 
+    /** When the request is built, fixed so that two builds of one case are the same request, authoredOn included. */
+    private static final java.time.Clock BUILT_AT = java.time.Clock.fixed(java.time.Instant.parse("2026-03-18T14:05:09Z"), java.time.ZoneOffset.UTC);
+
     private static final String HOOK_INSTANCE = "11111111-1111-4111-8111-111111111111";
     private static final String ONLY_HOOK_INSTANCE = "hookInstance | DIFFERENT_VALUE | EVERY_CALL";
 
@@ -42,11 +45,11 @@ class CrdRequestComparerFindingsTest {
     }
 
     private String sent(CrdRunRequest request) {
-        return new CrdRequestBuilder(codeList).build(request, HOOK_INSTANCE, variables()).json();
+        return new CrdRequestBuilder(codeList, BUILT_AT).build(request, HOOK_INSTANCE, variables()).json();
     }
 
     private RequestComparison compare(CrdRunRequest form) {
-        RequestComparison comparison = new CrdRequestComparer(new CrdRequestBuilder(codeList)).compare(form, variables());
+        RequestComparison comparison = new CrdRequestComparer(new CrdRequestBuilder(codeList, BUILT_AT)).compare(form, variables());
         CompareWords.assertWords(comparison, CrdRequestComparerTest.MEMBER_DATA);
         return comparison;
     }

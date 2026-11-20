@@ -2,7 +2,7 @@
   "id": "crd-10-delegated-vendor",
   "number": 10,
   "label": "Delegated vendor routing",
-  "description": "Prior authorization is needed and the request routes to a delegated utilization management vendor, named in the detail list.",
+  "description": "Prior authorization is needed and the request routes to a delegated utilization management vendor, Evolent, named in the detail list. Send 70553 or 27447, which the bundled placeholder code list also routes to Evolent, to see the two agree. A code the list routes to another vendor, such as 95810 (eviCore), raises a vendor disagreement that only the two synthetic data sets create. Models CRD 2.0.1, which has no detail code for a vendor: see the assumption.",
   "sentinelMemberId": "P32H-DELEG",
   "behavior": "respond",
   "httpStatus": 200,
@@ -13,13 +13,12 @@
     "httpStatus": 200,
     "codes": {
       "covered": "covered",
-      "pa-needed": "auth-needed",
-      "doc-needed": "no-doc"
+      "pa-needed": "auth-needed"
     },
     "delegatedVendor": "Evolent"
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
-  "assumption": "The code the live service uses to name the delegated vendor in the detail list is not known. This file uses the code delegated-vendor under a placeholder code system.",
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service.",
+  "assumption": "The code the live service uses to name the delegated vendor in the detail list is not known, and CRD 2.0.1 defines none: its coverageDetail value set names no vendor. This file uses the code delegated-vendor under a placeholder code system. That a vendor is named in a detail at all is this project's assumption.",
   "response": {
     "cards": [
       {
@@ -57,10 +56,6 @@
                 {
                   "url": "pa-needed",
                   "valueCode": "auth-needed"
-                },
-                {
-                  "url": "doc-needed",
-                  "valueCode": "no-doc"
                 },
                 {
                   "url": "detail",

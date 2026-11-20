@@ -17,12 +17,13 @@ import java.util.List;
  * @param requestNotes          what the tool left out of, or worked out for, the request it built.
  *                              Empty when the tester's own body was sent
  * @param bodyBuiltByTool       false when the tester's edited body was sent in place of a built one
+ * @param conformance           which rules of the guide the findings were checked against, and which not
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CrdDetail(CrdResponseKind responseKind, String responseNote, Presence cardsPresence, List<CardView> cards,
                         Presence systemActionsPresence, List<ActionView> systemActions,
                         List<CoverageInformationView> coverageInformation, List<IssueView> issues, List<String> requestNotes,
-                        boolean bodyBuiltByTool) {
+                        boolean bodyBuiltByTool, ConformanceScope conformance) {
 
     public CrdDetail {
         cards = cards == null ? List.of() : List.copyOf(cards);
@@ -35,6 +36,6 @@ public record CrdDetail(CrdResponseKind responseKind, String responseNote, Prese
     /** The same detail with what is known about the request that produced it. */
     public CrdDetail withRequest(List<String> notes, boolean builtByTool) {
         return new CrdDetail(responseKind, responseNote, cardsPresence, cards, systemActionsPresence, systemActions,
-                coverageInformation, issues, notes, builtByTool);
+                coverageInformation, issues, notes, builtByTool, conformance);
     }
 }

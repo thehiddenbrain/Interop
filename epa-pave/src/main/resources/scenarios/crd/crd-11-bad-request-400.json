@@ -12,7 +12,7 @@
     "errorType": "BAD_REQUEST",
     "httpStatus": 400
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "basis": "Synthetic. CRD 2.0.1 defines no body for a failed call, so this models a FHIR OperationOutcome. It has not been observed from the live service.",
   "response": {
     "resourceType": "OperationOutcome",
     "issue": [

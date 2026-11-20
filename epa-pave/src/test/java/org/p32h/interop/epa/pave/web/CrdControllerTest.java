@@ -269,8 +269,9 @@ class CrdControllerTest {
 
         assertThat(answer.get("comparable").asBoolean()).isTrue();
         assertThat(answer.has("whyNot")).isFalse();
-        assertThat(answer.get("headline").asString()).isEqualTo("The two requests differ in 34 places: 26 in how the request is built, 2 in the "
-                + "case they describe, 4 in labels, 1 that differs on every call, and 1 that this tool does not classify.");
+        // authoredOn, which this tool now writes as the moment it builds the request (CRD 2.0.1), differs on every call.
+        assertThat(answer.get("headline").asString()).isEqualTo("The two requests differ in 34 places: 25 in how the request is built, 2 in the "
+                + "case they describe, 4 in labels, 2 that differ on every call, and 1 that this tool does not classify.");
         assertThat(answer.get("hook").asString()).isEqualTo("order-sign");
         // Both texts, each as indented JSON.
         assertThat(answer.get("toolBody").asString()).startsWith("{\n  \"hook\" : \"order-sign\",");
@@ -279,7 +280,7 @@ class CrdControllerTest {
         assertThat(answer.get("counts")).hasSize(5);
         assertThat(answer.at("/counts/0/group").asString()).isEqualTo("BUILD");
         assertThat(answer.at("/counts/0/label").asString()).isEqualTo("How the request is built");
-        assertThat(answer.at("/counts/0/count").asInt()).isEqualTo(26);
+        assertThat(answer.at("/counts/0/count").asInt()).isEqualTo(25);
         assertThat(answer.at("/counts/0/description").asString()).isNotBlank();
         assertThat(answer.at("/notes/0").asString()).startsWith("This comparison shows where the two requests differ. It cannot show which one "
                 + "the service expects");

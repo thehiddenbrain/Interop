@@ -2,7 +2,7 @@
   "id": "crd-03-pa-satisfied",
   "number": 3,
   "label": "Prior authorization already satisfied",
-  "description": "The payer answers that an existing authorization already covers the service and returns its identifier. The coverage information sits in the card extension, to exercise that placement.",
+  "description": "The payer answers that the conditions prior authorization would check are already met, so prior authorization can be bypassed, and gives an identifier for that. Models CRD 2.0.1, with the answer in a system action that updates the order.",
   "sentinelMemberId": "P32H-PA-SAT",
   "behavior": "respond",
   "httpStatus": 200,
@@ -17,51 +17,61 @@
       "satisfied-pa-id": "PA-PLACEHOLDER-0001"
     }
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service.",
   "response": {
     "cards": [
       {
         "uuid": "card-pa-satisfied",
-        "summary": "An existing prior authorization covers this service",
-        "detail": "Authorization PA-PLACEHOLDER-0001 is on file.",
+        "summary": "Prior authorization requirements are already met for this service",
+        "detail": "The payer gives the identifier PA-PLACEHOLDER-0001 for the requirements that are met.",
         "indicator": "info",
         "source": {
           "label": "Placeholder payer",
           "url": "https://example.org/p32h-placeholder/payer"
-        },
-        "extension": [
-          {
-            "url": "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information",
-            "extension": [
-              {
-                "url": "coverage",
-                "valueReference": {
-                  "reference": "Coverage/coverage-1"
+        }
+      }
+    ],
+    "systemActions": [
+      {
+        "type": "update",
+        "description": "Coverage information for the order",
+        "resource": {
+          "resourceType": "ServiceRequest",
+          "id": "service-request-1",
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information",
+              "extension": [
+                {
+                  "url": "coverage",
+                  "valueReference": {
+                    "reference": "Coverage/coverage-1"
+                  }
+                },
+                {
+                  "url": "covered",
+                  "valueCode": "covered"
+                },
+                {
+                  "url": "pa-needed",
+                  "valueCode": "satisfied"
+                },
+                {
+                  "url": "satisfied-pa-id",
+                  "valueString": "PA-PLACEHOLDER-0001"
+                },
+                {
+                  "url": "date",
+                  "valueDate": "2026-01-15"
+                },
+                {
+                  "url": "coverage-assertion-id",
+                  "valueString": "assertion-pa-satisfied"
                 }
-              },
-              {
-                "url": "covered",
-                "valueCode": "covered"
-              },
-              {
-                "url": "pa-needed",
-                "valueCode": "satisfied"
-              },
-              {
-                "url": "satisfied-pa-id",
-                "valueString": "PA-PLACEHOLDER-0001"
-              },
-              {
-                "url": "date",
-                "valueDate": "2026-01-15"
-              },
-              {
-                "url": "coverage-assertion-id",
-                "valueString": "assertion-pa-satisfied"
-              }
-            ]
-          }
-        ]
+              ]
+            }
+          ]
+        }
       }
     ]
   }
