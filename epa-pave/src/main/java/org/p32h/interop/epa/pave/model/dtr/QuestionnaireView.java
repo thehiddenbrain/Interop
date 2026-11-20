@@ -18,6 +18,9 @@ import java.util.List;
  * @param requiredCount how many of those are marked required
  * @param contained     the resources it carries inside itself, such as a value set its questions use
  * @param problems      what makes it unusable as a questionnaire, one plain sentence each. Empty when it is usable
+ * @param notApplied    each rule the questionnaire carries that this tool does not apply, one plain
+ *                      sentence each saying what it does and what not applying it means. Empty
+ *                      when it carries none. This tool evaluates enableWhen and nothing else
  * @param answersBasis  one plain sentence saying which answers the enableWhen conditions were evaluated against
  * @param arrivedWith   where in the response the QuestionnaireResponse sat that the package carries
  *                      for this questionnaire, which is that response's {@code foundAt}. Null when
@@ -51,6 +54,7 @@ public record QuestionnaireView(
         List<ExtensionView> extensions,
         List<PackageResourceView> contained,
         List<String> problems,
+        List<String> notApplied,
         String answersBasis,
         String arrivedWith,
         String json) {
@@ -62,6 +66,7 @@ public record QuestionnaireView(
         extensions = extensions == null ? List.of() : List.copyOf(extensions);
         contained = contained == null ? List.of() : List.copyOf(contained);
         problems = problems == null ? List.of() : List.copyOf(problems);
+        notApplied = notApplied == null ? List.of() : List.copyOf(notApplied);
     }
 
     /** True when nothing stops the questionnaire from being answered. */

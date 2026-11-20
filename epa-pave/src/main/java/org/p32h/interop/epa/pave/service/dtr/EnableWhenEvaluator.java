@@ -45,6 +45,13 @@ import tools.jackson.databind.node.MissingNode;
  * is never counted as true or as false. An item that such a condition decides is undetermined: it
  * is still shown, and when it is required and has no answer it still stops the response from
  * being complete.
+ *
+ * <p>Nothing but enableWhen and enableBehavior is evaluated. An item whose display, requiredness or
+ * answer is decided by a rule this tool does not apply ({@link DtrNotApplied}), or that sits in a
+ * group whose display is, is undetermined too, and differently: whether it still needs an answer is
+ * not known at all, so it is never listed as a required question with no answer. It is listed
+ * apart, under {@link Form#undetermined()}, which a response that this tool completes must also
+ * have empty.
  */
 public final class EnableWhenEvaluator {
 
@@ -72,13 +79,30 @@ public final class EnableWhenEvaluator {
         private final String reason;
         private final List<Condition> conditions;
         private final List<JsonNode> given;
+        private final List<DtrNotApplied.Rule> notApplied;
 
-        private ItemState(Item item, ItemEnabled enabled, String reason, List<Condition> conditions, List<JsonNode> given) {
+        private ItemState(Item item, ItemEnabled enabled, String reason, List<Condition> conditions, List<JsonNode> given,
+                          List<DtrNotApplied.Rule> notApplied) {
             this.item = item;
             this.enabled = enabled;
             this.reason = reason;
             this.conditions = List.copyOf(conditions);
             this.given = List.copyOf(given);
+            this.notApplied = List.copyOf(notApplied);
+        }
+
+        /**
+         * The rules this tool does not apply that decide whether this item is shown, required or
+         * answered: its own, and those of a group above it that decide whether the group is shown.
+         * Empty when none does.
+         */
+        public List<DtrNotApplied.Rule> notApplied() {
+            return notApplied;
+        }
+
+        /** True when a rule this tool does not apply decides whether the item still needs an answer. */
+        public boolean judged() {
+            return notApplied.isEmpty();
         }
 
         public Item item() {
@@ -173,18 +197,46 @@ public final class EnableWhenEvaluator {
          * question beneath it has one. A response is complete only when this is empty.
          */
         public List<QuestionRef> requiredUnanswered() {
+            return unanswered(true);
+        }
+
+        /**
+         * Each item with no answer that may be required and that this tool cannot judge, because a
+         * rule it does not apply decides whether the item is shown, whether it is required or what
+         * its answer is. Never listed among {@link #requiredUnanswered()}. A response this tool
+         * completes itself must have this empty as well: one the service completed is the
+         * service's to judge.
+         */
+        public List<QuestionRef> undetermined() {
+            return unanswered(false);
+        }
+
+        private List<QuestionRef> unanswered(boolean judged) {
             List<QuestionRef> out = new ArrayList<>();
             for (ItemState state : byPath.values()) {
                 Item item = state.item();
-                if (!state.shown() || !item.required() || item.display()) {
+                boolean mayBeRequired = item.required() || state.notApplied().stream()
+                        .anyMatch(rule -> rule.effect() == DtrNotApplied.Effect.REQUIRED);
+                if (!state.shown() || !mayBeRequired || item.display()) {
                     continue;
                 }
-                if (item.question()) {
-                    if (state.given().isEmpty()) {
-                        out.add(ref(state, null));
-                    }
-                } else if (QuestionnaireJson.flatten(item.children()).stream().noneMatch(child -> child.question() && state(child).answered())) {
-                    out.add(ref(state, "A required group with no answer beneath it."));
+                List<Item> beneath = QuestionnaireJson.flatten(item.children()).stream().filter(Item::question).toList();
+                // A group is judged only when every question that could answer it is.
+                boolean itemJudged = state.judged() && (item.question() || beneath.stream().allMatch(child -> state(child).judged()));
+                if (itemJudged != judged) {
+                    continue;
+                }
+                boolean unanswered = item.question() ? state.given().isEmpty() : beneath.stream().noneMatch(child -> state(child).answered());
+                if (!unanswered) {
+                    continue;
+                }
+                if (!judged) {
+                    out.add(new QuestionRef(item.ref().linkId(), item.ref().text(), "Not judged: " + (state.judged()
+                            ? "a question beneath it is decided by a rule this tool does not apply" : "it is decided by "
+                            + DtrNotApplied.names(state.notApplied()) + ", which this tool does not apply")
+                            + ", so whether it still needs an answer is not known."));
+                } else {
+                    out.add(ref(state, item.question() ? null : "A required group with no answer beneath it."));
                 }
             }
             return out;
@@ -311,6 +363,23 @@ public final class EnableWhenEvaluator {
                         };
                     }
                 }
+                List<DtrNotApplied.Rule> rules = new ArrayList<>(DtrNotApplied.governing(item.node()));
+                List<DtrNotApplied.Rule> shownBy = rules.stream().filter(rule -> rule.effect() == DtrNotApplied.Effect.SHOWN).toList();
+                if (!shownBy.isEmpty() && own != ItemEnabled.DISABLED) {
+                    own = ItemEnabled.UNDETERMINED;
+                    reason = "Undetermined: whether it is shown is decided by " + DtrNotApplied.names(shownBy) + ", which this tool does not "
+                            + "apply. It is still shown, and it is never reported as a required question with no answer.";
+                } else if (rules.size() > shownBy.size()) {
+                    String decided = "Its " + (rules.stream().anyMatch(rule -> rule.effect() == DtrNotApplied.Effect.VALUE) ? "answer" : "being required")
+                            + " is decided by " + DtrNotApplied.names(rules) + ", which this tool does not apply, so it is never reported as a "
+                            + "required question with no answer.";
+                    reason = reason == null ? decided : reason + " " + decided;
+                }
+                if (parent != null) {
+                    // What decides whether a group is shown decides it for everything in the group.
+                    parent.notApplied().stream().filter(rule -> rule.effect() == DtrNotApplied.Effect.SHOWN && !rules.contains(rule))
+                            .forEach(rules::add);
+                }
                 ItemEnabled enabled = own;
                 if (item.parent() != null) {
                     ItemEnabled above = parent == null ? ItemEnabled.UNDETERMINED : parent.enabled();
@@ -322,7 +391,7 @@ public final class EnableWhenEvaluator {
                         reason = "Undetermined: whether the group it sits in is enabled could not be worked out. It is still shown.";
                     }
                 }
-                ItemState state = new ItemState(item, enabled, reason, conditions, given(item));
+                ItemState state = new ItemState(item, enabled, reason, conditions, given(item), rules);
                 states.put(item, state);
                 return state;
             } finally {

@@ -141,6 +141,44 @@ class DtrGuide201Test {
     }
 
     @Test
+    void aResponseTheServiceReturnsInTheLaterFormIsReadAndNamedWithItsVersionNotCalledWrong() {
+        String later = "{\"resourceType\":\"QuestionnaireResponse\",\"meta\":{\"profile\":[\"http://hl7.org/fhir/us/davinci-dtr/"
+                + "StructureDefinition/dtr-questionnaireresponse-adapt\"]},\"extension\":[{\"url\":\"" + QR_COVERAGE + "\",\"valueReference\":"
+                + "{\"reference\":\"Coverage/coverage-1\"}},{\"url\":\"" + QR_CONTEXT + "\",\"valueReference\":{\"reference\":"
+                + "\"ServiceRequest/service-request-1\"}}],\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"q\",\"derivedFrom\":"
+                + "[\"https://example.org/p32h-placeholder/Questionnaire/imaging-adaptive|1.0.0\"],\"status\":\"active\",\"item\":[{\"linkId\":"
+                + "\"q1\",\"type\":\"boolean\",\"text\":\"First\"}]}],\"questionnaire\":\"#q\",\"status\":\"in-progress\"}";
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("ledger", ledger);
+        RunSupport support = new RunSupport(EpaProperties.of(Map.of("mode", "mock")), TrackingProperties.of(Map.of()),
+                OnyxProperties.defaults(), beans.getBeanProvider(RunLedger.class), DtrFixtures.CLOCK);
+        OnyxDtrClient answering = new OnyxDtrClient() {
+            @Override
+            public org.p32h.interop.epa.pave.model.VendorExchange questionnairePackage(org.p32h.interop.epa.pave.service.config.PreparedCall call,
+                    org.p32h.interop.epa.pave.model.ResolvedText body, org.p32h.interop.epa.pave.client.MockSelection selection) {
+                throw new AssertionError("not called");
+            }
+
+            @Override
+            public org.p32h.interop.epa.pave.model.VendorExchange nextQuestion(org.p32h.interop.epa.pave.service.config.PreparedCall call,
+                    org.p32h.interop.epa.pave.model.ResolvedText body, org.p32h.interop.epa.pave.client.MockSelection selection) {
+                return DtrFixtures.answered(org.p32h.interop.epa.pave.model.EpaOperation.DTR_NEXT_QUESTION, 200, later);
+            }
+        };
+        RunEnvelope<DtrDetail> fetched = fetch("P32H-DTR-LOOPERR");
+        RunEnvelope<DtrDetail> step = new DtrService(support.epa(), gateway, answering, new FakeCodeList(), support)
+                .runNextQuestion(firstStep(fetched, "P32H-DTR-LOOPERR", fetched.nextStep().carry()).build(), RunOrigin.manual(), null);
+
+        assertThat(step.verdict().outcomeCode()).isEqualTo("NEXT_QUESTION");
+        assertThat(step.findings()).filteredOn(finding -> finding.kind() == FindingKind.OTHER_VERSION_CONTENT)
+                .extracting(Finding::title).containsExactly("The response names its coverage in qr-coverage, a DTR 2.2.0-ballot extension",
+                        "The response declares a DTR 2.2.0-ballot profile");
+        assertThat(step.findings()).noneMatch(finding -> finding.kind() == FindingKind.CODE_OUTSIDE_VALUE_SET);
+        // The extension is read and shown where it sits, not left among the fields nobody interpreted.
+        assertThat(step.detail().questionnaireResponses().get(0).extensions()).hasSize(2);
+    }
+
+    @Test
     void anAnswerAPersonGivesWithNoProviderOnTheFormIsRefusedNamingDtrx1AndNothingIsSentOrRecorded() {
         RunEnvelope<DtrDetail> fetched = fetch("P32H-DTR-ADAPT");
         // A step that adds no answer adds nothing a person gave, so it needs no author.

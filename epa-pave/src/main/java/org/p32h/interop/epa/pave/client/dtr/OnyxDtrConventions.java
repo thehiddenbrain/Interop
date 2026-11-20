@@ -161,6 +161,12 @@ public final class OnyxDtrConventions {
     public static final String EXT_QR_CONTEXT = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context";
     public static final String EXT_QR_COVERAGE = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-coverage";
     public static final String EXT_INTENDED_USE = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/intendedUse";
+    /**
+     * READ: the name of the adaptive QuestionnaireResponse profile the DTR 2.2.0 ballot defines.
+     * The DTR 2.0.1 package has no such profile: an adaptive response there declares the one
+     * QuestionnaireResponse profile, dtr-questionnaireresponse.
+     */
+    public static final String PROFILE_QR_ADAPT_LATER = "dtr-questionnaireresponse-adapt";
 
     /** The information-origin extension an answer carries, or null when it carries none. */
     public static JsonNode origin(JsonNode answer) {

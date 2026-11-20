@@ -340,7 +340,14 @@ class DtrServiceTest {
         assertThat(empty.nextStep().action()).isEqualTo(NextAction.REVIEW);
         assertThat(empty.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
         assertThat(askedNothing.nextStep().action()).isEqualTo(NextAction.START_PAS);
-        assertThat(askedNothing.nextStep().carry()).containsKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
+        // DTR 2.0.1 requires at least one item in a QuestionnaireResponse, so a response completed with none is not handed to PAS.
+        // PAS is still the next step, and the result says that no response goes with it and why.
+        assertThat(askedNothing.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
+        assertThat(askedNothing.nextStep().headline()).isEqualTo("Next: submit the prior authorization request in PAS. No questionnaire "
+                + "response goes with it.");
+        assertThat(askedNothing.nextStep().reason()).isEqualTo("The service completed this response without asking a question, so it holds "
+                + "no item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). This tool does "
+                + "not hand PAS a response that does not conform to it, so the response is shown here and not carried.");
 
         // The same expectation passes for one and fails for the other.
         assertThat(askedNothing.expectation().result()).isEqualTo(TestResult.PASS);
@@ -375,6 +382,14 @@ class DtrServiceTest {
                 + "questionnaire needs to be completed.", "This tool reports what arrived. It does not turn an empty package into an answer "
                 + "that no documentation is needed.");
         assertThat(none.verdict().supporting()).noneMatch(line -> line.contains("a package bundle starts with its questionnaire"));
+        // Under DTR 2.0.1, the version the tool is held to, the shape does not conform: it is named as a later version's, not called wrong.
+        assertThat(none.verdict().supporting()).contains("Under DTR 2.0.1, the version this tool is held to, a package response holds at "
+                + "least one PackageBundle, so this answer follows a later version.");
+        assertThat(none.findings()).filteredOn(finding -> finding.kind() == FindingKind.OTHER_VERSION_CONTENT).singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.title()).isEqualTo("A package response with no package bundle follows a later version of DTR");
+                    assertThat(finding.detail()).contains("PackageBundle 1..*");
+                });
         assertThat(none.detail().bundles()).isEmpty();
         assertThat(none.detail().responseNote()).isEqualTo("The package arrived as a Parameters resource holding: operationOutcome "
                 + "(OperationOutcome).");
@@ -1200,14 +1215,16 @@ class DtrServiceTest {
     void aCompleteResponseThatNamesNoQuestionnaireOfThePackageIsHandedOnButNotCountedAndTheResultSaysWhy() {
         RunEnvelope<DtrDetail> fetched = fetchAdaptive();
         String elsewhere = "https://example.org/p32h-placeholder/Questionnaire/another";
+        // It answers one question, so it is a response DTR 2.0.1 lets go to PAS: one with no item is never handed on at all.
         String inside = "{\"resourceType\":\"QuestionnaireResponse\",\"contained\":[{\"resourceType\":\"Questionnaire\",\"id\":\"q\",%s"
-                + "\"status\":\"active\"}],\"questionnaire\":\"#q\",\"status\":\"completed\"}";
+                + "\"status\":\"active\",\"item\":[{\"linkId\":\"q1\",\"type\":\"boolean\"}]}],\"questionnaire\":\"#q\",\"status\":\"completed\","
+                + "\"item\":[{\"linkId\":\"q1\",\"answer\":[{\"valueBoolean\":true}]}]}";
 
         // The service completes a response whose questionnaire is derived from one the package does not hold.
         RunEnvelope<DtrDetail> other = service(stub(DtrFixtures.answered(EpaOperation.DTR_NEXT_QUESTION, 200,
                 inside.formatted("\"derivedFrom\":[\"" + elsewhere + "\"],"))), "mock", Map.of())
                 .runNextQuestion(following(fetched, "P32H-DTR-ADAPT").build(), RunOrigin.manual(), null);
-        assertThat(other.verdict().outcomeCode()).isEqualTo("NOTHING_REQUIRED");
+        assertThat(other.verdict().outcomeCode()).isEqualTo("RESPONSE_COMPLETED");
         assertThat(other.nextStep().action()).isEqualTo(NextAction.REVIEW);
         assertThat(other.nextStep().headline()).isEqualTo("Next: check which questionnaire this response answers before going on to PAS.");
         assertThat(other.nextStep().reason()).isEqualTo("This response is complete, but it says it answers " + elsewhere + ", which is not a "

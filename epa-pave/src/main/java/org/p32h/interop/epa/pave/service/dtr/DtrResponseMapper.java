@@ -419,7 +419,7 @@ public final class DtrResponseMapper {
         }
         List<QuestionRef> unanswered = evaluated.requiredUnanswered();
         return new FormStateView(evaluated.questions().size(), evaluated.shownQuestions().size(), evaluated.answered().size(), status,
-                statusCompleted && unanswered.isEmpty(), evaluated.asked(), answers, unanswered, changes, notes);
+                statusCompleted && unanswered.isEmpty(), evaluated.asked(), answers, unanswered, evaluated.undetermined(), changes, notes);
     }
 
     /**
@@ -510,7 +510,7 @@ public final class DtrResponseMapper {
         return new QuestionnaireView(position, foundAt, subject, id, url, version, QuestionnaireJson.canonical(raw), name, title, status,
                 date, publisher, description, profiles, derivedFrom, kind.kind(), kind.basis(), questions.size(),
                 (int) questions.stream().filter(state -> state.item().required()).count(), items, extensions, contained,
-                QuestionnaireJson.problems(raw), answersBasis, arrivedWith, JsonSafe.compact(raw));
+                QuestionnaireJson.problems(raw), DtrNotApplied.describe(raw), answersBasis, arrivedWith, JsonSafe.compact(raw));
     }
 
     private List<ItemView> items(TrackedJson.Node parent, String prefix, Form form, Map<String, List<JsonNode>> prepopulated) {

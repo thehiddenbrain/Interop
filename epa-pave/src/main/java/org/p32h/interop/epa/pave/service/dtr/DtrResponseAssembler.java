@@ -95,7 +95,8 @@ final class DtrResponseAssembler {
                     notes), response, QuestionnaireKind.ADAPTIVE, gaps);
         }
         Form evaluated = EnableWhenEvaluator.evaluate(questionnaire, posted.merged());
-        boolean complete = answeredAs == QuestionnaireKind.STATIC && evaluated.requiredUnanswered().isEmpty();
+        // An item a rule this tool does not apply decides may still need an answer, so the tool does not complete a response that has one.
+        boolean complete = answeredAs == QuestionnaireKind.STATIC && evaluated.requiredUnanswered().isEmpty() && evaluated.undetermined().isEmpty();
         JsonNode response = builder.buildResponse(posted, evaluated, complete, filler, clock, notes);
         if (answeredAs == QuestionnaireKind.UNDETERMINED) {
             notes.add("This tool cannot tell whether this questionnaire is adaptive or static, so it does not call its response complete.");
