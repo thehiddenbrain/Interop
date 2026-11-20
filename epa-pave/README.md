@@ -1075,8 +1075,10 @@ tracking is alive, how many runs were recorded today, how many writes failed and
 lines it cannot read.
 
 **A line holds:** run id, time, protocol and operation, target, profile, environment and its kind,
-scenario, procedure codes, line of business, outcome, the standard codes returned, delegated
-vendor, HTTP status, elapsed time, error type, what was expected and the result (pass, fail or
+scenario, procedure codes, line of business, outcome, the standard codes returned (a code sent as
+null, empty or with no value is written `pa-needed=(null)`, `(empty)` or `(no value)`), delegated
+vendor, HTTP status, elapsed time (blank for a run that sent nothing, never `0`), who answered (the
+service, a scenario, nobody, or nothing because nothing was sent), error type, what was expected and the result (pass, fail or
 unverified), note, tester reference, and where they apply the chain, suite and case ids, the run it
 replays or follows, the hook, the next step the result stated, the collection request used, the
 findings, correlation ids (claim id, ClaimResponse id, subscription id), and the inputs the line does not hold (a
@@ -1095,9 +1097,15 @@ procedure code was written so, beside `95810`). A claim id, ClaimResponse id or 
 service or a notification supplies is kept only as one token that does not read like an
 identifier or a date and does not hold the member ID, otherwise as `(not recorded, N
 characters)`; the ids PAVE mints itself and the mock's ids are kept. A notification that names an
-id the ledger does not keep is not looked up by it, and its result says so. The one known gap: a
-one-word surname written where a code or an id belongs is kept, because a single word cannot be
-told from a code or an id.
+id the ledger does not keep is not looked up by it, and its result says so. Known gaps: a one-word
+surname written where a code or an id belongs is kept, because a single word cannot be told from a
+code or an id; a member ID whose digits are split by a separator (`S123-456-789`), supplied by a
+service as a subscription or claim id, is kept in clear [open at this revision: being fixed]; and
+a plain number of six digits or more, which many FHIR servers mint as an id, is not kept, so a
+notification on such a subscription is no longer matched to the run that created it
+[open at this revision: being fixed]. A procedure code of seven digits or more (an ICD-10-PCS or
+NDC shape) is written as not a code, and its run cannot be replayed
+[open at this revision: being fixed].
 
 **The member ID policy** has two settings:
 
@@ -1110,9 +1118,11 @@ tracking:
 - On mock, a member ID is written in the clear only when it is a `P32H-` sentinel or an `S` and
   nine or ten digits, so mock runs can be replayed; any other ID is replaced by a token as on live.
 - On live, by default, the member ID is replaced by a salted token (HMAC-SHA-256) and its last four
-  characters, so two runs of one member can be matched without the file becoming a roster. The salt
+  characters, so two runs of one member can be matched without the file becoming a roster, **as long
+  as the salt is kept apart**: with the salt, a short member ID is recovered from its token and last
+  four characters at once, by trying candidates. The salt is a secret (see [Secrets](#secrets)). It
   is created at first start in `config-store/installation-salt`, or wherever `tracking.salt-file`
-  says; it may not be inside the ledger folder. Deleting it, or moving the ledger without it, breaks
+  says; it may not be inside the ledger folder. Never copy it with the ledger or its export. Deleting it, or moving the ledger without it, breaks
   matching with older tokens. An authorization number is treated like a member ID.
 - If an owner sets `record-member-id: true` on live, PAVE honours it and logs one warning at
   startup. Not observed: the jar was not started that way for this README.
@@ -1130,6 +1140,16 @@ quotes nothing. What PAVE can recognise, it refuses:
   carries is refused with 422 on that field before anything is sent, naming the kind of value and
   never the value. A suite row whose note, tester reference or expectation holds its own member ID
   is reported as not valid and not run.
+- A request sent as written (`POST /api/raw`) has no member on its form, so its note, tester
+  reference and expectation are checked against the identifiers of the Patient and Coverage
+  resources, and `Coverage.subscriberId`, in the body it sends: "The note holds a member ID the
+  request body carries. ..." Only identifiers are checked there, not a name or a date of birth, and
+  a `P32H-` sentinel does not count. When the guardrail refuses a write first, a saved body is never
+  read, so the note is recorded with the blocked line as typed.
+- A run sent with `A request of my own` from the CRD, DTR or PAS tab is checked against nothing:
+  the screen sends no member with it, and its body is not read for identifiers. Observed on mock: a
+  note naming the member ID of the pasted body was recorded as typed
+  [open at this revision: being fixed].
 - A note added later is refused when it holds the member ID of that run, also where the line keeps
   only the token: "The note holds the member ID of this run. The ledger keeps it as written and may
   not hold member data, so leave it out. The note was not added. Nothing was changed." (observed).
@@ -1139,14 +1159,20 @@ quotes nothing. What PAVE can recognise, it refuses:
 
 What PAVE cannot recognise it writes as typed: somebody else's name or date of birth, a name the
 request does not carry, a member ID or subscriber ID under six letters and digits, an address line
-under five characters. **Do not type member data into a note, a tester reference or an
-expectation.** Old lines that hold a name or a date of birth in a note are still shown and
+under five characters. On this revision it also misses, for the member the request carries, a date
+of birth written with the month's name ("July 23, 1961"), the member ID in fullwidth digits or
+without its letter, the city and postal code of the address, and one part of a hyphenated surname
+[open at this revision: being fixed]. **Do not type member data into a note, a tester reference or
+an expectation.** Old lines that hold a name or a date of birth in a note are still shown and
 exported as written: the files are append-only. A first or last name is matched as a whole word in
-any case, so for a member whose name is an ordinary word, a note holding that word is refused;
-reword the note.
+any case, from two letters up, so for a member whose name is an ordinary word (`May`, `An`), a
+note holding that word is refused; reword the note [open at this revision: being fixed]. The
+results CSV of a suite still repeats the expectation of a row refused because that expectation
+held the member ID [open at this revision: being fixed].
 
 **The list** (`GET /api/runs`) filters by day, protocol, operation, outcome, result, chain, suite
-run and, through the API, an exact tester reference (`testerRef`). An optional `zone` (an IANA
+run and, through the API, an exact tester reference (`testerRef`) and the run a line follows
+(`follows`, which History uses for "Followed by"). An optional `zone` (an IANA
 zone id such as `America/New_York`) makes the days those of that clock; without it every day is a
 UTC day. The History tab offers the tester reference filter, not `zone`.
 
@@ -1159,8 +1185,11 @@ as text and calculates nothing.
 each run is sent again against the configuration in force now and compared with the original
 (same, changed, not comparable, not replayable, blocked, not configured, invalid, error), and each
 entry carries the new run's verdict and next step. A replayed submission is a new submission with
-a new claim id. A replay never carries a production unlock. A step of a chain cannot be replayed by
-itself: to run the journey again, run it as a suite row with the protocol `chain`. A run sent with
+a new claim id. A replay never carries a production unlock. On mock a replay is answered by the
+scenario the original run recorded, so it comes back the same by construction, and its result says
+so. A run that was handed its case by an earlier run cannot be replayed by itself ("This run followed
+run run-... and was handed its case by it, so it cannot be sent again alone."): to run the journey
+again, run it as a suite row with the protocol `chain`. A run sent with
 a body of your own cannot be replayed, because the body is not kept, and neither can a run whose
 procedure code or expectation was not recorded: replay says so with a sentence and sends nothing. At most 1,000 runs per replay.
 
