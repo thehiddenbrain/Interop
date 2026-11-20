@@ -2144,10 +2144,11 @@ From the guardrail verification's F4 (D-143, rule 8), decided before the work, a
   verification found the headline still opening with "unlock production writes on the Config tab"
   beside the new next action, because the gateway's step was preferred. The gateway's step stays in
   `error.action` and its reason in the verdict.
-- Once the services pass where a run came from (D-182), the gateway words the refusal itself ("a
+- When the services pass where a run came from (D-182), the gateway words the refusal itself ("a
   replay never carries the production unlock, so its writes to production are always blocked").
-  Until then the verdict gains one supporting line that says so, and that line is left out when the
-  refusal already says it, so it is never said twice.
+  The platform half also gives the verdict one supporting line that says so, for a refusal that does
+  not, and leaves it out when the refusal already says it, so it is never said twice. With both
+  halves merged the refusal should say it and the line should not show; nobody has seen that.
 - The gateway names the tab a write can be sent from as a noun phrase only ("the Config tab" for a
   request sent from the collection as it is). The verification found the sentence for another
   session holding the unlock garbled by the old phrase; it is now pinned by a gateway test.
