@@ -993,7 +993,7 @@ class CrdServiceTest {
 
     // ---- the placeholder code list, which must never read as the P32H list ----
 
-    private static final String PLACEHOLDER_NOTE = "The code list here is the synthetic placeholder that ships with the tool and not a P32H list.";
+    private static final String PLACEHOLDER_NOTE = "The code list in use says of itself that it is synthetic, so it is not a P32H list.";
 
     /** The list as it loads on a fresh checkout, with codelist.file blank: the synthetic rows bundled with the tool. */
     private static ProcedureCodeService bundledPlaceholder() {
@@ -1030,9 +1030,9 @@ class CrdServiceTest {
         assertThat(aboutTheCodeList(result)).singleElement().satisfies(f -> {
             assertThat(f.kind()).isEqualTo(FindingKind.CODE_LIST_NOT_COMPARED);
             assertThat(f.title()).isEqualTo("The code list was not compared with the service: no P32H code list is loaded");
-            assertThat(f.detail()).isEqualTo("No P32H code list is loaded. The tool is using the synthetic placeholder list that ships "
-                    + "with it, which says nothing about real codes, so nothing was compared with the service's answer. Set codelist.file "
-                    + "to the P32H export and restart the tool.");
+            assertThat(f.detail()).isEqualTo("No P32H code list is loaded. The code list in use says of itself that it is synthetic (its rows carry the note "
+                    + "\"Not from a P32H export.\"), so it says nothing about real codes, and nothing was compared with the service's "
+                    + "answer. Set codelist.file to the P32H export and restart the tool.");
             // It is about the run, not about one code, and it states no position for either side.
             assertThat(f.subject()).isNull();
             assertThat(f.codeListSays()).isNull();

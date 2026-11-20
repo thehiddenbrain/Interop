@@ -32,7 +32,7 @@ import tools.jackson.databind.JsonNode;
 @SpringBootTest
 class PlaceholderOnTheMockProfileTest {
 
-    private static final String PLACEHOLDER_NOTE = "The code list here is the synthetic placeholder that ships with the tool and not a P32H list.";
+    private static final String PLACEHOLDER_NOTE = "The code list in use says of itself that it is synthetic, so it is not a P32H list.";
 
     @TempDir
     static Path home;

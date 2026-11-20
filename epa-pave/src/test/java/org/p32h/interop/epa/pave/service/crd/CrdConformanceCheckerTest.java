@@ -21,7 +21,7 @@ class CrdConformanceCheckerTest {
     private static final String EXT = "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information";
     private static final EpaProperties MOCK = EpaProperties.of(Map.of("mode", "mock"));
     private static final EpaProperties LIVE = EpaProperties.of(Map.of("mode", "live"));
-    private static final String PLACEHOLDER_NOTE = " The code list here is the synthetic placeholder that ships with the tool and not a P32H list.";
+    private static final String PLACEHOLDER_NOTE = " The code list in use says of itself that it is synthetic, so it is not a P32H list.";
     private final CrdResponseMapper mapper = new CrdResponseMapper();
     private final FakeCodeList codeList = new FakeCodeList();
 
@@ -385,9 +385,9 @@ class CrdConformanceCheckerTest {
 
         Finding finding = notCompared(checkOn(LIVE, 200, body, "Medicare", "95810", "70553"));
         assertThat(finding.title()).isEqualTo("The code list was not compared with the service: no P32H code list is loaded");
-        assertThat(finding.detail()).isEqualTo("No P32H code list is loaded. The tool is using the synthetic placeholder list that ships "
-                + "with it, which says nothing about real codes, so nothing was compared with the service's answer. Set codelist.file to "
-                + "the P32H export and restart the tool.");
+        assertThat(finding.detail()).isEqualTo("No P32H code list is loaded. The code list in use says of itself that it is synthetic (its rows carry the note "
+                    + "\"Not from a P32H export.\"), so it says nothing about real codes, and nothing was compared with the service's "
+                    + "answer. Set codelist.file to the P32H export and restart the tool.");
         // About the run, not about one of its codes, and with no position stated for either side.
         assertThat(finding.subject()).isNull();
         assertThat(finding.codeListSays()).isNull();
