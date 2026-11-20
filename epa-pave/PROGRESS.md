@@ -22,9 +22,9 @@ server work for the screens and the second audits D-202 to D-228.
 - **Section 27.** The member data audit (V2), the guardrail audit (V3) and the fixture audit (V4)
   have had their second run, on revision `0658a7c`, each by an agent that wrote none of the tool, in
   about 29 minutes (member data, guardrail) and about 27 minutes (fixtures); what each did not
-  examine is listed below. They found three blockers and several majors; the tables below list every finding. **Their fixes
-  are merged at this revision and have been checked by nobody but the agent that wrote each.** A
-  check of each fix by an agent that did not write it is planned for the final revision and has not
+  examine is listed below. They found three blockers and several majors; the tables below list
+  every finding. **Their fixes are merged at this revision and have been checked by nobody but the
+  agent that wrote each.** A check of each fix by an agent that did not write it is planned for the final revision and has not
   run. **V1 (the build auditor, from a fresh clone), V5 (house style), V6 (honesty) and V7
   (completeness on screen) have not run at all.** The house style rules of V5 are enforced by the
   build on every file, which is not the same as the audit.
@@ -117,9 +117,9 @@ scripts, on mock unless said otherwise. What neither did, or what is still wrong
   writes, a second browser context, the live profile with an empty store, tracking switched off, a
   ledger that cannot write, a suite from the samples and a replay of one run were driven by the first
   pass only, at 1366 by 768, before the second pass changed many shared files. A write blocked by the
-  floor, UAT and a replay of a date range have never been driven on screen by either pass. The colour key was gone
-  through at both sizes by the second pass; `STOP` and `FAULT` were reached on purpose, the tone of an
-  unmatched notification was not.
+  floor, UAT and a replay of a date range have never been driven on screen by either pass. The
+  colour key was gone through at both sizes by the second pass; `STOP` and `FAULT` were reached on
+  purpose, the tone of an unmatched notification was not.
 - *Never drawn on screen.* The answers dropped in an adaptive questionnaire (read in code, pinned by a
   test), a CRD coverage section with no "applies to", an unmatched notification, the statement that a
   notification named an id the ledger does not keep, `lookupEnabled` and `blockedShort` (read in code),
@@ -146,14 +146,14 @@ scripts, on mock unless said otherwise. What neither did, or what is still wrong
   On mock a played timeout is said twice on every protocol tab, and on PAS the verdict says the payer
   may have received the submission beside "Nothing was sent", with the next step "Next: check the
   environment, then ask for the status before sending again." where no environment failed. The raw
-  resolve view says a run with a
-  url part missing is still answered from a scenario, while the raw preview and send refuse it. An
+  resolve view says a run with a url part missing is still answered from a scenario, while the raw
+  preview and send refuse it. An
   empty `issue.expression` shows in the issues table and again among the fields returned but not
   interpreted. The comparison's `notes` repeats the caveat, and the page drops it by its text.
 - *Older, still true.* The body source of a raw send is served as a code only, and the page shows the
   server's sentence; nothing has been decided about it. A tester reference or a note typed on one tab
-  is not carried to the next (each tab has its own fields). The PAS detail and the notifications list are not given the page's masking
-  stopgap and rely on the server. When a pasted request and the case disagree, only a member ID gets a
+  is not carried to the next (each tab has its own fields). The PAS detail and the notifications
+  list are not given the page's masking stopgap and rely on the server. When a pasted request and the case disagree, only a member ID gets a
   button; two dates of service that disagree are listed with no button. The vendor's sample on the
   CRD tab passes through the browser, and the tool's own hook instance is always one difference. The
   slow-response flag was seen only on mock with a lowered threshold. A run-value field for a builder
@@ -164,6 +164,11 @@ scripts, on mock unless said otherwise. What neither did, or what is still wrong
   cell a review saw on a subscription status row was never reproduced.
 
 **The server, by endpoint.**
+- *The server work for the screens (D-202 to D-205).* Both tasks were begun by agents a restart cut
+  off and finished by second agents from the checkpoints. Nobody ran the platform task's tests, the
+  six inherited checkpoints' or its own, against the code without the change. Of the protocol task's
+  24 mutations two were caught only by tests added afterwards, and were not run again. No agent but
+  their authors has checked either task, apart from what the second audits read.
 - *Refusals of a replay or a suite row on production.* Proven together by
   `ProductionRefusalOverTheServerTest` over the running server, and a refused PAS replay was seen on
   screen by the first pass. A refused suite row was not driven by hand on a merged line.
@@ -272,8 +277,9 @@ log (`SecretsSentBackOverTheServerTest`, D-215). A note holding the member ID is
 tab and marks its field, seen once at 1366 by 768; `LedgerPhiTest` pins the refusal, not the mark
 (D-217).
 
-**Seen on the running application on mock and pinned by a test.** Every DTR sentinel taken from CRD
-into DTR (`DtrSentinelJourneyTest`, D-222); on screen only `P32H-DTR-ADAPT`.
+**On mock, pinned by a test over the running application.** Every DTR sentinel taken from CRD into
+DTR, and the same as suite rows of the protocol chain (`DtrSentinelJourneyTest`, D-222); seen on
+screen for `P32H-DTR-ADAPT` only, and no chain suite was driven by hand.
 
 ### What the audits found and what was done
 
@@ -767,8 +773,8 @@ agent, and since then every agent commits a checkpoint after each green slice. T
 after each wave package was dropped then, and the section 27 agents and independent reviews took its
 place. Later the build machine restarted three times while the tool was built (at about 00:17, 03:02
 and 06:00 UTC), each time cutting off every agent then at work; nothing committed was lost and each
-task was taken over in its worktree. Both server tasks for the screens were such takeovers (D-202 to
-D-205 say what the second agent checked of the first one's work). Every build now goes through one
+task was taken over in its worktree. Both server tasks for the screens were such takeovers (the
+introduction to D-202 says what the second agent checked of the first one's work). Every build now goes through one
 shared wrapper that lets two run at a time.
 
 **Added by the operator during the build (D-118, D-119, D-136):** paste a request of your own and send
