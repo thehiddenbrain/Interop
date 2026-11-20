@@ -1,0 +1,496 @@
+{
+  "info": {
+    "_postman_id": "00000000-0000-4000-8000-00000000c011",
+    "name": "PAVE Sample Collection",
+    "description": "Sample collection for PAVE, shaped like a vendor collection. Every host ends in .example.invalid and every identifier is a placeholder.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "CRD",
+      "item": [
+        {
+          "name": "order-sign Happy Path",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sample pre-request script. PAVE never runs a script: it flags this request instead.",
+                  "pm.variables.set(\"sampleRequestedAt\", new Date().toISOString());"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{crdUrl}}/cds-services/{{crdOrderSignServiceId}}"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hook\": \"order-sign\",\n  \"hookInstance\": \"{{$guid}}\",\n  \"fhirServer\": \"https://ehr.example.invalid/fhir\",\n  \"context\": {\n    \"userId\": \"Practitioner/practitioner-1\",\n    \"patientId\": \"patient-1\",\n    \"draftOrders\": {\n      \"resourceType\": \"Bundle\",\n      \"type\": \"collection\",\n      \"entry\": [\n        {\n          \"resource\": {\n            \"resourceType\": \"ServiceRequest\",\n            \"id\": \"service-request-1\",\n            \"status\": \"draft\",\n            \"intent\": \"order\",\n            \"code\": {\n              \"coding\": [\n                {\n                  \"system\": \"http://www.ama-assn.org/go/cpt\",\n                  \"code\": \"95810\"\n                }\n              ]\n            },\n            \"subject\": {\n              \"reference\": \"Patient/patient-1\"\n            }\n          }\n        }\n      ]\n    }\n  },\n  \"prefetch\": {\n    \"patient\": {\n      \"resourceType\": \"Patient\",\n      \"id\": \"patient-1\",\n      \"identifier\": [\n        {\n          \"system\": \"https://member-id.example.invalid\",\n          \"value\": \"S123456789\"\n        }\n      ],\n      \"name\": [\n        {\n          \"family\": \"Placeholder-Surname\",\n          \"given\": [\n            \"Sample\"\n          ]\n        }\n      ],\n      \"birthDate\": \"1970-01-01\"\n    },\n    \"coverage\": {\n      \"resourceType\": \"Coverage\",\n      \"id\": \"coverage-1\",\n      \"status\": \"active\",\n      \"subscriberId\": \"S123456789\",\n      \"beneficiary\": {\n        \"reference\": \"Patient/patient-1\"\n      },\n      \"payor\": [\n        {\n          \"display\": \"Placeholder payer\"\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "Sample answer",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/fhir+json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"cards\": [\n    {\n      \"uuid\": \"sample-card-1\",\n      \"summary\": \"Sample card. Prior authorization required.\",\n      \"indicator\": \"info\",\n      \"source\": {\n        \"label\": \"Placeholder payer\"\n      },\n      \"extension\": [\n        {\n          \"url\": \"http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information\",\n          \"extension\": [\n            {\n              \"url\": \"covered\",\n              \"valueCode\": \"covered\"\n            },\n            {\n              \"url\": \"pa-needed\",\n              \"valueCode\": \"auth-needed\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "order-sign Error",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{crdUrl}}/cds-services/{{crdOrderSignServiceId}}"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hook\": \"order-sign\",\n  \"hookInstance\": \"{{$guid}}\",\n  \"context\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "Sample error",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}"
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/fhir+json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"resourceType\": \"OperationOutcome\",\n  \"issue\": [\n    {\n      \"severity\": \"error\",\n      \"code\": \"invalid\",\n      \"diagnostics\": \"Sample error. The request could not be read.\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "DTR",
+      "item": [
+        {
+          "name": "$questionnaire-package Happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Questionnaire/$questionnaire-package"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Parameters\",\n  \"parameter\": [\n    {\n      \"name\": \"coverage\",\n      \"resource\": {\n        \"resourceType\": \"Coverage\",\n        \"id\": \"coverage-1\",\n        \"status\": \"active\",\n        \"subscriberId\": \"S123456789\",\n        \"beneficiary\": {\n          \"reference\": \"Patient/patient-1\"\n        },\n        \"payor\": [\n          {\n            \"display\": \"Placeholder payer\"\n          }\n        ]\n      }\n    },\n    {\n      \"name\": \"order\",\n      \"resource\": {\n        \"resourceType\": \"ServiceRequest\",\n        \"id\": \"service-request-1\",\n        \"status\": \"draft\",\n        \"intent\": \"order\",\n        \"code\": {\n          \"coding\": [\n            {\n              \"system\": \"http://www.ama-assn.org/go/cpt\",\n              \"code\": \"95810\"\n            }\n          ]\n        },\n        \"subject\": {\n          \"reference\": \"Patient/patient-1\"\n        }\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "$questionnaire-package Error",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Questionnaire/$questionnaire-package"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Parameters\",\n  \"parameter\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "Sample error",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}"
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/fhir+json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"resourceType\": \"OperationOutcome\",\n  \"issue\": [\n    {\n      \"severity\": \"error\",\n      \"code\": \"invalid\",\n      \"diagnostics\": \"Sample error. The request could not be read.\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "next-question Happy Path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Questionnaire/$next-question"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"QuestionnaireResponse\",\n  \"status\": \"in-progress\",\n  \"questionnaire\": \"https://questionnaire.example.invalid/Questionnaire/placeholder-sleep-study\",\n  \"item\": [\n    {\n      \"linkId\": \"1\",\n      \"answer\": [\n        {\n          \"valueBoolean\": true\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "PAS",
+      "item": [
+        {
+          "name": "submit Happy Path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Claim/$submit"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Bundle\",\n  \"type\": \"collection\",\n  \"entry\": [\n    {\n      \"resource\": {\n        \"resourceType\": \"Claim\",\n        \"id\": \"claim-1\",\n        \"status\": \"active\",\n        \"use\": \"preauthorization\",\n        \"identifier\": [\n          {\n            \"system\": \"https://claim-id.example.invalid\",\n            \"value\": \"sample-claim-1\"\n          }\n        ],\n        \"patient\": {\n          \"reference\": \"Patient/patient-1\"\n        },\n        \"provider\": {\n          \"reference\": \"Practitioner/practitioner-1\"\n        },\n        \"insurance\": [\n          {\n            \"sequence\": 1,\n            \"focal\": true,\n            \"coverage\": {\n              \"reference\": \"Coverage/coverage-1\"\n            }\n          }\n        ],\n        \"item\": [\n          {\n            \"sequence\": 1,\n            \"productOrService\": {\n              \"coding\": [\n                {\n                  \"system\": \"http://www.ama-assn.org/go/cpt\",\n                  \"code\": \"95810\"\n                }\n              ]\n            }\n          }\n        ]\n      }\n    },\n    {\n      \"resource\": {\n        \"resourceType\": \"Patient\",\n        \"id\": \"patient-1\",\n        \"identifier\": [\n          {\n            \"system\": \"https://member-id.example.invalid\",\n            \"value\": \"S123456789\"\n          }\n        ],\n        \"name\": [\n          {\n            \"family\": \"Placeholder-Surname\",\n            \"given\": [\n              \"Sample\"\n            ]\n          }\n        ],\n        \"birthDate\": \"1970-01-01\"\n      }\n    },\n    {\n      \"resource\": {\n        \"resourceType\": \"Coverage\",\n        \"id\": \"coverage-1\",\n        \"status\": \"active\",\n        \"subscriberId\": \"S123456789\",\n        \"beneficiary\": {\n          \"reference\": \"Patient/patient-1\"\n        },\n        \"payor\": [\n          {\n            \"display\": \"Placeholder payer\"\n          }\n        ]\n      }\n    },\n    {\n      \"resource\": {\n        \"resourceType\": \"Practitioner\",\n        \"id\": \"practitioner-1\",\n        \"identifier\": [\n          {\n            \"system\": \"http://hl7.org/fhir/sid/us-npi\",\n            \"value\": \"1234567893\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "Sample answer",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/fhir+json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"resourceType\": \"ClaimResponse\",\n  \"id\": \"sample-claim-response-1\",\n  \"status\": \"active\",\n  \"use\": \"preauthorization\",\n  \"outcome\": \"complete\",\n  \"preAuthRef\": \"SAMPLE-AUTH-0001\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "inquiry Happy Path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Claim/$inquire"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Bundle\",\n  \"type\": \"collection\",\n  \"entry\": [\n    {\n      \"resource\": {\n        \"resourceType\": \"Claim\",\n        \"id\": \"claim-1\",\n        \"status\": \"active\",\n        \"use\": \"preauthorization\",\n        \"identifier\": [\n          {\n            \"system\": \"https://claim-id.example.invalid\",\n            \"value\": \"sample-claim-1\"\n          }\n        ],\n        \"patient\": {\n          \"reference\": \"Patient/patient-1\"\n        },\n        \"provider\": {\n          \"reference\": \"Practitioner/practitioner-1\"\n        },\n        \"insurance\": [\n          {\n            \"sequence\": 1,\n            \"focal\": true,\n            \"coverage\": {\n              \"reference\": \"Coverage/coverage-1\"\n            }\n          }\n        ],\n        \"item\": [\n          {\n            \"sequence\": 1,\n            \"productOrService\": {\n              \"coding\": [\n                {\n                  \"system\": \"http://www.ama-assn.org/go/cpt\",\n                  \"code\": \"95810\"\n                }\n              ]\n            }\n          }\n        ]\n      }\n    },\n    {\n      \"resource\": {\n        \"resourceType\": \"Patient\",\n        \"id\": \"patient-1\",\n        \"identifier\": [\n          {\n            \"system\": \"https://member-id.example.invalid\",\n            \"value\": \"S123456789\"\n          }\n        ],\n        \"name\": [\n          {\n            \"family\": \"Placeholder-Surname\",\n            \"given\": [\n              \"Sample\"\n            ]\n          }\n        ],\n        \"birthDate\": \"1970-01-01\"\n      }\n    },\n    {\n      \"resource\": {\n        \"resourceType\": \"Coverage\",\n        \"id\": \"coverage-1\",\n        \"status\": \"active\",\n        \"subscriberId\": \"S123456789\",\n        \"beneficiary\": {\n          \"reference\": \"Patient/patient-1\"\n        },\n        \"payor\": [\n          {\n            \"display\": \"Placeholder payer\"\n          }\n        ]\n      }\n    },\n    {\n      \"resource\": {\n        \"resourceType\": \"Practitioner\",\n        \"id\": \"practitioner-1\",\n        \"identifier\": [\n          {\n            \"system\": \"http://hl7.org/fhir/sid/us-npi\",\n            \"value\": \"1234567893\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Subscription",
+      "item": [
+        {
+          "name": "subscription-get Happy Path",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Subscription/{{subscriptionId}}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "subscription-get Error",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Subscription/placeholder-unknown-subscription"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "subscription-create Happy Path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Subscription"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Subscription\",\n  \"status\": \"requested\",\n  \"reason\": \"Sample subscription for PAVE\",\n  \"criteria\": \"https://topic.example.invalid/SubscriptionTopic/placeholder-topic\",\n  \"channel\": {\n    \"type\": \"rest-hook\",\n    \"endpoint\": \"{{callbackUrl}}\",\n    \"payload\": \"application/fhir+json\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "subscription-update Happy Path",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Subscription/{{subscriptionId}}"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Subscription\",\n  \"status\": \"active\",\n  \"reason\": \"Sample subscription for PAVE\",\n  \"criteria\": \"https://topic.example.invalid/SubscriptionTopic/placeholder-topic\",\n  \"channel\": {\n    \"type\": \"rest-hook\",\n    \"endpoint\": \"{{callbackUrl}}\",\n    \"payload\": \"application/fhir+json\"\n  },\n  \"id\": \"{{subscriptionId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "subscription-delete Happy Path",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Subscription/{{subscriptionId}}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "subscription-notification Happy Path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/fhir+json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/fhir+json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{callbackUrl}}"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Bundle\",\n  \"type\": \"history\",\n  \"entry\": [\n    {\n      \"resource\": {\n        \"resourceType\": \"Parameters\",\n        \"parameter\": [\n          {\n            \"name\": \"subscription\",\n            \"valueReference\": {\n              \"reference\": \"Subscription/{{subscriptionId}}\"\n            }\n          },\n          {\n            \"name\": \"type\",\n            \"valueCode\": \"event-notification\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
