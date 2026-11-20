@@ -3960,13 +3960,16 @@ suite on the unchanged tree, and each relied on the integrator's build.
   subscription is no longer matched to its run. Four minors more (address parts and name parts, names
   that are common words, long digit codes, the suite results file, variable names the upload warning
   misses).
-- **Guardrail (V3):** M-ENC, m3, m4, T1, GAP1, m1, F-SCREEN and m2 closed; nothing reached a
-  production stand-in on any route the audit or the check tried, but one. B1 closed in its first
+- **Guardrail (V3):** M-ENC, m3, m4, T1, GAP1, m1, F-SCREEN and m2 closed; every route the audit
+  tried is refused, and requests reached a production stand-in by two routes the check found. B1
+  closed in its first
   direction and open in the second: a production environment whose own address the client cannot read
   (a port with a plus sign, a backslash in the path, a colon with nothing after it) is not remembered
   as production, and a sandbox at the plain spelling of that address then sent writes there with no
   unlock. Also found: a value typed for a run that makes the path unreadable is refused with the
-  wrong cause; an overlong or look-alike encoding of a slash is not refused; a short secret in a
+  wrong cause; an overlong or look-alike encoding of a slash is not refused (the second route: a read
+  reshaped with one, and writes to an environment with one in its base path, reached a production
+  stand-in, which matters only behind a server that decodes such bytes); a short secret in a
   notification is shown with no note; a false "same server" warning.
 - **Fixtures (V4):** F-CHAIN-DTR, F-DUP-CRDSENT, F-PAS-SHADOW, F-SAMPLE-LIST, F-PAS-CRDMAP-HIDDEN,
   F-ORPHAN, F-UNMATCHED-LOOP and F-NPI-TEST closed; F-V4-02-REST recorded as the known limit of D-224.
