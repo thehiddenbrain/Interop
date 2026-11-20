@@ -98,10 +98,12 @@ public class MockOnyxPasClient implements OnyxPasClient {
     private static void refuseBySentinel(ScenarioSelection chosen, String step) {
         String call = STEP_INQUIRE.equals(step) ? "an inquiry" : "the step \"" + step + "\"";
         ScenarioSelection.By by = chosen.by();
-        if (chosen.inBody() && (by == ScenarioSelection.By.SENTINEL || by == ScenarioSelection.By.CRD_SENTINEL)) {
-            // The sentinel was in the pasted body, so that is the field named, not the member ID on the form.
-            throw ValidationException.of("rawBody", "The request body holds a member ID that selects scenario " + chosen.scenario().id()
-                    + ", which has no answer for " + call + ". Use a member ID whose scenario answers " + call + ", or choose a scenario.");
+        if (chosen.inBody() && (by == ScenarioSelection.By.SENTINEL || by == ScenarioSelection.By.CRD_SENTINEL
+                || by == ScenarioSelection.By.SENTINEL_NPI)) {
+            // The sentinel was in the pasted body, so that is the field named, not the member ID or the NPI on the form.
+            String identifier = by == ScenarioSelection.By.SENTINEL_NPI ? "an NPI" : "a member ID";
+            throw ValidationException.of("rawBody", "The request body holds " + identifier + " that selects scenario " + chosen.scenario().id()
+                    + ", which has no answer for " + call + ". Use " + identifier + " whose scenario answers " + call + ", or choose a scenario.");
         }
         if (by == ScenarioSelection.By.CRD_SENTINEL) {
             // A CRD sentinel is not this scenario's own: it selects the scenario for the same case.

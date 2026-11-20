@@ -300,8 +300,8 @@ public class ScenarioRepository {
      * one found in a pasted request body alike.
      *
      * <p>In order: a scenario chosen explicitly; then the form's member ID; then the form's NPI;
-     * then, when nothing on the form selected a scenario, every text value of the request body;
-     * then the first scenario in the list, which the result calls the default. A member ID is
+     * then, when nothing on the form selected a scenario, every text value of the request body,
+     * read as the form is, a member ID first and then an NPI; then the first scenario in the list, which the result calls the default. A member ID is
      * looked for, in order, among the files' own sentinels, among the CRD sentinels a DTR or PAS
      * file answers for the same case ({@code crdSentinelMemberIds}), and in CRD among the
      * sentinels of the DTR files, which the CRD file marked {@code answersDtrSentinels} answers
@@ -327,23 +327,23 @@ public class ScenarioRepository {
             }
         }
         if (selection != null && Texts.present(selection.npi())) {
-            String npi = selection.npi().strip();
-            for (Scenario scenario : scenarios) {
-                for (String sentinel : scenario.sentinelNpis()) {
-                    if (sentinel.strip().equals(npi)) {
-                        return new ScenarioSelection(scenario, "selected by the sentinel NPI " + sentinel, ScenarioSelection.By.SENTINEL_NPI,
-                                false, null);
-                    }
-                }
+            ScenarioSelection byNpi = byNpi(scenarios, Set.of(selection.npi().strip()), false);
+            if (byNpi != null) {
+                return byNpi;
             }
         }
         if (Texts.present(requestBody)) {
-            Set<String> values = new HashSet<>();
+            Set<String> memberKeys = new HashSet<>();
+            Set<String> wholeValues = new HashSet<>();
             JsonSafe.Parsed parsed = JsonSafe.parse(requestBody);
             if (parsed.ok()) {
-                collectTexts(parsed.node(), values);
+                collectTexts(parsed.node(), memberKeys, wholeValues);
             }
-            ScenarioSelection byBody = values.isEmpty() ? null : byMemberId(protocolDirectory, scenarios, values, true);
+            // The body is read in the order the form is: a member ID first, then an NPI.
+            ScenarioSelection byBody = memberKeys.isEmpty() ? null : byMemberId(protocolDirectory, scenarios, memberKeys, true);
+            if (byBody == null && !wholeValues.isEmpty()) {
+                byBody = byNpi(scenarios, wholeValues, true);
+            }
             if (byBody != null) {
                 return byBody;
             }
@@ -388,19 +388,42 @@ public class ScenarioRepository {
         return null;
     }
 
-    private static void collectTexts(JsonNode node, Set<String> out) {
+    /** The scenario one of these NPIs selects by the NPI part of {@link #select}, or null. An NPI is compared as typed, spaces at its ends aside. */
+    private static ScenarioSelection byNpi(List<Scenario> scenarios, Set<String> npis, boolean inBody) {
+        for (Scenario scenario : scenarios) {
+            for (String sentinel : scenario.sentinelNpis()) {
+                if (npis.contains(sentinel.strip())) {
+                    return new ScenarioSelection(scenario, "selected by the sentinel NPI " + sentinel + (inBody ? " found in the request body" : ""),
+                            ScenarioSelection.By.SENTINEL_NPI, inBody, null);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Every text value of a body, once in the form a member ID is compared in and once as the NPI
+     * on the form is. A whole number is kept for the NPI as well: an identifier written without
+     * quotes is still the value the body carries.
+     */
+    private static void collectTexts(JsonNode node, Set<String> memberKeys, Set<String> wholeValues) {
         if (node == null) {
             return;
         }
         if (node.isString()) {
-            out.add(memberKey(node.stringValue()));
+            memberKeys.add(memberKey(node.stringValue()));
+            wholeValues.add(node.stringValue().strip());
+            return;
+        }
+        if (node.isIntegralNumber()) {
+            wholeValues.add(node.asString());
             return;
         }
         for (Map.Entry<String, JsonNode> property : JsonSafe.properties(node)) {
-            collectTexts(property.getValue(), out);
+            collectTexts(property.getValue(), memberKeys, wholeValues);
         }
         for (JsonNode element : JsonSafe.elements(node)) {
-            collectTexts(element, out);
+            collectTexts(element, memberKeys, wholeValues);
         }
     }
 

@@ -234,6 +234,20 @@ class PasScenarioFilesTest {
                                 .doesNotContain("is the sentinel of");
                     }));
         }
+        // N-RAW-NPI: the sentinel NPI found in a pasted body selects, and the refusal names the body and says it was an NPI.
+        String pasted = "{\"resourceType\":\"Bundle\",\"entry\":[{\"resource\":{\"resourceType\":\"Practitioner\",\"identifier\":"
+                + "[{\"system\":\"http://hl7.org/fhir/sid/us-npi\",\"value\":\"9999999995\"}]}}]}";
+        assertThatThrownBy(() -> pas.inquire(TestPreparedCalls.unconfigured(EpaOperation.PAS_INQUIRE), ResolvedText.plain(pasted),
+                MockSelection.of(null, null, null))).isInstanceOfSatisfying(ValidationException.class,
+                e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                    assertThat(error.field()).isEqualTo("rawBody");
+                    assertThat(error.message()).isEqualTo("The request body holds an NPI that selects scenario pas-21-provider-not-found, "
+                            + "which has no answer for an inquiry. Use an NPI whose scenario answers an inquiry, or choose a scenario.");
+                }));
+        VendorExchange submittedByNpi = pas.submit(TestPreparedCalls.unconfigured(EpaOperation.PAS_SUBMIT), ResolvedText.plain(pasted),
+                MockSelection.of(null, null, null));
+        assertThat(submittedByNpi.scenarioId()).isEqualTo("pas-21-provider-not-found");
+        assertThat(submittedByNpi.scenarioNote()).startsWith("selected by the sentinel NPI 9999999995 found in the request body");
         // And a scenario that describes only subscription calls does not answer a submission.
         assertThatThrownBy(() -> submit("pas-10-subscription-lifecycle", null, body)).isInstanceOf(ValidationException.class);
     }

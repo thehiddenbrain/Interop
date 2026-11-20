@@ -393,6 +393,39 @@ class ScenarioRepositoryTest {
     }
 
     @Test
+    void theSentinelNpiInAPastedBodySelectsAsTheSameNpiTypedOnTheFormDoes() {
+        // N-RAW-NPI: the one rule holds for the NPI as for the member ID, after the member ID, as on the form.
+        String practitioner = "{\"resourceType\":\"Bundle\",\"entry\":[{\"resource\":{\"resourceType\":\"Practitioner\","
+                + "\"identifier\":[{\"system\":\"http://hl7.org/fhir/sid/us-npi\",\"value\":%s}]}}]}";
+        for (String protocol : List.of("crd", "dtr", "pas")) {
+            ScenarioSelection typed = bundled.select(protocol, MockSelection.of(null, null, "9999999995"));
+            assertThat(typed.by()).as(protocol).isEqualTo(ScenarioSelection.By.SENTINEL_NPI);
+            for (String value : List.of("\"9999999995\"", "\" 9999999995 \"", "9999999995")) {
+                ScenarioSelection pasted = bundled.select(protocol, null, practitioner.formatted(value));
+                assertThat(pasted.scenario().id()).as(protocol + " " + value).isEqualTo(typed.scenario().id());
+                assertThat(pasted.by()).as(protocol + " " + value).isEqualTo(ScenarioSelection.By.SENTINEL_NPI);
+                assertThat(pasted.inBody()).as(protocol + " " + value).isTrue();
+                assertThat(pasted.how()).as(protocol + " " + value)
+                        .isEqualTo("selected by the sentinel NPI 9999999995 found in the request body");
+            }
+            // The typed form says nothing of a body.
+            assertThat(typed.how()).as(protocol).isEqualTo("selected by the sentinel NPI 9999999995");
+            // Inside a longer value it is not the NPI, as a member ID is not.
+            assertThat(bundled.select(protocol, null, practitioner.formatted("\"NPI 9999999995\"")).by()).as(protocol)
+                    .isEqualTo(ScenarioSelection.By.DEFAULT);
+        }
+        assertThat(bundled.select("crd", null, practitioner.formatted("\"9999999995\"")).scenario().id())
+                .isEqualTo("crd-09-provider-not-found");
+        // A member ID in the body comes before an NPI in it, as on the form.
+        String both = "{\"a\":\"P32H-NOMEM\",\"b\":\"9999999995\"}";
+        assertThat(bundled.select("crd", null, both).scenario().id()).isEqualTo("crd-07-member-not-found");
+        assertThat(bundled.select("pas", null, both).scenario().id()).isEqualTo("pas-15-member-not-found");
+        // And anything on the form comes before the body: an NPI typed on the form before a member ID pasted.
+        assertThat(bundled.select("crd", MockSelection.of(null, "S123456789", "9999999995"), "{\"a\":\"P32H-NOMEM\"}").by())
+                .isEqualTo(ScenarioSelection.By.SENTINEL_NPI);
+    }
+
+    @Test
     void onlyOneCrdFileAnswersDtrSentinelsAndOnlyACrdFile(@TempDir Path dir) throws IOException {
         Files.createDirectories(dir.resolve("crd"));
         Files.createDirectories(dir.resolve("pas"));
