@@ -4493,7 +4493,7 @@ four closing tasks, merged in this order: fixtures at `f710265`, screens at `973
    The two skipped tests need a folder that cannot be written, which a build running as root cannot make.
    The integrator's last gate (the plain `./gradlew clean build` twice, a build from a fresh clone with the
    build cache off, the start and `GET /api/mode`) has not run.
-3. Every line the README, `PROGRESS.md`, this file and the pull request draft marked as being fixed was
+3. Every line the README, `PROGRESS.md`, this file and the pull request draft marked for the four closing tasks was
    settled against the source of `428eff5` and the four reports: a line that describes behaviour says
    what the tool does now; a line in a list of what is open was moved to what was fixed, as fixed and
    checked by nobody but the author of the fix, or kept open in plain words where the report says it is
