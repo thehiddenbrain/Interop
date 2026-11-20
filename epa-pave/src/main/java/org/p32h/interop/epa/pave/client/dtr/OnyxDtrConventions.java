@@ -20,11 +20,14 @@ import tools.jackson.databind.node.ObjectNode;
  * EVERYTHING THIS TOOL TAKES THE VENDOR TO DO IN DTR, ALL IN ONE FILE.
  *
  * <p>Nothing here has been observed from the live service, and which version of the Da Vinci DTR
- * guide it follows is not known. Each rule below says where it comes from. "READ" means it was
- * read in the guides themselves: the HL7 packages hl7.fhir.us.davinci-dtr 2.2.0-ballot and
- * hl7.fhir.uv.sdc 4.0.0-ballot, and the specification page of the DTR guide as published for
- * STU 2.0.1 and STU 2.1.0. "ASSUMPTION" means the guides leave it open, or differ between
- * versions, and this tool had to choose. Each rule reads a coded value or the structure of a
+ * guide it follows is not known. This tool is held to DTR 2.0.1, on the operator's word. Each rule
+ * below says where it comes from. "READ" means it was read in the guides themselves: the HL7
+ * package hl7.fhir.us.davinci-dtr 2.0.1, which decides, the packages hl7.fhir.us.davinci-dtr
+ * 2.2.0-ballot and hl7.fhir.uv.sdc 4.0.0-ballot for what later versions change, and the
+ * specification page of the DTR guide as published for STU 2.0.1 and STU 2.1.0. SDC 3.0.0, which
+ * DTR 2.0.1 builds on, was not available; what the DTR 2.0.1 snapshots carry of it was read there.
+ * "ASSUMPTION" means the guides leave it open, or differ between versions, and this tool had to
+ * choose. Each rule reads a coded value or the structure of a
  * resource, never wording, and each is deliberately narrow: when a response does not match a
  * rule, nothing is inferred and the response is shown in full.
  *
@@ -40,13 +43,14 @@ public final class OnyxDtrConventions {
      * READ: the input parameter names of {@code $questionnaire-package}. The coverage and each
      * order travel as resources, a questionnaire is named by its canonical url as a
      * {@code valueCanonical}, and the coverage assertion id CRD returned travels as {@code context},
-     * a {@code valueString}. The 2.2.0-ballot parameters profile requires the coverage and at least
-     * one of order, questionnaire and context. The guide also defines {@code changedsince}, for a
-     * client that kept an earlier response. This tool keeps none and does not send it.
+     * a {@code valueString}. The DTR 2.0.1 parameters profile, like the 2.2.0-ballot one, requires
+     * the coverage and at least one of order, questionnaire and context (dtr-1). The guide also
+     * defines {@code changedsince}, for a client that kept an earlier response. This tool keeps none
+     * and does not send it.
      *
-     * <p>{@code referenced}, for what an order refers to, is named by the specification page of
-     * every version read. The 2.2.0-ballot parameters profile does not list it. ASSUMPTION: the
-     * live service takes it, so no reference in an order is left pointing at nothing.
+     * <p>READ: {@code referenced}, for what an order refers to, is an input of the DTR 2.0.1
+     * operation, a Resource that may repeat (0..*). The 2.2.0-ballot parameters profile does not
+     * list it, so a service that follows the ballot may not take it.
      */
     public static final String PARAM_COVERAGE = "coverage";
     public static final String PARAM_ORDER = "order";
@@ -221,10 +225,14 @@ public final class OnyxDtrConventions {
     }
 
     /**
-     * READ: the addresses the guide derives for next-question from the url an adaptive marker
-     * holds. STU 2.1.0 and later write it with the resource type, STU 2.0.1 without. For a marker
-     * that is only true, 2.0.1 gives the payer's own base address, which this tool cannot know
-     * from the questionnaire.
+     * The addresses next-question may be called on, derived from the url an adaptive marker holds.
+     * READ: STU 2.1.0 and later write it with the resource type. The DTR 2.0.1 payer
+     * CapabilityStatement names the SDC next-question operation, which SDC defines on the
+     * Questionnaire type, so the form with the resource type agrees with it too. ASSUMPTION: the
+     * form without the resource type, which the STU 2.0.1 specification page was read as writing,
+     * is kept as a second form; the DTR 2.0.1 package itself does not settle it. For a marker that
+     * is only true, 2.0.1 gives the payer's own base address, which this tool cannot know from the
+     * questionnaire.
      */
     public static List<String> nextQuestionAddresses(String base) {
         String trimmed = base.strip().replaceAll("/+$", "");
@@ -269,10 +277,13 @@ public final class OnyxDtrConventions {
 
     /**
      * READ: an adaptive questionnaire carries the SDC {@code questionnaireAdaptive} extension,
-     * holding true or the base url next-question is called on. DTR 2.0.1 speaks of both, its later
-     * versions only of the url, and the 2.2.0-ballot profiles allow nothing else. In a package it
-     * declares the profile dtr-questionnaire-adapt-search and holds no items, inside a response it
-     * declares dtr-questionnaire-adapt, and a conventional form declares dtr-std-questionnaire.
+     * holding true or the base url next-question is called on. DTR 2.0.1 allows both, and so does
+     * SDC 4.0.0-ballot; only the DTR 2.2.0-ballot profile narrows it to the url. In DTR 2.0.1 a
+     * questionnaire in a package may declare dtr-questionnaire-adapt-search, where the marker may
+     * repeat or be absent and items are allowed, or dtr-questionnaire-adapt, as the 2.0.1 example
+     * package does with two items; in the 2.2.0 ballot the search profile requires the marker and
+     * allows no items. Inside a response it declares dtr-questionnaire-adapt, and a conventional
+     * form declares dtr-std-questionnaire.
      * ASSUMPTION: a questionnaire with no marker at all that holds items is a conventional form.
      * How the live service marks an adaptive questionnaire has not been observed.
      *
