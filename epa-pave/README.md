@@ -298,6 +298,24 @@ sentinels and `S123456789`-style placeholders; the placeholder NPI is `123456789
 `9999999995` selects "provider not found". A damaged scenario file stops the start on mock and
 names the file (D-153).
 
+How a scenario is chosen is one rule for the three protocols, and it is all in the scenario files:
+
+- In order: the scenario you chose; the member ID on the form; the NPI on the form; a member ID or
+  NPI found as a whole value in a request body you pasted; otherwise the default, the file with the
+  lowest number. The result says which rule chose it, for example "found in the request body".
+- A DTR or PAS file lists, under `crdSentinelMemberIds`, the CRD sentinels it answers for the same
+  case (`P32H-NOMEM` selects PAS scenario `pas-15-member-not-found`, for example). The scenario
+  list shows them. No two files of one protocol may claim one sentinel: the start stops and names
+  both files.
+- On mock, CRD answers every DTR sentinel with "documentation required" (the file that does so,
+  `crd-04-doc-dtr`, carries `answersDtrSentinels`), and names the questionnaire that the DTR
+  scenario of that sentinel holds, so `Continue in DTR` reaches what the DTR scenario's label says.
+- The scenario list carries notes, on the list and on the scenario they are about: which file is
+  the default, an `expect` block whose HTTP status differs from the one its file answers with, and
+  a file in a scenario folder that is not read (another extension, or a subfolder), which on mock
+  is also named in one warning in the log at start. Not checked: an `expect` outcome that
+  contradicts the file's own body.
+
 **Switching** is a restart: stop the tool and start it with `./run.sh live` (or `./run.sh` for
 mock). The mode is shown on every tab, at the top right (`Profile mock` or `Profile live`), and by
 `GET /api/mode`. The application refuses to start when `epa.mode` and the Spring profile disagree,
