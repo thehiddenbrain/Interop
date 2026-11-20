@@ -200,6 +200,33 @@ public final class UrlNormal {
     private static final int MAX_PORT = 65535;
 
     /**
+     * True when the scheme, host and port of an absolute url are read by the HTTP client as this
+     * tool reads them, whatever follows them. Tells a url whose address is wrong from one that is
+     * whole up to its path and is not a valid url after it, such as one with a space in its path.
+     */
+    public static boolean authorityReadable(String url) {
+        if (url == null) {
+            return false;
+        }
+        String text = url.strip();
+        int scheme = text.indexOf("://");
+        if (scheme <= 0) {
+            return false;
+        }
+        int end = scheme + 3;
+        while (end < text.length() && "/?#".indexOf(text.charAt(end)) < 0) {
+            end++;
+        }
+        Destination head = destination(text.substring(0, end));
+        return head != null && head.readable() && parsed(text.substring(0, end)) != null;
+    }
+
+    /** True when the text can stand in the path of a url as it is: no space, no stray percent sign, nothing the client refuses. */
+    public static boolean validInPath(String text) {
+        return text == null || parsed("http://h/" + text) != null;
+    }
+
+    /**
      * The whole host an absolute url names, every scheme, port and path on it, or null when it
      * names no host at all. For a production address that cannot be read: the client may read its
      * port and path in a way this tool does not, so only the host is taken from it, and the host is

@@ -100,6 +100,10 @@ public class ExchangeExecutor {
             throw new EndpointNotConfiguredException(call.operation(), read == null || read.scheme() == null
                     ? "The url for " + call.operation().label() + " has no scheme or host the HTTP client can read. Its template is "
                     + call.url().template()
+                    : UrlNormal.authorityReadable(call.url().value())
+                    ? "The url for " + call.operation().label() + " as filled is not a valid url: its scheme, host and port read well, "
+                    + "and the text after them holds a character that cannot stand in a url as it is, such as a space or a percent sign "
+                    + "that starts no escape. Its template is " + call.url().template()
                     : "The address of the url for " + call.operation().label() + " could not be read as the HTTP client reads it: "
                     + "its host or its port is not written in a form the client accepts. Its template is " + call.url().template());
         }
