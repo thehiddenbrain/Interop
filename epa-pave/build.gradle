@@ -120,68 +120,58 @@ def verifyParametersFlag = tasks.register('verifyParametersFlag') {
 // ---------------------------------------------------------------------------------------------
 // Gate: house style, build prompt section 23.
 //
-// Every pattern is assembled from fragments or character codes so that this file does not contain
-// the text it forbids. If it did, the check would fail on its own source.
+// The rules and the scan are written once, in src/houseStyle/java/.../style/HouseStyle.java, a
+// source set of its own that never reaches the application jar. This task runs that class, and
+// HouseStyleTest runs the same class on planted violations, so the gate and its test read one copy
+// of the rules. HouseStyleTest also fails when this task is gone, is no longer part of check, or
+// runs some other class: the three values it checks are handed to it below.
+//
+// The files checked are the ones git tracks under this directory, plus new files git would track,
+// dot files such as .gitignore included; the name of each file is checked as well as its lines.
+// What this gate cannot read: commit messages and the pull request description, which section 23
+// also covers. Nor can it tell a colleague's name or a comment that restates the code. Nobody
+// should take a green build for more than the rules in HouseStyle.java.
 // ---------------------------------------------------------------------------------------------
-def houseStyleCheck = tasks.register('houseStyleCheck') {
+sourceSets {
+    houseStyle
+}
+
+dependencies {
+    testImplementation sourceSets.houseStyle.output
+}
+
+def houseStyleCheck = tasks.register('houseStyleCheck', JavaExec) {
     group = 'verification'
-    description = 'Fails when a file in the tree breaks the house style rules.'
-
-    def rootDir = layout.projectDirectory.asFile
-    def scanned = fileTree(rootDir) {
-        exclude '.gradle/**', 'build/**', 'bin/**', 'out/**', '.idea/**', '.settings/**'
-        // Runtime data. Never committed, and may hold vendor text this project did not write.
-        exclude 'config-store/**', 'run-history/**'
-        // Binary files cannot be read as text.
-        exclude '**/*.jar', '**/*.png', '**/*.jpg', '**/*.gif', '**/*.ico', '**/*.zip', '**/*.class',
-                '**/*.woff', '**/*.woff2', '**/*.ttf', '**/*.pdf'
-    }
+    description = 'Fails when a file in the tree, or its name, breaks the house style rules.'
+    classpath = sourceSets.houseStyle.runtimeClasspath
+    mainClass = 'org.p32h.interop.epa.pave.style.HouseStyle'
+    maxHeapSize = '64m'
     def reportFile = layout.buildDirectory.file('reports/house-style/violations.txt')
-    // No inputs or outputs are declared, so the scan runs on every build. It reads a few hundred
-    // small files, and a gate that can be skipped as up to date is a gate that can be wrong.
-
-    def chars = { List<Integer> codes -> codes.collect { String.valueOf((char) it.intValue()) }.join('') }
-    def rules = [
-            [label: 'dash other than a plain hyphen', regex: '[' + chars([0x2012, 0x2013, 0x2014, 0x2015]) + ']'],
-            [label: 'curly quote', regex: '[' + chars([0x2018, 0x2019, 0x201A, 0x201B, 0x201C, 0x201D, 0x201E, 0x201F]) + ']'],
-            [label: 'banned filler word', regex: '(?i)\\b(?:' + [
-                    'seam' + 'less\\w*',
-                    'ro' + 'bust\\w*',
-                    'lever' + 'ag\\w*',
-                    'del' + 'v(?:e[sd]?|ing)\\b',
-                    'sle' + 'ek\\w*',
-                    'cutting' + '[ -]' + 'edge',
-                    'best' + '[ -]in[ -]' + 'class'
-            ].join('|') + ')'],
-            [label: 'CSS tracking property', regex: '(?i)' + 'letter' + '-' + 'spacing'],
-            [label: 'programme abbreviation without its trailing H', regex: '(?i)(?<![a-z0-9])' + 'p' + '32' + '(?!h)'],
-            [label: 'banned product name, say EDI', regex: '(?i)' + 'x' + 'engine']
-    ]
-
+    args layout.projectDirectory.asFile.absolutePath, reportFile.get().asFile.absolutePath
+    ignoreExitValue = true
+    // No file inputs or outputs are declared, so the scan runs on every build. A gate that can be
+    // skipped as up to date is a gate that can be wrong.
     doLast {
-        def compiled = rules.collect { [label: it.label, pattern: java.util.regex.Pattern.compile(it.regex)] }
-        def violations = []
-        scanned.files.sort().each { File file ->
-            def relative = rootDir.toPath().relativize(file.toPath()).toString()
-            def lineNumber = 0
-            file.eachLine('UTF-8') { String line ->
-                lineNumber++
-                compiled.each { rule ->
-                    if (rule.pattern.matcher(line).find()) {
-                        violations << "${relative}:${lineNumber}: ${rule.label}"
-                    }
-                }
-            }
-        }
-        def report = reportFile.get().asFile
-        report.parentFile.mkdirs()
-        report.text = violations.isEmpty() ? 'No house style violations.\n' : violations.join('\n') + '\n'
-        if (!violations.isEmpty()) {
-            throw new GradleException("House style violations (${violations.size()}):\n" + violations.join('\n'))
+        if (executionResult.get().exitValue != 0) {
+            throw new GradleException(reportFile.get().asFile.getText('UTF-8'))
         }
     }
 }
 
 tasks.named('check') {
     dependsOn verifyParametersFlag, houseStyleCheck
+}
+
+// What HouseStyleTest checks about the wiring above. Read when the tests start, after every
+// build script has been evaluated, so a dependency added to check later is counted.
+tasks.named('test') {
+    def projectDirectory = layout.projectDirectory.asFile.absolutePath
+    doFirst {
+        def check = tasks.named('check').get()
+        def checkNeeds = check.taskDependencies.getDependencies(check).collect { it.name }.sort().join(',')
+        def gate = tasks.findByName('houseStyleCheck')
+        systemProperty 'pave.houseStyle.checkDependsOn', checkNeeds
+        systemProperty 'pave.houseStyle.mainClass', gate instanceof JavaExec ? gate.mainClass.getOrElse('') : ''
+        systemProperty 'pave.houseStyle.projectDir', projectDirectory
+    }
 }

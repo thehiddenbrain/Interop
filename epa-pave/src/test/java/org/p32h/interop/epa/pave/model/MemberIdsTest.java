@@ -25,7 +25,7 @@ class MemberIdsTest {
     @Test
     void onlyWhitespaceIsRemoved() {
         // Case and punctuation are the tester's input. Changing them would be guessing.
-        assertThat(MemberIds.noSpace(" ab-c_1 2\t3 x ")).isEqualTo("ab-c_123x");
+        assertThat(MemberIds.noSpace(" ab-c_1 2\t3\u00a0x ")).isEqualTo("ab-c_123x");
         assertThat(MemberIds.forms("abc").sent()).isEqualTo("abc");
     }
 

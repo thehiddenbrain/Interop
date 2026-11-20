@@ -67,7 +67,7 @@ class SuiteFileReaderTest {
 
     @Test
     void anEmptyFileIsAProblemAndNotAnEmptySuite() {
-        for (String text : new String[] {null, "", "  \n ", "﻿"}) {
+        for (String text : new String[] {null, "", "  \n ", "\ufeff"}) {
             assertThat(reader.read("cases.csv", text).problems()).containsExactly("The file is empty.");
             assertThat(reader.read("cases.json", text).problems()).containsExactly("The file is empty.");
         }
@@ -77,7 +77,7 @@ class SuiteFileReaderTest {
     void aJsonFileIsAListOfCasesOrAnObjectHoldingOne() {
         String cases = "[{\"caseId\":\"TC-1\",\"memberId\":\"S123456789\",\"npi\":1234567893,\"chain\":true,"
                 + "\"procedureCodes\":[\"95810\",\" 95811 \"],\"note\":null,\"expected\":\"\"}]";
-        for (String text : new String[] {cases, "{\"name\":\"Sleep studies\",\"cases\":" + cases + "}", "﻿" + cases}) {
+        for (String text : new String[] {cases, "{\"name\":\"Sleep studies\",\"cases\":" + cases + "}", "\ufeff" + cases}) {
             SuiteTable table = reader.read("cases.json", text);
             assertThat(table.format()).isEqualTo("JSON");
             assertThat(table.problems()).isEmpty();
@@ -137,7 +137,7 @@ class SuiteFileReaderTest {
         assertThat(SuiteFileReader.looksLikeJson("cases.JSON", "caseId")).isTrue();
         assertThat(SuiteFileReader.looksLikeJson("cases.csv", "[")).isFalse();
         assertThat(SuiteFileReader.looksLikeJson("cases", " \n[{}]")).isTrue();
-        assertThat(SuiteFileReader.looksLikeJson(null, "﻿{\"cases\":[]}")).isTrue();
+        assertThat(SuiteFileReader.looksLikeJson(null, "\ufeff{\"cases\":[]}")).isTrue();
         assertThat(SuiteFileReader.looksLikeJson("cases", "caseId,memberId")).isFalse();
         assertThat(SuiteFileReader.looksLikeJson(null, null)).isFalse();
     }

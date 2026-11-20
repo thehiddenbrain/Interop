@@ -139,7 +139,7 @@ class ApplicationJourneyTest {
     @Test
     void aSuiteFileWrittenByASpreadsheetRunsThroughTheRealReaderLookupsAndCodeList() throws Exception {
         // A byte order mark, CRLF line endings, a header with capitals and spaces, and a quoted cell holding a comma.
-        String csv = "﻿Case ID,Protocol,Member ID,NPI,Procedure Codes,Expected Outcome,Note\r\n"
+        String csv = "\ufeffCase ID,Protocol,Member ID,NPI,Procedure Codes,Expected Outcome,Note\r\n"
                 + "TC-1,crd,P32H-NO-AUTH,1234567893,95810,NO_AUTH_REQUIRED,\"sleep study, attended\"\r\n"
                 + "TC-2,crd,P32H-EMPTY,1234567893,95810,NO_AUTH_REQUIRED,\r\n"
                 + "TC-3,crd,P32H-NOMEM,1234567893,95810,MEMBER_NOT_FOUND,\r\n"

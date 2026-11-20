@@ -33,7 +33,7 @@ public final class SuiteFileReader {
      */
     public SuiteTable read(String fileName, String text) {
         boolean json = looksLikeJson(fileName, text);
-        if (Texts.blank(text) || Texts.blank(text.replace("﻿", ""))) {
+        if (Texts.blank(text) || Texts.blank(text.replace("\ufeff", ""))) {
             return SuiteTable.unreadable(json ? SuiteTable.JSON : SuiteTable.CSV, "The file is empty.");
         }
         return json ? readJson(text) : readCsv(text);
@@ -74,7 +74,7 @@ public final class SuiteFileReader {
         if (name.endsWith(".csv") || name.endsWith(".txt")) {
             return false;
         }
-        String start = text == null ? "" : text.replace("﻿", "").stripLeading();
+        String start = text == null ? "" : text.replace("\ufeff", "").stripLeading();
         return start.startsWith("[") || start.startsWith("{");
     }
 
