@@ -1315,13 +1315,23 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
   no value (`"kind":"CONFIGURATION"`, naming the variable and the active environment; see
   [Variables](#variables)); for `POST /api/raw` when a `{part}` of the url has no value in
   `urlValues` (`"kind":"VALIDATION"`, field `urlValues.<name>`); when the path of a url would hold
-  an encoded separator; and when a note, a tester reference or an expectation holds member data
-  the request carries.
+  an encoded separator; when a note, a tester reference or an expectation holds member data
+  the request carries; when a JSON request body repeats a key inside one object ("The request
+  repeats the field "member" inside one object. Nothing was sent."); and for a request body that
+  is not valid JSON. A body of your own (`rawBody`) is text and is sent as written.
 - **403** when the production guardrail blocked a write (also a write to an address the tool
   cannot read), or when the request came from another site or a host name the tool does not answer
   to.
 - **409** when no url is configured for an operation, the configuration changed since the screen
   was drawn, or production writes were locked between preparing a write and sending it.
+- **400** for an address with an unencoded semicolon or an encoded slash in its path (observed:
+  `/api/runs/a;b` and `/api/members/S1%2F2`); use the query form of a lookup for such an ID.
+- **405** for a method the endpoint does not take (observed: `TRACE /api/mode`), **406** when the
+  client asks for a type other than JSON (observed: `Accept: application/xml`), **413** for a body
+  over the 30MB limit (observed with an upload of about 31.5 MB), and **415** for a body of another
+  type (observed: `text/plain` to `POST /api/crd`). Each is JSON in the same error shape, kind
+  `VALIDATION`.
+- **202** when a suite is started: it runs in the background.
 - **404** for an unknown run, environment, collection or address.
 - **500** when PAVE itself failed after the call was made: the body still carries the result.
 - **Lookups always answer 200** once a lookup was made: not found is a normal answer.
@@ -1375,7 +1385,7 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 | GET | `/api/pas/scenarios?for=` | PAS scenarios (mock) and the outcome vocabulary |
 | POST | `/api/raw` | Send one collection request as it is written: its method, url and headers, and `rawBody` if given, else the saved body; `urlValues` fills `{parts}` of the url |
 | POST | `/api/raw/preview` | The same, without sending it |
-| GET | `/api/runs?from=&to=&protocol=&operation=&result=&outcome=&chainId=&suiteRunId=&limit=&testerRef=&zone=` | Query the ledger |
+| GET | `/api/runs?from=&to=&protocol=&operation=&result=&outcome=&chainId=&suiteRunId=&limit=&testerRef=&follows=&zone=` | Query the ledger |
 | GET | `/api/runs/{runId}` | One run |
 | POST | `/api/runs/{runId}/note` | Add or change a note |
 | GET | `/api/runs/export.csv?from=&to=&protocol=&result=&zone=` | CSV for sign-off |
@@ -1629,7 +1639,7 @@ shows what is in force, secrets masked.
 | `tracking.directory` | `./run-history` | Where the ledger files go |
 | `tracking.record-member-id` | `false` (`true` on mock) | Record member IDs in the ledger. False keeps a salted token and the last four characters |
 | `tracking.record-npi` | `true` | Record the NPI |
-| `tracking.salt-file` | `""` | Blank: `installation-salt` inside the config store directory. Never inside the ledger folder |
+| `tracking.salt-file` | `""` | Blank: `installation-salt` inside the config store directory. Never inside the ledger folder. The salt is a secret: never copy it with the ledger |
 | `tracking.slow-threshold-ms` | `0` | A completed call slower than this is flagged as slow. 0 uses `onyx.read-timeout-ms` |
 | `codelist.file` | `""` | The code list export. Blank uses the bundled placeholder |
 | `codelist.format` | `auto` | `auto`, `csv` or `json` |
@@ -1670,8 +1680,9 @@ The build has to work on a P32H laptop behind the corporate network, where `repo
 and `services.gradle.org` may both be blocked.
 
 The checks quoted in this section were made on an earlier revision, when this README was first
-written (see the last section). `build.gradle`, `settings.gradle`, `gradle.properties` and the
-wrapper have not changed since, and they were not repeated for this revision.
+written (see the last section). `settings.gradle`, `gradle.properties`, the wrapper and the
+repository settings of `build.gradle` have not changed since (only the house style gate in
+`build.gradle` has), and the checks were not repeated for this revision.
 
 ### Dependencies through an internal mirror
 
@@ -1759,7 +1770,7 @@ Each of these is unknown. PAVE uses an obvious placeholder for it rather than a 
 | The provider directory response contract | The same | `lookup.provider.url`; `src/main/java/org/p32h/interop/epa/pave/client/lookup/ProviderResponseMapping.java` |
 | How the lookup APIs authenticate | Nothing is assumed | `lookup.member.headers`, `lookup.provider.headers`, or `lookup.*.use-onyx-auth` |
 | The procedure code list header row, flag spellings, date format, time zone, encoding, line and vendor names | The bundled placeholder list and candidate header lists | `codelist.file`; `codelist.columns.*`; check with Config, `Check this installation`, or `GET /api/procedure-codes/self-check` |
-| Client secret or private-key JWT | OAuth2 client credentials | `onyx.auth.*`. For private-key JWT, `requestToken` in `src/main/java/org/p32h/interop/epa/pave/client/support/OnyxTokenService.java` is the one method to replace |
+| How the token request authenticates the client: HTTP Basic, the credentials in the form body, or a private-key JWT | OAuth2 client credentials with the client authenticated by HTTP Basic (`Authorization: Basic`), decided in code and not by the vendor | `onyx.auth.*` for the values. For credentials in the form body or a signed JWT assertion, `requestToken` in `src/main/java/org/p32h/interop/epa/pave/client/support/OnyxTokenService.java` is the one method to change |
 | The PAS attachment mechanism in use | `fhir` | `onyx.pas.attachment-mode`. `x12-275` names the attachment and sends nothing else |
 | Whether the receiver is reachable from Onyx | Assumed not | `server.address`, `app.allowed-hosts`, `onyx.subscription.callback-url` |
 | Which version of each guide the sandbox follows (D-130, D-136) | 2.0.1 on the operator's word; codes of the 2.2.0 ballot are read and named; DTR reads both published shapes of next-question | `wrapInParameter` on a next-question request chooses the wrapped form; the variable `dtrCoverageExtension` the ballot form of coverage |
