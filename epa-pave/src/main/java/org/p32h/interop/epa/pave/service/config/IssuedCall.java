@@ -21,6 +21,7 @@ final class IssuedCall implements PreparedCall {
     private final boolean scripted;
     private final LongSupplier epoch;
     private final Function<String, ResolvedText> resolver;
+    private final String savedBody;
 
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, long epoch, Function<String, ResolvedText> resolver) {
@@ -35,6 +36,12 @@ final class IssuedCall implements PreparedCall {
      */
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, LongSupplier epoch, Function<String, ResolvedText> resolver) {
+        this(operation, method, url, headers, environment, requestName, scripted, epoch, resolver, null);
+    }
+
+    /** @param savedBody the raw body saved with the collection request, as a template, or null */
+    IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
+               String requestName, boolean scripted, LongSupplier epoch, Function<String, ResolvedText> resolver, String savedBody) {
         this.operation = operation;
         this.method = method;
         this.url = url;
@@ -44,6 +51,7 @@ final class IssuedCall implements PreparedCall {
         this.scripted = scripted;
         this.epoch = epoch;
         this.resolver = resolver;
+        this.savedBody = savedBody;
     }
 
     @Override
@@ -89,6 +97,11 @@ final class IssuedCall implements PreparedCall {
     @Override
     public ResolvedText resolve(String template) {
         return template == null ? null : resolver.apply(template);
+    }
+
+    @Override
+    public String savedBody() {
+        return savedBody;
     }
 
     /**

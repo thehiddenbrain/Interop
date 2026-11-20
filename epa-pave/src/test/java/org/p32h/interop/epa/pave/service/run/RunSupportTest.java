@@ -94,6 +94,31 @@ class RunSupportTest {
     }
 
     @Test
+    void aBlockedReplayOrSuiteRowIsNotToldToUnlockOnTheResultOrItsLine() {
+        RunSupport support = support();
+        RunEnvelope<Object> replay = support.blocked(EpaOperation.SUBSCRIPTION_CREATE, refusal(EpaOperation.SUBSCRIPTION_CREATE), request(),
+                new RunOrigin(null, null, RUN));
+        RunEnvelope<Object> suite = support.blocked(EpaOperation.SUBSCRIPTION_CREATE, refusal(EpaOperation.SUBSCRIPTION_CREATE), request(),
+                new RunOrigin("suite-0001", "case-1", null));
+        RunEnvelope<Object> manual = support.blocked(EpaOperation.SUBSCRIPTION_CREATE, refusal(EpaOperation.SUBSCRIPTION_CREATE), request(),
+                RunOrigin.manual());
+
+        assertThat(replay.nextStep().action()).isEqualTo(NextAction.SEND_ON_ITS_OWN);
+        assertThat(suite.nextStep().action()).isEqualTo(NextAction.SEND_ON_ITS_OWN);
+        assertThat(manual.nextStep().action()).isEqualTo(NextAction.UNLOCK_OR_SWITCH);
+        assertThat(ledger.records()).extracting(RunRecord::nextAction)
+                .containsExactly("SEND_ON_ITS_OWN", "SEND_ON_ITS_OWN", "UNLOCK_OR_SWITCH");
+        // The gateway's own action is the headline, because it names the tab the write belongs to.
+        assertThat(replay.nextStep().headline()).isEqualTo("Unlock writes on the Config tab, or switch environment.");
+
+        // A refusal with no action of its own falls back to the words of the action, which never say to unlock here.
+        ProdWriteBlockedException bare = new ProdWriteBlockedException(EpaOperation.SUBSCRIPTION_CREATE,
+                new EnvironmentRef("Onyx Production", EnvironmentKind.PROD), "Writes are blocked.", null, null, "POST", null);
+        assertThat(support.blocked(EpaOperation.SUBSCRIPTION_CREATE, bare, request(), new RunOrigin(null, null, RUN)).nextStep().headline())
+                .isEqualTo(NextAction.SEND_ON_ITS_OWN.label()).doesNotStartWith("Unlock");
+    }
+
+    @Test
     void theRecordStillChecksWhatABlockedWriteIsCorrelatedBy() {
         RunSupport support = support();
         // A key that is not one of the record's own is a programming error, refused before anything is written.

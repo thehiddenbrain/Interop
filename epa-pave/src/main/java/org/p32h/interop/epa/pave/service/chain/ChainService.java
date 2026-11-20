@@ -323,10 +323,15 @@ public class ChainService {
                 nextAction(record), record.findings(), record.scenarioId(), latestOfItsKind, record.caseResult());
     }
 
-    /** The action a record names. A blocked run always needs the guardrail dealt with, whatever else the record says. */
+    /**
+     * The action a record names. A blocked run always needs the guardrail dealt with, whatever else
+     * the record says; a blocked replay or suite row says so in its own action, because unlocking
+     * cannot help it.
+     */
     private static NextAction nextAction(RunRecord record) {
         if (RunOutcome.BLOCKED.name().equals(record.outcome())) {
-            return NextAction.UNLOCK_OR_SWITCH;
+            return NextAction.SEND_ON_ITS_OWN.name().equals(Texts.trimToNull(record.nextAction())) ? NextAction.SEND_ON_ITS_OWN
+                    : NextAction.UNLOCK_OR_SWITCH;
         }
         if (Texts.blank(record.nextAction())) {
             return null;
@@ -349,7 +354,7 @@ public class ChainService {
             case START_PAS, CHECK_STATUS -> Protocol.PAS;
             // Neither names a stage. One says the journey is over, the other that nothing follows from the call.
             case FLOW_ENDS, NOTHING_FURTHER -> null;
-            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, REVIEW -> stage;
+            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REVIEW -> stage;
         };
     }
 
@@ -360,29 +365,18 @@ public class ChainService {
      */
     static boolean attention(NextAction action) {
         return switch (action) {
-            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, REVIEW -> true;
+            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REVIEW -> true;
             case START_DTR, ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE, START_PAS, CHECK_STATUS, FLOW_ENDS, NOTHING_FURTHER -> false;
         };
     }
 
-    /** The instruction for an action, in plain words. The run itself gave a fuller reason on screen; the ledger keeps the action. */
+    /**
+     * The instruction for an action, in plain words. The run itself gave a fuller reason on screen;
+     * the ledger keeps the action. The words are the action's own, so the chain view and the
+     * vocabulary served to the History tab cannot differ.
+     */
     public static String instruction(NextAction action) {
-        return switch (action) {
-            case START_DTR -> "Answer the payer's questionnaire (DTR).";
-            case ANSWER_NEXT_QUESTION -> "Answer the next question of the questionnaire (DTR).";
-            case SUBMIT_RESPONSE -> "Answer the questionnaire that was loaded and submit the response (DTR).";
-            case START_PAS -> "Submit the prior authorization request (PAS).";
-            case CHECK_STATUS -> "Ask for the status of the pended authorization (PAS).";
-            case FLOW_ENDS -> "Nothing more to do. The journey is complete at this step.";
-            case NOTHING_FURTHER -> "Nothing further to do after this call. No journey ended with it.";
-            case FIX_TEST_DATA -> "Check the test data. The member, provider or code is not known to the service.";
-            case FIX_REQUEST -> "Check what was sent. The service did not accept the request.";
-            case SUPPLY_INFORMATION -> "Supply the information the payer asked for and send again.";
-            case CHECK_ENVIRONMENT -> "Check the environment. The service failed or could not be reached.";
-            case OPEN_CONFIG -> "Open Config. The tool is not configured to send this.";
-            case UNLOCK_OR_SWITCH -> "Unlock production writes or switch environment. The guardrail refused to send.";
-            case REVIEW -> "Look at the response detail. The tool cannot say what should happen next.";
-        };
+        return action.label();
     }
 
     static String name(Protocol protocol) {

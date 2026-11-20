@@ -183,7 +183,8 @@ public class ConfigStoreGateway implements OperationGateway {
             return Long.MIN_VALUE;
         };
         return new IssuedCall(intent.operation(), plan.method(), plan.url(), plan.resolvedHeaders(), plan.environment(),
-                plan.target().requestName(), plan.target().scripted(), belongsTo, template -> shownAsWritten(resolve.apply(template).text(), template));
+                plan.target().requestName(), plan.target().scripted(), belongsTo, template -> shownAsWritten(resolve.apply(template).text(), template),
+                plan.target().savedBody());
     }
 
     /**
@@ -954,6 +955,67 @@ public class ConfigStoreGateway implements OperationGateway {
      */
     private RunStart runStart(ConfigSnapshot snapshot, CallIntent intent, Target target, LiteralCredentials.Marked typed,
                               Map<String, String> bound) {
+        RunStart typedForTheRun = runValueStart(snapshot, intent, target, typed, bound);
+        RunStart urlPart = urlPartStart(snapshot, intent, target, typed, bound);
+        if (typedForTheRun == null || urlPart == null) {
+            return typedForTheRun == null ? urlPart : typedForTheRun;
+        }
+        return urlPart.before().length() < typedForTheRun.before().length() ? urlPart : typedForTheRun;
+    }
+
+    /** Stands in for the value of one single-brace url part: unreserved characters only, so encoding leaves it as it is. */
+    private static final String PART_MARK = "Zq7PaveUrlPartMarkZq7";
+
+    /**
+     * Where the first single-brace url part given a value for this call starts, cut back to the
+     * slash before it. Such a value is encoded into its one place and cannot change the scheme,
+     * host or port, but a value of {@code ..} would still climb out of the path the configuration
+     * wrote before it, so it is held to the same rule as a value typed for the run. Null when no
+     * part is given a value or the url is not complete.
+     */
+    private RunStart urlPartStart(ConfigSnapshot snapshot, CallIntent intent, Target target, LiteralCredentials.Marked typed,
+                                  Map<String, String> bound) {
+        Map<String, String> marks = new LinkedHashMap<>();
+        new TreeMap<>(intent.urlValues()).forEach((name, value) -> {
+            if (Texts.present(value)) {
+                marks.put(name, PART_MARK + marks.size() + PART_MARK);
+            }
+        });
+        if (marks.isEmpty()) {
+            return null;
+        }
+        Map<String, String> encoded = new LinkedHashMap<>();
+        bound.forEach((name, value) -> encoded.put(name, UrlForms.encode(value)));
+        Resolution resolved = resolver.resolve(typed.template(), typed.before(layers(snapshot, intent.runValues(), target.collection(), encoded)));
+        UrlForms.Skeleton skeleton = UrlForms.skeleton(resolved);
+        if (target.source() == Source.DERIVED) {
+            skeleton = skeleton.upTo(DISCOVERY_MARKER);
+            if (skeleton == null) {
+                return null;
+            }
+        }
+        String send = skeleton.fill(marks).send();
+        if (send == null) {
+            return null;
+        }
+        String first = null;
+        int at = -1;
+        for (Map.Entry<String, String> mark : marks.entrySet()) {
+            int found = send.indexOf(mark.getValue());
+            if (found >= 0 && (at < 0 || found < at)) {
+                at = found;
+                first = mark.getKey();
+            }
+        }
+        if (at < 0) {
+            return null;
+        }
+        int slash = send.lastIndexOf('/', at);
+        return new RunStart("the url part {" + first + "}", send.substring(0, slash < 0 ? at : slash + 1));
+    }
+
+    private RunStart runValueStart(ConfigSnapshot snapshot, CallIntent intent, Target target, LiteralCredentials.Marked typed,
+                                   Map<String, String> bound) {
         Map<String, String> marks = new LinkedHashMap<>();
         Map<String, String> encoded = new LinkedHashMap<>();
         bound.forEach((name, value) -> encoded.put(name, UrlForms.encode(value)));
@@ -1042,14 +1104,14 @@ public class ConfigStoreGateway implements OperationGateway {
         boolean complete = filled != null && filled.complete();
 
         if (complete && origin.climbed()) {
-            return new Refusal(what + " is blocked: its url climbs above the start of its path with \"..\", so it would address "
+            return new Refusal("Blocked: its url climbs above the start of its path.", what + " is blocked: its url climbs above the start of its path with \"..\", so it would address "
                     + "something other than what it says." + why, "Nothing was sent. Correct the url, or the value that put \"..\" "
                     + "into it, so that it names the address directly.");
         }
         String movedBy = complete ? movedByRunValue(origin.runStart(), filled.send()) : null;
         if (movedBy != null) {
             // The name of the value. Never the value: it can be a member ID or a typed secret.
-            return new Refusal(what + " is blocked: the value typed for this run for " + movedBy + " would change where it goes, "
+            return new Refusal("Blocked: a value typed for this run would change where it goes.", what + " is blocked: the value typed for this run for " + movedBy + " would change where it goes, "
                     + "its scheme, host, port or base path. A value typed for one run may fill a claim id, a topic, a path segment "
                     + "after the base or a query value, and never the address of a write." + why, "Nothing was sent. To send a write "
                     + "somewhere else, change the environment: upload one whose values point there, with its kind, and activate it.");
@@ -1067,13 +1129,13 @@ public class ConfigStoreGateway implements OperationGateway {
             String belongs = "the address it would go to belongs to the production environment" + (owners.size() > 1 ? "s " : " ")
                     + quotedAll(owners);
             if (!store.allowProdWrites()) {
-                return new Refusal(what + " is blocked: " + belongs + ", and an owner has locked this installation against production "
+                return new Refusal("Blocked: its address is a production address, and this installation is locked against production writes.", what + " is blocked: " + belongs + ", and an owner has locked this installation against production "
                         + "writes." + why, "An owner has locked this installation against production writes (config-store.allow-prod-writes "
                         + "is false), so no unlock is possible. Only whoever owns the installation can change that. To test without "
                         + "production, switch to a sandbox or uat environment.");
             }
             String activeNow = active == null ? "no environment is active" : "the active environment is \"" + active.name() + "\"";
-            return new Refusal(what + " is blocked: " + belongs + ", and " + activeNow + ". A write goes to a production address "
+            return new Refusal("Blocked: its address belongs to a production environment that is not the active one.", what + " is blocked: " + belongs + ", and " + activeNow + ". A write goes to a production address "
                     + "only from that production environment, active and unlocked." + why, "Nothing was sent. To write to "
                     + quotedAll(owners) + ", activate it on the Config tab and unlock writes there. A value typed for one run, "
                     + "application.yml or another environment cannot send a write to it.");
@@ -1083,7 +1145,7 @@ public class ConfigStoreGateway implements OperationGateway {
             // On the mock profile nothing is sent, so the out-of-the-box install can run a write
             // with nothing configured. On live there is no kind to go by, and a fallback url cannot
             // be told from production.
-            return epa.mock() ? null : new Refusal(what + " is blocked: no environment is active, so this tool cannot tell whether "
+            return epa.mock() ? null : new Refusal("Blocked: no environment is active, so this tool cannot tell whether the target is production.", what + " is blocked: no environment is active, so this tool cannot tell whether "
                     + "the target is production." + why, "Upload the environment for this target on the Config tab, state its kind and "
                     + "activate it. A write is sent only to an environment whose kind is known.");
         }
@@ -1108,7 +1170,7 @@ public class ConfigStoreGateway implements OperationGateway {
                         + "only, while part of this url came from " + (ownAddress ? "a value typed for this run" : "application.yml") + "."
                         : ", and the active environment \"" + active.name() + "\" is declared as " + active.kind().wire() + " and has not "
                         + "been confirmed as not production.";
-                return new Refusal(what + " is blocked: the url it would go to contains \"prod\"" + confirmed + " This tool cannot tell "
+                return new Refusal("Blocked: its url contains \"prod\", and this tool cannot tell whether it is production.", what + " is blocked: the url it would go to contains \"prod\"" + confirmed + " This tool cannot tell "
                         + "whether that url is production." + why,
                         "If the target is production, upload its environment with the kind prod, activate it and unlock writes "
                                 + "there. If it is not, upload the environment \"" + active.name() + "\" again with the confirmation "
@@ -1118,7 +1180,7 @@ public class ConfigStoreGateway implements OperationGateway {
             return null;
         }
         if (!store.allowProdWrites()) {
-            return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment, and an owner has locked "
+            return new Refusal("Blocked: this installation is locked against production writes.", what + " is blocked: \"" + active.name() + "\" is a production environment, and an owner has locked "
                     + "this installation against production writes." + why, "An owner has locked this installation against production "
                     + "writes (config-store.allow-prod-writes is false), so no unlock is possible. Only whoever owns the installation "
                     + "can change that. To test without production, switch to a sandbox or uat environment.");
@@ -1139,30 +1201,39 @@ public class ConfigStoreGateway implements OperationGateway {
         String carrier = origin == null ? null : Texts.present(origin.replayOfRunId()) ? "a replay"
                 : Texts.present(origin.suiteRunId()) ? "a suite" : null;
         if (carrier != null && intent.unlock() == null) {
-            return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment, and " + carrier + " never "
+            return new Refusal("Blocked: a replay or a suite never carries the production unlock.", what + " is blocked: \"" + active.name() + "\" is a production environment, and " + carrier + " never "
                     + "carries the production unlock, so its writes to production are always blocked." + why, "Nothing was sent, and "
-                    + "unlocking does not change this. To send this write to production, send it on its own from the PAS tab, with "
-                    + "writes unlocked there.");
+                    + "unlocking does not change this. To send this write to production, send it on its own from " + tab(intent) + ", with "
+                    + "writes unlocked there, or switch to an environment that is not production.");
         }
         if (intent.unlock() == null && unlockedElsewhere(snapshot, active)) {
-            return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment, and this call carries no "
+            return new Refusal("Blocked: this session holds no production unlock.", what + " is blocked: \"" + active.name() + "\" is a production environment, and this call carries no "
                     + "production unlock. Writes are unlocked in a browser session, and a replay, a suite and every other browser "
                     + "session never carry that unlock." + why, "Nothing was sent. To send this write to production, send it on its own "
-                    + "from the PAS tab of the browser session where writes are unlocked.");
+                    + "from " + tab(intent) + " of the browser session where writes are unlocked.");
         }
         if (intent.unlock() != null) {
-            return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment and production writes are "
+            return new Refusal("Blocked: production writes are locked for this session.", what + " is blocked: \"" + active.name() + "\" is a production environment and production writes are "
                     + "locked for this session. An earlier unlock no longer applies, because the configuration has changed or writes were "
                     + "locked again since." + why, "To send it, unlock production writes on the Config tab by typing the environment name. "
                     + "To test without production, switch to a sandbox or uat environment.");
         }
         // Nobody holds an unlock, so writes are locked for every session. Without an origin the
         // caller can be a screen, a replay or a suite, so the step named is the one that helps each.
-        return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment and production writes are "
+        return new Refusal("Blocked: production writes are locked for this session.", what + " is blocked: \"" + active.name() + "\" is a production environment and production writes are "
                 + "locked for this session." + why, "To send it from a screen, unlock production writes on the Config tab by typing the "
                 + "environment name, then send it again. A replay or a suite never carries the unlock, so unlocking does not let its "
-                + "writes to production through: send such a write on its own from the PAS tab. To test without production, switch to "
+                + "writes to production through: send such a write on its own from " + tab(intent) + ". To test without production, switch to "
                 + "a sandbox or uat environment.");
+    }
+
+    /** Where a person sends this call by itself: the tab of its protocol, or Config for a collection request sent as written. */
+    private static String tab(CallIntent intent) {
+        Protocol protocol = intent.operation() == null ? null : intent.operation().protocol();
+        if (protocol == null || protocol == Protocol.RAW) {
+            return "the Config tab, as a collection request sent as written";
+        }
+        return "the " + (protocol == Protocol.SUBSCRIPTION ? Protocol.PAS : protocol).name() + " tab";
     }
 
     /** True when some session holds an unlock for the active production environment in the snapshot's epoch. */

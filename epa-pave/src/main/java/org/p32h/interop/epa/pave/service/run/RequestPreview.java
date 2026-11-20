@@ -25,13 +25,26 @@ import java.util.List;
  * @param blocked     why sending this would be refused by the production guardrail, or null when
  *                    it would be sent. The target is still shown, so a tester can look before
  *                    deciding whether to unlock
+ * @param bodySource  for a collection request sent as written, which body would go with it:
+ *                    supplied, saved or none, as {@code RawDetail} names them. Null for every
+ *                    other operation, whose body the tool builds
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record RequestPreview(EpaOperation operation, String method, ResolvedUrl url, EnvironmentRef environment, String requestName,
-                             boolean scripted, String body, List<String> notes, MemberIdForms memberId, String blocked) {
+                             boolean scripted, String body, List<String> notes, MemberIdForms memberId, String blocked, String bodySource) {
 
     public RequestPreview {
         notes = notes == null ? List.of() : List.copyOf(notes);
+    }
+
+    public RequestPreview(EpaOperation operation, String method, ResolvedUrl url, EnvironmentRef environment, String requestName,
+                          boolean scripted, String body, List<String> notes, MemberIdForms memberId, String blocked) {
+        this(operation, method, url, environment, requestName, scripted, body, notes, memberId, blocked, null);
+    }
+
+    /** The same preview, saying which body would go with a collection request sent as written. */
+    public RequestPreview withBodySource(String source) {
+        return new RequestPreview(operation, method, url, environment, requestName, scripted, body, notes, memberId, blocked, source);
     }
 
     public static RequestPreview of(EpaOperation operation, PreparedCall call, String body, List<String> notes, MemberIdForms memberId) {

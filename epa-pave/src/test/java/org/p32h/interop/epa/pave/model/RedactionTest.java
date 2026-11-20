@@ -139,6 +139,7 @@ class RedactionTest {
             Map.entry("org.p32h.interop.epa.pave.model.LedgerHealth", "a folder, a file name and the ledger's own messages and times"),
             Map.entry("org.p32h.interop.epa.pave.model.LedgerReceipt", "the ledger's own message; the record prints what identifies the run"),
             Map.entry("org.p32h.interop.epa.pave.model.OutcomeOption", "an outcome code of this tool and its label"),
+            Map.entry("org.p32h.interop.epa.pave.model.NextActionOption", "a next action of this tool and its label"),
             Map.entry("org.p32h.interop.epa.pave.model.ScenarioList", "the mock scenario files, synthetic by construction, and the tool's "
                     + "problems with them"),
             Map.entry("org.p32h.interop.epa.pave.model.ScenarioSummary", "one mock scenario file, synthetic by construction"),

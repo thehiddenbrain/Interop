@@ -534,7 +534,7 @@ class ChainServiceTest {
         // The actions that ask a person to fix or check something. Nothing further asks for nothing.
         assertThat(Arrays.stream(NextAction.values()).filter(ChainService::attention)).containsExactlyInAnyOrder(NextAction.FIX_TEST_DATA,
                 NextAction.FIX_REQUEST, NextAction.SUPPLY_INFORMATION, NextAction.CHECK_ENVIRONMENT, NextAction.OPEN_CONFIG,
-                NextAction.UNLOCK_OR_SWITCH, NextAction.REVIEW);
+                NextAction.UNLOCK_OR_SWITCH, NextAction.SEND_ON_ITS_OWN, NextAction.REVIEW);
         assertThat(ChainService.attention(NextAction.NOTHING_FURTHER)).isFalse();
     }
 }

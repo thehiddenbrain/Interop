@@ -266,8 +266,9 @@ public class RunSupport {
      */
     public <D> RunEnvelope<D> blocked(EpaOperation operation, ProdWriteBlockedException refusal, RunRequest request,
                                       RunOrigin origin, Map<String, String> correlation) {
+        NextAction action = carriesNoUnlock(origin) ? NextAction.SEND_ON_ITS_OWN : NextAction.UNLOCK_OR_SWITCH;
         RunRecord record = fill(blockedDraft(operation, refusal, origin), request).correlation(correlation == null ? Map.of() : correlation)
-                .nextAction(NextAction.UNLOCK_OR_SWITCH).build();
+                .nextAction(action).build();
         LedgerReceipt receipt = record(record);
         ResolvedUrl target = refusal.target();
         MemberIdForms memberId = memberId(request);
@@ -284,12 +285,20 @@ public class RunSupport {
                 .verdict(VerdictView.of(RunOutcome.BLOCKED, "Nothing was sent. " + refusal.getMessage(), List.of()))
                 .expectation(Expectations.notCompared(request.expected(), RunOutcome.BLOCKED,
                         "Nothing was sent, so there is nothing to compare with what was expected."))
-                .nextStep(NextStepView.of(NextAction.UNLOCK_OR_SWITCH, Texts.orElse(refusal.action(),
-                        "Unlock writes for this session, or switch to an environment that is not production."), refusal.getMessage()))
+                .nextStep(NextStepView.of(action, Texts.orElse(refusal.action(), action == NextAction.SEND_ON_ITS_OWN ? action.label()
+                        : "Unlock writes for this session, or switch to an environment that is not production."), refusal.getMessage()))
                 .wire(new WireView(attempted, null, memberId.typed().isEmpty() ? null : memberId))
                 .error(ErrorView.of(ErrorKind.BLOCKED, refusal.getMessage() + " Nothing was sent.", refusal.action()))
                 .ledger(receipt)
                 .build();
+    }
+
+    /**
+     * True for a run that came from a replay or a suite. Neither ever carries the production unlock,
+     * so telling it to unlock would send the tester round in a circle.
+     */
+    static boolean carriesNoUnlock(RunOrigin origin) {
+        return origin != null && (Texts.present(origin.replayOfRunId()) || Texts.present(origin.suiteRunId()));
     }
 
     /** True when a result is the one {@link #blocked} builds, which a controller answers with 403. */

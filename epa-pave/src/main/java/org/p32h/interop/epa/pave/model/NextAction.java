@@ -1,38 +1,62 @@
 package org.p32h.interop.epa.pave.model;
 
-/** What the tester should do after a run. Each value is something the screen can offer as a step. */
+/**
+ * What the tester should do after a run. Each value is something the screen can offer as a step.
+ *
+ * <p>Each value carries its instruction in plain words. It is the one wording of the code: the chain
+ * view, the suite rows and the vocabulary the scenarios endpoints serve to the History tab all read
+ * it from here, so no screen keeps a copy that can say something else.
+ */
 public enum NextAction {
     /** Answer the payer's questionnaire. */
-    START_DTR,
+    START_DTR("Answer the payer's questionnaire (DTR)."),
     /** Answer the next adaptive question. */
-    ANSWER_NEXT_QUESTION,
+    ANSWER_NEXT_QUESTION("Answer the next question of the questionnaire (DTR)."),
     /** Answer the questionnaire that was loaded and submit the response. */
-    SUBMIT_RESPONSE,
+    SUBMIT_RESPONSE("Answer the questionnaire that was loaded and submit the response (DTR)."),
     /** Submit the prior authorization request. */
-    START_PAS,
+    START_PAS("Submit the prior authorization request (PAS)."),
     /** Ask for the status of a pended authorization. */
-    CHECK_STATUS,
+    CHECK_STATUS("Ask for the status of the pended authorization (PAS)."),
     /** The journey is complete at this step. That is itself a finding worth recording. */
-    FLOW_ENDS,
+    FLOW_ENDS("Nothing more to do. The journey is complete at this step."),
     /**
      * There is nothing to do after this call, and no journey ended with it: a subscription was
      * read, listed, updated or deleted, or a handshake or a heartbeat arrived. Kept apart from
      * {@link #FLOW_ENDS} so that a call which decided nothing about a case is never read as the
      * end of that case's journey. It belongs to no stage of a journey and asks nothing of a person.
      */
-    NOTHING_FURTHER,
+    NOTHING_FURTHER("Nothing further to do after this call. No journey ended with it."),
     /** The member, provider or code is not known to the service. Check the test data. */
-    FIX_TEST_DATA,
+    FIX_TEST_DATA("Check the test data. The member, provider or code is not known to the service."),
     /** The request was rejected as invalid. Check what was sent. */
-    FIX_REQUEST,
+    FIX_REQUEST("Check what was sent. The service did not accept the request."),
     /** The payer asked for more information before it can answer. Supply it and send again. */
-    SUPPLY_INFORMATION,
+    SUPPLY_INFORMATION("Supply the information the payer asked for and send again."),
     /** The service failed or could not be reached. Check the environment. */
-    CHECK_ENVIRONMENT,
+    CHECK_ENVIRONMENT("Check the environment. The service failed or could not be reached."),
     /** The tool is not configured to send this. Open Config. */
-    OPEN_CONFIG,
+    OPEN_CONFIG("Open Config. The tool is not configured to send this."),
     /** The production guardrail refused. Unlock writes or switch environment. */
-    UNLOCK_OR_SWITCH,
+    UNLOCK_OR_SWITCH("Unlock production writes or switch environment. The guardrail refused to send."),
+    /**
+     * The production guardrail refused a write that came from a replay or a suite. Neither ever
+     * carries the production unlock, so unlocking cannot help it: the write has to be sent by itself
+     * from its own tab, or the tool pointed at something that is not production.
+     */
+    SEND_ON_ITS_OWN("Send this write on its own from its tab, with production writes unlocked there, or point the tool at an "
+            + "environment that is not production. A replay or a suite never carries the production unlock."),
     /** Look at the response detail: the tool cannot say what should happen next. */
-    REVIEW
+    REVIEW("Look at the response detail. The tool cannot say what should happen next.");
+
+    private final String label;
+
+    NextAction(String label) {
+        this.label = label;
+    }
+
+    /** The instruction in plain words, as every screen shows it. */
+    public String label() {
+        return label;
+    }
 }

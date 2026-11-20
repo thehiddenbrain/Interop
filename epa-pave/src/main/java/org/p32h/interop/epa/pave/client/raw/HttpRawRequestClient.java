@@ -23,7 +23,8 @@ import org.springframework.web.client.RestClient;
  * Sends a collection request as written, on the live profile.
  *
  * <p>The request goes wherever its collection points, so the Onyx access token is attached only
- * when that is a host one of the Onyx operations resolves to, and only when the request carries no
+ * when its scheme, host and port are those of an address one of the Onyx operations resolves to,
+ * and only when the request carries no
  * Authorization header of its own. See {@link OnyxHosts} for why.
  */
 @Component
@@ -72,10 +73,13 @@ public class HttpRawRequestClient implements RawRequestClient {
         return executor.execute(client, call, body, token.token() == null ? OPTIONS : OPTIONS.withBearerToken(token.token()));
     }
 
-    /** True when the Onyx token would be attached to this call. For the result to say so in words. */
+    /**
+     * True when the Onyx token would be attached to this call. For the result to say so in words.
+     * The scheme, host and port must all be those of an Onyx address: another port of the same host
+     * can be another service, and plain http would send the token in clear.
+     */
     public static boolean tokenApplies(PreparedCall call, OperationGateway gateway) {
         boolean ownCredential = call.headers().stream().anyMatch(h -> "authorization".equalsIgnoreCase(h.name()));
-        String host = OnyxHosts.host(call.url() == null ? null : call.url().value());
-        return !ownCredential && host != null && OnyxHosts.of(gateway).contains(host);
+        return !ownCredential && OnyxHosts.admits(gateway, call.url() == null ? null : call.url().value());
     }
 }

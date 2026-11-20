@@ -448,10 +448,17 @@ public final class ConfigViews {
      * @param unavailable why it cannot be sent as things stand, in words, or absent when it can
      * @param blocked     why the production guardrail would refuse it for this session, or absent
      * @param note        anything else worth saying, such as that the mock profile needs no url
+     * @param blockedShort  one short sentence for a blocked row, so that a table of rows does not
+     *                      repeat the full reason on every write row. The full reason is in
+     *                      {@code blocked} and, for the active environment, once in
+     *                      {@code writeAccess.reason}. Absent when the row is not blocked
+     * @param lookupEnabled for a lookup row, whether the lookup is switched on, so that no screen
+     *                      has to build a setting key from an operation name. Absent on every other row
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record OperationRow(EpaOperation operation, String label, Protocol protocol, boolean write, boolean outbound, String method,
-                               TargetView target, List<AvailableRequest> requests, String unavailable, String blocked, String note) {
+                               TargetView target, List<AvailableRequest> requests, String unavailable, String blocked, String note,
+                               String blockedShort, Boolean lookupEnabled) {
 
         public OperationRow {
             requests = requests == null ? List.of() : List.copyOf(requests);
@@ -471,6 +478,8 @@ public final class ConfigViews {
             private String unavailable;
             private String blocked;
             private String note;
+            private String blockedShort;
+            private Boolean lookupEnabled;
 
             private Builder(EpaOperation operation) {
                 this.operation = operation;
@@ -506,9 +515,19 @@ public final class ConfigViews {
                 return this;
             }
 
+            public Builder blockedShort(String value) {
+                this.blockedShort = value;
+                return this;
+            }
+
+            public Builder lookupEnabled(Boolean value) {
+                this.lookupEnabled = value;
+                return this;
+            }
+
             public OperationRow build() {
                 return new OperationRow(operation, operation.label(), operation.protocol(), operation.write(), operation.outbound(), method,
-                        target, requests, unavailable, blocked, note);
+                        target, requests, unavailable, blocked, note, blockedShort, lookupEnabled);
             }
         }
     }
@@ -568,6 +587,13 @@ public final class ConfigViews {
 
         public VariableRow {
             usedIn = usedIn == null ? List.of() : List.copyOf(usedIn);
+        }
+
+        /** The source in words, served beside the code so that no screen keeps its own copy. Never read from a request. */
+        @com.fasterxml.jackson.annotation.JsonProperty(value = "sourceLabel",
+                access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+        public String sourceLabel() {
+            return source == null ? null : source.label();
         }
 
         /** Prints no value. A value typed for one run can be an identifier. */

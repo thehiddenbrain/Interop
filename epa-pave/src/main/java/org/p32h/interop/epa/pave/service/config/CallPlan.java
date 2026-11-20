@@ -98,6 +98,18 @@ record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, Strin
         boolean scripted() {
             return source == Source.REQUEST && request.request().scripted();
         }
+
+        /**
+         * The raw body saved with the collection request, with each credential typed into it
+         * standing as a placeholder of its own, or null when the call did not come from a request
+         * or the request has no raw body.
+         */
+        String savedBody() {
+            if (source != Source.REQUEST || org.p32h.interop.epa.pave.model.Texts.blank(request.request().body())) {
+                return null;
+            }
+            return org.p32h.interop.epa.pave.postman.LiteralCredentials.inBody(request.request().body()).template();
+        }
     }
 
     /**
@@ -118,7 +130,13 @@ record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, Strin
      * @param reason what was blocked, on which environment, and why
      * @param action what the tester can do about it
      */
-    record Refusal(String reason, String action) {
+    /**
+     * @param brief  one short sentence for a row of a table, such as the operations on the Config
+     *               tab, where the full reason would be repeated on every write row
+     * @param reason the full reason
+     * @param action what a person can do
+     */
+    record Refusal(String brief, String reason, String action) {
     }
 
     EnvironmentRef environment() {

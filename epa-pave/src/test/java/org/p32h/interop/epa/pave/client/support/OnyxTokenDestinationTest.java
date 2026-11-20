@@ -94,7 +94,6 @@ class OnyxTokenDestinationTest {
                 "{{baseUrl}}/Subscription/{{subscriptionId}}")));
 
         assertThat(OnyxHosts.admits(fixture.gateway, BASE + "/Subscription/SUB-1")).isTrue();
-        assertThat(OnyxHosts.of(fixture.gateway)).containsExactly("onyx.example.invalid");
         assertThat(OnyxHosts.admits(fixture.gateway, ELSEWHERE + "/Subscription/SUB-1")).isFalse();
     }
 }

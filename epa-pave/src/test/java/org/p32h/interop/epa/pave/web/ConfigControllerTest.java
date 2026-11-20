@@ -694,6 +694,12 @@ class ConfigControllerTest {
                 .andExpect(jsonPath("$.operations[13].operation").value("MEMBER_LOOKUP"))
                 .andExpect(jsonPath("$.operations[13].protocol").value("LOOKUP"))
                 .andExpect(jsonPath("$.operations[13].target.tokens[0]").value("id"))
+                // A lookup row says whether the lookup is switched on, so no screen builds a setting key from its name.
+                .andExpect(jsonPath("$.operations[13].lookupEnabled").value(true))
+                .andExpect(jsonPath("$.operations[14].operation").value("PROVIDER_LOOKUP"))
+                .andExpect(jsonPath("$.operations[14].lookupEnabled").value(true))
+                .andExpect(jsonPath("$.operations[0].lookupEnabled").doesNotExist())
+                .andExpect(jsonPath("$.operations[6].blockedShort").doesNotExist())
                 .andExpect(jsonPath("$.settings[?(@.property == 'onyx.auth.client-secret')].value").value("[secret onyx.auth.client-secret]"))
                 .andExpect(jsonPath("$.settings[?(@.property == 'onyx.auth.client-secret')].secret").value(true))
                 .andExpect(jsonPath("$.settings[?(@.property == 'lookup.member.headers.X-Api-Key')].value").value("[redacted]"))
@@ -723,9 +729,20 @@ class ConfigControllerTest {
                 .andExpect(jsonPath("$.writeAccess.writesAllowed").value(false))
                 .andExpect(jsonPath("$.operations[6].blocked", startsWith("PAS submit with the request \"submit Happy Path\" is blocked: "
                         + "\"Onyx Production\" is a production environment and production writes are locked for this session.")))
+                // A blocked row has a short sentence of its own; the full reason is once in writeAccess.reason.
+                .andExpect(jsonPath("$.operations[6].blockedShort").value("Blocked: production writes are locked for this session."))
+                .andExpect(jsonPath("$.writeAccess.reason").value("\"Onyx Production\" is production and writes are locked for this session. "
+                        + "Unlock them by typing the environment name."))
                 .andExpect(jsonPath("$.operations[6].target.display").value("https://api.onyx.example.invalid/fhir/Claim/$submit"))
                 .andExpect(jsonPath("$.operations[7].operation").value("PAS_INQUIRE"))
-                .andExpect(jsonPath("$.operations[7].blocked").doesNotExist());
+                .andExpect(jsonPath("$.operations[7].blocked").doesNotExist())
+                .andExpect(jsonPath("$.operations[7].blockedShort").doesNotExist());
+
+        // A switched-off lookup says so on its row.
+        ConfigFixture off = ConfigFixture.on(directory.resolve("off")).lookup("provider.enabled", "false").build();
+        mvc(off).perform(get("/api/config/effective")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.operations[13].lookupEnabled").value(true))
+                .andExpect(jsonPath("$.operations[14].lookupEnabled").value(false));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -758,12 +775,17 @@ class ConfigControllerTest {
                 .andExpect(jsonPath("$.variables", hasSize(3)))
                 .andExpect(jsonPath("$.variables[0].name").value("baseUrl"))
                 .andExpect(jsonPath("$.variables[0].source").value("ENVIRONMENT"))
+                // Each source code is served with its words, so the screen keeps no copy of them.
+                .andExpect(jsonPath("$.variables[0].sourceLabel").value("The active environment"))
+                .andExpect(jsonPath("$.url.variables[0].source").value("ENVIRONMENT"))
+                .andExpect(jsonPath("$.url.variables[0].sourceLabel").value("The active environment"))
                 .andExpect(jsonPath("$.variables[0].secret").value(false))
                 .andExpect(jsonPath("$.variables[0].display").value("https://sandbox.onyx.example.invalid/fhir"))
                 .andExpect(jsonPath("$.variables[0].resolved").value(true))
                 .andExpect(jsonPath("$.variables[0].usedIn[0]").value("the url"))
                 .andExpect(jsonPath("$.variables[1].name").value("$guid"))
                 .andExpect(jsonPath("$.variables[1].source").value("GENERATED"))
+                .andExpect(jsonPath("$.variables[1].sourceLabel").value("Made up by the tool for this call"))
                 .andExpect(jsonPath("$.bodyTemplate", containsString("\"value\": \"{{$guid}}\"")))
                 .andExpect(jsonPath("$.body", containsString("\"value\": \"00000000-0000-4000-8000-000000000001\"")))
                 .andExpect(jsonPath("$.bodyUnresolved", hasSize(0)))

@@ -657,7 +657,8 @@ class DestinationGuardrailTest {
                     + "\"vendor-live\" is a production environment, and a replay never carries the production unlock, so its writes to "
                     + "production are always blocked.");
             assertThat(replay.action()).as(profile).isEqualTo("Nothing was sent, and unlocking does not change this. To send this write to "
-                    + "production, send it on its own from the PAS tab, with writes unlocked there.");
+                    + "production, send it on its own from the PAS tab, with writes unlocked there, or switch to an environment that is not "
+                    + "production.");
             assertThat(blocked(fixture, submit().withOrigin(new RunOrigin("suite-1", "case-1", null))).getMessage()).as(profile)
                     .contains("and a suite never carries the production unlock");
 
