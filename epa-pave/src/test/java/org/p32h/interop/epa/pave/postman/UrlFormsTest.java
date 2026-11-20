@@ -22,7 +22,7 @@ class UrlFormsTest {
     private static final String ACCENTED = "caf" + (char) 0xE9;
 
     /** Every character that could change the shape of a url if it were substituted as written. */
-    private static final String[] AWKWARD = {"ABC123456   01", "a/b", "100%", "a&b=c", "what?", "frag#ment", "plus+sign", "semi;colon",
+    private static final String[] AWKWARD = {"S12345678   01", "a/b", "100%", "a&b=c", "what?", "frag#ment", "plus+sign", "semi;colon",
             "../../admin", ACCENTED, "a b/c%d&e?f#g"};
 
     private static UrlForms.Skeleton skeleton(String template, String... keysAndValues) {
@@ -45,7 +45,7 @@ class UrlFormsTest {
         assertThat(UrlForms.encode("=")).isEqualTo("%3D");
         assertThat(UrlForms.encode(ACCENTED)).isEqualTo("caf%C3%A9");
         assertThat(UrlForms.encode("AZaz09-._~")).isEqualTo("AZaz09-._~");
-        assertThat(UrlForms.encode("ABC123456   01")).isEqualTo("ABC123456%20%20%2001");
+        assertThat(UrlForms.encode("S12345678   01")).isEqualTo("S12345678%20%20%2001");
         assertThat(UrlForms.encode(null)).isEmpty();
     }
 

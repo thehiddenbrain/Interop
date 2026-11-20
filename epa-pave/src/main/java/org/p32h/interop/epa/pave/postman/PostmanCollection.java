@@ -13,14 +13,22 @@ import java.util.Map;
  * @param variables the variables defined on the collection, disabled ones included
  * @param requests  every request, in the order the file lists them
  * @param notes     what the parser set aside or had to decide, in words, for the upload result
+ * @param helpers   every authentication helper the file sets, on the collection, on a folder or
+ *                  on a request, whether or not a request inherits it. Its values are never kept
  */
 public record PostmanCollection(String postmanId, String name, String schema, List<PostmanVariable> variables,
-                                List<PostmanRequest> requests, List<String> notes) {
+                                List<PostmanRequest> requests, List<String> notes, List<PostmanAuth> helpers) {
 
     public PostmanCollection {
         variables = variables == null ? List.of() : List.copyOf(variables);
         requests = requests == null ? List.of() : List.copyOf(requests);
         notes = notes == null ? List.of() : List.copyOf(notes);
+        helpers = helpers == null ? List.of() : List.copyOf(helpers);
+    }
+
+    public PostmanCollection(String postmanId, String name, String schema, List<PostmanVariable> variables, List<PostmanRequest> requests,
+                             List<String> notes) {
+        this(postmanId, name, schema, variables, requests, notes, List.of());
     }
 
     /** The collection variables resolution uses: enabled ones only, the last entry of a repeated name. */

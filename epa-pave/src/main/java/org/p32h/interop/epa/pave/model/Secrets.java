@@ -23,7 +23,14 @@ public final class Secrets {
 
     private static final Set<String> SECRET_WORDS = Set.of("secret", "password", "passwd", "pwd", "pass", "pw", "passphrase",
             "token", "key", "apikey", "credential", "credentials", "creds", "private", "auth", "authorization", "authentication",
-            "bearer", "cookie", "signature", "jwt", "assertion", "session", "sessionid");
+            "bearer", "cookie", "signature", "jwt", "assertion", "session", "sessionid", "passcode", "pin", "otp", "sas", "sig",
+            "hmac", "dsn", "xsrf", "csrf", "pfx", "accesscode", "connectionstring");
+
+    /**
+     * Credentials whose usual name is two words, such as connectionString or access_code. The
+     * words of the name are joined and looked for whole, so neither word alone is made a secret.
+     */
+    private static final List<String> TWO_WORD_SECRETS = List.of("connectionstring", "accesscode", "sharedaccesssignature");
 
     /**
      * Words long enough to be recognised inside a longer one, so a name written with no separator,
@@ -43,7 +50,7 @@ public final class Secrets {
      */
     private static final Set<String> DESCRIPTOR_WORDS = Set.of("url", "uri", "endpoint", "host", "path", "id", "type",
             "name", "scope", "scopes", "ttl", "expiry", "enabled", "prefix", "algorithm", "alg", "method", "mode",
-            "grant", "realm", "audience", "issuer");
+            "grant", "realm", "audience", "issuer", "format");
 
     /** A mask as {@link #mask} writes it, with the name it stands for. */
     private static final Pattern MASK = Pattern.compile("\\[secret ([^\\[\\]]+)]");
@@ -71,7 +78,8 @@ public final class Secrets {
                 return false;
             }
         }
-        return words.stream().anyMatch(Secrets::secretWord);
+        String joined = String.join("", words);
+        return words.stream().anyMatch(Secrets::secretWord) || TWO_WORD_SECRETS.stream().anyMatch(joined::contains);
     }
 
     /**

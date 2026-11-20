@@ -1,14 +1,20 @@
 package org.p32h.interop.epa.pave.service.config;
 
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
+import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.model.ResolvedUrl;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The one door every outbound call goes through.
@@ -88,17 +94,36 @@ public interface OperationGateway {
      *   <li>A header that asks the far side to act with another method is judged by the method it
      *       asks for.</li>
      * </ul>
-     * A call that is a write is then held to these:
+     * The url is judged in one normal form, and that form is what is sent: percent-escapes of
+     * unreserved characters decoded and dot segments removed, as a server does before it acts.
+     *
+     * <p>A call that is a write is then held to these, in order. The destination decides, not the
+     * environment that happens to be active:
      * <ul>
+     *   <li>A write whose url climbs above the start of its path with {@code ..} is refused.</li>
+     *   <li>A value typed for one run may not move a write. The scheme, host, port and the path up
+     *       to where the first value typed for the run starts must be written by the configuration
+     *       in force on its own, and that value may start only after a slash that follows the host,
+     *       or in the query. Otherwise the write is refused, and the way through is to change the
+     *       environment. A value typed for the run may still fill a claim id, a topic, a path segment
+     *       after the base or a query value; a read may still be pointed anywhere.</li>
+     *   <li>A write to an address that belongs to a production environment, one stored now or one
+     *       stored here before and deleted since, is a write to that production environment
+     *       whatever is active. It goes only when that environment is the active one, and is then
+     *       held to the rule below; otherwise it is refused, the floor first, and the refusal names
+     *       the production environment.</li>
      *   <li>A write to an environment of kind {@code prod} is refused unless the configuration
      *       floor allows production writes and {@code intent.unlock()} is an unlock this gateway
-     *       minted for that environment and still holds.</li>
-     *   <li>A write whose complete url contains "prod" is refused under an environment that is not
-     *       declared production, unless the uploader confirmed that environment as not production.
-     *       The kind belongs to the environment and the url can come from elsewhere, a value typed
-     *       for one run or a literal in application.yml, so without this a production url could
-     *       ride in under a sandbox's name. There is nothing to unlock in this case: the way
-     *       through is to declare the environment for what it is.</li>
+     *       minted for that environment and still holds. A relock does not move the epoch; a call
+     *       prepared under an unlock stops answering its epoch once the unlock is gone. The
+     *       refusal is worded from {@code intent.origin()}: a replay or a suite is told that it
+     *       never carries the unlock, not to unlock.</li>
+     *   <li>A write whose complete url reads as production, the text "prod" in it once escapes are
+     *       decoded or in its host, is refused under an environment that is not declared
+     *       production. The uploader's confirmation that the environment is not production covers
+     *       that environment's own addresses only: never a url application.yml contributed to, and
+     *       never what a value typed for the run put into it. There is nothing to unlock in this
+     *       case: the way through is to declare the environment for what it is.</li>
      *   <li>On the live profile a write with no active environment is refused, because the tool
      *       cannot tell whether a fallback url is production. Reads still go to the fallback url.
      *       On the mock profile nothing is sent, so a write with no environment is allowed.</li>
@@ -148,4 +173,37 @@ public interface OperationGateway {
      * environment, such as an access token, is keyed on it.
      */
     long epoch();
+
+    /**
+     * The url each outbound operation of these protocols goes to under the configuration in force
+     * by itself: no value typed for any run, no unlock. A placeholder or a token with no value is
+     * left as written, so the scheme, host and port of an operation whose path still waits for an
+     * identifier are known. Secrets are masked. For deciding where a credential the configuration
+     * holds, such as the access token, may be sent. An operation that names no url is left out.
+     *
+     * <p>This default asks {@link #prepare} and so leaves out an operation whose url is incomplete.
+     * The gateway of this tool overrides it and leaves out only an operation with no url at all.
+     */
+    default List<String> configuredUrls(Set<Protocol> protocols) {
+        List<String> urls = new ArrayList<>();
+        for (EpaOperation operation : EpaOperation.values()) {
+            if (!operation.outbound() || !protocols.contains(operation.protocol())) {
+                continue;
+            }
+            ResolvedUrl url;
+            try {
+                url = prepare(CallIntent.of(operation)).url();
+            } catch (ProdWriteBlockedException refusal) {
+                // A write that is blocked still has a target, and it is one the configuration names.
+                url = refusal.target();
+            } catch (RuntimeException e) {
+                // Not configured, or not resolved. That operation names no url.
+                continue;
+            }
+            if (url != null && url.display() != null) {
+                urls.add(url.display());
+            }
+        }
+        return urls;
+    }
 }

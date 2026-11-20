@@ -95,7 +95,8 @@ final class LookupSender {
             // The gateway refuses a url value it has no token for. Its message is not used: it may name the value, which is the identifier.
             return Attempt.notSent(LookupOutcomes.noPlaceForTheIdentifier(words));
         } catch (ProdWriteBlockedException e) {
-            return Attempt.notSent(LookupOutcomes.refusedByTheGuardrail(words, e.environment() == null ? null : e.environment().name()));
+            // The gateway's refusal names the header, the request or the environment, never the identifier or a value.
+            return Attempt.notSent(LookupOutcomes.refusedByTheGuardrail(words, e.getMessage(), e.action()));
         } catch (ConfigurationChangedException e) {
             return Attempt.notSent(LookupOutcomes.configurationChanged(words));
         }

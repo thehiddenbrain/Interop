@@ -33,7 +33,7 @@ class ConfigStoreGatewayTest {
     private static final String SANDBOX_FHIR = "https://sandbox.onyx.example.invalid/fhir";
 
     /** Values that would change the shape of a url if they were put into it as written. */
-    private static final String[] AWKWARD = {"ABC123456   01", "a/b", "100%", "a&b=c", "what?", "frag#ment"};
+    private static final String[] AWKWARD = {"S12345678   01", "a/b", "100%", "a&b=c", "what?", "frag#ment"};
 
     @TempDir
     Path directory;

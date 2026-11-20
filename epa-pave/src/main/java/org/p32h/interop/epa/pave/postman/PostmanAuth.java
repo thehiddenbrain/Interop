@@ -13,10 +13,17 @@ import java.util.List;
  * @param type      the helper, for example bearer, basic, apikey or oauth2
  * @param from      where it is set, in words: this request, a named folder, or the collection
  * @param variables the placeholder names the helper refers to. Its values are never kept
+ * @param literals  the names of the helper's fields that hold a credential typed into the file,
+ *                  not referred to through a placeholder. The values are never kept
  */
-public record PostmanAuth(String type, String from, List<String> variables) {
+public record PostmanAuth(String type, String from, List<String> variables, List<String> literals) {
 
     public PostmanAuth {
         variables = variables == null ? List.of() : List.copyOf(variables);
+        literals = literals == null ? List.of() : List.copyOf(literals);
+    }
+
+    public PostmanAuth(String type, String from, List<String> variables) {
+        this(type, from, variables, List.of());
     }
 }
