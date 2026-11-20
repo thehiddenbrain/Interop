@@ -102,7 +102,7 @@ different project; leave it alone. Every command below is run from `epa-pave/`.
 On Windows: `gradlew.bat clean build`. The first build downloads Gradle 9.5.0 and the
 dependencies, so it needs to reach `services.gradle.org` and Maven Central, or the internal
 mirrors described under [Running on a corporate workstation](#running-on-a-corporate-workstation).
-It runs about 2,770 tests and takes a few minutes. Correct output ends with:
+It runs about 2,870 tests and takes a few minutes. Correct output ends with:
 
 ```
 > Task :verifyParametersFlag
@@ -368,9 +368,10 @@ on live. `app.mock-latency-enabled: false` removes it.
 
 Open `http://localhost:8057/`. This section takes you through the page as it is on the revision
 named at the end. Words in quotation marks are what the screen says; a button's name is given as
-it reads. Some sentences the server writes are still being reworded, so a line on your screen may
-read a little differently from one quoted here; the buttons, the order and the colours do not
-change with them.
+it reads. The screens were last walked in a browser on an earlier revision (see the last
+section); a sentence the last fixes changed is quoted here from the source, so a line on your
+screen may read a little differently from one quoted here; the buttons, the order and the colours
+did not change with them.
 
 ### What every tab shows
 
@@ -2189,55 +2190,51 @@ repeat every finding id; it leaves out nothing a tester has to know.
 
 ## What this README was checked against
 
-- **Revision:** `428eff5`, the head of `epa-pave`, with this README added. The README was checked
-  against the running tool on `e1d37dc` (branch `docs-4`): everything the earlier pass described
-  on `5763c41`; the server task and the pass over the screens that followed it; six lines those
-  two left for each other; and the fixes for the house style audit, the completeness audit on
-  screen and the walkthrough by a business tester. The four tasks merged after it (the ledger, the
-  guardrail, the mock scenarios, the screens, at `9be24c7`, `6037d2a`, `c413fc0` and `84d52ec`)
-  changed what some sentences describe. Those sentences were then rewritten on `428eff5` from the
-  source of that revision and the reports of the fixes, without starting the tool again: what
-  they say the fixed behaviour does was seen by the fix's author, where the sentence says so, and
-  by nobody else. Everything below this line describes `e1d37dc`.
+- **Revision:** `902e0d9`, the head of `epa-pave` as handed over, with this README added. That is
+  `428eff5` with the last four fixes merged (completeness on screen `fff3bd0`, the walkthrough
+  `10108d4`, the ledger `54f9912`, the guardrail `ca716a1`), the merge `60876fa` that kept both
+  changes to one method of the ledger record, and the test corrected in `6b7abba`. Every sentence
+  that the last fixes made untrue was rewritten on `902e0d9` from the source of that revision (each
+  quoted sentence found in it) and from the reports of the fixes. What a sentence says a fix does
+  was seen by the fix's author where the sentence says so, and by nobody else, unless this section
+  names it below.
+- **Run again on `902e0d9` for this README**, on the jar the integrator built from that revision
+  (`merged-902e0d9.jar`), freshly started on the mock profile on port 8194 (port 8057 was not used
+  on that machine):
+  - **every `curl` example under [Endpoints](#endpoints)**, in order, with `localhost:8194` in place
+    of `localhost:8057`, from a copy of `samples/`: 70 examples, each answered the status in its
+    comment. The three that take a suite run id were run by hand with that id, because the script
+    that runs the examples put the run id in its place; the suite finished "Finished: 6 cases. 4
+    passed, 1 failed, 1 unverified.";
+  - on mock, through the API: the PAS next step for `pas-14-no-decision` ("Next: record run run-...
+    as "no decision returned" and report it to the people who look after the service." with its
+    reason, action `REVIEW`); a sample notification recorded with `answeredBy` `SCENARIO`; and a
+    production environment whose address is `{{env:PAVE_PRODURL}}` refused at upload with the
+    sentence quoted under [Uploading an environment](#uploading-an-environment).
+- **The two proofs of "Prove it before handover"** were run by the integrator through the API (not
+  in a browser) on the same jar on mock: `P32H-NO-AUTH` answered "Prior authorization is not
+  required." (`NO_AUTH_REQUIRED`, pass) and `P32H-EMPTY` "The service answered but returned no
+  determination." (`NO_DETERMINATION`, next step "Next: record run run-... as "no determination
+  returned" ..."), two different ledger lines with no request or response body in them; and the
+  journey with `P32H-DOC-DTR` from CRD through DTR to PAS carried the completed
+  QuestionnaireResponse, its answers the same as those DTR completed (17 among them), in the PAS
+  request as previewed and as sent (wire view), and PAS answered approved.
+- **Not run again on `902e0d9`:** `run.sh` (on this machine it would build the jar with
+  `./gradlew`, which only the shared wrapper may run; it was last run on `e1d37dc`, and no line of
+  it has changed since), the screens in a browser (the journey under [Using the
+  screens](#using-the-screens) was last walked by an automated browser on `e1d37dc`, and what the
+  last fixes changed on screen was looked at by their authors only), `run.cmd`, STS, a mirror (with
+  or without credentials), a token server, Onyx, any behaviour on live against a stand-in, a screen
+  reader, a phone-width screen, 1920 by 1080.
 - **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0. On the machine this README was checked on every
   Gradle command went through a shared wrapper that adds `--offline` and lets two builds run at a
   time, a file in the home directory caps the memory Gradle may use, and every Java process ran
   with `_JAVA_OPTIONS` set to `-XX:+UnlockDiagnosticVMOptions
   -XX:DisableIntrinsic=_base64_encodeBlock,_base64_decodeBlock`. `./gradlew` itself was not run
-  for this revision: its Gradle part was run through that wrapper (`bootJar`, then `clean build`).
-  The build in step 3 is that run of `clean build`: 2,767 tests, 2 skipped, 0 failed (it took `compileJava` and `compileTestJava`
-  from the build cache). On `428eff5` the build through the same wrapper ran 2,826 tests: 2,824
-  passed, 2 skipped, none failed. No fresh clone was built for
-  this revision; the build audit (V1) built one of `9e285a1` from the remote.
-- **`run.sh`** was started from another directory with the jar present, as
-  `./run.sh mock --server.port=8191` (port 8057 was not used on that machine), and printed the
-  lines of step 4 with 8191 in place of 8057; `curl -s localhost:8191/api/mode` answered as step 5
-  shows, with that port. With `--codelist.file=` set to the absolute path of the sample list, the
-  self-check answered as [The procedure code list](#the-procedure-code-list) quotes.
-  `./run.sh live --server.port=8191` was run (live, writes refused, member lookup `DISABLED`), and
-  its refusal of an unknown profile. Building the jar from nothing through `run.sh`, and its
-  refusal of a Java older than 21, were checked on an earlier revision and not again (no `run.sh`
-  line changed since).
-- **Every `curl` example under [Endpoints](#endpoints)** was run in order against a freshly started
-  tool on the mock profile, with `localhost:8191` in place of `localhost:8057`, and answered the
-  status in its comment: 70 examples, none different.
-- **The screens** were looked at in headless Chromium at 1366 by 768 for this revision: the journey
-  under [Using the screens](#using-the-screens) from CRD to DTR to PAS with `P32H-DOC-DTR`, ticked
-  as a chain (every sentence quoted in it, the PAS call names, the chain bar, the answer 17 in the
-  preview and in the wire view, no console error). Every other sentence quoted from a screen was
-  found in the source of this revision or in the report of the fix that wrote it; the dotted frame
-  of a step nobody answered was read from the API (`answeredBy` `NOBODY`), not looked at.
-- **Observed on the running tool on `e1d37dc`, through the API, as quoted above:** on mock,
-  the next step of no determination; the heading of a played timeout and of a played 500 (the
-  second has changed since, see above); the code list sentence on a CRD finding; a note naming
-  the member ID of a pasted body recorded as typed (refused since); a repeated key refused; the statuses 400, 405, 406, 413 and 415; the upload warnings of an
-  address that cannot be read, an encoded separator, a server shared with production and a
-  variable named as member data, in the upload answer and the environment list; an upload refused
-  for a production address with leading zeros, quoting the address as read; with the floor open,
-  the unlock and its sentence, a write let through in the unlocking session and blocked in another,
-  and Lock from a second session refusing the first session's next write; the sample code list said
-  to be synthetic; and on live with nothing configured, the mode and a disabled lookup.
-- **Not checked for this revision:** `run.cmd`, STS, a mirror (with or without credentials), a token
-  server, Onyx, any behaviour on live against a stand-in (the guardrail's refusals on live, a masked
-  notification or lookup field, the 409 at the moment of sending), a screen reader, a phone-width
-  screen, 1920 by 1080.
+  for this revision. The last whole build this README names is that of `902e0d9` through that
+  wrapper (`clean build`): 2,870 tests, 0 failures, 0 errors, 2 skipped, "No house style
+  violations.", BUILD SUCCESSFUL. No fresh clone was built for this revision by the writer of
+  this README; the integrator's last gates, a fresh clone with the build cache off among them, run
+  after it, and their results are in the pull request description. The build in step 3 of the
+  checklist and the output of `run.sh` in step 4 were pasted from an earlier revision (`e1d37dc`)
+  and were not run again.
