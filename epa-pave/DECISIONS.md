@@ -175,6 +175,8 @@ environment it is blocked unless its method is GET, HEAD or OPTIONS.
 Section 28.2 says a suite against production reports writes as blocked. A replay or a suite case
 never carries an unlock, so that holds even when the tester has unlocked writes in their session.
 A deliberate production write is done one at a time on the PAS tab.
+(Completed by D-183: a replay or a suite row refused for this reason gets the next action
+`SEND_ON_ITS_OWN`, which says to send the write on its own from its tab, not to unlock.)
 
 **D-024. An environment's kind is required at upload and never inferred.**
 A Postman export does not say whether it is production. The kind is supplied at upload. An
@@ -641,6 +643,9 @@ is not JSON, answered with no body, or a fault), lists every field of it, reads 
 OperationOutcome issue by issue, and records the run. A tester can declare the outcome or the HTTP
 status they expect (`http-status=200`). On mock every raw request gets the same fixed answer,
 which says the mock does not model it.
+(Completed by D-184: without a body from the caller the body saved with the collection request is
+sent, a `{token}` in the url is filled from `urlValues`, and on mock the result says a scenario
+answered and nothing was sent.)
 
 **D-098. The Onyx token goes only to an Onyx host.**
 A vendor collection can hold a request to another service. The Onyx access token is attached to a
@@ -650,6 +655,8 @@ is requested at all.
 (Replaced for every protocol and lookup call by D-143, rule 7, which compares scheme, host and
 port. A request sent from the collection as it is still follows the host rule of this entry; changing
 it is open work at the revision of D-175.)
+(Done since: a request sent from the collection as it is now follows D-143 rule 7 as well, by scheme,
+host and port. See D-184.)
 
 **D-099. The embedded server's own errors use the shared error shape.**
 A request the server refuses before it reaches the application, such as one with characters a url
@@ -774,6 +781,7 @@ in the test sources, so it is never in the jar, and it is removed when the real 
 It is a test configuration, and `PaveApplicationTest` checks that nothing from the test sources is
 part of the application's context: without that, the application's own start-up test picked the
 stand-ins up from the class path and would have passed on wiring the application does not have.
+(Removed as planned: no `DevHarness` is in the sources at the revision of D-201.)
 
 **D-115. The tool listens on this machine only, unless someone decides otherwise.**
 `server.address` is `127.0.0.1` in `application.yml`. The specification is silent on the bind
@@ -835,6 +843,8 @@ the vendor. The comparison covers CRD. Nothing equivalent exists for DTR or PAS.
 (The endpoint is on the merged line since the fix wave; until then this entry described a branch.
 How it pairs elements and words differences is under D-170, and the request it compares with is
 the one D-157 describes.)
+(The screen for it is the CRD tab, D-194. At the revision of D-201 the comparison still returns a
+credential the pasted request carries as it was typed; masking it is decided and not done, D-200.)
 
 **D-136. The guides the tool is held to are version 2.0.1, on the operator's word.**
 Asked which version to compare with, the operator answered "2.0.1". That is also the version the
@@ -1065,6 +1075,9 @@ ledger's failed filter. Only a step that used what an earlier step handed on is 
 replayable alone; the first version of that note said it of every chain with a DTR or PAS step,
 which was false for a chain started at PAS or DTR. The route "the package can go straight on, so
 the submission follows" is still driven by no test and no mock scenario.)
+(Since D-183 and D-189: the refusal a tester meets on replaying such a step says to run the journey
+again as a suite row of the protocol `chain`, and a replay or suite row refused on production gets
+its own next action instead of "unlock".)
 
 **D-132. A submission that is replayed or run from a suite is a new request.**
 It gets a new claim identifier every time. Sending a stored identifier again would be read by a
@@ -1150,6 +1163,8 @@ corrected above, and the screen says this wherever a tester meets such a line.
 (Narrowed by D-167: the chain view gives its replay note only when a step of the chain is marked.
 Not true at the revision of D-175: the refusal a tester meets on replay does not point to the
 suite row, and there is no screen on that line. Both are open work.)
+(Both done by the revision of D-201: the replay refusal points to the suite row (D-189), and the
+History tab is on the line, offering no replay on a line the ledger says replay refuses (D-172).)
 
 **D-139. "Send a request from the collection as it is" does not send the body saved in the collection. D-097 overstated it.**
 Found by the newcomer who followed the README. `POST /api/raw` sends the method, the address and
@@ -1161,6 +1176,8 @@ what is sent.
 request is sent, resolved like the url and the headers, and the result says which body went. That
 change was being built at the revision of D-175 and is not on that line. Until it lands, this
 entry describes the tool.)
+(Landed: D-184. This entry no longer describes the tool. The README still repeats it; correcting the
+README is open work at the revision of D-201.)
 
 ## Decisions of the fix wave
 
@@ -1203,6 +1220,7 @@ where it may not sit, an element sent more often than allowed) was asked for by 
 integrator decided after the wave to add it, as `GUIDE_RULE_BROKEN`, and to move to it the same
 misfits in DTR and PAS too. That is open work: at the revision of D-175 such findings are filed
 as `REQUIRED_ELEMENT_MISSING` with a title that names the rule.
+(Done: `GUIDE_RULE_BROKEN` exists and CRD, DTR and PAS raise it. What it covers is D-177.)
 
 **D-141. A value nobody supplied is never invented, and the request says what it left out.**
 Section 8's rule (a coverage status the lookup did not return is not "active") applied to every
@@ -1282,6 +1300,10 @@ call, but the four protocol services and the raw service do not yet pass their o
 replay or suite refused on locked production is still told to unlock. Rule 7 does not yet hold for
 a request sent from the collection as it is, which still attaches the token by host alone (D-098).
 Both changes are open work at the revision of D-175.
+(Both built since. Rule 7 holds for a request sent from the collection as it is, proven on the wire
+(D-184). Rule 8: the services pass their origin and a refused replay or suite row gets a next action
+of its own (D-183). The two halves of rule 8 were made on two branches, each checked without the
+other, and nobody has seen them together on the merged line.)
 
 **D-144. How the destination rules are applied, from the fix and its verification.**
 The verification of D-143 got through again five ways, all closed:
@@ -1420,6 +1442,7 @@ with the five headers and fixed text, because the request guard does not run the
 request reaches either answer. A method the request made up is no longer repeated in a 405; a
 method HTTP defines still is. Four "not found" sentences still repeat an identifier taken from the
 request; changing them is open work at the revision of D-175.
+(Done: D-185.)
 
 ### The ledger
 
@@ -1479,7 +1502,7 @@ From the fixture audit (V4-02, V4-03, V4-05, V4-08) and its verification.
   sentinel fall to the default scenario, the silent wrong answer the audit was about.
 - An external `app.scenario-dir` must hold all four protocol directories (crd, dtr, pas, raw).
 - A file may name several sentinels (`sentinelMemberIds`, `sentinelNpis`) beside the single keys. The
-  scenario list still shows only the first; showing all is open work.
+  scenario list still shows only the first; showing all is open work. (Done: D-186.)
 - An unknown top-level key is quoted only when it is letters only and at most 40 characters, so a
   value pasted as a key is never repeated.
 - A sentinel inside a pasted body selects its scenario only as a whole JSON text value, compared as
@@ -1556,6 +1579,9 @@ From findings 03, 13 to 16, 19 to 21 and 24, and its verification.
 - A CRD run's own id is handed on to a later step only inside a suite chain. A manual CRD then PAS
   run writes no `correlatedRunId`; that is open work.
 
+(Both open items above are done: the `response` reference is handed on to DTR as a reference
+(D-176), and a manual CRD then PAS or CRD then DTR run links the later line to the CRD run (D-181).)
+
 **D-157. CRD: what the request carries.**
 From findings 04 to 07, 18, 22 and 23, DTR-05, and its verification.
 - The Patient's medical record number comes from the variables `patientMrn` and `patientMrnSystem`
@@ -1572,7 +1598,8 @@ From findings 04 to 07, 18, 22 and 23, DTR-05, and its verification.
   to read the Patient, the Coverage or the provider, instead of two notes that read as contradicting.
 - `service/run/CaseResources` keeps its earlier methods beside the CRD 2.0.1 forms, because DTR
   still calls them; DTR's package request therefore still builds its Patient and Coverage the old
-  way, and moving it is open work.
+  way, and moving it is open work. (Done: D-178. The earlier methods are still in the file with no
+  caller in the application.)
 - The mock fills each update it returns with the order the request actually sent, plus the file's
   coverage information, rather than a cut-down order in each file, which would give a repeated order
   the first order's code.
@@ -1618,7 +1645,8 @@ From PAS-01, PAS-09, PAS-10, PAS-13, PAS-14, NOT-01, NOT-02, MOCK-01 to MOCK-03,
 - A review action found outside the place 2.0.1 gives it is still read, and flagged by a placement
   field and a verdict sentence; one on an added item (a 2.2.0 ballot element) is
   `OTHER_VERSION_CONTENT` and decides nothing. No finding kind fits a misplaced review action, so
-  it raises none.
+  it raises none. (Corrected by D-177: one on the ClaimResponse or on the item itself now raises a
+  `GUIDE_RULE_BROKEN` finding.)
 - An inquiry answered with a bundle holding no ClaimResponse and no OperationOutcome is its own
   outcome, `NO_MATCHING_AUTHORIZATION`, a finding about test data; the same body after a submission
   stays "no decision".
@@ -1668,6 +1696,9 @@ or a secret variable in an error text, a link or a property name.
 - CRD, DTR and the lookups do not do this yet: they copy parsed values into their designed views
   unmasked. Moving the masking to one place every protocol uses was decided after the wave and is
   open work. A secret sent back as a JSON number is not masked anywhere.
+(Done for CRD, DTR, PAS, subscriptions and both lookups: D-179. Not done for a request sent from the
+collection as it is, whose "returned but not interpreted" fields are still read from the body as
+received; until the server does it, the page masks them, D-196. The JSON number is still not masked.)
 
 **D-163. Whether a failed call may have reached the service, and other words a result now chooses with care.**
 From the PAS follow-up.
@@ -1733,7 +1764,7 @@ taken from what the hand-over holds ("no questionnaire response goes with it", o
 questionnaires go with it, and this one does not"), with the reason. In a package of several, the
 integrator decided after the wave that such a questionnaire is done and is dropped from what is
 still to answer, so that PAS is offered once the others are answered. That is open work: at the
-revision of D-175 a later step of the same package still lists it as unanswered. The scenario
+revision of D-175 a later step of the same package still lists it as unanswered. (Done: D-180.) The scenario
 files keep some departures from 2.0.1 on purpose, each said in its own description: drafts with no
 item where the SDC first call carries none, a completed response with no item, no draft where the
 tool's build-from-nothing path must be exercised, no questionnaire, a bare Bundle with two
@@ -1763,7 +1794,8 @@ From the chain review (F1 to F6, F11, F14) and the suites review, with their ver
   and the chain view no longer says the self-check names a damaged file, which it does not. A CRD
   or PAS step counts as having used it whenever it was handed anything at all, even only the
   procedure codes its own line already holds, so such a step is still marked (the chain review's
-  F7; open).
+  F7; open). The refusal of such a step now points to a suite row of the protocol `chain` (D-189);
+  the marking itself is unchanged.
 - The ledger record gained `caseExpected` and `caseResult`. The History CSV export takes its
   columns from the record by reflection, so it gained those two columns.
 - A tool failure keeps the frozen status `NOT_RUNNABLE` and is told apart by a fault reference, with
@@ -1879,6 +1911,13 @@ rediscover:
   is reported before sending; whether to send is the server's decision.
 - History does not offer replay on a line the ledger says replay refuses; a date-range replay counts
   before it sends; every date is said to be a UTC day.
+
+(Since merged, on the line D-201 describes. Two of these no longer hold as written: the shared client
+now sends PUT and DELETE, and the Config tab offers changing a mapping, taking a request off an
+operation and removing an environment or a collection, driven in a browser by the frame pass
+(D-191). The server now takes a time zone for the History dates (D-187); the History tab does not
+use it yet and still says every date is a UTC day. The first rule is broken in a few known places,
+listed in D-190.)
 
 ### Decided not to do, and limits of the tool
 
