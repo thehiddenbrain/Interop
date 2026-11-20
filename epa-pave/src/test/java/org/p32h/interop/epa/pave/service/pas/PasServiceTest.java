@@ -1309,12 +1309,12 @@ class PasServiceTest {
     void aRequestSentWithoutWhatThe201ProfilesRequireSaysSoFirstAndCarriesOneFindingThatNamesEachElement() {
         RunEnvelope<PasDetail> result = submit("P32H-PAS-APPROVED");
         assertThat(result.verdict().outcomeCode()).isEqualTo("APPROVED");
-        assertThat(result.detail().requestNotes().get(0)).startsWith("This request goes out without 4 elements the PAS 2.0.1 profiles require");
+        assertThat(result.detail().requestNotes().get(0)).startsWith("This request goes out without 5 elements the PAS 2.0.1 profiles require");
         Finding incomplete = result.findings().get(0);
         assertThat(incomplete.kind()).isEqualTo(FindingKind.REQUEST_INCOMPLETE);
-        assertThat(incomplete.title()).isEqualTo("The request left out 4 elements the PAS 2.0.1 profiles require");
+        assertThat(incomplete.title()).isEqualTo("The request left out 5 elements the PAS 2.0.1 profiles require");
         assertThat(incomplete.detail()).contains("PASClaim insurer").contains("PASCoverage payor").contains("PASClaim item.category")
-                .contains("PASBeneficiary identifier.system");
+                .contains("PASBeneficiary identifier.system").contains("PASCoverage status");
         assertThat(ledger.only().findings()).contains("REQUEST_INCOMPLETE");
         // The request still went: a request that breaks a profile is a negative case a tester may want.
         assertThat(result.wire().request().body()).contains("\"Claim\"");
