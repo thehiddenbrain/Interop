@@ -34,6 +34,9 @@ const TAB_OF = {CRD: 'crd', DTR: 'dtr', PAS: 'pas'};
 // configuration, so the button stays after those.
 const FINAL = new Set(['not-replayable', 'invalid']);
 
+/** How many of the runs that follow a run its view lists. */
+const FOLLOWERS_SHOWN = 20;
+
 export function createRunView(app, context) {
     let openId = null;
     const node = el('div', {class: 'history-run'});
@@ -135,7 +138,7 @@ export function createRunView(app, context) {
 
             el('section', {class: 'history-run__section'},
                 el('h3', {class: 'sub-heading'}, 'How it ties to other runs'),
-                ties(run)),
+                ties(run), followers(run)),
 
             el('section', {class: 'history-run__section'},
                 el('h3', {class: 'sub-heading'}, 'Not in the ledger'),
@@ -169,6 +172,32 @@ export function createRunView(app, context) {
 
     function answer(question, body) {
         return el('div', {class: 'history-run__answer'}, el('h3', {class: 'history-run__question'}, question), el('div', null, body));
+    }
+
+    /**
+     * The runs that name this one as the run they follow, read from the ledger, so a QA analyst
+     * goes from a step to the steps after it as easily as back: from a package fetch to the
+     * response completed from it, and from there to the submission that carried its answers.
+     */
+    function followers(run) {
+        const slot = el('div', {class: 'history-run__followers', aria: {live: 'polite'}},
+            el('p', {class: 'small quiet'}, 'Reading the runs that follow this one.'));
+        api.get('/api/runs?follows=' + encodeURIComponent(run.runId) + '&limit=' + FOLLOWERS_SHOWN).then(answer => {
+            if (openId !== run.runId) {
+                return;
+            }
+            if (answer.kind !== 'ok') {
+                fill(slot, el('p', {class: 'small'}, 'The runs that follow this one could not be read: ', answer.body.title));
+                return;
+            }
+            const runs = answer.body.runs || [];
+            fill(slot, facts([['Followed by', runs.length === 0 ? none('no run names this one as the run it follows')
+                : [el('ul', {class: 'plain-list'}, runs.map(each => el('li', null, runLink(each.runId), ' ',
+                    whatRan(context.vocabulary(), each), ', ', outcomeOf(context.vocabulary(), each)))),
+                answer.body.truncated ? el('p', {class: 'small'}, 'Only the newest ' + FOLLOWERS_SHOWN + ' are listed.') : null]]],
+            'facts--ruled'));
+        });
+        return slot;
     }
 
     function ties(run) {

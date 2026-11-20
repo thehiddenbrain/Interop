@@ -151,6 +151,17 @@ class RunControllerTest {
     }
 
     @Test
+    void theRunsThatFollowARunAreListedByTheRunTheyFollow() throws Exception {
+        ledger.record(draft("run-4", clock).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).outcome("APPROVED")
+                .correlation(java.util.Map.of(RunRecord.CORR_RUN_ID, "run-1")).build());
+        mvc.perform(get("/api/runs").param("follows", "run-1")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1)).andExpect(jsonPath("$.runs[0].runId").value("run-4"));
+        mvc.perform(get("/api/runs").param("follows", "run-3")).andExpect(status().isOk()).andExpect(jsonPath("$.count").value(0));
+        // Blank, as a form sends it, is no filter.
+        mvc.perform(get("/api/runs").param("follows", " ")).andExpect(jsonPath("$.count").value(4));
+    }
+
+    @Test
     void aLimitKeepsTheNewestAndTheAnswerSaysWhenThereAreMore() throws Exception {
         mvc.perform(get("/api/runs").param("limit", "2")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(2))
