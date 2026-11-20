@@ -62,9 +62,10 @@ public class ScenarioRepository {
     /** Every protocol directory the mock clients read. Each must exist and hold at least one scenario. */
     public static final List<String> PROTOCOLS = List.of("crd", "dtr", "pas", "raw");
 
-    /** The protocol whose sentinels a CRD file can answer for, and the one whose sentinels DTR and PAS files can. */
+    /** The protocol whose sentinels DTR and PAS files can answer for, the one whose sentinels a CRD file can, and PAS. */
     static final String CRD = "crd";
     static final String DTR = "dtr";
+    static final String PAS = "pas";
 
     /** This tool's own sentinel member IDs, compared in their no-space upper-case form. */
     static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]+(?:-[A-Z0-9]+)*");
@@ -90,14 +91,25 @@ public class ScenarioRepository {
      * start, because a tester's own directory may hold work in progress, and never quote what a
      * file holds.
      */
-    public record Loaded(List<Scenario> scenarios, List<String> problems, List<String> notes) {
+    public record Loaded(List<Scenario> scenarios, List<String> problems, List<String> notes, List<String> warnedAtStart) {
 
+        /**
+         * @param warnedAtStart the notes that are also said in one WARN line when the application
+         *                      starts on a directory of the tester's own: a file that is not read,
+         *                      and a sentinel mapping the directory has lost or names wrongly. Each
+         *                      is also among {@code notes}
+         */
         public Loaded {
             notes = notes == null ? List.of() : List.copyOf(notes);
+            warnedAtStart = warnedAtStart == null ? List.of() : List.copyOf(warnedAtStart);
+        }
+
+        public Loaded(List<Scenario> scenarios, List<String> problems, List<String> notes) {
+            this(scenarios, problems, notes, null);
         }
 
         public Loaded(List<Scenario> scenarios, List<String> problems) {
-            this(scenarios, problems, null);
+            this(scenarios, problems, null, null);
         }
     }
 
@@ -139,11 +151,107 @@ public class ScenarioRepository {
         }
     }
 
+    /**
+     * Every scenario of a protocol directory, every problem that stops the set being used, and
+     * every note, those that need the files of another protocol included: a sentinel mapping a
+     * directory copied before the mappings became data has lost, an entry of
+     * {@code crdSentinelMemberIds} that is no CRD file's sentinel, and DTR files with no CRD file
+     * to answer their sentinels. The notes never stop the set being used, so a run reads only
+     * {@link #loadOwn}.
+     */
     public Loaded load(String protocolDirectory) {
+        Loaded own = loadOwn(protocolDirectory);
+        Map<String, List<String>> aboutFile = new LinkedHashMap<>();
+        List<String> listOnly = new ArrayList<>();
+        for (Scenario scenario : own.scenarios()) {
+            aboutFile.put(scenario.source(), new ArrayList<>(mappingNotes(protocolDirectory, scenario)));
+        }
+        if (own.scenarios().stream().anyMatch(scenario -> !scenario.crdSentinelMemberIds().isEmpty())) {
+            Loaded crd = loadOwn(CRD);
+            // A CRD set that cannot be used says so on its own list; judged against it, every entry would look unknown.
+            if (crd.problems().isEmpty()) {
+                Set<String> crdSentinels = new HashSet<>();
+                crd.scenarios().forEach(scenario -> scenario.sentinelMemberIds().forEach(sentinel -> crdSentinels.add(memberKey(sentinel))));
+                for (Scenario scenario : own.scenarios()) {
+                    for (String entry : scenario.crdSentinelMemberIds()) {
+                        if (!crdSentinels.contains(memberKey(entry))) {
+                            aboutFile.get(scenario.source()).add(scenario.source() + ": " + memberKey(entry) + " in its crdSentinelMemberIds is "
+                                    + "the sentinel member ID of no CRD scenario, so it selects this file without meaning the same case in CRD.");
+                        }
+                    }
+                }
+            }
+        }
+        if (CRD.equals(protocolDirectory) || DTR.equals(protocolDirectory)) {
+            Loaded crd = CRD.equals(protocolDirectory) ? own : loadOwn(CRD);
+            Loaded dtr = DTR.equals(protocolDirectory) ? own : loadOwn(DTR);
+            if (crd.problems().isEmpty() && dtr.problems().isEmpty() && !crd.scenarios().isEmpty() && !dtr.scenarios().isEmpty()
+                    && crd.scenarios().stream().noneMatch(Scenario::answersDtrSentinels)) {
+                listOnly.add("No CRD scenario carries \"answersDtrSentinels\": true, so a DTR sentinel member ID typed in CRD selects no CRD "
+                        + "scenario and is answered by the CRD default, " + crd.scenarios().get(0).source() + ", and a journey with it does "
+                        + "not reach DTR as the DTR scenario's label says.");
+            }
+        }
+        if (listOnly.isEmpty() && aboutFile.values().stream().allMatch(List::isEmpty)) {
+            return own;
+        }
+        List<String> notes = new ArrayList<>(own.notes());
+        List<String> warned = new ArrayList<>(own.warnedAtStart());
+        List<Scenario> noted = new ArrayList<>();
+        for (Scenario scenario : own.scenarios()) {
+            List<String> more = aboutFile.get(scenario.source());
+            notes.addAll(more);
+            warned.addAll(more);
+            if (more.isEmpty()) {
+                noted.add(scenario);
+            } else {
+                List<String> all = new ArrayList<>(scenario.notes());
+                all.addAll(more);
+                noted.add(scenario.withNotes(all));
+            }
+        }
+        notes.addAll(listOnly);
+        warned.addAll(listOnly);
+        return new Loaded(List.copyOf(noted), own.problems(), notes, warned);
+    }
+
+    /**
+     * A file that speaks of a sentinel of another protocol selecting it while it lists none. Such
+     * a file was written before the mappings became data: nothing is guessed back from its words,
+     * and the tester is told which key carries the mapping now.
+     */
+    static List<String> mappingNotes(String protocolDirectory, Scenario scenario) {
+        String description = scenario.description() == null ? "" : scenario.description();
+        if (CRD.equals(protocolDirectory)) {
+            if (!scenario.answersDtrSentinels() && SPEAKS_OF_DTR_SENTINELS.matcher(description).find()) {
+                return List.of(scenario.source() + ": its description speaks of DTR sentinel member IDs, and the file does not carry "
+                        + "\"answersDtrSentinels\": true, so it answers none of them. The CRD scenario that answers every DTR sentinel now "
+                        + "says so with that key; a directory copied before the key existed needs it added.");
+            }
+            return List.of();
+        }
+        if ((DTR.equals(protocolDirectory) || PAS.equals(protocolDirectory)) && scenario.crdSentinelMemberIds().isEmpty()
+                && SPEAKS_OF_A_CRD_SENTINEL.matcher(description).find()) {
+            return List.of(scenario.source() + ": its description speaks of a CRD sentinel member ID that selects it, and the file lists "
+                    + "none under crdSentinelMemberIds, so no CRD sentinel selects it. A DTR or PAS scenario now names the CRD sentinels it "
+                    + "answers for the same case under that key; a directory copied before the key existed needs it added.");
+        }
+        return List.of();
+    }
+
+    /** How the bundled files, before and after the mappings became data, speak of a CRD sentinel that selects them. */
+    private static final Pattern SPEAKS_OF_A_CRD_SENTINEL = Pattern.compile("(?i)\\bCRD sentinels?(?: member IDs?)? P32H-");
+    /** How the CRD file that answers DTR sentinels speaks of them. */
+    private static final Pattern SPEAKS_OF_DTR_SENTINELS = Pattern.compile("(?i)\\bDTR sentinel");
+
+    /** One protocol's files read on their own: what a run needs, and every note that needs no other protocol. */
+    private Loaded loadOwn(String protocolDirectory) {
         List<Scenario> scenarios = new ArrayList<>();
         List<String> problems = new ArrayList<>();
         List<String> notes = new ArrayList<>();
         Map<String, String> files = readFiles(protocolDirectory, problems, notes);
+        // Every note so far is about a file that is not read.
+        List<String> notRead = List.copyOf(notes);
         if (files.isEmpty() && problems.isEmpty()) {
             problems.add(Texts.present(app.scenarioDir())
                     ? "The scenario directory " + Path.of(app.scenarioDir().strip()).resolve(protocolDirectory) + " holds no scenario files."
@@ -203,7 +311,7 @@ public class ScenarioRepository {
             notes.addAll(about);
             noted.add(about.isEmpty() ? unique.get(i) : unique.get(i).withNotes(about));
         }
-        return new Loaded(List.copyOf(noted), List.copyOf(problems), notes);
+        return new Loaded(List.copyOf(noted), List.copyOf(problems), notes, notRead);
     }
 
     /**
@@ -270,7 +378,7 @@ public class ScenarioRepository {
      * @throws ScenarioSetUnusableException naming each file and its reason
      */
     private List<Scenario> usable(String protocolDirectory) {
-        Loaded loaded = load(protocolDirectory);
+        Loaded loaded = loadOwn(protocolDirectory);
         if (!loaded.problems().isEmpty()) {
             throw new ScenarioSetUnusableException(protocolDirectory, loaded.problems());
         }
@@ -316,7 +424,8 @@ public class ScenarioRepository {
         if (selection != null && Texts.present(selection.scenarioId())) {
             String wanted = selection.scenarioId().strip();
             return scenarios.stream().filter(s -> s.id().equals(wanted)).findFirst()
-                    .map(s -> new ScenarioSelection(s, CHOSEN_BY_ID, ScenarioSelection.By.CHOSEN, false, null))
+                    .map(s -> new ScenarioSelection(s, CHOSEN_BY_ID, ScenarioSelection.By.CHOSEN, false,
+                            CRD.equals(protocolDirectory) && s.answersDtrSentinels() ? dtrScenarioOf(selection, requestBody) : null))
                     .orElseThrow(() -> ValidationException.of("scenarioId", "There is no scenario with id \"" + wanted
                             + "\". Choose one from the Mock scenario list, or leave it empty to let the member ID choose."));
         }
@@ -350,6 +459,40 @@ public class ScenarioRepository {
         }
         return new ScenarioSelection(scenarios.get(0), "the default, because no scenario was chosen and no sentinel matched",
                 ScenarioSelection.By.DEFAULT, false, null);
+    }
+
+    /**
+     * The DTR scenario whose own sentinel is the member ID on the form or, when that is none, one
+     * found in the body, or null. Used when the CRD file that answers DTR sentinels was chosen in
+     * the selector, so that it names what that DTR scenario holds however it came to answer. A DTR
+     * set that cannot be used is not read here: a run chosen by hand must not fail on files of
+     * another protocol, and the DTR list names their problems.
+     */
+    private Scenario dtrScenarioOf(MockSelection selection, String requestBody) {
+        Loaded dtr = loadOwn(DTR);
+        if (!dtr.problems().isEmpty()) {
+            return null;
+        }
+        List<Set<String>> candidates = new ArrayList<>();
+        if (Texts.present(selection.memberId())) {
+            candidates.add(Set.of(memberKey(selection.memberId())));
+        }
+        JsonSafe.Parsed parsed = Texts.present(requestBody) ? JsonSafe.parse(requestBody) : null;
+        if (parsed != null && parsed.ok()) {
+            Set<String> values = new HashSet<>();
+            collectTexts(parsed.node(), values, new HashSet<>());
+            candidates.add(values);
+        }
+        for (Set<String> candidate : candidates) {
+            for (Scenario scenario : dtr.scenarios()) {
+                for (String sentinel : scenario.sentinelMemberIds()) {
+                    if (candidate.contains(memberKey(sentinel))) {
+                        return scenario;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /** The scenario one of these member IDs selects by the member ID part of {@link #select}, or null. */

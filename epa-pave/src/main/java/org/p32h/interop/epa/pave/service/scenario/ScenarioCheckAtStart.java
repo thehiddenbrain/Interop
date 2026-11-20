@@ -57,9 +57,10 @@ public class ScenarioCheckAtStart implements InitializingBean {
     }
 
     /**
-     * A file saved with another extension, or in a folder, is not read. It does not stop the start,
-     * because a tester's own directory may hold work in progress, but it is said once, here and in
-     * the scenario list, so that nobody believes it was loaded.
+     * A file saved with another extension, or in a folder, is not read, and a directory copied
+     * before the sentinel mappings became data has lost them. Neither stops the start, because a
+     * tester's own directory may hold work in progress, but each is said once, here and in the
+     * scenario list, so that nobody believes a file was loaded or a sentinel still selects.
      */
     private void warnOfFilesNotRead() {
         if (!Texts.present(app.scenarioDir())) {
@@ -67,11 +68,10 @@ public class ScenarioCheckAtStart implements InitializingBean {
         }
         for (String protocol : ScenarioRepository.PROTOCOLS) {
             ScenarioRepository.Loaded loaded = scenarios.load(protocol);
-            List<String> notRead = loaded.notes().stream()
-                    .filter(note -> loaded.scenarios().stream().noneMatch(scenario -> scenario.notes().contains(note))).toList();
-            if (!notRead.isEmpty()) {
-                // File names and the rule only: nothing a file holds is read for this line.
-                log.warn("Mock scenarios for {}: {}", protocol, String.join(" ", notRead));
+            List<String> warned = loaded.warnedAtStart();
+            if (!warned.isEmpty()) {
+                // File names, the rule and at most a P32H- sentinel, which is this tool's own: nothing else a file holds is quoted.
+                log.warn("Mock scenarios for {}: {}", protocol, String.join(" ", warned));
             }
         }
     }

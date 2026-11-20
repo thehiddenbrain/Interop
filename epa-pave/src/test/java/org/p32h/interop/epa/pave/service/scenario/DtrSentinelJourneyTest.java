@@ -103,6 +103,43 @@ class DtrSentinelJourneyTest {
     }
 
     @Test
+    void theScenarioThatAnswersDtrSentinelsChosenInTheSelectorNamesWhatTheDtrScenarioOfTheMemberHolds() throws Exception {
+        // N-CRD04-CHOSEN: the selector may simply have been left on crd-04 from an earlier run; the journey must still reach DTR's label.
+        String answering = scenarios.list("crd").stream().filter(Scenario::answersDtrSentinels).findFirst().orElseThrow().id();
+        List<String> wrong = new ArrayList<>();
+        for (Map.Entry<String, Scenario> entry : dtrSentinels().entrySet()) {
+            String sentinel = entry.getKey();
+            Scenario dtr = entry.getValue();
+            ObjectNode chosen = (ObjectNode) JsonSafe.parse(form(sentinel)).node();
+            chosen.put("scenarioId", answering);
+            JsonNode crd = json(post("/api/crd").contentType(MediaType.APPLICATION_JSON).content(chosen.toString()), 200);
+            assertThat(crd.at("/ledger/record/scenarioId").stringValue()).as(sentinel).isEqualTo(answering);
+            JsonNode carry = crd.at("/nextStep/carry");
+            List<String> named = JsonSafe.elements(carry, "questionnaire").stream().map(JsonNode::stringValue).toList();
+            List<String> held = org.p32h.interop.epa.pave.client.crd.MockOnyxCrdClient.questionnairesHeldBy(dtr);
+            if (!held.isEmpty()) {
+                assertThat(named).as(sentinel).containsExactlyElementsOf(held);
+            }
+            // The note says why the questionnaire is not the file's own: the selector chose the file, the member ID named the DTR scenario.
+            assertThat(crd.toString()).as(sentinel).contains("Mock scenario " + answering + " answered: " + ScenarioRepository.CHOSEN_BY_ID
+                    + ". The member ID is the sentinel member ID of DTR scenario " + dtr.id() + ", and this scenario answers every DTR sentinel.");
+            ObjectNode withCarry = (ObjectNode) JsonSafe.parse(form(sentinel)).node();
+            withCarry.set("carry", carry);
+            JsonNode package_ = json(post("/api/dtr/package").contentType(MediaType.APPLICATION_JSON).content(withCarry.toString()), 200);
+            String outcome = package_.at("/verdict/outcomeCode").stringValue();
+            if (!dtr.expect().outcome().equals(outcome)) {
+                wrong.add(sentinel + " " + dtr.id() + ": expected " + dtr.expect().outcome() + ", got " + outcome);
+            }
+        }
+        assertThat(wrong).isEmpty();
+        // A member that is no DTR sentinel keeps the file's own questionnaire, and the note says nothing of DTR.
+        ObjectNode plain = (ObjectNode) JsonSafe.parse(form("S123456789")).node();
+        plain.put("scenarioId", answering);
+        JsonNode crd = json(post("/api/crd").contentType(MediaType.APPLICATION_JSON).content(plain.toString()), 200);
+        assertThat(crd.toString()).doesNotContain("sentinel member ID of DTR scenario");
+    }
+
+    @Test
     void everyDtrSentinelAsASuiteRowOfTheProtocolChainReachesTheOutcomeItsDtrFileClaims() throws Exception {
         Map<String, Scenario> sentinels = dtrSentinels();
         StringBuilder csv = new StringBuilder("caseId,protocol,memberId,npi,procedureCodes,dateOfService\n");

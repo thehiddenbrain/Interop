@@ -59,8 +59,9 @@ public class MockOnyxCrdClient implements OnyxCrdClient {
                     + "is played exactly as written: the orders the request sent are not carried back on it")
                     .withSignals(OnyxCrdConventions.signals(exchange));
         }
-        if (chosen.by() == ScenarioSelection.By.DTR_SENTINEL) {
-            exchange = nameTheQuestionnairesOf(chosen.via(), exchange);
+        if (chosen.via() != null) {
+            // However this scenario came to answer, selected by the DTR sentinel or chosen in the selector with one as the member.
+            exchange = nameTheQuestionnairesOf(chosen.via(), exchange, chosen.by() == ScenarioSelection.By.DTR_SENTINEL);
         }
         exchange = echoTheOrders(answerEveryOrder(exchange, SentOrder.fromBody(text)), text);
         // The same recognition rules the live client applies, so mock cannot disagree with live about them.
@@ -72,15 +73,18 @@ public class MockOnyxCrdClient implements OnyxCrdClient {
     }
 
     /**
-     * For a DTR sentinel, the questionnaires CRD names are the ones the package of that DTR
+     * For a DTR sentinel member, the questionnaires CRD names are the ones the package of that DTR
      * scenario holds, read from the DTR file, so that DTR, given what CRD hands on, answers as its
      * label says and does not report a questionnaire the two synthetic data sets merely disagree
      * on. A DTR scenario whose package holds no questionnaire is answered with the file as written.
      */
-    private static VendorExchange nameTheQuestionnairesOf(Scenario dtr, VendorExchange exchange) {
+    private static VendorExchange nameTheQuestionnairesOf(Scenario dtr, VendorExchange exchange, boolean selectedBySentinel) {
+        // The selection note already says the member is a DTR sentinel when that is what selected the file; a choice in the selector does not.
+        String why = selectedBySentinel ? "" : ". The member ID is the sentinel member ID of DTR scenario " + dtr.id() + ", and this "
+                + "scenario answers every DTR sentinel";
         List<String> held = questionnairesHeldBy(dtr);
         if (held.isEmpty() || exchange.json() == null || !exchange.json().isContainer()) {
-            return exchange.withScenario(exchange.scenarioId(), exchange.scenarioNote() + ". The package of DTR scenario " + dtr.id()
+            return exchange.withScenario(exchange.scenarioId(), exchange.scenarioNote() + why + ". The package of DTR scenario " + dtr.id()
                     + " holds no questionnaire, so the questionnaire this file names is named");
         }
         JsonNode copy = exchange.json().deepCopy();
@@ -92,7 +96,7 @@ public class MockOnyxCrdClient implements OnyxCrdClient {
         }
         return Exchanges.fromResponse(exchange.request(), exchange.httpStatus(), exchange.responseHeaders(), JsonSafe.pretty(copy),
                         exchange.elapsedMillis(), true)
-                .withScenario(exchange.scenarioId(), exchange.scenarioNote() + ". The questionnaire named is the one the package of DTR "
+                .withScenario(exchange.scenarioId(), exchange.scenarioNote() + why + ". The questionnaire named is the one the package of DTR "
                         + "scenario " + dtr.id() + " holds, " + String.join(" and ", held) + ", in place of " + String.join(" and ", named)
                         + ", so that DTR answers as its label says");
     }

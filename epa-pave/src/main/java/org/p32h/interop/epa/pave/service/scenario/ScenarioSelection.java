@@ -9,7 +9,9 @@ package org.p32h.interop.epa.pave.service.scenario;
  *               {@code how}. Null only for a selection a caller built itself
  * @param inBody whether the identifier that chose it was found in a pasted request body rather
  *               than typed on the form
- * @param via    for {@link By#DTR_SENTINEL}, the DTR scenario whose sentinel it was. Null otherwise
+ * @param via    for {@link By#DTR_SENTINEL}, the DTR scenario whose sentinel it was. For {@link By#CHOSEN},
+ *               when the chosen CRD scenario answers DTR sentinels and the member ID is one, the DTR
+ *               scenario whose sentinel it is. Null otherwise
  */
 public record ScenarioSelection(Scenario scenario, String how, By by, boolean inBody, Scenario via) {
 
