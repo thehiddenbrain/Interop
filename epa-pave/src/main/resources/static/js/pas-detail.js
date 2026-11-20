@@ -179,6 +179,10 @@ function authorization(decision) {
     const numbers = decision.authorizationNumbers || [];
     const from = decision.authorizedFrom;
     const to = decision.authorizedTo;
+    if (numbers.length === 0 && !from && !to) {
+        // Neither a number nor a period: one mark says it, where two would fill the cell with absences.
+        return noneMark();
+    }
     return el('div', null,
         numbers.length > 0 ? el('div', null, numbers.map((value, index) => [index > 0 ? ', ' : null, code(value, 'pas-authno')]))
             : el('div', null, 'Number ', noneMark()),

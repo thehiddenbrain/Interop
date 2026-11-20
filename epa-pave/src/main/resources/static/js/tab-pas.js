@@ -70,10 +70,11 @@ function mount(target, application) {
     buildCommon();
 
     controls.writes = el('div', {class: 'pas-writes', aria: {live: 'polite'}});
+    controls.unavailable = el('div', {class: 'pas-unavailable', aria: {live: 'polite'}});
     controls.expectation = createExpectation();
     controls.buttons = el('div', {class: 'button-row pas-buttons'});
     controls.modeSaid = el('p', {class: 'small', role: 'status'});
-    bench.actions.append(controls.writes, controls.expectation.node, bench.problem, controls.modeSaid, controls.buttons);
+    bench.actions.append(controls.unavailable, controls.writes, controls.expectation.node, bench.problem, controls.modeSaid, controls.buttons);
 
     controls.sectionSlot = el('div', {class: 'pas-section'});
     bench.own.append(controls.sectionSlot, controls.common);
@@ -89,11 +90,11 @@ function mount(target, application) {
     controls.inquire = button('Send inquiry', () => sendInquiry(), {class: 'button--primary'});
     controls.inquirePreview = button('Show the inquiry', () => showPreview('inquire'));
     controls.create = button('Create subscription', () => subscriptionCall('create'), {class: 'button--primary'});
-    controls.createPreview = button('Show the create request', () => showPreview('create'), {class: 'button--text'});
+    controls.createPreview = button('Show the create request', () => showPreview('create'));
     controls.list = button('List subscriptions', () => subscriptionCall('list'), {class: 'button--quiet button--small'});
     controls.read = button('Read subscription', () => subscriptionCall('read'), {class: 'button--quiet button--small'});
     controls.update = button('Update subscription', () => subscriptionCall('update'), {class: 'button--quiet button--small'});
-    controls.updatePreview = button('Show the update request', () => showPreview('update'), {class: 'button--text'});
+    controls.updatePreview = button('Show the update request', () => showPreview('update'), {class: 'button--quiet button--small'});
     controls.remove = button('Delete subscription', () => subscriptionCall('delete'), {class: 'button--quiet button--small'});
     fill(controls.subscriptionButtons, controls.read, controls.update, controls.remove, controls.updatePreview);
     fill(controls.listButton, controls.list);
@@ -598,6 +599,7 @@ async function loadConfiguration() {
     vocabulary.operations = (answer.body.operations || []).filter(item => item.protocol === 'PAS' || item.protocol === 'SUBSCRIPTION');
     const setting = vocabulary.settings.find(item => item.property === 'onyx.pas.attachment-mode');
     controls.attachments.setMode(setting && setting.set && setting.value ? setting.value : null);
+    drawWrites();
 }
 
 /* ---------- writes on production ---------- */
@@ -606,15 +608,63 @@ async function loadConfiguration() {
  * Whether a write would be refused, from /api/mode as the frame last read it. The tab offers no
  * unlock of its own: the Config tab is the one place where writes are unlocked.
  */
+// The operation the primary button of each call sends, as /api/config/effective names it.
+const PRIMARY_OPERATION = {submit: 'PAS_SUBMIT', inquire: 'PAS_INQUIRE', subscriptions: 'SUBSCRIPTION_CREATE'};
+
+/**
+ * On the live profile, what the server says stands in the way of the call on screen: no request
+ * mapped and no url set. Null when nothing does, and always null on the mock profile, where a
+ * scenario answers whatever is configured.
+ */
+function cannotSend() {
+    if (app.isMock()) {
+        return null;
+    }
+    const operation = vocabulary.operations.find(item => item.operation === PRIMARY_OPERATION[mode]);
+    return operation && operation.unavailable ? operation : null;
+}
+
 function drawWrites() {
+    // With nowhere to send to, that is what stands in the way, and the readout says it in full together with any refusal of
+    // writes. The box with the button stays one short line, so the form above it keeps its room on a laptop screen.
+    if (cannotSend()) {
+        clear(controls.writes);
+    } else {
+        drawWriteBox();
+    }
+    drawSendState();
+}
+
+/**
+ * A call that cannot reach a service is still sent when pressed, because the refusal is recorded
+ * and is itself something a tester may want. So its button stays, demoted from the primary one,
+ * and the reason is said beside it in the server's words.
+ */
+function drawSendState() {
+    const primary = {submit: controls.submit, inquire: controls.inquire, subscriptions: controls.create}[mode];
+    const blocked = cannotSend();
+    for (const each of [controls.submit, controls.inquire, controls.create]) {
+        const demote = Boolean(blocked) && each === primary;
+        each.classList.toggle('button--primary', !demote);
+        each.classList.toggle('button--quiet', demote);
+    }
+    clear(controls.unavailable);
+    if (blocked) {
+        fill(controls.unavailable, el('p', null, el('strong', null, 'Nothing can reach a service yet. '),
+            'The readout on the right says why. Sending now records the refusal in the ledger. ',
+            button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'})));
+    }
+}
+
+function drawWriteBox() {
     const current = app.mode();
     const access = current ? current.writeAccess || {} : {};
     if (!WRITE_MODES.includes(mode) || !current) {
         clear(controls.writes);
         return;
     }
-    const refused = mode === 'submit' ? 'A PAS request sent now is refused and recorded as blocked. '
-        : 'Creating, updating or deleting a subscription now is refused and recorded as blocked; a read and a list are allowed. ';
+    const refused = mode === 'submit' ? 'Sending is refused and recorded. '
+        : 'A create, an update or a delete is refused and recorded; a read and a list are not. ';
     // This box sits with the send button, which stays in view on a laptop screen only while the box is short. The reason
     // in full is the production banner's, at the top of every tab, and is kept as the title here.
     if (access.writesAllowed === false && !access.production) {
@@ -627,9 +677,9 @@ function drawWrites() {
     if (access.writesAllowed === false) {
         fill(controls.writes, el('div', {class: 'pas-writes__blocked', title: access.reason || ''},
             el('p', null, el('strong', null, 'Writes are blocked. '), refused,
-                access.floorAllows === false ? 'An owner has locked this installation; the banner above says so. '
-                    : 'They are unlocked on the Config tab, for this session only. ',
-                button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
+                // Where an owner has locked the installation there is no unlock to go to: the banner above says so, and no way is offered.
+                access.floorAllows === false ? 'The banner above says why.'
+                    : ['Unlock on the ', button('Config tab', () => app.navigate('config'), {class: 'button--text', aria: {label: 'Open the Config tab'}}), '.'])));
         return;
     }
     if (access.production) {
@@ -846,7 +896,14 @@ function drawEmptyState() {
     if (!bench) {
         return;
     }
-    const parts = [el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.')];
+    const blocked = cannotSend();
+    // On the live profile with nothing configured for this call, what is missing is the first thing to read, not how to fill the form.
+    const parts = blocked
+        ? [el('p', {class: 'empty-state__lead'}, blocked.label + ' cannot reach a service yet.'),
+            el('p', null, blocked.unavailable, ' ', blocked.blocked || ''),
+            el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--primary'})),
+            el('p', {class: 'sub-heading'}, 'Once it is configured')]
+        : [el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.')];
     const own = bench.ownRequestActive();
     if (mode === 'submit') {
         parts.push(el('p', null, own
@@ -866,10 +923,10 @@ function drawEmptyState() {
     const notes = vocabulary.operations.filter(item => (mode === 'submit' && item.operation === 'PAS_SUBMIT')
         || (mode === 'inquire' && item.operation === 'PAS_INQUIRE')
         || (mode === 'subscriptions' && item.protocol === 'SUBSCRIPTION' && item.operation !== 'SUBSCRIPTION_NOTIFICATION'));
-    if (notes.length > 0) {
+    if (notes.length > 0 && !blocked) {
         parts.push(el('div', null, el('p', {class: 'sub-heading'}, 'Where these calls go'),
             el('ul', {class: 'note-list'}, notes.map(item => el('li', null, el('strong', null, item.label + '. '), item.unavailable || item.note || 'Configured.'))),
-            app.isMock() ? null : el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
+            app.isMock() || blocked ? null : el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
     }
     const list = vocabulary.byUse.get(useOf(mode));
     if (mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0) {

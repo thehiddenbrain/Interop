@@ -58,6 +58,7 @@ export function createNotifications(spec) {
     const rows = new Map();
     const openIds = new Set();
     let limit = PAGE;
+    let autoOpened = null;
 
     const status = el('span', {class: 'pas-notifications__status', role: 'status', aria: {live: 'polite'}});
     const heldCount = el('span', {class: 'section-heading__count'});
@@ -166,9 +167,15 @@ export function createNotifications(spec) {
         if (got.latest) {
             latest = got.latest;
         }
-        // The newest of what arrived is opened, so the one a tester is waiting for reads in full. The rest stay one line each.
+        // The newest of what arrived is opened, so the one a tester is waiting for reads in full. The one opened that way
+        // before it is folded again; the rest stay two lines each.
         if (arrived.length > 0) {
-            openIds.add(arrived[0].id);
+            const before = autoOpened ? rows.get(autoOpened) : null;
+            if (before) {
+                before.setOpen(false);
+            }
+            autoOpened = arrived[0].id;
+            openIds.add(autoOpened);
         }
         // Newest first: what arrived since is newer than everything on screen, and goes above it.
         for (const item of arrived.slice().reverse()) {
@@ -183,6 +190,16 @@ export function createNotifications(spec) {
         } else if (!loaded) {
             status.textContent = shownItems.length === 0 ? 'Nothing has arrived at the receiver since the tool started.'
                 : 'The receiver holds ' + shownItems.length + (shownItems.length === 1 ? ' notification.' : ' notifications.');
+        }
+        // The receiver holds a bounded number, newest kept. What it no longer holds is not shown as if it did; its ledger line remains.
+        while (typeof got.held === 'number' && shownItems.length > got.held) {
+            const gone = shownItems.pop();
+            const row = rows.get(gone.id);
+            if (row) {
+                row.remove();
+            }
+            rows.delete(gone.id);
+            openIds.delete(gone.id);
         }
         loaded = true;
         drawCounts();
@@ -259,14 +276,16 @@ export function createNotifications(spec) {
         const openId = 'pas-note-open-' + item.id;
         const toggle = el('button', {type: 'button', class: 'button button--quiet button--small pas-note__toggle',
             aria: {expanded: 'false', controls: openId}}, 'Open');
+        // Two short lines: what the server calls it, then when it came and what it is about. The code is the server's too, set second.
         const line = el('div', {class: 'pas-note__line'},
+            el('span', {class: 'pas-note__what'}, outcome(label, tone), ' ', el('span', {class: 'small quiet'}, code(verdict.outcomeCode))),
+            toggle);
+        const meta = el('p', {class: 'pas-note__meta small'},
             when(item.receivedAt),
             fresh ? el('span', {class: 'flag'}, 'new') : null,
             item.sample ? mockMark() : null,
-            el('span', {class: 'pas-note__what'}, outcome(label, tone), ' ', el('span', {class: 'small quiet'}, code(verdict.outcomeCode))),
             el('span', {class: 'pas-note__about'}, item.correlatedRunId ? ['about ', runLink(item.correlatedRunId)]
-                : el('span', {class: 'presence presence--none'}, 'about no submission of this tool')),
-            toggle);
+                : el('span', {class: 'presence presence--none'}, 'about no submission of this tool')));
         const decided = decisionLine(item);
         // A sample says on its own line why it is matched or not, and what to do about it. The tester must not have to open it to learn that.
         const sampleNotes = item.sample && (item.payloadNotes || []).length > 0
@@ -295,7 +314,7 @@ export function createNotifications(spec) {
                 step.reason ? el('p', {class: 'small'}, step.reason) : null),
             more);
         const row = el('li', {class: 'pas-note' + (fresh ? ' pas-note--fresh' : ''), tabIndex: -1, aria: {label: 'Notification of ' + whenText(item.receivedAt)}},
-            line, decided, sampleNotes, inquiry ? el('p', null, inquiry) : null, opened);
+            line, meta, decided, sampleNotes, inquiry ? el('p', null, inquiry) : null, opened);
         const setOpen = open => {
             opened.hidden = !open;
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -306,8 +325,15 @@ export function createNotifications(spec) {
                 openIds.delete(item.id);
             }
         };
-        toggle.addEventListener('click', () => setOpen(opened.hidden));
+        toggle.addEventListener('click', () => {
+            setOpen(opened.hidden);
+            // Once the tester has opened or folded it, it is theirs: a later arrival does not fold it.
+            if (autoOpened === item.id) {
+                autoOpened = null;
+            }
+        });
         setOpen(openIds.has(item.id));
+        row.setOpen = setOpen;
         return row;
     }
 

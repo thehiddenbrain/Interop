@@ -8,13 +8,15 @@
 
 /* ---------- the left pane: which call, and its fields ---------- */
 
+/* The four calls do not fit on one line of the case pane at any width, so they sit two by two: never one left alone on a line. */
 .pas-modes {
-    flex-wrap: wrap;
-    row-gap: var(--gap-1);
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    gap: var(--gap-1) var(--gap-4);
 }
 
 .pas-modes .choice {
-    margin-right: var(--gap-3);
+    white-space: nowrap;
 }
 
 .pas-section, .pas-section__body {
@@ -371,6 +373,12 @@
 
 .pas-note__line {
     display: flex;
+    align-items: baseline;
+    gap: var(--gap-3);
+}
+
+.pas-note__meta {
+    display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: var(--gap-1) var(--gap-3);
@@ -410,6 +418,13 @@
 }
 
 .pas-sample__nosub {
+    padding: 4px 0 4px var(--gap-3);
+    border-left: 4px solid var(--ink-strong);
+    color: var(--ink-strong);
+}
+
+/* A call with nowhere to go on the live profile: said with the button, in ink, since nothing about it is a production guardrail. */
+.pas-unavailable p {
     padding: 4px 0 4px var(--gap-3);
     border-left: 4px solid var(--ink-strong);
     color: var(--ink-strong);
