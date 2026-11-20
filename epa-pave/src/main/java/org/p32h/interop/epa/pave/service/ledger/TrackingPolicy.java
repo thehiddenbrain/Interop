@@ -4,7 +4,7 @@ import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -37,8 +37,13 @@ final class TrackingPolicy {
      */
     private static final Pattern NOT_RECORDED = Pattern.compile("\\(not recorded, \\d+ characters\\)");
 
-    /** A statement the record wrote in place of a line of business. It is not a line and is left as it is. */
-    private static final Pattern STATEMENT = Pattern.compile("\\([a-z :]+, \\d{1,9} characters\\)");
+    /**
+     * A statement the record or this policy wrote in place of a line of business. It is not a line
+     * and is left as it is. Only the exact statements are, never anything shaped like one: lower
+     * case words in brackets would otherwise be a way past the known list.
+     */
+    private static final Pattern STATEMENT = Pattern.compile("\\((?:" + Pattern.quote(RunRecord.LINE_NOT_KNOWN) + "|"
+            + Pattern.quote(RunRecord.READS_LIKE_AN_IDENTIFIER) + "|not a line of business), \\d{1,9} characters\\)");
 
     /**
      * The member IDs that are synthetic by construction: the tool's sentinels and the placeholder
@@ -51,17 +56,18 @@ final class TrackingPolicy {
     private final boolean placeholdersOnly;
     private final boolean recordNpi;
     private final Supplier<LedgerTokens> tokens;
-    private final Predicate<String> knownLine;
+    private final UnaryOperator<String> knownLine;
 
     /**
      * @param recordMemberId   {@code tracking.record-member-id}
      * @param placeholdersOnly true on the mock profile: an ID is kept in the clear only when it is a
      *                         sentinel or a placeholder, whatever {@code recordMemberId} says
-     * @param knownLine        true for a line of business the tool knows: one the code list names,
-     *                         directly or through {@code codelist.line-of-business-aliases}
+     * @param knownLine        for a line of business the tool knows (one the code list names, directly
+     *                         or through {@code codelist.line-of-business-aliases}) the spelling to
+     *                         write, and null for any other text
      */
     TrackingPolicy(boolean recordMemberId, boolean placeholdersOnly, boolean recordNpi, Supplier<LedgerTokens> tokens,
-                   Predicate<String> knownLine) {
+                   UnaryOperator<String> knownLine) {
         this.recordMemberId = recordMemberId;
         this.placeholdersOnly = placeholdersOnly;
         this.recordNpi = recordNpi;
@@ -96,7 +102,8 @@ final class TrackingPolicy {
         if (line != null && !STATEMENT.matcher(line).matches()) {
             // Only a line the tool knows is written. A name in the place of one cannot be told from
             // a line by its shape, so anything else is written as its length and shown on screen.
-            out.lineOfBusiness(knownLine.test(line) ? line.strip() : "(" + RunRecord.LINE_NOT_KNOWN + ", " + line.length() + " characters)");
+            String known = knownLine.apply(line);
+            out.lineOfBusiness(known != null ? known : "(" + RunRecord.LINE_NOT_KNOWN + ", " + line.length() + " characters)");
         }
         String authorization = draft.correlation().get(RunRecord.CORR_AUTHORIZATION_REF);
         if (authorization != null && !NOT_RECORDED.matcher(authorization).matches()) {

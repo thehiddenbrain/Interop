@@ -125,7 +125,8 @@ public class JsonlRunLedger implements RunLedger {
         this.saltFile = configuredSalt != null ? configuredSalt
                 : (store == null ? Path.of("") : store).resolve(LedgerTokens.DEFAULT_FILE_NAME).toAbsolutePath().normalize();
         Objects.requireNonNull(codeList, "codeList");
-        this.policy = new TrackingPolicy(tracking.recordMemberId(), epa.mock(), tracking.recordNpi(), this::tokens, codeList::statesLine);
+        this.policy = new TrackingPolicy(tracking.recordMemberId(), epa.mock(), tracking.recordNpi(), this::tokens,
+                line -> lineAsListed(codeList, line));
 
         // Checked whether or not tracking is on. It costs nothing, and a salt beside the lines it
         // protects would let anyone who copies the folder test member IDs against them.
@@ -182,6 +183,28 @@ public class JsonlRunLedger implements RunLedger {
                 // Counted as unreadable by the read itself, and found again by the first write.
             }
         }
+    }
+
+    /**
+     * The spelling to write for a line of business the code list knows, or null when it does not
+     * know it. A line the list names directly is written as the list writes it, so medicare,
+     * MEDI-CARE and Medicare are one line in the file and in a filter. A line known only through
+     * an alias has no single name in the list (an alias can map to several) and is written as the
+     * configuration spells it, stripped.
+     */
+    static String lineAsListed(ProcedureCodeDirectory codeList, String line) {
+        if (!codeList.statesLine(line)) {
+            return null;
+        }
+        String wanted = comparedForm(line);
+        List<String> listed = codeList.selfCheck().linesOfBusiness().keySet().stream()
+                .filter(name -> comparedForm(name).equals(wanted)).distinct().toList();
+        return listed.size() == 1 ? listed.get(0) : line.strip();
+    }
+
+    /** A line of business compared as the code list compares one: case, white space, underscores, dots and dashes left out. */
+    private static String comparedForm(String line) {
+        return line == null ? "" : line.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_.\\-\\p{Pd}\\p{Cf}]", "");
     }
 
     private static Path path(String property, String value) {

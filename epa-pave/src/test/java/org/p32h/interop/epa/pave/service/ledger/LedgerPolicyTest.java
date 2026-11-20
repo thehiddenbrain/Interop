@@ -57,7 +57,14 @@ class LedgerPolicyTest {
         // Found by the member data audit (M3): a name and a date of birth under the member API's lob field reached the line.
         JsonlRunLedger ledger = ledger(home, Map.of(), EpaProperties.of(Map.of("mode", "live")), bundledList(Map.of()));
 
-        assertThat(ledger.record(draft("run-1", CLOCK).lineOfBusiness(" medicare ").build()).record().lineOfBusiness()).isEqualTo("medicare");
+        // A known line is written as the list spells it (V-8), so one line has one spelling in the file.
+        assertThat(ledger.record(draft("run-1", CLOCK).lineOfBusiness(" medicare ").build()).record().lineOfBusiness()).isEqualTo("Medicare");
+        assertThat(ledger.record(draft("run-1b", CLOCK).lineOfBusiness("MEDI-CARE").build()).record().lineOfBusiness()).isEqualTo("Medicare");
+        assertThat(ledger.record(draft("run-1c", CLOCK).lineOfBusiness("Medicare.").build()).record().lineOfBusiness()).isEqualTo("Medicare");
+        // Text in the shape of a statement is not one (V-3): only the exact statements the tool writes are left alone.
+        String shaped = "(zzlastname zzfirstname zzaddress lane, 1 characters)";
+        assertThat(ledger.record(draft("run-1d", CLOCK).lineOfBusiness(shaped).build()).record().lineOfBusiness())
+                .isEqualTo("(line of business not on the known list, " + shaped.length() + " characters)");
         String person = "Zzlastname, Zzfirstname";
         RunRecord unknown = ledger.record(draft("run-2", CLOCK).lineOfBusiness(person).build()).record();
         assertThat(unknown.lineOfBusiness()).isEqualTo("(line of business not on the known list, " + person.length() + " characters)");
@@ -69,7 +76,8 @@ class LedgerPolicyTest {
                 .startsWith("(line of business not on the known list, ");
 
         String file = text(dayFile(home, CLOCK.today()));
-        assertThat(file).doesNotContain("Zzlastname").doesNotContain("Zzfirstname").doesNotContain("1961-07-23").doesNotContain("Advantage");
+        assertThat(file).doesNotContain("Zzlastname").doesNotContain("Zzfirstname").doesNotContain("1961-07-23").doesNotContain("Advantage")
+                .doesNotContain("zzaddress").doesNotContain("MEDI-CARE").doesNotContain("\"medicare\"");
         // What was written reads back as the record the receipt carried.
         assertThat(ledger.find("run-2")).contains(unknown);
         assertThat(ledger.find("run-3")).contains(dated);
