@@ -222,6 +222,33 @@ class SuitePreviewTruthTest {
         assertThat(specs(service, run.suiteRunId())).hasSize(2).allMatch(java.util.Objects::isNull);
     }
 
+    @Test
+    void aCaseThatHasRunDropsItsMemberIdWhileTheSuiteIsStillRunning() throws ReflectiveOperationException {
+        // Read while the second case is being run, before the run ends and drops every case at once.
+        List<List<Object>> seen = new java.util.ArrayList<>();
+        SuiteService[] service = new SuiteService[1];
+        String[] runId = new String[1];
+        bed.hold = true;
+        bed.wrap = real -> spec -> {
+            if ("two".equals(spec.caseId())) {
+                try {
+                    seen.add(specs(service[0], runId[0]));
+                } catch (ReflectiveOperationException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+            return real.run(spec);
+        };
+        service[0] = bed.service();
+        runId[0] = service[0].start("cases.csv", file("one,crd,,P32H-NO-AUTH," + NPI + ",95810,,", "two,crd,,P32H-NO-AUTH," + NPI + ",95810,,"),
+                null, null, null).suiteRunId();
+        bed.queued.poll().run();
+        assertThat(seen).singleElement().satisfies(specs -> {
+            assertThat(specs.get(0)).as("the case that has run").isNull();
+            assertThat(specs.get(1)).as("the case being run").isNotNull();
+        });
+    }
+
     /** The case each entry of a run holds, read the only way it can be: it is never handed out. */
     private static List<Object> specs(SuiteService service, String suiteRunId) throws ReflectiveOperationException {
         Field runsField = SuiteService.class.getDeclaredField("runs");

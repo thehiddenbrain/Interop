@@ -36,6 +36,7 @@ import org.p32h.interop.epa.pave.model.suite.SuiteState;
 import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
+import org.p32h.interop.epa.pave.service.cases.ChainCaseStep;
 import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
 import org.p32h.interop.epa.pave.service.cases.ProtocolCaseRunner;
 import org.p32h.interop.epa.pave.service.chain.ChainService;
@@ -497,8 +498,29 @@ public class SuiteService implements AutoCloseable {
                 outcome.reason(), outcome.notes(), outcome.notRecorded(),
                 earlier == null ? null : earlier.outcome(),
                 earlier == null ? null : outcomes.label(earlier.protocol(), earlier.outcome()),
-                earlierResult, changed, steps, outcome.faultReference(), found == null || sent.isEmpty() ? null : found.fault(),
+                earlierResult, changed, steps, outcome.faultReference(), sent.isEmpty() ? null : entry.chain ? chainFault(outcome, found)
+                : found == null ? null : found.fault(),
                 nextStep(last));
+    }
+
+    /**
+     * Whether a chain failed because the service failed or did not answer. Its last step is not
+     * the one to ask: a chain can fail on a determination at CRD and then time out at PAS. So the
+     * steps whose own result is a failure are asked, and it is a fault only when every one of them
+     * is. When no step failed by itself, the case failed for a step it never reached, and that is
+     * a fault only when the chain stopped there because its last step was one.
+     */
+    private Boolean chainFault(CaseOutcome outcome, OutcomeCode last) {
+        List<OutcomeCode> failing = new ArrayList<>();
+        for (RunRecord record : outcome.runs()) {
+            if (record.result() == TestResult.FAIL) {
+                failing.add(outcomes.find(record.protocol(), record.outcome()));
+            }
+        }
+        if (failing.isEmpty()) {
+            return last == null ? null : last.fault();
+        }
+        return failing.stream().allMatch(code -> code != null && code.fault());
     }
 
     private static String label(RunRecord record) {
@@ -700,6 +722,7 @@ public class SuiteService implements AutoCloseable {
             int notRun = 0;
             int waiting = 0;
             int notRecorded = 0;
+            int caseLinesNotRecorded = 0;
             int withFindings = 0;
             int slow = 0;
             int changed = 0;
@@ -743,7 +766,14 @@ public class SuiteService implements AutoCloseable {
                             case NOT_RUNNABLE -> notRunnable++;
                         }
                     }
-                    notRecorded += row.notRecorded().size();
+                    for (String message : row.notRecorded()) {
+                        // A case line records no call, so it is counted apart from the runs.
+                        if (ChainCaseStep.aboutTheCaseLine(message)) {
+                            caseLinesNotRecorded++;
+                        } else {
+                            notRecorded++;
+                        }
+                    }
                     withFindings += row.findings().isEmpty() ? 0 : 1;
                     for (String kind : row.findings()) {
                         findingCounts.merge(kind, 1, Integer::sum);
@@ -760,7 +790,7 @@ public class SuiteService implements AutoCloseable {
             boolean stopping = state == SuiteState.RUNNING && stopRequested != null;
             return new SuiteRunView(id, name, format, state, headline(counts, stopping), stopReason, startedAt, finishedAt, epa.mode(),
                     epa.target(), environment, epoch, testerRef, comparedWith, counts, timings.summarise(support.slowThresholdMillis()),
-                    findingCounts, notes(counts), withRows ? rows : null, stopping ? Boolean.TRUE : null);
+                    findingCounts, notes(counts, caseLinesNotRecorded), withRows ? rows : null, stopping ? Boolean.TRUE : null);
         }
 
         private String headline(SuiteCounts c, boolean stopping) {
@@ -797,11 +827,16 @@ public class SuiteService implements AutoCloseable {
             }
         }
 
-        private List<String> notes(SuiteCounts c) {
+        private List<String> notes(SuiteCounts c, int caseLinesNotRecorded) {
             List<String> notes = new ArrayList<>();
             if (c.notRecorded() > 0) {
                 notes.add(c.notRecorded() + (c.notRecorded() == 1 ? " run was" : " runs were") + " NOT recorded in the ledger. The rows "
                         + "say which, and why. Their results are shown here and will not be in History or in the ledger export.");
+            }
+            if (caseLinesNotRecorded > 0) {
+                notes.add("The result as a whole of " + (caseLinesNotRecorded == 1 ? "1 chain case was" : caseLinesNotRecorded
+                        + " chain cases were") + " NOT recorded in the ledger, so History cannot show " + (caseLinesNotRecorded == 1
+                        ? "it" : "them") + ". The rows say which, and why.");
             }
             if (c.blocked() > 0) {
                 // A chain blocked at its submission sent its earlier steps, so this never says nothing was sent for the case.

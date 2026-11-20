@@ -215,6 +215,12 @@ class ChainCaseStepTest {
         assertThat(outcome.toolFailed()).isFalse();
         // The CRD line is in the ledger under the suite, as it went out.
         assertThat(runLines()).singleElement().extracting(RunRecord::suiteRunId).isEqualTo("suite-1");
+        // And the case has its line, unverified, so History does not show the CRD step as if it were the whole case.
+        assertThat(caseLines()).singleElement().satisfies(line -> {
+            assertThat(line.runId()).isEqualTo(outcome.runs().get(0).runId());
+            assertThat(line.result()).isEqualTo(TestResult.UNVERIFIED);
+            assertThat(line.caseId()).isEqualTo("chain-case");
+        });
 
         ledger.records().clear();
         gateway.failing(EpaOperation.PAS_SUBMIT, ValidationException.of("provider.npi", "Enter the ordering provider's NPI."));
@@ -233,6 +239,7 @@ class ChainCaseStepTest {
         assertThat(outcome.runs()).extracting(RunRecord::operation).containsExactly(EpaOperation.CRD_ORDER_SIGN);
         assertThat(outcome.reason()).startsWith("CRD order-sign was sent; this tool then failed on DTR questionnaire package, so whether "
                 + "that request left is not known").endsWith("Reference " + outcome.faultReference() + ".");
+        assertThat(caseLines()).singleElement().extracting(RunRecord::result).isEqualTo(TestResult.UNVERIFIED);
         // The lookup note says the request went out with the ID alone, because one did.
         assertThat(outcome.notes()).contains("The member lookup does not know this member ID. The request was sent with the member ID alone.");
     }
@@ -265,8 +272,19 @@ class ChainCaseStepTest {
     void aLedgerThatCannotKeepTheCaseLineSaysSoOnTheCase() {
         ledger.refusing("The ledger file could not be written.");
         CaseOutcome outcome = runner().run(chainCase("P32H-NO-AUTH").expected("crd: NO_AUTH_REQUIRED").build());
-        assertThat(outcome.notRecorded()).contains("The ledger file could not be written.",
-                "The result of this case as a whole was NOT recorded in the ledger, so History cannot show it: The ledger file could not be written.");
+        assertThat(outcome.notRecorded()).containsExactly("The ledger file could not be written.",
+                "The result of this case as a whole was NOT recorded in the ledger, so History cannot show it. The ledger said: The ledger "
+                        + "file could not be written.");
+        assertThat(outcome.notRecorded()).filteredOn(ChainCaseStep::aboutTheCaseLine).hasSize(1);
+    }
+
+    @Test
+    void theLedgersOwnSentenceAboutACaseLineIsNotNestedInsideAnother() {
+        assertThat(ChainCaseStep.caseNotRecorded("The result of this case was NOT recorded: tracking is switched off in configuration "
+                + "(tracking.enabled is false).")).isEqualTo("The result of this case as a whole was NOT recorded in the ledger, so History "
+                + "cannot show it: tracking is switched off in configuration (tracking.enabled is false).");
+        assertThat(ChainCaseStep.caseNotRecorded(null)).isEqualTo("The result of this case as a whole was NOT recorded in the ledger, so "
+                + "History cannot show it. The ledger gave no reason.");
     }
 
     @Test

@@ -36,7 +36,8 @@ import org.p32h.interop.epa.pave.model.Tone;
  * @param reason         why the case was blocked, invalid, not configured or not runnable, or why
  *                       a chain stopped where it did
  * @param notes          what a reader should know about how the case was run
- * @param notRecorded    the ledger's own message for each run it did not keep
+ * @param notRecorded    the ledger's own message for each run it did not keep, and for a chain one
+ *                       more when the line holding the result of the case as a whole was not kept
  * @param previousOutcome the outcome the same case had in the suite run this one is compared with
  * @param previousResult the result the same case had then: for a chain, the result of the case as
  *                       a whole from its case line. Null for a chain whose earlier run has no case

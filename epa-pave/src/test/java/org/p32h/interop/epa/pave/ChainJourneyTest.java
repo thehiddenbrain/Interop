@@ -104,6 +104,11 @@ class ChainJourneyTest {
         assertThat(chain.get("caseResult").stringValue()).isEqualTo("fail");
         assertThat(chain.get("caseExpected").stringValue()).isEqualTo("crd: NO_AUTH_REQUIRED; pas: APPROVED");
         assertThat(chain.get("caseLine").stringValue()).startsWith("Run as a case, the journey failed");
+        // E05 ended at CRD, so nothing in it used what a step before it handed on, and nothing says a line of it cannot be replayed.
+        assertThat(chain.has("replayNote")).isFalse();
+        // E01's submission used what CRD handed on, which a replay refuses, and its chain says so.
+        JsonNode e01Chain = json(get("/api/chains/" + e01.get("chainId").stringValue()), 200);
+        assertThat(e01Chain.get("replayNote").stringValue()).startsWith("A step of this chain that used what the step before it handed on");
 
         // The export for sign-off carries each step and the state of the suite.
         String csv = text(get("/api/suites/" + suiteRunId + "/results.csv"), 200);
@@ -137,7 +142,20 @@ class ChainJourneyTest {
                 StandardOpenOption.APPEND);
         JsonNode chain = json(get("/api/chains/" + chainId), 200);
         assertThat(chain.get("runCount").intValue()).isEqualTo(1);
-        assertThat(chain.get("notes").toString()).contains("line it cannot read. A run of this chain may be among them");
+        assertThat(chain.get("notes").toString()).contains("line it cannot read. A run of this chain may be among them")
+                .doesNotContain("self-check");
+    }
+
+    @Test
+    void aChainStartedAtPasIsNotSaidToBeUnreplayableAndItsSubmissionReplays() throws Exception {
+        String body = "{\"member\":{\"memberId\":\"S123456789\"},\"provider\":{\"npi\":\"1234567893\"},"
+                + "\"procedureCodes\":[{\"code\":\"70553\"}],\"dateOfService\":\"2026-03-20\",\"chainId\":\"new\"}";
+        JsonNode submitted = json(post("/api/pas/submit").contentType(MediaType.APPLICATION_JSON).content(body), 200);
+        JsonNode chain = json(get("/api/chains/" + submitted.get("chainId").stringValue()), 200);
+        assertThat(chain.has("replayNote")).isFalse();
+        JsonNode replay = json(post("/api/runs/replay").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"runIds\":[\"" + submitted.get("runId").stringValue() + "\"]}"), 200);
+        assertThat(replay.get("summary").get("not-replayable").intValue()).isZero();
     }
 
     @Test

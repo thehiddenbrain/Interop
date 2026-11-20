@@ -69,7 +69,7 @@ public class ChainService {
             // A damaged line cannot be read to tell which chain it was, so the note says it may be this one's.
             List<String> notes = new ArrayList<>(built.notes());
             notes.add("The ledger has " + unreadable + (unreadable == 1 ? " line" : " lines") + " it cannot read. A run of this chain may be "
-                    + "among them, so a step may be missing here. The self-check on the History tab says which file.");
+                    + "among them, so a step may be missing here.");
             built = new ChainView(built.chainId(), built.headline(), built.nextAction(), built.nextHeadline(), built.nextStage(), built.ended(),
                     built.startedAt(), built.lastRunAt(), built.environment(), built.environmentKind(), built.profile(), built.target(),
                     built.member(), built.procedureCodes(), built.stages(), built.otherRuns(), built.runCount(), built.elapsedMillis(), notes,
@@ -210,13 +210,14 @@ public class ChainService {
                 first.timestamp(), latest.timestamp(), latest.environment(), latest.environmentKind(), latest.profile(), latest.target(),
                 members.size() == 1 ? members.iterator().next() : null, List.copyOf(codes), stages, others, records.size(), elapsed, notes,
                 caseResult, caseExpected, caseLine(caseResult, caseExpected),
-                // Replay sends one line again, and a later step of a chain used what the step before it handed on.
-                records.stream().anyMatch(r -> r.protocol() == Protocol.DTR || r.protocol() == Protocol.PAS) ? REPLAY_NOTE : null);
+                // Replay refuses a line that used what an earlier step handed on, and only such a line. A chain started at
+                // PAS or DTR followed nothing, so its first step replays as any run does.
+                records.stream().anyMatch(r -> r.unrecordedInputs().contains(RunRecord.INPUT_PRIOR_STEP)) ? REPLAY_NOTE : null);
     }
 
     /** The sentence for a chain that has a step a replay cannot send again by itself. */
-    static final String REPLAY_NOTE = "A step of this chain after CRD cannot be replayed by itself: it used what the step before it "
-            + "handed on, which its ledger line does not hold. To run the journey again, run it as a suite row with the protocol chain.";
+    static final String REPLAY_NOTE = "A step of this chain that used what the step before it handed on cannot be replayed by itself: "
+            + "its ledger line does not hold what it was handed. To run the journey again, run it as a suite row with the protocol chain.";
 
     /** What the result of a chain run as a case means, in one sentence. */
     static String caseLine(TestResult result, String expected) {
@@ -228,7 +229,8 @@ public class ChainService {
             case FAIL -> "Run as a case, the journey failed against what the case expected. A step that did not give what was expected "
                     + "is marked failed on its run, and a step the case expected that has no run here was never reached.";
             case UNVERIFIED -> Texts.blank(expected) ? "Run as a case, the journey is unverified: the case declared no expected outcome."
-                    : "Run as a case, the journey is unverified: what the case expected was not compared with an answer.";
+                    : "Run as a case, the journey is unverified: what the case expected was not compared with an answer. Either a step "
+                    + "gave no answer that could be compared, or the case stopped before a step that was due. The stages show how far it got.";
         };
     }
 

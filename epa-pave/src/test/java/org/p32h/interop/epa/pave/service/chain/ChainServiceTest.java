@@ -334,8 +334,28 @@ class ChainServiceTest {
         assertThat(stage(view, Protocol.PAS).state()).isEqualTo(ChainStageState.NEEDS_ATTENTION);
         assertThat(stage(view, Protocol.PAS).latest().nextAction()).isEqualTo(NextAction.UNLOCK_OR_SWITCH);
         assertThat(view.ended()).isFalse();
-        // A submission is a step after CRD, which a replay cannot send again by itself.
-        assertThat(view.replayNote()).startsWith("A step of this chain after CRD cannot be replayed by itself");
+        // The submission followed nothing in this chain, so nothing says it cannot be replayed.
+        assertThat(view.replayNote()).isNull();
+    }
+
+    @Test
+    void onlyAStepThatUsedWhatAnEarlierStepHandedOnIsSaidToBeUnreplayable() {
+        // A chain started at PAS: its submission followed nothing, and a replay sends it again as it does any run.
+        String startedAtPas = RunStamps.newChainId();
+        later(startedAtPas, EpaOperation.PAS_SUBMIT, "APPROVED", NextAction.FLOW_ENDS, "S123456789");
+        ChainView pasFirst = chains().view(startedAtPas);
+        assertThat(stage(pasFirst, Protocol.CRD).stateLine()).isEqualTo("Not run in this chain. The chain was started at a later step.");
+        assertThat(pasFirst.replayNote()).isNull();
+        // A submission handed on from CRD: its line says so, and a replay refuses it.
+        String chainId = RunStamps.newChainId();
+        later(chainId, EpaOperation.CRD_ORDER_SIGN, "AUTH_REQUIRED", NextAction.START_PAS, "P32H-PA-REQ");
+        ledger.record(RunRecord.builder().runId(RunStamps.newRunId()).timestamp("2026-03-10T10:05:00.000-05:00").protocol(Protocol.PAS)
+                .operation(EpaOperation.PAS_SUBMIT).target("onyx").profile("mock").outcome("APPROVED").result(TestResult.UNVERIFIED)
+                .chainId(chainId).nextAction(NextAction.FLOW_ENDS).memberId("P32H-PA-REQ")
+                .unrecordedInputs(List.of(RunRecord.INPUT_PRIOR_STEP)).build());
+        assertThat(chains().view(chainId).replayNote()).isEqualTo("A step of this chain that used what the step before it handed on cannot "
+                + "be replayed by itself: its ledger line does not hold what it was handed. To run the journey again, run it as a suite row "
+                + "with the protocol chain.");
     }
 
     @Test

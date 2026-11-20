@@ -58,7 +58,9 @@ import org.p32h.interop.epa.pave.service.run.RunSupport;
  * never reached a step the case expected an answer from; unverified when the case expected
  * nothing. A chain that stops early can therefore not pass by leaving a step out. No single step's
  * ledger line can hold that result, so it is written on a line of its own that names the last
- * step, and the ledger reads it back with that step.
+ * step, and the ledger reads it back with that step. A chain stopped part way, before a step that
+ * was due, writes that line too, as unverified: nothing was compared, and without it History would
+ * show the steps that went out as if they were the whole case.
  */
 public final class ChainCaseStep implements CaseStep {
 
@@ -108,7 +110,9 @@ public final class ChainCaseStep implements CaseStep {
         try {
             stopped = follow(context, expectation, first, done);
         } catch (Interrupted interrupted) {
-            return new CaseRun(done, null, null, interrupted.interruption, List.of());
+            // Nothing was compared, so the case is unverified. Its line still says the case ran, so History does not
+            // show the steps that went out as if they were the whole of it.
+            return new CaseRun(done, null, null, interrupted.interruption, recordCaseResult(context, done, TestResult.UNVERIFIED));
         }
         return finish(context, expectation, done, stopped);
     }
@@ -258,9 +262,30 @@ public final class ChainCaseStep implements CaseStep {
         RunRecord line = RunRecord.caseLine(last.runId(), RunStamps.timestamp(support.clock()), last.chainId(),
                 context.origin().suiteRunId(), context.origin().caseId(), Texts.trimToNull(spec.expected()), overall);
         LedgerReceipt receipt = support.record(line);
-        return receipt.recorded() ? List.of()
-                : List.of("The result of this case as a whole was NOT recorded in the ledger, so History cannot show it: "
-                + Texts.orElse(receipt.message(), "the ledger gave no reason."));
+        return receipt.recorded() ? List.of() : List.of(caseNotRecorded(receipt.message()));
+    }
+
+    /** How every message about a case line that was not kept begins, so it is never counted as a run that was not kept. */
+    public static final String CASE_NOT_RECORDED = "The result of this case as a whole was NOT recorded in the ledger, so History "
+            + "cannot show it";
+    /** How the ledger begins its own message about a case line, which is then not repeated inside this one. */
+    private static final String LEDGER_CASE_PREFIX = "The result of this case was NOT recorded: ";
+
+    /** The message for a case line the ledger did not keep, saying it once and then why. */
+    static String caseNotRecorded(String ledgerMessage) {
+        String why = Texts.trimToNull(ledgerMessage);
+        if (why == null) {
+            return CASE_NOT_RECORDED + ". The ledger gave no reason.";
+        }
+        if (why.startsWith(LEDGER_CASE_PREFIX)) {
+            return CASE_NOT_RECORDED + ": " + why.substring(LEDGER_CASE_PREFIX.length());
+        }
+        return CASE_NOT_RECORDED + ". The ledger said: " + why;
+    }
+
+    /** True for a message about a case line, as opposed to one about a run. */
+    public static boolean aboutTheCaseLine(String message) {
+        return message != null && message.startsWith(CASE_NOT_RECORDED);
     }
 
     /** Ends the chain at a step that could not be sent. */
