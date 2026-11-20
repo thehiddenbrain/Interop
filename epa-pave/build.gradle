@@ -96,6 +96,11 @@ test {
 //    redundant while that plugin is applied. It is kept so the flag survives a change to the
 //    plugin. This task therefore checks the effective arguments of every JavaCompile task and
 //    not the text of this file.
+//
+// The application no longer relies on the flag: every controller argument names itself, and
+// HandlerArgumentNamesTest fails the build when one does not, so an IDE build such as STS, whose
+// compiler keeps no parameter names by default, runs the controllers too. The flag and this
+// check stay as a second guard, for code the test cannot see and for the records above.
 // ---------------------------------------------------------------------------------------------
 def javaCompileTasks = tasks.withType(JavaCompile)
 def verifyParametersFlag = tasks.register('verifyParametersFlag') {
