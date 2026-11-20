@@ -133,22 +133,19 @@ public record VendorExchange(
                 failureType, failureDetail, merged, scenarioId, scenarioNote, bodyNotes, reached);
     }
 
-    /** Said of a timeout a mock scenario answered, beside its response time, which is the scenario's delay and not a read timeout. */
-    public static final String SIMULATED_TIMEOUT = "On mock the timeout is simulated: the scenario reports it after its own short delay "
-            + "and does not wait for the read timeout, so the response time shown is that delay.";
+    /** The same exchange marked with the mock scenario that produced it and how it was chosen. */
+    public VendorExchange withScenario(String id, String note) {
+        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis,
+                failureType, failureDetail, signals, id, note, bodyNotes, reached);
+    }
 
     /**
-     * The same exchange marked with the mock scenario that produced it and how it was chosen. A
-     * timeout a scenario answered also says it was simulated: "no response inside the read timeout"
-     * beside a response time of a few hundred milliseconds read as a contradiction.
+     * A timeout a mock scenario played. Nothing was sent and no service was waited for, so the
+     * answer says that once and words what a real timeout would mean as what it would mean, not
+     * as what happened.
      */
-    public VendorExchange withScenario(String id, String note) {
-        String detail = failureDetail;
-        if (failureType == OnyxFailureType.TIMEOUT && Texts.present(id) && (detail == null || !detail.contains(SIMULATED_TIMEOUT))) {
-            detail = Texts.present(detail) ? detail.strip() + " " + SIMULATED_TIMEOUT : SIMULATED_TIMEOUT;
-        }
-        return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis,
-                failureType, detail, signals, id, note, bodyNotes, reached);
+    public boolean playedTimeout() {
+        return failureType == OnyxFailureType.TIMEOUT && Texts.present(scenarioId);
     }
 
     /** The same exchange with the parsed body replaced, for a client that normalises a vendor shape. */

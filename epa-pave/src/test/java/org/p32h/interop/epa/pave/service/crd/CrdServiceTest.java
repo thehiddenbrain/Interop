@@ -529,9 +529,16 @@ class CrdServiceTest {
         assertThat(timeout.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
         assertThat(timeout.error().httpStatus()).isNull();
         assertThat(timeout.verdict().headline()).isEqualTo("The service did not answer in time.");
-        // On mock the timeout is a scenario's short delay, and the result says so beside its response time (frame review FR-16).
-        assertThat(timeout.verdict().supporting()).anySatisfy(line -> assertThat(line).contains(org.p32h.interop.epa.pave.model.VendorExchange
-                .SIMULATED_TIMEOUT));
+        // On mock the timeout is a scenario's short delay. The error panel says once that it was played, that nothing was sent
+        // and that no environment failed, and that the time shown is the delay (frame review FR-16). The verdict names the
+        // scenario and does not say it again, and the next step speaks of what a real timeout would mean.
+        assertThat(timeout.error().title()).startsWith("A mock scenario played a timeout. Nothing was sent and no environment failed: "
+                + "the response time shown, ").endsWith(" ms, is the scenario's own delay.");
+        assertThat(timeout.verdict().supporting()).singleElement().satisfies(line -> assertThat(line).startsWith("Mock scenario crd-13-timeout"));
+        assertThat(timeout.nextStep().headline()).isEqualTo("Next, had this been a real service: check the environment, then send again.");
+        assertThat(timeout.nextStep().reason()).isEqualTo("Had this been a real service, a timeout would be a finding about the environment, "
+                + "not about the member or the code.");
+        assertThat(timeout.nextStep().action()).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.CHECK_ENVIRONMENT);
         OnyxCrdClient unreachable = stub(TestExchanges.unavailable(EpaOperation.CRD_ORDER_SIGN));
         RunEnvelope<CrdDetail> down = service(unreachable, "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(down.error().kind()).isEqualTo(ErrorKind.UNREACHABLE);

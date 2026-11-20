@@ -445,11 +445,17 @@ class PasVerdictsTest {
         WireRequest notSent = new WireRequest("POST", null, "", List.of(), "{}", false, "Mock profile.");
         // A scenario that models a read timeout: on live the request would have gone out.
         VendorExchange mockTimeout = Exchanges.timeout(notSent, 5L).withScenario("pas-16-timeout", "chosen in the scenario selector");
+        // The verdict names the scenario and nothing more: the error panel says once that the timeout was played and that
+        // nothing was sent, and what a real timeout would mean for the submission is the next step's, worded as that.
         assertThat(PasVerdicts.verdict(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT).supporting()).containsExactly(
-                "Mock scenario pas-16-timeout answered: chosen in the scenario selector.", "No response arrived inside the read timeout. "
-                        + VendorExchange.SIMULATED_TIMEOUT,
-                MAY_HAVE_ACTED);
-        assertThat(PasVerdicts.nextStep(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT, RUN).headline()).isEqualTo(ASK_FIRST);
+                "Mock scenario pas-16-timeout answered: chosen in the scenario selector.");
+        NextStepView rehearsed = PasVerdicts.nextStep(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT, RUN);
+        assertThat(rehearsed.headline()).isEqualTo("Next, had this been a real service: check the environment, then ask for the status "
+                + "before sending again.");
+        assertThat(rehearsed.reason()).isEqualTo("Had this been a real service, the payer might have received the submission: ask for its "
+                + "status before sending it again. Sending it again without checking could create a second request.");
+        assertThat(rehearsed.action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
+        assertThat(rehearsed.carry()).containsKey(NextStepView.CARRY_RUN_ID);
         // A scenario that models a refused connection: nothing would have been delivered.
         VendorExchange mockRefused = Exchanges.unavailable(notSent, 5L, "The connection was refused or could not be opened.");
         NextStepView down = PasVerdicts.nextStep(mapper.read(mockRefused), mockRefused, EpaOperation.PAS_SUBMIT, RUN);

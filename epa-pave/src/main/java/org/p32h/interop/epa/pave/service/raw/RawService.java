@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.raw;
 
+import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -306,7 +307,7 @@ public class RawService {
 
         NextStepView nextStep = outcome == RawOutcome.TIMEOUT || outcome == RawOutcome.UNREACHABLE || outcome == RawOutcome.SERVICE_ERROR
                 || outcome == RawOutcome.MALFORMED_RESPONSE
-                ? noUsableAnswer(call, exchange)
+                ? rehearsed(call, exchange)
                 : outcome == RawOutcome.REJECTED
                 ? NextStepView.of(NextAction.FIX_REQUEST, "Next: read the response below and correct the request, its url or its credentials.",
                 "The service did not accept the request as it was sent.")
@@ -329,6 +330,16 @@ public class RawService {
     }
 
     private static final String THE_SERVICE = "The service";
+
+    /** The next step after no usable answer, worded as what a real timeout would mean when a scenario played one. */
+    private static NextStepView rehearsed(PreparedCall call, VendorExchange exchange) {
+        String method = Exchanges.method(call);
+        boolean read = method.equals("GET") || method.equals("HEAD") || method.equals("OPTIONS");
+        return PlayedTimeouts.rehearsed(exchange, noUsableAnswer(call, exchange), read
+                ? "Had this been a real service, a timeout would be a finding about the environment."
+                : "Had this been a real service, it might have received the " + method + " and acted on it: find out whether the request "
+                + "took effect before sending it again.");
+    }
 
     /**
      * The next step when no usable answer came back. A read is sent again. A request that may

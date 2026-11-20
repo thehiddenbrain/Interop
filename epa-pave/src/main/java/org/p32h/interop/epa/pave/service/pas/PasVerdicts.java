@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.pas;
 
+import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.NextAction;
@@ -143,7 +144,9 @@ public final class PasVerdicts {
                     ? "The service answered with no body" + status(exchange) + "."
                     : "The service answered with a body that could not be read" + status(exchange) + ".";
         };
-        if (outcome.fault()) {
+        // A played timeout is described once, by the error panel beside the verdict, and what a real
+        // one would mean for the submission is said by the next step, as what it would mean.
+        if (outcome.fault() && !exchange.playedTimeout()) {
             if (Texts.present(exchange.failureDetail())) {
                 supporting.add(exchange.failureDetail());
             }
@@ -322,7 +325,11 @@ public final class PasVerdicts {
                     "Next: check the claim identifier and the items of the inquiry against the submission it asks about.",
                     "The payer holds no prior authorization matching what the inquiry asked about. The environment answered normally.", carry);
             case REJECTED -> notAccepted(exchange, carry);
-            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> afterNoUsableAnswer(outcome, exchange, operation, carry);
+            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> PlayedTimeouts.rehearsed(exchange,
+                    afterNoUsableAnswer(outcome, exchange, operation, carry), operation.write()
+                            ? "Had this been a real service, the payer might have received the submission: ask for its status before "
+                            + "sending it again. Sending it again without checking could create a second request."
+                            : PlayedTimeouts.aboutTheEnvironment("the member or the code"));
         };
     }
 

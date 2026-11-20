@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.dtr;
 
+import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.JsonSafe;
@@ -162,7 +163,8 @@ public final class DtrVerdicts {
                     ? "The service answered with no body" + status(exchange) + "."
                     : "The service answered with a body that could not be read" + status(exchange) + ".";
         };
-        if (outcome.fault() && exchange != null && Texts.present(exchange.failureDetail())) {
+        // A played timeout is described once, by the error panel beside the verdict.
+        if (outcome.fault() && exchange != null && Texts.present(exchange.failureDetail()) && !exchange.playedTimeout()) {
             supporting.add(exchange.failureDetail());
         }
         if (form != null) {
@@ -317,9 +319,11 @@ public final class DtrVerdicts {
             case PROVIDER_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the NPI against the test data.",
                     "The service does not recognise the provider. The environment answered normally.", carry);
             case REJECTED -> notAccepted(exchange, carry);
-            case SERVICE_ERROR, TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> new NextStepView(NextAction.CHECK_ENVIRONMENT,
-                    "Next: check the environment, then send again.",
-                    "No usable answer came back. This is a finding about the environment, not about the member or the questionnaire.", carry);
+            case SERVICE_ERROR, TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> PlayedTimeouts.rehearsed(exchange,
+                    new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                            "No usable answer came back. This is a finding about the environment, not about the member or the questionnaire.",
+                            carry),
+                    PlayedTimeouts.aboutTheEnvironment("the member or the questionnaire"));
         };
     }
 

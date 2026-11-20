@@ -499,14 +499,14 @@ public class RunSupport {
             // No advice to send again here. This panel is the same for a read and for a write, and
             // a write that timed out may have reached the service: the next step, which knows what
             // was sent, says whether to send again or to ask first.
-            case TIMEOUT -> epa.mock() && Texts.present(exchange.scenarioId())
+            case TIMEOUT -> epa.mock() && exchange.playedTimeout()
                     // A scenario plays a timeout at once, so the time beside it is not how long a
-                    // service was waited for: the panel says what was played and what live would wait.
-                    ? ErrorView.of(ErrorKind.TIMEOUT, "A mock scenario played a timeout: the scenario reports giving up after "
-                            + exchange.elapsedMillis() + " ms, and nothing was waited for. On live this tool waits up to " + onyx.readTimeoutMs() + " ms for an answer "
-                            + "(onyx.read-timeout-ms) before it gives up.",
-                    "Nothing was sent: this rehearses what a tester sees when a service does not answer in time. The next step says "
-                            + "whether to send again.")
+                    // service was waited for. This panel is the one place the answer says what was
+                    // played: the verdict and the next step speak only of what a real timeout would mean.
+                    ? ErrorView.of(ErrorKind.TIMEOUT, "A mock scenario played a timeout. Nothing was sent and no environment failed: "
+                            + "the response time shown, " + exchange.elapsedMillis() + " ms, is the scenario's own delay.",
+                    "Had this been a real service, this tool would have waited up to " + onyx.readTimeoutMs() + " ms for an answer "
+                            + "(onyx.read-timeout-ms) before giving up. The next step says what a tester would do then.")
                     : ErrorView.of(ErrorKind.TIMEOUT,
                     "No response arrived within the read timeout" + (epa.mock() ? "" : " of " + onyx.readTimeoutMs() + " ms") + ".",
                     "The service may be slow or down. If it repeats, report the environment. The next step says whether to send again.");
