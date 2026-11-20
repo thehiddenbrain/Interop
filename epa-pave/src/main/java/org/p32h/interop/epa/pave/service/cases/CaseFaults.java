@@ -13,6 +13,7 @@ import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.scenario.ScenarioSetUnusableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +45,11 @@ public final class CaseFaults {
         if (e instanceof ValidationException validation) {
             return new CaseRun.Interruption(CaseStatus.INVALID, describe(validation.fieldErrors()), null);
         }
+        if (e instanceof ScenarioSetUnusableException unusable) {
+            // Checked before any input that cannot be used: the row is not at fault, and the
+            // exception's own message quotes what the files hold, which a results file must not.
+            return new CaseRun.Interruption(CaseStatus.NOT_CONFIGURED, scenariosUnusable(unusable.protocolDirectory()), null);
+        }
         if (e instanceof BadInputException || e instanceof NotFoundException) {
             return new CaseRun.Interruption(CaseStatus.INVALID, e.getMessage(), null);
         }
@@ -61,6 +67,17 @@ public final class CaseFaults {
         // The exception types and frames only. Never its message, and never the case, which holds a member ID.
         log.error("A case failed inside this tool, reference {}: {}", reference, Faults.describe(e));
         return new CaseRun.Interruption(CaseStatus.NOT_RUNNABLE, toolFailed(what, reference), reference);
+    }
+
+    /**
+     * The sentence for a case the mock could not answer because its scenario files cannot be used.
+     * It names the protocol directory, a name of the tool's own, and nothing a file holds.
+     */
+    static String scenariosUnusable(String protocolDirectory) {
+        String where = protocolDirectory == null || !protocolDirectory.matches("[a-z]{1,20}") ? "this protocol" : protocolDirectory;
+        return "The mock scenarios for " + where + " cannot be used, so the mock did not answer and nothing was sent. The case "
+                + "itself is not at fault. The scenario list for " + where + " names each file and its problem; put them right, then "
+                + "run the case again.";
     }
 
     /**

@@ -74,6 +74,22 @@ class InMemoryLedgerTest {
         assertThat(ledger.query(RunQuery.builder().outcome("APPROVE").build())).isEmpty();
     }
 
+    // ---- the tester reference and the zone, as the real ledger reads them ----
+
+    @Test
+    void theTesterReferenceIsMatchedExactlyAndAZoneMakesTheDatesDaysOnThatClock() {
+        ledger.record(run("run-1", "APPROVED").testerRef("QA-17").timestamp("2026-03-10T23:30:00Z").build());
+        ledger.record(run("run-2", "APPROVED").testerRef("QA-170").timestamp("2026-03-10T09:00:00Z").build());
+
+        assertThat(ledger.query(RunQuery.builder().testerRef("QA-17").build())).extracting(RunRecord::runId).containsExactly("run-1");
+        assertThat(ledger.query(RunQuery.builder().testerRef("qa-17").build())).isEmpty();
+        // 23:30 UTC on the tenth is the eleventh in Berlin.
+        assertThat(ledger.query(RunQuery.between(java.time.LocalDate.parse("2026-03-11"), java.time.LocalDate.parse("2026-03-11"),
+                java.time.ZoneId.of("Europe/Berlin")))).extracting(RunRecord::runId).containsExactly("run-1");
+        assertThat(ledger.query(RunQuery.between(java.time.LocalDate.parse("2026-03-11"), java.time.LocalDate.parse("2026-03-11"))))
+                .isEmpty();
+    }
+
     // ---- notes ----
 
     @Test

@@ -75,4 +75,20 @@ class DtrCaseStepTest {
         assertThat(none.status()).isEqualTo(CaseStatus.COMPLETED);
         assertThat(none.runs()).extracting(RunRecord::operation).containsExactly(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE);
     }
+
+    @Test
+    void aStatementInPlaceOfAnAddressIsNeverCutIntoAddressesAndTheCaseIsNotRun() {
+        // Without the check the statement's words would be sent as questionnaires, and "(not" would be refused as one of them.
+        for (String statement : List.of("(not a url, 12 characters)", "(not recorded, 40 characters)")) {
+            CaseOutcome outcome = runner().run(packageCase().correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE,
+                    "https://example.org/Questionnaire/sleep|1.0 " + statement)).build());
+            assertThat(outcome.status()).as(statement).isEqualTo(CaseStatus.NOT_RUNNABLE);
+            assertThat(outcome.reason()).as(statement).isEqualTo("The questionnaires this case names hold a statement that something "
+                    + "was there in place of an address, because what was there did not have the shape of one. Sent without it, the "
+                    + "request would not be the same one.");
+        }
+        assertThat(ledger.records()).isEmpty();
+        assertThat(DtrCaseStep.addresses("https://example.org/Q/a|1 (not a url, 12 characters)  https://example.org/Q/b"))
+                .containsExactly("https://example.org/Q/a|1", "https://example.org/Q/b");
+    }
 }

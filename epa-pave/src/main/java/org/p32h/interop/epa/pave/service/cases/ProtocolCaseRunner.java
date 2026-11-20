@@ -118,6 +118,11 @@ public class ProtocolCaseRunner implements CaseRunner {
         if (!operation.outbound()) {
             return operation.label() + " records something that arrived or a step completed inside the tool. There is nothing to send again.";
         }
+        if (operation == EpaOperation.DTR_QUESTIONNAIRE_PACKAGE
+                && DtrCaseStep.holdsStatement(spec.correlation().get(RunRecord.CORR_QUESTIONNAIRE))) {
+            return "The questionnaires this case names hold a statement that something was there in place of an address, because "
+                    + "what was there did not have the shape of one. Sent without it, the request would not be the same one.";
+        }
         if (steps.containsKey(operation)) {
             return null;
         }

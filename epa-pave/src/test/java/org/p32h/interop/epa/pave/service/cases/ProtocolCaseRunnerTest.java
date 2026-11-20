@@ -260,6 +260,25 @@ class ProtocolCaseRunnerTest {
     }
 
     @Test
+    void mockScenariosThatCannotBeUsedAreSaidSoAndNothingAFileHoldsIsNamed() {
+        ProtocolCaseRunner runner = new ProtocolCaseRunner(members, providers).register(EpaOperation.CRD_ORDER_SIGN, context -> {
+            throw new org.p32h.interop.epa.pave.service.scenario.ScenarioSetUnusableException("crd",
+                    List.of("crd-99-edited.json: the member " + SURNAME + " S123456789 is not a sentinel."));
+        });
+        CaseOutcome outcome = runner.run(crdCase("P32H-NO-AUTH").expected("NO_AUTH_REQUIRED").build());
+
+        // The row is not at fault, and the tool did not fail: the scenario files did.
+        assertThat(outcome.status()).isEqualTo(CaseStatus.NOT_CONFIGURED);
+        assertThat(outcome.toolFailed()).isFalse();
+        assertThat(outcome.reason()).isEqualTo("The mock scenarios for crd cannot be used, so the mock did not answer and nothing was "
+                + "sent. The case itself is not at fault. The scenario list for crd names each file and its problem; put them right, "
+                + "then run the case again.");
+        assertThat(JsonSafe.mapper().writeValueAsString(outcome)).doesNotContain("crd-99-edited").doesNotContain(SURNAME)
+                .doesNotContain("S123456789");
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
     void aCaseThatWasNotSentNeverSaysItWasSentWithTheIdAlone() {
         memberStatus = LookupStatus.NOT_FOUND;
         providerStatus = LookupStatus.DISABLED;
