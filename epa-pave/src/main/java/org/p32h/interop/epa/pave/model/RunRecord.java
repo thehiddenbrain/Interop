@@ -35,8 +35,9 @@ import java.util.Map;
  *       the authorization number; the record keeps the token as it is. Every other value is kept
  *       only as one identifier token that does not read like an identifier or a date once any UUID
  *       in it is set aside</li>
- *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token that does not read
- *       like an identifier or a date, a line of business is a short label that does not either.
+ *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token that the loaded code
+ *       list holds or that does not read like an identifier or a date, a line of business is a short
+ *       label that does not either.
  *       Which lines the tool knows is the ledger's to decide, since the record cannot see the code
  *       list</li>
  *   <li>the subject written before a coverage code, and before "(no answer)": each part is held
@@ -459,7 +460,33 @@ public record RunRecord(
         if (statement("not a code", code)) {
             return code;
         }
-        return code != null && PROCEDURE_CODE.matcher(code).matches() && !identifying(code, sought) ? code : notKept("not a code", code);
+        return code != null && PROCEDURE_CODE.matcher(code).matches() && !holdsMember(code, sought)
+                && (listed(code) || !identifying(code, sought)) ? code : notKept("not a code", code);
+    }
+
+    /**
+     * Whether the loaded code list holds a code. A code the list holds is kept as written whatever
+     * its shape: a seven digit ICD-10-PCS code or an eleven digit NDC is a code because the list
+     * says so, not a member ID. The record cannot see the list, so the ledger hands it this test
+     * when it is made ({@link #codesOnTheList}); until then no code is on the list.
+     */
+    private static volatile java.util.function.Predicate<String> onTheCodeList = code -> false;
+
+    /**
+     * Tells every record built from now on which codes the loaded code list holds. The ledger of
+     * the application calls this once, with its code list. Null means no list.
+     */
+    public static void codesOnTheList(java.util.function.Predicate<String> listed) {
+        onTheCodeList = listed == null ? code -> false : listed;
+    }
+
+    private static boolean listed(String code) {
+        try {
+            return onTheCodeList.test(code);
+        } catch (RuntimeException e) {
+            // A list that cannot be asked holds nothing for this purpose: the code is then held to its shape.
+            return false;
+        }
     }
 
     /**
@@ -473,7 +500,8 @@ public record RunRecord(
         List<String> parts = new java.util.ArrayList<>();
         while (item.find()) {
             String part = item.group();
-            parts.add(statement("not a code", part) || !identifyingPlace(part, sought) ? part : notKept("not a code", part));
+            parts.add(statement("not a code", part) || !holdsMember(part, sought) && (listed(part) || !identifyingPlace(part, sought)) ? part
+                    : notKept("not a code", part));
         }
         return String.join(", ", parts);
     }

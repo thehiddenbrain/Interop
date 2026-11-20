@@ -434,8 +434,10 @@ class LedgerPhiTest {
                 org.p32h.interop.epa.pave.service.error.ValidationException.class,
                 () -> service.run(request(MEMBER_ID).note("Spoke to " + GIVEN + " at " + STREET + ", born 1970-01-31, subscriber "
                         + SUBSCRIBER).build(), RunOrigin.manual(), null));
+        // "Placeholder", one half of the surname, is in the street as well (the independent check, N5).
         assertThat(named.fieldErrors()).singleElement().satisfies(error -> assertThat(error.message()).isEqualTo("The note holds the "
-                + "member's first name and the member's date of birth and the member's subscriber ID and the member's address. The ledger "
+                + "member's first name and the member's last name and the member's date of birth and the member's subscriber ID and the "
+                + "member's address. The ledger "
                 + "keeps it as written and may not hold member data, so leave them out. Nothing was sent."));
         assertThat(Files.exists(dayFile(home, TODAY))).isFalse();
 

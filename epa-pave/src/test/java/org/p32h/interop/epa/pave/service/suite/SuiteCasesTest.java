@@ -404,6 +404,18 @@ class SuiteCasesTest {
     }
 
     @Test
+    void aRowRefusedBecauseItsExpectationHoldsItsMemberIdCarriesTheRefusalInPlaceOfTheExpectation() {
+        // Found by the independent check of the member data fixes (N8): the results file repeated the expectation.
+        SuiteDefinition definition = csv("caseId,protocol,memberId,note,testerRef,expected\n"
+                + "TC-1,crd,S1234567801,,,S1234567801: covered=covered\n"
+                + "TC-2,crd,S1234567801,,,NO_AUTH_REQUIRED\n");
+        List<SuiteRow> rows = definition.rows();
+        assertThat(rows.get(0).expected()).isEqualTo("The expectation holds this run's member ID. The ledger keeps it as written and may "
+                + "not hold member data, so leave it out. The row was not run.");
+        assertThat(rows.get(1).expected()).isEqualTo("NO_AUTH_REQUIRED");
+    }
+
+    @Test
     void aRowWhoseNoteHoldsItsMemberIdInAnotherFormIsRefused() {
         // Found by the independent check of the member data fixes (N3): fullwidth digits and the digits alone.
         SuiteDefinition definition = csv("caseId,protocol,memberId,note,testerRef,expected\n"

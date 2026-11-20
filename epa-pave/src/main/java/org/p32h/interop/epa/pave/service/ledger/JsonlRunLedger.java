@@ -128,6 +128,9 @@ public class JsonlRunLedger implements RunLedger {
         Objects.requireNonNull(codeList, "codeList");
         this.policy = new TrackingPolicy(tracking.recordMemberId(), epa.mock(), tracking.recordNpi(), this::tokens,
                 line -> lineAsListed(codeList, line));
+        // A code the list holds is kept as written whatever its shape. Every record checks its codes
+        // as it is built, before the ledger sees it, so the record is told which codes those are.
+        RunRecord.codesOnTheList(code -> !codeList.rowsFor(code, null, null).isEmpty());
 
         // Checked whether or not tracking is on. It costs nothing, and a salt beside the lines it
         // protects would let anyone who copies the folder test member IDs against them.

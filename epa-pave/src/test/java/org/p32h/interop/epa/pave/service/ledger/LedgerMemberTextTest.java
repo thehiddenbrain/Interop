@@ -239,6 +239,26 @@ class LedgerMemberTextTest {
     }
 
     @Test
+    void aLongDigitCodeTheCodeListHoldsIsKeptAsWrittenAndOneItDoesNotHoldIsNot() {
+        // Found by the independent check of the member data fixes (N7): an ICD-10-PCS shape and an
+        // NDC became "not a code". The list decides; for a code it does not hold, the rule stands.
+        try {
+            JsonlRunLedger ledger = new JsonlRunLedger(LedgerFixtures.tracking(home, Map.of()), LedgerFixtures.configStore(home),
+                    org.p32h.interop.epa.pave.config.EpaProperties.defaults(), CLOCK, new org.p32h.interop.epa.pave.testsupport.FakeCodeList()
+                    .row("0016070", org.p32h.interop.epa.pave.model.AuthRequirement.REQUIRED, null, null)
+                    .row(MEMBER_ID, org.p32h.interop.epa.pave.model.AuthRequirement.REQUIRED, null, null));
+            ledger.record(draft("run-1", CLOCK).procedureCodes(List.of("0016070", "00002751001", "95810", MEMBER_ID))
+                    .coverageCodes(List.of("0016070: covered=covered", "00002751001: (no answer)")).build());
+
+            RunRecord read = ledger.find("run-1").orElseThrow();
+            assertThat(read.procedureCodes()).containsExactly("0016070", "(not a code, 11 characters)", "95810", "(not a code, 10 characters)");
+            assertThat(read.coverageCodes()).containsExactly("0016070: covered=covered", "(not a code, 11 characters): (no answer)");
+        } finally {
+            RunRecord.codesOnTheList(null);
+        }
+    }
+
+    @Test
     void aNoteAnOlderVersionAppendedWithTheMemberIdIsReplacedWhenTheLineIsReadAndExported() throws java.io.IOException {
         JsonlRunLedger ledger = ledger(home, CLOCK);
         ledger.record(draft("run-1", CLOCK).build());

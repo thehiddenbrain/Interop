@@ -24,8 +24,10 @@ import java.util.regex.Pattern;
  *
  * <p>Only what the request itself holds can be looked for: its member ID in any spelling (with or
  * without spaces or punctuation, in any letter case, inside a longer word, and its run of digits
- * alone when that has six or more), the first and the last name as words, the date of birth in the
- * usual ways of writing a date, month names included, the subscriber ID and the address lines.
+ * alone when that has six or more), the first and the last name as words (alone when a name has
+ * four letters or more, a shorter one only beside the other name, and one part of a hyphenated or
+ * two-word surname of four letters or more), the date of birth in the usual ways of writing a date,
+ * month names included, the subscriber ID, the address lines, and the city with the postal code.
  * Text is brought to one form first (Unicode compatibility normalisation), so a digit or a letter
  * typed in its fullwidth form is the same digit or letter. A name or a date of somebody the request does not carry cannot be told from an
  * honest remark by any rule, so such text is not refused here. The note is free text, and member
@@ -39,6 +41,8 @@ public final class MemberInText {
     static final int SHORTEST_ID_SOUGHT = 6;
     /** A name shorter than this is not looked for: one letter is an initial in any remark. */
     private static final int SHORTEST_NAME_SOUGHT = 2;
+    /** A name shorter than this is looked for only beside the other name, since it is an ordinary word as often as a name. */
+    static final int SHORTEST_NAME_ALONE = 4;
     /** An address line shorter than this is not looked for. */
     private static final int SHORTEST_ADDRESS_SOUGHT = 5;
 
@@ -118,10 +122,11 @@ public final class MemberInText {
         if (holdsId(text, member.memberId())) {
             kinds.add("this run's member ID");
         }
-        if (holdsWord(text, member.firstName())) {
+        boolean together = holdsBoth(text, member.firstName(), member.lastName());
+        if (together || holdsName(text, member.firstName())) {
             kinds.add("the member's first name");
         }
-        if (holdsWord(text, member.lastName())) {
+        if (together || holdsName(text, member.lastName()) || holdsSurnamePart(text, member.lastName())) {
             kinds.add("the member's last name");
         }
         if (holdsDate(text, member.dateOfBirth())) {
@@ -240,13 +245,60 @@ public final class MemberInText {
         return false;
     }
 
-    private static boolean holdsWord(String text, String name) {
-        String sought = Texts.trimToNull(name);
-        if (sought == null || sought.length() < SHORTEST_NAME_SOUGHT) {
+    /**
+     * True when a text holds a name as a word, in any case, and the name has {@link #SHORTEST_NAME_ALONE}
+     * letters or more. A shorter one (May, Will, An, Do, Le) is an ordinary word in an honest note,
+     * and is looked for only beside the other name ({@link #holdsBoth}).
+     */
+    private static boolean holdsName(String text, String name) {
+        String sought = Texts.trimToNull(oneForm(name));
+        return sought != null && letters(sought) >= SHORTEST_NAME_ALONE && holdsWord(text, sought);
+    }
+
+    /** True when a text holds the first and the last name standing together, in either order: May An, An May, An, May. */
+    private static boolean holdsBoth(String text, String first, String last) {
+        String given = Texts.trimToNull(oneForm(first));
+        String family = Texts.trimToNull(oneForm(last));
+        if (given == null || family == null || letters(given) < SHORTEST_NAME_SOUGHT || letters(family) < SHORTEST_NAME_SOUGHT) {
             return false;
         }
+        String between = "[\\s,]+";
+        return holdsWord(text, given, between, family) || holdsWord(text, family, between, given);
+    }
+
+    /**
+     * True when a text holds one part of a hyphenated or two-word surname, of {@link #SHORTEST_NAME_ALONE}
+     * letters or more, as a word: a member is often called by one half of such a name.
+     */
+    private static boolean holdsSurnamePart(String text, String last) {
+        String family = Texts.trimToNull(oneForm(last));
+        if (family == null) {
+            return false;
+        }
+        String[] parts = family.split("[\\s\\-]+");
+        if (parts.length < 2) {
+            return false;
+        }
+        for (String part : parts) {
+            if (letters(part) >= SHORTEST_NAME_ALONE && holdsWord(text, part)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean holdsWord(String text, String sought) {
         return Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(sought) + "(?![\\p{L}\\p{N}])",
                 Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(text).find();
+    }
+
+    private static boolean holdsWord(String text, String one, String between, String other) {
+        return Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(one) + between + Pattern.quote(other) + "(?![\\p{L}\\p{N}])",
+                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(text).find();
+    }
+
+    private static int letters(String value) {
+        return (int) value.codePoints().filter(Character::isLetter).count();
     }
 
     /**
@@ -324,6 +376,9 @@ public final class MemberInText {
         if (address == null) {
             return false;
         }
+        if (holdsCityWithPostalCode(text, address)) {
+            return true;
+        }
         String squeezed = text.replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
         for (String line : new String[]{address.line1(), address.line2()}) {
             String sought = line == null ? "" : line.strip().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
@@ -332,6 +387,28 @@ public final class MemberInText {
             }
         }
         return false;
+    }
+
+    /**
+     * True when a text holds the city of the address and its postal code, both as words. Either
+     * alone says little (a city is named in honest notes, and five digits are a code as often as a
+     * postal code); the two together place the member. A postal code is compared by its first five
+     * characters, so 00077 is found for 00077-1234 and the other way round.
+     */
+    private static boolean holdsCityWithPostalCode(String text, PostalAddress address) {
+        String city = Texts.trimToNull(oneForm(address.city()));
+        String postal = Texts.trimToNull(oneForm(address.postalCode()));
+        if (city == null || postal == null || letters(city) < SHORTEST_NAME_SOUGHT) {
+            return false;
+        }
+        String start = postal.replaceAll("[^A-Za-z0-9]", "");
+        start = start.length() > 5 ? start.substring(0, 5) : start;
+        if (start.length() < 3) {
+            return false;
+        }
+        String squeezedCity = city.replaceAll("\\s+", " ");
+        return holdsWord(text.replaceAll("\\s+", " "), squeezedCity)
+                && Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(start), Pattern.CASE_INSENSITIVE).matcher(text).find();
     }
 
     private static String alphanumerics(String value) {
