@@ -40,6 +40,20 @@ export function post(path) {
     return send(path, {method: 'POST', headers: JSON_ACCEPT});
 }
 
+/** Replaces something the configuration holds, such as which request an operation uses. */
+export function putJson(path, payload) {
+    return send(path, {
+        method: 'PUT',
+        headers: {...JSON_ACCEPT, 'Content-Type': 'application/json'},
+        body: JSON.stringify(payload === undefined ? {} : payload)
+    });
+}
+
+/** Removes something the configuration holds: an uploaded environment or collection. */
+export function del(path) {
+    return send(path, {method: 'DELETE', headers: JSON_ACCEPT});
+}
+
 async function send(path, options) {
     let response;
     try {
