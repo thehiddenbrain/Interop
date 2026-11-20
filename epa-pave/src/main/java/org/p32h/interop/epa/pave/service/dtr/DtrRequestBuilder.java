@@ -70,12 +70,17 @@ public final class DtrRequestBuilder {
      * @param response the QuestionnaireResponse so far, with the answers being added in it
      * @param json     the request body as pretty JSON
      */
-    public record LoopBody(JsonNode response, String json, List<String> notes) {
+    public record LoopBody(JsonNode response, String json, List<String> notes, List<DtrProfileCheck.Gap> gaps) {
+
+        public LoopBody {
+            notes = notes == null ? List.of() : List.copyOf(notes);
+            gaps = gaps == null ? List.of() : List.copyOf(gaps);
+        }
 
         /** Redacted, because the response carries the tester's answers, which can be clinical. */
         @Override
         public String toString() {
-            return "LoopBody[notes=" + (notes == null ? 0 : notes.size()) + "]";
+            return "LoopBody[notes=" + notes.size() + ", gaps=" + gaps.size() + "]";
         }
     }
 
@@ -87,11 +92,17 @@ public final class DtrRequestBuilder {
      * @param orders the references of the orders the case is about, such as
      *               {@code ServiceRequest/service-request-1}, under the ids this tool gives them in
      *               every request it builds
+     * @param shape  what the response states about its intended use and the form of its coverage
      */
-    public record Filler(MemberDetail member, ProviderDetail provider, List<String> orders) {
+    public record Filler(MemberDetail member, ProviderDetail provider, List<String> orders, DtrResponseShape shape) {
 
         public Filler {
             orders = orders == null ? List.of() : List.copyOf(orders);
+            shape = shape == null ? DtrResponseShape.none() : shape;
+        }
+
+        public Filler(MemberDetail member, ProviderDetail provider, List<String> orders) {
+            this(member, provider, orders, DtrResponseShape.none());
         }
 
         /** Nobody in particular: a response is still built, and says less. */
@@ -276,10 +287,13 @@ public final class DtrRequestBuilder {
     public LoopBody buildNextQuestion(DtrAnswers.Posted posted, Filler filler, Clock clock, String wrapInParameter) {
         List<String> notes = new ArrayList<>();
         ObjectNode response;
-        if (posted.response() != null) {
+        boolean builtHere = posted.response() == null;
+        boolean copied = false;
+        if (!builtHere) {
             response = (ObjectNode) posted.response().deepCopy();
             if (QuestionnaireJson.containedQuestionnaire(response) == null) {
-                contain(response, posted.questionnaire(), notes);
+                contain(response, posted.questionnaire(), !posted.given().isEmpty(), notes);
+                copied = true;
             }
             String status = JsonSafe.presentText(response, "status");
             if (!posted.given().isEmpty() && !OnyxDtrConventions.STATUS_IN_PROGRESS.equals(status)) {
@@ -288,15 +302,22 @@ public final class DtrRequestBuilder {
                         : "The response so far had the status " + status + ". An answer was added or changed, so it was sent as in-progress.");
                 response.put("status", OnyxDtrConventions.STATUS_IN_PROGRESS);
             }
+            stateUse(response, filler, notes);
+            if (!response.has("authored")) {
+                response.put("authored", RunStamps.timestamp(clock));
+                notes.add("The response so far stated no time it was authored, so the time of this step was put on it.");
+            }
         } else {
             response = JSON.objectNode();
             response.put("resourceType", "QuestionnaireResponse");
             caseOf(response, filler, notes);
-            contain(response, posted.questionnaire(), notes);
+            contain(response, posted.questionnaire(), !posted.given().isEmpty(), notes);
+            copied = true;
             response.put("status", OnyxDtrConventions.STATUS_IN_PROGRESS);
             subject(response, filler.member(), notes);
             response.put("authored", RunStamps.timestamp(clock));
         }
+        authorOf(response, filler, notes);
         JsonNode inside = QuestionnaireJson.containedQuestionnaire(response);
         Map<String, List<JsonNode>> answers = withOrigins(posted, filler, notes);
         // Every answer goes: in the adaptive loop the service decides which questions still apply.
@@ -315,7 +336,11 @@ public final class DtrRequestBuilder {
             notes.add("The QuestionnaireResponse was put inside a Parameters resource, under the parameter " + wrapInParameter.strip()
                     + ", as the request asked.");
         }
-        return new LoopBody(response, JsonSafe.pretty(OnyxDtrConventions.nextQuestionBody(response, wrapInParameter)), List.copyOf(notes));
+        List<DtrProfileCheck.Gap> gaps = new ArrayList<>(DtrProfileCheck.response(response, filler, builtHere, true));
+        if (copied) {
+            gaps.addAll(DtrProfileCheck.adaptiveCopy(QuestionnaireJson.containedQuestionnaire(response)));
+        }
+        return new LoopBody(response, JsonSafe.pretty(OnyxDtrConventions.nextQuestionBody(response, wrapInParameter)), notes, gaps);
     }
 
     /**
@@ -337,6 +362,8 @@ public final class DtrRequestBuilder {
         }
         if (posted.response() == null) {
             caseOf(response, filler, notes);
+        } else {
+            stateUse(response, filler, notes);
         }
         if (Texts.blank(JsonSafe.text(response, "questionnaire"))) {
             String canonical = QuestionnaireJson.canonical(posted.questionnaire());
@@ -351,6 +378,7 @@ public final class DtrRequestBuilder {
             subject(response, member, notes);
         }
         response.put("authored", RunStamps.timestamp(clock));
+        authorOf(response, filler, notes);
         ArrayNode items = QuestionnaireJson.buildItems(evaluated.roots(), withOrigins(posted, filler, notes),
                 QuestionnaireJson.responseItems(posted.response()), evaluated::include);
         if (items.isEmpty()) {
@@ -385,6 +413,32 @@ public final class DtrRequestBuilder {
     }
 
     /**
+     * True when putting the posted answers into a response would mark at least one of them as
+     * given or changed by a person. DTR 2.0.1 then requires the answer to name its author
+     * (invariant dtrx-1 of the information-origin extension), and the author this tool names is the
+     * provider on the form, so a step that would do this without a provider is refused before
+     * anything is built.
+     */
+    static boolean marksAnAnswer(DtrAnswers.Posted posted) {
+        Map<String, List<JsonNode>> earlier = posted.response() == null ? Map.of() : QuestionnaireJson.answers(posted.response());
+        for (Map.Entry<String, List<JsonNode>> given : posted.given().entrySet()) {
+            if (given.getValue().isEmpty() || sameValues(earlier.getOrDefault(given.getKey(), List.of()), given.getValue())) {
+                continue;
+            }
+            if (given.getValue().stream().anyMatch(DtrRequestBuilder::canBeMarked)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** An extension element that is not a list is the tester's own malformed answer, sent as written. */
+    private static boolean canBeMarked(JsonNode answer) {
+        return OnyxDtrConventions.origin(answer) == null && answer instanceof ObjectNode
+                && (!answer.has("extension") || answer.get("extension").isArray());
+    }
+
+    /**
      * The answers to put into a response: those it already holds as they are, and the ones being
      * added in this step marked with where they came from. The DTR guide requires that of a client
      * whenever a person fills in or changes an answer: the person is named as the author, and the
@@ -393,6 +447,9 @@ public final class DtrRequestBuilder {
      * <p>An answer posted again with the value it already had was neither filled in nor changed, so
      * it keeps the origin it had. An answer posted as a FHIR answer that already says where it came
      * from is used as written.
+     *
+     * @throws IllegalStateException when an answer would be marked and the filler names no provider.
+     *                               The service refuses such a step with a validation error first
      */
     private static Map<String, List<JsonNode>> withOrigins(DtrAnswers.Posted posted, Filler filler, List<String> notes) {
         Map<String, List<JsonNode>> earlier = posted.response() == null ? Map.of() : QuestionnaireJson.answers(posted.response());
@@ -411,12 +468,11 @@ public final class DtrRequestBuilder {
                     .anyMatch(source -> OnyxDtrConventions.ORIGIN_AUTO.equals(source) || OnyxDtrConventions.ORIGIN_OVERRIDE.equals(source));
             List<JsonNode> answers = new ArrayList<>();
             for (JsonNode answer : given.getValue()) {
-                // An extension element that is not a list is the tester's own malformed answer, sent as written.
-                boolean canBeMarked = OnyxDtrConventions.origin(answer) == null && answer instanceof ObjectNode
-                        && (!answer.has("extension") || answer.get("extension").isArray());
-                if (canBeMarked) {
-                    answers.add(withOrigin((ObjectNode) answer, populated ? OnyxDtrConventions.ORIGIN_OVERRIDE : OnyxDtrConventions.ORIGIN_MANUAL,
-                            filler.namesAProvider()));
+                if (canBeMarked(answer)) {
+                    if (!filler.namesAProvider()) {
+                        throw new IllegalStateException("An answer would be marked as given by a person with no author to name.");
+                    }
+                    answers.add(withOrigin((ObjectNode) answer, populated ? OnyxDtrConventions.ORIGIN_OVERRIDE : OnyxDtrConventions.ORIGIN_MANUAL));
                     marked = true;
                 } else {
                     answers.add(answer);
@@ -425,10 +481,9 @@ public final class DtrRequestBuilder {
             out.put(given.getKey(), answers);
         }
         if (marked) {
-            notes.add("Each answer added in this step was marked with the information-origin extension the DTR guide requires of a client: "
-                    + "given by a person, or changed by one where it had been pre-populated. " + (filler.namesAProvider()
-                    ? "The provider on the form is named as its author, by the id this tool gives the Practitioner in every request."
-                    : "No author is named, because the request names no provider. The guide asks for one."));
+            notes.add("Each answer added in this step was marked with the information-origin extension DTR 2.0.1 requires of a client: "
+                    + "given by a person, or changed by one where it had been pre-populated. The provider on the form is named as its "
+                    + "author, by the id this tool gives the Practitioner in every request, as DTR 2.0.1 requires of an answer a person gave.");
         }
         return out;
     }
@@ -447,18 +502,16 @@ public final class DtrRequestBuilder {
         return true;
     }
 
-    private static ObjectNode withOrigin(ObjectNode answer, String source, boolean author) {
+    private static ObjectNode withOrigin(ObjectNode answer, String source) {
         ObjectNode out = JSON.objectNode();
         ArrayNode extensions = out.putArray("extension");
         JsonSafe.elements(answer, "extension").forEach(extension -> extensions.add(extension.deepCopy()));
         ObjectNode origin = extensions.addObject();
         ArrayNode parts = origin.putArray("extension");
         parts.addObject().put("url", "source").put("valueCode", source);
-        if (author) {
-            // The Practitioner resource has this id in every request this tool builds. The NPI itself is not put here.
-            parts.addObject().put("url", "author").putArray("extension").addObject().put("url", "practitioner")
-                    .putObject("valueReference").put("reference", CaseResources.PRACTITIONER_REF);
-        }
+        // The Practitioner resource has this id in every request this tool builds. The NPI itself is not put here.
+        parts.addObject().put("url", "author").putArray("extension").addObject().put("url", "practitioner")
+                .putObject("valueReference").put("reference", CaseResources.PRACTITIONER_REF);
         origin.put("url", OnyxDtrConventions.EXT_INFORMATION_ORIGIN);
         JsonSafe.properties(answer).forEach(property -> {
             if (!"extension".equals(property.getKey())) {
@@ -469,14 +522,20 @@ public final class DtrRequestBuilder {
     }
 
     /**
-     * Says on a response this tool starts from nothing which coverage and which orders it is for.
-     * A response the package carried already says so, in the payer's own words, and is left alone.
+     * Says on a response this tool starts from nothing which coverage and which orders it is for,
+     * and what it is intended for. A response the package carried already says where it stands, in
+     * the payer's own words, and is left alone but for an intended use it does not state.
+     *
+     * <p>DTR 2.0.1 names the coverage and the orders alike in qr-context extensions and requires at
+     * least two of them. The 2.2.0 ballot moves the coverage into qr-coverage, which 2.0.1 does not
+     * define, so that form is written only when the request asks for it by name.
      */
     private static void caseOf(ObjectNode response, Filler filler, List<String> notes) {
         ArrayNode extensions = JSON.arrayNode();
+        boolean later = filler.shape().laterCoverageForm();
         if (filler.namesAMember()) {
-            extensions.addObject().put("url", OnyxDtrConventions.EXT_QR_COVERAGE).putObject("valueReference")
-                    .put("reference", CaseResources.COVERAGE_REF);
+            extensions.addObject().put("url", later ? OnyxDtrConventions.EXT_QR_COVERAGE : OnyxDtrConventions.EXT_QR_CONTEXT)
+                    .putObject("valueReference").put("reference", CaseResources.COVERAGE_REF);
         }
         for (String order : filler.orders()) {
             extensions.addObject().put("url", OnyxDtrConventions.EXT_QR_CONTEXT).putObject("valueReference").put("reference", order);
@@ -485,16 +544,62 @@ public final class DtrRequestBuilder {
             response.set("extension", extensions);
         }
         int orders = filler.orders().size();
+        String where = !filler.namesAMember() ? " Each is named in a qr-context extension, as DTR 2.0.1 has it." : later
+                ? " The coverage is named in qr-coverage, the DTR 2.2.0-ballot form the variable " + DtrResponseShape.VAR_COVERAGE_EXTENSION
+                + " asked for, which DTR 2.0.1 does not define, and each order in qr-context."
+                : " Each is named in a qr-context extension, as DTR 2.0.1 has it.";
         notes.add("No response was given to start from, so this tool built one. "
                 + (filler.namesAMember() ? "It names the coverage of the case" : "It names no coverage, because the request names no member")
                 + (orders == 0 ? ", and no order, because this step was handed no order and no procedure code."
                 : ", and " + (orders == 1 ? "the order" : "the " + orders + " orders") + " it is for.")
-                + (extensions.isEmpty() ? "" : " The references use the ids this tool gives those resources in every request.")
-                + " It states no intended use, which DTR 2.2.0-ballot asks for and this tool cannot know.");
+                + (extensions.isEmpty() ? "" : where + " The references use the ids this tool gives those resources in every request."));
+        stateUse(response, filler, notes);
     }
 
-    /** Puts a copy of the questionnaire inside the response and points the response at it. */
-    private static void contain(ObjectNode response, JsonNode questionnaire, List<String> notes) {
+    /**
+     * Puts the intended use on a response that states none. One the response already states is the
+     * payer's or the tester's, and is kept as it is. DTR 2.0.1 requires at least one; when nothing
+     * stated one, none is added and the gaps of the response say so.
+     */
+    private static void stateUse(ObjectNode response, Filler filler, List<String> notes) {
+        notes.addAll(filler.shape().notes());
+        boolean has = JsonSafe.elements(response, "extension").stream()
+                .anyMatch(extension -> OnyxDtrConventions.EXT_INTENDED_USE.equals(JsonSafe.presentText(extension, "url")));
+        if (has || !filler.shape().statesIntendedUse()) {
+            return;
+        }
+        ArrayNode extensions = response.get("extension") instanceof ArrayNode existing ? existing : response.putArray("extension");
+        for (ObjectNode use : filler.shape().intendedUses()) {
+            extensions.addObject().put("url", OnyxDtrConventions.EXT_INTENDED_USE).set("valueCodeableConcept", use.deepCopy());
+        }
+        notes.add("The response states its intended use as " + String.join(", ", filler.shape().codes()) + ", "
+                + filler.shape().intendedUseSource() + ". DTR 2.0.1 requires a response to state one.");
+    }
+
+    /**
+     * Names the provider on the form as the author of a response that names none. DTR 2.0.1 makes
+     * the author a must-support element. The provider is named by the id this tool gives the
+     * Practitioner in every request, never by the NPI.
+     */
+    private static void authorOf(ObjectNode response, Filler filler, List<String> notes) {
+        if (response.has("author") || !filler.namesAProvider()) {
+            return;
+        }
+        response.putObject("author").put("reference", CaseResources.PRACTITIONER_REF);
+        notes.add("The provider on the form is named as the author of the response, by the id this tool gives the Practitioner in every "
+                + "request.");
+    }
+
+    /**
+     * Puts a copy of the questionnaire inside the response and points the response at it, shaped to
+     * the DTR 2.0.1 adaptive questionnaire profile (dtr-questionnaire-adapt): no url, exactly one
+     * derivedFrom naming the questionnaire being completed, and no enableWhen on an item. SDC also
+     * has the first next-question call carry no items, so they are left out unless an answer given
+     * in this step has to sit under one. Every change is named in one note.
+     *
+     * @param answersGiven true when this step adds answers, which are placed by walking the items
+     */
+    private static void contain(ObjectNode response, JsonNode questionnaire, boolean answersGiven, List<String> notes) {
         ObjectNode copy = (ObjectNode) questionnaire.deepCopy();
         String id = JsonSafe.presentText(copy, "id");
         if (id == null) {
@@ -503,19 +608,69 @@ public final class DtrRequestBuilder {
             notes.add("The questionnaire arrived with no id, so the copy inside the QuestionnaireResponse was given the id " + id
                     + " to be referred to by.");
         }
+        List<String> changes = new ArrayList<>();
         String canonical = QuestionnaireJson.canonical(questionnaire);
-        if (canonical != null && !QuestionnaireJson.derivedFrom(copy).contains(canonical)) {
-            // The guides tie an adaptive response to the questionnaire being completed by the derivedFrom of the questionnaire
-            // inside it. It goes first, so that it is read before anything the questionnaire was itself derived from.
-            ArrayNode derivedFrom = JSON.arrayNode().add(canonical);
-            JsonSafe.elements(copy, "derivedFrom").forEach(derivedFrom::add);
-            copy.set("derivedFrom", derivedFrom);
-            notes.add("The copy of the questionnaire inside the QuestionnaireResponse was marked as derived from " + canonical
-                    + ", which is how the DTR and SDC guides tie an adaptive response to the questionnaire being completed.");
+        if (copy.has("url")) {
+            copy.remove("url");
+            changes.add("its url was taken off, because the profile allows none");
+        }
+        if (copy.has("version")) {
+            copy.remove("version");
+            changes.add("its version was taken off, because derivedFrom carries it and SDC 4.0.0-ballot allows none");
+        }
+        List<String> before = QuestionnaireJson.derivedFrom(copy);
+        boolean alreadyOne = before.size() == 1 && before.get(0).equals(canonical) && JsonSafe.elements(copy, "derivedFrom").size() == 1;
+        if (canonical != null && !alreadyOne) {
+            // The guides tie an adaptive response to the questionnaire being completed by the one derivedFrom of the questionnaire inside it.
+            copy.set("derivedFrom", JSON.arrayNode().add(canonical));
+            changes.add(before.isEmpty() ? "derivedFrom was set to " + canonical
+                    : "derivedFrom was set to " + canonical + " alone, in place of " + String.join(", ", before)
+                    + ", because the profile allows exactly one");
+        }
+        List<String> declared = new ArrayList<>();
+        JsonSafe.elements(JsonSafe.child(copy, "meta"), "profile").forEach(profile -> {
+            String text = JsonSafe.presentText(profile);
+            if (text != null) {
+                declared.add(text);
+            }
+        });
+        // Only a copy marked adaptive is declared adaptive: a static questionnaire sent to next-question keeps what it said it was.
+        if (OnyxDtrConventions.markedAdaptive(copy) && !declared.isEmpty() && !declared.equals(List.of(OnyxDtrConventions.PROFILE_QUESTIONNAIRE_ADAPT))
+                && copy.get("meta") instanceof ObjectNode meta) {
+            meta.set("profile", JSON.arrayNode().add(OnyxDtrConventions.PROFILE_QUESTIONNAIRE_ADAPT));
+            changes.add("the " + (declared.size() == 1 ? "profile it declared, " + declared.get(0) + ", was" : "profiles it declared, "
+                    + String.join(", ", declared) + ", were") + " replaced by " + OnyxDtrConventions.PROFILE_QUESTIONNAIRE_ADAPT
+                    + ", because the copy is now the questionnaire inside an adaptive response, which is what that profile describes");
+        }
+        int items = QuestionnaireJson.items(copy).size();
+        if (!answersGiven && copy.has("item")) {
+            copy.remove("item");
+            changes.add((items == 1 ? "its one item was left out" : "its " + items + " items were left out")
+                    + ", because SDC has the first next-question call carry no items and the service asks the questions itself");
+        } else if (withoutConditions(copy.get("item"))) {
+            changes.add("the enableWhen conditions of its items were taken off, because the profile allows none. The items were kept, "
+                    + "because the answers given in this step sit under them");
+        }
+        if (!changes.isEmpty()) {
+            notes.add("The questionnaire was copied into the QuestionnaireResponse and shaped to the DTR 2.0.1 adaptive questionnaire profile "
+                    + "(dtr-questionnaire-adapt): " + String.join("; ", changes) + ".");
         }
         ArrayNode contained = response.get("contained") instanceof ArrayNode existing ? existing : response.putArray("contained");
         contained.add(copy);
         response.put("questionnaire", "#" + id);
+    }
+
+    /** Takes enableWhen and enableBehavior off every item beneath, and says whether there was any. */
+    private static boolean withoutConditions(JsonNode items) {
+        boolean any = false;
+        for (JsonNode item : JsonSafe.elements(items)) {
+            if (item instanceof ObjectNode object) {
+                any |= object.remove("enableWhen") != null;
+                any |= object.remove("enableBehavior") != null;
+                any |= withoutConditions(object.get("item"));
+            }
+        }
+        return any;
     }
 
     private static void subject(ObjectNode response, MemberDetail member, List<String> notes) {

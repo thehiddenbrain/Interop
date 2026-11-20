@@ -35,7 +35,11 @@ final class DtrResponseAssembler {
      * @param response   the QuestionnaireResponse as it stands after this step
      * @param answeredAs how the questionnaire was taken to be answered
      */
-    record Assembled(DtrReading reading, JsonNode response, QuestionnaireKind answeredAs) {
+    record Assembled(DtrReading reading, JsonNode response, QuestionnaireKind answeredAs, List<DtrProfileCheck.Gap> gaps) {
+
+        Assembled {
+            gaps = gaps == null ? List.of() : List.copyOf(gaps);
+        }
 
         /** Redacted, because the response holds the tester's answers, which can be clinical. */
         @Override
@@ -85,16 +89,21 @@ final class DtrResponseAssembler {
             }
             Form evaluated = EnableWhenEvaluator.evaluate(questionnaire, QuestionnaireJson.answers(response));
             Progress progress = OnyxDtrConventions.progress(JsonSafe.presentText(response, "status"));
+            List<DtrProfileCheck.Gap> gaps = DtrProfileCheck.response(response, filler, builtHere, false);
+            notes.addAll(0, DtrProfileCheck.notes(gaps, false));
             return new Assembled(mapper.describeResponse(questionnaire, response, evaluated, QuestionnaireKind.ADAPTIVE, progress, builtHere,
-                    notes), response, QuestionnaireKind.ADAPTIVE);
+                    notes), response, QuestionnaireKind.ADAPTIVE, gaps);
         }
         Form evaluated = EnableWhenEvaluator.evaluate(questionnaire, posted.merged());
-        boolean complete = answeredAs == QuestionnaireKind.STATIC && evaluated.requiredUnanswered().isEmpty();
+        // An item a rule this tool does not apply decides may still need an answer, so the tool does not complete a response that has one.
+        boolean complete = answeredAs == QuestionnaireKind.STATIC && evaluated.requiredUnanswered().isEmpty() && evaluated.undetermined().isEmpty();
         JsonNode response = builder.buildResponse(posted, evaluated, complete, filler, clock, notes);
         if (answeredAs == QuestionnaireKind.UNDETERMINED) {
             notes.add("This tool cannot tell whether this questionnaire is adaptive or static, so it does not call its response complete.");
         }
+        List<DtrProfileCheck.Gap> gaps = DtrProfileCheck.response(response, filler, posted.response() == null, false);
+        notes.addAll(0, DtrProfileCheck.notes(gaps, false));
         return new Assembled(mapper.describeResponse(questionnaire, response, evaluated, answeredAs,
-                complete ? Progress.COMPLETED : Progress.IN_PROGRESS, true, notes), response, answeredAs);
+                complete ? Progress.COMPLETED : Progress.IN_PROGRESS, true, notes), response, answeredAs, gaps);
     }
 }

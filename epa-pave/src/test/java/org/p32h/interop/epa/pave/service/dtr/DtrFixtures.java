@@ -38,6 +38,11 @@ final class DtrFixtures {
         return ProviderDetail.builder().npi(NPI).firstName("Pat").lastName("Provider").build();
     }
 
+    /** The member answering with the provider on the form, as a step that adds an answer requires (DTR 2.0.1 dtrx-1). */
+    static DtrRequestBuilder.Filler filler(String memberId) {
+        return new DtrRequestBuilder.Filler(member(memberId), provider(), List.of());
+    }
+
     static DtrPackageRequest.Builder packageRequest(String memberId) {
         return DtrPackageRequest.builder().member(member(memberId)).provider(provider())
                 .procedureCodes(List.of(new CodeInput("95810", null, "Sleep study, attended"))).dateOfService("2026-03-20");

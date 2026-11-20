@@ -56,6 +56,21 @@ public final class DtrCodes {
     public static final List<String> EXPECTATION_ELEMENTS = List.of(QUESTIONNAIRE_KIND, QUESTIONNAIRE_STATUS, QUESTIONNAIRES,
             QUESTIONS, ANSWERED, REQUIRED_UNANSWERED, RESPONSE_STATUS);
 
+    /**
+     * The codes the intendedUse extension of a DTR 2.0.1 QuestionnaireResponse is bound to,
+     * required: the CRD 2.0.1 value set DocReason, each with the code system 2.0.1 puts it in. The
+     * 2.2.0 ballot keeps the same codes and moves the first four to the code system
+     * {@link #DOC_REASON_LATER_SYSTEM}.
+     */
+    public static final Map<String, String> DOC_REASON_201 = ordered(
+            "withpa", "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+            "withclaim", "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+            "withorder", "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+            "retain-doc", "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+            "OTH", "http://terminology.hl7.org/CodeSystem/v3-NullFlavor");
+    /** Where the CRD 2.2.0 ballot keeps withpa, withclaim, withorder and retain-doc. */
+    public static final String DOC_REASON_LATER_SYSTEM = "http://hl7.org/fhir/us/davinci-crd/CodeSystem/coverage-information-codes";
+
     private static final Map<String, Map<String, String>> VALUE_SETS = new LinkedHashMap<>();
 
     static {

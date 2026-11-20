@@ -2,7 +2,7 @@
   "id": "dtr-07-no-questionnaire",
   "number": 7,
   "label": "Package bundle returns with no questionnaire in it",
-  "description": "The service answers successfully and the package bundle holds a library but no questionnaire. The DTR guide does not provide for that: a package bundle starts with its questionnaire. This tool reports it as an empty package and does not turn it into an answer that no documentation is needed.",
+  "description": "The service answers successfully and the package bundle holds a library but no questionnaire. DTR 2.0.1 does not provide for that: a package bundle starts with its questionnaire. This tool reports it as an empty package and does not turn it into an answer that no documentation is needed. It departs from DTR 2.0.1 on purpose, to show that this shape is reported as what it is.",
   "sentinelMemberId": "P32H-DTR-EMPTY",
   "behavior": "respond",
   "httpStatus": 200,
@@ -12,7 +12,7 @@
     "errorType": "NONE",
     "httpStatus": 200
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci DTR and SDC. It has not been observed from the live service.",
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service.",
   "assumption": "How the live service answers when it has no questionnaire for an order is not known. This file models a successful answer whose package bundle holds a library and no questionnaire, which the DTR guide does not define. The answer the guide does define, a Parameters resource with no package bundle, is modelled by dtr-15-no-package-bundle.",
   "response": {
     "resourceType": "Parameters",

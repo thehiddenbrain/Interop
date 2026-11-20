@@ -144,7 +144,7 @@ public class DtrService {
         } else {
             sent = builder.buildPackage(request, call::resolve);
             body = ResolvedText.plain(sent.json());
-            requestNotes.addAll(sent.notes());
+            requestNotes.addAll(packageNotes(sent));
         }
 
         VendorExchange exchange = client.questionnairePackage(call, body, selection(request));
@@ -165,7 +165,8 @@ public class DtrService {
             List<String> questionnaires = reading.canonicals().isEmpty() ? sent.canonicals() : reading.canonicals();
             // A package fetch is where the questionnaire comes from, so the steps after it are linked to this run.
             DtrHandoff handoff = DtrHandoff.afterPackage(runId, sent.codes(), questionnaires, request.carry());
-            read = interpret(operation, request, call, exchange, reading, handoff, correlation(known.get(RunRecord.CORR_RUN_ID), questionnaires));
+            read = interpret(operation, request, call, exchange, reading, handoff, correlation(known.get(RunRecord.CORR_RUN_ID), questionnaires),
+                    ownBody ? null : DtrProfileCheck.finding(packageGaps(sent), true));
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -189,7 +190,7 @@ public class DtrService {
             return ownBodyPreview(operation, call, request.rawBody(), shown);
         }
         DtrRequestBuilder.Package built = builder.buildPackage(request, call::resolve);
-        return RequestPreview.of(operation, call, built.json(), built.notes(), shown);
+        return RequestPreview.of(operation, call, built.json(), packageNotes(built), shown);
     }
 
     // ---- the adaptive loop ----
@@ -216,6 +217,7 @@ public class DtrService {
         ResolvedText body;
         List<String> requestNotes = new ArrayList<>();
         JsonNode sent;
+        List<DtrProfileCheck.Gap> gaps = List.of();
         if (ownBody) {
             body = call.resolve(request.rawBody());
             JsonSafe.Parsed parsed = JsonSafe.parse(body.value());
@@ -229,10 +231,12 @@ public class DtrService {
                 requestNotes.add("The body you supplied was not put inside a Parameters resource. It was sent exactly as written.");
             }
         } else {
-            DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request), support.clock(), request.wrapInParameter());
+            DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request, call::resolve), support.clock(),
+                    request.wrapInParameter());
             body = ResolvedText.plain(built.json());
             requestNotes.addAll(loopNotes(posted, built, call));
             sent = built.response();
+            gaps = built.gaps();
         }
 
         VendorExchange exchange = client.nextQuestion(call, body, selection(request));
@@ -251,7 +255,8 @@ public class DtrService {
             // The questionnaire being completed as the response that came back names it, else as the one that was sent did.
             String answered = Texts.orElse(first(OnyxDtrConventions.completes(QuestionnaireJson.findResponse(exchange.json()))), answering);
             DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), answered, request.carry());
-            read = interpret(operation, request, call, exchange, reading, handoff, correlation(packageRun, listOf(answered)));
+            read = interpret(operation, request, call, exchange, reading, handoff, correlation(packageRun, listOf(answered)),
+                    DtrProfileCheck.finding(gaps, true));
         } catch (RuntimeException e) {
             return support.toolError(operation, call, exchange, draft, request, e);
         }
@@ -271,7 +276,8 @@ public class DtrService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request.rawBody(), null);
         }
-        DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request), support.clock(), request.wrapInParameter());
+        DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request, call::resolve), support.clock(),
+                request.wrapInParameter());
         return RequestPreview.of(operation, call, built.json(), loopNotes(posted, built, call), null);
     }
 
@@ -282,7 +288,9 @@ public class DtrService {
      * makes of it is a test a tester is entitled to run.
      */
     private static List<String> loopNotes(DtrAnswers.Posted posted, DtrRequestBuilder.LoopBody built, PreparedCall call) {
-        List<String> notes = new ArrayList<>(built.notes());
+        // What the request leaves out goes first, so it is read before anything that could explain a refusal another way.
+        List<String> notes = new ArrayList<>(DtrProfileCheck.notes(built.gaps(), true));
+        notes.addAll(built.notes());
         OnyxDtrConventions.Kind kind = OnyxDtrConventions.kind(posted.questionnaire());
         if (kind.kind() != QuestionnaireKind.ADAPTIVE) {
             notes.add("The questionnaire is not marked as adaptive. " + kind.basis() + " The next-question request is sent all the same.");
@@ -325,7 +333,9 @@ public class DtrService {
         EpaOperation operation = EpaOperation.DTR_RESPONSE;
         EnvironmentRef environment = gateway.activeEnvironment();
 
-        DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted, filler(request), support.clock(), builder, mapper);
+        // This step sends nothing and takes no run values, so a variable it reads comes from the active environment.
+        DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted,
+                filler(request, template -> gateway.resolve(template, Map.of())), support.clock(), builder, mapper);
         DtrReading reading = assembled.reading();
         String runId = RunStamps.newRunId();
         String packageRun = DtrHandoff.first(request.carry(), NextStepView.CARRY_RUN_ID);
@@ -333,7 +343,8 @@ public class DtrService {
         List<String> questionnaires = listOf(canonical);
         DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), canonical, request.carry());
 
-        List<Finding> findings = DtrFindings.check(reading);
+        List<Finding> findings = new ArrayList<>(DtrFindings.check(reading));
+        addIfPresent(findings, DtrProfileCheck.finding(assembled.gaps(), false));
         VerdictView verdict = DtrVerdicts.verdict(operation, reading, null);
         ExpectationView expectation = Expectations.assess(request.expected(), reading.outcome(), reading.asked(), reading.answers(),
                 DtrOutcome.values(), DtrCodes.EXPECTATION_ELEMENTS);
@@ -372,10 +383,12 @@ public class DtrService {
 
     // ---- what the steps that make a call share ----
 
+    /** @param requestFinding what the request this tool built left out, or null when it left out nothing or the tester wrote it */
     private Interpreted interpret(EpaOperation operation, RunRequest request, PreparedCall call, VendorExchange exchange, DtrReading reading,
-                                  DtrHandoff handoff, Map<String, String> correlation) {
+                                  DtrHandoff handoff, Map<String, String> correlation, Finding requestFinding) {
         Timing timing = support.timing(exchange);
         List<Finding> findings = new ArrayList<>(DtrFindings.check(reading));
+        addIfPresent(findings, requestFinding);
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
         VerdictView verdict = DtrVerdicts.verdict(operation, reading, exchange);
@@ -515,6 +528,7 @@ public class DtrService {
         if (!RunSupport.ownBody(request)) {
             posted = DtrAnswers.read(request.questionnaire(), request.questionnaireResponse(), request.answers());
             posted.errors().forEach(error -> inputs.require(false, error.field(), error.message()));
+            authorNamed(inputs, posted, request);
         }
         inputs.require(Texts.blank(request.wrapInParameter()) || PARAMETER_NAME.matcher(request.wrapInParameter().strip()).matches(),
                 "wrapInParameter", "Leave this empty to send the QuestionnaireResponse by itself. To send it inside a Parameters resource, "
@@ -534,7 +548,11 @@ public class DtrService {
         DtrAnswers.Posted posted = DtrAnswers.read(request.questionnaire(), request.questionnaireResponse(), request.answers());
         posted.errors().forEach(error -> inputs.require(false, error.field(), error.message()));
         if (posted.errors().isEmpty()) {
-            DtrResponseAssembler.problems(posted).forEach(error -> inputs.require(false, error.field(), error.message()));
+            List<org.p32h.interop.epa.pave.model.FieldError> problems = DtrResponseAssembler.problems(posted);
+            problems.forEach(error -> inputs.require(false, error.field(), error.message()));
+            if (problems.isEmpty()) {
+                authorNamed(inputs, posted, request);
+            }
         }
         optionalCase(inputs, request);
         carriedRun(inputs, request);
@@ -542,6 +560,36 @@ public class DtrService {
                 .expectation(request.expected(), DtrOutcome.values(), DtrCodes.EXPECTATION_ELEMENTS)
                 .throwIfInvalid();
         return posted;
+    }
+
+    /**
+     * An answer this tool marks as given or changed by a person must name its author: invariant
+     * dtrx-1 of the DTR 2.0.1 information-origin extension. The author this tool names is the
+     * provider on the form, so without one the step is refused rather than sent with an extension
+     * that does not conform.
+     */
+    private static void authorNamed(RunInputs inputs, DtrAnswers.Posted posted, RunRequest request) {
+        if (posted.errors().isEmpty() && DtrRequestBuilder.marksAnAnswer(posted)) {
+            inputs.require(request.provider() != null && Texts.present(request.provider().npi()), "provider.npi", AUTHOR_NEEDED);
+        }
+    }
+
+    /** Why a step that adds an answer with no provider is refused. */
+    static final String AUTHOR_NEEDED = "An answer given in this step is marked as given by a person, and DTR 2.0.1 then requires the "
+            + "answer to name its author (invariant dtrx-1 of the information-origin extension). This tool names the provider on the form "
+            + "as the author, so give the provider's NPI. An answer posted as a FHIR answer that already carries its own information-origin "
+            + "extension is sent as written.";
+
+    /** The notes of a package request this tool built: what it leaves out that DTR 2.0.1 requires first, then the builder's own. */
+    private static List<String> packageNotes(DtrRequestBuilder.Package built) {
+        List<String> notes = new ArrayList<>(DtrProfileCheck.notes(packageGaps(built), true));
+        notes.addAll(built.notes());
+        return notes;
+    }
+
+    private static List<DtrProfileCheck.Gap> packageGaps(DtrRequestBuilder.Package built) {
+        JsonSafe.Parsed parsed = JsonSafe.parse(built.json());
+        return parsed.ok() ? DtrProfileCheck.packageRequest(parsed.node()) : List.of();
     }
 
     /**
@@ -612,7 +660,7 @@ public class DtrService {
      * the ones the package request for this case carries, chosen by the same rule: the orders CRD's
      * answer applied to when it handed any on that this tool builds, otherwise one for each code.
      */
-    private static DtrRequestBuilder.Filler filler(RunRequest request) {
+    private static DtrRequestBuilder.Filler filler(RunRequest request, java.util.function.Function<String, ResolvedText> variables) {
         List<String> carried = DtrHandoff.values(request.carry(), NextStepView.CARRY_ORDER);
         List<String> every = new ArrayList<>();
         List<String> chosen = new ArrayList<>();
@@ -623,7 +671,8 @@ public class DtrService {
                 chosen.add(reference);
             }
         }
-        return new DtrRequestBuilder.Filler(request.member(), request.provider(), chosen.isEmpty() ? every : chosen);
+        return new DtrRequestBuilder.Filler(request.member(), request.provider(), chosen.isEmpty() ? every : chosen,
+                DtrResponseShape.read(variables, request.carry()));
     }
 
     /** True when the form names a questionnaire or a coverage assertion id, both of which an earlier answer supplied. */

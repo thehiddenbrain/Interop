@@ -20,6 +20,9 @@ import java.util.List;
  *   <li>a response is complete only when its status says completed <b>and</b> every required
  *       question that is enabled has an answer. A status of completed never outranks a required
  *       question left unanswered</li>
+ *   <li>an item that a rule this tool does not apply decides is never counted as a required
+ *       question left unanswered. When the service completed the response, that is the service's
+ *       judgement and stands. When this tool would complete it, it does not: it cannot tell</li>
  *   <li>"the service asked for nothing" needs a response that came back completed with no question
  *       in it. A package that simply holds no questionnaire is never read that way</li>
  *   <li>a questionnaire nobody can tie an answer to makes the whole result unusable, even when
@@ -113,7 +116,7 @@ public final class DtrOutcomeRules {
             return DtrOutcome.MALFORMED_QUESTIONNAIRE;
         }
         return switch (progress) {
-            case COMPLETED -> completed(form);
+            case COMPLETED -> completed(form, true);
             case IN_PROGRESS -> form.asked().isEmpty() ? DtrOutcome.NO_QUESTION_RETURNED : DtrOutcome.NEXT_QUESTION;
             case NOT_UNDERSTOOD -> DtrOutcome.UNRECOGNISED_STATUS;
         };
@@ -129,16 +132,20 @@ public final class DtrOutcomeRules {
     public static DtrOutcome forResponse(QuestionnaireKind kind, Progress progress, FormStateView form) {
         return switch (kind) {
             // Only the service can say an adaptive response is finished, since only it knows whether more questions follow.
-            case ADAPTIVE -> progress == Progress.COMPLETED ? completed(form) : DtrOutcome.RESPONSE_NOT_COMPLETE;
-            case STATIC -> completed(form);
+            case ADAPTIVE -> progress == Progress.COMPLETED ? completed(form, true) : DtrOutcome.RESPONSE_NOT_COMPLETE;
+            case STATIC -> completed(form, false);
             // With nothing to say how the questionnaire is answered, nothing can say its response is finished.
             case UNDETERMINED -> DtrOutcome.RESPONSE_NOT_COMPLETE;
         };
     }
 
-    private static DtrOutcome completed(FormStateView form) {
+    /** @param byTheService true when the service gave the response its completion status, false when this tool would */
+    private static DtrOutcome completed(FormStateView form, boolean byTheService) {
         if (!form.requiredUnanswered().isEmpty()) {
             return DtrOutcome.REQUIRED_UNANSWERED;
+        }
+        if (!byTheService && !form.undetermined().isEmpty()) {
+            return DtrOutcome.RESPONSE_NOT_COMPLETE;
         }
         return form.questionCount() == 0 ? DtrOutcome.NOTHING_REQUIRED : DtrOutcome.RESPONSE_COMPLETED;
     }
