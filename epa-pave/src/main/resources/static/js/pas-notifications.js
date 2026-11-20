@@ -319,6 +319,8 @@ export function createNotifications(spec) {
             opened.hidden = !open;
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
             toggle.textContent = open ? 'Fold' : 'Open';
+            // Twenty buttons read "Open" in a list; each names the notification it belongs to.
+            toggle.setAttribute('aria-label', (open ? 'Fold' : 'Open') + ' the notification received ' + whenText(item.receivedAt));
             if (open) {
                 openIds.add(item.id);
             } else {
