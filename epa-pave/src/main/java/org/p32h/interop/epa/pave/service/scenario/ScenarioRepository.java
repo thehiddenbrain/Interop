@@ -62,7 +62,7 @@ public class ScenarioRepository {
     /** Every protocol directory the mock clients read. Each must exist and hold at least one scenario. */
     public static final List<String> PROTOCOLS = List.of("crd", "dtr", "pas", "raw");
 
-    /** The protocol whose sentinels DTR and PAS files can answer for, the one whose sentinels a CRD file can, and PAS. */
+    /** The protocol directories whose files answer for one another's sentinels: DTR and PAS files for CRD's, a CRD file for DTR's. */
     static final String CRD = "crd";
     static final String DTR = "dtr";
     static final String PAS = "pas";
