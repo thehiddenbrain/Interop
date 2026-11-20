@@ -151,8 +151,10 @@ public final class RunInputs {
             // A body of the tester's own goes out in place of the one built from the form, and the
             // screen sends no member with it, so the body is where this run's member is read from,
             // as for a request sent as written. A field already refused for the form's member is
-            // not refused twice.
-            MemberInText.problemsInBody(note, testerRef, expected, MembersInBody.readWithPatientIds(request.rawBody()), "Nothing was sent.")
+            // not refused twice. The body is read as it will be sent, placeholders filled, because a
+            // body loaded from a collection names its member as a placeholder.
+            String sent = OwnBodyPlaceholders.asSent(request.rawBody(), request.variables());
+            MemberInText.problemsInBody(note, testerRef, expected, MembersInBody.readWithPatientIds(sent), "Nothing was sent.")
                     .forEach((field, problem) -> {
                         if (!member.containsKey(field)) {
                             errors.add(new FieldError(field, problem));
