@@ -134,6 +134,14 @@ public class RunReplay {
      * @throws NotFoundException   when an id is not in the ledger
      */
     public ReplayReport replay(LocalDate from, LocalDate to, List<String> runIds) {
+        return replay(from, to, runIds, null);
+    }
+
+    /**
+     * As {@link #replay(LocalDate, LocalDate, List)}, with the days of the range on the given
+     * clock. Null means the days the runs' own timestamps name, as without it.
+     */
+    public ReplayReport replay(LocalDate from, LocalDate to, List<String> runIds, java.time.ZoneId zone) {
         List<String> ids = distinctIds(runIds);
         boolean ranged = from != null || to != null;
         if (!ranged && ids.isEmpty()) {
@@ -144,7 +152,7 @@ public class RunReplay {
             throw ValidationException.of("from", "The from date is after the to date.");
         }
         List<String> notes = new ArrayList<>();
-        List<RunRecord> selected = ids.isEmpty() ? oldestFirst(from, to, notes) : byId(ids, ranged, from, to);
+        List<RunRecord> selected = ids.isEmpty() ? oldestFirst(from, to, zone, notes) : byId(ids, ranged, from, to, zone);
 
         CaseRunner caseRunner = runner.getIfAvailable();
         // The limit is on what would be sent, not on what was selected. A day of chained runs holds
@@ -257,8 +265,8 @@ public class RunReplay {
      * The runs of a date range that are not themselves replays, in the order they happened, so
      * they are sent again in that order. What was left out is said in a note.
      */
-    private List<RunRecord> oldestFirst(LocalDate from, LocalDate to, List<String> notes) {
-        List<RunRecord> inRange = new ArrayList<>(ledger.query(RunQuery.between(from, to)));
+    private List<RunRecord> oldestFirst(LocalDate from, LocalDate to, java.time.ZoneId zone, List<String> notes) {
+        List<RunRecord> inRange = new ArrayList<>(ledger.query(RunQuery.between(from, to, zone)));
         Collections.reverse(inRange);
         List<RunRecord> originals = inRange.stream().filter(run -> Texts.blank(run.replayOfRunId())).toList();
         int replays = inRange.size() - originals.size();
@@ -271,10 +279,10 @@ public class RunReplay {
         return originals;
     }
 
-    private List<RunRecord> byId(List<String> ids, boolean ranged, LocalDate from, LocalDate to) {
+    private List<RunRecord> byId(List<String> ids, boolean ranged, LocalDate from, LocalDate to, java.time.ZoneId zone) {
         Map<String, RunRecord> inRange = new LinkedHashMap<>();
         if (ranged) {
-            ledger.query(RunQuery.between(from, to)).forEach(run -> inRange.put(run.runId(), run));
+            ledger.query(RunQuery.between(from, to, zone)).forEach(run -> inRange.put(run.runId(), run));
         }
         List<RunRecord> selected = new ArrayList<>();
         List<String> unknown = new ArrayList<>();
@@ -335,7 +343,7 @@ public class RunReplay {
                     + "about the answer. A request may have been sent.", replayed == null ? null : replayed.runId(), List.of(),
                     outcome.notRecorded(), original, replayed);
         }
-        return switch (outcome.status()) {
+        ReplayEntry entry = switch (outcome.status()) {
             case COMPLETED -> compared(original, replayed, outcome);
             case BLOCKED -> notCompleted(original, ReplayStatus.BLOCKED, outcome, "The production guardrail refused to send this run again.");
             case NOT_CONFIGURED -> notCompleted(original, ReplayStatus.NOT_CONFIGURED, outcome,
@@ -344,6 +352,9 @@ public class RunReplay {
             case NOT_RUNNABLE -> notCompleted(original, ReplayStatus.NOT_REPLAYABLE, outcome,
                     "This run cannot be run again from what its line holds.");
         };
+        // What the new run found, only when the entry speaks of the very run the runner made.
+        boolean same = replayed != null && replayed.runId() != null && replayed.runId().equals(entry.replayRunId());
+        return same ? entry.withFound(outcome.verdict(), outcome.nextStep()) : entry;
     }
 
     /** Why the line alone cannot rebuild the request that was sent, or null when it can. */

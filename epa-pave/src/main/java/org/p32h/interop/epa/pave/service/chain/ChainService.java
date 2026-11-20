@@ -96,6 +96,11 @@ public class ChainService {
      * @param limit the most chains to return. Null for the default
      */
     public List<ChainView> list(LocalDate from, LocalDate to, Integer limit) {
+        return list(from, to, limit, null);
+    }
+
+    /** As {@link #list(LocalDate, LocalDate, Integer)}, with the days on the given clock. Null means the days the runs' own timestamps name. */
+    public List<ChainView> list(LocalDate from, LocalDate to, Integer limit, java.time.ZoneId zone) {
         if (from != null && to != null && from.isAfter(to)) {
             throw ValidationException.of("from", "The first day is after the last day.");
         }
@@ -109,7 +114,7 @@ public class ChainService {
         int most = limit == null ? DEFAULT_LIMIT : limit;
         Set<String> ids = new LinkedHashSet<>();
         // Newest first, so chains come out ordered by their most recent run.
-        for (RunRecord record : store.query(RunQuery.between(from, to))) {
+        for (RunRecord record : store.query(RunQuery.between(from, to, zone))) {
             if (Texts.present(record.chainId()) && ids.size() < most) {
                 ids.add(record.chainId());
             }

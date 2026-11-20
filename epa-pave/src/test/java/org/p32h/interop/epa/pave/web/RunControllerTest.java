@@ -80,7 +80,12 @@ class RunControllerTest {
             RunRecord original = ledger.find(spec.replayOfRunId()).orElseThrow();
             RunRecord again = ledger.record(changeOnReplay.apply(original.toBuilder().runId("replay-of-" + original.runId())
                     .timestamp(RunStamps.timestamp(clock)).replayOfRunId(original.runId()).chainId(null).suiteRunId(null)).build()).record();
-            return new CaseOutcome(spec, CaseStatus.COMPLETED, null, List.of(again));
+            // What the new run found, as its endpoint would return it.
+            return new CaseOutcome(spec, CaseStatus.COMPLETED, null, List.of(again)).withFound(
+                    org.p32h.interop.epa.pave.model.VerdictView.of(org.p32h.interop.epa.pave.model.CrdOutcome.NO_AUTH_REQUIRED,
+                            "Prior authorization is not required.", List.of()),
+                    org.p32h.interop.epa.pave.model.NextStepView.of(org.p32h.interop.epa.pave.model.NextAction.FLOW_ENDS,
+                            "Nothing more to do.", "The payer said no prior authorization is needed."));
         };
         StaticListableBeanFactory withRunner = new StaticListableBeanFactory();
         withRunner.addBean("runner", runner);
@@ -197,6 +202,83 @@ class RunControllerTest {
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title").value("The request has 4 problem(s). Nothing was done."))
                 .andExpect(jsonPath("$.fieldErrors[*].field").value(org.hamcrest.Matchers.contains("from", "protocol", "result", "limit")));
+    }
+
+    @Test
+    void aTesterReferenceFiltersTheListAndAListCutShortSaysHowManyMatched() throws Exception {
+        mvc.perform(get("/api/runs").param("testerRef", "QA-17")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1)).andExpect(jsonPath("$.runs[0].runId").value("run-1"));
+        mvc.perform(get("/api/runs").param("testerRef", "QA-99")).andExpect(jsonPath("$.count").value(0));
+        // A note that sets the reference is what the list goes by.
+        ledger.addNote("run-3", null, "QA-17");
+        mvc.perform(get("/api/runs").param("testerRef", "QA-17")).andExpect(jsonPath("$.count").value(2));
+        mvc.perform(get("/api/runs").param("testerRef", "")).andExpect(jsonPath("$.count").value(3));
+
+        mvc.perform(get("/api/runs").param("limit", "2")).andExpect(jsonPath("$.truncated").value(true))
+                .andExpect(jsonPath("$.matched").value(3));
+        mvc.perform(get("/api/runs").param("limit", "1").param("protocol", "crd")).andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.matched").value(2));
+        // A list that is whole has nothing left out, and the count is the answer.
+        mvc.perform(get("/api/runs").param("limit", "3")).andExpect(jsonPath("$.matched").doesNotExist());
+        mvc.perform(get("/api/runs")).andExpect(jsonPath("$.matched").doesNotExist());
+    }
+
+    @Test
+    void aZoneMakesTheDatesDaysOnThatClockAndAnUnknownZoneIs422() throws Exception {
+        // run-1 and run-2 were made at 15:00 UTC on the tenth, which is the morning of the eleventh at UTC+14.
+        mvc.perform(get("/api/runs").param("from", "2026-03-11").param("to", "2026-03-11")).andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.runs[0].runId").value("run-3"));
+        mvc.perform(get("/api/runs").param("from", "2026-03-11").param("to", "2026-03-11").param("zone", "Pacific/Kiritimati"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.count").value(2))
+                .andExpect(jsonPath("$.runs[0].runId").value("run-2")).andExpect(jsonPath("$.runs[1].runId").value("run-1"));
+        String file = mvc.perform(get("/api/runs/export.csv").param("from", "2026-03-11").param("to", "2026-03-11")
+                .param("zone", "Pacific/Kiritimati")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(file.split("\r\n")).hasSize(3);
+        // A date range replay selects by the same clock.
+        mvc.perform(post("/api/runs/replay").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"from\":\"2026-03-11\",\"to\":\"2026-03-11\",\"zone\":\"Pacific/Kiritimati\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.results", hasSize(2)));
+        assertThat(askedOfTheRunner).extracting(CaseSpec::replayOfRunId).containsExactly("run-1", "run-2");
+
+        for (String bad : List.of("Mars/Olympus", "+05:00", "EST5EDT x")) {
+            mvc.perform(get("/api/runs").param("zone", bad)).andExpect(status().isUnprocessableContent())
+                    .andExpect(jsonPath("$.fieldErrors[0].field").value("zone"))
+                    .andExpect(jsonPath("$.fieldErrors[0].message").value("The zone must be an IANA zone id, such as America/New_York or "
+                            + "Europe/London."));
+        }
+        mvc.perform(get("/api/runs/export.csv").param("zone", "Mars/Olympus")).andExpect(status().isUnprocessableContent());
+        mvc.perform(post("/api/runs/replay").contentType(MediaType.APPLICATION_JSON).content("{\"from\":\"2026-03-11\",\"zone\":\"Mars\"}"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("zone"));
+        assertThat(askedOfTheRunner).hasSize(2);
+    }
+
+    @Test
+    void theExportTakesTheProtocolAndResultFiltersOfTheList() throws Exception {
+        String pas = mvc.perform(get("/api/runs/export.csv").param("protocol", "pas")).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertThat(pas.split("\r\n")).hasSize(2);
+        assertThat(pas.split("\r\n")[1]).startsWith("run,run-2,");
+        String passed = mvc.perform(get("/api/runs/export.csv").param("result", "pass")).andReturn().getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertThat(passed.split("\r\n")).hasSize(3);
+        assertThat(passed).doesNotContain("run,run-2,");
+        // Absent or blank, they change nothing.
+        String all = mvc.perform(get("/api/runs/export.csv").param("protocol", "").param("result", "")).andReturn().getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertThat(all.split("\r\n")).hasSize(4);
+        mvc.perform(get("/api/runs/export.csv").param("protocol", "fax")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("protocol"));
+    }
+
+    @Test
+    void eachReplayedRunCarriesWhatTheNewRunFoundAndNotItsWireView() throws Exception {
+        mvc.perform(post("/api/runs/replay").contentType(MediaType.APPLICATION_JSON).content("{\"runIds\":[\"run-1\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.results[0].verdict.outcomeCode").value("NO_AUTH_REQUIRED"))
+                .andExpect(jsonPath("$.results[0].verdict.headline").value("Prior authorization is not required."))
+                .andExpect(jsonPath("$.results[0].nextStep.action").value("FLOW_ENDS"))
+                .andExpect(jsonPath("$.results[0].nextStep.headline").value("Nothing more to do."))
+                .andExpect(jsonPath("$.results[0].wire").doesNotExist());
     }
 
     // ---- GET /api/runs/{runId} ----

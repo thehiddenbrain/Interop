@@ -48,9 +48,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/runs")
 public class RunController {
 
-    /** A note is a remark about a run. Much longer than this and it is something else, pasted in: most likely a request or a response. */
-    static final int LONGEST_NOTE = 4000;
-    static final int LONGEST_TESTER_REF = 200;
+    /**
+     * The ledger's own limits, never copies of them: a note is a remark about a run, and much longer
+     * than this it is something else pasted in, most likely a request or a response.
+     */
+    static final int LONGEST_NOTE = RunRecord.LONGEST_NOTE;
+    static final int LONGEST_TESTER_REF = RunRecord.LONGEST_TESTER_REF;
 
     private static final String OPERATIONS = "one of " + String.join(", ", Arrays.stream(EpaOperation.values()).map(Enum::name).toList());
 
@@ -70,9 +73,15 @@ public class RunController {
      *                  it. A list cut short says so, so it is never read as the whole history
      * @param limit     the limit that was applied, or left out when there was none
      * @param runs      the runs, newest first, each with its latest note
+     * @param matched   when the list was cut short, how many runs match the filters in all.
+     *                  Left out otherwise, when it is the count
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record RunList(int count, boolean truncated, Integer limit, List<RunRecord> runs) {
+    public record RunList(int count, boolean truncated, Integer limit, List<RunRecord> runs, Integer matched) {
+
+        public RunList(int count, boolean truncated, Integer limit, List<RunRecord> runs) {
+            this(count, truncated, limit, runs, null);
+        }
     }
 
     /**
@@ -97,8 +106,16 @@ public class RunController {
     public record NoteResult(LedgerReceipt receipt, RunRecord run) {
     }
 
-    /** What to run again: a date range, run ids, or both. With both, the ids are the selection and each must lie in the range. */
-    public record ReplayRequest(String from, String to, List<String> runIds) {
+    /**
+     * What to run again: a date range, run ids, or both. With both, the ids are the selection and
+     * each must lie in the range. The zone, an IANA zone id, makes the range days on that clock;
+     * left out, they are the days the runs' own timestamps name, as without it.
+     */
+    public record ReplayRequest(String from, String to, List<String> runIds, String zone) {
+
+        public ReplayRequest(String from, String to, List<String> runIds) {
+            this(from, to, runIds, null);
+        }
     }
 
     /**
@@ -112,8 +129,10 @@ public class RunController {
                          @RequestParam(required = false) String protocol, @RequestParam(required = false) String operation,
                          @RequestParam(required = false) String result, @RequestParam(required = false) String outcome,
                          @RequestParam(required = false) String chainId, @RequestParam(required = false) String suiteRunId,
-                         @RequestParam(required = false) String limit) {
+                         @RequestParam(required = false) String limit, @RequestParam(required = false) String testerRef,
+                         @RequestParam(required = false) String zone) {
         List<FieldError> errors = new ArrayList<>();
+        java.time.ZoneId clock = read(errors, () -> Params.zone("zone", zone));
         LocalDate first = read(errors, () -> Params.date("from", from));
         LocalDate last = read(errors, () -> Params.date("to", to));
         Protocol onlyProtocol = read(errors, () -> Params.optional("protocol", protocol, Protocol::parse,
@@ -134,12 +153,15 @@ public class RunController {
             toRead = most == Integer.MAX_VALUE ? most : most + 1;
         }
         // A parameter that is there and blank, as a form sends an empty field, is not a filter.
-        List<RunRecord> runs = ledger.query(RunQuery.builder().from(first).to(last).protocol(onlyProtocol).operation(onlyOperation)
+        RunQuery question = RunQuery.builder().from(first).to(last).protocol(onlyProtocol).operation(onlyOperation)
                 .result(onlyResult).outcome(Texts.trimToNull(outcome)).chainId(Texts.trimToNull(chainId))
-                .suiteRunId(Texts.trimToNull(suiteRunId)).limit(toRead).build());
+                .suiteRunId(Texts.trimToNull(suiteRunId)).testerRef(Texts.trimToNull(testerRef)).zone(clock).limit(toRead).build();
+        List<RunRecord> runs = ledger.query(question);
         boolean truncated = limited && runs.size() > most;
         List<RunRecord> shown = truncated ? List.copyOf(runs.subList(0, most)) : runs;
-        return new RunList(shown.size(), truncated, limited ? most : null, shown);
+        // Only a list cut short is counted again in full, so the answer can say how many it left out.
+        Integer matched = truncated ? ledger.query(question.withoutLimit()).size() : null;
+        return new RunList(shown.size(), truncated, limited ? most : null, shown, matched);
     }
 
     /**
@@ -158,14 +180,22 @@ public class RunController {
      * JSON error shape, not as CSV, when a date cannot be read.
      */
     @GetMapping("/export.csv")
-    public ResponseEntity<byte[]> export(@RequestParam(required = false) String from, @RequestParam(required = false) String to) {
+    public ResponseEntity<byte[]> export(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
+                                         @RequestParam(required = false) String protocol, @RequestParam(required = false) String result,
+                                         @RequestParam(required = false) String zone) {
         List<FieldError> errors = new ArrayList<>();
+        java.time.ZoneId clock = read(errors, () -> Params.zone("zone", zone));
         LocalDate first = read(errors, () -> Params.date("from", from));
         LocalDate last = read(errors, () -> Params.date("to", to));
+        Protocol onlyProtocol = read(errors, () -> Params.optional("protocol", protocol, Protocol::parse,
+                "one of crd, dtr, pas, subscription, lookup or raw"));
+        TestResult onlyResult = read(errors, () -> Params.optional("result", result, TestResult::parse, "pass, fail or unverified"));
         inOrder(errors, first, last);
         refuse(errors);
 
-        byte[] csv = RunCsv.bytes(ledger.query(RunQuery.between(first, last)));
+        // The same filters as the history list, so the file holds what the screen showed.
+        byte[] csv = RunCsv.bytes(ledger.query(RunQuery.builder().from(first).to(last).protocol(onlyProtocol).result(onlyResult)
+                .zone(clock).build()));
         String name = "pave-runs" + (first == null && last == null ? "-all" : (first == null ? "" : "-from-" + first)
                 + (last == null ? "" : "-to-" + last)) + ".csv";
         return ResponseEntity.ok()
@@ -185,10 +215,11 @@ public class RunController {
     @PostMapping("/replay")
     public ReplayReport replay(@RequestBody ReplayRequest request) {
         List<FieldError> errors = new ArrayList<>();
+        java.time.ZoneId clock = read(errors, () -> Params.zone("zone", request.zone()));
         LocalDate first = read(errors, () -> Params.date("from", request.from()));
         LocalDate last = read(errors, () -> Params.date("to", request.to()));
         refuse(errors);
-        return replay.replay(first, last, request.runIds());
+        return replay.replay(first, last, request.runIds(), clock);
     }
 
     /** One run with its latest note. Answers 404 when the ledger holds no run with that id. */

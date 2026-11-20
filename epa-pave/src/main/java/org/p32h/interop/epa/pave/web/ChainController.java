@@ -30,8 +30,10 @@ public class ChainController {
     @GetMapping
     public ChainList list(@RequestParam(name = "from", required = false) String from,
                           @RequestParam(name = "to", required = false) String to,
-                          @RequestParam(name = "limit", required = false) String limit) {
-        return new ChainList(service.list(Params.date("from", from), Params.date("to", to), Params.integer("limit", limit)));
+                          @RequestParam(name = "limit", required = false) String limit,
+                          @RequestParam(name = "zone", required = false) String zone) {
+        return new ChainList(service.list(Params.date("from", from), Params.date("to", to), Params.integer("limit", limit),
+                Params.zone("zone", zone)));
     }
 
     @GetMapping("/{chainId}")
