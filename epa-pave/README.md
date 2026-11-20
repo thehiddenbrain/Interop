@@ -7,20 +7,42 @@ provider and a procedure code, runs a case, and sees the answer in plain words, 
 behind it, and the exact request and response. Every run is written to a ledger on disk so it can
 be found, exported and run again.
 
-It is one Spring Boot application with a browser front end, run on the tester's own machine. Out of
-the box it runs on the **mock profile**: every answer comes from synthetic scenario files, nothing
-leaves the machine, and no credential or configuration is needed.
+It is one Spring Boot application with a browser front end of five tabs (CRD, DTR, PAS, History,
+Config), run on the tester's own machine. Out of the box it runs on the **mock profile**: every
+answer comes from synthetic scenario files, nothing leaves the machine, and no credential or
+configuration is needed.
 
-Read "[What this README was checked against](#what-this-readme-was-checked-against)" at the end
-before relying on a sentence here. Where something could not be checked, the section that
-describes it says so.
+## Before you rely on it
+
+- **Nothing here has been run against the vendor's service.** Every result anyone has seen came
+  from the mock profile or from a stand-in server on this machine. Which version of the guides the
+  vendor's sandbox follows is not known; PAVE is held to version 2.0.1 of CRD, DTR and PAS.
+- **The mock answers from files** written for this tool, from the same reading of the guides as the
+  code that reads them. A pass on mock says nothing about the live service.
+- **The wire view carries member data** on the live profile, and so do the lookup results. See
+  [The wire view carries member data](#the-wire-view-carries-member-data).
+- **Secrets can sit in plain text on disk**: an uploaded Postman environment or collection is kept
+  as uploaded in `config-store/`, credentials included; a mirror password goes in
+  `gradle.properties`. See [Secrets](#secrets) for keeping them out of files.
+- **DTR here is not a SMART launch**, and **the notification receiver very likely cannot be reached
+  by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
+- **PAVE has no sign-in** and listens on this machine only. See
+  [Who can reach this tool](#who-can-reach-this-tool).
+- Before PAVE can reach a real service, real values must be filled in: the vendor's Postman
+  environment and collection (uploaded on the Config tab), and, where used, `lookup.member.url`,
+  `lookup.provider.url`, `codelist.file`, `onyx.auth.*` and `onyx.subscription.callback-url` in
+  `src/main/resources/application.yml` or on the command line. Every one is listed under
+  [Open items](#open-items).
+- The screens, the tabs together and the gates that close the build are described as they are on
+  the revision named at the end, with what was not checked. Read
+  "[What this README was checked against](#what-this-readme-was-checked-against)" before relying
+  on a sentence here.
 
 ## First run checklist
 
-Six steps from nothing to a running tool on the mock profile, used through its API: this revision
-has no screens yet (step 6). Each shows the exact command and what
-correct output looks like. The output shown is what these commands printed when this README was
-checked (see the last section for where and on which revision).
+Six steps from nothing to a working screen on the mock profile. Each shows the exact command and
+what correct output looks like. The output shown is what these commands printed when this README
+was checked (see the last section for where and on which revision).
 
 **1. Check that Java 21 is installed.**
 
@@ -48,14 +70,6 @@ ls run.sh
 
 Correct output of the last command is `run.sh`.
 
-**Stop here if it prints `ls: cannot access 'run.sh': No such file or directory`.** That is what
-it printed on 2026-11-19: the `epa-pave` branch on GitHub (then at commit `44c7760`) did not yet
-hold this README, `run.sh`, `run.cmd` or `samples/`. They are on the branch `docs-c2`, which had
-not been merged into `epa-pave` or pushed to GitHub. Until it is, step 4 fails in a clone from
-GitHub. Ask whoever gave you this README for the copy that holds it, clone that with
-`git clone --branch docs-c2 <that copy>`, go into its `epa-pave/` directory, and check
-`ls run.sh` again.
-
 PAVE lives in the `epa-pave/` directory. The application at the root of the repository is a
 different project; leave it alone. Every command below is run from `epa-pave/`.
 
@@ -68,18 +82,14 @@ different project; leave it alone. Every command below is run from `epa-pave/`.
 On Windows: `gradlew.bat clean build`. The first build downloads Gradle 9.5.0 and the
 dependencies, so it needs to reach `services.gradle.org` and Maven Central, or the internal
 mirrors described under [Running on a corporate workstation](#running-on-a-corporate-workstation).
-It runs about 1,850 tests and takes a minute or two. Correct output ends with:
+It runs TEST_COUNT_PLACEHOLDER tests and takes a few minutes. Correct output ends with:
 
 ```
-> Task :verifyParametersFlag
-> Task :check
-> Task :build
-
-BUILD SUCCESSFUL in 1m 24s
-11 actionable tasks: 8 executed, 2 from cache, 1 up-to-date
+BUILD_TAIL_PLACEHOLDER
 ```
 
 The time and the task counts differ from machine to machine. `BUILD SUCCESSFUL` is what matters.
+Two tests are skipped when the build runs as root (see [Limitations](#limitations)).
 
 **4. Start the tool.**
 
@@ -99,8 +109,13 @@ The following 1 profile is active: "mock"
 The bundled placeholder code list is in use. Every row in it is synthetic. Set codelist.file to the real export.
 ...
 Tomcat started on port 8057 (http) with context path '/'
-Started PaveApplication in 18.439 seconds (process running for 20.228)
+Started PaveApplication in 2.157 seconds (process running for 2.611)
 ```
+
+Started from inside the clone, it also prints two warnings, one for `config-store` and one for
+`run-history`: "... lies inside the git working tree ... Check that the tree's .gitignore covers
+it, or start the tool from a directory outside the tree." Both folders are listed in the
+project's `.gitignore`, so in a clone of this branch the warnings need no action.
 
 If it says `Port 8057 was already in use`, something else is on that port: start with
 `./run.sh mock --server.port=8091` and use 8091 in place of 8057 below.
@@ -114,9 +129,9 @@ gradlew.bat bootJar
 java -jar build\libs\epa-pave-1.0.0.jar --spring.profiles.active=mock
 ```
 
-The same two commands, with `./gradlew` and `build/libs/...`, were run on Linux and start PAVE as
-`run.sh` does. Started through `run.cmd`, Ctrl+C is followed by the prompt
-`Terminate batch job (Y/N)?`; answer `Y`.
+The same two commands, with `./gradlew` and `build/libs/...`, start PAVE on Linux as `run.sh`
+does. Started through `run.cmd`, Ctrl+C is followed by the prompt `Terminate batch job (Y/N)?`;
+answer `Y`.
 
 **5. Ask the tool what it is, from a second terminal.**
 
@@ -128,7 +143,7 @@ Correct output (the `epoch` number is the configuration epoch: it differs from o
 next and changes when the configuration changes, but two calls in a row answer the same number):
 
 ```
-{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795129834662,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."}}
+{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795154872618,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."}}
 ```
 
 `"mode":"mock"` is the line to check: nothing you do now reaches a real service.
@@ -137,17 +152,12 @@ next and changes when the configuration changes, but two calls in a row answer t
 
 Open `http://localhost:8057/`.
 
-**This revision has no screens.** They are built on a separate branch that is not merged here. So
-the correct output of this step, on this revision, is not a page: the browser shows this error in
-JSON (HTTP 404):
-
-```
-{"kind":"NOT_FOUND","title":"There is nothing at this address.","action":"Check the path against the endpoint table in the README.","fieldErrors":[],"issues":[]}
-```
-
-That means the tool is running and answering; it has the API and no screens. Everything below that
-uses `curl` works without them. What the screens are meant to show once merged is described,
-unchecked, under [Using the screens](#using-the-screens).
+Correct output is the PAVE page: `PAVE 1.0.0` at the top left; at the top right `Profile mock`,
+`Target onyx`, `Environment none active` and `Ledger 0 runs today (UTC)`; under it a hatched strip
+that begins "Mock profile. Scenario files answer in place of the service."; and the five tabs CRD,
+DTR, PAS, History and Config, with CRD open. The right half of the CRD tab says "Nothing has been
+sent from this tab yet." and lists the member IDs that select each mock scenario. Go on with
+[Using the screens](#using-the-screens).
 
 To stop the tool, press Ctrl+C in the terminal where it runs.
 
