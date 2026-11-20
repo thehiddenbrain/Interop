@@ -86,7 +86,8 @@ class NonAsciiEscapeGuardrailTest {
                     + "[{\"key\": \"baseUrl\", \"value\": \"http://127.0.0.1:18742/pa%c0%affhir\"}]}").getBytes(java.nio.charset.StandardCharsets.UTF_8),
                     EnvironmentKind.SANDBOX, true);
             assertThat(upload.warnings()).as(profile).contains("The variable \"baseUrl\" holds an address whose path has an encoded slash, "
-                    + "backslash, semicolon or dot segment in it, such as %2F, or a percent-escape of a byte above 0x7F, such as %C0. A "
+                    + "backslash, semicolon or dot segment in it, such as %2F, or a percent-escape of a byte above 0x7F, such as %C0, or a "
+                    + "character above 0x7F, which the client sends as such an escape. A "
                     + "server in front of the service can decode it before it reads the path, so no request is sent to that address. "
                     + "Write the path without it and upload the environment again.");
             fixture.store.activate("Overlong");

@@ -244,6 +244,12 @@ final class ProductionDestinations {
             return;
         }
         valued.add(name);
+        if (schemeWithoutHost(value.strip())) {
+            // http:///host or http:/host: a url by its scheme, with no host the client reads.
+            String shown = holdsSecret || value.equals(written) ? null : value;
+            problems.putIfAbsent(name, new Problem(name, Unknown.UNREADABLE, own, written, shown, from, holdsSecret));
+            return;
+        }
         if (!ProductionSigns.looksLikeUrl(value)) {
             return;
         }
@@ -341,6 +347,12 @@ final class ProductionDestinations {
             }
         }
         return new ArrayList<>(names);
+    }
+
+    /** True for a value that starts with http: or https: and has no authority after {@code //}, such as {@code http:///host/x} or {@code http:/host/x}. */
+    private static boolean schemeWithoutHost(String value) {
+        return value.regionMatches(true, 0, "http:", 0, 5) || value.regionMatches(true, 0, "https:", 0, 6)
+                ? !hasSchemeAndHost(value) : false;
     }
 
     /** True when the text starts with a scheme followed by {@code ://} and at least one character of authority. */

@@ -535,11 +535,13 @@ public final class UrlNormal {
      * decodes it, or null when there is nothing of that kind: an encoded slash ({@code %2F}), an
      * encoded backslash ({@code %5C}), an encoded semicolon ({@code %3B}), a segment that is a
      * dot segment once decoded ({@code %2E%2E}), or an escape of a byte above 0x7F, which an
-     * overlong or look-alike form of a separator is written with. Letter case does not matter, and the path is
+     * overlong or look-alike form of a separator is written with, or a character above 0x7F written
+     * as it is, which the client sends as such an escape. Letter case does not matter, and the path is
      * decoded again and again, so {@code %252F} counts. Only the path is read: the query and the
      * fragment keep whatever escapes they carry, as a FHIR search needs.
      *
-     * @return the escape as found, in upper case, such as {@code %2F}, or the words "an encoded dot segment"
+     * @return the escape as found, in upper case, such as {@code %2F}, or words: "an encoded dot segment",
+     *         or "a character above 0x7F (sent as %E2%88%95)"
      */
     public static String encodedSeparator(String url) {
         if (url == null) {
@@ -559,6 +561,18 @@ public final class UrlNormal {
             pathEnd++;
         }
         String path = text.substring(pathStart, pathEnd);
+        // The client sends a character above 0x7F as the percent-escapes of its UTF-8 bytes, so
+        // the path it sends holds an escape above 0x7F whether the value was typed escaped or raw.
+        for (int i = 0; i < path.length(); i++) {
+            if (path.charAt(i) > 0x7F) {
+                int codePoint = path.codePointAt(i);
+                StringBuilder sent = new StringBuilder();
+                for (byte b : new String(Character.toChars(codePoint)).getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+                    sent.append(String.format(Locale.ROOT, "%%%02X", b & 0xFF));
+                }
+                return "a character above 0x7F (sent as " + sent + ")";
+            }
+        }
         for (int round = 0; round <= DECODING_ROUNDS && path.indexOf('%') >= 0; round++) {
             String upper = path.toUpperCase(Locale.ROOT);
             for (String escape : List.of("%2F", "%5C", "%3B")) {
