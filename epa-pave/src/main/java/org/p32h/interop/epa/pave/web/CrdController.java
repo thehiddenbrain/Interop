@@ -86,7 +86,8 @@ public class CrdController {
                     List.of(), List.of(), outcomes, CrdCodes.EXPECTATION_ELEMENTS);
         }
         ScenarioRepository.Loaded loaded = scenarios.load(MockOnyxCrdClient.SCENARIOS);
+        // The notes name what the scenario directory holds and the tool did not read as a scenario, so a QA author learns of it here.
         return new ScenarioList(true, null, loaded.scenarios().stream().map(Scenario::summary).toList(), loaded.problems(), outcomes,
-                CrdCodes.EXPECTATION_ELEMENTS);
+                CrdCodes.EXPECTATION_ELEMENTS, null, null, loaded.notes());
     }
 }

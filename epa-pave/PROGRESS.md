@@ -5,30 +5,45 @@ Where the build is, what is done, what remains. Updated at every commit.
 ## Current position
 
 **Read this first.** The revision that holds this file is later than `7dade28`, which the rest of
-this section describes. Merged since, and built together through the shared wrapper with 2648 tests
-(2646 passed, 2 skipped as explained below, none failed):
+this section describes. Merged since, and built together through the shared wrapper with 2667 tests
+(2665 passed, 2 skipped as explained below, none failed):
 
-- the pass that joined the five tabs into one tool. It walked the journey CRD to DTR to PAS on the
-  real tabs with `P32H-DOC-DTR` and saw the answers completed on the DTR tab inside the outgoing PAS
-  request, in the preview and in the wire view. On the live profile with nothing configured the three
-  protocol tabs now hold their form back and say what is missing. So the paragraphs below that say
-  nobody has used the five tabs together, and that the tabs present a form that cannot send, are out
-  of date. What that pass did not get to is not yet in this file: a sweep for one wording of one
-  action across the tabs, the colour key checked entry by entry, several values the server returns
-  that no screen reads, and a run on the live profile against a service that sends a secret back;
-- the README, brought up to the tool as built, screens included. The list below of README sentences
-  that are untrue is out of date. The README quotes some sentences of the screen that the two server
-  tasks then reworded, and those quotes have not been checked again;
-- the two server tasks of what the reviews of the screens asked of the server (D-200). The request
-  comparison now masks a credential a pasted request carries, a raw send masks what a service sends
-  back, and one test searches the whole answer of ten endpoints for a secret sent back. Neither task
-  was attacked by an independent verifier, and their decisions are not in `DECISIONS.md` yet. One gap
-  its author reports: an access token or a secret variable of the environment that a service puts
-  into a notification is not masked when the notification is shown.
+- the pass that joined the five tabs into one tool, and a second pass that made the screens read what
+  the server now says. On the real tabs, on mock: `P32H-NO-AUTH` and `P32H-EMPTY` were seen side by
+  side on the CRD tab, as two rows in History and as two lines in the ledger file, and the journey
+  with `P32H-DOC-DTR` was walked from CRD through DTR into PAS, with the answers completed on the DTR
+  tab seen inside the outgoing PAS request, in the preview and in the wire view. On the live profile
+  with nothing configured the three protocol tabs hold their form back and say what is missing. So
+  the paragraphs below that say nobody has used the five tabs together, and that the tabs present a
+  form that cannot send, are out of date;
+- the README, brought up to the tool as built, screens included. It quotes some sentences of the
+  screen that later work reworded, and those quotes have not been checked again;
+- the two server tasks of what the reviews of the screens asked of the server (D-200);
+- the fixes for what the second fixture audit found (see below).
 
-**Still not done at this revision:** the screens do not yet read the words and values those two
-server tasks added, and still keep their own copies of some of them. No audit of section 27 has run
-on this revision, nor the walkthrough by a business tester, nor a build from a fresh clone.
+**The audits of section 27, second run, on revision `0658a7c`.** Three ran, each by an agent that
+wrote none of the tool: member data (V2), the production guardrail (V3) and fixtures (V4). They
+found defects that are **not all fixed at this revision**:
+
+- V3, a blocker, **not fixed here**: an address whose port is written with leading zeros is not
+  recognised as the address of a production environment, so a write can reach production with no
+  unlock. Also not fixed here: an encoded separator in a value typed for one run can hide a path from
+  the guardrail; no test fails when the Lock action stops locking every session; the Config tab of
+  another session keeps saying writes are unlocked after a lock until it is reloaded.
+- V2, a blocker, **not fixed here**: a secret a service repeats inside a notification is shown in
+  clear. Also not fixed here: a member ID, a name or a date of birth can still reach a ledger line
+  and the export through a note, a tester reference or an expectation typed with a run, through a
+  procedure code field, and through an identifier a service supplies.
+- V4, fixed at this revision and not yet checked by anybody but the author of the fix: a DTR
+  sentinel taken from CRD into DTR ended as "package incomplete"; the mapping of one protocol's
+  sentinels to another's scenario was skipped for a pasted body and, for PAS, written in Java; the
+  sample code list was compared with the service as if it were real; an NPI in the tests could have
+  been a real provider's. Left as a known limit: a scenario file whose stated outcome contradicts its
+  own body is not detected at start.
+
+The fixes for V2 and V3 are being made on branches of their own. V1, V5, V6 and V7, the walkthrough
+by a business tester, and a build from a fresh clone have not run. The decisions made since D-201
+are not in `DECISIONS.md` yet.
 
 This describes revision `7dade28` on branch `epa-pave`, which is on the remote. It holds the line
 of the fix wave (`33893aa`), the two tasks that closed what the fix wave left between its parts

@@ -306,7 +306,8 @@ public class PasController {
                 summaries.add(summary);
             }
         }
-        return new ScenarioList(true, null, summaries, loaded.problems(), outcomes, elements);
+        // The notes name what the scenario directory holds and the tool did not read as a scenario, so a QA author learns of it here.
+        return new ScenarioList(true, null, summaries, loaded.problems(), outcomes, elements, null, null, loaded.notes());
     }
 
     private static OutcomeCode[][] vocabularies(Use use) {
