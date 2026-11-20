@@ -24,6 +24,9 @@ configuration is needed.
 - **Secrets can sit in plain text on disk**: an uploaded Postman environment or collection is kept
   as uploaded in `config-store/`, credentials included; a mirror password goes in
   `gradle.properties`. See [Secrets](#secrets) for keeping them out of files.
+- **The ledger's salt is a secret.** `config-store/installation-salt` is what turns a member ID into
+  the token the ledger keeps. With the salt and the last four characters the ledger also keeps, a
+  member ID is recovered from its token at once. Never copy the salt with the ledger or its export.
 - **So can member data, if you upload it.** The store keeps an uploaded file whole, values and
   saved example responses included. The upload warns when a variable's name reads as member data
   or a request carries a saved example, but it cannot judge the values: never upload an
@@ -31,7 +34,9 @@ configuration is needed.
   [Member data in an uploaded file](#member-data-in-an-uploaded-file).
 - **The note, the tester reference and the expectation are kept in the ledger as typed.** PAVE
   refuses one that holds the member ID, name, date of birth, subscriber ID or address the same
-  request carries, and cannot recognise anything else. Do not type member data into them.
+  request carries, and cannot recognise anything else. A run sent with a request of your own from
+  the CRD, DTR or PAS tab is checked against nothing, so its note goes into the ledger as typed
+  whatever it holds [open at this revision: being fixed]. Do not type member data into them.
 - **DTR here is not a SMART launch**, and **the notification receiver very likely cannot be reached
   by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
 - **PAVE has no sign-in** and listens on this machine only. See
@@ -90,7 +95,7 @@ different project; leave it alone. Every command below is run from `epa-pave/`.
 On Windows: `gradlew.bat clean build`. The first build downloads Gradle 9.5.0 and the
 dependencies, so it needs to reach `services.gradle.org` and Maven Central, or the internal
 mirrors described under [Running on a corporate workstation](#running-on-a-corporate-workstation).
-It runs about 2,700 tests and takes a few minutes. Correct output ends with:
+It runs about 2,770 tests and takes a few minutes. Correct output ends with:
 
 ```
 > Task :verifyParametersFlag
@@ -123,7 +128,7 @@ The following 1 profile is active: "mock"
 The bundled placeholder code list is in use. Every row in it is synthetic. Set codelist.file to the real export.
 ...
 Tomcat started on port 8057 (http) with context path '/'
-Started PaveApplication in 2.157 seconds (process running for 2.611)
+Started PaveApplication in 2.674 seconds (process running for 3.151)
 ```
 
 Started from inside the clone, it also prints two warnings, one for `config-store` and one for
@@ -157,7 +162,7 @@ Correct output (the `epoch` number is the configuration epoch: it differs from o
 next and changes when the configuration changes, but two calls in a row answer the same number):
 
 ```
-{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795165388062,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."},"bindAddress":"127.0.0.1","bindNote":"This tool listens on this machine only (127.0.0.1), so nothing on another machine, a vendor's service included, can call its notification receiver. To let a service call it, set server.address to an address that service can reach, and read the README section on the receiver first."}
+{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795177156113,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."},"bindAddress":"127.0.0.1","bindNote":"This tool listens on this machine only (127.0.0.1), so nothing on another machine, a vendor's service included, can call its notification receiver. To let a service call it, set server.address to an address that service can reach, and read the README section on the receiver first."}
 ```
 
 `"mode":"mock"` is the line to check: nothing you do now reaches a real service. `bindNote` says
@@ -192,7 +197,11 @@ environment you point it at, and shows you what went over the wire and what it m
   QuestionnaireResponse that PAS carries.
 - **PAS**: `Claim/$submit` and `Claim/$inquire`, plus subscriptions (create, read, list, update,
   delete) and a receiver for the notifications a payer sends back. PAS can carry a denial and PAVE
-  shows it as one. There is no claim update and no `$submit-attachment` (D-161).
+  shows it as one. There is no claim update and no `$submit-attachment` (D-161), so the guide's
+  route after "attachment required" is not built. In the attachment mode `x12-275` PAVE names the
+  document on the claim and sends no 275 transaction: that is another channel, and nothing here
+  sends it.
+- Not built at all: `$expand` and `$log-questionnaire-errors`, and no CQL is run.
 - On every protocol a tester can send a request body of their own in place of the one PAVE builds,
   and any request of the uploaded collection can be sent as it is written (Config tab).
 - Member lookup by member ID, provider lookup by NPI, a procedure code picker backed by the P32H
@@ -301,9 +310,11 @@ names the file (D-153).
 
 How a scenario is chosen is one rule for the three protocols, and it is all in the scenario files:
 
-- In order: the scenario you chose; the member ID on the form; the NPI on the form; a member ID or
-  NPI found as a whole value in a request body you pasted; otherwise the default, the file with the
-  lowest number. The result says which rule chose it, for example "found in the request body".
+- In order: the scenario you chose; the member ID on the form; the NPI on the form; a member ID
+  found as a whole value in a request body you pasted; otherwise the default, the file with the
+  lowest number. The result says which rule chose it, for example "found in the request body". A
+  sentinel NPI in a pasted body (`9999999995` as a Practitioner identifier) is not read: the
+  default answers and the result says no sentinel matched [open at this revision: being fixed].
 - A DTR or PAS file lists, under `crdSentinelMemberIds`, the CRD sentinels it answers for the same
   case (`P32H-NOMEM` selects PAS scenario `pas-15-member-not-found`, for example). The scenario
   list shows them. No two files of one protocol may claim one sentinel: the start stops and names
@@ -316,6 +327,15 @@ How a scenario is chosen is one rule for the three protocols, and it is all in t
   a file in a scenario folder that is not read (another extension, or a subfolder), which on mock
   is also named in one warning in the log at start. Not checked: an `expect` outcome that
   contradicts the file's own body.
+- **A scenario folder of your own** (`app.scenario-dir`) copied from the bundled files before the
+  cross-protocol keys (`crdSentinelMemberIds`, `answersDtrSentinels`) existed starts without a word
+  and loses every mapping between protocols: a CRD failure sentinel typed on PAS gets the default,
+  and a DTR sentinel on CRD no longer reaches DTR. Copy the bundled files again
+  [open at this revision: being fixed]. An entry of `crdSentinelMemberIds` that no CRD file
+  claims is not checked at start [open at this revision: being fixed].
+- With `crd-04-doc-dtr` chosen by hand in the Mock scenario field and a DTR sentinel as the member,
+  CRD names its own questionnaire, and DTR then says the package left one out
+  [open at this revision: being fixed].
 
 **Switching** is a restart: stop the tool and start it with `./run.sh live` (or `./run.sh` for
 mock). The mode is shown on every tab, at the top right (`Profile mock` or `Profile live`), and by
