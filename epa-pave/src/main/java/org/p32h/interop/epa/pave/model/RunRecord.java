@@ -38,8 +38,10 @@ import java.util.Map;
  *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token that the loaded code
  *       list holds or that does not read like an identifier or a date, a line of business is a short
  *       label that does not either.
- *       Which lines the tool knows is the ledger's to decide, since the record cannot see the code
- *       list</li>
+ *       Which lines the tool knows, and which codes the list holds, is the ledger's to decide, since
+ *       the record cannot see the code list. The ledger decides about a code once, when it writes
+ *       the line ({@link #withCodesJudgedAtWriting}); a line read back keeps the codes it was
+ *       written with, and only its shape and the run's own member ID are checked again</li>
  *   <li>the subject written before a coverage code, and before "(no answer)": each part is held
  *       to the rule a procedure code is held to, since it is what was typed where a code goes or
  *       the id of a resource in a body that may be the tester's own</li>
@@ -455,58 +457,74 @@ public record RunRecord(
     }
 
     /**
-     * A procedure code as sent, kept when it has the shape of a code and does not read like an
-     * identifier or a date. The run's own member ID typed where a code goes is the case this is for:
-     * the line would otherwise carry the ID in the clear beside its token.
+     * A procedure code as sent, kept when it has the shape of a code and does not hold this run's
+     * member ID. The run's own member ID typed where a code goes is the case this is for: the line
+     * would otherwise carry the ID in the clear beside its token. This is checked whenever a record
+     * is built, a line read back included. Whether a code reads like an identifier or a date, and
+     * whether the code list holds it, is decided once, when the ledger writes the line
+     * ({@link #withCodesJudgedAtWriting}): the list can change, and a line says what it said when it
+     * was written.
      */
     private static String procedureCode(String code, String sought) {
         if (statement("not a code", code)) {
             return code;
         }
-        return code != null && PROCEDURE_CODE.matcher(code).matches() && !holdsMember(code, sought)
-                && (listed(code) || !identifying(code, sought)) ? code : notKept("not a code", code);
+        return code != null && PROCEDURE_CODE.matcher(code).matches() && !holdsMember(code, sought) ? code : notKept("not a code", code);
     }
 
     /**
-     * Whether the loaded code list holds a code. A code the list holds is kept as written whatever
-     * its shape: a seven digit ICD-10-PCS code or an eleven digit NDC is a code because the list
-     * says so, not a member ID. The record cannot see the list, so the ledger hands it this test
-     * when it is made ({@link #codesOnTheList}); until then no code is on the list.
+     * The subject written before a code, each of its parts kept when the given test keeps it and
+     * otherwise replaced by its length. A subject is a code that was asked about or a place in the
+     * response, and either can carry what was typed where a code goes or the id a body of the
+     * tester's own gave a resource.
      */
-    private static volatile java.util.function.Predicate<String> onTheCodeList = code -> false;
-
-    /**
-     * Tells every record built from now on which codes the loaded code list holds. The ledger of
-     * the application calls this once, with its code list. Null means no list.
-     */
-    public static void codesOnTheList(java.util.function.Predicate<String> listed) {
-        onTheCodeList = listed == null ? code -> false : listed;
-    }
-
-    private static boolean listed(String code) {
-        try {
-            return onTheCodeList.test(code);
-        } catch (RuntimeException e) {
-            // A list that cannot be asked holds nothing for this purpose: the code is then held to its shape.
-            return false;
-        }
-    }
-
-    /**
-     * The subject written before a code, each of its parts checked as a procedure code is. A
-     * subject is a code that was asked about or a place in the response, and either can carry what
-     * was typed where a code goes or the id a body of the tester's own gave a resource. A part that
-     * reads like an identifier or a date is replaced by its length; a UUID within a place is not.
-     */
-    private static String subject(String given, String sought) {
+    private static String subject(String given, java.util.function.Predicate<String> keeps) {
         java.util.regex.Matcher item = SUBJECT_ITEM.matcher(given);
         List<String> parts = new java.util.ArrayList<>();
         while (item.find()) {
             String part = item.group();
-            parts.add(statement("not a code", part) || !holdsMember(part, sought) && (listed(part) || !identifyingPlace(part, sought)) ? part
-                    : notKept("not a code", part));
+            parts.add(statement("not a code", part) || keeps.test(part) ? part : notKept("not a code", part));
         }
         return String.join(", ", parts);
+    }
+
+    /**
+     * This record as the ledger writes it: each procedure code, and each part of the subject before
+     * a coverage code, that reads like an identifier or a date is replaced by its length, unless the
+     * loaded code list holds it. A seven digit ICD-10-PCS code or an eleven digit NDC is a code
+     * because the list says so, not a member ID. Only the ledger can see the list, and only when it
+     * writes a line is the list asked: a line read back is not judged again by a list that may have
+     * changed since.
+     *
+     * @param listed true for a code the loaded code list holds. A list that cannot be asked holds nothing
+     */
+    public RunRecord withCodesJudgedAtWriting(java.util.function.Predicate<String> listed) {
+        java.util.function.Predicate<String> onTheList = code -> {
+            try {
+                return listed != null && listed.test(code);
+            } catch (RuntimeException e) {
+                // A list that cannot be asked holds nothing for this purpose: the code is then held to its shape.
+                return false;
+            }
+        };
+        List<String> codes = procedureCodes.stream().map(code -> statement("not a code", code) || onTheList.test(code)
+                || !identifying(code, null) ? code : notKept("not a code", code)).toList();
+        java.util.function.Predicate<String> keeps = part -> onTheList.test(part) || !identifyingPlace(part, null);
+        List<String> entries = coverageCodes.stream().map(entry -> withSubject(entry, keeps)).toList();
+        return codes.equals(procedureCodes) && entries.equals(coverageCodes) ? this
+                : toBuilder().procedureCodes(codes).coverageCodes(entries).build();
+    }
+
+    /** A coverage code entry with the parts of its subject, when it has one, held to the given test. */
+    private static String withSubject(String entry, java.util.function.Predicate<String> keeps) {
+        for (java.util.regex.Pattern form : List.of(CODE_ENTRY, NO_ANSWER_ENTRY, NAMED_ENTRY)) {
+            java.util.regex.Matcher matched = form.matcher(entry);
+            if (matched.matches()) {
+                return matched.group(1) == null ? entry
+                        : entry.substring(0, matched.start(1)) + subject(matched.group(1), keeps) + entry.substring(matched.end(1));
+            }
+        }
+        return entry;
     }
 
     private static boolean identifyingPlace(String value, String sought) {
@@ -574,13 +592,13 @@ public record RunRecord(
         if (code.matches()) {
             // The element name is the tool's own. The code came from the response, and the subject
             // is what was typed where a code goes or a place in a body that may be the tester's own.
-            String subject = code.group(1) == null ? "" : subject(code.group(1), sought) + ": ";
+            String subject = code.group(1) == null ? "" : subject(code.group(1), part -> !holdsMember(part, sought)) + ": ";
             return subject + code.group(2) + "=" + (!identifying(code.group(3), sought) ? code.group(3)
                     : notKept(READS_LIKE_AN_IDENTIFIER, code.group(3)));
         }
         java.util.regex.Matcher unanswered = NO_ANSWER_ENTRY.matcher(entry);
         if (unanswered.matches()) {
-            return subject(unanswered.group(1), sought) + ": (no answer)";
+            return subject(unanswered.group(1), part -> !holdsMember(part, sought)) + ": (no answer)";
         }
         if (statement("not a code entry", entry)) {
             return entry;
@@ -588,7 +606,7 @@ public record RunRecord(
         java.util.regex.Matcher named = NAMED_ENTRY.matcher(entry);
         if (named.matches()) {
             // The element name is the tool's own. What followed it was not a code, so only its length is kept.
-            String subject = named.group(1) == null ? "" : subject(named.group(1), sought) + ": ";
+            String subject = named.group(1) == null ? "" : subject(named.group(1), part -> !holdsMember(part, sought)) + ": ";
             String value = statement("not a code", named.group(3)) || statement(READS_LIKE_AN_IDENTIFIER, named.group(3)) ? named.group(3)
                     : notKept("not a code", named.group(3));
             return subject + named.group(2) + "=" + value;
