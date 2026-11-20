@@ -470,4 +470,16 @@ class CrdVerdictsTest {
                 TestExchanges.crd(200, bodies.get(CrdOutcome.UNRECOGNISED_CODE))).supporting()).containsExactly("Unrecognised code: auth-maybe.");
         assertThat(seen).hasSize(5);
     }
+
+    @Test
+    void anAnswerThatNeedsNothingFurtherIsColouredForSomethingToDoWhenItsNextStepIsTheTesters() {
+        VerdictView clear = VerdictView.of(CrdOutcome.NO_AUTH_REQUIRED, "Prior authorization is not required.", List.of());
+        VerdictView toDtr = CrdVerdicts.toned(clear, NextStepView.of(NextAction.START_DTR, "Next: complete the payer's documentation in DTR.", "x"));
+        assertThat(toDtr.tone()).isEqualTo(org.p32h.interop.epa.pave.model.Tone.ACTION);
+        assertThat(toDtr.outcomeCode()).isEqualTo("NO_AUTH_REQUIRED");
+        assertThat(toDtr.headline()).isEqualTo("Prior authorization is not required.");
+        assertThat(CrdVerdicts.toned(clear, NextStepView.of(NextAction.FLOW_ENDS, "The flow ends here.", "x"))).isSameAs(clear);
+        VerdictView action = VerdictView.of(CrdOutcome.AUTH_REQUIRED, "Prior authorization is required.", List.of());
+        assertThat(CrdVerdicts.toned(action, NextStepView.of(NextAction.START_PAS, "Next.", "x"))).isSameAs(action);
+    }
 }

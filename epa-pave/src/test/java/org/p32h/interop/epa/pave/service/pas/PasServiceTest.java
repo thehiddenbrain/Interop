@@ -1296,6 +1296,9 @@ class PasServiceTest {
         // No identifier is minted for a preview, and the body says where one will go.
         assertThat(bundle.at("/entry/0/resource/identifier/0/value").asString()).isEqualTo("(a new id is generated when the request is sent)");
         assertThat(preview.notes()).isNotEmpty();
+        // Nothing was sent, so no note says that something was.
+        assertThat(preview.notes()).noneMatch(note -> note.matches("(?s).*\\b(was|were) sent\\b.*"))
+                .anyMatch(note -> note.contains("would be sent"));
         assertThat(preview.blocked()).isNull();
 
         RequestPreview typed = service.previewSubmit(submission("S123456789").claimId(CLAIM).build(), null);

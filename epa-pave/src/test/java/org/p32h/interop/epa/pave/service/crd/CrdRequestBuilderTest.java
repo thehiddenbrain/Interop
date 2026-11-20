@@ -407,6 +407,9 @@ class CrdRequestBuilderTest {
         org.p32h.interop.epa.pave.model.Finding finding = CrdService.incompleteRequest(built.incomplete());
         assertThat(finding.kind()).isEqualTo(org.p32h.interop.epa.pave.model.FindingKind.REQUEST_INCOMPLETE);
         assertThat(finding.title()).isEqualTo("The request was sent without 6 elements CRD 2.0.1 requires");
+        // With no answer, nothing is known to have arrived: the request was built without them.
+        assertThat(CrdService.incompleteRequest(built.incomplete(), false).title()).isEqualTo("The request was built without 6 elements CRD 2.0.1 "
+                + "requires");
         assertThat(finding.detail()).startsWith("Nobody supplied them, and this tool does not invent values. A service that validates "
                 + "against CRD 2.0.1 may refuse the request for this, which is then not a fault of the service. Left out: "
                 + "Patient.identifier.system (the member ID) (CRD 2.0.1 profile-patient), supplied by the variable memberIdSystem; ");
