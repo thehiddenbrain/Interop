@@ -70,36 +70,22 @@ export function stamp(result, size) {
 }
 
 /**
- * What a finding is about, by its kind. The server words every finding, and sends its kind as a
- * name; it sends no word for what the kind is about. That is said here, in a short line above the
- * finding's title, so that a finding about the request this tool sent is never read as a fault of
- * the service, and the colour key lists the same groups. No group is a fault and none is coloured.
- * A kind not listed here is drawn plainly with its name as sent.
+ * The kinds of finding gathered under what each is about, in the order the server lists them.
+ * The server sends each kind with its group, the heading a finding of that group carries above
+ * its title and the sentence that says what the group means (findingKinds, on every scenarios
+ * endpoint), so the colour key says the same as the findings it explains and keeps no copy.
  */
-export const FINDING_GROUPS = [
-    {id: 'request', heading: 'About the request this tool sent, not the service',
-        kinds: ['REQUEST_INCOMPLETE', 'NO_CALLBACK_URL', 'PRE_REQUEST_SCRIPT_NOT_RUN'],
-        meaning: 'What went out, or what this tool did not do. A refusal by the service that follows from it is not a fault of the service.'},
-    {id: 'guide', heading: 'About the response, held to the guide',
-        kinds: ['REQUIRED_ELEMENT_MISSING', 'CODE_OUTSIDE_VALUE_SET', 'GUIDE_RULE_BROKEN'],
-        meaning: 'The response does not meet the version of the guide this tool is held to. The finding names the guide and the version.'},
-    {id: 'information', heading: 'Information about the response',
-        kinds: ['OTHER_VERSION_CONTENT', 'NOT_STATED'],
-        meaning: 'Something to know, which the guide does not call wrong: content a later version defines, or something the response does not state.'},
-    {id: 'codelist', heading: 'The code list beside the service',
-        kinds: ['CODE_LIST_DISAGREES_ON_AUTH', 'CODE_LIST_DISAGREES_ON_VENDOR', 'CODE_LIST_NOT_COMPARED'],
-        meaning: 'The two positions side by side, or why they could not be compared. Either side can be the wrong one.'},
-    {id: 'notification', heading: 'About a notification that arrived',
-        kinds: ['UNMATCHED_NOTIFICATION', 'UNCHECKED_NOTIFICATION'],
-        meaning: 'A notification this tool could not tie to a run, or could not check. It is kept and shown.'},
-    {id: 'timing', heading: 'About the time the call took',
-        kinds: ['SLOW_RESPONSE'],
-        meaning: 'The call completed and took longer than the threshold.'}
-];
-
-/** The group of a finding kind, or null for a kind this page does not list. */
-export function findingGroup(kind) {
-    return FINDING_GROUPS.find(group => group.kinds.includes(String(kind))) || null;
+export function findingGroupsOf(findingKinds) {
+    const groups = [];
+    for (const kind of Array.isArray(findingKinds) ? findingKinds : []) {
+        let group = groups.find(each => each.group === kind.group);
+        if (!group) {
+            group = {group: kind.group, groupLabel: kind.groupLabel, groupMeaning: kind.groupMeaning, kinds: []};
+            groups.push(group);
+        }
+        group.kinds.push(kind.code);
+    }
+    return groups;
 }
 
 /** The flag for a call that completed but took longer than the threshold. */

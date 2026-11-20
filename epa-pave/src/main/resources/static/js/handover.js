@@ -2,8 +2,9 @@
 //
 // When a result says the next step is DTR or PAS, the button on it goes to that tab carrying two
 // things: the result's nextStep.carry, which the next run posts back unchanged as "carry", and
-// the case the run was sent with. app.carriedTo(tabId) returns {carry, fromRunId, fromProtocol,
-// chainId, forCase} or null. The tab that receives it sends carry with its next run only while the
+// the case the run was sent with. app.carriedTo(tabId) returns {carry, carryLabels, fromRunId,
+// fromProtocol, chainId, forCase} or null. carryLabels is the server's name for each key of carry,
+// for the tables that show what was handed on; it is never posted. The tab that receives it sends carry with its next run only while the
 // case on screen is still forCase: values carried for one member must not go out with another,
 // and sameCase(forCase, app.caseContext.summary()) is the one test of that, for every tab.
 

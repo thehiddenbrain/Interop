@@ -3,10 +3,14 @@
 // fact is drawn changes the key with it.
 
 import {el, fill, button, code} from './dom.js';
-import {TONES, RESULTS, FINDING_GROUPS, toneMark, stamp, slowFlag, mockMark} from './marks.js';
+import {TONES, RESULTS, findingGroupsOf, toneMark, stamp, slowFlag, mockMark} from './marks.js';
+import * as api from './api.js';
 import {presenceMark, noneMark} from './shown.js';
 
-export function openLegend(dialog) {
+export async function openLegend(dialog) {
+    // The kinds of finding and what each group means are the server's, read each time the key is
+    // opened, so the key cannot fall behind the findings it explains.
+    const answer = await api.get('/api/crd/scenarios');
     fill(dialog,
         el('div', {class: 'legend__head'},
             el('h2', {id: 'legend-title', class: 'section-heading'}, 'Colour key'),
@@ -78,8 +82,11 @@ export function openLegend(dialog) {
                     'A finding is something to look at, never a failure of the call, and none has a colour. The line above its title says what it is about. '
                     + 'Its kind is the name the server sends; a kind not listed here is shown under its own name.',
                     // The line a finding carries is words, not a mark, so here each one stands above what it means.
-                    FINDING_GROUPS.map(each => row(el('span', {class: 'legend__finding'}, each.heading),
-                        [each.meaning, el('span', {class: 'legend__kinds'}, each.kinds.map((kind, index) => [index > 0 ? ', ' : null, code(kind)]))])),
+                    answer.kind === 'ok'
+                        ? findingGroupsOf(answer.body.findingKinds).map(each => row(el('span', {class: 'legend__finding'}, each.groupLabel),
+                            [each.groupMeaning, el('span', {class: 'legend__kinds'}, each.kinds.map((kind, index) => [index > 0 ? ', ' : null, code(kind)]))]))
+                        : [row(el('span', {class: 'legend__finding'}, 'Not read'),
+                            ['The kinds of finding could not be read from the tool: ', answer.body && answer.body.title ? answer.body.title : 'it did not answer', ' Close the key and open it again.'])],
                     'legend__rows--stacked'))));
     if (!dialog.open) {
         dialog.showModal();

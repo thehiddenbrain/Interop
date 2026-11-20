@@ -388,7 +388,11 @@ function ledgerItem() {
         problems.push(['state cannot be read', 'The tool did not answer when asked whether the ledger is recording.']);
     }
     let failed = null;
+    let unreadable = null;
     if (health) {
+        if (health.unreadableLines > 0) {
+            unreadable = health.unreadableLines.toLocaleString() + (health.unreadableLines === 1 ? ' line unreadable' : ' lines unreadable');
+        }
         if (!health.enabled) {
             problems.push(['tracking is OFF', 'Tracking is switched off: runs made now are not recorded anywhere.']);
         } else if (!health.writable) {
@@ -409,6 +413,9 @@ function ledgerItem() {
         if (failed) {
             problems.push([failed, failed.charAt(0).toUpperCase() + failed.slice(1) + ' since the tool started. Those runs are not in the ledger.']);
         }
+        if (unreadable) {
+            problems.push([unreadable, unreadable.charAt(0).toUpperCase() + unreadable.slice(1) + ': left out of History and of the export.']);
+        }
         const words = problems.map(([each]) => each).join('; ');
         const sentence = problems.map(([, each]) => each).join(' ') + toHistory;
         return {node: ledgerLink(words, 'strip-item--alarm', sentence), state: 'Ledger: ' + words + '.'};
@@ -420,9 +427,12 @@ function ledgerItem() {
     }
     const day = new Date().toISOString().slice(0, 10);
     const recording = 'Recording. Counted over the UTC day ' + day + ', which is how the ledger files its runs, not the date on your clock.';
-    const earlier = failed ? failed + ' earlier, since the tool started' : null;
-    const sentence = recording + (earlier ? ' ' + earlier.charAt(0).toUpperCase() + earlier.slice(1)
-        + ': those runs are not in the ledger. It records again now.' : '') + toHistory;
+    // Said after the count, in visible words: runs that were made and that History cannot show.
+    const earlier = [failed ? failed + ' earlier, since the tool started' : null, unreadable].filter(Boolean).join('; ') || null;
+    const sentence = recording + (failed ? ' ' + failed.charAt(0).toUpperCase() + failed.slice(1)
+        + ' earlier, since the tool started: those runs are not in the ledger. It records again now.' : '')
+        + (unreadable ? ' ' + unreadable.charAt(0).toUpperCase() + unreadable.slice(1)
+            + ': a line of the ledger that cannot be read is left out of History and of the export.' : '') + toHistory;
     return {node: ledgerLink(counted.toLocaleString() + (counted === 1 ? ' run' : ' runs') + ' today (UTC)', null, sentence, earlier),
         state: 'Ledger recording.' + (earlier ? ' ' + earlier.charAt(0).toUpperCase() + earlier.slice(1) + '.' : '')};
 }

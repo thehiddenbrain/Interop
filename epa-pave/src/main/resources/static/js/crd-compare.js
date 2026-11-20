@@ -16,15 +16,6 @@ import {clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {errorPanel} from './result.js';
 import {lineMap, ancestors} from './crd-json-lines.js';
 
-// The two places a value of the case can come from. The comparison sends the source by name
-// only; these are the words for it. A source this page does not know is shown by its name.
-const SOURCES = {FORM: 'The form', YOUR_REQUEST: 'Your request'};
-
-// The groups that are open when a comparison is drawn. The first group the server lists is the
-// answer to the tester's question and is always open. Differences that come with every call are
-// not findings, so their group starts closed.
-const STARTS_CLOSED = new Set(['EVERY_CALL']);
-
 /**
  * spec.app            the application object
  * spec.bench          the workbench of the CRD tab
@@ -352,11 +343,11 @@ export function createComparison(spec) {
  * actions.useMemberId(value).
  */
 export function drawComparison(answer, about, actions) {
-    const notes = answer.notes || [];
-    // On a comparable answer the server puts its sentence about what the comparison cannot show
-    // first among the notes, once. It is set apart so that it is always in view.
-    const caveat = answer.comparable && notes.length > 0 ? notes[0] : null;
-    const otherNotes = caveat ? notes.slice(1) : notes;
+    // The server's sentence about what a comparison cannot show comes with every answer,
+    // comparable or not. It is set apart so that it is always in view, and said once: the notes
+    // may repeat it.
+    const caveat = answer.caveat || null;
+    const otherNotes = (answer.notes || []).filter(note => note !== caveat);
 
     // Out of date, the comparison says so at its head, in the summary line when it is folded, and
     // with the documents, which stay pinned in view while the list is read.
@@ -483,7 +474,7 @@ function casePart(answer, actions) {
             table([{text: 'Value', class: 'col-22'}, {text: 'Taken from', class: 'col-13'}, {text: 'What was used', class: 'col-30'},
             'Where it was read'], sources.map(source => [
             source.label || code(source.field),
-            Object.prototype.hasOwnProperty.call(SOURCES, source.source) ? SOURCES[source.source] : code(String(source.source)),
+            source.sourceLabel || code(String(source.source)),
             requestValue(source.value),
             source.path ? [code(source.path), source.note ? el('div', {class: 'small quiet'}, source.note) : null]
                 : source.note ? el('span', {class: 'small quiet'}, source.note) : el('span', {class: 'quiet small'}, 'the form')
@@ -621,7 +612,7 @@ function differenceList(answer, docs) {
     }
     for (const group of counts) {
         const members = differences.map((difference, index) => ({difference, index})).filter(entry => entry.difference.group === group.group);
-        const details = el('details', {class: 'crd-group fold', open: !STARTS_CLOSED.has(group.group) && (members.length > 0 || group === counts[0])},
+        const details = el('details', {class: 'crd-group fold', open: group.startsOpen !== false && (members.length > 0 || group === counts[0])},
             el('summary', null, group.label, el('span', {class: 'quiet'}, members.length === 1 ? '1 difference' : members.length + ' differences')),
             group.description ? el('p', {class: 'small quiet crd-group__about'}, group.description) : null,
             members.length === 0 ? el('p', {class: 'small'}, 'None.')
@@ -829,6 +820,8 @@ function documents(answer, staleShort) {
                 button('Previous difference', () => step(-1), {class: 'button--quiet button--small'}),
                 button('Next difference', () => step(1), {class: 'button--quiet button--small'})) : null),
         staleShort,
+        // Said where the two texts are read, so a masked value is never taken for what was typed.
+        answer.maskedNote ? el('p', {class: 'small crd-docs__masked'}, answer.maskedNote) : null,
         where,
         el('div', {class: 'crd-docs__panes'}, tool.node, yours.node),
         answer.comparable && differences.length > 0 ? el('p', {class: 'small quiet crd-docs__key'},

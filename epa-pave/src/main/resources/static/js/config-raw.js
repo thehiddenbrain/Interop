@@ -39,7 +39,7 @@ export function createRawView(context) {
     const testerRef = textField({label: 'Tester reference', field: 'testerRef', placeholder: 'ticket or initials'});
     const note = textField({label: 'Note', field: 'note'});
     const sendButton = el('button', {type: 'submit', class: 'button button--primary'}, 'Send this request as written');
-    const previewButton = button('Show the request before sending', preview);
+    const previewButton = button('Show the request', preview);
     const previewSlot = bench.slot('preview');
     bench.track(sendButton, previewButton, requestSelect);
 
@@ -57,7 +57,8 @@ export function createRawView(context) {
             el('label', {htmlFor: 'config-raw-body'}, 'Body to send'),
             body,
             el('span', {class: 'field__hint', id: 'config-raw-body-hint'}, 'The sample body of the collection, as the vendor wrote it. Edit it freely. '
-                + 'Placeholders in it are filled in when it is sent. An empty field sends no body.'),
+                + 'Placeholders in it are filled in when it is sent. Left empty, the body saved with the collection request goes, if it has one: '
+                + 'the request before sending says which.'),
             el('p', null, reload)),
         el('div', {class: 'field-grid'}, testerRef.node, note.node));
     bench.actions.append(el('div', {class: 'button-row'}, sendButton, previewButton));
@@ -117,7 +118,7 @@ export function createRawView(context) {
         const collections = (context.stored().collections || {}).collections || [];
         bench.showEmpty(chosen
             ? el('div', {class: 'empty-state'},
-                el('p', null, 'Send it with "Send this request as written", or look at it first with "Show the request before sending". '
+                el('p', null, 'Send it with "Send this request as written", or look at it first with "Show the request". '
                     + 'What comes back appears here.'))
             : emptyState(collections.length));
     }
@@ -131,7 +132,7 @@ export function createRawView(context) {
         }
         return el('div', {class: 'empty-state'},
             el('p', {class: 'empty-state__lead'}, 'Choose a request of the collection.'),
-            el('p', null, 'Its sample body is loaded into the form. Look at the request before sending with "Show the request before sending", '
+            el('p', null, 'Its sample body is loaded into the form. Look at the request before sending with "Show the request", '
                 + 'then send it. The result appears here, in the same form as every other run.'));
     }
 
@@ -200,26 +201,31 @@ export function createRawView(context) {
             return;
         }
         const variables = answer.body.variables || [];
-        // A {id} or :id part of the url. A request sent as written takes values for {{placeholders}}
-        // only, so such a part cannot be filled from here, and the tester is told before sending.
+        // A {id} or :id part of the url, filled for each call. The server takes a value for each
+        // under urlValues, and refuses to send or show the request while one has none.
         const tokens = (answer.body.urlTokens || []).filter(token => !token.supplied);
-        const unfilled = tokens.length > 0
-            ? el('div', {class: 'form-problem config-raw__tokens'},
-                el('p', {class: 'form-problem__title'}, 'The url of this request is not complete, and it cannot be completed here.'),
-                el('p', null, 'It has ', tokens.map((token, index) => [index > 0 ? ', ' : null, code('{' + token.name + '}')]),
-                    ', a part filled for each call. Sending a request as written takes values for ', code('{{placeholders}}'),
-                    ' only, so that part has no value.', (answer.body.notes || []).length > 0 ? ' What the tool says about it:' : null),
-                sentences(answer.body.notes, 'small'))
+        const parts = tokens.length > 0
+            ? [el('p', {class: 'case-legend'}, 'Parts of the url'),
+                el('p', {class: 'small'}, 'The url has a part filled for each call. Type the value it is waiting for.'),
+                sentences(answer.body.notes, 'small'),
+                tokens.map(token => tokenField(token))]
             : null;
         if (variables.length === 0) {
-            fill(values, unfilled, el('p', {class: 'small quiet'}, 'The url and headers of this request have no placeholders.'));
+            fill(values, parts, el('p', {class: 'small quiet'}, 'The url and headers of this request have no placeholders.'));
             return;
         }
         fill(values,
-            unfilled,
+            parts,
             el('p', {class: 'case-legend'}, 'Placeholders'),
             el('p', {class: 'small'}, 'Each takes the value the configuration gives it. Type a value to use another one for this send only.'),
             variables.map(variable => valueField(variable)));
+    }
+
+    function tokenField(token) {
+        const id = 'config-raw-t-' + token.name.replace(/[^A-Za-z0-9_-]/g, '_');
+        const input = el('input', {type: 'text', id, autocomplete: 'off', spellcheck: false, class: 'literal-input', dataset: {token: token.name}});
+        return el('div', {class: 'field config-raw__missing', dataset: {field: 'urlValues.' + token.name}},
+            el('label', {htmlFor: id}, code('{' + token.name + '}')), input);
     }
 
     function valueField(variable) {
@@ -230,7 +236,7 @@ export function createRawView(context) {
             el('label', {htmlFor: id}, placeholder(variable.name), variable.secret ? [' ', flag('secret')] : null),
             input,
             el('span', {class: 'field__hint'}, variable.resolved
-                ? ['Now: ', code(variable.display), ', from ', sourceWords(variable.source), '.']
+                ? ['Now: ', code(variable.display), ' (', sourceWords(variable), ')']
                 : [el('strong', null, 'No value. '), variable.reason || '']));
     }
 
@@ -242,12 +248,21 @@ export function createRawView(context) {
                 variables[input.dataset.variable] = input.value;
             }
         }
+        const urlValues = {};
+        for (const input of values.querySelectorAll('input[data-token]')) {
+            if (input.value.length > 0) {
+                urlValues[input.dataset.token] = input.value;
+            }
+        }
         const sent = {
             request: entry ? {collectionId: entry.collection.id, requestId: entry.request.id} : null,
             rawBody: body.value,
             variables,
             configEpoch: app.epoch()
         };
+        if (Object.keys(urlValues).length > 0) {
+            sent.urlValues = urlValues;
+        }
         if (testerRef.value()) {
             sent.testerRef = testerRef.value();
         }
@@ -278,7 +293,7 @@ export function createRawView(context) {
             previewButton.focus();
         }));
         drawEmpty();
-        bench.say('The request as it would be sent is shown. Nothing was sent.');
+        bench.say('The request is shown. Nothing was sent.');
         focusHeading(previewSlot, 'h2');
     }
 

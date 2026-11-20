@@ -252,7 +252,7 @@ function resolvedView(resolved) {
                         variable.resolved
                             ? [code(variable.display), variable.secret ? [' ', flag('secret', 'Masked. The value of a secret is never shown.')] : null]
                             : [el('strong', null, 'No value. '), variable.reason || ''],
-                        sourceWords(variable.source),
+                        sourceWords(variable),
                         el('span', {class: 'small'}, (variable.usedIn || []).join(', '))]})), {class: 'config-try__variables'})]
             : el('p', null, url.template || resolved.requestName ? 'The request has no placeholders.' : 'There is no url and no request, so there is no placeholder.'),
         headers.length > 0

@@ -2690,3 +2690,15 @@ details.fold > :not(summary) {
         padding-right: 0;
     }
 }
+
+/* What a step handed on, in a pane as narrow as the case: the server's name for each value above
+   the value, so a long label and a long address each get the whole width. */
+.facts.handed-on {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.facts.handed-on > dd {
+    border-top: 0;
+    padding-top: 0;
+    padding-bottom: 6px;
+}

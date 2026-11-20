@@ -536,7 +536,7 @@ export function nextStepControl(app, forCase) {
         // The tab offers its own control for that step, or none.
         const here = TAB_OF_PROTOCOL[envelope.protocol] || null;
         const goTo = tabId => () => {
-            app.carryTo(tabId, {carry: step.carry || {}, fromRunId: envelope.runId, fromProtocol: envelope.protocol, chainId: envelope.chainId, forCase});
+            app.carryTo(tabId, {carry: step.carry || {}, carryLabels: step.carryLabels || {}, fromRunId: envelope.runId, fromProtocol: envelope.protocol, chainId: envelope.chainId, forCase});
             app.navigate(tabId);
         };
         if (step.action === 'START_DTR' && here !== 'dtr') {
@@ -600,11 +600,31 @@ export function requestPreviewPanel(preview, close) {
             ? table(['Placeholder', 'Value shown', 'Comes from'], url.variables.map(variable => [
                 placeholderAsWritten(variable.name, url.template),
                 variable.display === undefined ? presenceMark('ABSENT') : [code(variable.display), variable.secret ? ' (masked: a secret)' : null],
-                sourceWords(variable.source, true)]), {class: 'thirds'})
+                sourceWords(variable)]), {class: 'thirds'})
             : null,
         preview.notes && preview.notes.length > 0 ? el('ul', {class: 'note-list'}, preview.notes.map(note => el('li', null, note))) : null,
         body ? el('div', {class: 'raw-body'},
             el('div', {class: 'panel__head'}, el('span', {class: 'sub-heading'}, 'Request body'),
                 copyButton('Copy request body', () => body.textContent, body)),
             body) : null);
+}
+
+/**
+ * The member ID cell of a mock scenario's row on an empty tab: the first member ID that selects
+ * it, then every other identifier the server lists for it (sentinelMemberIds, sentinelNpis and,
+ * on DTR, the CRD member IDs it also answers for), so a tester can reach it every way it can be
+ * reached. Each list is the server's; none is worked out here.
+ */
+export function sentinelCell(scenario) {
+    const first = scenario.sentinelMemberId || null;
+    const others = (scenario.sentinelMemberIds || []).filter(id => id !== first);
+    const npis = scenario.sentinelNpis || [];
+    const fromCrd = scenario.crdSentinelMemberIds || [];
+    const list = values => values.map((value, index) => [index > 0 ? ', ' : null, code(value)]);
+    return [
+        first ? code(first) : el('span', {class: 'presence presence--none'}, 'none'),
+        others.length > 0 ? el('div', {class: 'small'}, 'or ', list(others)) : null,
+        npis.length > 0 ? el('div', {class: 'small'}, 'or the NPI ', list(npis)) : null,
+        fromCrd.length > 0 ? el('div', {class: 'small'}, 'and the CRD member ', fromCrd.length === 1 ? 'ID ' : 'IDs ', list(fromCrd), ', for a journey begun at CRD') : null
+    ];
 }

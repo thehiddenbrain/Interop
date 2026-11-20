@@ -14,7 +14,7 @@
 import * as api from './api.js';
 import {el, fill, clear, button, code, table, copyButton} from './dom.js';
 import {textField, selectField, formProblem, markFieldErrors} from './forms.js';
-import {createWorkbench, requestPreviewPanel} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, sentinelCell} from './workbench.js';
 import {detailFor} from './pas-detail.js';
 import {createExpectation} from './pas-expectation.js';
 import {createAttachments} from './pas-attachments.js';
@@ -804,11 +804,6 @@ async function showPreview(kind) {
                 }
             }
         }
-        // The server's notes are written as of a request that went. Here nothing has gone, so they are introduced as what would happen.
-        const notes = shownPanel.querySelector(':scope > .note-list');
-        if (notes) {
-            notes.before(el('p', {class: 'sub-heading'}, 'If it were sent as it stands, the server notes:'));
-        }
         fill(slots.preview, shownPanel);
         bench.say('The request is shown. Nothing was sent.');
         const title = shownPanel.querySelector('h2');
@@ -858,7 +853,7 @@ function drawEmptyState() {
             list.scenarios.map(item => [
                 {class: 'num', node: String(item.number)},
                 item.label,
-                item.sentinelMemberId ? code(item.sentinelMemberId) : el('span', {class: 'presence presence--none'}, 'none'),
+                sentinelCell(item),
                 !item.sentinelMemberId ? null
                     : own ? copyButton('Copy this member ID', () => item.sentinelMemberId)
                         : button('Use this member ID', () => app.caseContext.setMemberId(item.sentinelMemberId),

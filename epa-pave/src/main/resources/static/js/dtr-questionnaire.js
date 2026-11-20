@@ -37,8 +37,12 @@ import {changesBlock, notApplied, kindWord} from './dtr-detail.js';
  * hooks.track(...controls) registers controls that are disabled while a request is on its way
  * hooks.expected()         the expectation that goes with the next step sent, as it is sent
  * hooks.editExpectation()  takes the tester to the expectation field
+ * hooks.actionName(code)   the server's label of a next action, which names the button that takes it
  */
 export function createSession(packageEnvelope, hooks) {
+    // The two buttons are named by the labels the server gives their actions, which are the words
+    // its next step quotes, so the next step and the button are one name.
+    const buttonName = {loop: () => hooks.actionName('ANSWER_NEXT_QUESTION'), complete: () => hooks.actionName('SUBMIT_RESPONSE')};
     const detail = packageEnvelope.detail || {};
     const responses = detail.questionnaireResponses || [];
     const entries = (detail.questionnaires || []).map((view, index) => {
@@ -58,7 +62,6 @@ export function createSession(packageEnvelope, hooks) {
             // Before any step it is empty: the package was evaluated with no answer of the tester's.
             baseline: new Map(),
             inFlight: new Map(),
-            heldBefore: null,
             touched: false
         };
     });
@@ -198,8 +201,6 @@ export function createSession(packageEnvelope, hooks) {
             form: result.form || null
         });
         if (worked) {
-            const before = responseByLinkId(entry.response);
-            entry.heldBefore = linkId => (before.get(linkId) || {}).answers || [];
             entry.form = result.form;
             entry.current = (result.questionnaires || [])[0] || entry.current;
             entry.response = (result.questionnaireResponses || [])[0] || entry.response;
@@ -268,9 +269,9 @@ export function createSession(packageEnvelope, hooks) {
         if (note) {
             fill(note, ids.length === 0 ? null : adaptive
                 ? ['You have typed answers the service has not seen yet. Which questions are asked and which are enabled is as of ', basis(entry),
-                    atEach, '. "Send answers and get the next question" sends your answers.']
+                    atEach, '. "', buttonName.loop(), '" sends your answers.']
                 : ['You have changed answers since the server last evaluated them. Which questions are enabled and which are required is as of ',
-                    basis(entry), ', before your changes', atEach, '. Choose "Complete the response" to have them evaluated.']);
+                    basis(entry), ', before your changes', atEach, '. Choose "', buttonName.complete(), '" to have them evaluated.']);
         }
         for (const mark of marks) {
             mark.textContent = ids.length === 0 ? '' : '(As of ' + basis(entry) + ', before your answers.)';
@@ -300,7 +301,7 @@ export function createSession(packageEnvelope, hooks) {
             'Answers were changed after the response was completed, and PAS would receive the response as last completed, without them. Changed: ',
             pending.map((one, index) => [index > 0 ? ' ' : null, entries.length > 1 ? ['In ', one.entry.view.subject, ': '] : null, named(one.entry, one.ids), '.']),
             ' Choose ', pending.some(one => one.entry.view.kind === 'ADAPTIVE' && one.entry.loopJson)
-                ? '"Send answers and get the next question"' : '"Complete the response"',
+                ? '"' + buttonName.loop() + '"' : '"' + buttonName.complete() + '"',
             ' first, or put the answers back as they were.'];
     }
 
@@ -345,7 +346,7 @@ export function createSession(packageEnvelope, hooks) {
                         ? el('span', {class: 'dtr-package__name', aria: {current: 'true'}}, entry.view.subject)
                         : button(entry.view.subject, () => open(entry),
                             {class: 'button--text', aria: {label: 'Open ' + entry.view.subject}}),
-                    ' ', el('span', {class: 'dtr-kind dtr-kind--' + String(entry.view.kind).toLowerCase()}, kindWord(entry.view.kind)),
+                    ' ', el('span', {class: 'dtr-kind dtr-kind--' + String(entry.view.kind).toLowerCase()}, kindWord(entry.view)),
                     ' ', el('span', {class: 'dtr-progress dtr-progress--' + state.code}, state.words),
                     current ? el('span', {class: 'quiet small'}, ' open below') : null);
             })));
@@ -364,9 +365,9 @@ export function createSession(packageEnvelope, hooks) {
         const step = latest.nextStep;
         const pending = withheld();
         const control = pending.length === 0 && latest.envelope && hooks.nextControl ? hooks.nextControl(step, latest.envelope) : null;
-        // The server's next step names the action; on this tab it is taken with a button of its own name.
-        const here = step.action === 'SUBMIT_RESPONSE' ? 'On this tab that is "Complete the response", below the questions.'
-            : step.action === 'ANSWER_NEXT_QUESTION' ? 'On this tab that is "Send answers and get the next question", below the questions.' : null;
+        // The server's next step names the button by the label of its action, which is the button's
+        // own name on this tab, so only where the button is is said here.
+        const here = step.action === 'SUBMIT_RESPONSE' || step.action === 'ANSWER_NEXT_QUESTION' ? 'The button is below the questions.' : null;
         return el('div', {class: 'dtr-next'},
             el('p', null, el('span', {class: 'quiet'}, 'Still to do, as the latest result says: '), el('strong', null, step.headline),
                 step.reason ? el('span', {class: 'quiet'}, ' ' + step.reason) : null, here ? [' ', here] : null),
@@ -406,7 +407,7 @@ export function createSession(packageEnvelope, hooks) {
         parts.push(aboutLine(entry));
         parts.push(el('div', {class: 'dtr-q__head', dataset: {field: adaptive ? 'questionnaireResponse' : 'questionnaire'}},
             el('p', {class: 'dtr-q__title', tabIndex: -1}, entry.view.subject, ' ',
-                el('span', {class: 'dtr-kind dtr-kind--' + String(kind).toLowerCase()}, kindWord(kind))),
+                el('span', {class: 'dtr-kind dtr-kind--' + String(kind).toLowerCase()}, kindWord(entry.view))),
             el('p', {class: 'small quiet'}, entry.view.canonical ? code(entry.view.canonical) : 'It has no url.', ' ', entry.view.kindBasis || null)));
         parts.push(notApplied(entry.view));
         if (!usable) {
@@ -491,8 +492,8 @@ export function createSession(packageEnvelope, hooks) {
             parts.push(el('div', {class: 'dtr-failed', role: 'alert'},
                 el('p', null, el('strong', null, 'The last step failed: '), entry.lastFailed.headline, ' Run ', code(entry.lastFailed.runId), '.'),
                 el('p', null, 'Everything answered so far is kept below. ', entry.lastFailed.kind === 'loop'
-                    ? '"Send answers and get the next question" sends the same step again.'
-                    : '"Complete the response" puts it together again.')));
+                    ? '"' + buttonName.loop() + '" sends the same step again.'
+                    : '"' + buttonName.complete() + '" puts it together again.')));
         }
         const form = entry.form;
         if (form) {
@@ -512,7 +513,7 @@ export function createSession(packageEnvelope, hooks) {
             }
             if (form.changes) {
                 // After a failed step this is still about the last step that worked, and says so.
-                parts.push(entry.lastFailed ? el('p', {class: 'sub-heading'}, 'At the last step that worked') : null, changesBlock(form.changes, entry.heldBefore));
+                parts.push(entry.lastFailed ? el('p', {class: 'sub-heading'}, 'At the last step that worked') : null, changesBlock(form.changes));
             }
         }
         return parts.length > 0 ? el('div', {class: 'dtr-state-block'}, parts) : null;
@@ -548,14 +549,14 @@ export function createSession(packageEnvelope, hooks) {
         parts.push(el('p', {class: 'dtr-expect small'}));
         const row = el('div', {class: 'button-row'});
         if (loop) {
-            const send = el('button', {type: 'button', class: 'button button--primary', on: {click: () => hooks.loop(entry)}}, 'Send answers and get the next question');
+            const send = el('button', {type: 'button', class: 'button button--primary', on: {click: () => hooks.loop(entry)}}, buttonName.loop());
             const preview = button('Show the next-question request', () => hooks.previewLoop(entry));
             hooks.track(send, preview);
             row.append(send, preview);
         }
         if (respond) {
             const complete = el('button', {type: 'button', class: 'button ' + (loop ? 'button--quiet' : 'button--primary'), on: {click: () => hooks.complete(entry)}},
-                'Complete the response');
+                buttonName.complete());
             hooks.track(complete);
             row.append(complete);
         }
@@ -563,7 +564,7 @@ export function createSession(packageEnvelope, hooks) {
         // A refusal of the step is summed up here, beside the button that sent it.
         parts.push(el('div', {class: 'dtr-step-problem'}));
         if (respond) {
-            parts.push(el('p', {class: 'small'}, '"Complete the response" sends nothing to the payer. The response is put together inside this tool from the '
+            parts.push(el('p', {class: 'small'}, '"' + buttonName.complete() + '" sends nothing to the payer. The response is put together inside this tool from the '
                 + 'answers, and the result says whether it is complete or which required questions are unanswered.'));
         }
         if (loop) {

@@ -34,13 +34,6 @@ const SUBSCRIPTION_KINDS = {
     NO_RESPONSE: 'No response arrived.'
 };
 
-// Where a decision was stated. The server sets it; this only words it, so an inherited decision is never read as the item's own.
-const SOURCES = {
-    ITEM: null,
-    RESPONSE: 'stated once for the response as a whole, not on this item',
-    NONE: 'no review action applies to this item'
-};
-
 function none(text) {
     return el('span', {class: 'presence presence--none'}, text);
 }
@@ -155,8 +148,10 @@ function decisionsPart(response, vocabulary) {
         decision.subject ? [code(decision.subject), decision.sequence !== undefined && decision.sequence !== null && decision.subject !== 'item ' + decision.sequence
             ? el('div', {class: 'small quiet'}, 'item ' + decision.sequence) : null]
             : el('span', null, 'The request as a whole'),
-        [outcomeOf(vocabulary, decision.outcome), SOURCES[decision.source]
-            ? el('div', {class: 'small pas-source'}, SOURCES[decision.source]) : null],
+        // Where a decision was stated, in the server's words. A decision stated on its own item is
+        // the usual case and is not marked, so that an inherited one stands out.
+        [outcomeOf(vocabulary, decision.outcome), decision.source !== 'ITEM' && decision.sourceLabel
+            ? el('div', {class: 'small pas-source'}, decision.sourceLabel) : null],
         decision.reviewActions && decision.reviewActions.length > 0
             ? el('ul', {class: 'plain-list'}, decision.reviewActions.map(action => el('li', null, coded(action))))
             : none('none returned'),
@@ -385,8 +380,8 @@ function requestPart(detail, operation) {
     const part = el('section', {class: 'detail__part'}, heading(4, 'How this tool built the request'));
     part.append(facts([
         ['Claim identifier sent', detail.claimId ? code(detail.claimId) : none('none: the request carried no claim identifier')],
-        ['Attachment mode', operation === 'PAS_INQUIRE' ? null
-            : detail.attachmentMode ? code(detail.attachmentMode) : none('no attachment was sent')]
+        ['Attachments', operation === 'PAS_INQUIRE' ? null
+            : [detail.attachmentNote || null, detail.attachmentMode ? el('div', {class: 'small quiet'}, 'Attachment mode ', code(detail.attachmentMode)) : null]]
     ], 'facts--ruled'));
     if (detail.bodyBuiltByTool === false) {
         part.append(el('p', null, 'The body the tester supplied was sent in place of one this tool would have built.'));

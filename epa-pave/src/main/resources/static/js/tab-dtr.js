@@ -11,9 +11,9 @@
 // There is no SMART launch behind this tab and no patient record: the tab says so where it is seen.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, table, copyButton} from './dom.js';
+import {el, fill, clear, button, code, table, facts, copyButton} from './dom.js';
 import {textField, textArea, selectField, setOptions} from './forms.js';
-import {createWorkbench, requestPreviewPanel, nextStepControl} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, nextStepControl, sentinelCell} from './workbench.js';
 import {sameCase} from './handover.js';
 import {dtrDetail} from './dtr-detail.js';
 import {createSession, hasQuestionnaires} from './dtr-questionnaire.js';
@@ -22,7 +22,7 @@ let app = null;
 let bench = null;
 // What the scenarios endpoint serves: the mock scenarios, every outcome with its label and tone,
 // and the element names an expectation may assert on. Nothing of it is kept in this file.
-let vocabulary = {outcomes: new Map(), elements: [], scenarios: null};
+let vocabulary = {outcomes: new Map(), elements: [], scenarios: null, actions: new Map()};
 // The questionnaires of the latest package and everything their next steps must post. In memory
 // only: a reload, or the next package fetched, starts again.
 let session = null;
@@ -102,6 +102,14 @@ function onShow() {
 
 /* ---------- the vocabulary: scenarios, outcomes and element names, all fetched ---------- */
 
+/**
+ * The server's label of a next action. The tab's two step buttons carry these labels, so a next
+ * step that quotes one names the button. Before the vocabulary is read the code itself is shown.
+ */
+function actionName(code) {
+    return vocabulary.actions.get(code) || code;
+}
+
 async function loadVocabulary() {
     const answer = await api.get('/api/dtr/scenarios');
     if (answer.kind !== 'ok') {
@@ -112,7 +120,8 @@ async function loadVocabulary() {
     vocabulary = {
         outcomes: new Map((list.outcomes || []).map(option => [option.code, option])),
         elements: list.elements || [],
-        scenarios: list
+        scenarios: list,
+        actions: new Map((list.nextActions || []).map(action => [action.code, action.label]))
     };
     setOptions(controls.expected.select, [{value: '', label: 'No expectation: the run will be unverified'}]
         .concat((list.outcomes || []).map(option => ({value: option.code, label: option.label}))));
@@ -191,10 +200,16 @@ function drawCarried() {
         usable ? null : el('p', {class: 'dtr-carried__stale'}, el('strong', null, 'Not sent: the case on screen has changed since that run. '),
             'What was handed on belongs to the case that run was sent with, so the package request goes without it.'),
         entries.length === 0 ? el('p', {class: 'small quiet'}, 'The step handed on no values.')
-            : table([{text: 'Handed on as', class: 'col-30'}, 'Value'], entries.map(([key, values]) => [
-                code(key),
+            : facts(entries.map(([key, values]) => [
+                carriedName(handed, key),
                 el('ul', {class: 'plain-list'}, (Array.isArray(values) ? values : [values]).map(value => el('li', null, code(String(value)))))
-            ]), {class: 'dtr-carried__table'}));
+            ]), 'facts--ruled handed-on'));
+}
+
+/** A key of what was handed on, in the server's words with the key beside them, or the key alone when it sent none. */
+function carriedName(handed, key) {
+    const label = handed.carryLabels ? handed.carryLabels[key] : null;
+    return label ? [label, ' ', el('span', {class: 'small quiet'}, '(', code(key), ')')] : code(key);
 }
 
 /* ---------- the expectation ---------- */
@@ -398,6 +413,7 @@ function hooks() {
         // The case the latest step was sent for goes with the hand-over, as it does from the result's own button.
         nextControl: (step, envelope) => nextStepControl(app, app.caseContext.summary())(step, envelope),
         track: (...list) => bench.track(...list),
+        actionName,
         expected: () => expectedText(),
         editExpectation
     };
@@ -414,7 +430,7 @@ async function sendStep(entry, kind) {
     placeProblem(slot);
     const answer = await bench.call(() => api.postJson(path, request).then(reply => placeAnswerProblems(reply, posted)), {saying, control: null});
     if (!answer) {
-        sayAgain(slot, kind === 'loop' ? 'Send answers and get the next question' : 'Complete the response');
+        sayAgain(slot, actionName(kind === 'loop' ? 'ANSWER_NEXT_QUESTION' : 'SUBMIT_RESPONSE'));
         return;
     }
     clear(slots.preview);
@@ -509,7 +525,7 @@ function drawEmptyState() {
             {text: '', class: 'col-25'}], list.scenarios.map(scenario => [
             {class: 'num', node: String(scenario.number)},
             scenario.label,
-            scenario.sentinelMemberId ? code(scenario.sentinelMemberId) : el('span', {class: 'presence presence--none'}, 'none'),
+            sentinelCell(scenario),
             !scenario.sentinelMemberId ? null
                 : own ? copyButton('Copy this member ID', () => scenario.sentinelMemberId)
                     : button('Use this member ID', () => app.caseContext.setMemberId(scenario.sentinelMemberId),
