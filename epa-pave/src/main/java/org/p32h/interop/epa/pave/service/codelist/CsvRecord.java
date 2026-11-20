@@ -34,6 +34,15 @@ public record CsvRecord(int line, List<String> cells) {
         return index >= 0 && index < cells.size() ? cells.get(index) : null;
     }
 
+    /**
+     * Prints the line and the number of cells, never a cell. A suite file is read with this reader,
+     * and its cells hold member IDs and notes.
+     */
+    @Override
+    public String toString() {
+        return "CsvRecord[line=" + line + ", cells=" + cells.size() + "]";
+    }
+
     /** True when a cell holds a line break, which only a quoted cell can. */
     public boolean spansLines() {
         return cells.stream().anyMatch(cell -> cell.indexOf('\n') >= 0 || cell.indexOf('\r') >= 0);

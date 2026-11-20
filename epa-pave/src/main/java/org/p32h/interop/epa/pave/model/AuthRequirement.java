@@ -11,9 +11,23 @@ import java.util.regex.Pattern;
  * <p>UNKNOWN means the list does not say. It is never shown as "no".
  */
 public enum AuthRequirement {
-    REQUIRED,
-    NOT_REQUIRED,
-    UNKNOWN;
+    REQUIRED("PA"),
+    NOT_REQUIRED("No PA"),
+    UNKNOWN(null);
+
+    private final String label;
+
+    AuthRequirement(String label) {
+        this.label = label;
+    }
+
+    /**
+     * The tag the picker shows: "PA" or "No PA", and null when the list does not say, because
+     * then the picker shows nothing at all. Served beside the code so the browser keeps no copy.
+     */
+    public String label() {
+        return label;
+    }
 
     // The spellings are kept in pairs: beside each way of saying yes stands what a list that writes
     // it would write for no. "Prior Auth" goes with "No Prior Auth", "PA Required" with both

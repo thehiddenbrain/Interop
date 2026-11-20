@@ -21,6 +21,15 @@ public record CsvContent(List<CsvRecord> records, List<CsvProblem> problems) {
         problems = problems == null ? List.of() : List.copyOf(problems);
     }
 
+    /**
+     * Prints how many records and problems there are, never a cell: the records of a suite file
+     * hold member IDs and notes. Each record prints the same way on its own.
+     */
+    @Override
+    public String toString() {
+        return "CsvContent[records=" + records.size() + ", problems=" + problems.size() + "]";
+    }
+
     /** The first record that is not blank, or null when the text has none: an empty file, or blank lines only. */
     public CsvRecord header() {
         return records.stream().filter(record -> !record.blank()).findFirst().orElse(null);

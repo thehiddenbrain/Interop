@@ -229,7 +229,11 @@ class CrdControllerTest {
                 .andExpect(jsonPath("$.reason").isNotEmpty())
                 .andExpect(jsonPath("$.scenarios.length()").value(0))
                 .andExpect(jsonPath("$.outcomes.length()").value(22))
-                .andExpect(jsonPath("$.elements.length()").value(7));
+                .andExpect(jsonPath("$.elements.length()").value(7))
+                // The words for every next action, so the History tab can say what a run's next step was.
+                .andExpect(jsonPath("$.nextActions.length()").value(org.p32h.interop.epa.pave.model.NextAction.values().length))
+                .andExpect(jsonPath("$.nextActions[0].code").value("START_DTR"))
+                .andExpect(jsonPath("$.nextActions[0].label").value("Answer the payer's questionnaire (DTR)."));
         // And a scenario cannot be forced on live.
         mvc("live").perform(post("/api/crd").contentType(MediaType.APPLICATION_JSON)
                         .content(body("S123456789", ",\"scenarioId\":\"crd-02-no-auth\"")))

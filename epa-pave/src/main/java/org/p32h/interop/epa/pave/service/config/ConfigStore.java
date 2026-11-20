@@ -399,7 +399,7 @@ public class ConfigStore {
         StoredCollection collection = requireCollection(before, collectionId);
         StoredCollection.Mapped request = collection.request(requestId);
         if (request == null) {
-            throw new NotFoundException("The collection \"" + collection.name() + "\" has no request with the id " + shown(requestId) + ".");
+            throw new NotFoundException("The collection \"" + oneLine(collection.name()) + "\" has no request with that id.");
         }
         if (operation == null) {
             throw ValidationException.of("operation", "Choose the operation this request stands for.");
@@ -442,7 +442,7 @@ public class ConfigStore {
     private static StoredEnvironment requireEnvironment(ConfigSnapshot snapshot, String nameOrId) {
         StoredEnvironment environment = snapshot.environment(nameOrId);
         if (environment == null) {
-            throw new NotFoundException("There is no uploaded environment named " + shown(nameOrId) + ".");
+            throw new NotFoundException("There is no uploaded environment with that name.");
         }
         return environment;
     }
@@ -450,15 +450,9 @@ public class ConfigStore {
     private static StoredCollection requireCollection(ConfigSnapshot snapshot, String collectionId) {
         StoredCollection collection = snapshot.collection(collectionId);
         if (collection == null) {
-            throw new NotFoundException("There is no uploaded collection with the id " + shown(collectionId) + ".");
+            throw new NotFoundException("There is no uploaded collection with that id.");
         }
         return collection;
-    }
-
-    /** An identifier from a request as it may be repeated in a message: one line, bounded, in quotes. */
-    private static String shown(String identifier) {
-        String text = oneLine(identifier);
-        return "\"" + (text.length() > 80 ? text.substring(0, 80) + "..." : text) + "\"";
     }
 
     /**

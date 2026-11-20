@@ -657,7 +657,8 @@ class DestinationGuardrailTest {
                     + "\"vendor-live\" is a production environment, and a replay never carries the production unlock, so its writes to "
                     + "production are always blocked.");
             assertThat(replay.action()).as(profile).isEqualTo("Nothing was sent, and unlocking does not change this. To send this write to "
-                    + "production, send it on its own from the PAS tab, with writes unlocked there.");
+                    + "production, send it on its own from the PAS tab, with writes unlocked there, or switch to an environment that is not "
+                    + "production.");
             assertThat(blocked(fixture, submit().withOrigin(new RunOrigin("suite-1", "case-1", null))).getMessage()).as(profile)
                     .contains("and a suite never carries the production unlock");
 
@@ -675,6 +676,21 @@ class DestinationGuardrailTest {
             assertThat(plain.getMessage()).as(profile).contains("production writes are locked for this session");
             assertThat(plain.action()).as(profile).contains("A replay or a suite never carries the unlock, so unlocking does not let its "
                     + "writes to production through: send such a write on its own from the PAS tab.");
+            // A collection request sent as written is sent by itself from the Config tab, and each sentence reads on from that name.
+            RequestRef raw = ref(fixture.store.snapshot().collections().get(0), "submit Happy Path");
+            assertThat(blocked(fixture, CallIntent.of(EpaOperation.UNMAPPED).withRequest(raw)).action()).as(profile)
+                    .contains("send such a write on its own from the Config tab. To test without production");
+            assertThat(blocked(fixture, CallIntent.of(EpaOperation.UNMAPPED).withRequest(raw).withOrigin(new RunOrigin(null, null, "run-1")))
+                    .action()).as(profile).isEqualTo("Nothing was sent, and unlocking does not change this. To send this write to "
+                            + "production, send it on its own from the Config tab, with writes unlocked there, or switch to an environment "
+                            + "that is not production.");
+            fixture.gateway.unlock("vendor-live");
+            assertThat(blocked(fixture, CallIntent.of(EpaOperation.UNMAPPED).withRequest(raw)).action()).as(profile)
+                    .isEqualTo("Nothing was sent. To send this write to production, send it on its own from the Config tab of the browser "
+                            + "session where writes are unlocked.");
+            assertThat(blocked(fixture, delete("SUB-9")).action()).as(profile).endsWith("from the PAS tab of the browser session where "
+                    + "writes are unlocked.");
+            fixture.gateway.relock();
             // A write prepared under an unlock in a configuration that has since changed is refused for that reason.
             ProdUnlock again = fixture.gateway.unlock("vendor-live");
             PreparedCall prepared = fixture.gateway.prepare(submit().withUnlock(again));

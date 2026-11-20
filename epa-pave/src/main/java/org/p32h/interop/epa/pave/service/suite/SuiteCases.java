@@ -182,11 +182,15 @@ public final class SuiteCases {
             problems.add("The row chooses a scenario, which is possible on the mock profile only. On live the answer comes from the service.");
         }
         String expected = Texts.trimToNull(cells.get(Column.EXPECTED));
-        if (expected != null && target.chain()) {
-            problems.addAll(ChainExpectation.parse(expected, outcomes).problems());
-        } else if (expected != null && target.operation() != null) {
-            problems.addAll(outcomes.expectationProblems(target.operation().protocol(), expected));
-        } else if (expected != null && !readsForAnyProtocol(expected, outcomes)) {
+        // An expectation over the limit is reported by its length alone, below. Its terms are not
+        // read, because a problem with a term quotes the term, and such a cell is most likely
+        // something pasted in that can name a member.
+        String readable = expected != null && expected.length() > RunRecord.LONGEST_EXPECTED ? null : expected;
+        if (readable != null && target.chain()) {
+            problems.addAll(ChainExpectation.parse(readable, outcomes).problems());
+        } else if (readable != null && target.operation() != null) {
+            problems.addAll(outcomes.expectationProblems(target.operation().protocol(), readable));
+        } else if (readable != null && !readsForAnyProtocol(readable, outcomes)) {
             // The row does not say what it runs, so its expectation cannot be checked against one protocol. Said now, so that
             // fixing the protocol does not reveal a second problem.
             problems.add("The expectation is not an outcome or a code assertion of crd, dtr or pas, so once the row says what it runs "

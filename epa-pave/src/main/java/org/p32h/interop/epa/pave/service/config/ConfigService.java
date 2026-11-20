@@ -324,6 +324,9 @@ public class ConfigService {
 
     private OperationRow row(EpaOperation operation, ConfigSnapshot snapshot, ProdUnlock unlock) {
         OperationRow.Builder row = OperationRow.of(operation);
+        if (operation == EpaOperation.MEMBER_LOOKUP || operation == EpaOperation.PROVIDER_LOOKUP) {
+            row.lookupEnabled((operation == EpaOperation.MEMBER_LOOKUP ? lookup.member() : lookup.provider()).enabled());
+        }
         if (operation == EpaOperation.SUBSCRIPTION_NOTIFICATION) {
             return row.requests(mappedTo(operation, snapshot, null)).unavailable("A notification is sent to this tool by the far side. "
                     + "The tool never sends one, so it has no target. A sample notification in a collection is listed here and can "
@@ -341,7 +344,7 @@ public class ConfigService {
         row.method(plan.method())
                 .requests(mappedTo(operation, snapshot, plan.target().source() == Source.REQUEST ? plan.target().request() : null));
         if (plan.refusal() != null) {
-            row.blocked(plan.refusal().reason() + " " + plan.refusal().action());
+            row.blocked(plan.refusal().reason() + " " + plan.refusal().action()).blockedShort(plan.refusal().brief());
         }
         boolean mock = epa.mock();
         if (!plan.url().configured()) {

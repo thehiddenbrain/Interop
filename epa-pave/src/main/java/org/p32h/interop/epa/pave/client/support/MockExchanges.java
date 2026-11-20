@@ -13,6 +13,7 @@ import org.p32h.interop.epa.pave.service.scenario.ScenarioStep;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Component;
  * answered and why.
  */
 @Component
+@Profile("mock")
 public class MockExchanges {
 
     private final AppProperties app;

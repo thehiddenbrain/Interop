@@ -298,10 +298,14 @@ class LookupControllerTest {
     @Test
     void thereIsNoWayToSearchOrToListAndALookupIsOnlyEverARead() throws Exception {
         MockMvc mvc = mvc();
-        // One identifier in, one record out. A request for the collection is not answered with anybody.
-        assertThat(mvc.perform(get("/api/members")).andReturn().getResponse().getStatus()).isEqualTo(404);
-        assertThat(mvc.perform(get("/api/providers")).andReturn().getResponse().getStatus()).isEqualTo(404);
-        assertThat(mvc.perform(get("/api/members").param("name", "Placeholder")).andReturn().getResponse().getStatus()).isEqualTo(404);
+        // One identifier in, one record out. The address of the collection takes one identifier in its query, for an
+        // identifier a path cannot carry, and without one it is refused before any lookup: it is never answered with anybody.
+        mvc.perform(get("/api/members")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("memberId"));
+        mvc.perform(get("/api/providers")).andExpect(status().isUnprocessableContent());
+        mvc.perform(get("/api/members").param("name", "Placeholder")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("memberId"));
+        assertThat(asked).isEmpty();
         mvc.perform(post("/api/members/{memberId}", "S123456789")).andExpect(status().isMethodNotAllowed());
         // A parameter beside the identifier is not a search: it changes nothing about which one record is asked for.
         String body = mvc.perform(get("/api/members/{memberId}", "S123456789").param("name", "Placeholder")).andExpect(status().isOk())

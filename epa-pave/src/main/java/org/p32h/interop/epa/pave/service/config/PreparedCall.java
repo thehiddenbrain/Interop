@@ -66,4 +66,12 @@ public sealed interface PreparedCall permits IssuedCall {
      * could not be resolved, and the sending layer refuses to send a body that is not resolved.
      */
     ResolvedText resolve(String template);
+
+    /**
+     * The raw body saved with the collection request this call came from, as a template for
+     * {@link #resolve}: a credential typed into it stands as a placeholder of its own, which
+     * {@link #resolve} supplies and every display form masks. Null when the call did not come from
+     * a collection request, or that request has no raw body.
+     */
+    String savedBody();
 }

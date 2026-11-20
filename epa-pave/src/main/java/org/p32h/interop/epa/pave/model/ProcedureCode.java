@@ -39,6 +39,13 @@ public record ProcedureCode(
         }
     }
 
+    /** The tag for {@code authRequired}, as {@link AuthRequirement#label()} words it. Absent when the list does not say. Never read. */
+    @com.fasterxml.jackson.annotation.JsonProperty(value = "authRequiredLabel",
+            access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    public String authRequiredLabel() {
+        return authRequired == null ? null : authRequired.label();
+    }
+
     public static Builder builder() {
         return new Builder();
     }

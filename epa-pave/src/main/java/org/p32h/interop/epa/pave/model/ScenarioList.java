@@ -16,15 +16,24 @@ import java.util.List;
  * @param outcomes  every outcome the protocol can produce, followed by the outcomes that are about
  *                  the tool itself. The history list reads labels and tones from here
  * @param elements  the element names a code assertion may use, in the response's spelling
+ * @param nextActions every next action a run can name, with its words. The History tab says what
+ *                  a run's next step was from here: the ledger line keeps the code alone
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ScenarioList(boolean available, String reason, List<ScenarioSummary> scenarios, List<String> problems,
-                           List<OutcomeOption> outcomes, List<String> elements) {
+                           List<OutcomeOption> outcomes, List<String> elements, List<NextActionOption> nextActions) {
 
     public ScenarioList {
         scenarios = scenarios == null ? List.of() : List.copyOf(scenarios);
         problems = problems == null ? List.of() : List.copyOf(problems);
         outcomes = outcomes == null ? List.of() : List.copyOf(outcomes);
         elements = elements == null ? List.of() : List.copyOf(elements);
+        // The vocabulary is the same for every protocol and on both profiles, so it is always served.
+        nextActions = nextActions == null ? NextActionOption.all() : List.copyOf(nextActions);
+    }
+
+    public ScenarioList(boolean available, String reason, List<ScenarioSummary> scenarios, List<String> problems,
+                        List<OutcomeOption> outcomes, List<String> elements) {
+        this(available, reason, scenarios, problems, outcomes, elements, null);
     }
 }

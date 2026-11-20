@@ -118,6 +118,11 @@ public class ProtocolCaseRunner implements CaseRunner {
         if (!operation.outbound()) {
             return operation.label() + " records something that arrived or a step completed inside the tool. There is nothing to send again.";
         }
+        if (operation == EpaOperation.DTR_QUESTIONNAIRE_PACKAGE
+                && DtrCaseStep.holdsStatement(spec.correlation().get(RunRecord.CORR_QUESTIONNAIRE))) {
+            return "The questionnaires this case names hold a statement that something was there in place of an address, because "
+                    + "what was there did not have the shape of one. Sent without it, the request would not be the same one.";
+        }
         if (steps.containsKey(operation)) {
             return null;
         }
@@ -217,9 +222,11 @@ public class ProtocolCaseRunner implements CaseRunner {
                     : CaseFaults.sent(run.envelopes().subList(0, run.envelopes().size() - 1)) + "; "
                     + (last.operation() == null ? "the next step" : last.operation().label()) + " was blocked by the production "
                     + "guardrail, so it was not sent.";
-            return new CaseOutcome(spec, CaseStatus.BLOCKED, reason, records, notRecorded, notes);
+            return new CaseOutcome(spec, CaseStatus.BLOCKED, reason, records, notRecorded, notes).withFound(last.verdict(), last.nextStep());
         }
-        return new CaseOutcome(spec, CaseStatus.COMPLETED, run.stopped(), records, notRecorded, notes, run.overall());
+        // What the last step found, as its endpoint returned it, so a replay can show it as the screens do.
+        return new CaseOutcome(spec, CaseStatus.COMPLETED, run.stopped(), records, notRecorded, notes, run.overall())
+                .withFound(last.verdict(), last.nextStep());
     }
 
     /** True when a record is of a call that went out: anything but a write the guardrail held back. */

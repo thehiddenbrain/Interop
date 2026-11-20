@@ -372,4 +372,17 @@ class SuiteCasesTest {
         assertThat(rows.get(3).problems()).isEmpty();
         assertThat(rows.get(3).spec().note()).hasSize(4000);
     }
+
+    @Test
+    void anExpectationOverTheLimitIsReportedByItsLengthAloneAndItsTermsAreNotRead() {
+        // The suite part of the ledger finding V-4: a mistyped term is quoted back, so an over-long cell must not be read for terms.
+        String expected = "NO_AUTH_REQUIRED;" + "Zzlastname Zzfirstname 1961-07-23 ".repeat(30);
+        for (String protocol : List.of("crd", "chain", "")) {
+            SuiteRow row = one("caseId,protocol,memberId,expected", "TC-1," + protocol + ",S123456789,\"" + expected + "\"");
+            assertThat(row.problems()).as(protocol).contains("An expectation can be at most 1000 characters, and this one has "
+                    + expected.strip().length() + ". It holds outcome codes and name=code terms, and is kept as written.");
+            assertThat(row.problems().stream().filter(p -> p.contains("expectation") || p.contains("Term"))).as(protocol).hasSize(1);
+            assertThat(row.problems().toString()).as(protocol).doesNotContain("Zzlastname").doesNotContain("1961-07-23");
+        }
+    }
 }

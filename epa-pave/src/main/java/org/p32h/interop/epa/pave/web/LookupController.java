@@ -6,6 +6,7 @@ import org.p32h.interop.epa.pave.service.MemberLookup;
 import org.p32h.interop.epa.pave.service.ProviderLookup;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,7 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>There is one identifier in and one record out. Neither endpoint takes a name or a pattern,
  * and there is no endpoint that lists, so this tool cannot be used to enumerate members.
  *
- * <p>The identifier is the last segment of the path, so a caller must percent-encode it. A member
+ * <p>The identifier is the last segment of the path, or the query parameter of the same name, so a
+ * caller must percent-encode it. A member
  * ID written with spaces arrives intact that way, and the result shows it as typed. An address
  * that holds a semicolon not percent-encoded never reaches a lookup: {@link RequestShapeFilter}
  * refuses it for every address, because the framework would cut the identifier there and the
@@ -46,5 +48,22 @@ public class LookupController {
     @GetMapping("/providers/{npi}")
     public ProviderLookupResult provider(@PathVariable("npi") String npi) {
         return providers.lookup(npi);
+    }
+
+    /**
+     * The same member lookup with the identifier in the query: {@code /api/members?memberId=...}.
+     * The server refuses an encoded slash or backslash in a path with a bare 400 before any
+     * controller runs, so an identifier that holds one can be looked up only this way. Still one
+     * identifier and one record: without it the answer is the same 422 as for a blank one.
+     */
+    @GetMapping("/members")
+    public MemberLookupResult memberByQuery(@RequestParam(name = "memberId", required = false) String memberId) {
+        return members.lookup(memberId == null ? "" : memberId);
+    }
+
+    /** The same provider lookup with the NPI in the query: {@code /api/providers?npi=...}. */
+    @GetMapping("/providers")
+    public ProviderLookupResult providerByQuery(@RequestParam(name = "npi", required = false) String npi) {
+        return providers.lookup(npi == null ? "" : npi);
     }
 }

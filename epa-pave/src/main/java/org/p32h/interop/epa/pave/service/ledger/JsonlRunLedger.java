@@ -586,7 +586,7 @@ public class JsonlRunLedger implements RunLedger {
 
     private boolean accepts(RunQuery query, RunRecord run, LocalDate fileDay) {
         if (query.from() != null || query.to() != null) {
-            LocalDate day = dayOf(run, fileDay);
+            LocalDate day = dayOf(run, fileDay, query.zone());
             if (query.from() != null && day.isBefore(query.from())) {
                 return false;
             }
@@ -616,6 +616,9 @@ public class JsonlRunLedger implements RunLedger {
         if (query.suiteRunId() != null && !query.suiteRunId().equals(run.suiteRunId())) {
             return false;
         }
+        if (query.testerRef() != null && !query.testerRef().equals(run.testerRef())) {
+            return false;
+        }
         if (query.correlationKey() != null) {
             String stored = run.correlation().get(query.correlationKey());
             return stored != null && policy.matches(stored, query.correlationValue());
@@ -623,9 +626,20 @@ public class JsonlRunLedger implements RunLedger {
         return true;
     }
 
-    /** The day a run belongs to: the one its own timestamp names, or the day of its file when the timestamp does not read as a date. */
-    private static LocalDate dayOf(RunRecord run, LocalDate fileDay) {
+    /**
+     * The day a run belongs to: the one its own timestamp names, or the day of its file when the
+     * timestamp does not read as a date. With a zone, the day of that instant on that clock. The
+     * files are read a day either side of the range, which covers every zone's offset from UTC.
+     */
+    private static LocalDate dayOf(RunRecord run, LocalDate fileDay, java.time.ZoneId zone) {
         String timestamp = run.timestamp();
+        if (zone != null && timestamp != null) {
+            try {
+                return java.time.Instant.parse(timestamp.strip()).atZone(zone).toLocalDate();
+            } catch (java.time.DateTimeException e) {
+                // A timestamp that is not an instant: the day it names, as without a zone.
+            }
+        }
         LocalDate day = timestamp == null || timestamp.length() < 10 ? null : IsoDates.parse(timestamp.substring(0, 10));
         return day == null ? fileDay : day;
     }
@@ -717,8 +731,16 @@ public class JsonlRunLedger implements RunLedger {
             // folder is not written to on every look, because this is asked for all day long.
             boolean writable = enabled && usable && !lastWriteFailed;
             int unreadable = unreadableByFile.values().stream().mapToInt(Integer::intValue).sum();
+            // By file, so a screen can say which day holds a damaged line. The directory listing is
+            // not a file and is left out by name; its failure still counts in the total.
+            Map<String, Integer> byFile = new HashMap<>();
+            unreadableByFile.forEach((name, count) -> {
+                if (count > 0 && DayFiles.dayOf(name) != null) {
+                    byFile.put(name, count);
+                }
+            });
             return new LedgerHealth(enabled, directory == null ? null : directory.toString(), writable, fileName, runsToday, unreadable,
-                    lastWriteAt, lastError, lastErrorAt, failedWrites);
+                    lastWriteAt, lastError, lastErrorAt, failedWrites, byFile);
         }
     }
 

@@ -55,11 +55,19 @@ public class ProcedureCodeController {
      * @param codes          the rows, best match first. Each always carries {@code authRequired}:
      *                       {@code UNKNOWN} means the list does not say, which the picker shows as
      *                       no tag at all and never as "No PA"
+     * @param exactCode      when the query is a whole code on the list, the code as the list writes
+     *                       it, whatever case the query was typed in. Left out when it is not, so
+     *                       the picker can say "not on the list" without comparing text itself
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({"placeholder", "query", "lineOfBusiness", "narrowed", "notice", "otherLines", "limit", "matched", "codes"})
+    @JsonPropertyOrder({"placeholder", "query", "lineOfBusiness", "narrowed", "notice", "otherLines", "limit", "matched", "exactCode", "codes"})
     public record Answer(Boolean placeholder, String query, String lineOfBusiness, boolean narrowed, String notice, String otherLines,
-                         int limit, int matched, List<ProcedureCode> codes) {
+                         int limit, int matched, List<ProcedureCode> codes, String exactCode) {
+
+        public Answer(Boolean placeholder, String query, String lineOfBusiness, boolean narrowed, String notice, String otherLines,
+                      int limit, int matched, List<ProcedureCode> codes) {
+            this(placeholder, query, lineOfBusiness, narrowed, notice, otherLines, limit, matched, codes, null);
+        }
     }
 
     /**
@@ -73,8 +81,12 @@ public class ProcedureCodeController {
         // True or left out, never false. A false would read as this tool vouching that the list is
         // P32H's own, and it cannot know that of any file it was pointed at.
         Boolean placeholder = found.placeholder() ? Boolean.TRUE : null;
+        // Any line and any date: the question is whether the list has the code at all, which the
+        // narrowing above must not hide.
+        List<ProcedureCode> exact = Texts.blank(q) ? List.of() : codes.rowsFor(q, null, null);
+        String exactCode = exact.isEmpty() ? null : exact.get(0).code();
         return new Answer(placeholder, found.query(), Texts.trimToNull(lob), found.narrowed(), found.notice(), found.otherLines(), limit,
-                found.matched(), found.codes());
+                found.matched(), found.codes(), exactCode);
     }
 
     /** What the tool made of the code list. The first thing to call after dropping in a new export. */

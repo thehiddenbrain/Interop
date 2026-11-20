@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.cases;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
@@ -27,9 +28,32 @@ public final class DtrCaseStep implements CaseStep {
         CaseSpec spec = context.spec();
         // A replayed fetch asks for the questionnaires its ledger line names. A suite row names none, and the service
         // then asks for whatever the order calls for.
-        String named = spec.correlation().get(RunRecord.CORR_QUESTIONNAIRE);
-        List<String> questionnaires = Texts.blank(named) ? List.of() : Arrays.stream(named.strip().split("\\s+")).toList();
+        List<String> questionnaires = addresses(spec.correlation().get(RunRecord.CORR_QUESTIONNAIRE));
         return CaseRun.of(dtr.runPackage(packageRequest(context, spec.expected(), spec.chainId(), questionnaires, null), context.origin(), null));
+    }
+
+    /**
+     * A statement the ledger writes in place of something it did not keep, such as "(not a url, 12
+     * characters)" or "(not recorded, 40 characters)". It holds spaces, so it must never be split
+     * into words and sent as addresses.
+     */
+    private static final Pattern STATEMENT = Pattern.compile("\\(not [a-z ]+, \\d+ characters\\)");
+
+    /** True when the questionnaires a line names hold a statement in place of an address, so the request cannot be rebuilt. */
+    static boolean holdsStatement(String named) {
+        return named != null && STATEMENT.matcher(named).find();
+    }
+
+    /**
+     * The questionnaire addresses a line names, separated by white space. A statement in their
+     * place is left out whole, never cut into words; {@link #holdsStatement} lets a caller refuse
+     * the case first, so that a request missing an address is not sent as if it were the same one.
+     */
+    static List<String> addresses(String named) {
+        if (Texts.blank(named)) {
+            return List.of();
+        }
+        return Arrays.stream(STATEMENT.matcher(named).replaceAll(" ").strip().split("\\s+")).filter(Texts::present).toList();
     }
 
     /** A package request for a case. The chain uses it for its second step, with what CRD handed on. */

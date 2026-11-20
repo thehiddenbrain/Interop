@@ -115,6 +115,23 @@ class ProcedureCodeControllerTest {
     }
 
     @Test
+    void anExactCodeIsNamedAsTheListWritesItAndEachTagComesWithItsWords() throws Exception {
+        // Typed in another case, and asked for a line the code is not listed under: it is still a code on the list.
+        JsonNode exact = json(mvc(), get("/api/procedure-codes").param("q", "e0470").param("lob", "Commercial"));
+        assertThat(exact.get("exactCode").stringValue()).isEqualTo("E0470");
+        // A prefix is not a code, and a code the list does not have is named by nothing.
+        assertThat(json(mvc(), get("/api/procedure-codes").param("q", "E04")).has("exactCode")).isFalse();
+        assertThat(json(mvc(), get("/api/procedure-codes").param("q", "E9999")).has("exactCode")).isFalse();
+        assertThat(json(mvc(), get("/api/procedure-codes")).has("exactCode")).isFalse();
+
+        JsonNode answer = json(mvc(), get("/api/procedure-codes").param("q", "E"));
+        // The tag is the list's statement in the picker's words, and nothing at all when the list does not say.
+        assertThat(answer.get("codes").get(0).has("authRequiredLabel")).isFalse();
+        assertThat(answer.get("codes").get(1).get("authRequiredLabel").stringValue()).isEqualTo("No PA");
+        assertThat(answer.get("codes").get(2).get("authRequiredLabel").stringValue()).isEqualTo("PA");
+    }
+
+    @Test
     void aBlankQueryOffersTheFirstRowsUpToTheLimit() throws Exception {
         MockMvc mvc = mvc(LIST, 4, Map.of());
         for (MockHttpServletRequestBuilder request : List.of(get("/api/procedure-codes"), get("/api/procedure-codes").param("q", ""),
@@ -161,7 +178,10 @@ class ProcedureCodeControllerTest {
         assertThat(answer.has("notice")).isFalse();
         assertThat(answer.get("otherLines").stringValue()).isEqualTo("The list has 1 row for \"E0470\" under another line of business "
                 + "(Medicare Advantage). It is not offered for \"Commercial\".");
-        assertThat(answer.propertyNames()).containsExactly("query", "lineOfBusiness", "narrowed", "otherLines", "limit", "matched", "codes");
+        // The code is on the list, under another line, and the answer says so by name as well.
+        assertThat(answer.propertyNames()).containsExactly("query", "lineOfBusiness", "narrowed", "otherLines", "limit", "matched", "exactCode",
+                "codes");
+        assertThat(answer.get("exactCode").stringValue()).isEqualTo("E0470");
     }
 
     @Test
@@ -240,7 +260,8 @@ class ProcedureCodeControllerTest {
 
         JsonNode answer = json(mvc, get("/api/procedure-codes").param("q", "95810").param("lob", "Medicare"));
         // The first thing in the answer, so nobody reading it can miss which list this is.
-        assertThat(answer.propertyNames()).containsExactly("placeholder", "query", "lineOfBusiness", "narrowed", "limit", "matched", "codes");
+        assertThat(answer.propertyNames()).containsExactly("placeholder", "query", "lineOfBusiness", "narrowed", "limit", "matched",
+                "exactCode", "codes");
         assertThat(answer.get("placeholder").isBoolean()).isTrue();
         assertThat(answer.get("placeholder").booleanValue()).isTrue();
         // The tags are not taken away: the row still states a requirement and a vendor. The flag is

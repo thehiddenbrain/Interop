@@ -264,7 +264,7 @@ class ConfigServiceTest {
         assertThat(fixture.service.activate("Onyx Production", unlock).writeAccess().writesAllowed()).isFalse();
 
         assertThatThrownBy(() -> fixture.service.activate("No such environment", null)).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no uploaded environment named \"No such environment\".");
+                .hasMessage("There is no uploaded environment with that name.");
         assertThat(fixture.service.removeEnvironment("Onyx Production").wasActive()).isTrue();
         assertThat(fixture.service.environments().active()).isNull();
         assertThatThrownBy(() -> fixture.service.removeEnvironment("Onyx Production")).isInstanceOf(NotFoundException.class);

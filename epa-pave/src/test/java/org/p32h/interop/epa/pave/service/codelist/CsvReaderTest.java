@@ -385,4 +385,13 @@ class CsvReaderTest {
         assertThat(content.records().get(1).blank()).isTrue();
         assertThat(content.records().get(0).blank()).isFalse();
     }
+
+    @Test
+    void neitherARecordNorTheContentPrintsACell() {
+        // A suite file is read with this reader, and its cells hold member IDs and notes.
+        CsvContent content = reader.read("memberId,note\nS123456789,\"Zzlastname said so\"\n");
+        assertThat(content.toString()).isEqualTo("CsvContent[records=2, problems=0]");
+        assertThat(content.rows().get(0).toString()).isEqualTo("CsvRecord[line=2, cells=2]");
+        assertThat(content.toString() + content.records()).doesNotContain("S123456789").doesNotContain("Zzlastname");
+    }
 }

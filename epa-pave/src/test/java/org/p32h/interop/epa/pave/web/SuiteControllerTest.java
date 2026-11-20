@@ -95,6 +95,26 @@ class SuiteControllerTest {
         JsonNode second = run.get("results").get(1);
         assertThat(second.get("outcome").stringValue()).isEqualTo("NO_DETERMINATION");
         assertThat(second.get("result").stringValue()).isEqualTo("fail");
+        // Each row names the count it is in, and each count comes with its words, so the browser keeps no copy of them.
+        assertThat(first.get("countedIn").stringValue()).isEqualTo("passed");
+        assertThat(second.get("countedIn").stringValue()).isEqualTo("failed");
+        JsonNode groups = run.get("countGroups");
+        assertThat(groups).hasSize(11);
+        assertThat(groups.get(0).get("group").stringValue()).isEqualTo("passed");
+        assertThat(groups.get(0).get("label").stringValue()).isEqualTo("Passed");
+        assertThat(groups.get(0).get("count").intValue()).isEqualTo(1);
+        assertThat(groups.get(1).get("group").stringValue()).isEqualTo("failed");
+        assertThat(groups.get(1).get("count").intValue()).isEqualTo(1);
+        assertThat(groups.get(3).get("group").stringValue()).isEqualTo("blocked");
+        assertThat(groups.get(3).get("label").stringValue()).isEqualTo("Blocked by the production guardrail, not failures");
+        assertThat(groups.get(3).get("count").intValue()).isZero();
+        int counted = 0;
+        for (JsonNode group : groups) {
+            // Every group is a count of the counts object, with the same number.
+            assertThat(run.get("counts").get(group.get("group").stringValue()).intValue()).isEqualTo(group.get("count").intValue());
+            counted += group.get("count").intValue();
+        }
+        assertThat(counted).isEqualTo(run.get("counts").get("total").intValue());
 
         // rows=false leaves the rows out, for a screen that polls for the progress count.
         JsonNode summary = json(mvc.perform(get("/api/suites/" + id).param("rows", "false")).andExpect(status().isOk()).andReturn().getResponse());

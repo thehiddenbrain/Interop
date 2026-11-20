@@ -248,9 +248,9 @@ class ConfigStoreTest {
                 });
         assertThatThrownBy(() -> fixture.store.correctMapping(vendor.id(), requestId, null)).isInstanceOf(ValidationException.class);
         assertThatThrownBy(() -> fixture.store.correctMapping(vendor.id(), "r-000000000000", EpaOperation.PAS_INQUIRE))
-                .isInstanceOf(NotFoundException.class).hasMessageContaining("has no request with the id \"r-000000000000\"");
+                .isInstanceOf(NotFoundException.class).hasMessageEndingWith("\" has no request with that id.");
         assertThatThrownBy(() -> fixture.store.correctMapping("no-such-collection", requestId, EpaOperation.PAS_INQUIRE))
-                .isInstanceOf(NotFoundException.class).hasMessage("There is no uploaded collection with the id \"no-such-collection\".");
+                .isInstanceOf(NotFoundException.class).hasMessage("There is no uploaded collection with that id.");
         // A notification is what the vendor's own sample is detected as, so it can be chosen.
         assertThat(fixture.store.correctMapping(vendor.id(), requestId, EpaOperation.SUBSCRIPTION_NOTIFICATION).request().effective())
                 .isEqualTo(EpaOperation.SUBSCRIPTION_NOTIFICATION);
@@ -345,7 +345,7 @@ class ConfigStoreTest {
 
         assertThat(fixture.store.removeEnvironment("Onyx UAT").wasActive()).isFalse();
         assertThatThrownBy(() -> fixture.store.removeEnvironment("Onyx UAT")).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no uploaded environment named \"Onyx UAT\".");
+                .hasMessage("There is no uploaded environment with that name.");
     }
 
     @Test

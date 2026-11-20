@@ -1,7 +1,9 @@
 package org.p32h.interop.epa.pave.service.ledger;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.VerdictView;
 import java.util.List;
 
 /**
@@ -21,14 +23,29 @@ import java.util.List;
  * @param replayed    the record this replay produced, whether or not the ledger kept it: the run
  *                    that was sent again, or for a write the guardrail refused, the record of the
  *                    attempt. Left out when there is none
+ * @param verdict     what the run that was sent again found, as its protocol endpoint returned it:
+ *                    the designed verdict, never the wire view, which stays behind the run's own
+ *                    page. Left out when no run was made
+ * @param nextStep    the next step that run named, as its protocol endpoint returned it. Left out
+ *                    when no run was made
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ReplayEntry(String runId, ReplayStatus status, String reason, String replayRunId, List<ReplayDifference> differences,
-                          List<String> notRecorded, RunRecord original, RunRecord replayed) {
+                          List<String> notRecorded, RunRecord original, RunRecord replayed, VerdictView verdict, NextStepView nextStep) {
 
     public ReplayEntry {
         differences = differences == null ? List.of() : List.copyOf(differences);
         notRecorded = notRecorded == null ? List.of() : List.copyOf(notRecorded);
+    }
+
+    public ReplayEntry(String runId, ReplayStatus status, String reason, String replayRunId, List<ReplayDifference> differences,
+                       List<String> notRecorded, RunRecord original, RunRecord replayed) {
+        this(runId, status, reason, replayRunId, differences, notRecorded, original, replayed, null, null);
+    }
+
+    /** The same entry with what the run that was sent again found. */
+    ReplayEntry withFound(VerdictView found, NextStepView next) {
+        return new ReplayEntry(runId, status, reason, replayRunId, differences, notRecorded, original, replayed, found, next);
     }
 
     /**

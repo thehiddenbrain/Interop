@@ -21,6 +21,12 @@ public record VariableUse(String name, VariableSource source, boolean secret, St
         }
     }
 
+    /** The source in words, served beside the code so that no screen keeps its own copy. Never read from a request. */
+    @com.fasterxml.jackson.annotation.JsonProperty(value = "sourceLabel", access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    public String sourceLabel() {
+        return source == null ? null : source.label();
+    }
+
     /** Prints no value. A value typed for one run can be a member ID. */
     @Override
     public String toString() {

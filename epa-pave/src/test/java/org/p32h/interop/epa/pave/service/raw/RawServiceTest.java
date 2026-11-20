@@ -86,11 +86,14 @@ class RawServiceTest {
         assertThat(result.protocol()).isEqualTo(Protocol.RAW);
         assertThat(result.operation()).isEqualTo(EpaOperation.UNMAPPED);
         assertThat(result.verdict().outcomeCode()).isEqualTo("ANSWERED");
-        assertThat(result.verdict().headline()).isEqualTo("The service answered (HTTP 200).");
+        // On mock no service was asked, so the headline says who answered.
+        assertThat(result.verdict().headline()).isEqualTo("A mock scenario, standing in for the service, answered (HTTP 200).");
         assertThat(result.verdict().tone()).isEqualTo(Tone.NEUTRAL);
         // The mock says which canned answer this was, and the tool says it does not interpret it.
         assertThat(result.verdict().supporting().get(0)).startsWith("Mock scenario raw-01-not-modelled answered");
-        assertThat(result.verdict().supporting()).anySatisfy(line -> assertThat(line).contains("does not interpret its answer"));
+        assertThat(result.verdict().supporting()).anySatisfy(line -> assertThat(line).contains("does not interpret the answer"));
+        // Nothing left this machine, and the result does not say otherwise.
+        assertThat(result.verdict().supporting()).noneSatisfy(line -> assertThat(line).contains("was sent as written"));
         // Nothing is read into a designed view, so the whole body is in the returned fields.
         assertThat(result.additionalFields()).extracting(AdditionalField::path).containsExactly("mock", "note");
         assertThat(result.detail().responseKind()).isEqualTo(RawDetail.KIND_JSON);
@@ -215,7 +218,8 @@ class RawServiceTest {
         assertThat(preview.requestName()).isEqualTo("eligibility check (vendor sample)");
         RequestPreview noBody = service(mockClient).preview(RawRunRequest.of(REF, " ", Map.of(), null), null);
         assertThat(noBody.body()).isNull();
-        assertThat(noBody.notes()).containsExactly("No body will be sent, because none was supplied.");
+        assertThat(noBody.notes()).containsExactly("There is no body: none was supplied for this run, and the collection request has none saved.");
+        assertThat(noBody.bodySource()).isEqualTo(RawDetail.BODY_NONE);
         assertThat(ledger.records()).isEmpty();
     }
 

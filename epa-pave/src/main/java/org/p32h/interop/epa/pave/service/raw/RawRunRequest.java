@@ -16,13 +16,21 @@ import org.p32h.interop.epa.pave.service.run.RunRequest;
  * its body. The fields every run shares are described on {@link RunRequest}; here only the request
  * to send, its body, the values for its placeholders and the tester's expectation and notes are used.
  *
- * @param request the collection request to send. Required
- * @param rawBody the body to send, as loaded from the collection and edited. Blank sends no body
+ * @param request   the collection request to send. Required
+ * @param rawBody   the body to send, as loaded from the collection and edited. Blank sends the body
+ *                  saved with the collection request, or none when it has none
+ * @param urlValues values for the single-brace {@code {name}} parts of the request's url, as
+ *                  {@code /api/config/resolve} takes them. Each is percent-encoded into its place,
+ *                  so a slash, a question mark or an address in a value stays inside its one
+ *                  segment. A value of {@code .} or {@code ..} is the one thing encoding leaves as
+ *                  it is, and it would move the request to another path, so it is refused for
+ *                  every method; for a write the guardrail refuses such a move as well
  */
 public record RawRunRequest(
         RequestRef request,
         String rawBody,
         Map<String, String> variables,
+        Map<String, String> urlValues,
         String expected,
         String testerRef,
         String note,
@@ -32,16 +40,22 @@ public record RawRunRequest(
 
     public RawRunRequest {
         variables = variables == null ? Map.of() : Map.copyOf(variables);
+        urlValues = urlValues == null ? Map.of() : Map.copyOf(urlValues);
         unrecognised = unrecognised == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(unrecognised));
     }
 
     /** A request with only what a test usually sets. */
     public static RawRunRequest of(RequestRef request, String rawBody, Map<String, String> variables, String expected) {
-        return new RawRunRequest(request, rawBody, variables, expected, null, null, null, null, Map.of());
+        return new RawRunRequest(request, rawBody, variables, Map.of(), expected, null, null, null, null, Map.of());
+    }
+
+    /** The same request with values for the single-brace parts of its url. */
+    public RawRunRequest withUrlValues(Map<String, String> values) {
+        return new RawRunRequest(request, rawBody, variables, values, expected, testerRef, note, chainId, configEpoch, unrecognised);
     }
 
     public RawRunRequest withConfigEpoch(Long epoch) {
-        return new RawRunRequest(request, rawBody, variables, expected, testerRef, note, chainId, epoch, unrecognised);
+        return new RawRunRequest(request, rawBody, variables, urlValues, expected, testerRef, note, chainId, epoch, unrecognised);
     }
 
     @Override

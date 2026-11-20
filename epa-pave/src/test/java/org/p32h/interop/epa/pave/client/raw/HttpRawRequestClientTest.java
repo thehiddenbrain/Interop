@@ -141,11 +141,31 @@ class HttpRawRequestClientTest {
     }
 
     @Test
-    void theOnyxHostsAreTheOnesTheOnyxOperationsResolveToRightNow() {
-        assertThat(OnyxHosts.of(gateway)).containsExactly("onyx.example.invalid");
-        assertThat(OnyxHosts.of(FakeGateway.unconfigured())).isEmpty();
-        assertThat(OnyxHosts.host("https://Onyx.Example.invalid:8443/x")).isEqualTo("onyx.example.invalid");
-        assertThat(OnyxHosts.host("not a url")).isNull();
-        assertThat(OnyxHosts.host(null)).isNull();
+    void theTokenGoesOnlyToTheSchemeHostAndPortTheOnyxOperationsResolveToRightNow() {
+        // The same scheme, host and port, written with the default port or another case, is the Onyx address.
+        assertThat(OnyxHosts.admits(gateway, "https://onyx.example.invalid/anything")).isTrue();
+        assertThat(OnyxHosts.admits(gateway, "https://onyx.example.invalid:443/anything")).isTrue();
+        assertThat(HttpRawRequestClient.tokenApplies(call("GET", "https://onyx.example.invalid:443/x", List.of()), gateway)).isTrue();
+        // Another port of the same host can be another service; plain http would carry the token in clear.
+        assertThat(OnyxHosts.admits(gateway, "https://onyx.example.invalid:8443/anything")).isFalse();
+        assertThat(OnyxHosts.admits(gateway, "http://onyx.example.invalid/anything")).isFalse();
+        assertThat(HttpRawRequestClient.tokenApplies(call("GET", "https://onyx.example.invalid:8443/x", List.of()), gateway)).isFalse();
+        assertThat(HttpRawRequestClient.tokenApplies(call("GET", "http://onyx.example.invalid/x", List.of()), gateway)).isFalse();
+        // Nothing configured, nothing admitted; an address that is not one is never admitted.
+        assertThat(OnyxHosts.admits(FakeGateway.unconfigured(), ONYX_URL)).isFalse();
+        assertThat(OnyxHosts.admits(gateway, "not a url")).isFalse();
+        assertThat(OnyxHosts.admits(gateway, null)).isFalse();
+    }
+
+    @Test
+    void noTokenIsFetchedOrSentForAnotherPortOfTheOnyxHost() {
+        String otherPort = "https://onyx.example.invalid:8443/Claim/some-operation";
+        server.expect(requestTo(otherPort)).andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(withSuccess("{\"ok\":true}", MediaType.APPLICATION_JSON));
+
+        VendorExchange exchange = client.send(call("POST", otherPort, List.of()), ResolvedText.plain("{}"));
+
+        server.verify();
+        assertThat(exchange.request().headers()).extracting(WireHeader::name).doesNotContain("Authorization");
     }
 }

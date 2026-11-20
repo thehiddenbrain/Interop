@@ -13,6 +13,7 @@ import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunQuery;
+import org.p32h.interop.epa.pave.model.LedgerHealth;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Texts;
@@ -64,12 +65,13 @@ public class ChainService {
                     + "under it, so check that the test run ledger is switched on and writable.");
         }
         ChainView built = build(id, records);
-        Integer unreadable = unreadableLines(store);
+        LedgerHealth health = health(store);
+        Integer unreadable = health == null ? null : health.unreadableLines();
         if (unreadable != null && unreadable > 0) {
             // A damaged line cannot be read to tell which chain it was, so the note says it may be this one's.
             List<String> notes = new ArrayList<>(built.notes());
-            notes.add("The ledger has " + unreadable + (unreadable == 1 ? " line" : " lines") + " it cannot read. A run of this chain may be "
-                    + "among them, so a step may be missing here.");
+            notes.add("The ledger has " + unreadable + (unreadable == 1 ? " line" : " lines") + " it cannot read" + inFiles(health)
+                    + ". A run of this chain may be among them, so a step may be missing here.");
             built = new ChainView(built.chainId(), built.headline(), built.nextAction(), built.nextHeadline(), built.nextStage(), built.ended(),
                     built.startedAt(), built.lastRunAt(), built.environment(), built.environmentKind(), built.profile(), built.target(),
                     built.member(), built.procedureCodes(), built.stages(), built.otherRuns(), built.runCount(), built.elapsedMillis(), notes,
@@ -78,10 +80,20 @@ public class ChainService {
         return built;
     }
 
-    /** How many ledger lines cannot be read, or null when the ledger cannot say. */
-    private static Integer unreadableLines(RunLedger store) {
+    /** Which day files hold them, as ", in runs-2026-03-10.jsonl (2 lines)", or nothing when the ledger does not say. */
+    private static String inFiles(LedgerHealth health) {
+        if (health.unreadableFiles().isEmpty()) {
+            return "";
+        }
+        List<String> files = new ArrayList<>();
+        health.unreadableFiles().forEach((name, count) -> files.add(name + " (" + count + (count == 1 ? " line)" : " lines)")));
+        return ", in " + String.join(", ", files);
+    }
+
+    /** The ledger's health, or null when the ledger cannot say. */
+    private static LedgerHealth health(RunLedger store) {
         try {
-            return store.health().unreadableLines();
+            return store.health();
         } catch (RuntimeException e) {
             // The chain is still shown from what could be read. Whether lines were lost is then not known, and nothing is claimed.
             return null;
@@ -96,6 +108,11 @@ public class ChainService {
      * @param limit the most chains to return. Null for the default
      */
     public List<ChainView> list(LocalDate from, LocalDate to, Integer limit) {
+        return list(from, to, limit, null);
+    }
+
+    /** As {@link #list(LocalDate, LocalDate, Integer)}, with the days on the given clock. Null means the days the runs' own timestamps name. */
+    public List<ChainView> list(LocalDate from, LocalDate to, Integer limit, java.time.ZoneId zone) {
         if (from != null && to != null && from.isAfter(to)) {
             throw ValidationException.of("from", "The first day is after the last day.");
         }
@@ -109,7 +126,7 @@ public class ChainService {
         int most = limit == null ? DEFAULT_LIMIT : limit;
         Set<String> ids = new LinkedHashSet<>();
         // Newest first, so chains come out ordered by their most recent run.
-        for (RunRecord record : store.query(RunQuery.between(from, to))) {
+        for (RunRecord record : store.query(RunQuery.between(from, to, zone))) {
             if (Texts.present(record.chainId()) && ids.size() < most) {
                 ids.add(record.chainId());
             }
@@ -323,10 +340,15 @@ public class ChainService {
                 nextAction(record), record.findings(), record.scenarioId(), latestOfItsKind, record.caseResult());
     }
 
-    /** The action a record names. A blocked run always needs the guardrail dealt with, whatever else the record says. */
+    /**
+     * The action a record names. A blocked run always needs the guardrail dealt with, whatever else
+     * the record says; a blocked replay or suite row says so in its own action, because unlocking
+     * cannot help it.
+     */
     private static NextAction nextAction(RunRecord record) {
         if (RunOutcome.BLOCKED.name().equals(record.outcome())) {
-            return NextAction.UNLOCK_OR_SWITCH;
+            return NextAction.SEND_ON_ITS_OWN.name().equals(Texts.trimToNull(record.nextAction())) ? NextAction.SEND_ON_ITS_OWN
+                    : NextAction.UNLOCK_OR_SWITCH;
         }
         if (Texts.blank(record.nextAction())) {
             return null;
@@ -349,7 +371,7 @@ public class ChainService {
             case START_PAS, CHECK_STATUS -> Protocol.PAS;
             // Neither names a stage. One says the journey is over, the other that nothing follows from the call.
             case FLOW_ENDS, NOTHING_FURTHER -> null;
-            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, REVIEW -> stage;
+            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REVIEW -> stage;
         };
     }
 
@@ -360,29 +382,18 @@ public class ChainService {
      */
     static boolean attention(NextAction action) {
         return switch (action) {
-            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, REVIEW -> true;
+            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REVIEW -> true;
             case START_DTR, ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE, START_PAS, CHECK_STATUS, FLOW_ENDS, NOTHING_FURTHER -> false;
         };
     }
 
-    /** The instruction for an action, in plain words. The run itself gave a fuller reason on screen; the ledger keeps the action. */
+    /**
+     * The instruction for an action, in plain words. The run itself gave a fuller reason on screen;
+     * the ledger keeps the action. The words are the action's own, so the chain view and the
+     * vocabulary served to the History tab cannot differ.
+     */
     public static String instruction(NextAction action) {
-        return switch (action) {
-            case START_DTR -> "Answer the payer's questionnaire (DTR).";
-            case ANSWER_NEXT_QUESTION -> "Answer the next question of the questionnaire (DTR).";
-            case SUBMIT_RESPONSE -> "Answer the questionnaire that was loaded and submit the response (DTR).";
-            case START_PAS -> "Submit the prior authorization request (PAS).";
-            case CHECK_STATUS -> "Ask for the status of the pended authorization (PAS).";
-            case FLOW_ENDS -> "Nothing more to do. The journey is complete at this step.";
-            case NOTHING_FURTHER -> "Nothing further to do after this call. No journey ended with it.";
-            case FIX_TEST_DATA -> "Check the test data. The member, provider or code is not known to the service.";
-            case FIX_REQUEST -> "Check what was sent. The service did not accept the request.";
-            case SUPPLY_INFORMATION -> "Supply the information the payer asked for and send again.";
-            case CHECK_ENVIRONMENT -> "Check the environment. The service failed or could not be reached.";
-            case OPEN_CONFIG -> "Open Config. The tool is not configured to send this.";
-            case UNLOCK_OR_SWITCH -> "Unlock production writes or switch environment. The guardrail refused to send.";
-            case REVIEW -> "Look at the response detail. The tool cannot say what should happen next.";
-        };
+        return action.label();
     }
 
     static String name(Protocol protocol) {

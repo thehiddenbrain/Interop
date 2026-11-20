@@ -22,9 +22,11 @@ public final class RunIds {
         return id != null && PLAIN.matcher(id).matches();
     }
 
-    /** The answer to a request for a run the ledger does not hold. */
+    /**
+     * The answer to a request for a run the ledger does not hold. The id is never repeated: it
+     * came from the address or the body of the request, and the answer is no place to echo it.
+     */
     public static NotFoundException notFound(String runId) {
-        String id = runId == null ? null : runId.strip();
-        return new NotFoundException(plain(id) ? "There is no run with id " + id + "." : "There is no run with that id.");
+        return new NotFoundException("There is no run with that id.");
     }
 }

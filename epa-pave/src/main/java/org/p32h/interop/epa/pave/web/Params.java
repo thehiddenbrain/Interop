@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.model.IsoDates;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.function.Function;
 
 /**
@@ -50,6 +51,22 @@ public final class Params {
             throw ValidationException.of(name, "The parameter " + name + " is required.");
         }
         return optional(name, value, parser, accepted);
+    }
+
+    /**
+     * An IANA zone id such as America/New_York, or null when the value is absent or blank. A zone
+     * this Java does not know is a 422 that names the parameter.
+     */
+    public static ZoneId zone(String name, String value) {
+        if (Texts.blank(value)) {
+            return null;
+        }
+        String id = value.strip();
+        // Region ids only. An offset such as +05:00 is a clock without daylight saving and is not what a person means by their day.
+        if (!ZoneId.getAvailableZoneIds().contains(id)) {
+            throw ValidationException.of(name, "The zone must be an IANA zone id, such as America/New_York or Europe/London.");
+        }
+        return ZoneId.of(id);
     }
 
     /** An optional ISO date. Null when blank. */

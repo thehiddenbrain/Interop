@@ -1,21 +1,19 @@
 package org.p32h.interop.epa.pave.client.support;
 
-import java.net.URI;
 import java.util.LinkedHashSet;
-import java.util.Locale;
 import java.util.Set;
 import org.p32h.interop.epa.pave.model.Protocol;
-import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.postman.UrlNormal;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 
 /**
- * Says whether a host is one the Onyx access token may be sent to.
+ * Says whether an address is one the Onyx access token may be sent to.
  *
  * <p>A request sent raw can go anywhere its collection points: a vendor's collection may hold
  * requests to other services. The Onyx token is a credential for Onyx, and attaching it to a
- * request for another host would hand it to whoever runs that host. So the token goes only to a
- * host that one of the Onyx operations resolves to in the configuration in force right now.
+ * request for another host would hand it to whoever runs that host. So the token goes only to the
+ * scheme, host and port of an address that one of the Onyx operations resolves to in the
+ * configuration in force right now.
  *
  * <p>Nothing is cached. The answer is worked out from the gateway each time, so it always reflects
  * the active environment.
@@ -25,18 +23,6 @@ public final class OnyxHosts {
     private static final Set<Protocol> ONYX = Set.of(Protocol.CRD, Protocol.DTR, Protocol.PAS, Protocol.SUBSCRIPTION);
 
     private OnyxHosts() {
-    }
-
-    /** The lower-case hosts the Onyx operations resolve to. Empty when none is configured. */
-    public static Set<String> of(OperationGateway gateway) {
-        Set<String> hosts = new LinkedHashSet<>();
-        for (String url : gateway.configuredUrls(ONYX)) {
-            String host = host(url);
-            if (host != null) {
-                hosts.add(host);
-            }
-        }
-        return hosts;
     }
 
     /**
@@ -71,20 +57,5 @@ public final class OnyxHosts {
             }
         }
         return false;
-    }
-
-    /** The lower-case host of a url, or null when it has none. */
-    public static String host(String url) {
-        if (Texts.blank(url)) {
-            return null;
-        }
-        try {
-            String host = URI.create(url.strip()).getHost();
-            return host == null ? null : host.toLowerCase(Locale.ROOT);
-        } catch (IllegalArgumentException e) {
-            // A url still waiting for a value in its path is not a URI, and its host is still known.
-            UrlNormal.Destination destination = UrlNormal.destination(url);
-            return destination == null || destination.scheme() == null ? null : destination.host();
-        }
     }
 }
