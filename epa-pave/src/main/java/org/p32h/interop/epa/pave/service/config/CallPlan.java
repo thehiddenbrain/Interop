@@ -42,10 +42,14 @@ import org.p32h.interop.epa.pave.postman.UrlForms;
  * @param refusal      why the guardrail refuses the call, or null when it does not
  * @param resolver     resolves text that belongs to this call, such as its body, against the same
  *                     snapshot and the variables of the same collection
+ * @param originByRunValue true when a value typed for this run chose the scheme, host or port the
+ *                     call goes to, so it is not an address the configuration names. Such a call
+ *                     may carry no secret of the configuration
  */
 record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, String method, ResolvedUrl url, UrlForms.Filled filled,
                 Set<String> tokens, List<String> missingPlaceholders, Resolution urlVariables, Map<String, String> reasons,
-                List<Header> headers, boolean write, String writeBecause, Refusal refusal, Function<String, Resolution> resolver) {
+                List<Header> headers, boolean write, String writeBecause, Refusal refusal, Function<String, Resolution> resolver,
+                boolean originByRunValue) {
 
     /** Where a target came from. */
     enum Source {

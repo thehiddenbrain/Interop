@@ -2,7 +2,7 @@
   "id": "pas-13-transport-failure",
   "number": 13,
   "label": "Transport failure",
-  "description": "The service cannot be reached, for a submission and for an inquiry alike. This is a finding about the environment, not about the member or the code.",
+  "description": "The service cannot be reached, for a submission and for an inquiry alike. This is a finding about the environment, not about the member or the code. It has no body, so it is in no version's shape.",
   "sentinelMemberId": "P32H-PAS-DOWN",
   "behavior": "unavailable",
   "delayMillis": 100,
@@ -10,7 +10,7 @@
     "outcome": "UNREACHABLE",
     "errorType": "UNAVAILABLE"
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "basis": "Synthetic. It models the transport and has no body in the shape of PAS 2.0.1 or any other version. It has not been observed from the live service.",
   "steps": {
     "inquire": {
       "behavior": "unavailable",

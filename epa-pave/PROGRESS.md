@@ -4,6 +4,22 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**At this revision the fixes are merged, and the record below is behind.** This revision merges
+every branch that fixed what the independent checks found: the ledger (V2), the HTTP edge, the
+fixtures (V4), the production guardrail and credentials in collections (V3), suites and the
+chain, and CRD, PAS and DTR held to version 2.0.1 of the guides, each fixed by one agent,
+checked by a second that did not write it, and finished by a third. It also merges the request
+comparison (D-118, D-119), the README, the run scripts and the samples. The merged line builds
+with 2515 tests passing and 3 skipped. What the paragraphs and the table below say about those
+checks, about the follow-ups and about the defects "not fixed in this revision" describes the
+revision before this one, and is being rewritten together with the decisions those fixes made
+(D-140 onward), which are not yet in DECISIONS.md. Known to be open at this revision: there is
+still no frontend here (three of its parts are finished on branches, three are not built); the
+places where one fix needs a change in another fix's files (listed by each finisher, not yet
+done); `POST /api/raw` does not send a saved body (D-139); the audits V1, V5, V6 and V7, a
+second run of V3 and the walkthrough as a business tester have not run. Nothing has been run
+against Onyx.
+
 **The application runs.** On the integration of the first wave it starts on the mock profile with
 no file edited and answers on every endpoint that wave and the CRD vertical provide. Observed on
 the built jar, on mock, on this revision's parent:

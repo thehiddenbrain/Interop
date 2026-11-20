@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberIds;
+import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.ScenarioBehavior;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
@@ -14,9 +15,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -26,17 +31,46 @@ import tools.jackson.databind.JsonNode;
 /**
  * Loads mock scenario files, one JSON file per scenario, grouped by protocol directory.
  *
- * <p>Scenarios are read when they are asked for, not once at startup, so QA can add or edit a
- * case without recompiling and, with an external directory, without restarting. When
- * {@code app.scenario-dir} is set it replaces the bundled scenarios: a protocol's files are then
- * read from {@code <scenario-dir>/<protocol>/}.
+ * <p>On the mock profile every protocol directory is checked once when the application starts
+ * ({@link ScenarioCheckAtStart}), and a damaged set stops the start with each file and its reason
+ * named: a file that is not JSON or not a scenario,
+ * an id used twice, a sentinel member ID or NPI claimed by two files of one protocol, a top-level
+ * key the loader does not know (which is how a misspelt key shows itself), and a protocol
+ * directory that is missing or empty. A damaged file left to be found at request time would turn
+ * into a run answered by the wrong scenario, which nobody could explain.
  *
- * <p>The files are edited by hand, so each is read tolerantly and a file that cannot be used is
- * reported by name with the reason. It is never skipped silently, because a tester who added a
- * case and does not see it in the list needs to know why.
+ * <p>After that, scenarios are read again each time they are asked for, so QA can edit a case in
+ * the directory {@code app.scenario-dir} names without restarting. When that setting is given it
+ * replaces the bundled scenarios: a protocol's files are then read from
+ * {@code <scenario-dir>/<protocol>/}. A set damaged while the tool runs is not answered from: the
+ * run is refused with HTTP 422 naming every file and its reason, and the scenario list shows the
+ * same problems, until the files are put right. Answering from the files that are left would let
+ * a sentinel whose file broke fall to the default scenario without a word.
+ *
+ * <p>Nothing of a scenario body is logged or put in a message. A problem names the file, the rule
+ * it broke and, at most, a key or a sentinel, which are this tool's own identifiers.
  */
 @Component
 public class ScenarioRepository {
+
+    /** Every protocol directory the mock clients read. Each must exist and hold at least one scenario. */
+    public static final List<String> PROTOCOLS = List.of("crd", "dtr", "pas", "raw");
+
+    /** This tool's own sentinel member IDs, compared in their no-space upper-case form. */
+    static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]+(?:-[A-Z0-9]+)*");
+
+    /**
+     * Every top-level key a scenario file may hold. The protocols read their own sections from
+     * {@link Scenario#raw()}: {@code nextQuestion} is the DTR adaptive rule, {@code paths} and
+     * {@code responses} are the DTR claims the scenario tests drive, and {@code crdSentinelMemberIds}
+     * names the CRD sentinels a DTR scenario answers for, which the DTR mock keeps apart from the
+     * scenario's own sentinel so that it can say which of the two selected it. A key outside this
+     * list is refused, because a misspelt one would otherwise be dropped and its scenario would
+     * quietly lose what the key held.
+     */
+    static final Set<String> KNOWN_KEYS = Set.of("id", "number", "label", "description", "basis", "assumption", "sentinelMemberId",
+            "sentinelMemberIds", "sentinelNpi", "sentinelNpis", "crdSentinelMemberIds", "behavior", "httpStatus", "delayMillis",
+            "response", "responseText", "expect", "steps", "nextQuestion", "paths", "responses");
 
     /** The scenarios found for a protocol, and the files that could not be used. */
     public record Loaded(List<Scenario> scenarios, List<String> problems) {
@@ -48,15 +82,48 @@ public class ScenarioRepository {
         this.app = app;
     }
 
-    /** Every usable scenario for a protocol directory such as {@code crd}, in numbered order. */
+    /**
+     * Every scenario for a protocol directory such as {@code crd}, in numbered order.
+     *
+     * @throws ScenarioSetUnusableException when any file of the protocol has a problem. {@link #load}
+     *                                       lists the problems without refusing
+     */
     public List<Scenario> list(String protocolDirectory) {
-        return load(protocolDirectory).scenarios();
+        return usable(protocolDirectory);
+    }
+
+    /**
+     * Reads every protocol directory and throws when any of them has a problem, naming each file
+     * and its reason.
+     *
+     * @throws IllegalStateException when the scenario set cannot be used
+     */
+    public void checkEveryProtocol() {
+        List<String> found = new ArrayList<>();
+        for (String protocol : PROTOCOLS) {
+            List<String> problems = load(protocol).problems();
+            if (!problems.isEmpty()) {
+                found.add("Mock scenarios for " + protocol + ": " + String.join(" ", problems));
+            }
+        }
+        if (!found.isEmpty()) {
+            String where = Texts.present(app.scenarioDir()) ? "in " + Path.of(app.scenarioDir().strip()) + " (app.scenario-dir)"
+                    : "bundled with the application";
+            throw new IllegalStateException("The mock scenarios " + where + " cannot be used, so the tool does not start. "
+                    + String.join(" ", found));
+        }
     }
 
     public Loaded load(String protocolDirectory) {
         List<Scenario> scenarios = new ArrayList<>();
         List<String> problems = new ArrayList<>();
-        for (Map.Entry<String, String> file : readFiles(protocolDirectory, problems).entrySet()) {
+        Map<String, String> files = readFiles(protocolDirectory, problems);
+        if (files.isEmpty() && problems.isEmpty()) {
+            problems.add(Texts.present(app.scenarioDir())
+                    ? "The scenario directory " + Path.of(app.scenarioDir().strip()).resolve(protocolDirectory) + " holds no scenario files."
+                    : "There are no bundled scenario files for " + protocolDirectory + ".");
+        }
+        for (Map.Entry<String, String> file : files.entrySet()) {
             try {
                 scenarios.add(parse(file.getKey(), file.getValue()));
             } catch (IllegalArgumentException e) {
@@ -74,7 +141,46 @@ public class ScenarioRepository {
                 unique.add(scenario);
             }
         }
+        // Two files claiming one sentinel would leave the choice to the order of their numbers.
+        Map<String, String> memberSentinels = new LinkedHashMap<>();
+        Map<String, String> npiSentinels = new LinkedHashMap<>();
+        for (Scenario scenario : unique) {
+            for (String sentinel : scenario.sentinelMemberIds()) {
+                String key = memberKey(sentinel);
+                String earlier = memberSentinels.putIfAbsent(key, scenario.source());
+                if (earlier != null) {
+                    problems.add(scenario.source() + ": the sentinel member ID " + key + " is already claimed by " + earlier
+                            + ". One sentinel selects one scenario.");
+                }
+            }
+            for (String sentinel : scenario.sentinelNpis()) {
+                String earlier = npiSentinels.putIfAbsent(sentinel.strip(), scenario.source());
+                if (earlier != null) {
+                    problems.add(scenario.source() + ": the sentinel NPI " + sentinel.strip() + " is already claimed by " + earlier
+                            + ". One sentinel selects one scenario.");
+                }
+            }
+        }
         return new Loaded(List.copyOf(unique), List.copyOf(problems));
+    }
+
+    /**
+     * The scenarios of a protocol, refused when any file of it has a problem. Every run comes
+     * through here, so a set damaged while the tool runs is never answered from in part.
+     *
+     * @throws ScenarioSetUnusableException naming each file and its reason
+     */
+    private List<Scenario> usable(String protocolDirectory) {
+        Loaded loaded = load(protocolDirectory);
+        if (!loaded.problems().isEmpty()) {
+            throw new ScenarioSetUnusableException(protocolDirectory, loaded.problems());
+        }
+        return loaded.scenarios();
+    }
+
+    /** Sentinels are this tool's own identifiers, so a difference in case or spacing is forgiven. */
+    private static String memberKey(String memberId) {
+        return MemberIds.noSpace(memberId).toUpperCase(Locale.ROOT);
     }
 
     /**
@@ -96,10 +202,7 @@ public class ScenarioRepository {
      * does. That serves a tester who loaded a sample body and typed the sentinel into the JSON.
      */
     public ScenarioSelection select(String protocolDirectory, MockSelection selection, String requestBody) {
-        List<Scenario> scenarios = list(protocolDirectory);
-        if (scenarios.isEmpty()) {
-            throw new IllegalStateException("There are no usable mock scenarios for " + protocolDirectory + ".");
-        }
+        List<Scenario> scenarios = usable(protocolDirectory);
         if (selection != null && Texts.present(selection.scenarioId())) {
             String wanted = selection.scenarioId().strip();
             return scenarios.stream().filter(s -> s.id().equals(wanted)).findFirst()
@@ -107,32 +210,58 @@ public class ScenarioRepository {
                     .orElseThrow(() -> ValidationException.of("scenarioId", "There is no scenario with id \"" + wanted + "\"."));
         }
         if (selection != null && Texts.present(selection.memberId())) {
-            String memberId = MemberIds.noSpace(selection.memberId());
+            String memberId = memberKey(selection.memberId());
             for (Scenario scenario : scenarios) {
-                // Sentinels are this tool's own identifiers, so a difference in case is forgiven.
-                if (Texts.present(scenario.sentinelMemberId())
-                        && MemberIds.noSpace(scenario.sentinelMemberId()).equalsIgnoreCase(memberId)) {
-                    return new ScenarioSelection(scenario, "selected by the sentinel member ID " + scenario.sentinelMemberId());
+                for (String sentinel : scenario.sentinelMemberIds()) {
+                    if (memberKey(sentinel).equals(memberId)) {
+                        return new ScenarioSelection(scenario, "selected by the sentinel member ID " + sentinel);
+                    }
                 }
             }
         }
         if (selection != null && Texts.present(selection.npi())) {
             String npi = selection.npi().strip();
             for (Scenario scenario : scenarios) {
-                if (Texts.present(scenario.sentinelNpi()) && scenario.sentinelNpi().strip().equals(npi)) {
-                    return new ScenarioSelection(scenario, "selected by the sentinel NPI " + scenario.sentinelNpi());
+                for (String sentinel : scenario.sentinelNpis()) {
+                    if (sentinel.strip().equals(npi)) {
+                        return new ScenarioSelection(scenario, "selected by the sentinel NPI " + sentinel);
+                    }
                 }
             }
         }
         if (Texts.present(requestBody)) {
+            // Each text value of the body is compared whole, as the form's member ID is: no spaces, any letter case.
+            // A body that is not JSON holds no values, and a sentinel inside a longer value is not one.
+            Set<String> values = new HashSet<>();
+            JsonSafe.Parsed parsed = JsonSafe.parse(requestBody);
+            if (parsed.ok()) {
+                collectTexts(parsed.node(), values);
+            }
             for (Scenario scenario : scenarios) {
-                if (Texts.present(scenario.sentinelMemberId()) && requestBody.contains("\"" + scenario.sentinelMemberId() + "\"")) {
-                    return new ScenarioSelection(scenario, "selected by the sentinel member ID " + scenario.sentinelMemberId()
-                            + " found in the request body");
+                for (String sentinel : scenario.sentinelMemberIds()) {
+                    if (values.contains(memberKey(sentinel))) {
+                        return new ScenarioSelection(scenario, "selected by the sentinel member ID " + sentinel + " found in the request body");
+                    }
                 }
             }
         }
         return new ScenarioSelection(scenarios.get(0), "the default, because no scenario was chosen and no sentinel matched");
+    }
+
+    private static void collectTexts(JsonNode node, Set<String> out) {
+        if (node == null) {
+            return;
+        }
+        if (node.isString()) {
+            out.add(memberKey(node.stringValue()));
+            return;
+        }
+        for (Map.Entry<String, JsonNode> property : JsonSafe.properties(node)) {
+            collectTexts(property.getValue(), out);
+        }
+        for (JsonNode element : JsonSafe.elements(node)) {
+            collectTexts(element, out);
+        }
     }
 
     private Map<String, String> readFiles(String protocolDirectory, List<String> problems) {
@@ -174,11 +303,34 @@ public class ScenarioRepository {
     static Scenario parse(String source, String text) {
         JsonSafe.Parsed parsed = JsonSafe.parse(text);
         if (!parsed.ok()) {
-            throw new IllegalArgumentException(parsed.error());
+            // The parser's own wording speaks of a body. Here it is the file, and only its position is kept.
+            throw new IllegalArgumentException(parsed.error().replaceFirst("^The body", "The file"));
         }
         JsonNode root = parsed.node();
         if (!root.isObject()) {
             throw new IllegalArgumentException("a scenario file must hold one JSON object.");
+        }
+        if (parsed.repeatedKeys()) {
+            throw new IllegalArgumentException("it repeats a key, and only the last value of a repeated key would count. Keep one.");
+        }
+        List<String> unknown = JsonSafe.properties(root).stream().map(Map.Entry::getKey).filter(key -> !KNOWN_KEYS.contains(key)).toList();
+        if (!unknown.isEmpty()) {
+            throw new IllegalArgumentException(unknownKeys(unknown));
+        }
+        List<String> memberSentinels = sentinels(root, "sentinelMemberId", "sentinelMemberIds", "sentinel member ID");
+        List<String> npiSentinels = sentinels(root, "sentinelNpi", "sentinelNpis", "sentinel NPI");
+        for (String sentinel : memberSentinels) {
+            if (!SENTINEL.matcher(memberKey(sentinel)).matches()) {
+                // The value is not quoted: something that is not a sentinel could be a real member ID.
+                throw new IllegalArgumentException("one of its sentinel member IDs is not a P32H- sentinel. A scenario is selected only by "
+                        + "this tool's own identifiers, so nothing that could be a real member ID is written in a scenario file.");
+            }
+        }
+        for (String sentinel : npiSentinels) {
+            if (!Npi.isValid(sentinel.strip())) {
+                throw new IllegalArgumentException("one of its sentinel NPIs does not pass the NPI check, so no request could ever carry it. "
+                        + "Use ten digits whose last digit is the NPI check digit of the first nine, such as 9999999995.");
+            }
         }
         String id = JsonSafe.presentText(root, "id");
         if (id == null) {
@@ -208,9 +360,75 @@ public class ScenarioRepository {
         }
 
         return new Scenario(id, number, label, JsonSafe.presentText(root, "description"),
-                JsonSafe.presentText(root, "sentinelMemberId"), JsonSafe.presentText(root, "sentinelNpi"), main, steps,
+                memberSentinels.isEmpty() ? null : memberSentinels.get(0), npiSentinels.isEmpty() ? null : npiSentinels.get(0), main, steps,
                 parseExpect(JsonSafe.child(root, "expect")), JsonSafe.presentText(root, "basis"),
-                JsonSafe.presentText(root, "assumption"), root, source);
+                JsonSafe.presentText(root, "assumption"), root, source, memberSentinels, npiSentinels);
+    }
+
+    /**
+     * The refusal of keys the loader does not know. A key is quoted only when it looks like a key
+     * name of this tool, letters alone and not long: those are the misspellings the refusal is for.
+     * Anything else, such as an ID pasted where a key belongs, could be data, so it is counted and
+     * not quoted, because the refusal is logged at start-up and shown on screen.
+     */
+    static String unknownKeys(List<String> unknown) {
+        List<String> named = unknown.stream().filter(key -> KEY_NAME.matcher(key).matches()).toList();
+        int unnamed = unknown.size() - named.size();
+        if (unnamed == 0) {
+            return "it has " + (named.size() == 1 ? "a key" : "keys") + " this tool does not know: " + String.join(", ", named) + ". Check "
+                    + (named.size() == 1 ? "its" : "their") + " spelling.";
+        }
+        String others = (unnamed == 1 ? "a key" : unnamed + " keys") + " that " + (unnamed == 1 ? "is" : "are")
+                + " not a scenario key and " + (unnamed == 1 ? "does" : "do") + " not look like one, so " + (unnamed == 1 ? "it is" : "they are")
+                + " not quoted here";
+        if (named.isEmpty()) {
+            return "it has " + others + ". Check the file's top-level keys.";
+        }
+        return "it has " + (named.size() == 1 ? "a key" : "keys") + " this tool does not know: " + String.join(", ", named) + ", and "
+                + others + ". Check the file's top-level keys.";
+    }
+
+    /** What a key name of this tool looks like: letters only, as every key in {@link #KNOWN_KEYS} is. */
+    private static final Pattern KEY_NAME = Pattern.compile("[A-Za-z]{1,40}");
+
+    /**
+     * The sentinels a file names under the single key and the list key, single first. A key that is
+     * present must hold what it says: one text, or a list of texts. A blank single key means none,
+     * as it always has.
+     */
+    private static List<String> sentinels(JsonNode root, String singleKey, String listKey, String what) {
+        List<String> out = new ArrayList<>();
+        JsonNode single = JsonSafe.child(root, singleKey);
+        if (!JsonSafe.nullOrMissing(single)) {
+            if (!single.isString()) {
+                throw new IllegalArgumentException("its " + singleKey + " is not text.");
+            }
+            String value = JsonSafe.presentText(single);
+            if (value != null) {
+                out.add(value);
+            }
+        }
+        JsonNode list = JsonSafe.child(root, listKey);
+        if (!JsonSafe.nullOrMissing(list)) {
+            if (!list.isArray()) {
+                throw new IllegalArgumentException("its " + listKey + " is not a list.");
+            }
+            for (JsonNode element : JsonSafe.elements(list)) {
+                String value = element.isString() ? JsonSafe.presentText(element) : null;
+                if (value == null) {
+                    throw new IllegalArgumentException("its " + listKey + " holds something that is not a " + what + ".");
+                }
+                out.add(value);
+            }
+        }
+        Set<String> seen = new HashSet<>();
+        for (String value : out) {
+            String key = singleKey.equals("sentinelMemberId") ? memberKey(value) : value;
+            if (!seen.add(key)) {
+                throw new IllegalArgumentException("it names one " + what + " twice.");
+            }
+        }
+        return out;
     }
 
     private static ScenarioStep parseStep(JsonNode node, String what) {

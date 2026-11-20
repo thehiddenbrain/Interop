@@ -14,6 +14,13 @@ public enum NextAction {
     CHECK_STATUS,
     /** The journey is complete at this step. That is itself a finding worth recording. */
     FLOW_ENDS,
+    /**
+     * There is nothing to do after this call, and no journey ended with it: a subscription was
+     * read, listed, updated or deleted, or a handshake or a heartbeat arrived. Kept apart from
+     * {@link #FLOW_ENDS} so that a call which decided nothing about a case is never read as the
+     * end of that case's journey. It belongs to no stage of a journey and asks nothing of a person.
+     */
+    NOTHING_FURTHER,
     /** The member, provider or code is not known to the service. Check the test data. */
     FIX_TEST_DATA,
     /** The request was rejected as invalid. Check what was sent. */

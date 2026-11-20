@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.CaseOutcome;
 import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.FieldError;
+import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
@@ -82,12 +83,25 @@ public class RunReplay {
     /** What the record writes in place of a correlation value it refused. It is not an identifier and is never passed on as one. */
     private static final Pattern NOT_RECORDED = Pattern.compile("\\(not recorded, \\d+ characters\\)");
 
+    /**
+     * The operations a case sends with a value read from the line's correlation entries, and the
+     * key it reads. A refused value there was part of the request, so without it a run again would
+     * send something else. Elsewhere a correlation value is what came back, and is only compared.
+     */
+    private static final Map<EpaOperation, String> SENT_FROM_CORRELATION = Map.of(
+            EpaOperation.PAS_INQUIRE, RunRecord.CORR_CLAIM_ID,
+            EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, RunRecord.CORR_QUESTIONNAIRE);
+
+    /** What the DTR service writes among the questionnaires in place of one that was not an address. */
+    private static final Pattern NOT_A_URL = Pattern.compile("\\(not a url, \\d+ characters\\)");
+
     /** What the record writes in place of a procedure code that did not have the shape of one. */
     private static final Pattern CODE_NOT_KEPT = Pattern.compile("\\(not a code, \\d+ characters\\)");
 
     /** What the record writes in place of text it did not keep, anywhere in a coverage code entry or a vendor name. */
     private static final Pattern TEXT_NOT_KEPT =
-            Pattern.compile("\\((?:not a code|not a code entry|vendor not on the known list), \\d+ characters\\)");
+            Pattern.compile("\\((?:not a code|not a code entry|vendor not on the known list|" + Pattern.quote(RunRecord.READS_LIKE_AN_IDENTIFIER)
+                    + "), \\d+ characters\\)");
 
     /** Each kind of input a line can say it does not hold, in words a tester reads. */
     static final Map<String, String> INPUTS_IN_WORDS = Map.of(
@@ -347,7 +361,15 @@ public class RunReplay {
         }
         if (Texts.blank(original.memberId()) && Texts.present(original.memberToken())) {
             return "The member ID of this run was not recorded. The line holds a token in its place, and a token cannot be turned back "
-                    + "into the ID, so the same request cannot be sent again. Member IDs are kept only while tracking.record-member-id is true.";
+                    + "into the ID, so the same request cannot be sent again. Member IDs are kept only while tracking.record-member-id is true, "
+                    + "and on the mock profile only for this tool's own P32H- sentinels and S123456789-style placeholders.";
+        }
+        String needed = SENT_FROM_CORRELATION.get(original.operation());
+        String sent = needed == null ? null : original.correlation().get(needed);
+        if (sent != null && (NOT_RECORDED.matcher(sent).matches() || NOT_A_URL.matcher(sent).find())) {
+            return "This run sent " + (RunRecord.CORR_CLAIM_ID.equals(needed) ? "a claim id" : "the questionnaire addresses it asked for")
+                    + ", and its line holds a statement that something was there in its place, because what was there did not have the "
+                    + "shape of one. Running it again without it would send a different request, and the two answers could not be compared.";
         }
         if (original.procedureCodes().stream().anyMatch(code -> CODE_NOT_KEPT.matcher(code).matches())) {
             return "A procedure code of this run was not recorded, because what was sent did not have the shape of a code. The line "

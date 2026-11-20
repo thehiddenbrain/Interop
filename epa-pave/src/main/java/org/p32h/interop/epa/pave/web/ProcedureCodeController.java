@@ -36,6 +36,11 @@ public class ProcedureCodeController {
     /**
      * What the type-ahead answers.
      *
+     * @param placeholder    true when the codes come from the synthetic placeholder list that ships
+     *                       with the tool, which is what is loaded while {@code codelist.file} is
+     *                       blank. Left out when a list was configured. The codes still carry what
+     *                       the placeholder states, so the picker shows its tags; this is what lets
+     *                       the screen say beside every tag that it is not from a P32H list
      * @param query          the query as it was searched, without the white space around it. Left out when none was given
      * @param lineOfBusiness the line of business that was asked for. Left out when none was given
      * @param narrowed       true when the codes were narrowed to that line and to the rows that state no line
@@ -52,9 +57,9 @@ public class ProcedureCodeController {
      *                       no tag at all and never as "No PA"
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({"query", "lineOfBusiness", "narrowed", "notice", "otherLines", "limit", "matched", "codes"})
-    public record Answer(String query, String lineOfBusiness, boolean narrowed, String notice, String otherLines, int limit, int matched,
-                         List<ProcedureCode> codes) {
+    @JsonPropertyOrder({"placeholder", "query", "lineOfBusiness", "narrowed", "notice", "otherLines", "limit", "matched", "codes"})
+    public record Answer(Boolean placeholder, String query, String lineOfBusiness, boolean narrowed, String notice, String otherLines,
+                         int limit, int matched, List<ProcedureCode> codes) {
     }
 
     /**
@@ -65,7 +70,10 @@ public class ProcedureCodeController {
     public Answer search(@RequestParam(name = "q", required = false) String q, @RequestParam(name = "lob", required = false) String lob) {
         int limit = app.autocompleteLimit();
         CodeSearch found = codes.find(q, lob, limit);
-        return new Answer(found.query(), Texts.trimToNull(lob), found.narrowed(), found.notice(), found.otherLines(), limit,
+        // True or left out, never false. A false would read as this tool vouching that the list is
+        // P32H's own, and it cannot know that of any file it was pointed at.
+        Boolean placeholder = found.placeholder() ? Boolean.TRUE : null;
+        return new Answer(placeholder, found.query(), Texts.trimToNull(lob), found.narrowed(), found.notice(), found.otherLines(), limit,
                 found.matched(), found.codes());
     }
 

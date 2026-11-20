@@ -7,6 +7,7 @@ import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.ScenarioBehavior;
+import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -219,6 +220,237 @@ class ScenarioRepositoryTest {
         ScenarioRepository.Loaded loaded = external.load("crd");
         assertThat(loaded.scenarios()).isEmpty();
         assertThat(loaded.problems()).singleElement().asString().contains("does not exist");
-        assertThatThrownBy(() -> external.select("crd", null)).isInstanceOf(IllegalStateException.class);
+        // A run is refused with the reason, as a 422 the tester can act on, and not as an internal error.
+        assertThatThrownBy(() -> external.select("crd", null)).isInstanceOf(BadInputException.class)
+                .hasMessage("The mock scenarios for crd cannot be used, so nothing was answered. The scenario directory "
+                        + dir.resolve("crd") + " does not exist.");
+    }
+
+    // ---- V4-02, V4-08: what a damaged set and a pasted body do ----
+
+    private static String scenario(String id, int number, String sentinelKeys) {
+        return "{\"id\":\"" + id + "\",\"number\":" + number + ",\"label\":\"L\"," + sentinelKeys
+                + "\"httpStatus\":200,\"response\":{}}";
+    }
+
+    @Test
+    void aSentinelMemberIdClaimedByTwoFilesIsAProblemNamingBothFiles(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir.resolve("crd"));
+        Files.writeString(dir.resolve("crd/a.json"), scenario("a", 1, "\"sentinelMemberId\":\"P32H-TWICE\","));
+        // The same sentinel in another letter case and with a space is the same sentinel to the selector.
+        Files.writeString(dir.resolve("crd/b.json"), scenario("b", 2, "\"sentinelMemberId\":\"p32h-twice \","));
+        ScenarioRepository.Loaded loaded = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString()))).load("crd");
+        assertThat(loaded.problems()).containsExactly(
+                "b.json: the sentinel member ID P32H-TWICE is already claimed by a.json. One sentinel selects one scenario.");
+    }
+
+    @Test
+    void aSentinelNpiClaimedByTwoFilesIsAProblemNamingBothFiles(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir.resolve("crd"));
+        Files.writeString(dir.resolve("crd/a.json"), scenario("a", 1, "\"sentinelNpi\":\"9999999995\","));
+        Files.writeString(dir.resolve("crd/b.json"), scenario("b", 2, "\"sentinelNpi\":\" 9999999995\","));
+        ScenarioRepository.Loaded loaded = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString()))).load("crd");
+        assertThat(loaded.problems()).containsExactly(
+                "b.json: the sentinel NPI 9999999995 is already claimed by a.json. One sentinel selects one scenario.");
+    }
+
+    @Test
+    void aMisspeltTopLevelKeyIsRefusedByNameAndNotDropped() {
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberID\":\"P32H-X\",")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("it has a key this tool does not know: sentinelMemberID. Check its spelling.");
+    }
+
+    @Test
+    void aRunAgainstADamagedExternalSetIsRefusedAndNotAnsweredFromWhatIsLeft(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir.resolve("crd"));
+        Files.writeString(dir.resolve("crd/good.json"), MINIMAL);
+        Files.writeString(dir.resolve("crd/broken.json"), "{\"id\": \"oops\"");
+        ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+        // Its own type, so a suite can tell the tool's files from a row that is not valid; a single run still gets HTTP 422.
+        assertThatThrownBy(() -> external.select("crd", MockSelection.of(null, "P32H-PA-REQ", null)))
+                .isInstanceOf(ScenarioSetUnusableException.class).isInstanceOf(BadInputException.class)
+                .hasMessageStartingWith("The mock scenarios for crd cannot be used, so nothing was answered. broken.json: ")
+                .satisfies(e -> {
+                    ScenarioSetUnusableException unusable = (ScenarioSetUnusableException) e;
+                    assertThat(unusable.protocolDirectory()).isEqualTo("crd");
+                    assertThat(unusable.problems()).singleElement().asString().startsWith("broken.json: ");
+                    assertThat(unusable.action()).isEqualTo("Put the files named right, then run again. The scenario list for crd shows the "
+                            + "same problems.");
+                });
+        assertThatThrownBy(() -> external.list("crd")).isInstanceOf(ScenarioSetUnusableException.class);
+        // The listing still shows what is wrong, so the tester can see which file to fix.
+        assertThat(external.load("crd").problems()).singleElement().asString().startsWith("broken.json: ");
+    }
+
+    @Test
+    void aSentinelInAPastedBodyIsComparedAsTheFormComparesIt() {
+        String body = "{\"context\":{\"patientId\":\"%s\",\"note\":\"P32H-NOCOV is mentioned in passing\"}}";
+        assertThat(bundled.select("crd", null, body.formatted("P32H-PA-SAT")).scenario().number()).isEqualTo(3);
+        assertThat(bundled.select("crd", null, body.formatted("p32h-pa-sat")).scenario().number()).isEqualTo(3);
+        assertThat(bundled.select("crd", null, body.formatted(" P32H-PA-SAT ")).how())
+                .isEqualTo("selected by the sentinel member ID P32H-PA-SAT found in the request body");
+        // A sentinel is a whole value, never a part of one.
+        assertThat(bundled.select("crd", null, body.formatted("P32H-PA-SAT-2")).scenario().number()).isEqualTo(1);
+        // A body that is not JSON holds no values to compare.
+        assertThat(bundled.select("crd", null, "ISA*P32H-PA-SAT*\"P32H-PA-SAT\"").scenario().number()).isEqualTo(1);
+    }
+
+    // ---- the check at start-up ----
+
+    /** A scenario directory with one good file per protocol, which the start-up check accepts. */
+    private static void writeGoodSet(Path dir) throws IOException {
+        int number = 1;
+        for (String protocol : ScenarioRepository.PROTOCOLS) {
+            Files.createDirectories(dir.resolve(protocol));
+            Files.writeString(dir.resolve(protocol + "/" + protocol + "-01.json"),
+                    scenario(protocol + "-01", number++, "\"sentinelMemberId\":\"P32H-" + protocol.toUpperCase(java.util.Locale.ROOT) + "\","));
+        }
+    }
+
+    @Test
+    void theBundledScenariosPassTheCheckAtStartUp() {
+        bundled.checkEveryProtocol();
+        for (String protocol : ScenarioRepository.PROTOCOLS) {
+            assertThat(bundled.load(protocol).problems()).as(protocol).isEmpty();
+        }
+    }
+
+    @Test
+    void theProtocolsCheckedAreTheDirectoriesTheMockClientsRead() {
+        assertThat(ScenarioRepository.PROTOCOLS).containsExactly(org.p32h.interop.epa.pave.client.crd.MockOnyxCrdClient.SCENARIOS,
+                org.p32h.interop.epa.pave.client.dtr.MockOnyxDtrClient.SCENARIOS, org.p32h.interop.epa.pave.client.pas.MockOnyxPasClient.SCENARIOS,
+                org.p32h.interop.epa.pave.client.raw.MockRawRequestClient.SCENARIOS);
+    }
+
+    @Test
+    void aGoodExternalSetPassesTheCheckAtStartUp(@TempDir Path dir) throws IOException {
+        writeGoodSet(dir);
+        new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString()))).checkEveryProtocol();
+    }
+
+    @Test
+    void aDamagedSetStopsTheStartNamingEachFileAndItsReason(@TempDir Path dir) throws IOException {
+        writeGoodSet(dir);
+        Files.writeString(dir.resolve("crd/crd-02-truncated.json"), "{\"id\": \"crd-02\", \"number\"");
+        Files.writeString(dir.resolve("crd/crd-03-duplicate-id.json"), scenario("crd-01", 3, ""));
+        Files.writeString(dir.resolve("crd/crd-04-shadow.json"), scenario("crd-04", 0, "\"sentinelMemberId\":\"P32H-CRD\","));
+        Files.writeString(dir.resolve("crd/crd-05-misspelt.json"), scenario("crd-05", 5, "\"sentinelMemberID\":\"P32H-INFO\","));
+        Files.delete(dir.resolve("dtr/dtr-01.json"));
+        Files.delete(dir.resolve("raw/raw-01.json"));
+        Files.delete(dir.resolve("raw"));
+        ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+
+        assertThatThrownBy(external::checkEveryProtocol).isInstanceOf(IllegalStateException.class).hasMessage(
+                "The mock scenarios in " + dir + " (app.scenario-dir) cannot be used, so the tool does not start."
+                        + " Mock scenarios for crd: crd-02-truncated.json: The file is not valid JSON (line 1, column 26)."
+                        + " crd-05-misspelt.json: it has a key this tool does not know: sentinelMemberID. Check its spelling."
+                        + " crd-03-duplicate-id.json: the id \"crd-01\" is already used by crd-01.json."
+                        + " crd-01.json: the sentinel member ID P32H-CRD is already claimed by crd-04-shadow.json. One sentinel selects one scenario."
+                        + " Mock scenarios for dtr: The scenario directory " + dir.resolve("dtr") + " holds no scenario files."
+                        + " Mock scenarios for raw: The scenario directory " + dir.resolve("raw") + " does not exist.");
+    }
+
+    @Test
+    void aSetDamagedWhileTheToolRunsIsRefusedOnTheNextRunAndUsedAgainOnceItIsPutRight(@TempDir Path dir) throws IOException {
+        writeGoodSet(dir);
+        ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+        external.checkEveryProtocol();
+        Files.writeString(dir.resolve("crd/crd-02.json"), scenario("crd-02", 2, "\"sentinelMemberId\":\"P32H-CRD\","));
+        assertThatThrownBy(() -> external.select("crd", MockSelection.of(null, "P32H-CRD", null))).isInstanceOf(BadInputException.class)
+                .hasMessageContaining("crd-02.json: the sentinel member ID P32H-CRD is already claimed by crd-01.json.");
+        // Another protocol is not held back by it.
+        assertThat(external.select("dtr", MockSelection.of(null, "P32H-DTR", null)).scenario().id()).isEqualTo("dtr-01");
+        Files.delete(dir.resolve("crd/crd-02.json"));
+        assertThat(external.select("crd", MockSelection.of(null, "P32H-CRD", null)).scenario().id()).isEqualTo("crd-01");
+    }
+
+    // ---- several sentinels in one file ----
+
+    @Test
+    void aFileCanNameSeveralSentinelsAndTheSingleKeysStillWork() {
+        Scenario scenario = ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberId\":\"P32H-PAS-ONE\","
+                + "\"sentinelMemberIds\":[\"P32H-PA-REQ\",\" P32H-DELEG \"],\"sentinelNpis\":[\"9999999995\",\"9999999987\"],"));
+        assertThat(scenario.sentinelMemberIds()).containsExactly("P32H-PAS-ONE", "P32H-PA-REQ", "P32H-DELEG");
+        assertThat(scenario.sentinelMemberId()).isEqualTo("P32H-PAS-ONE");
+        assertThat(scenario.sentinelNpis()).containsExactly("9999999995", "9999999987");
+        assertThat(scenario.sentinelNpi()).isEqualTo("9999999995");
+
+        Scenario listOnly = ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberIds\":[\"P32H-B\",\"P32H-C\"],"));
+        assertThat(listOnly.sentinelMemberId()).isEqualTo("P32H-B");
+        assertThat(listOnly.sentinelNpis()).isEmpty();
+        assertThat(listOnly.sentinelNpi()).isNull();
+
+        Scenario single = ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberId\":\"P32H-B\",\"sentinelNpi\":\"9999999995\","));
+        assertThat(single.sentinelMemberIds()).containsExactly("P32H-B");
+        assertThat(single.sentinelNpis()).containsExactly("9999999995");
+        // A file written before the lists existed has none, and selects by nothing.
+        assertThat(ScenarioRepository.parse("x.json", MINIMAL).sentinelMemberIds()).isEmpty();
+    }
+
+    @Test
+    void everySentinelOfAFileSelectsItAndTheResultNamesTheOneThatMatched(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir.resolve("pas"));
+        Files.writeString(dir.resolve("pas/a.json"), scenario("a", 1, "\"sentinelMemberId\":\"P32H-PAS-A\","));
+        Files.writeString(dir.resolve("pas/b.json"), scenario("b", 2, "\"sentinelMemberIds\":[\"P32H-PAS-B\",\"P32H-PA-REQ\"],"
+                + "\"sentinelNpis\":[\"9999999995\"],"));
+        ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+        ScenarioSelection byList = external.select("pas", MockSelection.of(null, "p32h-pa-req", null));
+        assertThat(byList.scenario().id()).isEqualTo("b");
+        assertThat(byList.how()).isEqualTo("selected by the sentinel member ID P32H-PA-REQ");
+        assertThat(external.select("pas", MockSelection.of(null, "S123456789", "9999999995")).how())
+                .isEqualTo("selected by the sentinel NPI 9999999995");
+        assertThat(external.select("pas", null, "{\"identifier\":[{\"value\":\"P32H-PA-REQ\"}]}").scenario().id()).isEqualTo("b");
+        // A sentinel in a list is claimed as surely as a single one.
+        Files.writeString(dir.resolve("pas/c.json"), scenario("c", 3, "\"sentinelMemberId\":\"P32H-PA-REQ\","));
+        assertThat(external.load("pas").problems()).containsExactly(
+                "c.json: the sentinel member ID P32H-PA-REQ is already claimed by b.json. One sentinel selects one scenario.");
+    }
+
+    @Test
+    void aSentinelThatIsNotThisToolsOwnIsRefusedWithoutQuotingIt() {
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberId\":\"W123456789\",")))
+                .hasMessageStartingWith("one of its sentinel member IDs is not a P32H- sentinel.")
+                .satisfies(e -> assertThat(e.getMessage()).doesNotContain("W123456789"));
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberIds\":[\"P32H-A\",\"W123456789\"],")))
+                .satisfies(e -> assertThat(e.getMessage()).doesNotContain("W123456789"));
+        // Said in terms a tester editing the file can act on, not as a call into this tool's code.
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelNpi\":\"9999999999\",")))
+                .hasMessage("one of its sentinel NPIs does not pass the NPI check, so no request could ever carry it. Use ten digits whose "
+                        + "last digit is the NPI check digit of the first nine, such as 9999999995.");
+        assertThat(Npi.isValid("9999999995")).isTrue();
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberIds\":\"P32H-A\",")))
+                .hasMessage("its sentinelMemberIds is not a list.");
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelNpis\":[9999999995],")))
+                .hasMessage("its sentinelNpis holds something that is not a sentinel NPI.");
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberId\":7,")))
+                .hasMessage("its sentinelMemberId is not text.");
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberId\":\"P32H-A\",\"sentinelMemberIds\":[\"p32h-a\"],")))
+                .hasMessage("it names one sentinel member ID twice.");
+    }
+
+    @Test
+    void aRepeatedKeyAndSeveralUnknownKeysAreRefused() {
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberId\":\"P32H-A\",\"sentinelMemberId\":\"P32H-B\",")))
+                .hasMessage("it repeats a key, and only the last value of a repeated key would count. Keep one.");
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"respnse\":{},\"sentinel\":\"P32H-A\",")))
+                .hasMessage("it has keys this tool does not know: respnse, sentinel. Check their spelling.");
+        // The sections a protocol reads for itself are known keys.
+        ScenarioRepository.parse("x.json", scenario("a", 1, "\"nextQuestion\":{},\"paths\":[],\"responses\":[],\"steps\":{},"));
+    }
+
+    @Test
+    void anUnknownKeyIsQuotedOnlyWhenItLooksLikeAKeyName() {
+        // An ID pasted where a key belongs is data. The refusal is logged at start-up and shown on screen, so it is counted, not quoted.
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"S123456789\":\"x\",")))
+                .hasMessage("it has a key that is not a scenario key and does not look like one, so it is not quoted here. "
+                        + "Check the file's top-level keys.")
+                .satisfies(e -> assertThat(e.getMessage()).doesNotContain("S123456789"));
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"respnse\":{},\"P32H-X 01\":1,\"S1234567801\":2,")))
+                .hasMessage("it has a key this tool does not know: respnse, and 2 keys that are not a scenario key and do not look like one, "
+                        + "so they are not quoted here. Check the file's top-level keys.")
+                .satisfies(e -> assertThat(e.getMessage()).doesNotContain("S1234567801").doesNotContain("P32H-X"));
+        // Every key the loader knows has the shape that is quoted, so a misspelling of one is always named.
+        assertThat(ScenarioRepository.KNOWN_KEYS).allSatisfy(key -> assertThat(ScenarioRepository.unknownKeys(List.of(key))).contains(key));
     }
 }

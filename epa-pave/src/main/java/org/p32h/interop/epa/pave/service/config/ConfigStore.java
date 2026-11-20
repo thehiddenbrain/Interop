@@ -30,6 +30,9 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.postman.Ids;
 import org.p32h.interop.epa.pave.postman.OperationDetector;
 import org.p32h.interop.epa.pave.postman.Placeholders;
+import org.p32h.interop.epa.pave.postman.LiteralCredentials;
+import org.p32h.interop.epa.pave.postman.PostmanAuth;
+import org.p32h.interop.epa.pave.postman.PostmanExample;
 import org.p32h.interop.epa.pave.postman.PostmanCollection;
 import org.p32h.interop.epa.pave.postman.PostmanEnvironment;
 import org.p32h.interop.epa.pave.postman.PostmanHeader;
@@ -163,7 +166,7 @@ public class ConfigStore {
         // The epoch starts above every epoch an earlier run of this installation used, so a browser
         // tab left open across a restart can never hold an epoch that reads as current.
         long epoch = Math.max(clock.millis(), loaded.epoch() + 1);
-        this.current = new ConfigSnapshot(epoch, loaded.environments(), active, loaded.collections());
+        this.current = new ConfigSnapshot(epoch, loaded.environments(), active, loaded.collections(), loaded.remembered());
         // Counts and names only. Never a variable value.
         log.info("Configuration store ready at {}: {} environment(s), {} collection(s), active environment: {}", directory,
                 current.environments().size(), current.collections().size(), active == null ? "none" : "\"" + active + "\"");
@@ -275,6 +278,9 @@ public class ConfigStore {
         if (previous != null && previous.kind() == EnvironmentKind.PROD) {
             reasonsToAsk.add("an environment named \"" + oneLine(parsed.name()) + "\" is already stored here as prod, and this upload would replace it");
         }
+        if (kind != EnvironmentKind.PROD) {
+            refuseProductionAddresses(before, parsed, kind);
+        }
         boolean needsConfirmation = kind != EnvironmentKind.PROD && !reasonsToAsk.isEmpty();
         if (needsConfirmation && !acknowledgedNotProd) {
             throw new ValidationException("This environment looks like production and was declared as " + kind.wire()
@@ -295,8 +301,8 @@ public class ConfigStore {
         } else {
             environments.set(environments.indexOf(previous), stored);
         }
-        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections()),
-                file, previous == null ? null : previous.file());
+        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections(),
+                before.remembered()), file, previous == null ? null : previous.file());
 
         List<String> warnings = new ArrayList<>(secretWarnings(parsed.variables(), file));
         warnings.addAll(leftBehind);
@@ -314,7 +320,8 @@ public class ConfigStore {
         if (environment.name().equals(before.activeName())) {
             return before;
         }
-        commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), environment.name(), before.collections()), null, null);
+        commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), environment.name(), before.collections(),
+                before.remembered()), null, null);
         // The name and the kind only.
         log.info("Active environment switched to \"{}\" ({})", oneLine(environment.name()), environment.kind().wire());
         return current;
@@ -327,7 +334,7 @@ public class ConfigStore {
         List<StoredEnvironment> environments = new ArrayList<>(before.environments());
         environments.remove(environment);
         List<String> warnings = commit(new ConfigSnapshot(before.epoch() + 1, environments, wasActive ? null : before.activeName(),
-                before.collections()), null, environment.file());
+                before.collections(), before.remembered()), null, environment.file());
         // The name only.
         log.info("Environment \"{}\" removed{}", oneLine(environment.name()), wasActive ? ". It was the active one, so none is active now" : "");
         return new Removal(environment.name(), wasActive, warnings, current.epoch());
@@ -370,8 +377,8 @@ public class ConfigStore {
         } else {
             collections.set(collections.indexOf(previous), stored);
         }
-        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections),
-                file, previous == null ? null : previous.file());
+        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections,
+                before.remembered()), file, previous == null ? null : previous.file());
 
         warnings.addAll(secretWarnings(parsed.variables(), file));
         warnings.addAll(literalCredentialWarnings(parsed, file));
@@ -413,7 +420,8 @@ public class ConfigStore {
                 collection.originalFileName(), collection.uploadedAt(), requests);
         List<StoredCollection> collections = new ArrayList<>(before.collections());
         collections.set(collections.indexOf(collection), changed);
-        commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections), null, null);
+        commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections, before.remembered()),
+                null, null);
         // The operations only.
         log.info("Mapping of one request corrected to {}", correction == null ? "what detection proposed" : correction.name());
         return new MappingChange(changed, changed.request(requestId), true, current);
@@ -424,22 +432,11 @@ public class ConfigStore {
         StoredCollection collection = requireCollection(before, collectionId);
         List<StoredCollection> collections = new ArrayList<>(before.collections());
         collections.remove(collection);
-        List<String> warnings = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections),
-                null, collection.file());
+        List<String> warnings = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections,
+                before.remembered()), null, collection.file());
         // The name only.
         log.info("Collection \"{}\" removed, with its mapping corrections", oneLine(collection.name()));
         return new Removal(collection.name(), false, warnings, current.epoch());
-    }
-
-    /**
-     * Moves the epoch on without changing what is stored. A relock does this, so that a call
-     * prepared while writes were unlocked cannot be sent after they were locked again. Nothing is
-     * written: the lock state is never on disk.
-     */
-    synchronized long advanceEpoch() {
-        ConfigSnapshot before = current;
-        current = new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), before.collections());
-        return current.epoch();
     }
 
     private static StoredEnvironment requireEnvironment(ConfigSnapshot snapshot, String nameOrId) {
@@ -485,6 +482,37 @@ public class ConfigStore {
     }
 
     /**
+     * Refuses an environment that is not declared production when one of its addresses is an
+     * address of a production environment this store holds or has held. No confirmation lets it
+     * through: production uploaded again under a sandbox's kind, or under the same name after a
+     * delete, is the mistake the write guardrail cannot recover from. Declaring it production is
+     * the way through.
+     */
+    private static void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
+        Set<String> owners = new LinkedHashSet<>();
+        String shown = null;
+        for (ProductionDestinations.Found found : ProductionDestinations.of(parsed, ProductionDestinations.urlForming(before.collections()))) {
+            List<String> overlapping = before.productionOverlaps(found.destination());
+            if (!overlapping.isEmpty() && shown == null && !found.secret()) {
+                shown = found.destination().shown();
+            }
+            owners.addAll(overlapping);
+        }
+        if (owners.isEmpty()) {
+            return;
+        }
+        String named = owners.stream().map(owner -> "\"" + oneLine(owner) + "\"").collect(java.util.stream.Collectors.joining(" and "));
+        // The address is quoted only when no secret is part of it, and only as far as the first secret.
+        String address = shown == null ? "one of its addresses" : "its address " + oneLine(shown);
+        throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + address + " is an address of the "
+                + "production environment" + (owners.size() > 1 ? "s " : " ") + named + ", or lies above or beneath one. It was not stored.",
+                List.of(new FieldError("kind", "An address that this "
+                + "installation knows as production stays production, even after its environment is deleted. If this environment is "
+                + "production, upload it with the kind prod. If it is not, point its variables at the " + kind.wire()
+                + " service and upload it again.")));
+    }
+
+    /**
      * One warning for each secret that now sits in a file in plain text. A secret whose value only
      * refers to the operating system or to other variables is not itself in the file, so it is not
      * warned about. A disabled variable is: it is not used, and it is still in the file.
@@ -525,6 +553,46 @@ public class ConfigStore {
                 + oneLine(requests.get(0)) + "\", and it now sits in the file " + directory.resolve(file) + " in plain text. This tool "
                 + "redacts it wherever it shows the header. To keep it out of that file, replace it in Postman with a {{placeholder}} and "
                 + "export again."));
+
+        // The places are named. A value never is.
+        String stored = " It sits in the file " + directory.resolve(file) + " in plain text: the collection is kept exactly as it was "
+                + "uploaded, value included.";
+        String move = " To keep it out of that file, move the value into a secret variable of the environment, or into an operating "
+                + "system variable referred to as {{env:" + VariableResolver.OS_NAME_PREFIX + "YOUR_NAME}}, refer to it from the request as "
+                + "a {{placeholder}} in Postman, and export again.";
+        Set<String> helpers = new LinkedHashSet<>();
+        for (PostmanRequest request : collection.requests()) {
+            List<String> places = new ArrayList<>();
+            LiteralCredentials.inUrl(request.url()).found().forEach(found -> places.add(found.place()));
+            LiteralCredentials.inBody(request.body()).found().forEach(found -> places.add(found.place()));
+            request.formCredentials().forEach(field -> places.add("the field " + oneLine(field) + " of its " + oneLine(request.bodyMode())
+                    + " body"));
+            if (!places.isEmpty()) {
+                warnings.add("The request \"" + oneLine(request.qualifiedName()) + "\" holds a credential typed into the collection, in "
+                        + String.join(" and in ", places) + "." + stored + " This tool masks it wherever it shows the request, and sends it "
+                        + "as written." + move);
+            }
+            for (PostmanExample example : request.examples()) {
+                List<String> inExample = new ArrayList<>();
+                example.headers().stream().filter(header -> HeaderMasking.literalCredential(header.name(), header.value()))
+                        .forEach(header -> inExample.add("its header " + oneLine(header.name())));
+                LiteralCredentials.inBody(example.body()).found().forEach(found -> inExample.add(found.place()));
+                if (!inExample.isEmpty()) {
+                    warnings.add("The saved example \"" + oneLine(example.name()) + "\" of the request \"" + oneLine(request.qualifiedName())
+                            + "\" holds a credential, in " + String.join(" and in ", inExample) + "." + stored + " This tool masks it "
+                            + "wherever it shows the example. A saved example is never sent. If it is a real credential, have it revoked.");
+                }
+            }
+        }
+        // Every helper the file sets, whether or not a request inherits it: each one is in the file as uploaded.
+        for (PostmanAuth auth : collection.helpers()) {
+            if (!auth.literals().isEmpty() && helpers.add(auth.type() + "|" + auth.from())) {
+                warnings.add("The authentication helper " + oneLine(auth.type()) + " set on " + oneLine(auth.from()) + " holds a credential "
+                        + "typed into the collection, in its field " + String.join(" and its field ", auth.literals().stream()
+                        .map(ConfigStore::oneLine).toList()) + "." + stored + " This tool does not apply the helper, so it never sends or "
+                        + "shows that value." + move);
+            }
+        }
         return warnings;
     }
 
@@ -572,7 +640,9 @@ public class ConfigStore {
     private void writeAtomically(Path target, byte[] bytes) {
         Path temporary = target.resolveSibling(target.getFileName() + TEMP_MARK + UUID.randomUUID());
         try {
-            try (FileChannel channel = FileChannel.open(temporary, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            // Created for the owner alone where the file system has owners: an environment file can hold a client secret.
+            try (FileChannel channel = FileChannel.open(temporary, Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                    OwnerOnly.file())) {
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
                 while (buffer.hasRemaining()) {
                     channel.write(buffer);
@@ -621,6 +691,18 @@ public class ConfigStore {
             putIfPresent(entry, "uploadedAt", environment.uploadedAt());
             entry.put("acknowledgedNotProd", environment.acknowledgedNotProd());
         }
+        // Every production destination ever known here, so that a deletion does not make
+        // production forgettable. Scheme, host, port and path only: never a query or user information.
+        ArrayNode known = root.putArray("productionDestinations");
+        for (ConfigSnapshot.KnownDestination destination : snapshot.remembered()) {
+            if (destination.secret()) {
+                // Built from a secret of the environment, which this file must not hold.
+                continue;
+            }
+            ObjectNode entry = known.addObject();
+            entry.put("environment", destination.environment());
+            entry.put("destination", destination.destination().shown());
+        }
         ArrayNode collections = root.putArray("collections");
         for (StoredCollection collection : snapshot.collections()) {
             ObjectNode entry = collections.addObject();
@@ -652,7 +734,7 @@ public class ConfigStore {
     private void prepareDirectories() {
         for (Path each : List.of(directory, directory.resolve(ENVIRONMENTS), directory.resolve(COLLECTIONS))) {
             try {
-                Files.createDirectories(each);
+                Files.createDirectories(each, OwnerOnly.directory());
             } catch (IOException | RuntimeException e) {
                 throw new IllegalStateException("The configuration store directory " + each + " cannot be created ("
                         + e.getClass().getSimpleName() + "). Set config-store.directory to a directory this tool can create and write to.", e);
@@ -663,6 +745,9 @@ public class ConfigStore {
                 throw new IllegalStateException("The configuration store directory " + each + " is not writable ("
                         + e.getClass().getSimpleName() + "). Set config-store.directory to a directory this tool can write to.", e);
             }
+            // A folder made by an earlier version, or by hand, is closed to other accounts as well,
+            // with the files already in it.
+            OwnerOnly.restrict(each);
             // A crash between writing a temporary file and moving it leaves the temporary file
             // behind, and it can hold a credential from an upload. Nothing reads these.
             try (DirectoryStream<Path> leftovers = Files.newDirectoryStream(each, "*" + TEMP_MARK + "*")) {
@@ -765,7 +850,17 @@ public class ConfigStore {
             throw unusable(state, "it names \"" + active + "\" as the active environment, and it lists no environment of that name");
         }
         Long epoch = JsonSafe.longValue(root, "epoch");
-        return new ConfigSnapshot(epoch == null ? 0L : epoch, environments, active, collections);
+        List<ConfigSnapshot.KnownDestination> remembered = new ArrayList<>();
+        for (JsonNode entry : JsonSafe.elements(root, "productionDestinations")) {
+            String environment = JsonSafe.presentText(entry, "environment");
+            org.p32h.interop.epa.pave.postman.UrlNormal.Destination destination =
+                    org.p32h.interop.epa.pave.postman.UrlNormal.destination(JsonSafe.presentText(entry, "destination"));
+            if (environment == null || destination == null) {
+                throw unusable(state, "one of its production destinations has no environment or no address this tool can read");
+            }
+            remembered.add(new ConfigSnapshot.KnownDestination(environment, destination));
+        }
+        return new ConfigSnapshot(epoch == null ? 0L : epoch, environments, active, collections, remembered);
     }
 
     /** A path named in the state file, which must stay inside the store directory. */

@@ -27,11 +27,14 @@ import java.util.List;
  * @param examples      the saved example responses
  * @param description   the description text, or null
  * @param notes         what the parser set aside or had to decide for this request, in words
+ * @param formCredentials the names of the fields of a body in Postman's urlencoded or formdata
+ *                      mode that hold a credential typed into the file. Such a body is not loaded,
+ *                      and only the names are kept, never a value
  */
 public record PostmanRequest(String id, String name, List<String> folderPath, String method, String url,
                              List<PathVariable> pathVariables, List<PostmanHeader> headers, String bodyMode, String body,
                              String bodyLanguage, boolean scripted, List<PostmanScript> scripts, PostmanAuth auth,
-                             List<PostmanExample> examples, String description, List<String> notes) {
+                             List<PostmanExample> examples, String description, List<String> notes, List<String> formCredentials) {
 
     /** A value Postman saved for a {@code :name} segment of the url. */
     public record PathVariable(String name, String value) {
@@ -44,6 +47,7 @@ public record PostmanRequest(String id, String name, List<String> folderPath, St
         scripts = scripts == null ? List.of() : List.copyOf(scripts);
         examples = examples == null ? List.of() : List.copyOf(examples);
         notes = notes == null ? List.of() : List.copyOf(notes);
+        formCredentials = formCredentials == null ? List.of() : List.copyOf(formCredentials);
     }
 
     /** True when a script would run after the response in Postman. It may store a value a later request needs. */
@@ -83,6 +87,7 @@ public record PostmanRequest(String id, String name, List<String> folderPath, St
         builder.examples = examples;
         builder.description = description;
         builder.notes = notes;
+        builder.formCredentials = formCredentials;
         return builder;
     }
 
@@ -109,6 +114,7 @@ public record PostmanRequest(String id, String name, List<String> folderPath, St
         private List<PostmanExample> examples = List.of();
         private String description;
         private List<String> notes = List.of();
+        private List<String> formCredentials = List.of();
 
         private Builder() {
         }
@@ -193,9 +199,14 @@ public record PostmanRequest(String id, String name, List<String> folderPath, St
             return this;
         }
 
+        public Builder formCredentials(List<String> value) {
+            this.formCredentials = value;
+            return this;
+        }
+
         public PostmanRequest build() {
             return new PostmanRequest(id, name, folderPath, method, url, pathVariables, headers, bodyMode, body, bodyLanguage, scripted,
-                    scripts, auth, examples, description, notes);
+                    scripts, auth, examples, description, notes, formCredentials);
         }
     }
 }

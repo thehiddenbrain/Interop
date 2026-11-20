@@ -14,4 +14,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record Finding(FindingKind kind, String title, String detail, String subject, String codeListSays,
                       String serviceSays) {
+    /** Prints the kind only. The detail and the two sides can hold text from a response. */
+    @Override
+    public String toString() {
+        return "Finding[" + kind + "]";
+    }
 }

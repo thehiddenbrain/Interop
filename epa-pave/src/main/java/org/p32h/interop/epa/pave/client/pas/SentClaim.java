@@ -22,10 +22,17 @@ public record SentClaim(String claimId, List<Item> items) {
     /**
      * One item of the claim.
      *
-     * @param sequence the item's sequence, which is how a response refers to it. Null when the item had none
-     * @param code     the procedure code on the item, or null when it carried none
+     * @param sequence    the item's sequence, which is how a response refers to it. Null when the item had none
+     * @param code        the procedure code on the item, or null when it carried none
+     * @param traceNumber the value of the item's first itemTraceNumber, which PAS 2.0.1 lets a
+     *                    ClaimResponse item echo. Null when the item carried none
      */
-    public record Item(Integer sequence, String code) {
+    public record Item(Integer sequence, String code, String traceNumber) {
+
+        /** An item that carried no trace number. */
+        public Item(Integer sequence, String code) {
+            this(sequence, code, null);
+        }
 
         /** How the item is named on a result: its code, else its sequence. */
         public String label() {
@@ -72,11 +79,28 @@ public record SentClaim(String claimId, List<Item> items) {
                         break;
                     }
                 }
-                items.add(new Item(JsonSafe.integer(item, "sequence"), code));
+                items.add(new Item(JsonSafe.integer(item, "sequence"), code, traceNumbers(item).stream().findFirst().orElse(null)));
             }
             return new SentClaim(claimId, items);
         }
         return unknown();
+    }
+
+    /**
+     * The values of the itemTraceNumber extensions on a Claim item or a ClaimResponse item, in
+     * order. Read without consuming anything, so the extensions are still shown where they are.
+     */
+    public static List<String> traceNumbers(JsonNode item) {
+        List<String> out = new ArrayList<>();
+        for (JsonNode extension : JsonSafe.elements(item, "extension")) {
+            if (OnyxPasConventions.pasExtension(JsonSafe.presentText(extension, "url"), OnyxPasConventions.ITEM_TRACE_NUMBER)) {
+                String value = JsonSafe.presentText(JsonSafe.child(extension, "valueIdentifier"), "value");
+                if (value != null) {
+                    out.add(value.strip());
+                }
+            }
+        }
+        return out;
     }
 
     /** The procedure codes of the items, in order, without repeats and without items that carry none. */

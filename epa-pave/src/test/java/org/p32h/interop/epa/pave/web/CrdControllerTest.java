@@ -235,4 +235,187 @@ class CrdControllerTest {
                         .content(body("S123456789", ",\"scenarioId\":\"crd-02-no-auth\"")))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("scenarioId"));
     }
+
+    // ---- POST /api/crd/compare ----
+
+    /** A request shaped the way a vendor might shape it, with a placeholder NPI that passes the check digit. */
+    private static String vendorSample() {
+        try (java.io.InputStream in = CrdControllerTest.class.getResourceAsStream("/compare/vendor-shaped-order-sign.json")) {
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** The posted form as JSON: the pasted request in rawBody, and whatever else the form holds. */
+    private static String comparing(String pasted, String otherFields) {
+        return "{\"rawBody\":" + JsonSafe.mapper().writeValueAsString(pasted) + otherFields + "}";
+    }
+
+    private JsonNode compare(MockMvc mvc, String body, int expectedStatus) throws Exception {
+        String response = mvc.perform(post("/api/crd/compare").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().is(expectedStatus)).andReturn().getResponse().getContentAsString();
+        return JsonSafe.parse(response).node();
+    }
+
+    private void assertNothingWasSentOrRecorded() {
+        assertThat(ledger.records()).as("ledger lines").isEmpty();
+        assertThat(gateway.intents()).as("calls the gateway was asked to prepare").isEmpty();
+    }
+
+    @Test
+    void aComparisonAnswers200WithBothRequestsAndEveryDifferenceExplained() throws Exception {
+        JsonNode answer = compare(mvc("mock"), comparing(vendorSample(), ""), 200);
+
+        assertThat(answer.get("comparable").asBoolean()).isTrue();
+        assertThat(answer.has("whyNot")).isFalse();
+        // authoredOn, which this tool now writes as the moment it builds the request (CRD 2.0.1), differs on every call.
+        assertThat(answer.get("headline").asString()).isEqualTo("The two requests differ in 34 places: 25 in how the request is built, 2 in the "
+                + "case they describe, 4 in labels, 2 that differ on every call, and 1 that this tool does not classify.");
+        assertThat(answer.get("hook").asString()).isEqualTo("order-sign");
+        // Both texts, each as indented JSON.
+        assertThat(answer.get("toolBody").asString()).startsWith("{\n  \"hook\" : \"order-sign\",");
+        assertThat(answer.get("yourBody").asString()).startsWith("{\n  \"hookInstance\" : ");
+        // Every group is counted, the one that answers the tester's question first.
+        assertThat(answer.get("counts")).hasSize(5);
+        assertThat(answer.at("/counts/0/group").asString()).isEqualTo("BUILD");
+        assertThat(answer.at("/counts/0/label").asString()).isEqualTo("How the request is built");
+        assertThat(answer.at("/counts/0/count").asInt()).isEqualTo(25);
+        assertThat(answer.at("/counts/0/description").asString()).isNotBlank();
+        assertThat(answer.at("/notes/0").asString()).startsWith("This comparison shows where the two requests differ. It cannot show which one "
+                + "the service expects");
+        // One difference, in full.
+        assertThat(answer.get("differences")).hasSize(34);
+        JsonNode first = answer.at("/differences/0");
+        assertThat(first.get("path").asString()).isEqualTo("hookInstance");
+        assertThat(first.get("kind").asString()).isEqualTo("DIFFERENT_VALUE");
+        assertThat(first.get("kindLabel").asString()).isEqualTo("A different value");
+        assertThat(first.get("group").asString()).isEqualTo("EVERY_CALL");
+        assertThat(first.at("/toolValue/presence").asString()).isEqualTo("VALUE");
+        assertThat(first.at("/toolValue/value").asString()).isEqualTo("(a new id is generated when the request is sent)");
+        assertThat(first.at("/yourValue/value").asString()).isEqualTo("5f0e8a57-2d1c-4c1e-9d0e-3a8f6b2c7d41");
+        assertThat(first.get("toolType").asString()).isEqualTo("string");
+        assertThat(first.get("toolPointer").asString()).isEqualTo("/hookInstance");
+        assertThat(first.get("yourPointer").asString()).isEqualTo("/hookInstance");
+        assertThat(first.get("what").asString()).isNotBlank();
+        assertThat(first.get("explanation").asString()).isNotBlank();
+        // Where the case came from: nothing was on the form, so all of it was read from the pasted request.
+        assertThat(answer.at("/caseSource/1/field").asString()).isEqualTo("member.memberId");
+        assertThat(answer.at("/caseSource/1/source").asString()).isEqualTo("YOUR_REQUEST");
+        assertThat(answer.at("/caseSource/1/path").asString()).isEqualTo("prefetch.coverageRequest.subscriberId");
+        assertThat(answer.at("/caseSource/1/value/value").asString()).isEqualTo("S123456789");
+        assertThat(answer.at("/notFound/0/field").asString()).isEqualTo("member.lineOfBusiness");
+        // No run id and no ledger receipt: a comparison is not a run.
+        assertThat(answer.has("runId")).isFalse();
+        assertThat(answer.has("ledger")).isFalse();
+        assertNothingWasSentOrRecorded();
+    }
+
+    @Test
+    void aComparisonWorksOnLiveWithNothingConfiguredAndIsNeverACall() throws Exception {
+        gateway.failing(new EndpointNotConfiguredException(EpaOperation.CRD_ORDER_SIGN, "There is no url for CRD order-sign."));
+        JsonNode answer = compare(mvc("live"), comparing(vendorSample(), ",\"member\":{\"memberId\":\"S123456789\",\"lastName\":\"Form-Surname\"}"), 200);
+        assertThat(answer.get("comparable").asBoolean()).isTrue();
+        // The form's value was used, and is reported as the form's.
+        assertThat(answer.at("/caseSource/3/field").asString()).isEqualTo("member.lastName");
+        assertThat(answer.at("/caseSource/3/source").asString()).isEqualTo("FORM");
+        assertThat(answer.at("/caseSource/3").has("path")).isFalse();
+        assertNothingWasSentOrRecorded();
+    }
+
+    @Test
+    void aPairThatCannotBeComparedFieldByFieldIsAnAnswerWith200ThatSaysWhy() throws Exception {
+        MockMvc mvc = mvc("mock");
+        // Not JSON: where parsing stopped, and the text as it was written.
+        String notJson = "{\"hook\": \"order-sign\", \"note\": Sample-Member}";
+        JsonNode unreadable = compare(mvc, comparing(notJson, ""), 200);
+        assertThat(unreadable.get("comparable").asBoolean()).isFalse();
+        assertThat(unreadable.get("whyNot").asString()).isEqualTo("The two cannot be compared field by field, because your request could not be "
+                + "read as JSON (line 1, column 32).");
+        assertThat(unreadable.get("headline").asString()).isEqualTo("The two requests were not compared field by field.");
+        assertThat(unreadable.get("yourBody").asString()).isEqualTo(notJson);
+        assertThat(unreadable.has("toolBody")).isFalse();
+        assertThat(unreadable.has("hook")).isFalse();
+        assertThat(unreadable.get("differences")).isEmpty();
+        assertThat(unreadable.get("counts")).isEmpty();
+        // Nothing of the text around the place parsing stopped is quoted in any sentence.
+        assertThat(unreadable.get("whyNot").asString() + unreadable.get("notes")).doesNotContain("Sample-Member");
+
+        // JSON that is not an object, and an object with nothing in it.
+        assertThat(compare(mvc, comparing("[1, 2]", ""), 200).get("whyNot").asString()).isEqualTo("The two cannot be compared field by field, "
+                + "because your request is JSON but not a JSON object: it is a list.");
+        assertThat(compare(mvc, comparing("\"order-sign\"", ""), 200).get("whyNot").asString()).endsWith("it is a text.");
+        assertThat(compare(mvc, comparing("{}", ""), 200).get("whyNot").asString()).isEqualTo("The two cannot be compared field by field, because "
+                + "your request is an empty JSON object.");
+
+        // A form and a request that together give no member ID, no NPI and no code.
+        JsonNode nothingToBuild = compare(mvc, comparing("{\"hook\":\"order-sign\",\"context\":{\"patientId\":\"S123456789\"}}", ""), 200);
+        assertThat(nothingToBuild.get("comparable").asBoolean()).isFalse();
+        assertThat(nothingToBuild.get("whyNot").asString()).isEqualTo("This tool could not build its own request to compare with yours: the form "
+                + "has no member ID, no NPI, and no procedure code, and they could not be read from your request.");
+        assertThat(nothingToBuild.get("yourBody").asString()).startsWith("{\n  \"hook\" : \"order-sign\"");
+        assertThat(nothingToBuild.at("/notFound/0/field").asString()).isEqualTo("member.memberId");
+
+        // The same request with the case on the form is compared.
+        JsonNode withForm = compare(mvc, comparing("{\"hook\":\"order-sign\",\"context\":{\"patientId\":\"S123456789\"}}",
+                ",\"member\":{\"memberId\":\"S123456789\"},\"provider\":{\"npi\":\"1234567893\"},\"procedureCodes\":[{\"code\":\"95810\"}]"), 200);
+        assertThat(withForm.get("comparable").asBoolean()).isTrue();
+        assertNothingWasSentOrRecorded();
+    }
+
+    @Test
+    void aComparisonThatCannotBeAskedIs422NamingTheField() throws Exception {
+        MockMvc mvc = mvc("mock");
+        // Nothing pasted.
+        for (String blank : List.of("{}", "{\"rawBody\":\"\"}", "{\"rawBody\":\"  \",\"member\":{\"memberId\":\"S123456789\"}}")) {
+            mvc.perform(post("/api/crd/compare").contentType(MediaType.APPLICATION_JSON).content(blank))
+                    .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.kind").value("VALIDATION"))
+                    .andExpect(jsonPath("$.fieldErrors.length()").value(1)).andExpect(jsonPath("$.fieldErrors[0].field").value("rawBody"));
+        }
+        // An NPI on the form with a wrong check digit, as for a run.
+        mvc.perform(post("/api/crd/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(comparing(vendorSample(), ",\"provider\":{\"npi\":\"1234567890\"}")))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("provider.npi"));
+        // A misspelt property is refused by name, where it would otherwise be dropped and the comparison made without it.
+        mvc.perform(post("/api/crd/compare").contentType(MediaType.APPLICATION_JSON).content(comparing(vendorSample(), ",\"rawbody\":\"{}\"")))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("rawbody"));
+        mvc.perform(post("/api/crd/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(comparing(vendorSample(), ",\"member\":{\"memberID\":\"S123456789\"}")))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("memberID"));
+        // A pasted text larger than 2 MB.
+        mvc.perform(post("/api/crd/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(comparing("{\"padding\":\"" + "x".repeat(2 * 1024 * 1024) + "\"}", "")))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("rawBody"));
+        // A body that is not JSON at all, and a method this endpoint does not take.
+        mvc.perform(post("/api/crd/compare").contentType(MediaType.APPLICATION_JSON).content("{\"rawBody\": "))
+                .andExpect(status().isUnprocessableContent());
+        mvc.perform(get("/api/crd/compare")).andExpect(status().isMethodNotAllowed());
+        assertNothingWasSentOrRecorded();
+    }
+
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void nothingFromEitherRequestIsLoggedByAComparisonOrByAnyWayItCanFail(org.springframework.boot.test.system.CapturedOutput output) throws Exception {
+        MockMvc mvc = mvc("mock");
+        compare(mvc, comparing(vendorSample(), ",\"member\":{\"memberId\":\"S123456789\",\"lastName\":\"Form-Surname\",\"dateOfBirth\":\"1970-01-31\"}"), 200);
+        compare(mvc, comparing("{\"name\": Sample-Member born 1968-04-12}", ""), 200);
+        compare(mvc, comparing("{\"hook\":\"order-sign\",\"note\":\"Sample-Member\"}", ""), 200);
+        compare(mvc, comparing(vendorSample(), ",\"provider\":{\"npi\":\"1234567890\"}"), 422);
+        compare(mvc, comparing("", ",\"member\":{\"memberId\":\"S123456789\",\"lastName\":\"Form-Surname\"}"), 422);
+        compare(mvc, "{\"rawBody\": \"Sample-Member", 422);
+        // A failure inside this tool while it builds its own request: the code list is asked for a system and fails.
+        codeList.failing(new IllegalStateException("code list exploded for Sample-Member"));
+        JsonNode failure = compare(mvc, comparing(vendorSample().replace("\"system\": \"http://www.ama-assn.org/go/cpt\",", ""), ""), 500);
+        assertThat(failure.get("kind").asString()).isEqualTo("INTERNAL");
+        assertThat(failure.get("reference").asString()).isNotBlank();
+        assertThat(failure.toString()).doesNotContain("Sample-Member").doesNotContain("code list exploded").doesNotContain("S123456789");
+
+        // The failure is logged under its reference, as exception types and frames, and nothing else is logged at all.
+        assertThat(output.getAll()).contains(failure.get("reference").asString()).contains("IllegalStateException");
+        assertThat(output.getAll()).doesNotContain("Sample-Member").doesNotContain("Form-Surname").doesNotContain("S123456789")
+                .doesNotContain("1968-04-12").doesNotContain("1970-01-31").doesNotContain("1987654328").doesNotContain("Robin")
+                .doesNotContain("pat-8842").doesNotContain("hookInstance").doesNotContain("resourceType").doesNotContain("Placeholder Street")
+                .doesNotContain("code list exploded");
+        assertNothingWasSentOrRecorded();
+    }
 }

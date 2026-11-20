@@ -16,8 +16,12 @@ import tools.jackson.databind.JsonNode;
 /**
  * ASSUMPTIONS ABOUT THE VENDOR, ALL IN ONE FILE.
  *
- * <p>The Da Vinci CRD profile has no standard code for "member not found", "provider not found",
- * "coverage inactive" or "this routes to a delegated vendor". How the live service expresses those
+ * <p>Da Vinci CRD 2.0.1, the version this tool judges by, has no standard code for "member not
+ * found", "provider not found", "coverage inactive" or "this routes to a delegated vendor" (its
+ * coverageAssertionReasons value set holds gold-card and detail-code only, and its coverageDetail
+ * value set names no vendor). The 2.2.0 ballot adds reason codes for the first and the third, and
+ * those are recognised as that version's codes by {@link #laterVersionReasons}, which is not an
+ * assumption. How the live service expresses any of these
  * has not been observed. Every rule below is therefore an assumption. Each one reads a coded
  * element, never card wording, and each is deliberately narrow: when a response does not match a
  * rule, nothing is inferred and the response is shown in full under the outcome the standard codes
@@ -83,6 +87,41 @@ public final class OnyxCrdConventions {
      */
     public static boolean coverageInactive(List<String> reasonCodes) {
         return reasonCodes != null && reasonCodes.stream().anyMatch(code -> COVERAGE_INACTIVE_CODES.contains(normalise(code)));
+    }
+
+    /** The code system CRD 2.0.1 and the 2.2.0 ballot both put reason codes in. */
+    public static final String CRD_TEMP_CODES = "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp";
+    /** The CRD 2.0.1 reason "gold-card": the ordering practitioner has gold card status with this payer or coverage type. */
+    public static final String REASON_GOLD_CARD = CRD_TEMP_CODES + "|gold-card";
+    /** The CRD 2.0.1 reason "detail-code": the ordered code is too general to decide on. */
+    public static final String REASON_DETAIL_CODE = CRD_TEMP_CODES + "|detail-code";
+    /** The 2.2.0 ballot's reason for "the member was not found". CRD 2.0.1 has no such code. */
+    public static final String LATER_NO_MEMBER_FOUND = CRD_TEMP_CODES + "|no-member-found";
+    /** The 2.2.0 ballot's reason for "the coverage is not active". CRD 2.0.1 has no such code. */
+    public static final String LATER_NO_ACTIVE_COVERAGE = CRD_TEMP_CODES + "|no-active-coverage";
+    /** The 2.2.0 ballot's reason for "authorization is needed out of network". CRD 2.0.1 says this with a detail code. */
+    public static final String LATER_AUTH_OUT_NETWORK = CRD_TEMP_CODES + "|auth-out-network";
+    private static final List<String> LATER_REASONS = List.of(LATER_NO_MEMBER_FOUND, LATER_NO_ACTIVE_COVERAGE, LATER_AUTH_OUT_NETWORK);
+
+    /**
+     * Not an assumption: the reason codes the CRD 2.2.0 ballot defines and CRD 2.0.1 does not, read
+     * by system and code from the reason's codings. CRD 2.0.1 has no standard code for a member that
+     * is not found or a coverage that is not active, which is why the assumptions above exist; a
+     * service that follows the later version says so with these, and they are recognised as that
+     * version's codes.
+     *
+     * @param concept the reason's CodeableConcept
+     * @return each recognised code as {@code system|code}, in the order sent
+     */
+    public static List<String> laterVersionReasons(JsonNode concept) {
+        List<String> out = new ArrayList<>();
+        for (JsonNode coding : JsonSafe.elements(concept, "coding")) {
+            String key = JsonSafe.presentText(coding, "system") + "|" + JsonSafe.presentText(coding, "code");
+            if (LATER_REASONS.contains(key) && !out.contains(key)) {
+                out.add(key);
+            }
+        }
+        return out;
     }
 
     /** The result of looking for a delegated vendor in one detail entry. */

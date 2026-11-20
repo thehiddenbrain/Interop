@@ -18,7 +18,10 @@ import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.CaseStatus;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.FieldError;
+import org.p32h.interop.epa.pave.model.NextAction;
+import org.p32h.interop.epa.pave.model.OutcomeCode;
 import org.p32h.interop.epa.pave.model.Protocol;
+import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
@@ -33,7 +36,10 @@ import org.p32h.interop.epa.pave.model.suite.SuiteState;
 import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
+import org.p32h.interop.epa.pave.service.cases.ChainCaseStep;
 import org.p32h.interop.epa.pave.service.cases.OutcomeCatalogue;
+import org.p32h.interop.epa.pave.service.cases.ProtocolCaseRunner;
+import org.p32h.interop.epa.pave.service.chain.ChainService;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.WriteAccess;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
@@ -42,6 +48,7 @@ import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,8 +66,8 @@ import org.springframework.stereotype.Service;
  * reported as blocked, which is not a failure.
  *
  * <p>The run is pinned to the configuration it started under. If the configuration changes while
- * it runs, the run stops and says so. The cases left would have gone somewhere else than the cases
- * before them, and one results table must describe one target.
+ * it runs, the run stops and says so, so that every case of one results table ran under one
+ * configuration. What the change was is not known here, so the reason does not guess at it.
  *
  * <p>What is held in memory, and for how long:
  * <ul>
@@ -126,50 +133,80 @@ public class SuiteService implements AutoCloseable {
         }
     }
 
-    /** What the tool makes of a suite file. Nothing is sent and nothing is kept. */
+    /**
+     * What the tool makes of a suite file. Nothing is sent and nothing is kept. A row is counted
+     * as one that can be run only when the runner has a step for it and nothing its services
+     * would refuse before sending is found in it, so the count is what will really be run.
+     */
     public SuitePreview preview(String fileName, String text) {
         SuiteDefinition definition = define(fileName, text);
         EnvironmentRef environment = gateway.activeEnvironment();
         List<SuiteRow> rows = definition.rows();
         List<SuiteRow> valid = rows.stream().filter(SuiteRow::runnable).toList();
-        List<SuitePreview.RowProblem> rowProblems = rows.stream().filter(r -> !r.runnable()).limit(LISTED_ROW_PROBLEMS)
+        List<SuiteRow> problemRows = rows.stream().filter(r -> !r.problems().isEmpty()).toList();
+        List<SuiteRow> cannotRun = rows.stream().filter(r -> r.problems().isEmpty() && r.cannotRun() != null).toList();
+        List<SuitePreview.RowProblem> rowProblems = problemRows.stream().limit(LISTED_ROW_PROBLEMS)
                 .map(r -> new SuitePreview.RowProblem(r.number(), r.caseId(), r.problems())).toList();
-        int problemRows = rows.size() - valid.size();
+        List<SuitePreview.RowProblem> notRunnable = cannotRun.stream().limit(LISTED_ROW_PROBLEMS)
+                .map(r -> new SuitePreview.RowProblem(r.number(), r.caseId(), List.of(r.cannotRun()))).toList();
         Map<String, Integer> kinds = new LinkedHashMap<>();
         for (SuiteRow row : valid) {
             kinds.merge(row.what(), 1, Integer::sum);
         }
-        int writes = (int) valid.stream().filter(SuiteRow::write).count();
+        List<SuiteRow> writes = valid.stream().filter(SuiteRow::write).toList();
         String headline;
         if (!definition.problems().isEmpty()) {
             headline = "This file cannot be run. Nothing was sent.";
         } else if (valid.isEmpty()) {
             headline = "No case in this file can be run. Nothing was sent.";
-        } else if (problemRows == 0) {
+        } else if (valid.size() == rows.size()) {
             headline = cases(rows.size()) + ", and every one can be run.";
         } else {
-            headline = cases(rows.size()) + ": " + valid.size() + " can be run, and " + problemRows + " "
-                    + (problemRows == 1 ? "has a problem and will be reported as not valid." : "have a problem and will be reported as not valid.");
+            List<String> parts = new ArrayList<>();
+            parts.add(valid.size() + " can be run");
+            if (!cannotRun.isEmpty()) {
+                parts.add(cannotRun.size() + " cannot be run in this build and will be reported as not runnable");
+            }
+            if (!problemRows.isEmpty()) {
+                parts.add(problemRows.size() + (problemRows.size() == 1 ? " has a problem" : " have a problem")
+                        + " and will be reported as not valid");
+            }
+            headline = cases(rows.size()) + ": " + (parts.size() == 2 ? parts.get(0) + ", and " + parts.get(1)
+                    : String.join(", ", parts.subList(0, parts.size() - 1)) + ", and " + parts.get(parts.size() - 1)) + ".";
+        }
+        if (!valid.isEmpty() && definition.problems().isEmpty() && !epa.mock()) {
+            // The preview sends nothing, so it cannot know whether the active configuration has a target for each operation.
+            headline += " Whether the active configuration has a target for each is found when the case is sent: one with none is "
+                    + "reported as not configured.";
         }
         return new SuitePreview(definition.name(), definition.format(), definition.runnable(), headline, rows.size(), valid.size(),
-                definition.problems(), rowProblems, problemRows,
+                definition.problems(), rowProblems, problemRows.size(),
                 kinds.entrySet().stream().map(e -> new SuitePreview.Kind(e.getKey(), e.getValue())).toList(),
-                writes, writeNote(writes, environment), (int) valid.stream().filter(r -> r.expected() != null).count(),
-                definition.columns(), epa.mode(), epa.target(), environment);
+                writes.size(), writeNote(writes, environment), (int) valid.stream().filter(r -> r.expected() != null).count(),
+                definition.columns(), epa.mode(), epa.target(), environment, notRunnable, cannotRun.size(), definition.skipped());
     }
 
-    private String writeNote(int writes, EnvironmentRef environment) {
-        if (writes == 0) {
+    /** What will happen to the rows that can create or change something, which are only rows that will run. */
+    private String writeNote(List<SuiteRow> writes, EnvironmentRef environment) {
+        if (writes.isEmpty()) {
             return null;
         }
-        String subject = writes == 1 ? "1 case can create or change something on the far side"
-                : writes + " cases can create or change something on the far side";
+        int count = writes.size();
+        String subject = count == 1 ? "1 case can create or change something on the far side"
+                : count + " cases can create or change something on the far side";
         // A suite carries no unlock, so this is the answer for every write in it.
         WriteAccess access = gateway.writeAccess(null);
         if (!access.writesAllowed()) {
-            return subject + ". " + access.reason() + " A suite never unlocks production writes, so "
-                    + (writes == 1 ? "it" : "each of them") + " will be reported as blocked, not as failed, and nothing will be sent for "
-                    + (writes == 1 ? "it." : "them.");
+            if (writes.stream().noneMatch(SuiteRow::chain)) {
+                return subject + ". " + access.reason() + " A suite never unlocks production writes, so "
+                        + (count == 1 ? "its submission" : "the submission of each of them") + " will be blocked and reported as blocked, "
+                        + "not as failed, and will not be sent.";
+            }
+            // A chain reaches a submission only when its earlier steps call for one, so not every chain row ends blocked.
+            return subject + ". " + access.reason() + " A suite never unlocks production writes, so a submission "
+                    + (count == 1 ? "it reaches" : "any of them reaches") + " will be blocked and reported as blocked, not as failed, "
+                    + "and will not be sent. A chain sends its CRD step, and its DTR step when CRD calls for one, before it reaches a "
+                    + "submission: those are reads. A chain that ends before a submission is reported by what its steps gave, not as blocked.";
         }
         if (epa.mock()) {
             return subject + ". On the mock profile nothing leaves this machine.";
@@ -188,6 +225,11 @@ public class SuiteService implements AutoCloseable {
         CaseRunner runner = caseRunner.getIfAvailable();
         if (runner == null) {
             throw new BadInputException("This build cannot run a suite.", "Run the cases one at a time from their tabs.");
+        }
+        // Recorded on every case that gives none of its own, so it is held to the limit a run's is.
+        String refProblem = RunInputs.textForTheLedger(null, testerRef, null).get("testerRef");
+        if (refProblem != null) {
+            throw new ValidationException("The suite was not started. Nothing was sent.", List.of(new FieldError("testerRef", refProblem)));
         }
         SuiteDefinition definition = define(fileName, text);
         if (!definition.problems().isEmpty()) {
@@ -297,7 +339,9 @@ public class SuiteService implements AutoCloseable {
     }
 
     private SuiteDefinition define(String fileName, String text) {
-        return SuiteCases.define(displayName(fileName), reader.read(fileName, text), epa.mock(), outcomes);
+        CaseRunner runner = caseRunner.getIfAvailable();
+        return SuiteCases.define(displayName(fileName), reader.read(fileName, text), epa.mock(), outcomes,
+                runner instanceof ProtocolCaseRunner checks ? checks : null);
     }
 
     /** The file name without any directory, cut to a length a screen can show. */
@@ -322,9 +366,10 @@ public class SuiteService implements AutoCloseable {
         Map<String, Previous> byCase = new LinkedHashMap<>();
         // Newest first, so the first record seen for a case is its last step: the one that states its result.
         for (RunRecord record : store.query(RunQuery.forSuite(suiteRunId))) {
-            if (Texts.present(record.caseId())) {
+            // Only a run line is a step of a case. The ledger applies a case line to its run and does not return it.
+            if (Texts.present(record.caseId()) && RunRecord.TYPE_RUN.equals(record.recordType())) {
                 byCase.putIfAbsent(record.caseId().toLowerCase(Locale.ROOT),
-                        new Previous(record.caseId(), record.protocol(), record.outcome(), record.result()));
+                        new Previous(record.caseId(), record.protocol(), record.outcome(), record.result(), record.caseResult()));
             }
         }
         if (byCase.isEmpty()) {
@@ -364,8 +409,9 @@ public class SuiteService implements AutoCloseable {
                     String reference = UUID.randomUUID().toString();
                     // The exception types and frames only. Never its message, and never the case, which holds a member ID.
                     log.error("A suite case failed inside this tool, reference {}: {}", reference, Faults.describe(e));
-                    outcome = new CaseOutcome(null, CaseStatus.NOT_RUNNABLE, "This tool failed while running the case. Nothing can be "
-                            + "said about the service from this row. Reference " + reference + ".", List.of());
+                    outcome = new CaseOutcome(null, CaseStatus.NOT_RUNNABLE, "This tool failed while running the case. Whether a request "
+                            + "left for it is not known, and nothing can be said about the service from this row. Look for it in History "
+                            + "before running it again. Reference " + reference + ".", List.of(), List.of(), List.of(), null, reference);
                 }
                 synchronized (run) {
                     // The member ID has done its work. From here the row points to the ledger by run id.
@@ -373,10 +419,11 @@ public class SuiteService implements AutoCloseable {
                     for (RunRecord record : outcome.runs()) {
                         run.timings.add(record);
                     }
-                    entry.result = result(run, entry, outcome);
+                    boolean moved = gateway.epoch() != run.epoch;
+                    entry.result = result(run, entry, outcome, moved);
                     entry.state = SuiteRowState.DONE;
-                    if (outcome.status() == CaseStatus.NOT_CONFIGURED && gateway.epoch() != run.epoch) {
-                        // The configuration moved between the check above and the call. This case was not sent.
+                    if (outcome.status() == CaseStatus.NOT_CONFIGURED && moved) {
+                        // The configuration moved between the check above and a call of this case. The row says what was sent.
                         ended = configurationChanged();
                         break;
                     }
@@ -384,6 +431,7 @@ public class SuiteService implements AutoCloseable {
             }
         } catch (RuntimeException | Error e) {
             String reference = UUID.randomUUID().toString();
+            // A reference and the exception types and frames only. Never a message, and never a case, which holds a member ID.
             log.error("A suite run failed inside this tool, reference {}: {}", reference, Faults.describe(e));
             ended = "This tool failed while running the suite. Reference " + reference + ".";
             if (e instanceof Error error) {
@@ -395,58 +443,155 @@ public class SuiteService implements AutoCloseable {
         }
     }
 
-    private static String configurationChanged() {
-        return "The configuration changed while the suite was running. The cases left would have gone to a different target than "
-                + "the cases before them, so they were not run. Start the suite again to run it under the configuration now in force.";
+    static String configurationChanged() {
+        return "The configuration was changed while the suite was running. The suite stopped so that every case of it ran under one "
+                + "configuration, and the cases left were not run. Start the suite again to run them under the configuration now in force.";
     }
 
     private SuiteCaseResult notValid(Run run, Entry entry) {
         Previous earlier = run.previous == null ? null : run.previous.get(entry.caseId.toLowerCase(Locale.ROOT));
-        return new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, SuiteRowState.DONE, CaseStatus.INVALID,
-                statusLine(CaseStatus.INVALID, null, entry.expected), entry.expected, null, null, null, null, null, false, null,
-                List.of(), null, null, List.of(), null, String.join(" ", entry.problems), List.of(), List.of(),
+        CaseStatus status = entry.cannotRun != null ? CaseStatus.NOT_RUNNABLE : CaseStatus.INVALID;
+        return new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, SuiteRowState.DONE, status,
+                statusLine(status, null, entry.expected), entry.expected, null, null, null, null, null, false, null,
+                List.of(), null, null, List.of(), null, entry.cannotRun != null ? entry.cannotRun : String.join(" ", entry.problems),
+                List.of(), List.of(),
                 earlier == null ? null : earlier.outcome(),
                 earlier == null ? null : outcomes.label(earlier.protocol(), earlier.outcome()),
                 earlier == null ? null : earlier.result(),
-                earlier == null ? null : Boolean.TRUE);
+                earlier == null ? null : Boolean.TRUE, List.of(), null, null, null);
     }
 
-    private SuiteCaseResult result(Run run, Entry entry, CaseOutcome outcome) {
+    private SuiteCaseResult result(Run run, Entry entry, CaseOutcome outcome, boolean configurationMoved) {
         CaseStatus status = outcome.status();
         RunRecord last = outcome.finalRun();
-        boolean sent = status == CaseStatus.COMPLETED && last != null;
+        boolean completed = status == CaseStatus.COMPLETED && last != null;
         String code = last == null ? null : last.outcome();
         Protocol protocol = last == null ? null : last.protocol();
         // For a chain this is the result of the whole journey, which no single record can state.
-        TestResult result = sent ? outcome.result() : null;
+        TestResult result = completed ? outcome.result() : null;
         Long elapsed = null;
         boolean slow = false;
         Set<String> findings = new LinkedHashSet<>();
         List<String> runIds = new ArrayList<>();
+        List<SuiteCaseResult.Step> steps = new ArrayList<>();
+        List<String> sent = new ArrayList<>();
         for (RunRecord record : outcome.runs()) {
             runIds.add(record.runId());
             findings.addAll(record.findings());
             slow = slow || Boolean.TRUE.equals(record.slow());
-            if (sent && record.elapsedMillis() != null) {
+            boolean wentOut = !RunOutcome.BLOCKED.name().equals(record.outcome());
+            if (wentOut && record.elapsedMillis() != null) {
                 elapsed = (elapsed == null ? 0 : elapsed) + record.elapsedMillis();
+            }
+            if (wentOut) {
+                sent.add(label(record));
+            }
+            if (entry.chain) {
+                steps.add(new SuiteCaseResult.Step(label(record), record.outcome(), outcomes.label(record.protocol(), record.outcome()),
+                        record.result(), record.runId()));
             }
         }
         Tone tone = last == null ? null : outcomes.tone(protocol, code);
+        OutcomeCode found = last == null ? null : outcomes.find(protocol, code);
         Previous earlier = run.previous == null ? null : run.previous.get(entry.caseId.toLowerCase(Locale.ROOT));
-        Boolean changed = earlier == null ? null
-                : !Objects.equals(earlier.outcome(), code) || !Objects.equals(earlier.result(), last == null ? null : last.result());
-        // The comparison is between the last record of the case now and then, which is what the ledger holds for both.
+        // A chain is compared case result with case result. An earlier chain line from before the
+        // ledger kept a case result has none, and its last step's result is not put in its place.
+        TestResult earlierResult = earlier == null ? null : entry.chain && earlier.caseResult() == null ? null
+                : earlier.caseResult() != null ? earlier.caseResult() : earlier.result();
+        Boolean changed = earlier == null ? null : !Objects.equals(earlier.outcome(), code) ? Boolean.TRUE
+                : entry.chain && earlierResult == null ? null : !Objects.equals(earlierResult, result);
         return new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, SuiteRowState.DONE, status,
-                statusLine(status, result, entry.expected), entry.expected, code, outcomes.label(protocol, code), tone, result, elapsed,
-                slow, last == null ? null : last.runId(), runIds, last == null ? null : last.chainId(),
+                rowLine(outcome, result, entry, sent, configurationMoved), entry.expected, code, outcomes.label(protocol, code), tone, result,
+                elapsed, slow, last == null ? null : last.runId(), runIds, last == null ? null : last.chainId(),
                 last == null ? null : last.httpStatus(), List.copyOf(findings), last == null ? null : last.nextAction(),
                 outcome.reason(), outcome.notes(), outcome.notRecorded(),
                 earlier == null ? null : earlier.outcome(),
                 earlier == null ? null : outcomes.label(earlier.protocol(), earlier.outcome()),
-                earlier == null ? null : earlier.result(), changed);
+                earlierResult, changed, steps, outcome.faultReference(), sent.isEmpty() ? null : entry.chain ? chainFault(outcome, found)
+                : found == null ? null : found.fault(),
+                nextStep(last));
     }
 
-    /** One plain sentence saying how a case ended. The outcome and the test result are stated apart from it. */
+    /**
+     * Whether a chain failed because the service failed or did not answer. Its last step is not
+     * the one to ask: a chain can fail on a determination at CRD and then time out at PAS. So the
+     * steps whose own result is a failure are asked, and it is a fault only when every one of them
+     * is. When no step failed by itself, the case failed for a step it never reached, and that is
+     * a fault only when the chain stopped there because its last step was one.
+     */
+    private Boolean chainFault(CaseOutcome outcome, OutcomeCode last) {
+        List<OutcomeCode> failing = new ArrayList<>();
+        for (RunRecord record : outcome.runs()) {
+            if (record.result() == TestResult.FAIL) {
+                failing.add(outcomes.find(record.protocol(), record.outcome()));
+            }
+        }
+        if (failing.isEmpty()) {
+            return last == null ? null : last.fault();
+        }
+        return failing.stream().allMatch(code -> code != null && code.fault());
+    }
+
+    private static String label(RunRecord record) {
+        return record.operation() == null ? "a step" : record.operation().label();
+    }
+
+    /** What the last step said should happen next, in words. Null when it named nothing this version knows. */
+    private static String nextStep(RunRecord last) {
+        if (last == null || Texts.blank(last.nextAction())) {
+            return null;
+        }
+        try {
+            return ChainService.instruction(NextAction.valueOf(last.nextAction().strip()));
+        } catch (IllegalArgumentException e) {
+            // Written by a later version. The code itself is still in its own column.
+            return null;
+        }
+    }
+
+    /**
+     * One plain sentence saying how a case ended, true to what was sent. A chain that sent some
+     * steps never reads "not sent", and a failure of this tool never reads as a case that cannot
+     * be run.
+     */
+    static String rowLine(CaseOutcome outcome, TestResult result, Entry entry, List<String> sent, boolean configurationMoved) {
+        CaseStatus status = outcome.status();
+        String wentOut = sent.isEmpty() ? null : sent.size() == 1 ? sent.get(0) + " was sent"
+                : String.join(" and ", sent) + " were sent";
+        if (outcome.toolFailed()) {
+            return wentOut == null ? "Tool failure: this tool failed while running the case, so whether a request left is not known. "
+                    + "The reason gives the reference."
+                    : "Tool failure part way: " + wentOut + "; this tool then failed, so whether the next request left is not known. "
+                    + "The reason gives the reference.";
+        }
+        if (status == CaseStatus.COMPLETED) {
+            if (!entry.chain) {
+                return statusLine(status, result, entry.expected);
+            }
+            if (result == null) {
+                return "Ran.";
+            }
+            return switch (result) {
+                case PASS -> "Passed: every step the row expected something of ran and gave what it expected.";
+                case FAIL -> "Failed: the journey is not what the row expected. The reason names the step.";
+                case UNVERIFIED -> Texts.blank(entry.expected) ? "Unverified: the row declared no expected outcome."
+                        : "Unverified: what the row expected was not compared with an answer. The reason and the steps say why.";
+            };
+        }
+        if (status == CaseStatus.BLOCKED && wentOut != null) {
+            return "Blocked part way: " + wentOut + "; the production guardrail refused the next step, a write, so it was not sent. "
+                    + "This is not a failure.";
+        }
+        if (wentOut != null) {
+            return "Stopped part way: " + wentOut + "; the next step was not sent. The reason says why.";
+        }
+        if (status == CaseStatus.NOT_CONFIGURED && configurationMoved) {
+            return "Not sent: the configuration was changed while the suite was running.";
+        }
+        return statusLine(status, result, entry.expected);
+    }
+
+    /** One plain sentence saying how a single-step case ended. The outcome and the test result are stated apart from it. */
     static String statusLine(CaseStatus status, TestResult result, String expected) {
         return switch (status) {
             case COMPLETED -> result == null ? "Ran."
@@ -454,7 +599,7 @@ public class SuiteService implements AutoCloseable {
                         case PASS -> "Passed: the outcome is what the row expected.";
                         case FAIL -> "Failed: the outcome is not what the row expected.";
                         case UNVERIFIED -> Texts.blank(expected) ? "Unverified: the row declared no expected outcome."
-                                : "Unverified: the run produced nothing to compare with what the row expected.";
+                                : "Unverified: what the row expected was not compared with an answer. The run in History says why.";
                     };
             case BLOCKED -> "Blocked: the production guardrail refused this write. Nothing was sent. This is not a failure.";
             case INVALID -> "Not sent: the row is not valid.";
@@ -467,18 +612,31 @@ public class SuiteService implements AutoCloseable {
         return count == 1 ? "1 case" : count + " cases";
     }
 
-    /** What an earlier run made of one case. */
-    private record Previous(String caseId, Protocol protocol, String outcome, TestResult result) {
+    /**
+     * What an earlier run made of one case.
+     *
+     * @param result     the result of its last step
+     * @param caseResult the result of the case as a whole, for a chain whose case line the ledger
+     *                   holds. Null otherwise
+     */
+    private record Previous(String caseId, Protocol protocol, String outcome, TestResult result, TestResult caseResult) {
+
+        /** Prints the protocol and the result. The case id is a cell of a suite file. */
+        @Override
+        public String toString() {
+            return "Previous[" + protocol + ", " + result + "]";
+        }
     }
 
     /** One case of a run. Its fields are read and written under the run's monitor. */
-    private static final class Entry {
+    static final class Entry {
         final int number;
         final String caseId;
         final String what;
         final boolean chain;
         final String expected;
         final List<String> problems;
+        final String cannotRun;
         /** Holds the member ID. Dropped as soon as the case has run or the run has ended. */
         CaseSpec spec;
         SuiteRowState state = SuiteRowState.PENDING;
@@ -491,6 +649,7 @@ public class SuiteService implements AutoCloseable {
             this.chain = row.chain();
             this.expected = row.expected();
             this.problems = row.problems();
+            this.cannotRun = row.cannotRun();
             this.spec = row.spec();
         }
     }
@@ -508,7 +667,8 @@ public class SuiteService implements AutoCloseable {
         final Map<String, Previous> previous;
         final List<Entry> entries = new ArrayList<>();
         final SuiteTimings timings = new SuiteTimings();
-        SuiteState state = SuiteState.RUNNING;
+        /** Read under the service's lock as well as this run's, so a write here is seen there without a stale running state. */
+        volatile SuiteState state = SuiteState.RUNNING;
         String stopRequested;
         String stopReason;
         String finishedAt;
@@ -565,9 +725,13 @@ public class SuiteService implements AutoCloseable {
             int invalid = 0;
             int notConfigured = 0;
             int notRunnable = 0;
+            int toolFailed = 0;
+            int partly = 0;
+            int failedByFault = 0;
             int notRun = 0;
             int waiting = 0;
             int notRecorded = 0;
+            int caseLinesNotRecorded = 0;
             int withFindings = 0;
             int slow = 0;
             int changed = 0;
@@ -586,24 +750,39 @@ public class SuiteService implements AutoCloseable {
                     row = new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, entry.state, null,
                             skipped ? "Not run: the suite stopped before this case." : running ? "Running now." : "Waiting.",
                             entry.expected, null, null, null, null, null, false, null, List.of(), null, null, List.of(), null,
-                            null, List.of(), List.of(), null, null, null, null);
+                            null, List.of(), List.of(), null, null, null, null, List.of(), null, null, null);
                 } else {
-                    switch (row.status()) {
-                        case COMPLETED -> {
-                            if (row.result() == TestResult.PASS) {
-                                passed++;
-                            } else if (row.result() == TestResult.FAIL) {
-                                failed++;
-                            } else {
-                                unverified++;
+                    if (row.faultReference() != null) {
+                        // A failure of this tool, which is neither a fact about the case nor about the service.
+                        toolFailed++;
+                    } else if (row.partlySent()) {
+                        partly++;
+                    } else {
+                        switch (row.status()) {
+                            case COMPLETED -> {
+                                if (row.result() == TestResult.PASS) {
+                                    passed++;
+                                } else if (row.result() == TestResult.FAIL) {
+                                    failed++;
+                                    failedByFault += Boolean.TRUE.equals(row.outcomeFault()) ? 1 : 0;
+                                } else {
+                                    unverified++;
+                                }
                             }
+                            case BLOCKED -> blocked++;
+                            case INVALID -> invalid++;
+                            case NOT_CONFIGURED -> notConfigured++;
+                            case NOT_RUNNABLE -> notRunnable++;
                         }
-                        case BLOCKED -> blocked++;
-                        case INVALID -> invalid++;
-                        case NOT_CONFIGURED -> notConfigured++;
-                        case NOT_RUNNABLE -> notRunnable++;
                     }
-                    notRecorded += row.notRecorded().size();
+                    for (String message : row.notRecorded()) {
+                        // A case line records no call, so it is counted apart from the runs.
+                        if (ChainCaseStep.aboutTheCaseLine(message)) {
+                            caseLinesNotRecorded++;
+                        } else {
+                            notRecorded++;
+                        }
+                    }
                     withFindings += row.findings().isEmpty() ? 0 : 1;
                     for (String kind : row.findings()) {
                         findingCounts.merge(kind, 1, Integer::sum);
@@ -616,25 +795,36 @@ public class SuiteService implements AutoCloseable {
             int total = entries.size();
             int done = total - notRun - waiting;
             SuiteCounts counts = new SuiteCounts(total, done, passed, failed, unverified, blocked, invalid, notConfigured, notRunnable,
-                    notRun, waiting, notRecorded, withFindings, slow, changed);
-            return new SuiteRunView(id, name, format, state, headline(counts), stopReason, startedAt, finishedAt, epa.mode(),
+                    toolFailed, partly, notRun, waiting, notRecorded, withFindings, slow, changed, failedByFault);
+            boolean stopping = state == SuiteState.RUNNING && stopRequested != null;
+            return new SuiteRunView(id, name, format, state, headline(counts, stopping), stopReason, startedAt, finishedAt, epa.mode(),
                     epa.target(), environment, epoch, testerRef, comparedWith, counts, timings.summarise(support.slowThresholdMillis()),
-                    findingCounts, notes(counts), withRows ? rows : null);
+                    findingCounts, notes(counts, caseLinesNotRecorded), withRows ? rows : null, stopping ? Boolean.TRUE : null);
         }
 
-        private String headline(SuiteCounts c) {
+        private String headline(SuiteCounts c, boolean stopping) {
             List<String> parts = new ArrayList<>();
             add(parts, c.passed(), "passed");
-            add(parts, c.failed(), "failed");
+            if (c.failed() > 0 && c.failedByFault() > 0) {
+                // A service that was down is a finding about the environment, not a determination, so the two are told apart.
+                parts.add(c.failedByFault() == c.failed()
+                        ? c.failed() + " failed " + (c.failed() == 1 ? "" : "(all of them) ") + "because the service failed or did not answer"
+                        : c.failed() + " failed (" + c.failedByFault() + " of them because the service failed or did not answer)");
+            } else {
+                add(parts, c.failed(), "failed");
+            }
             add(parts, c.unverified(), "unverified");
             add(parts, c.blocked(), "blocked");
             add(parts, c.invalid(), "not valid");
             add(parts, c.notConfigured(), "not configured");
             add(parts, c.notRunnable(), "not runnable");
+            add(parts, c.partly(), "stopped part way");
+            add(parts, c.toolFailed(), c.toolFailed() == 1 ? "tool failure" : "tool failures");
             add(parts, c.notRun(), "not run");
             String detail = parts.isEmpty() ? "" : " " + String.join(", ", parts) + ".";
             return switch (state) {
-                case RUNNING -> "Running: " + c.done() + " of " + cases(c.total()) + " done." + detail;
+                case RUNNING -> (stopping ? "Stopping after the current case: " : "Running: ") + c.done() + " of " + cases(c.total())
+                        + " done." + detail;
                 case COMPLETED -> "Finished: " + cases(c.total()) + "." + detail;
                 case STOPPED -> "Stopped after " + c.done() + " of " + cases(c.total()) + "." + detail;
             };
@@ -646,15 +836,27 @@ public class SuiteService implements AutoCloseable {
             }
         }
 
-        private List<String> notes(SuiteCounts c) {
+        private List<String> notes(SuiteCounts c, int caseLinesNotRecorded) {
             List<String> notes = new ArrayList<>();
             if (c.notRecorded() > 0) {
                 notes.add(c.notRecorded() + (c.notRecorded() == 1 ? " run was" : " runs were") + " NOT recorded in the ledger. The rows "
                         + "say which, and why. Their results are shown here and will not be in History or in the ledger export.");
             }
+            if (caseLinesNotRecorded > 0) {
+                notes.add("The result as a whole of " + (caseLinesNotRecorded == 1 ? "1 chain case was" : caseLinesNotRecorded
+                        + " chain cases were") + " NOT recorded in the ledger, so History cannot show " + (caseLinesNotRecorded == 1
+                        ? "it" : "them") + ". The rows say which, and why.");
+            }
             if (c.blocked() > 0) {
+                // A chain blocked at its submission sent its earlier steps, so this never says nothing was sent for the case.
                 notes.add(c.blocked() + (c.blocked() == 1 ? " case was" : " cases were") + " blocked by the production guardrail. "
-                        + "Nothing was sent for " + (c.blocked() == 1 ? "it" : "them") + ". A blocked case is not a failed case.");
+                        + "The write that was blocked was not sent; the steps of a chain before it were, and its row says which. "
+                        + "A blocked case is not a failed case.");
+            }
+            if (c.toolFailed() > 0) {
+                notes.add(c.toolFailed() + (c.toolFailed() == 1 ? " case" : " cases") + " ended in a failure of this tool. Whether a "
+                        + "request left for " + (c.toolFailed() == 1 ? "it" : "them") + " is not known: look in History, under the suite "
+                        + "run id, before running " + (c.toolFailed() == 1 ? "it" : "them") + " again. Each row gives the reference.");
             }
             if (previous != null && state != SuiteState.RUNNING) {
                 Set<String> inThisRun = new LinkedHashSet<>();

@@ -20,14 +20,25 @@ import java.util.List;
  * @param number      the authorization number the review action carries, when it carries one
  * @param reason      the coded reason for the decision, for display
  * @param reasonCodes the reason code values, for a declared expectation to assert on
+ * @param secondSurgicalOpinionNeeded the part PAS 2.0.1 names secondSurgicalOpinionFlag: whether a
+ *                    second surgical opinion is needed for approval
  * @param otherParts  every part of the review action without a slot above
+ * @param placement   null when the review action sat where PAS 2.0.1 places one, on
+ *                    ClaimResponse.item.adjudication. Otherwise a sentence saying where it sat
+ *                    instead: it is still read, and the result says it is outside the guide
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ReviewActionView(String foundAt, CodedValue code, Shown returned, Shown number, Shown reason, List<String> reasonCodes,
-                               Shown secondSurgicalOpinionNeeded, List<ExtensionView> otherParts) {
+                               Shown secondSurgicalOpinionNeeded, List<ExtensionView> otherParts, String placement) {
 
     public ReviewActionView {
         reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
         otherParts = otherParts == null ? List.of() : List.copyOf(otherParts);
+    }
+
+    /** Prints where it was found. Everything else comes from a response. */
+    @Override
+    public String toString() {
+        return "ReviewActionView[" + foundAt + "]";
     }
 }

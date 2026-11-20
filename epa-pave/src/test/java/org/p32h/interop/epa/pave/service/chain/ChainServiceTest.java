@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -178,6 +179,12 @@ class ChainServiceTest {
         assertThat(stage(view, Protocol.DTR).state()).isEqualTo(ChainStageState.NEXT);
         assertThat(stage(view, Protocol.DTR).stateLine()).isEqualTo("Next: answer the payer's questionnaire (DTR).");
         assertThat(stage(view, Protocol.PAS).state()).isEqualTo(ChainStageState.NOT_REACHED);
+        // CRD is done, so it is not the stage PAS waits for: DTR is.
+        assertThat(stage(view, Protocol.PAS).stateLine()).isEqualTo("Not reached: DTR comes first.");
+        // Run CRD again: the same holds, and the line still names DTR.
+        ChainView again = chains().view(crdRun("P32H-DOC-DTR", view.chainId(), null));
+        assertThat(stage(again, Protocol.PAS).stateLine()).isEqualTo("Not reached: DTR comes first.");
+        assertThat(view.replayNote()).isNull();
     }
 
     @Test
@@ -308,6 +315,66 @@ class ChainServiceTest {
                 .isEqualTo("Ran: Prior authorization is not required. The record does not say what should happen next.");
         // The outcome is not used to guess that the journey ended.
         assertThat(stage(view, Protocol.DTR).state()).isEqualTo(ChainStageState.NOT_REACHED);
+        // And CRD is not said to be unfinished: its record just does not say.
+        for (Protocol laterStage : List.of(Protocol.DTR, Protocol.PAS)) {
+            assertThat(stage(view, laterStage).stateLine()).as(laterStage.name()).isEqualTo("Not reached: the CRD record does not say what "
+                    + "should happen next, so nothing has led on to this stage.");
+        }
+    }
+
+    @Test
+    void aBlockedRecordNeedsAttentionWhateverNextActionItWasWrittenWith() {
+        String chainId = RunStamps.newChainId();
+        RunRecord blocked = RunRecord.builder().runId(RunStamps.newRunId()).timestamp("2026-03-10T10:01:00.000-05:00").protocol(Protocol.PAS)
+                .operation(EpaOperation.PAS_SUBMIT).target("onyx").profile("mock").outcome("BLOCKED").errorType(RunRecord.ERROR_BLOCKED)
+                .result(TestResult.UNVERIFIED).chainId(chainId).nextAction(NextAction.FLOW_ENDS).memberId("P32H-PA-REQ").build();
+        ledger.record(blocked);
+        ChainView view = chains().view(chainId);
+        // Nothing was sent, so the journey cannot have ended there, whatever the line says.
+        assertThat(stage(view, Protocol.PAS).state()).isEqualTo(ChainStageState.NEEDS_ATTENTION);
+        assertThat(stage(view, Protocol.PAS).latest().nextAction()).isEqualTo(NextAction.UNLOCK_OR_SWITCH);
+        assertThat(view.ended()).isFalse();
+        // The submission followed nothing in this chain, so nothing says it cannot be replayed.
+        assertThat(view.replayNote()).isNull();
+    }
+
+    @Test
+    void onlyAStepThatUsedWhatAnEarlierStepHandedOnIsSaidToBeUnreplayable() {
+        // A chain started at PAS: its submission followed nothing, and a replay sends it again as it does any run.
+        String startedAtPas = RunStamps.newChainId();
+        later(startedAtPas, EpaOperation.PAS_SUBMIT, "APPROVED", NextAction.FLOW_ENDS, "S123456789");
+        ChainView pasFirst = chains().view(startedAtPas);
+        assertThat(stage(pasFirst, Protocol.CRD).stateLine()).isEqualTo("Not run in this chain. The chain was started at a later step.");
+        assertThat(pasFirst.replayNote()).isNull();
+        // A submission handed on from CRD: its line says so, and a replay refuses it.
+        String chainId = RunStamps.newChainId();
+        later(chainId, EpaOperation.CRD_ORDER_SIGN, "AUTH_REQUIRED", NextAction.START_PAS, "P32H-PA-REQ");
+        ledger.record(RunRecord.builder().runId(RunStamps.newRunId()).timestamp("2026-03-10T10:05:00.000-05:00").protocol(Protocol.PAS)
+                .operation(EpaOperation.PAS_SUBMIT).target("onyx").profile("mock").outcome("APPROVED").result(TestResult.UNVERIFIED)
+                .chainId(chainId).nextAction(NextAction.FLOW_ENDS).memberId("P32H-PA-REQ")
+                .unrecordedInputs(List.of(RunRecord.INPUT_PRIOR_STEP)).build());
+        assertThat(chains().view(chainId).replayNote()).isEqualTo("A step of this chain that used what the step before it handed on cannot "
+                + "be replayed by itself: its ledger line does not hold what it was handed. To run the journey again, run it as a suite row "
+                + "with the protocol chain.");
+    }
+
+    @Test
+    void aChainRunAsACaseShowsTheResultOfTheCaseAsAWhole() {
+        String chainId = RunStamps.newChainId();
+        later(chainId, EpaOperation.CRD_ORDER_SIGN, "NO_AUTH_REQUIRED", NextAction.FLOW_ENDS, "P32H-NO-AUTH");
+        ChainView plain = chains().view(chainId);
+        assertThat(plain.caseResult()).isNull();
+        assertThat(plain.caseLine()).isNull();
+        // The ledger gives the last step the result of its case from the case line, as it gives a run its note.
+        RunRecord last = ledger.records().get(0).toBuilder().caseResult(TestResult.FAIL).caseExpected("crd: NO_AUTH_REQUIRED; pas: APPROVED")
+                .build();
+        ledger.records().set(0, last);
+        ChainView view = chains().view(chainId);
+        assertThat(view.caseResult()).isEqualTo(TestResult.FAIL);
+        assertThat(view.caseExpected()).isEqualTo("crd: NO_AUTH_REQUIRED; pas: APPROVED");
+        assertThat(view.caseLine()).startsWith("Run as a case, the journey failed against what the case expected.");
+        assertThat(stage(view, Protocol.CRD).latest().caseResult()).isEqualTo(TestResult.FAIL);
+        assertThat(stage(view, Protocol.CRD).latest().result()).isEqualTo(TestResult.UNVERIFIED);
     }
 
     @Test
@@ -321,6 +388,53 @@ class ChainServiceTest {
         // The stage it relates to still stands where its own last run left it.
         assertThat(stage(view, Protocol.PAS).state()).isEqualTo(ChainStageState.IN_PROGRESS);
         assertThat(view.nextStage()).isEqualTo(Protocol.PAS);
+    }
+
+    @Test
+    void aCallAfterWhichNothingFurtherIsToBeDoneLeavesTheJourneyWhereItStood() {
+        String chainId = crdRun("P32H-PA-REQ", "new", null);
+        later(chainId, EpaOperation.PAS_SUBMIT, "PENDED", NextAction.CHECK_STATUS, "P32H-PA-REQ");
+        // A subscription is read and a heartbeat arrives under the same chain. Neither is a stage of the journey.
+        RunRecord read = later(chainId, EpaOperation.SUBSCRIPTION_GET, "READ", NextAction.NOTHING_FURTHER, null);
+        RunRecord heartbeat = later(chainId, EpaOperation.SUBSCRIPTION_NOTIFICATION, "HEARTBEAT_RECEIVED", NextAction.NOTHING_FURTHER, null);
+        ChainView view = chains().view(chainId);
+
+        assertThat(view.otherRuns()).extracting(ChainRun::runId).containsExactly(read.runId(), heartbeat.runId());
+        // The action is one this version knows, so it is shown on each run and not left out as unknown.
+        assertThat(view.otherRuns()).extracting(ChainRun::nextAction).containsOnly(NextAction.NOTHING_FURTHER);
+        // The journey is where its own last run left it: not ended, and still waiting on PAS.
+        assertThat(view.ended()).isFalse();
+        assertThat(view.nextAction()).isEqualTo(NextAction.CHECK_STATUS);
+        assertThat(view.nextStage()).isEqualTo(Protocol.PAS);
+        assertThat(stage(view, Protocol.PAS).state()).isEqualTo(ChainStageState.IN_PROGRESS);
+        assertThat(view.member()).isEqualTo("P32H-PA-REQ");
+    }
+
+    @Test
+    void aStageWhoseLastRunCallsForNothingFurtherIsDoneAndHasNeitherHandedOnNorEndedTheJourney() {
+        // No CRD, DTR or PAS verdict of this version says this. The chain reads ledger lines, and a line can say it.
+        String chainId = RunStamps.newChainId();
+        later(chainId, EpaOperation.CRD_ORDER_SIGN, "NO_AUTH_REQUIRED", NextAction.NOTHING_FURTHER, "P32H-NO-AUTH");
+        ChainView view = chains().view(chainId);
+
+        assertThat(view.nextAction()).isEqualTo(NextAction.NOTHING_FURTHER);
+        assertThat(view.nextHeadline()).isEqualTo("Nothing further to do after this call. No journey ended with it.");
+        // It names no stage, and it is not the end: "the journey ends here" is said for FLOW_ENDS alone.
+        assertThat(view.nextStage()).isNull();
+        assertThat(view.ended()).isFalse();
+        assertThat(view.headline()).isEqualTo("Coverage requirements (CRD): Prior authorization is not required. "
+                + "Nothing further to do after this call. No journey ended with it.");
+        // Nothing for a person to fix, and nothing left for the stage to do.
+        ChainStage crd = stage(view, Protocol.CRD);
+        assertThat(crd.state()).isEqualTo(ChainStageState.DONE);
+        assertThat(crd.stateLine()).isEqualTo("Done: Prior authorization is not required. Nothing further to do after this call. "
+                + "No journey ended with it.");
+        // The later stages are not "not needed": nothing said the journey can do without them. And CRD is not unfinished.
+        for (Protocol laterStage : List.of(Protocol.DTR, Protocol.PAS)) {
+            assertThat(stage(view, laterStage).state()).as(laterStage.name()).isEqualTo(ChainStageState.NOT_REACHED);
+            assertThat(stage(view, laterStage).stateLine()).as(laterStage.name()).isEqualTo("Not reached: CRD answered \"Prior "
+                    + "authorization is not required\" and called for nothing further, so nothing has led on to this stage.");
+        }
     }
 
     @Test
@@ -405,5 +519,22 @@ class ChainServiceTest {
         for (NextAction action : NextAction.values()) {
             assertThat(ChainService.instruction(action)).as(action.name()).isNotBlank().endsWith(".");
         }
+        // No two actions read the same. "Nothing further" in particular is never worded as the end of a journey.
+        assertThat(Arrays.stream(NextAction.values()).map(ChainService::instruction)).doesNotHaveDuplicates();
+        assertThat(ChainService.instruction(NextAction.NOTHING_FURTHER)).doesNotContain("complete").doesNotContain("ends here");
+    }
+
+    @Test
+    void everyNextActionHasItsPlaceAndNothingFurtherBelongsToNoStageAndAsksNothingOfAPerson() {
+        // The actions that name no stage, whichever stage states them: the end of the journey, and nothing further.
+        for (Protocol stage : ChainService.STAGES) {
+            assertThat(Arrays.stream(NextAction.values()).filter(action -> ChainService.target(action, stage) == null)).as(stage.name())
+                    .containsExactly(NextAction.FLOW_ENDS, NextAction.NOTHING_FURTHER);
+        }
+        // The actions that ask a person to fix or check something. Nothing further asks for nothing.
+        assertThat(Arrays.stream(NextAction.values()).filter(ChainService::attention)).containsExactlyInAnyOrder(NextAction.FIX_TEST_DATA,
+                NextAction.FIX_REQUEST, NextAction.SUPPLY_INFORMATION, NextAction.CHECK_ENVIRONMENT, NextAction.OPEN_CONFIG,
+                NextAction.UNLOCK_OR_SWITCH, NextAction.REVIEW);
+        assertThat(ChainService.attention(NextAction.NOTHING_FURTHER)).isFalse();
     }
 }

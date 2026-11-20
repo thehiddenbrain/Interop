@@ -23,4 +23,10 @@ public record ResponseItemView(String path, Shown linkId, Shown text, List<Shown
         answerExtensions = answerExtensions == null ? List.of() : List.copyOf(answerExtensions);
         items = items == null ? List.of() : List.copyOf(items);
     }
+
+    /** Prints where the item sits. Its answers can be a member's. */
+    @Override
+    public String toString() {
+        return "ResponseItemView[" + path + "]";
+    }
 }

@@ -38,8 +38,10 @@ class ProductionGuardrailTest {
     private static final String PRODUCTION = "Onyx Production";
     private static final String PRODUCTION_FHIR = "https://api.onyx.example.invalid/fhir";
     private static final String LOCKED = "\"Onyx Production\" is a production environment and production writes are locked for this session.";
-    private static final String HOW_TO_UNLOCK = "To send it, unlock production writes on the Config tab by typing the environment name. "
-            + "To test without production, switch to a sandbox or uat environment.";
+    private static final String HOW_TO_UNLOCK = "To send it from a screen, unlock production writes on the Config tab by typing the "
+            + "environment name, then send it again. A replay or a suite never carries the unlock, so unlocking does not let its writes to "
+            + "production through: send such a write on its own from the PAS tab. To test without production, switch to a sandbox or uat "
+            + "environment.";
 
     @TempDir
     Path directory;
@@ -205,8 +207,12 @@ class ProductionGuardrailTest {
                 }
                 // A raw POST is a write, and is not blocked here either.
                 assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.UNMAPPED)
+                        .withRequest(ref(vendor(fixture), "subscription-get Happy Path")).withMethod("POST")).method()).isEqualTo("POST");
+                // Its address is still the configuration's own: a value typed for the run cannot be the whole url of a write.
+                ProdWriteBlockedException moved = blocked(fixture, CallIntent.of(EpaOperation.UNMAPPED)
                         .withRequest(ref(vendor(fixture), "subscription-notification Happy Path")).withRunValues(Map.of("callbackUrl",
-                                "https://callback.example.invalid/notify"))).method()).isEqualTo("POST");
+                                "https://callback.example.invalid/notify")));
+                assertThat(moved.getMessage()).as(profile).contains("the value typed for this run for callbackUrl would change where it goes");
                 WriteAccess access = fixture.gateway.writeAccess(null);
                 assertThat(access.production()).isFalse();
                 assertThat(access.writesAllowed()).isTrue();
@@ -807,7 +813,10 @@ class ProductionGuardrailTest {
             blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT).withUnlock(first));
             blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT).withUnlock(second));
             assertThat(fixture.gateway.writeAccess(first).writesAllowed()).as(profile).isFalse();
-            assertThat(prepared.epoch()).as(profile).isNotEqualTo(fixture.gateway.epoch());
+            // The sending layer refuses the call prepared while unlocked, and says why.
+            assertThatThrownBy(() -> org.p32h.interop.epa.pave.client.support.Exchanges.requireSendable(prepared, null, fixture.gateway))
+                    .as(profile).isInstanceOf(org.p32h.interop.epa.pave.service.error.ConfigurationChangedException.class)
+                    .hasMessageStartingWith("Production writes were locked again before this write was sent");
             // What is stored did not change, and the environment is still the active one.
             assertThat(fixture.gateway.activeEnvironment().name()).isEqualTo(PRODUCTION);
             fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT).withUnlock(fixture.gateway.unlock(PRODUCTION)));
@@ -874,10 +883,14 @@ class ProductionGuardrailTest {
             ConfigFixture fixture = production(profile, true);
             byte[] file = PostmanFiles.bytes(PostmanFiles.PRODUCTION_ENVIRONMENT);
 
-            // Its name says production, and it is stored here as production. Declared a sandbox without the acknowledgement, it is refused.
-            assertThatThrownBy(() -> fixture.store.uploadEnvironment("production.json", file, EnvironmentKind.SANDBOX, false)).as(profile)
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessage("This environment looks like production and was declared as sandbox. It was not stored.");
+            // Its addresses are production's. Declared a sandbox, it is refused, and no acknowledgement lets it through.
+            for (boolean acknowledged : new boolean[] {false, true}) {
+                assertThatThrownBy(() -> fixture.store.uploadEnvironment("production.json", file, EnvironmentKind.SANDBOX, acknowledged))
+                        .as(profile).isInstanceOf(ValidationException.class)
+                        .hasMessageStartingWith("This environment was declared as sandbox, and its address ")
+                        .hasMessageEndingWith(" is an address of the production environment \"Onyx Production\", or lies above or "
+                                + "beneath one. It was not stored.");
+            }
 
             // The refused upload changed nothing: it is still production, and still blocked.
             assertThat(fixture.gateway.activeEnvironment().kind()).as(profile).isEqualTo(EnvironmentKind.PROD);
@@ -926,12 +939,25 @@ class ProductionGuardrailTest {
                     "https://payer.example.invalid/prod/fhir")) {
                 ProdWriteBlockedException refusal = blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT).withRunValues(Map.of("baseUrl", typed)));
                 assertThat(refusal.getMessage()).as(profile + " " + typed).isEqualTo("PAS submit with the request \"submit Happy Path\" is "
-                        + "blocked: the url it would go to contains \"prod\", and the active environment \"Team Sandbox\" is declared as "
-                        + "sandbox and has not been confirmed as not production. This tool cannot tell whether that url is production.");
-                assertThat(refusal.action()).as(profile).contains("upload its environment with the kind prod")
-                        .contains("upload the environment \"Team Sandbox\" again with the confirmation").contains("A url typed for one run");
+                        + "blocked: the value typed for this run for baseUrl would change where it goes, its scheme, host, port or base "
+                        + "path. A value typed for one run may fill a claim id, a topic, a path segment after the base or a query value, "
+                        + "and never the address of a write.");
+                assertThat(refusal.action()).as(profile).isEqualTo("Nothing was sent. To send a write somewhere else, change the "
+                        + "environment: upload one whose values point there, with its kind, and activate it.");
                 assertThat(refusal.target().value()).as(profile).isEqualTo(typed + "/Claim/$submit");
             }
+            // A value typed for the run in a place it may fill is judged for what it says too.
+            StoredCollection claims = fixture.collectionOf("Claims", items(item("submit a claim", "POST", "{{baseUrl}}/Claim/$submit?tag={{tag}}")));
+            ProdWriteBlockedException tagged = blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT).withRequest(ref(claims, "submit a claim"))
+                    .withRunValues(Map.of("tag", "prod-1")));
+            assertThat(tagged.getMessage()).as(profile).isEqualTo("PAS submit with the request \"submit a claim\" is blocked: the url it "
+                    + "would go to contains \"prod\", and the active environment \"Team Sandbox\" is declared as sandbox and has not been "
+                    + "confirmed as not production. This tool cannot tell whether that url is production.");
+            assertThat(tagged.action()).as(profile).contains("upload its environment with the kind prod")
+                    .contains("upload the environment \"Team Sandbox\" again with the confirmation").contains("A url typed for one run");
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT).withRequest(ref(claims, "submit a claim"))
+                    .withRunValues(Map.of("tag", "first"))).url().value()).as(profile)
+                    .isEqualTo("https://sandbox.payer.example.invalid/fhir/Claim/$submit?tag=first");
             // Every write, not only the claim.
             for (EpaOperation operation : writes()) {
                 blocked(fixture, intentFor(operation).withRunValues(Map.of("baseUrl", "https://api.prod.payer.example.invalid/fhir")));
@@ -943,13 +969,22 @@ class ProductionGuardrailTest {
             // There is nothing to unlock: the unlock belongs to a production environment, and this is not one.
             assertThatThrownBy(() -> fixture.gateway.unlock("Team Sandbox")).as(profile).isInstanceOf(BadInputException.class);
 
-            // The way through is the uploader saying so, for the environment, where it is kept and shown.
-            fixture.store.uploadEnvironment("team.json", environmentJson("Team Sandbox", "https://sandbox.payer.example.invalid/fhir"),
+            // The way through is the uploader saying so, for the environment and its own address, where it is kept and shown.
+            fixture.store.uploadEnvironment("team.json", environmentJson("Team Sandbox", "https://api.preprod.payer.example.invalid/fhir"),
                     EnvironmentKind.SANDBOX, true);
             assertThat(fixture.store.snapshot().active().acknowledgedNotProd()).isTrue();
-            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT)
-                    .withRunValues(Map.of("baseUrl", "https://api.preprod.payer.example.invalid/fhir"))).url().value()).as(profile)
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT)).url().value()).as(profile)
                     .isEqualTo("https://api.preprod.payer.example.invalid/fhir/Claim/$submit");
+            // The confirmation covers that environment's own address, never what a value typed for the run adds to it.
+            ProdWriteBlockedException added = blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT).withRequest(ref(claims, "submit a claim"))
+                    .withRunValues(Map.of("tag", "prod-1")));
+            assertThat(added.getMessage()).as(profile).isEqualTo("PAS submit with the request \"submit a claim\" is blocked: the url it "
+                    + "would go to contains \"prod\", and the confirmation that \"Team Sandbox\" is not production covers that "
+                    + "environment's own addresses only, while part of this url came from a value typed for this run. This tool cannot "
+                    + "tell whether that url is production.");
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT).withRequest(ref(claims, "submit a claim"))
+                    .withRunValues(Map.of("tag", "first"))).url().value()).as(profile)
+                    .isEqualTo("https://api.preprod.payer.example.invalid/fhir/Claim/$submit?tag=first");
         }
     }
 

@@ -44,6 +44,18 @@ class LineMatcherTest {
     }
 
     @Test
+    void whatAHeaderMayLoseALineOfBusinessKeeps() {
+        // A header is found without its question mark, its colon or a bracketed ending. A line of
+        // business is not: "Medicare (HMO)" and "Medicare" may be two lists with two answers, and
+        // a row offered under the wrong one is a wrong answer that looks like a right one.
+        assertThat(NO_ALIASES.wanted("Medicare (HMO)")).containsExactly("medicare(hmo)");
+        assertThat(NO_ALIASES.wanted("Medicare?")).containsExactly("medicare?");
+        assertThat(NO_ALIASES.wanted("Medicare:")).containsExactly("medicare:");
+        assertThat(LineMatcher.keys("Medicare (HMO), Medicare")).containsExactly("medicare(hmo)", "medicare");
+        assertThat(LineMatcher.names("Medicare (HMO)")).containsExactly("Medicare (HMO)");
+    }
+
+    @Test
     void anAliasAddsTheNamesTheListUsesAndRunsOneWayOnly() {
         LineMatcher matcher = new LineMatcher(Map.of("MCR", List.of("Medicare", "Medicare Advantage"), "Dual Eligible", List.of("Medicare/Medicaid")));
         assertThat(matcher.wanted("mcr")).containsExactly("mcr", "medicare", "medicareadvantage");

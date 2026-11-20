@@ -35,6 +35,12 @@ public enum PasOutcome implements OutcomeCode {
     MEMBER_NOT_FOUND("The service does not recognise this member", Tone.DATA, false),
     PROVIDER_NOT_FOUND("The service does not recognise this provider", Tone.DATA, false),
     AUTHORIZATION_NOT_FOUND("The service does not recognise this authorization request", Tone.DATA, false),
+    /**
+     * An inquiry answered with a bundle that holds no ClaimResponse. PAS 2.0.1 answers an inquiry
+     * with zero to many ClaimResponses, one for each authorization that matches, so none is the
+     * guide's way of saying that nothing matched. It is an answer, not a decision and not a fault.
+     */
+    NO_MATCHING_AUTHORIZATION("No prior authorization matches the inquiry", Tone.DATA, false),
     REJECTED("The service did not accept the request as sent", Tone.FAULT, true),
     SERVICE_ERROR("The service failed", Tone.FAULT, true),
     TIMEOUT("The service did not answer in time", Tone.FAULT, true),

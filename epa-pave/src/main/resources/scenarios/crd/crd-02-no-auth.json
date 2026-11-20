@@ -2,7 +2,7 @@
   "id": "crd-02-no-auth",
   "number": 2,
   "label": "No prior authorization required",
-  "description": "The payer answers that the service is covered and that prior authorization is not needed.",
+  "description": "The payer answers that the service is covered and that prior authorization is not needed. Models CRD 2.0.1.",
   "sentinelMemberId": "P32H-NO-AUTH",
   "behavior": "respond",
   "httpStatus": 200,
@@ -13,11 +13,10 @@
     "httpStatus": 200,
     "codes": {
       "covered": "covered",
-      "pa-needed": "no-auth",
-      "doc-needed": "no-doc"
+      "pa-needed": "no-auth"
     }
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service.",
   "response": {
     "cards": [
       {
@@ -54,10 +53,6 @@
                 {
                   "url": "pa-needed",
                   "valueCode": "no-auth"
-                },
-                {
-                  "url": "doc-needed",
-                  "valueCode": "no-doc"
                 },
                 {
                   "url": "date",

@@ -18,7 +18,6 @@ import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
-import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
@@ -103,13 +102,14 @@ public class PasService {
         try {
             call = gateway.prepare(intent(operation, request, unlock));
         } catch (ProdWriteBlockedException refusal) {
-            return support.blocked(operation, refusal, request, origin);
+            return support.blocked(operation, refusal, request, origin, aboutRefused(request, first(request, NextStepView.CARRY_RUN_ID)));
         }
 
         ResolvedText body;
         List<String> requestNotes = new ArrayList<>();
         SentClaim sent;
         String attachmentMode = null;
+        List<String> leftOut = List.of();
         if (ownBody) {
             body = call.resolve(request.rawBody());
             sent = SentClaim.fromBody(body.value());
@@ -120,11 +120,13 @@ public class PasService {
                         + "added to the body you supplied. Only what the body itself holds was sent.");
             }
         } else {
-            PasRequestBuilder.Built built = builder.submit(request, claimId(request, true), "urn:uuid:" + UUID.randomUUID(), call::resolve);
+            PasRequestBuilder.Built built = builder.submit(request, claimId(request, true), claimId(request, false) == null,
+                    "urn:uuid:" + UUID.randomUUID(), call::resolve);
             body = ResolvedText.plain(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
             attachmentMode = built.attachmentMode();
+            leftOut = built.leftOut();
         }
 
         VendorExchange exchange = client.submit(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), RunSupport.npi(request)));
@@ -133,7 +135,8 @@ public class PasService {
         // step is linked to this run, so its id is settled now.
         String runId = RunStamps.newRunId();
         String follows = first(request, NextStepView.CARRY_RUN_ID);
-        return finish(operation, request, origin, call, exchange, sent, requestNotes, attachmentMode, ownBody, runId, follows, runId);
+        return finish(operation, request, origin, call, exchange, sent, requestNotes, leftOut, attachmentMode, ownBody, runId, follows,
+                runId);
     }
 
     /**
@@ -151,21 +154,28 @@ public class PasService {
         try {
             call = gateway.prepare(intent(operation, request, unlock));
         } catch (ProdWriteBlockedException refusal) {
-            return support.blocked(operation, refusal, request, origin);
+            // Linked as an inquiry that was sent would be: to the run the carry names, otherwise to the submission of that claim.
+            return support.blocked(operation, refusal, request, origin, aboutRefused(request,
+                    Texts.firstPresent(first(request, NextStepView.CARRY_RUN_ID), submissionOf(namedClaimId(request)))));
         }
 
         ResolvedText body;
         List<String> requestNotes = new ArrayList<>();
         SentClaim sent;
+        List<String> leftOut = List.of();
         if (ownBody) {
             body = call.resolve(request.rawBody());
             sent = SentClaim.fromBody(body.value());
             ownBodyNotes(body, sent, requestNotes);
         } else {
-            PasRequestBuilder.Built built = builder.inquire(request, claimId(request, false), "urn:uuid:" + UUID.randomUUID(), call::resolve);
+            String claimId = claimId(request, false);
+            Codes codes = inquiryCodes(request, claimId);
+            PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), "urn:uuid:" + UUID.randomUUID(),
+                    call::resolve);
             body = ResolvedText.plain(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
+            leftOut = built.leftOut();
         }
 
         VendorExchange exchange = client.inquire(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), RunSupport.npi(request)));
@@ -173,7 +183,8 @@ public class PasService {
         // The submission this inquiry follows from: the one the carry names, otherwise the run the
         // ledger holds for the claim id that was asked about.
         String submission = Texts.firstPresent(first(request, NextStepView.CARRY_RUN_ID), submissionOf(sent.claimId()));
-        return finish(operation, request, origin, call, exchange, sent, requestNotes, null, ownBody, RunStamps.newRunId(), submission, submission);
+        return finish(operation, request, origin, call, exchange, sent, requestNotes, leftOut, null, ownBody, RunStamps.newRunId(), submission,
+                submission);
     }
 
     /**
@@ -184,7 +195,8 @@ public class PasService {
      * @param followsRunId    the run a later step should be linked to, handed on in the next step
      */
     private RunEnvelope<PasDetail> finish(EpaOperation operation, RunRequest request, RunOrigin origin, PreparedCall call,
-                                          VendorExchange exchange, SentClaim sent, List<String> requestNotes, String attachmentMode,
+                                          VendorExchange exchange, SentClaim sent, List<String> requestNotes, List<String> leftOut,
+                                          String attachmentMode,
                                           boolean ownBody, String runId, String correlatedRunId, String followsRunId) {
         MemberIdForms memberId = RunSupport.memberId(request);
         Map<String, String> known = new LinkedHashMap<>();
@@ -206,7 +218,7 @@ public class PasService {
         try {
             // Only the reading and wording of the response is inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one run.
-            read = interpret(request, operation, call, exchange, sent, known, followsRunId);
+            read = interpret(request, operation, call, exchange, sent, known, followsRunId, leftOut);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -256,12 +268,16 @@ public class PasService {
     }
 
     private Interpreted interpret(RunRequest request, EpaOperation operation, PreparedCall call, VendorExchange exchange, SentClaim sent,
-                                  Map<String, String> known, String followsRunId) {
-        PasReading reading = mapper.read(exchange, sent);
+                                  Map<String, String> known, String followsRunId, List<String> leftOut) {
+        PasReading reading = mapper.read(exchange, sent, operation == EpaOperation.PAS_INQUIRE);
         PasOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
 
-        List<Finding> findings = new ArrayList<>(PasFindings.check(reading));
+        List<Finding> findings = new ArrayList<>();
+        if (!leftOut.isEmpty()) {
+            findings.add(PasFindings.requestIncomplete(leftOut));
+        }
+        findings.addAll(PasFindings.check(reading));
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
 
@@ -297,7 +313,8 @@ public class PasService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request, shown);
         }
-        PasRequestBuilder.Built built = builder.submit(request, Texts.orElse(claimId(request, false), NEW_ID), NEW_ID, call::resolve);
+        PasRequestBuilder.Built built = builder.submit(request, Texts.orElse(claimId(request, false), NEW_ID), claimId(request, false) == null,
+                NEW_ID, call::resolve);
         return RequestPreview.of(operation, call, built.json(), built.notes(), shown);
     }
 
@@ -315,7 +332,9 @@ public class PasService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request, shown);
         }
-        PasRequestBuilder.Built built = builder.inquire(request, claimId(request, false), NEW_ID, call::resolve);
+        String claimId = claimId(request, false);
+        Codes codes = inquiryCodes(request, claimId);
+        PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, call::resolve);
         return RequestPreview.of(operation, call, built.json(), built.notes(), shown);
     }
 
@@ -350,6 +369,40 @@ public class PasService {
         return given != null || !mint ? given : "claim-" + UUID.randomUUID();
     }
 
+    /**
+     * What a run the guardrail refused was about, for its ledger line: the claim the request names
+     * and the run it follows from. Nothing was sent, so nothing is resolved and no claim id is
+     * minted: a line that named an id this tool made up for a request that never went would point
+     * at a claim that does not exist.
+     *
+     * @param followsRunId the earlier run the refused one follows from, or null
+     */
+    private static Map<String, String> aboutRefused(RunRequest request, String followsRunId) {
+        Map<String, String> about = new LinkedHashMap<>();
+        String claimId = namedClaimId(request);
+        if (claimId != null) {
+            about.put(RunRecord.CORR_CLAIM_ID, claimId);
+        }
+        if (Texts.present(followsRunId)) {
+            about.put(RunRecord.CORR_RUN_ID, followsRunId);
+        }
+        return about;
+    }
+
+    /**
+     * The claim id a request names before anything is resolved or built: the one on the form or
+     * carried from an earlier step, or, for a body of the tester's own, the one written in that
+     * body. One that is still a placeholder, or is not the single word a claim id is, names no
+     * claim. Null when the request names none.
+     */
+    private static String namedClaimId(RunRequest request) {
+        if (!RunSupport.ownBody(request)) {
+            return claimId(request, false);
+        }
+        String written = Texts.trimToNull(SentClaim.fromBody(request.rawBody()).claimId());
+        return written != null && CLAIM_ID.matcher(written).matches() ? written : null;
+    }
+
     /** The first present value an earlier step handed on under a key, or null. */
     private static String first(RunRequest request, String key) {
         List<String> values = request.carry() == null ? null : request.carry().get(key);
@@ -358,24 +411,54 @@ public class PasService {
 
     /**
      * The run that submitted a claim, as the ledger holds it, or null. Looked up through the
-     * ledger's own correlation filter, never by comparing stored values here. A ledger that is not
-     * there, or that fails, leaves the inquiry unlinked. It never costs the tester their result.
+     * ledger's own correlation filter, never by comparing stored values here. A submission the
+     * guardrail refused names its claim too and sent nothing, so it is never the one. A ledger
+     * that is not there, or that fails, leaves the inquiry unlinked. It never costs the tester
+     * their result.
      */
     private String submissionOf(String claimId) {
+        RunRecord submitted = submissionRecord(claimId);
+        return submitted == null ? null : submitted.runId();
+    }
+
+    /** The ledger line of the newest submission of a claim, or null, on the same terms as {@link #submissionOf}. */
+    private RunRecord submissionRecord(String claimId) {
         if (Texts.blank(claimId)) {
             return null;
         }
         try {
             RunLedger target = ledger == null ? null : ledger.getIfAvailable();
-            if (target == null) {
-                return null;
-            }
-            List<RunRecord> runs = target.query(RunQuery.builder().operation(EpaOperation.PAS_SUBMIT)
-                    .correlation(RunRecord.CORR_CLAIM_ID, claimId).limit(1).build());
-            return runs.isEmpty() ? null : runs.get(0).runId();
+            return target == null ? null : SentRuns.newest(target, EpaOperation.PAS_SUBMIT, RunRecord.CORR_CLAIM_ID, claimId);
         } catch (RuntimeException e) {
             return null;
         }
+    }
+
+    /** The codes an inquiry lists as items, and where they came from, in a few words for the request note. */
+    private record Codes(List<CodeInput> codes, String from) {
+    }
+
+    /**
+     * The codes of the submission an inquiry asks about, in the order it sent them: the ones on the
+     * form, else the ones the submission handed on, else the ones on the ledger line of the newest
+     * submission of that claim identifier. PAS 2.0.1 requires an inquiry to list at least one item.
+     */
+    private Codes inquiryCodes(PasInquireRequest request, String claimId) {
+        if (!request.procedureCodes().isEmpty()) {
+            return new Codes(request.procedureCodes(), "given on the form");
+        }
+        List<String> handedOn = request.carry() == null ? null : request.carry().get(NextStepView.CARRY_PROCEDURE_CODES);
+        List<CodeInput> carried = handedOn == null ? List.of()
+                : handedOn.stream().filter(Texts::present).map(String::strip).map(CodeInput::of).toList();
+        if (!carried.isEmpty()) {
+            return new Codes(carried, "handed on from the submission");
+        }
+        RunRecord submitted = submissionRecord(claimId);
+        if (submitted != null && !submitted.procedureCodes().isEmpty()) {
+            return new Codes(submitted.procedureCodes().stream().map(CodeInput::of).toList(),
+                    "found on the ledger line of the submission " + submitted.runId());
+        }
+        return new Codes(List.of(), null);
     }
 
     /** What a tester should know about a body of their own: that it is not JSON, or that it names no claim. */

@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-PAS-NO-DECISION",
+  "description": "Sentinel for PAS scenario 14, a ClaimResponse that carries no decision. A Medicaid member with active coverage, so a tester who looks the sentinel up before the run is shown a member and not a finding about test data.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicaid"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-PAS-NO-DECISION",
+    "firstName": "Yael",
+    "lastName": "Placeholder-PasNoDecision",
+    "dateOfBirth": "1986-04-27",
+    "gender": "female",
+    "lineOfBusiness": "Medicaid",
+    "planName": "Synthetic Medicaid Plan",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-PAS-NO-DECISION",
+    "address": {
+      "line1": "43 Placeholder Avenue",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

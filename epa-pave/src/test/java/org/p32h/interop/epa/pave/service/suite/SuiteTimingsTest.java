@@ -107,4 +107,30 @@ class SuiteTimingsTest {
         assertThat(timing.meanMillis()).isNull();
         assertThat(timing.buckets()).isEmpty();
     }
+
+    @Test
+    void aPercentileIsTheNearestRankRoundedUpAndNeverTheRankBelow() {
+        // Thirteen calls: the 95th percentile is rank 13 (12.35 rounded up), the slowest. Rounding to the nearest rank would give 12.
+        SuiteTiming thirteen = of(10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130).summarise(15000);
+        assertThat(thirteen.p95Millis()).isEqualTo(130);
+        assertThat(thirteen.p90Millis()).isEqualTo(120);
+        assertThat(thirteen.medianMillis()).isEqualTo(70);
+        // Seven calls: the 90th percentile is rank 7 (6.3 rounded up). Rounding would give rank 6.
+        SuiteTiming seven = of(1, 2, 3, 4, 5, 6, 7).summarise(15000);
+        assertThat(seven.p90Millis()).isEqualTo(7);
+        assertThat(seven.p95Millis()).isEqualTo(7);
+        assertThat(seven.medianMillis()).isEqualTo(4);
+    }
+
+    @Test
+    void aTimeoutThatStillCarriesAStatusIsCountedAsTimedOutAndNotAsAnswered() {
+        SuiteTimings timings = new SuiteTimings();
+        timings.add(call(504, 30000L, OnyxFailureType.TIMEOUT, true));
+        timings.add(call(200, 100L, OnyxFailureType.NONE, false));
+        SuiteTiming timing = timings.summarise(15000);
+        assertThat(timing.timedOut()).isEqualTo(1);
+        assertThat(timing.answered()).isEqualTo(1);
+        assertThat(timing.maxMillis()).isEqualTo(100);
+        assertThat(timing.slow()).isZero();
+    }
 }

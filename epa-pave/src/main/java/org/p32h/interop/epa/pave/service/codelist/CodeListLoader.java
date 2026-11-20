@@ -55,6 +55,12 @@ final class CodeListLoader {
 
     private static final Pattern SHORT_NUMBER = Pattern.compile("[0-9]{1,4}");
 
+    /** The most characters a cell may have and still be taken for a header when a failure quotes the first row. */
+    private static final int HEADER_LENGTH = 40;
+
+    /** Three or more digits of any script, one after the other: what an identifier, a date or a street number holds and a header does not. */
+    private static final Pattern DIGITS_IN_A_ROW = Pattern.compile("\\p{Nd}{3,}");
+
     private CodeListLoader() {
     }
 
@@ -74,7 +80,8 @@ final class CodeListLoader {
         ColumnMapping columns = ColumnMapping.match(table.headers(), source.columns());
         if (!columns.has(CodeListColumn.CODE)) {
             throw new UnusableCodeListException(source.subject() + " has no column this tool recognises as the procedure code. "
-                    + (source.json() ? "Keys" : "Headers") + " found: " + String.join(", ", table.headers().stream().map(CodeListLoader::header).toList())
+                    + (source.json() ? "Keys" : "Headers") + " found: "
+                    + String.join(", ", table.headers().stream().map(cell -> header(cell, source.json())).toList())
                     + ". " + (source.json() ? "" : otherDelimiter(table.headers(), source.delimiter())
                     + "The first row of the file that is not blank must be the header row. ")
                     + "If one of these holds the code, name it under " + CodeListColumn.CODE.setting() + " in application.yml. A list set there replaces "
@@ -237,9 +244,27 @@ final class CodeListLoader {
         }
     }
 
-    private static String header(String written) {
+    /**
+     * A cell of the first row, or a key, as the failure for a file with no code column shows it.
+     *
+     * <p>That failure is logged, and it exists for the day the setting points at the wrong file.
+     * The wrong file may have no header row at all: its first row may be somebody's record. So a
+     * cell is shown only when it reads as a header. One that holds three or more digits in a row,
+     * or is longer than a header would be, is replaced by a statement of its length: that says a
+     * cell stood there, and that it was no header, without saying what it held. A member ID, a
+     * date of birth and a street address all hold such a run of digits. A cell of letters alone,
+     * such as a name, cannot be told from a header and is still shown.
+     */
+    private static String header(String written, boolean json) {
         String header = CodeListText.clean(written);
-        return header == null ? "(blank)" : CodeListText.show(header);
+        if (header == null) {
+            return "(blank)";
+        }
+        int length = header.codePointCount(0, header.length());
+        if (length > HEADER_LENGTH || DIGITS_IN_A_ROW.matcher(header).find()) {
+            return "(a " + (json ? "key" : "cell") + " that does not read as a header, " + length + " characters)";
+        }
+        return CodeListText.show(header);
     }
 
     /**
@@ -285,6 +310,8 @@ final class CodeListLoader {
         private final Map<String, Integer> notALine = new LinkedHashMap<>();
         private final Map<String, Integer> unreadEffective = new LinkedHashMap<>();
         private final Map<String, Integer> unreadEnd = new LinkedHashMap<>();
+        private final Map<String, Integer> zonedEffective = new LinkedHashMap<>();
+        private final Map<String, Integer> zonedEnd = new LinkedHashMap<>();
         private final List<Integer> endsBeforeItStarts = new ArrayList<>();
         private int stating;
         private int namingVendor;
@@ -361,10 +388,16 @@ final class CodeListLoader {
             if (effectiveCell != null && effective == null) {
                 unreadEffective.merge(effectiveCell, 1, Integer::sum);
             }
+            if (CodeListDates.zoned(effectiveCell)) {
+                zonedEffective.merge(effectiveCell, 1, Integer::sum);
+            }
             String endCell = cell(row, CodeListColumn.END_DATE);
             LocalDate end = CodeListDates.read(endCell);
             if (endCell != null && end == null) {
                 unreadEnd.merge(endCell, 1, Integer::sum);
+            }
+            if (CodeListDates.zoned(endCell)) {
+                zonedEnd.merge(endCell, 1, Integer::sum);
             }
             if (effective != null && end != null && end.isBefore(effective)) {
                 endsBeforeItStarts.add(row.at());
@@ -436,6 +469,8 @@ final class CodeListLoader {
             }
             unreadDates(out, "effective date", unreadEffective);
             unreadDates(out, "end date", unreadEnd);
+            zonedDates(out, "effective date", zonedEffective);
+            zonedDates(out, "end date", zonedEnd);
             if (!endsBeforeItStarts.isEmpty()) {
                 out.add(CodeListText.count(endsBeforeItStarts.size(), "row has", "rows have") + " an end date before the effective date: "
                         + table.where(endsBeforeItStarts) + ". Such a row applies on no date of service.");
@@ -451,7 +486,22 @@ final class CodeListLoader {
                 int cells = unread.values().stream().mapToInt(Integer::intValue).sum();
                 out.add(CodeListText.count(cells, "cell", "cells") + " in the " + column + " column could not be read as a date and "
                         + (cells == 1 ? "is" : "are") + " served as written: " + tallied(unread) + ". Such a row is not left out for any "
-                        + "date of service. Dates are read when written as 2026-01-31, 1/31/2026 or 20260131.");
+                        + "date of service. Dates are read when written as 2026-01-31, 1/31/2026 or 20260131, with or without a time of "
+                        + "day after the date.");
+            }
+        }
+
+        /**
+         * Said because the date of such a cell was read as it is written, and midnight in one zone
+         * is the evening before in another. A time with no zone leaves no doubt about the day, so
+         * nothing is said about that.
+         */
+        private static void zonedDates(List<String> out, String column, Map<String, Integer> zoned) {
+            if (!zoned.isEmpty()) {
+                int cells = zoned.values().stream().mapToInt(Integer::intValue).sum();
+                out.add(CodeListText.count(cells, "cell", "cells") + " in the " + column + " column " + (cells == 1 ? "is" : "are")
+                        + " written with a time zone: " + tallied(zoned) + ". The date was read as it is written. The time and the zone "
+                        + "were not applied, so a date written for another zone than the one the list is kept in may be a day off.");
             }
         }
 

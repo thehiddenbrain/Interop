@@ -112,6 +112,16 @@ public final class PasOutcomeRules {
      *                               Empty when the response carried none
      */
     public static PasOutcome overall(VendorExchange exchange, boolean authorizationNotFound, List<PasOutcome> claimResponseOutcomes) {
+        return overall(exchange, authorizationNotFound, claimResponseOutcomes, false);
+    }
+
+    /**
+     * @param emptyInquiryAnswer true when an inquiry was answered with a bundle that holds no
+     *                           ClaimResponse and no OperationOutcome, which PAS 2.0.1 defines as
+     *                           "zero matching authorizations"
+     */
+    public static PasOutcome overall(VendorExchange exchange, boolean authorizationNotFound, List<PasOutcome> claimResponseOutcomes,
+                                     boolean emptyInquiryAnswer) {
         OnyxFailureType failure = exchange.failureType();
         if (failure == OnyxFailureType.TIMEOUT) {
             return PasOutcome.TIMEOUT;
@@ -141,7 +151,8 @@ public final class PasOutcomeRules {
         }
         if (claimResponseOutcomes.isEmpty()) {
             // The service answered and sent no ClaimResponse. This is never treated as a decision.
-            return PasOutcome.NO_DECISION;
+            // For an inquiry, PAS 2.0.1 says what an empty answer bundle means: nothing matched.
+            return emptyInquiryAnswer ? PasOutcome.NO_MATCHING_AUTHORIZATION : PasOutcome.NO_DECISION;
         }
         PasOutcome first = claimResponseOutcomes.get(0);
         return claimResponseOutcomes.stream().allMatch(first::equals) ? first : PasOutcome.MIXED;

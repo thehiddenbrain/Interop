@@ -119,4 +119,10 @@ public record ProcedureCode(
                     delegatedVendor, effectiveDate, endDate, notes);
         }
     }
+
+    /** Prints the code only. Every other cell is whatever file codelist.file points at. */
+    @Override
+    public String toString() {
+        return "ProcedureCode[" + code + "]";
+    }
 }

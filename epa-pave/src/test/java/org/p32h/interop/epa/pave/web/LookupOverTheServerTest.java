@@ -135,11 +135,12 @@ class LookupOverTheServerTest {
             assertThat(answered.status()).as(address).isEqualTo(200);
             assertThat(answered.headers().get("Cache-Control")).as(address).isEqualTo("no-store");
         }
-        // A semicolon is refused before any lookup, because it would cut the identifier short.
+        // A semicolon is refused at the edge for every address, before any lookup, because it would
+        // cut the identifier short.
         Answer cut = ask("/api;x=1/members/P32H-PA-REQ", ownHost());
-        assertThat(cut.status()).isEqualTo(422);
-        assertThat(cut.json().get("title").asString()).isEqualTo("This lookup cannot be made as it was addressed. Nothing was sent.");
-        assertThat(cut.json().at("/fieldErrors/0/field").asString()).isEqualTo("memberId");
+        assertThat(cut.status()).isEqualTo(400);
+        assertThat(cut.json().get("title").asString())
+                .isEqualTo("The address holds a semicolon that is not percent-encoded. This tool takes none, so nothing was done.");
         assertThat(cut.headers().get("Cache-Control")).isEqualTo("no-store");
         assertThat(cut.body()).doesNotContain(RECORD_DATA).doesNotContain("P32H-PA-REQ");
     }
@@ -147,12 +148,14 @@ class LookupOverTheServerTest {
     @Test
     void anIdentifierReachesTheLookupWholeOrTheLookupIsNotMade() throws IOException {
         // The server and the framework cut an address at a semicolon. Looked up after the cut, this
-        // would be the member S123456789, who exists, reported under an ID nobody typed.
+        // would be the member S123456789, who exists, reported under an ID nobody typed. The edge
+        // refuses it for every address, so no lookup is made.
         Answer cut = ask("/api/members/S123456789;x=1", ownHost());
-        assertThat(cut.status()).isEqualTo(422);
-        assertThat(cut.json().at("/fieldErrors/0/message").asString()).contains("semicolon");
-        assertThat(cut.body()).doesNotContain("Placeholder");
-        assertThat(ask("/api/providers/1234567893;jsessionid=abc", ownHost()).status()).isEqualTo(422);
+        assertThat(cut.status()).isEqualTo(400);
+        assertThat(cut.json().get("title").asString()).contains("semicolon");
+        assertThat(cut.body()).doesNotContain("Placeholder").doesNotContain("S123456789");
+        assertThat(ask("/api/providers/1234567893;jsessionid=abc", ownHost()).status()).isEqualTo(400);
+        assertThat(ask("/api/members/S123456789;", ownHost()).status()).isEqualTo(400);
 
         // Percent-encoded, the same characters are part of the identifier.
         Answer whole = ask("/api/members/S123456789%3Bx=1", ownHost());

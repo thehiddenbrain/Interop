@@ -70,7 +70,7 @@ class DtrScenarioDeterminationTest {
     private Step next(String scenarioId, String questionnaire, String responseSoFar, List<DtrAnswerInput> answers) {
         DtrAnswers.Posted posted = DtrAnswers.read(questionnaire, responseSoFar, answers);
         assertThat(posted.errors()).as("what was posted for " + scenarioId).isEmpty();
-        DtrRequestBuilder.LoopBody body = builder.buildNextQuestion(posted, DtrFixtures.member("S123456789"), DtrFixtures.CLOCK);
+        DtrRequestBuilder.LoopBody body = builder.buildNextQuestion(posted, DtrFixtures.filler("S123456789"), DtrFixtures.CLOCK, null);
         VendorExchange exchange = client.nextQuestion(gateway.prepare(CallIntent.of(EpaOperation.DTR_NEXT_QUESTION)),
                 ResolvedText.plain(body.json()), MockSelection.of(scenarioId, null, null));
         return new Step(exchange, mapper.readNextQuestion(exchange, body.response()));
@@ -334,7 +334,7 @@ class DtrScenarioDeterminationTest {
                 assertThat(posted.errors()).as(what).isEmpty();
                 assertThat(DtrResponseAssembler.problems(posted)).as(what).isEmpty();
                 DtrResponseAssembler.Assembled assembled = DtrResponseAssembler.assemble(posted,
-                        DtrRequestBuilder.Filler.of(DtrFixtures.member("S123456789")), DtrFixtures.CLOCK, builder, mapper);
+                        DtrFixtures.filler("S123456789"), DtrFixtures.CLOCK, builder, mapper);
                 DtrReading reading = assembled.reading();
 
                 JsonNode expect = claim.get("expect");

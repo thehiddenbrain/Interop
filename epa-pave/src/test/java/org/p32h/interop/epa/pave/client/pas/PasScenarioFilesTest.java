@@ -56,7 +56,7 @@ class PasScenarioFilesTest {
     }
 
     @Test
-    void theTwentyScenariosLoadInOrderWithTheirSentinels() {
+    void theTwentyOneScenariosLoadInOrderWithTheirSentinels() {
         ScenarioRepository.Loaded loaded = scenarios.load(MockOnyxPasClient.SCENARIOS);
         assertThat(loaded.problems()).isEmpty();
         Map<Integer, String> sentinels = new LinkedHashMap<>();
@@ -83,6 +83,8 @@ class PasScenarioFilesTest {
         expected.put(18, "P32H-PAS-UNKNOWN-CODE");
         expected.put(19, null);
         expected.put(20, null);
+        // Added for the provider the payer does not know, which CRD and DTR already had (V4-04).
+        expected.put(21, "P32H-PAS-NOPROV");
         assertThat(sentinels).containsExactlyEntriesOf(expected);
     }
 
@@ -92,13 +94,63 @@ class PasScenarioFilesTest {
             assertThat(scenario.id()).as("id").startsWith("pas-");
             assertThat(scenario.label()).as(scenario.id()).isNotBlank();
             assertThat(scenario.description()).as(scenario.id()).isNotBlank();
-            assertThat(scenario.basis()).as(scenario.id()).startsWith("Synthetic.");
+            assertThat(scenario.basis()).as(scenario.id()).startsWith("Synthetic");
+            // Each file says which version of the guide it models.
+            assertThat(scenario.basis()).as(scenario.id()).contains("PAS 2.0.1");
             if (scenario.main() != null) {
                 assertThat(scenario.expect()).as(scenario.id() + " claims an outcome for a submission").isNotNull();
                 assertThat(scenario.sentinelMemberId()).as(scenario.id() + " can be selected by a member").startsWith("P32H-PAS-");
             }
             scenario.steps().forEach((name, step) ->
                     assertThat(step.expect()).as(scenario.id() + " claims an outcome for the step " + name).isNotNull());
+        }
+    }
+
+    /** Every ClaimResponse in a scenario file, wherever it sits, and whether every body of the file is an OperationOutcome. */
+    private static void claimResponses(JsonNode node, List<JsonNode> out) {
+        if (node == null) {
+            return;
+        }
+        if (node.isObject() && "ClaimResponse".equals(JsonSafe.text(node, "resourceType"))) {
+            out.add(node);
+        }
+        if (node.isContainer()) {
+            node.forEach(child -> claimResponses(child, out));
+        }
+    }
+
+    @Test
+    void whatEachFileSaysItsBodiesHoldIsWhatTheyHold() {
+        for (Scenario scenario : scenarios.list(MockOnyxPasClient.SCENARIOS)) {
+            List<JsonNode> responses = new java.util.ArrayList<>();
+            claimResponses(scenario.raw(), responses);
+            String basis = scenario.basis();
+            if (basis.contains("each decision in a review action on item.adjudication")) {
+                assertThat(responses).as(scenario.id()).isNotEmpty().allSatisfy(response -> {
+                    assertThat(JsonSafe.elements(response, "item")).as(scenario.id() + " has items").isNotEmpty();
+                    assertThat(JsonSafe.elements(response, "identifier")).as(scenario.id() + " echoes the claim").isNotEmpty();
+                });
+            }
+            if (basis.contains("no review action")) {
+                assertThat(responses).as(scenario.id()).isNotEmpty();
+                assertThat(scenario.raw().toString()).as(scenario.id()).doesNotContain("extension-reviewAction");
+            }
+            if (basis.contains("ErrorResponseExample")) {
+                assertThat(responses).as(scenario.id()).isNotEmpty().allSatisfy(response -> {
+                    assertThat(JsonSafe.text(response, "outcome")).isEqualTo("error");
+                    assertThat(JsonSafe.elements(response, "error")).isNotEmpty();
+                    assertThat(response.has("item")).as(scenario.id() + " has no item").isFalse();
+                });
+            }
+            if (basis.contains("An OperationOutcome")) {
+                assertThat(responses).as(scenario.id() + " holds no ClaimResponse").isEmpty();
+                assertThat(scenario.raw().toString()).as(scenario.id()).contains("\"OperationOutcome\"");
+            }
+            // A file with a ClaimResponse says which of these shapes it holds.
+            if (!responses.isEmpty()) {
+                assertThat(basis).as(scenario.id()).containsAnyOf("each decision in a review action on item.adjudication", "no review action",
+                        "ErrorResponseExample");
+            }
         }
     }
 
@@ -110,7 +162,8 @@ class PasScenarioFilesTest {
                 assertThat(seen.add(scenario.sentinelMemberId())).as(scenario.sentinelMemberId() + " is used once").isTrue();
                 assertThat(scenario.sentinelMemberId()).matches("P32H-PAS-[A-Z0-9-]+");
             }
-            assertThat(scenario.sentinelNpi()).as(scenario.id()).isNull();
+            // Only the provider the payer does not know has a sentinel NPI: the one CRD and DTR use for that case.
+            assertThat(scenario.sentinelNpi()).as(scenario.id()).isEqualTo(scenario.number() == 21 ? "9999999995" : null);
         }
     }
 
@@ -158,12 +211,29 @@ class PasScenarioFilesTest {
         assertThat(inquired.request().note()).contains("step \"inquire\"");
         assertThat(inquired.request().method()).isEqualTo("POST");
 
-        // A scenario that defines no inquiry does not answer one.
-        assertThatThrownBy(() -> inquire(null, "P32H-PAS-BAD400", body)).isInstanceOfSatisfying(ValidationException.class,
+        // A scenario that defines no inquiry does not answer one. Chosen in the selector, the refusal names the selector.
+        assertThatThrownBy(() -> inquire("pas-09-invalid-bundle", "S123456789", body)).isInstanceOfSatisfying(ValidationException.class,
                 e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
                     assertThat(error.field()).isEqualTo("scenarioId");
                     assertThat(error.message()).contains("pas-09-invalid-bundle").contains("\"inquire\"");
                 }));
+        // Chosen by a sentinel the tester typed, it names the member ID and does not tell them to change a choice they never made (V4-09).
+        assertThatThrownBy(() -> inquire(null, "P32H-PAS-BAD400", body)).isInstanceOfSatisfying(ValidationException.class,
+                e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                    assertThat(error.field()).isEqualTo("member.memberId");
+                    assertThat(error.message()).isEqualTo("The member ID is the sentinel of scenario pas-09-invalid-bundle, which has no "
+                            + "answer for an inquiry. Use a member ID whose scenario answers an inquiry, or choose a scenario.");
+                }));
+        // A CRD sentinel that selects the PAS scenario for the same case is not that scenario's sentinel, and is not called one.
+        for (String crd : List.of("P32H-NOMEM", "P32H-NOPROV", "P32H-ERR500", "P32H-TIMEOUT", "P32H-BAD400")) {
+            assertThatThrownBy(() -> inquire(null, crd, body)).as(crd).isInstanceOfSatisfying(ValidationException.class,
+                    e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                        assertThat(error.field()).isEqualTo("member.memberId");
+                        assertThat(error.message()).startsWith("The member ID selects scenario pas-")
+                                .contains(" (it means the same case as in CRD), which has no answer for an inquiry.")
+                                .doesNotContain("is the sentinel of");
+                    }));
+        }
         // And a scenario that describes only subscription calls does not answer a submission.
         assertThatThrownBy(() -> submit("pas-10-subscription-lifecycle", null, body)).isInstanceOf(ValidationException.class);
     }
@@ -174,7 +244,9 @@ class PasScenarioFilesTest {
         VendorExchange second = submit("pas-02-pended", null, request("claim-test-2", "95810"));
         assertThat(claimResponse(first).get("id").asString()).isEqualTo("claimresponse-claim-test-1");
         assertThat(claimResponse(second).get("id").asString()).isEqualTo("claimresponse-claim-test-2");
-        assertThat(claimResponse(first).at("/request/identifier/value").asString()).isEqualTo("claim-test-1");
+        // Echoed where every PAS 2.0.1 example echoes the claim's identifier.
+        assertThat(claimResponse(first).at("/identifier/0/value").asString()).isEqualTo("claim-test-1");
+        assertThat(claimResponse(first).at("/request/reference").asString()).isEqualTo("Claim/claim-1");
         assertThat(first.json().get("entry").get(0).get("fullUrl").asString()).endsWith("/ClaimResponse/claimresponse-claim-test-1");
         assertThat(first.responseBody()).doesNotContain(MockOnyxPasClient.CLAIM_ID_TOKEN);
         // The inquiry about the same claim names the same ClaimResponse.
@@ -191,13 +263,13 @@ class PasScenarioFilesTest {
         String awkward = request("claim-\\\"quoted\\\"-\\\\", "95810");
         VendorExchange exchange = submit("pas-01-approved", null, awkward);
         assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.NONE);
-        assertThat(claimResponse(exchange).at("/request/identifier/value").asString()).isEqualTo("claim-\"quoted\"-\\");
+        assertThat(claimResponse(exchange).at("/identifier/0/value").asString()).isEqualTo("claim-\"quoted\"-\\");
     }
 
     @Test
     void aRequestWithNoClaimIdentifierIsStillAnsweredAndTheAnswerSaysNoClaimWasNamed() {
         VendorExchange noIdentifier = submit("pas-01-approved", null, request(null, "95810"));
-        assertThat(claimResponse(noIdentifier).at("/request/identifier/value").asString()).isEqualTo("unidentified-claim");
+        assertThat(claimResponse(noIdentifier).at("/identifier/0/value").asString()).isEqualTo("unidentified-claim");
         VendorExchange notJson = submit("pas-01-approved", null, "{\"resourceType\": ");
         assertThat(claimResponse(notJson).get("id").asString()).isEqualTo("claimresponse-unidentified-claim");
     }
@@ -211,6 +283,9 @@ class PasScenarioFilesTest {
         assertThat(items.get(1).get("itemSequence").asInt()).isEqualTo(2);
         assertThat(items.get(2).get("itemSequence").asInt()).isEqualTo(3);
         assertThat(items.get(2).toString()).contains("\"A1\"");
+        // Each copy carries the trace number the request gave its own item, not the first item's.
+        assertThat(items.get(0).at("/extension/0/valueIdentifier/value").asString()).isEqualTo("claim-test-1-1");
+        assertThat(items.get(2).at("/extension/0/valueIdentifier/value").asString()).isEqualTo("claim-test-1-3");
         assertThat(exchange.scenarioNote()).isEqualTo("chosen in the scenario selector. The scenario file answers one item, and that "
                 + "answer is repeated here for each of the 3 items sent");
 
@@ -226,10 +301,34 @@ class PasScenarioFilesTest {
         VendorExchange partial = submit("pas-04-partial", null, request("claim-test-1", "95810", "95811", "E0601"));
         assertThat(claimResponse(partial).get("item")).hasSize(2);
         assertThat(partial.scenarioNote()).doesNotContain("repeated");
-        // The pended scenario states its decision for the response as a whole and lists no item.
-        VendorExchange pended = submit("pas-02-pended", null, request("claim-test-1", "95810", "95811"));
-        assertThat(claimResponse(pended).has("item")).isFalse();
-        assertThat(pended.scenarioNote()).doesNotContain("repeated");
+        // The member the payer does not know is answered, as in the PAS 2.0.1 error example, with no item at all.
+        VendorExchange unknown = submit("pas-15-member-not-found", null, request("claim-test-1", "95810", "95811"));
+        assertThat(claimResponse(unknown).has("item")).isFalse();
+        assertThat(unknown.scenarioNote()).doesNotContain("repeated");
+    }
+
+    @Test
+    void aCrdSentinelForACasePasAlsoHasIsAnsweredByThePasScenarioForThatCaseAndNeverByTheDefault() {
+        // V4-04: one member carried from CRD into PAS gets the same case in both.
+        Map<String, String> sameCase = Map.of("P32H-NOMEM", "pas-15-member-not-found", "P32H-NOPROV", "pas-21-provider-not-found",
+                "P32H-ERR500", "pas-17-server-error-500", "P32H-TIMEOUT", "pas-16-timeout", "P32H-BAD400", "pas-09-invalid-bundle");
+        sameCase.forEach((crd, scenario) -> {
+            VendorExchange exchange = pas.submit(TestPreparedCalls.unconfigured(EpaOperation.PAS_SUBMIT),
+                    ResolvedText.plain(request("claim-test-1", "95810")), MockSelection.of(null, crd.toLowerCase(java.util.Locale.ROOT), "1234567893"));
+            assertThat(exchange.scenarioId()).as(crd).isEqualTo(scenario);
+            assertThat(exchange.scenarioNote()).as(crd).startsWith("selected by the sentinel member ID " + crd + ", which means the same case in CRD as ");
+        });
+        // The sentinel NPI the specification ties to an unknown provider selects that case here as it does in CRD and DTR.
+        VendorExchange byNpi = pas.submit(TestPreparedCalls.unconfigured(EpaOperation.PAS_SUBMIT),
+                ResolvedText.plain(request("claim-test-1", "95810")), MockSelection.of(null, "S987654321", "9999999995"));
+        assertThat(byNpi.scenarioId()).isEqualTo("pas-21-provider-not-found");
+        assertThat(byNpi.signals()).containsExactly(VendorSignal.PROVIDER_NOT_FOUND);
+        // A scenario chosen in the selector still wins over the sentinel, and a member that matches nothing still gets the default.
+        assertThat(submit("pas-01-approved", "P32H-NOMEM", request("claim-test-1", "95810")).scenarioId()).isEqualTo("pas-01-approved");
+        assertThat(submit(null, "P32H-PA-REQ", request("claim-test-1", "95810")).scenarioNote()).contains("the default");
+        // An inquiry for such a member is refused under the member ID: the member-not-found scenario has no inquiry answer.
+        assertThatThrownBy(() -> inquire(null, "P32H-NOMEM", request("claim-test-1", "95810"))).isInstanceOfSatisfying(
+                ValidationException.class, e -> assertThat(e.fieldErrors().get(0).field()).isEqualTo("member.memberId"));
     }
 
     @Test

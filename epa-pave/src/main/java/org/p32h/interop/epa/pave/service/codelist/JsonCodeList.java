@@ -13,8 +13,9 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>The file is a list of objects whose keys are the headers, or an object with exactly one
  * property that holds such a list. The headers of the table are every key any row uses. Two keys
- * that differ only in case, spacing, underscores, hyphens or dots are one header, since that is
- * how headers are compared anyway.
+ * that differ only in case, in spacing, or in an underscore, hyphen, dot, slash, question mark or
+ * colon are one header, since that is how headers are compared as written anyway. Two keys that
+ * differ in a bracketed ending stay two headers, so that neither is lost from the report.
  *
  * <p>A value that is not text is read as text: a number and a boolean as written, so a flag of 1
  * or true reaches the one reader of the authorization flag, and a list of plain values as those
@@ -80,7 +81,7 @@ final class JsonCodeList {
             boolean twice = false;
             boolean container = false;
             for (Map.Entry<String, JsonNode> property : JsonSafe.properties(entry)) {
-                String key = CodeListText.key(property.getKey());
+                String key = CodeListText.headerKey(property.getKey());
                 Integer position = positions.get(key);
                 if (position == null) {
                     position = headers.size();

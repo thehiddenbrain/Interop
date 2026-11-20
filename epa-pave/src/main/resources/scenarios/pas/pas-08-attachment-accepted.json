@@ -2,7 +2,7 @@
   "id": "pas-08-attachment-accepted",
   "number": 8,
   "label": "Attachment accepted",
-  "description": "A submission that carries the documentation the payer asked for. The request for documentation is closed and the request is certified in total.",
+  "description": "Answers as if the documentation the payer asked for had been accepted, whether or not the request carries any: the request is certified in total. PAS 2.0.1 fixes a documentation request's status to active, so acceptance shows as a later decision, not as a closed request. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-ATTACH-OK",
   "behavior": "respond",
   "httpStatus": 200,
@@ -16,7 +16,7 @@
       "claim-outcome": "complete"
     }
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, each decision in a review action on item.adjudication, an authorization number on the review action and the item's itemPreAuthPeriod where the item is certified, and an item trace number on each item. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
   "assumption": "How the live service acknowledges an attachment is not known. This file models a certified ClaimResponse that refers to a CommunicationRequest carried in the same bundle with the status completed.",
   "response": {
     "resourceType": "Bundle",
@@ -29,6 +29,12 @@
         "resource": {
           "resourceType": "ClaimResponse",
           "id": "claimresponse-{{claimId}}",
+          "identifier": [
+            {
+              "system": "https://example.org/p32h-placeholder/patient-event-trace-number",
+              "value": "{{claimId}}"
+            }
+          ],
           "status": "active",
           "type": {
             "coding": [
@@ -50,19 +56,31 @@
             "reference": "PractitionerRole/practitioner-role-1"
           },
           "request": {
-            "identifier": {
-              "value": "{{claimId}}"
-            }
+            "reference": "Claim/claim-1"
           },
           "outcome": "complete",
           "disposition": "Certified in total. The documentation was received.",
-          "preAuthRef": "PA-PLACEHOLDER-0008",
           "preAuthPeriod": {
             "start": "2026-01-15",
             "end": "2026-04-15"
           },
           "item": [
             {
+              "extension": [
+                {
+                  "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+                  "valueIdentifier": {
+                    "value": "{{claimId}}-1"
+                  }
+                },
+                {
+                  "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemPreAuthPeriod",
+                  "valuePeriod": {
+                    "start": "2026-01-15",
+                    "end": "2026-04-15"
+                  }
+                }
+              ],
               "itemSequence": 1,
               "adjudication": [
                 {
@@ -99,27 +117,6 @@
                   }
                 }
               ]
-            }
-          ],
-          "communicationRequest": [
-            {
-              "reference": "CommunicationRequest/communication-request-1"
-            }
-          ]
-        }
-      },
-      {
-        "fullUrl": "https://example.org/p32h-placeholder/fhir/CommunicationRequest/communication-request-1",
-        "resource": {
-          "resourceType": "CommunicationRequest",
-          "id": "communication-request-1",
-          "status": "completed",
-          "subject": {
-            "reference": "Patient/patient-1"
-          },
-          "payload": [
-            {
-              "contentString": "Send the report of the attended sleep study."
             }
           ]
         }

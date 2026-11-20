@@ -62,9 +62,11 @@ class SuiteServiceTest {
         assertThat(run.startedAt()).isNotNull();
         assertThat(run.finishedAt()).isNotNull();
         // Every case here has something for a person to look at. The test code list holds no row for 95810,
-        // so nothing was compared, and the empty answer is missing what the guide requires.
-        assertThat(run.counts()).isEqualTo(new SuiteCounts(3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0));
-        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_NOT_COMPARED", 2), Map.entry("REQUIRED_ELEMENT_MISSING", 1));
+        // so nothing was compared, and the empty answer states no coverage information, which CRD 2.0.1 does not require.
+        assertThat(run.counts()).isEqualTo(new SuiteCounts(3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0));
+        // Each case gives the member ID alone, so each request went without what CRD 2.0.1 requires of a Patient.
+        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_NOT_COMPARED", 2), Map.entry("NOT_STATED", 1),
+                Map.entry("REQUEST_INCOMPLETE", 3));
 
         assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("TC-1", "TC-2", "TC-3");
         SuiteCaseResult passed = run.results().get(0);
@@ -118,16 +120,18 @@ class SuiteServiceTest {
                 "TC-1,crd,P32H-NO-AUTH," + NPI + ",95811,NO_AUTH_REQUIRED",
                 "TC-2,crd,P32H-NO-AUTH," + NPI + ",95811,NO_AUTH_REQUIRED",
                 row("TC-3", "P32H-NO-AUTH", "NO_AUTH_REQUIRED")), null, null, null);
-        assertThat(run.results().get(0).findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH");
+        // REQUEST_INCOMPLETE: the case gives the member ID alone, and CRD 2.0.1 requires more of a Patient.
+        assertThat(run.results().get(0).findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH", "REQUEST_INCOMPLETE");
         // The case still passed: it got the outcome it declared. The disagreement is for a person to look at.
         assertThat(run.results().get(0).result()).isEqualTo(TestResult.PASS);
-        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_DISAGREES_ON_AUTH", 2), Map.entry("CODE_LIST_NOT_COMPARED", 1));
+        assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_DISAGREES_ON_AUTH", 2), Map.entry("CODE_LIST_NOT_COMPARED", 1),
+                Map.entry("REQUEST_INCOMPLETE", 3));
         assertThat(run.counts().withFindings()).isEqualTo(3);
         assertThat(run.counts().passed()).isEqualTo(3);
         // The list has no row for 95810, which is said, so a row with no disagreement is not read as agreement.
-        assertThat(run.results().get(2).findings()).containsExactly("CODE_LIST_NOT_COMPARED");
+        assertThat(run.results().get(2).findings()).containsExactly("CODE_LIST_NOT_COMPARED", "REQUEST_INCOMPLETE");
         // The ledger line of the case carries the same kinds.
-        assertThat(bed.ledger.records().get(0).findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH");
+        assertThat(bed.ledger.records().get(0).findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH", "REQUEST_INCOMPLETE");
     }
 
     @Test
@@ -183,13 +187,15 @@ class SuiteServiceTest {
 
     @Test
     void aProblemOnlyTheServiceCanSeeIsReportedTheSameWay() {
-        // The row is well formed, and the service refuses it before sending: no procedure code.
-        SuiteRunView run = bed.service().start("cases.csv", suite("TC-1,crd,P32H-NO-AUTH," + NPI + ",,"), null, null, null);
+        // The row is well formed, and the service would refuse it before sending: no procedure code. The preview finds that
+        // too, so the row is reported as not valid and counted so before anything runs.
+        SuiteRunView run = bed.service().start("cases.csv", suite("TC-1,crd,P32H-NO-AUTH," + NPI + ",,", row("TC-2", "P32H-NO-AUTH", "")),
+                null, null, null);
         SuiteCaseResult invalid = run.results().get(0);
         assertThat(invalid.status()).isEqualTo(CaseStatus.INVALID);
-        assertThat(invalid.reason()).contains("procedure code");
+        assertThat(invalid.reason()).isEqualTo("procedureCodes: Choose at least one procedure code.");
         assertThat(invalid.result()).isNull();
-        assertThat(bed.ledger.records()).isEmpty();
+        assertThat(bed.ledger.records()).extracting(RunRecord::caseId).containsExactly("TC-2");
     }
 
     @Test
@@ -214,7 +220,8 @@ class SuiteServiceTest {
         assertThat(run.counts().failed()).isZero();
         assertThat(run.counts().unverified()).isZero();
         assertThat(run.headline()).isEqualTo("Finished: 1 case. 1 blocked.");
-        assertThat(run.notes()).containsExactly("1 case was blocked by the production guardrail. Nothing was sent for it. "
+        assertThat(run.notes()).containsExactly("1 case was blocked by the production guardrail. The write that was blocked was not sent; the steps of a chain before it were, "
+                + "and its row says which. "
                 + "A blocked case is not a failed case.");
         assertThat(run.environment()).isEqualTo(new EnvironmentRef("Onyx Production", EnvironmentKind.PROD));
         // A suite never carries the unlock for production writes.
@@ -235,7 +242,10 @@ class SuiteServiceTest {
         SuiteRunView run = bed.service().start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", ""), row("TC-2", "P32H-NO-AUTH", ""),
                 row("TC-3", "P32H-NO-AUTH", ""), row("TC-4", "P32H-NO-AUTH", "")), null, null, null);
         assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
-        assertThat(run.stopReason()).startsWith("The configuration changed while the suite was running.");
+        // What changed is not known here, so the reason does not say where the cases left would have gone.
+        assertThat(run.stopReason()).isEqualTo(SuiteService.configurationChanged()).doesNotContain("target");
+        assertThat(run.stopReason()).startsWith("The configuration was changed while the suite was running. The suite stopped so that "
+                + "every case of it ran under one configuration");
         assertThat(run.headline()).isEqualTo("Stopped after 2 of 4 cases. 2 unverified, 2 not run.");
         assertThat(run.results()).extracting(SuiteCaseResult::state)
                 .containsExactly(SuiteRowState.DONE, SuiteRowState.DONE, SuiteRowState.NOT_RUN, SuiteRowState.NOT_RUN);
@@ -467,7 +477,14 @@ class SuiteServiceTest {
         bed.gateway.environment("Onyx Production", EnvironmentKind.PROD);
         SuitePreview preview = bed.service().preview("cases.csv", suite("TC-1,pas,P32H-PA-REQ," + NPI + ",95810,"));
         assertThat(preview.writeNote()).isEqualTo("1 case can create or change something on the far side. Production writes are locked. "
-                + "A suite never unlocks production writes, so it will be reported as blocked, not as failed, and nothing will be sent for it.");
+                + "A suite never unlocks production writes, so its submission will be blocked and reported as blocked, not as failed, "
+                + "and will not be sent.");
+        // A chain sends its reads before its submission is blocked, and the note says so instead of promising nothing is sent.
+        assertThat(bed.service().preview("cases.csv", suite("TC-1,chain,P32H-PA-REQ," + NPI + ",95810,")).writeNote())
+                .endsWith("A suite never unlocks production writes, so a submission it reaches will be blocked and reported as blocked, "
+                        + "not as failed, and will not be sent. A chain sends its CRD step, and its DTR step when CRD calls for one, before "
+                        + "it reaches a submission: those are reads. A chain that ends before a submission is reported by what its steps gave, "
+                        + "not as blocked.");
         assertThat(preview.environment().kind()).isEqualTo(EnvironmentKind.PROD);
         assertThat(bed.service().preview("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", ""))).writeNote()).isNull();
     }
@@ -492,6 +509,14 @@ class SuiteServiceTest {
         SuitePreview preview = bed.service().preview("cases.csv", "caseId,protocol,memberId,scenario\nTC-1,crd,S123456789,crd-02-no-auth");
         assertThat(preview.runnable()).isFalse();
         assertThat(preview.rowProblems().get(0).problems()).singleElement().asString().contains("mock profile only");
+    }
+
+    @Test
+    void onLiveThePreviewSaysItHasNotAskedWhetherEachCaseHasATarget() {
+        bed.mode = "live";
+        assertThat(bed.service().preview("cases.csv", suite(row("TC-1", "S123456789", ""))).headline()).isEqualTo("1 case, and every one "
+                + "can be run. Whether the active configuration has a target for each is found when the case is sent: one with none is "
+                + "reported as not configured.");
     }
 
     @Test
@@ -597,10 +622,16 @@ class SuiteServiceTest {
         assertThat(run.state()).isEqualTo(SuiteState.COMPLETED);
         assertThat(run.results()).allSatisfy(row -> {
             assertThat(row.status()).isEqualTo(CaseStatus.NOT_RUNNABLE);
-            assertThat(row.reason()).startsWith("This tool failed while running the case.").contains("Reference");
-            assertThat(row.statusLine()).isEqualTo("Not sent: this case cannot be run from a suite.");
+            // A failure of the tool is not a case that cannot be run, and it never says nothing was sent.
+            assertThat(row.faultReference()).isNotBlank();
+            assertThat(row.reason()).startsWith("This tool failed while running the case. Whether a request left for it is not known")
+                    .endsWith("Reference " + row.faultReference() + ".");
+            assertThat(row.statusLine()).isEqualTo("Tool failure: this tool failed while running the case, so whether a request left is "
+                    + "not known. The reason gives the reference.");
         });
-        assertThat(run.headline()).isEqualTo("Finished: 2 cases. 2 not runnable.");
+        assertThat(run.headline()).isEqualTo("Finished: 2 cases. 2 tool failures.");
+        assertThat(run.counts().toolFailed()).isEqualTo(2);
+        assertThat(run.counts().notRunnable()).isZero();
         assertThat(output.getAll()).contains("A suite case failed inside this tool").doesNotContain("S123456789").doesNotContain("exploded");
     }
 

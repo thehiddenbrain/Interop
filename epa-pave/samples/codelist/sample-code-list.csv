@@ -1,0 +1,12 @@
+CPT/HCPCS,Code Description,Code Set,Prior Auth Required,LOB,UM Vendor,Eff Date,Term Date,Comments
+95810,"Overnight sleep study in a sleep lab, technologist present",CPT,Yes,Medicare,eviCore,1/1/2026,,SAMPLE ROW. Not from a P32H export.
+95810,"Overnight sleep study in a sleep lab, technologist present",CPT,No,Commercial,,1/1/2026,,SAMPLE ROW. Not from a P32H export.
+G0399,"Home sleep study with a type III portable monitor, unattended",HCPCS,Yes,Medicaid,eviCore,1/1/2026,,SAMPLE ROW. Not from a P32H export.
+70553,"MRI of the brain, without and then with contrast",CPT,Yes,Medicare,Evolent,1/1/2026,,SAMPLE ROW. Not from a P32H export.
+70553,"MRI of the brain, without and then with contrast",CPT,Yes,Commercial,Evolent,1/1/2026,,SAMPLE ROW. Not from a P32H export.
+27447,Total knee replacement,CPT,Y,Medicare,Evolent,1/1/2026,12/31/2026,SAMPLE ROW. Not from a P32H export. The flag is written Y on purpose.
+81162,"Testing of the BRCA1 and BRCA2 genes, complete",CPT,Yes,Medicaid,Carelon,1/1/2026,,SAMPLE ROW. Not from a P32H export.
+G0151,"Physical therapy in the home, each 15 minutes",HCPCS,Yes,Medicare,Optum Post Acute,1/1/2026,,SAMPLE ROW. Not from a P32H export.
+E0601,Continuous positive airway pressure device,HCPCS,N,,,1/1/2026,,SAMPLE ROW. Not from a P32H export. No line of business is stated.
+E2601,"Wheelchair seat cushion, general use, under 22"" wide",HCPCS,No,Medicare,,1/1/2026,,"SAMPLE ROW. Not from a P32H export. The description holds a comma and a doubled quote, as an export can."
+J3490,Drug that has no code of its own,HCPCS,,,,1/1/2026,,SAMPLE ROW. Not from a P32H export. The flag is blank on purpose: the list does not say.

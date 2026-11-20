@@ -138,7 +138,7 @@ class ProtocolCaseRunnerTest {
     void aMemberTheLookupCannotGiveIsSentWithTheIdAloneAndTheResultSaysSo() {
         // Nothing is made up to fill the gap, and the gap is stated, for each way the lookup can come back empty.
         Map<LookupStatus, String> expected = Map.of(
-                LookupStatus.NOT_FOUND, "The member lookup does not know this member ID. The request was sent with the ID alone.",
+                LookupStatus.NOT_FOUND, "The member lookup does not know this member ID. The request was sent with the member ID alone.",
                 LookupStatus.DISABLED, "The member lookup is not configured. The request was sent with the member ID alone.",
                 LookupStatus.FAULT, "The member lookup failed. The request was sent with the member ID alone.");
         expected.forEach((status, note) -> {
@@ -184,7 +184,8 @@ class ProtocolCaseRunnerTest {
         gateway.failing(null).changeConfiguration();
         CaseOutcome moved = runner().run(crdCase("P32H-NO-AUTH").configEpoch(0L).build());
         assertThat(moved.status()).isEqualTo(CaseStatus.NOT_CONFIGURED);
-        assertThat(moved.reason()).contains("configuration changed");
+        assertThat(moved.reason()).isEqualTo("The configuration was changed after the suite started, and a case is held to the "
+                + "configuration its suite started under, so this one was not sent.");
         assertThat(ledger.records()).isEmpty();
         assertThat(runner().run(crdCase("P32H-NO-AUTH").configEpoch(1L).build()).status()).isEqualTo(CaseStatus.COMPLETED);
     }
@@ -197,7 +198,8 @@ class ProtocolCaseRunnerTest {
 
         CaseOutcome noMember = runner().run(crdCase(" ").build());
         assertThat(noMember.status()).isEqualTo(CaseStatus.INVALID);
-        assertThat(noMember.reason()).contains("member.memberId");
+        // Named by the column of a suite file, which is where the tester has to look, not by a field of a form.
+        assertThat(noMember.reason()).isEqualTo("memberId: Enter a member ID.");
 
         CaseOutcome badExpectation = runner().run(crdCase("P32H-NO-AUTH").expected("APPROVED").build());
         assertThat(badExpectation.status()).isEqualTo(CaseStatus.INVALID);
@@ -249,8 +251,35 @@ class ProtocolCaseRunnerTest {
         }, providers).register(EpaOperation.CRD_ORDER_SIGN, context -> null);
         CaseOutcome outcome = broken.run(crdCase("S123456789").build());
         assertThat(outcome.status()).isEqualTo(CaseStatus.NOT_RUNNABLE);
-        assertThat(outcome.reason()).contains("This tool failed while running the case").contains("Reference");
+        // A failure of the tool is told apart from a case that cannot be run, and never says nothing was sent.
+        assertThat(outcome.toolFailed()).isTrue();
+        assertThat(outcome.reason()).startsWith("This tool failed while running CRD order-sign. Whether a request left for it is not known")
+                .endsWith("Reference " + outcome.faultReference() + ".").doesNotContain("Nothing was sent");
         assertThat(outcome.reason()).doesNotContain(SURNAME).doesNotContain("S123456789");
         assertThat(output.getAll()).contains("A case failed inside this tool").doesNotContain(SURNAME).doesNotContain("S123456789");
+    }
+
+    @Test
+    void aCaseThatWasNotSentNeverSaysItWasSentWithTheIdAlone() {
+        memberStatus = LookupStatus.NOT_FOUND;
+        providerStatus = LookupStatus.DISABLED;
+        gateway.failing(new EndpointNotConfiguredException(EpaOperation.CRD_ORDER_SIGN, "There is no url for CRD order-sign."));
+        CaseOutcome notConfigured = runner().run(crdCase("S000000001").build());
+        assertThat(notConfigured.status()).isEqualTo(CaseStatus.NOT_CONFIGURED);
+        assertThat(notConfigured.notes()).containsExactly("The member lookup does not know this member ID.",
+                "The provider lookup is not configured.");
+        gateway.failing(null);
+        CaseOutcome invalid = runner().run(crdCase("S000000001").procedureCodes(List.of()).build());
+        assertThat(invalid.status()).isEqualTo(CaseStatus.INVALID);
+        assertThat(invalid.notes()).noneMatch(note -> note.contains("was sent"));
+        // Sent, the same lookups say how it went out, and the default mock scenario that answered is named after them.
+        List<String> sent = runner().run(crdCase("S000000001").build()).notes();
+        assertThat(sent).hasSize(3);
+        assertThat(sent.subList(0, 2)).containsExactly(
+                "The member lookup does not know this member ID. The request was sent with the member ID alone.",
+                "The provider lookup is not configured. The request was sent with the NPI alone.");
+        // The CRD mock goes on to say how it builds its answer, which is its own sentence to word.
+        assertThat(sent.get(2)).startsWith(
+                "Mock scenario crd-01-pa-required answered: the default, because no scenario was chosen and no sentinel matched.");
     }
 }

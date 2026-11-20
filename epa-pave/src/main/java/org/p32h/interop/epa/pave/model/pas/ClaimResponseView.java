@@ -27,6 +27,11 @@ import java.util.List;
  *                          when its items are not known
  * @param attachments       each request for supporting documentation the response refers to
  * @param extensions        every other extension on the ClaimResponse
+ * @param subsetted         true when the ClaimResponse declares the security tag SUBSETTED, by which
+ *                          PAS 2.0.1 says it answers only some of the items of the request
+ * @param addItemReviewActions where a review action sat on ClaimResponse.addItem.adjudication, which
+ *                          the PAS 2.2.0 ballot defines and 2.0.1 does not. Such an action is listed
+ *                          among the fields returned but not interpreted and decides nothing here
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ClaimResponseView(
@@ -55,9 +60,12 @@ public record ClaimResponseView(
         List<PasErrorView> errors,
         List<AttachmentRefView> attachments,
         List<ProcessNoteView> processNotes,
-        List<ExtensionView> extensions) {
+        List<ExtensionView> extensions,
+        boolean subsetted,
+        List<String> addItemReviewActions) {
 
     public ClaimResponseView {
+        addItemReviewActions = addItemReviewActions == null ? List.of() : List.copyOf(addItemReviewActions);
         identifiers = identifiers == null ? List.of() : List.copyOf(identifiers);
         reviewActions = reviewActions == null ? List.of() : List.copyOf(reviewActions);
         decisions = decisions == null ? List.of() : List.copyOf(decisions);

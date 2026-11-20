@@ -49,7 +49,8 @@ class PasOutcomeContractTest {
         assertThat(Arrays.stream(PasOutcome.values()).map(Enum::name)).containsExactly("APPROVED", "APPROVED_WITH_CHANGES",
                 "PARTIALLY_APPROVED", "DENIED", "PENDED", "ATTACHMENT_REQUIRED", "CONTACT_PAYER", "CANCELLED", "NO_ACTION_REQUIRED",
                 "MIXED", "UNRECOGNISED_CODE", "REQUEST_ERRORS", "NO_DECISION", "MEMBER_NOT_FOUND", "PROVIDER_NOT_FOUND",
-                "AUTHORIZATION_NOT_FOUND", "REJECTED", "SERVICE_ERROR", "TIMEOUT", "UNREACHABLE", "MALFORMED_RESPONSE");
+                "AUTHORIZATION_NOT_FOUND", "NO_MATCHING_AUTHORIZATION", "REJECTED", "SERVICE_ERROR", "TIMEOUT", "UNREACHABLE",
+                "MALFORMED_RESPONSE");
         assertThat(Arrays.stream(PasOutcome.values()).filter(PasOutcome::finalDecision)).containsExactly(PasOutcome.APPROVED,
                 PasOutcome.APPROVED_WITH_CHANGES, PasOutcome.PARTIALLY_APPROVED, PasOutcome.DENIED);
     }

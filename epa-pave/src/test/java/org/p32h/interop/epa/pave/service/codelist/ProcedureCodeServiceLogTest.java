@@ -55,4 +55,23 @@ class ProcedureCodeServiceLogTest {
                 + "The code list file " + missing + " does not exist.");
         assertThat(output.getAll()).doesNotContain("Procedure code list loaded");
     }
+
+    @Test
+    void aFileThatTurnsOutToHoldAMembersRecordDoesNotPutThatRecordInTheLog(CapturedOutput output) {
+        // codelist.file pointed at the wrong file. Its first row is a record, not a header row, and
+        // the failure that lists the first row is logged. Every value here is a placeholder.
+        Path file = TestCodeLists.write(directory, "members.csv", "S123456789,Placeholder-Surname,Given,1970-01-31,F,"
+                + "1200 Placeholder Street,SUB-PLACEHOLDER-000001\nS987654321,Another-Placeholder,Name,1980-12-01,M,,\n");
+        assertThatThrownBy(() -> TestCodeLists.load(file)).isInstanceOf(UnusableCodeListException.class);
+
+        // The one line still says what is wrong and what was found, cell by cell.
+        assertThat(output.getOut()).contains("ERROR").contains("The procedure code list cannot be used, so the application will not start. "
+                + "The code list file " + file + " has no column this tool recognises as the procedure code. Headers found: "
+                + "(a cell that does not read as a header, 10 characters), \"Placeholder-Surname\", \"Given\", "
+                + "(a cell that does not read as a header, 10 characters), \"F\", (a cell that does not read as a header, 23 characters), "
+                + "(a cell that does not read as a header, 22 characters).");
+        // The member ID, the date of birth, the address and the subscriber ID are in no line of it, from the first row or any other.
+        assertThat(output.getAll()).doesNotContain("S123456789").doesNotContain("1970-01-31").doesNotContain("Placeholder Street")
+                .doesNotContain("SUB-PLACEHOLDER").doesNotContain("S987654321").doesNotContain("1980-12-01");
+    }
 }

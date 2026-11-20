@@ -2,8 +2,8 @@
   "id": "pas-10-subscription-lifecycle",
   "number": 10,
   "label": "A subscription created and deleted",
-  "description": "The five subscription calls on one subscription: create, read, list, update and delete. Its notify step is the handshake a service sends when a subscription is activated.",
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "description": "The five subscription calls on one subscription: create, read, list, update and delete. Its notify step is the handshake a service sends when a subscription is activated. The topic is the one PAS 2.0.1 defines.",
+  "basis": "Synthetic. The topic is the one PAS 2.0.1 defines. The subscription and notification shapes are those of the subscriptions backport as balloted for 1.2.0, because the 1.1.0 release PAS 2.0.1 depends on could not be read here. Every other value is a placeholder of this project. It has not been observed from the live service.",
   "assumption": "What a subscription must be subscribed to, and how much a notification carries, are not known for the live service. This file uses a placeholder topic, a placeholder filter and ids only.",
   "steps": {
     "subscription-create": {
@@ -30,7 +30,7 @@
         "status": "requested",
         "end": "2026-12-31T00:00:00Z",
         "reason": "Prior authorization status notifications for a PAVE test run",
-        "criteria": "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status",
+        "criteria": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic",
         "_criteria": {
           "extension": [
             {
@@ -90,7 +90,7 @@
         "status": "active",
         "end": "2026-12-31T00:00:00Z",
         "reason": "Prior authorization status notifications for a PAVE test run",
-        "criteria": "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status",
+        "criteria": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic",
         "_criteria": {
           "extension": [
             {
@@ -158,7 +158,7 @@
               "status": "active",
               "end": "2026-12-31T00:00:00Z",
               "reason": "Prior authorization status notifications for a PAVE test run",
-              "criteria": "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status",
+              "criteria": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic",
               "_criteria": {
                 "extension": [
                   {
@@ -224,7 +224,7 @@
         "status": "off",
         "end": "2026-12-31T00:00:00Z",
         "reason": "Prior authorization status notifications for a PAVE test run",
-        "criteria": "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status",
+        "criteria": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic",
         "_criteria": {
           "extension": [
             {
@@ -306,7 +306,7 @@
                 },
                 {
                   "name": "topic",
-                  "valueCanonical": "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status"
+                  "valueCanonical": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic"
                 },
                 {
                   "name": "status",

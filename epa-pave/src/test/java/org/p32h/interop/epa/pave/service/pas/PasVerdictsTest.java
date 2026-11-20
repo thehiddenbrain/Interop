@@ -22,6 +22,7 @@ import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Presence;
+import org.p32h.interop.epa.pave.model.Reached;
 import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
@@ -64,6 +65,121 @@ class PasVerdictsTest {
         assertThat(verdict(decidedAs("C")).headline()).isEqualTo("The authorization request is cancelled.");
         assertThat(verdict(decidedAs("CT")).headline()).isEqualTo("The payer asks to be contacted about this request.");
         assertThat(verdict(decidedAs("NA")).headline()).isEqualTo("The payer answered that no action is required for this request.");
+    }
+
+    // ---- PAS 2.0.1: where the authorization number and its period sit ----
+
+    /** An approved item in the shape of PAS 2.0.1 ReferralAuthorizationResponseExample: number on the review action, period on the item, no preAuthRef. */
+    private static String approvedAsIn201(int sequence, String number, String start, String end) {
+        return "{\"extension\":[{\"url\":\"http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemPreAuthPeriod\","
+                + "\"valuePeriod\":{\"start\":\"" + start + "\",\"end\":\"" + end + "\"}}],\"itemSequence\":" + sequence
+                + ",\"adjudication\":[{\"category\":{\"coding\":[{\"code\":\"submitted\"}]},\"extension\":["
+                + action("A1", ",{\"url\":\"number\",\"valueString\":\"" + number + "\"}") + "]}]}";
+    }
+
+    @Test
+    void theAuthorizationNumberAndPeriodOfAnItemAreReadFromWherePas201PutsThem() {
+        PasReading reading = read(bundle(claimResponse("\"outcome\":\"complete\"", items(approvedAsIn201(1, "AUTH0001", "2005-05-02",
+                "2005-06-02")))), sent("95810"));
+        VerdictView verdict = verdict(reading);
+        assertThat(verdict.headline()).isEqualTo("The prior authorization is approved.");
+        assertThat(verdict.supporting()).contains("Authorization number: AUTH0001.", "Authorized from 2005-05-02 to 2005-06-02.");
+        assertThat(reading.decisions().get(0).authorizationNumbers()).containsExactly("AUTH0001");
+        assertThat(reading.decisions().get(0).authorizedFrom()).isEqualTo("2005-05-02");
+        assertThat(PasVerdicts.determination(reading)).extracting(DeterminationRow::label, DeterminationRow::code).contains(
+                org.assertj.core.groups.Tuple.tuple("Authorization number", "AUTH0001"),
+                org.assertj.core.groups.Tuple.tuple("Authorized period", "2005-05-02/2005-06-02"));
+        // Nothing of it was dropped: the period extension is still listed with the item.
+        assertThat(reading.detail().claimResponses().get(0).items().get(0).extensions()).hasSize(1);
+        assertThat(reading.additionalFields()).isEmpty();
+    }
+
+    @Test
+    void withTwoItemsEachNumberIsNamedForItsItemAndTheTopLevelReferenceIsKeptAsAFurtherSource() {
+        PasReading reading = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"preAuthRef\":\"PA-PLACEHOLDER-0009\"",
+                items(approvedAsIn201(1, "AUTH0001", "2026-03-20", "2026-06-20"), approvedAsIn201(2, "AUTH0002", "2026-03-21", "2026-04-21")))),
+                sent("95810", "E0601"));
+        assertThat(verdict(reading).supporting()).contains("95810: Authorization number: AUTH0001.", "E0601: Authorization number: AUTH0002.",
+                "E0601: Authorized from 2026-03-21 to 2026-04-21.", "For the response as a whole: Authorization number: PA-PLACEHOLDER-0009.");
+    }
+
+    @Test
+    void theResponsesOwnPeriodIsLeftOutWhenEveryItemStatesItAndOtherwiseSaysItIsTheResponses() {
+        // Every item states the period ClaimResponse.preAuthPeriod states: the line with no subject adds nothing.
+        PasReading same = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"preAuthPeriod\":{\"start\":\"2026-01-15\",\"end\":\"2026-04-15\"}",
+                items(approvedAsIn201(1, "AUTH0001", "2026-01-15", "2026-04-15"), approvedAsIn201(2, "AUTH0001", "2026-01-15", "2026-04-15")))),
+                sent("E0601", "95810"));
+        assertThat(verdict(same).supporting()).containsExactly("This is the decision for each of: E0601, 95810.",
+                "E0601: Authorization number: AUTH0001.", "E0601: Authorized from 2026-01-15 to 2026-04-15.",
+                "95810: Authorization number: AUTH0001.", "95810: Authorized from 2026-01-15 to 2026-04-15.");
+        // The items differ from it: the response's own period is named as the response's, not read as one more item's.
+        PasReading differ = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"preAuthPeriod\":{\"start\":\"2026-01-15\",\"end\":\"2026-06-15\"}",
+                items(approvedAsIn201(1, "AUTH0001", "2026-01-15", "2026-04-15"), approvedAsIn201(2, "AUTH0002", "2026-02-15", "2026-06-15")))),
+                sent("E0601", "95810"));
+        assertThat(verdict(differ).supporting()).endsWith("For the response as a whole: Authorized from 2026-01-15 to 2026-06-15.")
+                .doesNotContain("Authorized from 2026-01-15 to 2026-06-15.");
+        // One item with its own period equal to the response's: stated once.
+        PasReading one = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"preAuthPeriod\":{\"start\":\"2026-01-15\",\"end\":\"2026-04-15\"}",
+                items(approvedAsIn201(1, "AUTH0001", "2026-01-15", "2026-04-15")))), sent("E0601"));
+        assertThat(verdict(one).supporting()).containsOnlyOnce("Authorized from 2026-01-15 to 2026-04-15.");
+    }
+
+    @Test
+    void anInquiryAnsweredWithNoClaimResponseIsNoMatchingAuthorizationAndASubmissionSoAnsweredIsNoDecision() {
+        // PAS 2.0.1 ClaimInquiryOperation: "the only output is a single Bundle with zero-to-many PASClaimInquiryResponses".
+        String empty = "{\"resourceType\":\"Bundle\",\"type\":\"collection\",\"entry\":[]}";
+        PasReading inquiry = mapper.read(response(200, empty), sent("95810"), true);
+        assertThat(inquiry.outcome()).isEqualTo(PasOutcome.NO_MATCHING_AUTHORIZATION);
+        VerdictView verdict = PasVerdicts.verdict(inquiry, response(200, empty), EpaOperation.PAS_INQUIRE);
+        assertThat(verdict.headline()).isEqualTo("No prior authorization matches this inquiry.");
+        assertThat(verdict.supporting()).contains("PAS 2.0.1 answers an inquiry with one ClaimResponse for each prior authorization that "
+                + "matches it. This answer holds none, so the payer holds no authorization matching what was asked about.");
+        assertThat(PasVerdicts.nextStep(inquiry, response(200, empty), EpaOperation.PAS_INQUIRE, RUN).action()).isEqualTo(NextAction.FIX_TEST_DATA);
+        assertThat(inquiry.detail().responseNote()).contains("none means that none matched");
+
+        // The same body after a submission is no decision, as before: the guide gives an empty answer no meaning there.
+        assertThat(mapper.read(response(200, empty), sent("95810"), false).outcome()).isEqualTo(PasOutcome.NO_DECISION);
+        // And an inquiry answered with an OperationOutcome alone is not read as "nothing matched".
+        String outcomeOnly = bundle("{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"information\",\"code\":\"informational\"}]}");
+        assertThat(mapper.read(response(200, outcomeOnly), sent("95810"), true).outcome()).isNotEqualTo(PasOutcome.NO_MATCHING_AUTHORIZATION);
+    }
+
+    @Test
+    void anAttachmentRequiredResultSaysWhatPas201DoesNextAndThatThisToolDoesNotBuildIt() {
+        // PAS 2.0.1 specification.md (a new Claim that replaces the earlier one) and additionalinfo.md ($submit-attachment).
+        PasReading reading = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"communicationRequest\":[{\"reference\":"
+                + "\"CommunicationRequest/cr-docs-1\"}]", items(decided(1, "A4")))), sent("95810"));
+        assertThat(reading.outcome()).isEqualTo(PasOutcome.ATTACHMENT_REQUIRED);
+        assertThat(verdict(reading).supporting()).contains("PAS 2.0.1 sends documentation after the payer asks for it in one of two ways: "
+                + "a claim update, which is a new claim with its own identifier that replaces this one (Claim.related, relationship "
+                + "replaces), or the CDex operation $submit-attachment. This tool builds neither.");
+        NextStepView next = next(reading);
+        assertThat(next.action()).isEqualTo(NextAction.START_PAS);
+        assertThat(next.headline()).isEqualTo("Next: send the documentation the payer asked for. Submitting again from this tool sends a new "
+                + "request with the same claim identifier, which is not the PAS 2.0.1 way.");
+        assertThat(next.reason()).endsWith("This tool builds neither.");
+    }
+
+    @Test
+    void aReviewActionOutsideThePlacePas201AllowsIsReadAndSaidToBeOutsideIt() {
+        // PAS 2.0.1 ReviewAction context: Claim.item, ClaimResponse.item.adjudication. Not ClaimResponse, not ClaimResponse.item.
+        PasReading onItem = read(bundle(claimResponse("\"outcome\":\"complete\"", items("{\"itemSequence\":1,\"extension\":[" + action("A1")
+                + "]}"))), sent("95810"));
+        assertThat(onItem.outcome()).isEqualTo(PasOutcome.APPROVED);
+        assertThat(verdict(onItem).supporting()).contains("A review action sat on an item itself, not on its adjudication, where PAS 2.0.1 "
+                + "places it. It was read all the same.");
+        assertThat(onItem.detail().claimResponses().get(0).items().get(0).reviewActions().get(0).placement())
+                .isEqualTo(PasResponseMapper.ON_THE_ITEM);
+
+        PasReading onResponse = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"extension\":[" + action("A1") + "]")),
+                sent("95810", "E0601"));
+        assertThat(onResponse.outcome()).isEqualTo(PasOutcome.APPROVED);
+        assertThat(verdict(onResponse).supporting()).contains("The decision is stated once for the response as a whole, not item by item. "
+                + "PAS 2.0.1 places a review action on each item's adjudication, not on the ClaimResponse itself; it was read all the same.");
+        // In the place the guide gives it, nothing is said about placement.
+        assertThat(verdict(decidedAs("A1")).supporting()).noneMatch(line -> line.contains("PAS 2.0.1 places"));
+        assertThat(decidedAs("A1").detail().claimResponses().get(0).items().get(0).adjudications().get(0).reviewActions().get(0).placement())
+                .isNull();
     }
 
     @Test
@@ -141,7 +257,8 @@ class PasVerdictsTest {
     void aDecisionStatedOnceForTheWholeResponseIsSaidToBeSo() {
         PasReading reading = read(bundle(claimResponse("\"extension\":[" + action("A4") + "]")), sent("95810", "95811"));
         assertThat(verdict(reading).supporting()).contains("This is the decision for each of: 95810, 95811.",
-                "The decision is stated once for the response as a whole, not item by item.");
+                "The decision is stated once for the response as a whole, not item by item. PAS 2.0.1 places a review action on each "
+                        + "item's adjudication, not on the ClaimResponse itself; it was read all the same.");
         // The grid says it too, on each item's row.
         assertThat(PasVerdicts.determination(reading)).filteredOn(row -> row.label().equals("Decision")).extracting(DeterminationRow::display)
                 .containsExactly("Pended (stated for the whole response)", "Pended (stated for the whole response)");
@@ -186,7 +303,7 @@ class PasVerdictsTest {
                 sent("95810"));
         assertThat(verdict(reading).headline()).isEqualTo("The payer needs more documentation before it will decide.");
         assertThat(verdict(reading).supporting()).containsExactly("The response refers to 1 request for documentation. What is asked for is "
-                + "shown below, in the payer's own words.");
+                + "shown below, in the payer's own words.", PasVerdicts.GUIDE_ROUTE);
         assertThat(next(reading).action()).isEqualTo(NextAction.START_PAS);
         assertThat(next(reading).carry()).containsEntry(NextStepView.CARRY_CLAIM_ID, List.of("claim-test-1"));
         // An approval that still refers to an open request says so beneath it.
@@ -238,67 +355,111 @@ class PasVerdictsTest {
                 : Exchanges.fromResponse(sent, exchange.httpStatus(), exchange.responseHeaders(), exchange.responseBody(), exchange.elapsedMillis(), true);
     }
 
+    private static final String MAY_HAVE_ACTED = "The payer may have received the submission and acted on it.";
+    private static final String ASK_FIRST = "Next: check the environment, then ask for the status before sending again.";
+    private static final String ASK_FIRST_BECAUSE = "The payer may have received the submission and acted on it. Ask for its status with an "
+            + "inquiry first: sending it again without checking could create a second request.";
+    private static final String SEND_AGAIN = "Next: check the environment, then send again.";
+
     @Test
-    void aSubmissionThatGotNoUsableAnswerMayStillHaveBeenReceivedAndTheTesterIsToldBeforeSendingAgain() {
+    void aSubmissionThatMayHaveReachedThePayerIsToBeAskedAboutBeforeItIsSentAgain() {
+        // No answer inside the read timeout: the request had gone out, and whether it arrived cannot be said.
         VendorExchange timeout = asSent(TestExchanges.timeout(EpaOperation.PAS_SUBMIT));
+        assertThat(timeout.reached()).isEqualTo(Reached.CANNOT_SAY);
         PasReading reading = mapper.read(timeout, sent("95810"));
         assertThat(PasVerdicts.verdict(reading, timeout, EpaOperation.PAS_SUBMIT).supporting())
-                .contains("The submission was sent. Whether the payer received and kept it is not known.");
+                .containsExactly("No response arrived inside the read timeout.", MAY_HAVE_ACTED);
         NextStepView next = PasVerdicts.nextStep(reading, timeout, EpaOperation.PAS_SUBMIT, RUN);
         assertThat(next.action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
-        assertThat(next.headline()).isEqualTo("Next: check the environment, then ask for the status before sending again.");
-        assertThat(next.reason()).contains("could create a second request");
+        assertThat(next.headline()).isEqualTo(ASK_FIRST);
+        assertThat(next.reason()).isEqualTo(ASK_FIRST_BECAUSE);
         // The claim id is carried so the status can be asked for.
         assertThat(next.carry()).containsEntry(NextStepView.CARRY_CLAIM_ID, List.of("claim-test-1"));
 
-        VendorExchange serverError = asSent(response(500, null));
-        assertThat(PasVerdicts.nextStep(mapper.read(serverError), serverError, EpaOperation.PAS_SUBMIT, RUN).headline())
-                .contains("ask for the status before sending again");
+        // An answer that could not be used is no proof that nothing was done with the submission.
+        for (VendorExchange answered : List.of(asSent(response(500, null)), asSent(response(200, "{\"resourceType\": ")))) {
+            assertThat(answered.reached()).isEqualTo(Reached.YES);
+            assertThat(PasVerdicts.verdict(mapper.read(answered), answered, EpaOperation.PAS_SUBMIT).supporting()).contains(MAY_HAVE_ACTED);
+            assertThat(PasVerdicts.nextStep(mapper.read(answered), answered, EpaOperation.PAS_SUBMIT, RUN).headline()).isEqualTo(ASK_FIRST);
+        }
+        // A request the service refused is none of this: it said no, and the next step is about the request.
+        VendorExchange refused = asSent(response(422, "{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"code\":\"invalid\"}]}"));
+        assertThat(PasVerdicts.verdict(mapper.read(refused), refused, EpaOperation.PAS_SUBMIT).supporting()).doesNotContain(MAY_HAVE_ACTED);
+        assertThat(PasVerdicts.nextStep(mapper.read(refused), refused, EpaOperation.PAS_SUBMIT, RUN).action()).isEqualTo(NextAction.FIX_REQUEST);
 
         // An inquiry changes nothing, so it is simply sent again.
-        assertThat(PasVerdicts.nextStep(reading, timeout, EpaOperation.PAS_INQUIRE, RUN).headline())
-                .isEqualTo("Next: check the environment, then send again.");
-        assertThat(PasVerdicts.verdict(reading, timeout, EpaOperation.PAS_INQUIRE).supporting()).noneMatch(line -> line.contains("was sent"));
-        // On the mock profile nothing was sent, and the result does not say that it was.
-        VendorExchange mockTimeout = Exchanges.timeout(new WireRequest("POST", null, "", List.of(), "{}", false, "Mock profile."), 5L);
-        assertThat(PasVerdicts.verdict(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT).supporting())
-                .noneMatch(line -> line.contains("was sent"));
-        assertThat(PasVerdicts.nextStep(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT, RUN).headline())
-                .isEqualTo("Next: check the environment, then send again.");
+        NextStepView inquiry = PasVerdicts.nextStep(reading, timeout, EpaOperation.PAS_INQUIRE, RUN);
+        assertThat(inquiry.headline()).isEqualTo(SEND_AGAIN);
+        assertThat(inquiry.reason()).isEqualTo("No usable answer came back. This is a finding about the environment, not about the member or "
+                + "the code.");
+        assertThat(PasVerdicts.verdict(reading, timeout, EpaOperation.PAS_INQUIRE).supporting())
+                .containsExactly("No response arrived inside the read timeout.");
     }
 
     @Test
-    void anUnreachableServiceIsNeverSaidToHaveReceivedNothingBecauseTheConnectionMayHaveFailedAfterItOpened() {
-        // A live submission. "Unreachable" covers a connection that never opened and one that failed
-        // after it opened, and only the first delivered nothing. This tool cannot tell which, so the
-        // tester is told both and is shown how it failed.
+    void aSubmissionThatCannotHaveReachedThePayerWasNotSubmittedAndCanBeSentAgain() {
         WireRequest attempted = TestExchanges.unavailable(EpaOperation.PAS_SUBMIT).request();
-        assertThat(attempted.sent()).isTrue();
-        for (String how : List.of("The connection was refused or could not be opened.", "The request could not be completed (IOException).")) {
-            VendorExchange unreachable = Exchanges.unavailable(attempted, 12L, how);
-            PasReading reading = mapper.read(unreachable, sent("95810"));
-            assertThat(reading.outcome()).isEqualTo(PasOutcome.UNREACHABLE);
-            NextStepView careful = PasVerdicts.nextStep(reading, unreachable, EpaOperation.PAS_SUBMIT, RUN);
-            assertThat(careful.action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
-            assertThat(careful.headline()).isEqualTo("Next: check the environment. Send again only when the connection never opened.");
-            assertThat(careful.reason()).isEqualTo("No answer came back, and the verdict says how the connection failed. A connection that "
-                    + "never opened delivered nothing. One that failed after it opened may have delivered the submission, so ask for its "
-                    + "status before sending again.");
-            // The claim id is carried so the status can be asked for.
-            assertThat(careful.carry()).containsEntry(NextStepView.CARRY_CLAIM_ID, List.of("claim-test-1"));
-            // The verdict carries how it failed, and says neither that the submission was sent nor that it was received.
-            assertThat(PasVerdicts.verdict(reading, unreachable, EpaOperation.PAS_SUBMIT).supporting()).containsExactly(how);
-            // An inquiry changes nothing, so it is sent again however the connection failed.
-            NextStepView inquiry = PasVerdicts.nextStep(reading, unreachable, EpaOperation.PAS_INQUIRE, RUN);
-            assertThat(inquiry.headline()).isEqualTo("Next: check the environment, then send again.");
-            assertThat(careful.reason() + inquiry.reason()).doesNotContain("received nothing");
+        // The connection was never opened, so nothing was delivered.
+        String refusedHow = "The connection was refused or could not be opened.";
+        VendorExchange refused = Exchanges.unavailable(attempted, 12L, refusedHow);
+        assertThat(refused.reached()).isEqualTo(Reached.NO);
+        PasReading reading = mapper.read(refused, sent("95810"));
+        assertThat(reading.outcome()).isEqualTo(PasOutcome.UNREACHABLE);
+        VerdictView verdict = PasVerdicts.verdict(reading, refused, EpaOperation.PAS_SUBMIT);
+        assertThat(verdict.headline()).isEqualTo("The service could not be reached.");
+        assertThat(verdict.supporting()).containsExactly(refusedHow, "Nothing was submitted: the request did not reach the payer.");
+        NextStepView again = PasVerdicts.nextStep(reading, refused, EpaOperation.PAS_SUBMIT, RUN);
+        assertThat(again.action()).isEqualTo(NextAction.CHECK_ENVIRONMENT);
+        assertThat(again.headline()).isEqualTo(SEND_AGAIN);
+        assertThat(again.reason()).isEqualTo("Nothing was submitted, because the request did not reach the payer. It is safe to send the same "
+                + "request again.");
+
+        // The connection failed after it was opened. The same outcome, and the opposite advice.
+        String brokenHow = "The request could not be completed (IOException).";
+        VendorExchange broken = Exchanges.cutOff(attempted, 12L, brokenHow);
+        assertThat(broken.reached()).isEqualTo(Reached.CANNOT_SAY);
+        PasReading afterBroken = mapper.read(broken, sent("95810"));
+        assertThat(afterBroken.outcome()).isEqualTo(PasOutcome.UNREACHABLE);
+        VerdictView unsure = PasVerdicts.verdict(afterBroken, broken, EpaOperation.PAS_SUBMIT);
+        // "Could not be reached" would be a claim this tool cannot back when the request may have arrived.
+        assertThat(unsure.headline()).isEqualTo("The connection to the service failed before an answer arrived.");
+        assertThat(unsure.supporting()).containsExactly(brokenHow, MAY_HAVE_ACTED);
+        NextStepView careful = PasVerdicts.nextStep(afterBroken, broken, EpaOperation.PAS_SUBMIT, RUN);
+        assertThat(careful.headline()).isEqualTo(ASK_FIRST);
+        assertThat(careful.reason()).isEqualTo(ASK_FIRST_BECAUSE);
+        // The claim id is carried so the status can be asked for.
+        assertThat(careful.carry()).containsEntry(NextStepView.CARRY_CLAIM_ID, List.of("claim-test-1"));
+
+        // An inquiry changes nothing, so it is sent again however the connection failed, and nothing is said about a submission.
+        for (VendorExchange failed : List.of(refused, broken)) {
+            NextStepView inquiry = PasVerdicts.nextStep(mapper.read(failed, sent("95810")), failed, EpaOperation.PAS_INQUIRE, RUN);
+            assertThat(inquiry.headline()).isEqualTo(SEND_AGAIN);
+            assertThat(inquiry.reason()).isEqualTo("No answer came back. This is a finding about the environment, not about the member or the "
+                    + "code.");
+            assertThat(PasVerdicts.verdict(mapper.read(failed, sent("95810")), failed, EpaOperation.PAS_INQUIRE).supporting()).hasSize(1);
         }
-        // On the mock profile nothing was attempted, so there is nothing to be careful about.
-        VendorExchange mock = Exchanges.unavailable(new WireRequest("POST", null, "", List.of(), "{}", false, "Mock profile."), 5L,
-                "The connection was refused or could not be opened.");
-        NextStepView down = PasVerdicts.nextStep(mapper.read(mock), mock, EpaOperation.PAS_SUBMIT, RUN);
-        assertThat(down.headline()).isEqualTo("Next: check the environment, then send again.");
-        assertThat(down.reason()).isEqualTo("No answer came back. This is a finding about the environment, not about the member or the code.");
+    }
+
+    @Test
+    void onMockTheAdviceFollowsWhatTheScenarioModelsAndNeverSaysThatAnythingWasSent() {
+        WireRequest notSent = new WireRequest("POST", null, "", List.of(), "{}", false, "Mock profile.");
+        // A scenario that models a read timeout: on live the request would have gone out.
+        VendorExchange mockTimeout = Exchanges.timeout(notSent, 5L).withScenario("pas-16-timeout", "chosen in the scenario selector");
+        assertThat(PasVerdicts.verdict(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT).supporting()).containsExactly(
+                "Mock scenario pas-16-timeout answered: chosen in the scenario selector.", "No response arrived inside the read timeout.",
+                MAY_HAVE_ACTED);
+        assertThat(PasVerdicts.nextStep(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT, RUN).headline()).isEqualTo(ASK_FIRST);
+        // A scenario that models a refused connection: nothing would have been delivered.
+        VendorExchange mockRefused = Exchanges.unavailable(notSent, 5L, "The connection was refused or could not be opened.");
+        NextStepView down = PasVerdicts.nextStep(mapper.read(mockRefused), mockRefused, EpaOperation.PAS_SUBMIT, RUN);
+        assertThat(down.headline()).isEqualTo(SEND_AGAIN);
+        assertThat(down.reason()).startsWith("Nothing was submitted");
+        // The wording is about the payer and never about this machine, so it is true on both profiles.
+        for (VendorExchange mock : List.of(mockTimeout, mockRefused)) {
+            VerdictView verdict = PasVerdicts.verdict(mapper.read(mock), mock, EpaOperation.PAS_SUBMIT);
+            NextStepView next = PasVerdicts.nextStep(mapper.read(mock), mock, EpaOperation.PAS_SUBMIT, RUN);
+            assertThat(verdict.supporting() + next.headline() + next.reason()).doesNotContain("was sent").doesNotContain("left this machine");
+        }
     }
 
     @Test

@@ -2,6 +2,9 @@ package org.p32h.interop.epa.pave.service.pas;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 import static org.p32h.interop.epa.pave.service.pas.NotificationJson.bundle;
 import static org.p32h.interop.epa.pave.service.pas.NotificationJson.claimResponse;
 import static org.p32h.interop.epa.pave.service.pas.NotificationJson.event;
@@ -31,6 +34,7 @@ import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
+import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.Finding;
@@ -54,6 +58,7 @@ import org.p32h.interop.epa.pave.model.pas.PasOutcome;
 import org.p32h.interop.epa.pave.model.pas.SubscriptionDetail;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
+import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.p32h.interop.epa.pave.service.scenario.Scenario;
@@ -225,6 +230,32 @@ class NotificationReceiverTest {
     }
 
     @Test
+    void aNotificationIsAboutTheSubmissionThatWasSentAndNeverAboutALaterAttemptTheGuardrailRefused() {
+        createSubscription();
+        RunEnvelope<PasDetail> submitted = submit("P32H-PAS-NOTIFY");
+        String claimId = submitted.detail().claimId();
+        // The same claim is submitted again and the guardrail refuses it. Nothing is sent, and the line names the claim.
+        gateway.failing(new ProdWriteBlockedException(EpaOperation.PAS_SUBMIT, new EnvironmentRef("Onyx Production", EnvironmentKind.PROD),
+                "Writes to the production environment Onyx Production are blocked.", "Unlock writes on the Config tab, or switch environment.",
+                null, "POST", null));
+        RunEnvelope<PasDetail> refused = pas.runSubmit(PasSubmitRequest.builder().claimId(claimId).member(MemberDetail.builder()
+                        .memberId("P32H-PAS-NOTIFY").firstName("Given").lastName(SURNAME).dateOfBirth("1970-01-31").build())
+                .provider(ProviderDetail.builder().npi("1234567893").build()).procedureCodes(List.of(CodeInput.of("95810"))).build(),
+                RunOrigin.manual(), null);
+        assertThat(RunSupport.isBlocked(refused)).isTrue();
+        assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, claimId));
+        gateway.failing(null);
+
+        NotificationView view = receive(bundle(status(SUBSCRIPTION, "event-notification"),
+                claimResponse(claimResponseIdOf(submitted), claimId, "A1")));
+
+        // The newest line for that claim is the refused one. The notification is about the request the payer holds.
+        assertThat(view.correlatedRunId()).isEqualTo(submitted.runId());
+        assertThat(view.correlationNotes()).contains("It is about the submission " + submitted.runId() + ", matched by the claim id it carries.");
+        assertThat(view.correlationNotes()).noneMatch(note -> note.contains(refused.runId()));
+    }
+
+    @Test
     void aNotificationForASubscriptionNobodyHereCreatedIsRecordedAsUnmatchedAndShownAndNeverDropped() {
         createSubscription();
         NotificationView view = receive(idOnly("subscription-of-another-client", "claimresponse-nobody-submitted"));
@@ -276,13 +307,10 @@ class NotificationReceiverTest {
         // The subscription and the submission are both in the ledger. Only asking about them fails.
         createSubscription();
         RunEnvelope<PasDetail> submitted = submit("P32H-PAS-NOTIFY");
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("ledger", new QueryFailingLedger(ledger));
-        ObjectProvider<RunLedger> failing = beans.getBeanProvider(RunLedger.class);
-        NotificationReceiver unanswered = new NotificationReceiver(gateway,
-                new RunSupport(EpaProperties.of(Map.of("mode", "mock")), TrackingProperties.defaults(), ONYX, failing, CLOCK), failing, scenarios);
+        // The message names a member on purpose: a caller that copied it into a result or a line would be caught below.
+        ledger.throwingOnRead(new IllegalStateException("the ledger directory is gone for " + SURNAME));
 
-        NotificationView view = unanswered.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, claimResponseIdOf(submitted))));
+        NotificationView view = receiver.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, claimResponseIdOf(submitted))));
 
         // Not "unmatched": that would say nobody here created the subscription, and this tool did.
         assertThat(view.verdict().outcomeCode()).isEqualTo("UNCHECKED_NOTIFICATION");
@@ -295,7 +323,16 @@ class NotificationReceiverTest {
                 "It carries ids only: it says that something changed and not what. An inquiry shows the decision.",
                 "The ledger could not be read, so the subscription it names could not be looked up.",
                 "The ledger could not be read, so the submission it is about could not be looked up.");
-        assertThat(view.findings()).isEmpty();
+        // A finding of its own kind says what was not looked up, so a notification with no link is never read as one that was
+        // checked and matched nothing.
+        assertThat(view.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.kind()).isEqualTo(FindingKind.UNCHECKED_NOTIFICATION);
+            assertThat(finding.title()).isEqualTo("This notification could not be checked against the ledger");
+            assertThat(finding.detail()).isEqualTo("The ledger could not be read, so the subscription it names could not be looked up. "
+                    + "The ledger could not be read, so the submission it is about could not be looked up. A run that could not be looked "
+                    + "up may exist all the same. The notification is recorded and shown, never dropped.");
+            assertThat(finding.subject()).isEqualTo(SUBSCRIPTION);
+        });
         assertThat(view.subscriptionRunId()).isNull();
         assertThat(view.correlatedRunId()).isNull();
         assertThat(view.nextStep().action()).isEqualTo(NextAction.REVIEW);
@@ -306,20 +343,23 @@ class NotificationReceiverTest {
         RunRecord record = ledger.last();
         assertThat(record.operation()).isEqualTo(EpaOperation.SUBSCRIPTION_NOTIFICATION);
         assertThat(record.outcome()).isEqualTo("UNCHECKED_NOTIFICATION");
-        assertThat(record.findings()).isEmpty();
+        assertThat(record.findings()).containsExactly("UNCHECKED_NOTIFICATION");
         assertThat(record.correlation()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, SUBSCRIPTION),
                 Map.entry(RunRecord.CORR_CLAIM_RESPONSE_ID, claimResponseIdOf(submitted)));
-        assertThat(unanswered.list(null).notifications()).singleElement().satisfies(held -> assertThat(held.id()).isEqualTo(view.id()));
+        assertThat(receiver.list(null).notifications()).singleElement().satisfies(held -> assertThat(held.id()).isEqualTo(view.id()));
         // What the ledger said when it failed is in neither the result nor its line.
         assertThat(JsonSafe.mapper().writeValueAsString(List.of(view, record))).doesNotContain("ledger directory").doesNotContain("is gone for");
 
-        // A notification that names no subscription is unmatched whatever the ledger can do: there was nothing to ask.
-        assertThat(unanswered.receive(NotificationReceiver.Inbound.of(bundle(status(null, "heartbeat")))).verdict().outcomeCode())
-                .isEqualTo("UNMATCHED_NOTIFICATION");
+        // A notification that names no subscription is unmatched whatever the ledger can do: there was nothing to ask,
+        // so nothing went unchecked either.
+        NotificationView nameless = receiver.receive(NotificationReceiver.Inbound.of(bundle(status(null, "heartbeat"))));
+        assertThat(nameless.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
+        assertThat(nameless.findings()).extracting(Finding::kind).containsExactly(FindingKind.UNMATCHED_NOTIFICATION);
 
         // On mock, a sample that has to ask which subscription was created last says that it could not.
-        NotificationView sample = unanswered.deliverSample(new NotificationSampleRequest("pas-20-heartbeat", null, null));
+        NotificationView sample = receiver.deliverSample(new NotificationSampleRequest("pas-20-heartbeat", null, null));
         assertThat(sample.verdict().outcomeCode()).isEqualTo("UNCHECKED_NOTIFICATION");
+        assertThat(sample.findings()).extracting(Finding::kind).containsExactly(FindingKind.UNCHECKED_NOTIFICATION);
         assertThat(sample.payloadNotes()).containsExactly("The ledger could not be asked which subscription this tool created last, so this "
                 + "sample names one nobody created.");
     }
@@ -341,10 +381,14 @@ class NotificationReceiverTest {
             assertThat(view.events()).isEmpty();
             // Nothing is said about a submission, because neither is about one.
             assertThat(view.correlationNotes()).containsExactly("The subscription it names was created by the run " + created.runId() + ".");
-            assertThat(view.nextStep().action()).isEqualTo(NextAction.FLOW_ENDS);
+            // There is nothing to do, and that is not the end of a case's journey: no request was decided by this.
+            assertThat(view.nextStep().action()).isEqualTo(NextAction.NOTHING_FURTHER);
             assertThat(view.findings()).isEmpty();
         }
+        assertThat(handshake.nextStep().headline()).isEqualTo("Nothing to do. The subscription is answering.");
+        assertThat(heartbeat.nextStep().headline()).isEqualTo("Nothing to do. The subscription is still there.");
         assertThat(ledger.records()).extracting(RunRecord::outcome).containsExactly("CREATED", "HANDSHAKE_RECEIVED", "HEARTBEAT_RECEIVED");
+        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsExactly("START_PAS", "NOTHING_FURTHER", "NOTHING_FURTHER");
         assertThat(ledger.last().coverageCodes()).containsExactly("notification-kind=NOTIFICATION_BUNDLE", "notification-type=heartbeat",
                 "subscription-status=active", "payload-content=empty");
         assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, SUBSCRIPTION),
@@ -386,6 +430,36 @@ class NotificationReceiverTest {
         assertThat(view.correlationNotes()).noneMatch(note -> note.startsWith("The authorization number it carries is not"));
         assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, approved.runId())
                 .containsEntry(RunRecord.CORR_CLAIM_ID, approved.detail().claimId());
+    }
+
+    @Test
+    void anAuthorizationNumberTheLedgerHoldsAsATokenIsStillMatchedByTheNumberTheNotificationCarries() {
+        // As the real ledger writes it where member IDs are not recorded: a token, and never the number.
+        ledger.tokenisingAuthorizationRefs();
+        createSubscription();
+        RunEnvelope<PasDetail> approved = submit("P32H-PAS-APPROVED");
+        String stored = ledger.last().correlation().get(RunRecord.CORR_AUTHORIZATION_REF);
+        assertThat(stored).matches("[0-9a-f]{64}");
+
+        NotificationView view = receive(bundle(status(SUBSCRIPTION, "event-notification"),
+                claimResponse("claimresponse-reissued", null, "A1", "\"preAuthRef\":\"PA-PLACEHOLDER-0001\"")));
+
+        // The stored text and the number have nothing in common. Only the ledger's own comparison finds the run.
+        assertThat(view.correlatedRunId()).isEqualTo(approved.runId());
+        assertThat(view.correlationNotes()).contains("It is about the submission " + approved.runId() + ", matched by the authorization number it carries.");
+        // And the number is not said to differ from the one the submission recorded, which a comparison of the two texts would say.
+        assertThat(view.correlationNotes()).noneMatch(note -> note.startsWith("The authorization number it carries is not"));
+        // The line of the notification holds the token too.
+        assertThat(ledger.last().operation()).isEqualTo(EpaOperation.SUBSCRIPTION_NOTIFICATION);
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_AUTHORIZATION_REF, stored)
+                .containsEntry(RunRecord.CORR_RUN_ID, approved.runId());
+
+        // Another number is another request, and is tied to nothing.
+        NotificationView other = receive(bundle(status(SUBSCRIPTION, "event-notification"),
+                claimResponse("claimresponse-other", null, "A1", "\"preAuthRef\":\"PA-PLACEHOLDER-0002\"")));
+        assertThat(other.correlatedRunId()).isNull();
+        assertThat(other.correlationNotes()).contains("No submission in the ledger carries the ClaimResponse id or the authorization number this "
+                + "notification carries.");
     }
 
     @Test
@@ -615,11 +689,85 @@ class NotificationReceiverTest {
         NotificationView view = noLedger.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, "claimresponse-claim-test-1")));
         // Nothing was asked, so nothing is claimed about who created the subscription.
         assertThat(view.verdict().outcomeCode()).isEqualTo("UNCHECKED_NOTIFICATION");
-        assertThat(view.findings()).isEmpty();
+        assertThat(view.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.kind()).isEqualTo(FindingKind.UNCHECKED_NOTIFICATION);
+            assertThat(finding.detail()).isEqualTo("No ledger is available, so the subscription it names could not be looked up. No ledger "
+                    + "is available, so the submission it is about could not be looked up. A run that could not be looked up may exist all "
+                    + "the same. The notification is recorded and shown, never dropped.");
+            assertThat(finding.subject()).isEqualTo(SUBSCRIPTION);
+        });
         assertThat(view.correlationNotes()).containsExactly("No ledger is available, so the subscription it names could not be looked up.",
                 "No ledger is available, so the submission it is about could not be looked up.");
         assertThat(view.ledger().recorded()).isFalse();
         assertThat(noLedger.list(null).held()).isEqualTo(1);
+
+        // One that names no subscription is unmatched, because there was none to look up. The submission it is about
+        // was to be looked up and could not be, and that is a second fact with its own finding.
+        NotificationView nameless = noLedger.receive(NotificationReceiver.Inbound.of(bundle(status(null, "event-notification"),
+                claimResponse("claimresponse-claim-test-1", null, "A4"))));
+        assertThat(nameless.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
+        assertThat(nameless.findings()).extracting(Finding::kind).containsExactly(FindingKind.UNMATCHED_NOTIFICATION,
+                FindingKind.UNCHECKED_NOTIFICATION);
+        assertThat(nameless.findings().get(1).detail()).isEqualTo("No ledger is available, so the submission it is about could not be looked "
+                + "up. A run that could not be looked up may exist all the same. The notification is recorded and shown, never dropped.");
+        assertThat(nameless.findings().get(1).subject()).isNull();
+
+        // A bundle with no subscription status is not a notification. The ClaimResponse it carries was still to be looked up,
+        // so the finding is raised for it too, and does not call it a notification.
+        NotificationView notOne = noLedger.receive(NotificationReceiver.Inbound.of("{\"resourceType\":\"Bundle\",\"type\":\"collection\","
+                + "\"entry\":[{\"resource\":" + claimResponse("claimresponse-claim-test-1", null, "A4") + "}]}"));
+        assertThat(notOne.verdict().outcomeCode()).isEqualTo("UNREADABLE_NOTIFICATION");
+        assertThat(notOne.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.kind()).isEqualTo(FindingKind.UNCHECKED_NOTIFICATION);
+            assertThat(finding.title()).isEqualTo("What arrived could not be checked against the ledger");
+            assertThat(finding.detail()).isEqualTo("No ledger is available, so the submission it is about could not be looked up. A run that "
+                    + "could not be looked up may exist all the same. What arrived is recorded and shown, never dropped.");
+            assertThat(finding.subject()).isNull();
+        });
+    }
+
+    @Test
+    void aSubmissionThatCouldNotBeLookedUpIsAFindingEvenWhenTheSubscriptionWasFound() {
+        RunEnvelope<SubscriptionDetail> created = createSubscription();
+        RunEnvelope<PasDetail> submitted = submit("P32H-PAS-NOTIFY");
+        // The ledger answers when it is asked who created a subscription and fails when it is asked about a submission.
+        RunLedger failingOnSubmissions = spy(ledger);
+        doThrow(new IllegalStateException("the ledger directory is gone for " + SURNAME)).when(failingOnSubmissions)
+                .query(argThat(query -> query != null && query.operation() != EpaOperation.SUBSCRIPTION_CREATE));
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("ledger", failingOnSubmissions);
+        NotificationReceiver partly = new NotificationReceiver(gateway, support, beans.getBeanProvider(RunLedger.class), scenarios);
+
+        NotificationView view = partly.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, claimResponseIdOf(submitted))));
+
+        // What arrived is an event for a subscription this tool created. That much was looked up and found.
+        assertThat(view.verdict().outcomeCode()).isEqualTo("NOTIFICATION_RECEIVED");
+        assertThat(view.subscriptionRunId()).isEqualTo(created.runId());
+        assertThat(view.correlatedRunId()).isNull();
+        assertThat(view.correlationNotes()).containsExactly("The subscription it names was created by the run " + created.runId() + ".",
+                "The ledger could not be read, so the submission it is about could not be looked up.");
+        // Without the finding, the ledger line would read like one for a notification about a submission nobody here made.
+        assertThat(view.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.kind()).isEqualTo(FindingKind.UNCHECKED_NOTIFICATION);
+            assertThat(finding.title()).isEqualTo("This notification could not be checked against the ledger");
+            assertThat(finding.detail()).isEqualTo("The ledger could not be read, so the submission it is about could not be looked up. A run "
+                    + "that could not be looked up may exist all the same. The notification is recorded and shown, never dropped.");
+            // The subscription was found, so the finding is not about it.
+            assertThat(finding.subject()).isNull();
+        });
+        RunRecord record = ledger.last();
+        assertThat(record.outcome()).isEqualTo("NOTIFICATION_RECEIVED");
+        assertThat(record.findings()).containsExactly("UNCHECKED_NOTIFICATION");
+        assertThat(record.correlation()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, SUBSCRIPTION),
+                Map.entry(RunRecord.CORR_SUBSCRIPTION_RUN_ID, created.runId()),
+                Map.entry(RunRecord.CORR_CLAIM_RESPONSE_ID, claimResponseIdOf(submitted)));
+        assertThat(JsonSafe.mapper().writeValueAsString(List.of(view, record))).doesNotContain("ledger directory").doesNotContain("is gone for");
+
+        // The same notification, with a ledger that answers, is matched and raises nothing.
+        NotificationView checked = receive(idOnly(SUBSCRIPTION, claimResponseIdOf(submitted)));
+        assertThat(checked.correlatedRunId()).isEqualTo(submitted.runId());
+        assertThat(checked.findings()).isEmpty();
+        assertThat(ledger.last().findings()).isEmpty();
     }
 
     // ---- the list the screen polls ----

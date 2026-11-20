@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.service.dtr;
 
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Presence;
@@ -96,10 +97,12 @@ public final class DtrVerdicts {
                 int bundles = detail.bundles().size();
                 if (bundles > 0) {
                     supporting.add("The package holds " + count(bundles, "bundle") + " and no questionnaire in " + (bundles == 1 ? "it" : "them")
-                            + ". The DTR guide does not provide for that: a package bundle starts with its questionnaire.");
+                            + ". DTR 2.0.1 does not provide for that: a package bundle starts with its questionnaire (dtrb-1).");
                 } else if (detail.responseKind() == DtrResponseKind.PARAMETERS) {
                     supporting.add("The DTR guide, from STU 2.1.0 on, has a service return no package bundle when no questionnaire needs to "
                             + "be completed.");
+                    supporting.add("Under DTR 2.0.1, the version this tool is held to, a package response holds at least one PackageBundle, "
+                            + "so this answer follows a later version.");
                 }
                 supporting.add("This tool reports what arrived. It does not turn an empty package into an answer that no documentation is "
                         + "needed.");
@@ -162,6 +165,14 @@ public final class DtrVerdicts {
         if (form != null) {
             supporting.addAll(formLines(form));
         }
+        for (QuestionnaireView questionnaire : questionnaires) {
+            if (!questionnaire.notApplied().isEmpty()) {
+                int rules = questionnaire.notApplied().size();
+                supporting.add(questionnaire.subject() + ": this tool evaluates enableWhen and nothing else, and does not apply "
+                        + (rules == 1 ? "a rule" : rules + " kinds of rule") + " this questionnaire carries. "
+                        + (rules == 1 ? "It is" : "Each is") + " named with the questionnaire, with what not applying it means.");
+            }
+        }
         supporting.add(scope(operation));
         return VerdictView.of(outcome, headline, List.copyOf(new LinkedHashSet<>(supporting)));
     }
@@ -206,6 +217,10 @@ public final class DtrVerdicts {
         if (!form.requiredUnanswered().isEmpty()) {
             lines.add("Required and unanswered: " + named(form.requiredUnanswered()) + ".");
         }
+        if (!form.undetermined().isEmpty()) {
+            lines.add("Not judged, because a rule this tool does not apply decides whether they still need an answer: "
+                    + named(form.undetermined()) + ".");
+        }
         if (form.changes() != null) {
             lines.add(form.changes().summary());
         }
@@ -236,7 +251,10 @@ public final class DtrVerdicts {
         boolean complete = outcome == DtrOutcome.RESPONSE_COMPLETED || outcome == DtrOutcome.NOTHING_REQUIRED;
         // Only a response this tool reports as complete is handed to the prior authorization request.
         String completed = complete && !detail.questionnaireResponses().isEmpty() ? detail.questionnaireResponses().get(0).json() : null;
-        Map<String, List<String>> carry = handoff.carry(completed);
+        // DTR 2.0.1 requires a QuestionnaireResponse to hold at least one item. One the service completed with none still counts
+        // towards its questionnaire, so PAS is offered, but it is not handed to PAS.
+        boolean itemless = completed != null && itemless(completed);
+        Map<String, List<String>> carry = handoff.carry(itemless ? null : completed);
         // A package can hold several questionnaires. PAS is the next step only when each of them has a completed response.
         List<String> remaining = complete ? handoff.stillToAnswer(completed) : List.of();
         boolean local = operation == EpaOperation.DTR_RESPONSE;
@@ -263,16 +281,20 @@ public final class DtrVerdicts {
                             ? "The service asked nothing more and did not report the response as complete, so the loop can neither continue "
                             + "nor end."
                             : "The status of the response is not one this tool acts on, so it cannot tell whether the loop continues.", carry);
-            case RESPONSE_COMPLETED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry) : new NextStepView(NextAction.START_PAS,
-                    "Next: submit the prior authorization request in PAS. The completed questionnaire response goes with it.",
-                    adaptive ? "The service reported the response as completed, and every required question that is enabled has an answer."
-                            : "Every required question that is enabled has an answer.", carry);
-            case NOTHING_REQUIRED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry) : new NextStepView(NextAction.START_PAS,
-                    "Next: submit the prior authorization request in PAS. The completed questionnaire response goes with it.",
-                    "The response is complete without a question having been asked, so there is no documentation to collect first.", carry);
+            case RESPONSE_COMPLETED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry, itemless)
+                    : toPas(carry, itemless, adaptive ? "The service reported the response as completed, and every required question that is "
+                    + "enabled has an answer." : "Every required question that is enabled has an answer.");
+            case NOTHING_REQUIRED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry, itemless)
+                    : toPas(carry, itemless, itemless ? "The service completed this response without asking a question."
+                    : "The response is complete without a question having been asked, so there is no documentation to collect first.");
             case RESPONSE_NOT_COMPLETE -> adaptive
                     ? new NextStepView(NextAction.ANSWER_NEXT_QUESTION, "Next: continue the adaptive questionnaire with next-question.",
                     "Only the service can complete an adaptive response, and it has not reported this one as completed.", carry)
+                    : notJudged(detail)
+                    ? new NextStepView(NextAction.SUBMIT_RESPONSE,
+                    "Next: answer the items this tool could not judge, named with this result, and submit the response again.",
+                    "A rule this tool does not apply decides whether an item still needs an answer, and that item has none, so this tool "
+                            + "cannot say the response is complete.", carry)
                     : new NextStepView(NextAction.REVIEW, "Next: read how this questionnaire is meant to be answered, below.",
                     "This tool cannot tell whether the questionnaire is adaptive or static, so it cannot say its response is complete.", carry);
             case REQUIRED_UNANSWERED -> adaptive
@@ -304,7 +326,7 @@ public final class DtrVerdicts {
      * finding, and is worded as one: nothing more may need answering, but this tool cannot tell.
      */
     private static NextStepView anotherRemains(DtrHandoff handoff, String completed, List<String> remaining,
-                                               Map<String, List<String>> carry) {
+                                               Map<String, List<String>> carry, boolean itemless) {
         if (completed != null && !handoff.counts(completed)) {
             List<String> named = DtrHandoff.answeredBy(completed);
             String says = named.isEmpty() ? "it does not say which questionnaire it answers"
@@ -319,7 +341,51 @@ public final class DtrVerdicts {
                 "Next: answer the other " + (one ? "questionnaire" : "questionnaires") + " of this package before going on to PAS: "
                         + String.join(", ", remaining) + ".",
                 "This response is complete. The package holds " + handoff.questionnaires().size() + " questionnaires and "
-                        + (one ? "one of them has" : remaining.size() + " of them have") + " no completed response yet.", carry);
+                        + (one ? "one of them has" : remaining.size() + " of them have") + " no completed response yet."
+                        + (itemless ? " " + NOT_CARRIED : ""), carry);
+    }
+
+    /**
+     * Why a complete response that holds no item is shown and not handed on. DTR 2.0.1 requires a
+     * QuestionnaireResponse to hold at least one item, so PAS is not given one that holds none.
+     */
+    private static final String NOT_CARRIED = "This response holds no item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at "
+            + "least one (dtr-questionnaireresponse). This tool does not hand PAS a response that does not conform to it, so the response "
+            + "is shown here and not carried.";
+
+    /**
+     * The step to PAS once every questionnaire of the package has a completed response. What goes
+     * with it is said from the carry itself, so the headline cannot claim a response that is not
+     * handed on.
+     *
+     * @param itemless true when the response this step completed holds no item and is therefore not carried
+     * @param why      why the response is complete
+     */
+    private static NextStepView toPas(Map<String, List<String>> carry, boolean itemless, String why) {
+        List<String> going = carry.getOrDefault(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of());
+        String headline;
+        if (!itemless) {
+            headline = "Next: submit the prior authorization request in PAS. The completed questionnaire "
+                    + (going.size() > 1 ? "responses go" : "response goes") + " with it.";
+        } else if (going.isEmpty()) {
+            headline = "Next: submit the prior authorization request in PAS. No questionnaire response goes with it.";
+        } else {
+            headline = "Next: submit the prior authorization request in PAS. The completed responses of the other questionnaires go with it, "
+                    + "and this one does not.";
+        }
+        return new NextStepView(NextAction.START_PAS, headline, itemless ? why + " " + NOT_CARRIED : why, carry);
+    }
+
+    /** True when a QuestionnaireResponse, as compact JSON, holds no item. */
+    private static boolean itemless(String responseJson) {
+        JsonSafe.Parsed parsed = JsonSafe.parse(responseJson);
+        return parsed.ok() && JsonSafe.elements(parsed.node(), "item").isEmpty();
+    }
+
+    /** True when a static questionnaire's response is held back only by items this tool cannot judge. */
+    private static boolean notJudged(DtrDetail detail) {
+        return detail.form() != null && !detail.form().undetermined().isEmpty()
+                && detail.questionnaires().stream().allMatch(questionnaire -> questionnaire.kind() == QuestionnaireKind.STATIC);
     }
 
     /**

@@ -71,6 +71,18 @@ class PlaceholderCodeListTest {
     }
 
     @Test
+    void noRowStatesACodingSystemBecauseARequestWouldCarryItToARealService() {
+        // The request builder takes a code's coding system from the code list on the live profile
+        // as well as on mock. The conformance checks leave the placeholder out on live; a request
+        // has no such rule. So the placeholder must have nothing for a request to take: a system
+        // made up here would go out in an order sent to a real service.
+        assertThat(service.selfCheck().recognisedColumns()).doesNotContainKey("system");
+        assertThat(rows).allSatisfy(row -> assertThat(row.system()).as(row.code()).isNull());
+        // What it does hold is a code type, which no request reads.
+        assertThat(rows).allSatisfy(row -> assertThat(row.codeType()).as(row.code()).isIn("CPT", "HCPCS"));
+    }
+
+    @Test
     void noRowBreaksTheRulesAboutWhichVendorServesWhichLineOfBusiness() {
         int withVendor = 0;
         for (ProcedureCode row : rows) {

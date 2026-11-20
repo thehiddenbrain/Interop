@@ -171,9 +171,13 @@ public class NotificationReceiver {
      *
      * @param unmatched why no run was found to have created the subscription the notification
      *                  names. Null when one was found, and for a body that is not a notification
+     * @param notes     how each link was established, or why it was not, in the order they were worked out
+     * @param unasked   those of the notes that say a link could not be looked up, because there is
+     *                  no ledger or it could not be read. Empty when everything that needed asking
+     *                  was asked and answered, whatever the answers were
      */
     private record Links(String subscriptionRunId, NotificationVerdicts.Unmatched unmatched, String submissionRunId, String submissionClaimId,
-                         List<String> notes) {
+                         List<String> notes, List<String> unasked) {
     }
 
     /** Everything worked out from one body, before anything is written. */
@@ -420,7 +424,7 @@ public class NotificationReceiver {
 
         List<Finding> findings = new ArrayList<>();
         // Raised only when it is known that nobody here created the subscription. When the ledger
-        // could not be asked that is not known, and the outcome says so in its place.
+        // could not be asked that is not known, and the finding after this one says so in its place.
         if (outcome == NotificationOutcome.UNMATCHED_NOTIFICATION) {
             findings.add(new Finding(FindingKind.UNMATCHED_NOTIFICATION, "This notification matches no subscription this tool created",
                     (status.subscriptionId() == null ? "It names no subscription, so there is none to look up."
@@ -428,6 +432,19 @@ public class NotificationReceiver {
                             + "with that id. Another client may have created it, or it was created before this ledger began, or by "
                             + "another installation of this tool.")
                             + " It is recorded and shown, never dropped.", status.subscriptionId(), null, null));
+        }
+        // Raised whenever a link was to be looked up and could not be: the subscription, the
+        // submission, or both. The kind goes on the ledger line, where a line with no link would
+        // otherwise read as a notification that was checked and matched nothing. The finding names
+        // the subscription only when the subscription is what could not be looked up. A body that
+        // is not a notification can still carry a ClaimResponse to look up, so it is not called one.
+        if (!links.unasked().isEmpty()) {
+            boolean notification = reading.notification();
+            findings.add(new Finding(FindingKind.UNCHECKED_NOTIFICATION,
+                    (notification ? "This notification" : "What arrived") + " could not be checked against the ledger",
+                    String.join(" ", links.unasked()) + " A run that could not be looked up may exist all the same. "
+                            + (notification ? "The notification" : "What arrived") + " is recorded and shown, never dropped.",
+                    links.unmatched() == NotificationVerdicts.Unmatched.NOT_ASKED ? status.subscriptionId() : null, null, null));
         }
         unrecognised(findings, "notification type", PasCodes.NOTIFICATION_TYPE, status.type());
         unrecognised(findings, "subscription status", PasCodes.SUBSCRIPTION_STATUS, status.subscriptionStatus());
@@ -473,6 +490,9 @@ public class NotificationReceiver {
      */
     private Links correlate(NotificationReading reading) {
         List<String> notes = new ArrayList<>();
+        // What could not be looked up at all. Kept apart from what was looked up and not found: the
+        // first leaves a link unknown, the second says there is none.
+        List<String> unasked = new ArrayList<>();
         RunLedger target = available();
         NotificationReading.Identifiers ids = reading.identifiers();
 
@@ -487,7 +507,7 @@ public class NotificationReceiver {
                 notes.add("It names no subscription, so it cannot be matched to one this tool created.");
             } else if (target == null) {
                 unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
-                notes.add("No ledger is available, so the subscription it names could not be looked up.");
+                notLookedUp(notes, unasked, "No ledger is available, so the subscription it names could not be looked up.");
             } else {
                 boolean[] lookupFailed = new boolean[1];
                 RunRecord created = find(target, EpaOperation.SUBSCRIPTION_CREATE, RunRecord.CORR_SUBSCRIPTION_ID, subscriptionId, lookupFailed);
@@ -496,7 +516,7 @@ public class NotificationReceiver {
                     notes.add("The subscription it names was created by the run " + created.runId() + ".");
                 } else if (lookupFailed[0]) {
                     unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
-                    notes.add("The ledger could not be read, so the subscription it names could not be looked up.");
+                    notLookedUp(notes, unasked, "The ledger could not be read, so the subscription it names could not be looked up.");
                 } else {
                     unmatched = NotificationVerdicts.Unmatched.NOT_IN_LEDGER;
                     notes.add("No run in the ledger created the subscription it names.");
@@ -540,16 +560,23 @@ public class NotificationReceiver {
                 }
                 differs(notes, target, chosen, RunRecord.CORR_CLAIM_RESPONSE_ID, ids.claimResponseId(), "The ClaimResponse id it carries");
                 differs(notes, target, chosen, RunRecord.CORR_AUTHORIZATION_REF, ids.authorizationRef(), "The authorization number it carries");
+            } else if (failed[0]) {
+                notLookedUp(notes, unasked, "The ledger could not be read, so the submission it is about could not be looked up.");
             } else {
-                notes.add(failed[0] ? "The ledger could not be read, so the submission it is about could not be looked up."
-                        : "No submission in the ledger carries " + String.join(" or ", found.keySet()) + " this notification carries.");
+                notes.add("No submission in the ledger carries " + String.join(" or ", found.keySet()) + " this notification carries.");
             }
         } else if (ids.any()) {
-            notes.add("No ledger is available, so the submission it is about could not be looked up.");
+            notLookedUp(notes, unasked, "No ledger is available, so the submission it is about could not be looked up.");
         } else if (reading.notification() && !reading.status().events().isEmpty()) {
             notes.add("It reports an event and names no claim, ClaimResponse or authorization number, so it cannot be tied to a submission.");
         }
-        return new Links(subscriptionRunId, unmatched, submissionRunId, submissionClaimId, notes);
+        return new Links(subscriptionRunId, unmatched, submissionRunId, submissionClaimId, notes, List.copyOf(unasked));
+    }
+
+    /** Says that a link could not be looked up, in the notes a reader sees and in the list the finding is raised from. */
+    private static void notLookedUp(List<String> notes, List<String> unasked, String why) {
+        notes.add(why);
+        unasked.add(why);
     }
 
     /**
@@ -591,11 +618,14 @@ public class NotificationReceiver {
         }
     }
 
-    /** The newest run of one operation that carries an identifier, or null. A ledger that fails is reported and never fatal. */
+    /**
+     * The newest run of one operation that carries an identifier and was sent, or null. A run the
+     * guardrail refused names what it was aimed at and sent nothing, so a notification is never
+     * about it. A ledger that fails is reported and never fatal.
+     */
     private static RunRecord find(RunLedger target, EpaOperation operation, String key, String value, boolean[] failed) {
         try {
-            List<RunRecord> runs = target.query(RunQuery.builder().operation(operation).correlation(key, value).limit(1).build());
-            return runs.isEmpty() ? null : runs.get(0);
+            return SentRuns.newest(target, operation, key, value);
         } catch (RuntimeException e) {
             failed[0] = true;
             return null;

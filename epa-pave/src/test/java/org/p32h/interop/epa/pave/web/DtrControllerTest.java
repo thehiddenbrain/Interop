@@ -511,6 +511,13 @@ class DtrControllerTest {
         mvc.perform(post("/api/dtr/response").contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("questionnaire", questionnaire, "answer", List.of(answer("sleep-2", 14))))))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("answer"));
+        // An answer a person gives must name its author (DTR 2.0.1 dtrx-1), and the author is the provider on the form. With no
+        // provider the step is refused, naming the rule, rather than built with an extension that does not conform.
+        String unauthored = mvc.perform(post("/api/dtr/response").contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("questionnaire", questionnaire, "answers", List.of(answer("sleep-2", 14))))))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("provider.npi"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(unauthored).contains("dtrx-1").contains("DTR 2.0.1");
         // This step sends nothing, so it has no scenario to choose, and says so.
         mvc.perform(post("/api/dtr/response").contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("questionnaire", questionnaire, "scenarioId", "dtr-01-static-linear"))))

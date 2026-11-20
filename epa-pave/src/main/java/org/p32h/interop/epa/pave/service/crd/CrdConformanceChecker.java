@@ -1,10 +1,11 @@
 package org.p32h.interop.epa.pave.service.crd;
 
+import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.AuthRequirement;
 import org.p32h.interop.epa.pave.model.DelegatedVendors;
 import org.p32h.interop.epa.pave.model.Finding;
 import org.p32h.interop.epa.pave.model.FindingKind;
-import org.p32h.interop.epa.pave.model.Presence;
+import org.p32h.interop.epa.pave.model.crd.ConformanceScope;
 import org.p32h.interop.epa.pave.model.ProcedureCode;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VendorExchange;
@@ -27,14 +28,43 @@ import java.util.Set;
  *
  * <p>When the two could not be compared for a code, that is a finding too, with the reason. A
  * result with no disagreement must mean the two agree, never that nothing was looked at.
+ *
+ * <p><b>The placeholder list is never passed off as the P32H list.</b> With no export configured
+ * the tool loads the synthetic list that ships with it, so that it runs on a fresh checkout. What
+ * that list says about a code was made up.
+ * <ul>
+ *   <li>Anywhere but on the mock profile nothing is compared with it. A disagreement between a
+ *       real service and invented rows is a finding about neither, and a tester would take it to
+ *       the vendor. The result carries one finding for the run that says no P32H list is loaded.</li>
+ *   <li>On the mock profile the comparison runs, because there the service's answer is synthetic
+ *       as well and showing what a disagreement looks like is the point. Every finding that rests
+ *       on the list then says in its detail which list that was.</li>
+ * </ul>
  */
 public final class CrdConformanceChecker {
 
-    private final ProcedureCodeDirectory codeList;
+    /** The rules {@link #check} applies, shown on every result. */
+    public static final ConformanceScope SCOPE = CrdGuideRules.SCOPE;
 
-    /** @param codeList the procedure code list. May be null, in which case the two code list checks are skipped */
-    public CrdConformanceChecker(ProcedureCodeDirectory codeList) {
+    private static final String NO_P32H_LIST_TITLE = "The code list was not compared with the service: no P32H code list is loaded";
+    private static final String NO_P32H_LIST_DETAIL = "No P32H code list is loaded. The tool is using the synthetic placeholder list that "
+            + "ships with it, which says nothing about real codes, so nothing was compared with the service's answer. Set codelist.file "
+            + "to the P32H export and restart the tool.";
+    private static final String PLACEHOLDER_NOTE = "The code list here is the synthetic placeholder that ships with the tool and not a "
+            + "P32H list.";
+
+    private final ProcedureCodeDirectory codeList;
+    private final boolean mockProfile;
+
+    /**
+     * @param codeList the procedure code list. May be null, in which case the two code list checks are skipped
+     * @param epa      says which profile the tool runs on. The placeholder list is compared with an
+     *                 answer on the mock profile only. Any other mode is treated as live, because
+     *                 comparing invented rows with a real service is the mistake that costs more
+     */
+    public CrdConformanceChecker(ProcedureCodeDirectory codeList, EpaProperties epa) {
         this.codeList = codeList;
+        this.mockProfile = epa.mock();
     }
 
     /**
@@ -47,48 +77,60 @@ public final class CrdConformanceChecker {
 
         for (CoverageInformationView view : coverage) {
             String where = view.subject();
-            outsideValueSet(findings, where, CrdCodes.COVERED, view.covered());
-            outsideValueSet(findings, where, CrdCodes.PA_NEEDED, view.paNeeded());
-            outsideValueSet(findings, where, CrdCodes.DOC_NEEDED, view.docNeeded());
-            view.docPurpose().forEach(value -> outsideValueSet(findings, where, CrdCodes.DOC_PURPOSE, value));
-            view.infoNeeded().forEach(value -> outsideValueSet(findings, where, CrdCodes.INFO_NEEDED, value));
-
-            if (view.covered().code() == null && view.paNeeded().code() == null) {
-                findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
-                        "Coverage information with no answer",
-                        "The coverage information at " + view.foundAt() + " carries neither covered nor pa-needed. It has told the "
-                                + "tester nothing about this service.", where, null, null));
-            }
-            emptyElement(findings, where, CrdCodes.COVERED, view.covered());
-            emptyElement(findings, where, CrdCodes.PA_NEEDED, view.paNeeded());
-            emptyElement(findings, where, CrdCodes.DOC_NEEDED, view.docNeeded());
+            valueSet(findings, where, CrdCodes.COVERED, view.covered());
+            valueSet(findings, where, CrdCodes.PA_NEEDED, view.paNeeded());
+            valueSet(findings, where, CrdCodes.DOC_NEEDED, view.docNeeded());
+            view.docPurpose().forEach(value -> valueSet(findings, where, CrdCodes.DOC_PURPOSE, value));
+            view.infoNeeded().forEach(value -> valueSet(findings, where, CrdCodes.INFO_NEEDED, value));
+            CrdGuideRules.check(findings, view);
         }
 
         if (exchange.ok() && coverage.isEmpty()) {
-            findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
+            // CRD 2.0.1 makes the extension optional on every order profile and ships no response
+            // model, so its absence is information. The outcome stays "no determination returned".
+            findings.add(new Finding(FindingKind.NOT_STATED,
                     "No coverage information in the response",
                     "The service answered successfully but the response carries no coverage information extension, in a system "
-                            + "action, on a card or on a suggestion. There is no determination to check.", null, null, null));
+                            + "action, on a card or on a suggestion. " + CrdCodes.JUDGED_BY + " does not require one, so this is not a "
+                            + "conformance problem, but the response has said nothing about coverage or prior authorization.",
+                    null, null, null));
         }
 
         // The code list is compared with a response that answered something. A fault, or a response
         // with no coverage information, already has its own finding and outcome for the whole call.
         if (codeList != null && exchange.ok() && !coverage.isEmpty()) {
-            for (String code : reading.requestedCodes()) {
-                List<ProcedureCode> rows = rowsToCompare(findings, code, lineOfBusiness, dateOfService);
-                if (rows.isEmpty()) {
-                    continue;
+            // Asked once for the whole check. Which list is loaded cannot differ from one code to the next.
+            boolean placeholder = codeList.selfCheck().placeholder();
+            if (placeholder && !mockProfile) {
+                // One finding for the run and not one for each code: the reason is the same for all of them.
+                findings.add(new Finding(FindingKind.CODE_LIST_NOT_COMPARED, NO_P32H_LIST_TITLE, NO_P32H_LIST_DETAIL, null, null, null));
+            } else {
+                List<Finding> fromTheList = new ArrayList<>();
+                for (String code : reading.requestedCodes()) {
+                    List<ProcedureCode> rows = rowsToCompare(fromTheList, code, lineOfBusiness, dateOfService);
+                    if (rows.isEmpty()) {
+                        continue;
+                    }
+                    List<CoverageInformationView> answers = coverage.stream().filter(v -> v.procedureCodes().contains(code)).toList();
+                    if (answers.isEmpty()) {
+                        notCompared(fromTheList, code, "The response carries no answer this tool could tie to " + code + ".");
+                    }
+                    for (CoverageInformationView view : answers) {
+                        compareWithCodeList(fromTheList, code, view, rows);
+                    }
                 }
-                List<CoverageInformationView> answers = coverage.stream().filter(v -> v.procedureCodes().contains(code)).toList();
-                if (answers.isEmpty()) {
-                    notCompared(findings, code, "The response carries no answer this tool could tie to " + code + ".");
-                }
-                for (CoverageInformationView view : answers) {
-                    compareWithCodeList(findings, code, view, rows);
-                }
+                // The note is added here, to whatever the comparison raised, and not where each
+                // finding is made: a finding added to the comparison later cannot then go without it.
+                findings.addAll(placeholder ? fromTheList.stream().map(CrdConformanceChecker::fromThePlaceholder).toList() : fromTheList);
             }
         }
         return findings;
+    }
+
+    /** The same finding, saying in its detail that the list it rests on is the placeholder. */
+    private static Finding fromThePlaceholder(Finding finding) {
+        return new Finding(finding.kind(), finding.title(), finding.detail() + " " + PLACEHOLDER_NOTE, finding.subject(),
+                finding.codeListSays(), finding.serviceSays());
     }
 
     /**
@@ -158,22 +200,27 @@ public final class CrdConformanceChecker {
 
         Set<String> listVendors = new LinkedHashSet<>();
         rows.forEach(row -> {
-            if (Texts.present(row.delegatedVendor())) {
-                listVendors.add(DelegatedVendors.canonical(row.delegatedVendor()));
+            // Null for a blank cell, and also for one with no letter or digit in it, such as a dash
+            // written for "none". Neither names a vendor, so neither is a routing to compare.
+            String vendor = DelegatedVendors.canonical(row.delegatedVendor());
+            if (vendor != null) {
+                listVendors.add(vendor);
             }
         });
         if (listVendors.size() == 1) {
             String listVendor = listVendors.iterator().next();
             if (Texts.blank(view.delegatedVendor())) {
-                // A response that needs no authorization has no reason to name a vendor.
-                if (Boolean.TRUE.equals(serviceRequires)) {
+                // Only an answer that leaves a submission to make has a reason to name a vendor.
+                // Satisfied means prior authorization can be bypassed, and a not-covered answer has
+                // nothing to submit, so neither is blamed for naming none.
+                if (submissionToRoute(view)) {
                     findings.add(new Finding(FindingKind.CODE_LIST_DISAGREES_ON_VENDOR,
                             "The code list routes " + code + " to a vendor and the service names none",
                             "One of them is wrong, and this tool cannot tell which.", code,
                             "The code list routes this code to " + listVendor + line + ".",
                             "The service named no delegated vendor."));
                 }
-            } else if (!DelegatedVendors.same(listVendor, view.delegatedVendor())) {
+            } else if (submissionToRoute(view) && !DelegatedVendors.same(listVendor, view.delegatedVendor())) {
                 findings.add(new Finding(FindingKind.CODE_LIST_DISAGREES_ON_VENDOR,
                         "The code list and the service route " + code + " to different vendors",
                         "One of them is wrong, and this tool cannot tell which.", code,
@@ -213,29 +260,56 @@ public final class CrdConformanceChecker {
             return null;
         }
         return switch (paNeeded.code()) {
-            // Satisfied means an authorization was needed and one exists, so it agrees with "required".
+            // CRD 2.0.1 defines satisfied as: prior authorization would typically be needed, and the
+            // conditions it evaluates have already been evaluated. The code list's "required" is a
+            // statement about the code, so satisfied agrees with it.
             case "auth-needed", "performpa", "satisfied" -> Boolean.TRUE;
             case "no-auth" -> Boolean.FALSE;
             default -> null;
         };
     }
 
-    private static void outsideValueSet(List<Finding> findings, String where, String element, CodedValue value) {
-        if (value.code() != null && !value.recognised()) {
+    /** True when the answer leaves a prior authorization request to submit, the only case where routing matters. */
+    private static boolean submissionToRoute(CoverageInformationView view) {
+        return !view.covered().is("not-covered") && (view.paNeeded().is("auth-needed") || view.paNeeded().is("performpa"));
+    }
+
+    /**
+     * A code judged by the CRD 2.0.1 value set. A code of a later version is named as such and not
+     * called wrong; no-doc is read and reported with what CRD 2.0.1 says instead; anything else is
+     * outside every value set this tool can read, and the 2.0.1 list is quoted as the 2.0.1 list.
+     */
+    private static void valueSet(List<Finding> findings, String where, String element, CodedValue value) {
+        if (value.code() == null || CrdCodes.JUDGED_BY.equals(value.version())) {
+            return;
+        }
+        String list = String.join(", ", CrdCodes.codes(element));
+        String serviceSays = "The service returned " + element + "=" + value.code() + ".";
+        if (CrdCodes.LATER.equals(value.version())) {
+            findings.add(new Finding(FindingKind.OTHER_VERSION_CONTENT,
+                    element + "=" + value.code() + " is a " + CrdCodes.LATER + " code, not a " + CrdCodes.JUDGED_BY + " code",
+                    "This tool judges by " + CrdCodes.JUDGED_BY + ", whose value set for " + element + " is: " + list + ". The code "
+                            + value.code() + " is defined in a later version, " + CrdCodes.LATER + ", where it means: "
+                            + lower(CrdCodes.display(element, value.code())) + ". It is read with that meaning and not called wrong, "
+                            + "because which version the service follows is not known.", where, null, serviceSays));
+        } else if (CrdCodes.DOC_NEEDED.equals(element) && CrdCodes.NO_DOC.equals(value.code())) {
             findings.add(new Finding(FindingKind.CODE_OUTSIDE_VALUE_SET,
-                    "Non-conformant code in " + element,
-                    "The value \"" + value.code() + "\" is not in the value set the implementation guide defines for " + element
-                            + ", which is: " + String.join(", ", CrdCodes.codes(element)) + ".", where, null,
-                    "The service returned " + element + "=" + value.code() + "."));
+                    "doc-needed=no-doc is not in the " + CrdCodes.JUDGED_BY + " value set",
+                    "The " + CrdCodes.JUDGED_BY + " value set for doc-needed (AdditionalDocumentation) is: " + list + ", and "
+                            + CrdCodes.JUDGED_BY + " says that no documentation is needed by leaving doc-needed out. The 2.0.1 "
+                            + "package's own rule crd-ci-q1 does mention no-doc, so a service may well send it. This tool reads it "
+                            + "as no documentation needed.", where, null, serviceSays));
+        } else {
+            findings.add(new Finding(FindingKind.CODE_OUTSIDE_VALUE_SET,
+                    element + "=" + value.code() + " is not in the " + CrdCodes.JUDGED_BY + " value set",
+                    "The " + CrdCodes.JUDGED_BY + " value set for " + element + " is: " + list + ". Codes are compared exactly, "
+                            + "letter case included. No version of the guide this tool can read (" + CrdCodes.JUDGED_BY + " and "
+                            + CrdCodes.LATER + ") defines " + value.code() + ", so it is shown as unrecognised.", where, null,
+                    serviceSays));
         }
     }
 
-    private static void emptyElement(List<Finding> findings, String where, String element, CodedValue value) {
-        if (value.presence() == Presence.NULL || value.presence() == Presence.EMPTY) {
-            findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
-                    element + " was sent with no value",
-                    "The sub-extension " + element + " is present but " + (value.presence() == Presence.NULL ? "its value is null" : "it is empty")
-                            + ". It is not treated as an answer.", where, null, null));
-        }
+    private static String lower(String text) {
+        return text == null || text.isEmpty() ? "" : Character.toLowerCase(text.charAt(0)) + text.substring(1);
     }
 }

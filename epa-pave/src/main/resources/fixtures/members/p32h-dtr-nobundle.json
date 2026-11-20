@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-DTR-NOBUNDLE",
+  "description": "Sentinel for DTR scenario 15, a package that returns with no bundle in it. A Medicare member with active coverage, so a tester who looks the sentinel up before the run is shown a member and not a finding about test data.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-DTR-NOBUNDLE",
+    "firstName": "Oakley",
+    "lastName": "Placeholder-DtrNoBundle",
+    "dateOfBirth": "1955-04-04",
+    "gender": "other",
+    "lineOfBusiness": "Medicare",
+    "planName": "Synthetic Medicare Plan A",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-DTR-NOBUNDLE",
+    "address": {
+      "line1": "32 Placeholder Avenue",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

@@ -2,7 +2,7 @@
   "id": "crd-08-coverage-inactive",
   "number": 8,
   "label": "Coverage inactive on date of service",
-  "description": "The member is known but has no active coverage on the date of service.",
+  "description": "The member is known but has no active coverage on the date of service. CRD 2.0.1 has no code for this; the CRD 2.2.0 ballot's no-active-coverage reason is also recognised when a service sends it.",
   "sentinelMemberId": "P32H-INACTIVE",
   "behavior": "respond",
   "httpStatus": 200,
@@ -15,7 +15,7 @@
       "covered": "not-covered"
     }
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service.",
   "assumption": "How the live service signals inactive coverage is not known. This file models covered=not-covered with a reason coded coverage-inactive under a placeholder code system.",
   "response": {
     "cards": [

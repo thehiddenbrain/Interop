@@ -2,7 +2,7 @@
   "id": "crd-09-provider-not-found",
   "number": 9,
   "label": "Provider not found",
-  "description": "The service does not recognise the ordering provider. Selected by the sentinel NPI as well as by the sentinel member ID.",
+  "description": "The service does not recognise the ordering provider. Selected by the sentinel NPI as well as by the sentinel member ID. CRD 2.0.1 has no code for this.",
   "sentinelMemberId": "P32H-NOPROV",
   "sentinelNpi": "9999999995",
   "behavior": "respond",
@@ -13,7 +13,7 @@
     "errorType": "BAD_REQUEST",
     "httpStatus": 404
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "basis": "Synthetic. CRD 2.0.1 defines no body for a failed call, so this models a FHIR OperationOutcome. It has not been observed from the live service.",
   "assumption": "How the live service signals an unknown provider is not known. This file models an HTTP 404 carrying a FHIR OperationOutcome whose issue code is not-found and whose expression names the PractitionerRole.",
   "response": {
     "resourceType": "OperationOutcome",

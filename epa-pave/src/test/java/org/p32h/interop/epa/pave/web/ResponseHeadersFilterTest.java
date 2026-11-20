@@ -33,7 +33,9 @@ class ResponseHeadersFilterTest {
         for (String path : new String[] {"/", "/api/mode"}) {
             MockHttpServletResponse response = get(path);
             assertThat(response.getHeader("X-Content-Type-Options")).isEqualTo("nosniff");
-            assertThat(response.getHeader("Referrer-Policy")).isEqualTo("no-referrer");
+            // same-origin: no address of this tool goes to another site, and the tool's own form
+            // post still states its origin instead of null.
+            assertThat(response.getHeader("Referrer-Policy")).isEqualTo("same-origin");
             assertThat(response.getHeader("X-Frame-Options")).isEqualTo("DENY");
             String policy = response.getHeader("Content-Security-Policy");
             assertThat(policy).contains("default-src 'self'").contains("script-src 'self'").contains("style-src 'self'")
@@ -42,5 +44,62 @@ class ResponseHeadersFilterTest {
             // No escape hatch that would let injected markup run or load from elsewhere.
             assertThat(policy).doesNotContain("unsafe-inline").doesNotContain("unsafe-eval").doesNotContain("*").doesNotContain("http");
         }
+    }
+
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void anythingThrownBeneathIsAnsweredInTheSharedShapeWithAReferenceAndNoMessage(
+            org.springframework.boot.test.system.CapturedOutput output) throws Exception {
+        for (Exception thrown : new Exception[] {new IllegalArgumentException("Invalid encoded sequence \"%S123456789\""),
+            new jakarta.servlet.ServletException("Request processing failed: Zzlastname 1961-07-23"), new java.io.IOException("S123456789")}) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            response.setHeader("Content-Disposition", "attachment; filename=\"pave-runs-all.csv\"");
+            new ResponseHeadersFilter().doFilter(new MockHttpServletRequest("GET", "/api/members/S123456789"), response, (req, res) -> {
+                sneaky(thrown);
+            });
+            assertThat(response.getStatus()).isEqualTo(500);
+            assertThat(response.getContentType()).startsWith("application/json");
+            tools.jackson.databind.JsonNode body = org.p32h.interop.epa.pave.model.JsonSafe.parse(response.getContentAsString()).node();
+            assertThat(body.get("kind").stringValue()).isEqualTo("INTERNAL");
+            assertThat(body.get("title").stringValue()).isEqualTo("This tool hit an internal error and could not complete the request.");
+            String reference = body.get("reference").stringValue();
+            assertThat(reference).isNotBlank();
+            assertThat(response.getContentAsString()).doesNotContain("S123456789").doesNotContain("Zzlastname").doesNotContain("Exception");
+            // The answer is a new one: what the handler had set for its own answer is gone, and the five headers are back.
+            assertThat(response.getHeader("Content-Disposition")).isNull();
+            assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
+            assertThat(response.getHeader("Content-Security-Policy")).isEqualTo(ResponseHeadersFilter.CONTENT_SECURITY_POLICY);
+            assertThat(output.getAll()).contains(reference).contains(thrown.getClass().getName());
+        }
+        assertThat(output.getAll()).doesNotContain("S123456789").doesNotContain("Zzlastname").doesNotContain("1961-07-23");
+    }
+
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void aBrowserThatWentAwayIsNotAFaultOfThisTool(org.springframework.boot.test.system.CapturedOutput output) throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        new ResponseHeadersFilter().doFilter(new MockHttpServletRequest("GET", "/api/runs"), response, (req, res) -> {
+            sneaky(new org.springframework.web.context.request.async.AsyncRequestNotUsableException("gone",
+                    new org.apache.catalina.connector.ClientAbortException()));
+        });
+        assertThat(response.getContentAsString()).isEmpty();
+        assertThat(output.getAll()).doesNotContain("Unhandled").doesNotContain("ERROR");
+    }
+
+    @Test
+    void theErrorDispatchCarriesTheHeadersToo() throws Exception {
+        MockHttpServletRequest error = new MockHttpServletRequest("GET", "/error");
+        error.setDispatcherType(jakarta.servlet.DispatcherType.ERROR);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        new ResponseHeadersFilter().doFilter(error, response, chain);
+        assertThat(chain.getRequest()).isNotNull();
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
+        assertThat(response.getHeader("Referrer-Policy")).isEqualTo("same-origin");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void sneaky(Throwable error) throws T {
+        throw (T) error;
     }
 }

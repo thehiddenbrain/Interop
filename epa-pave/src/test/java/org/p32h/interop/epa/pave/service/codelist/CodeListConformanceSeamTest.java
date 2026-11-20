@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.p32h.interop.epa.pave.config.CodelistProperties;
+import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.Finding;
 import org.p32h.interop.epa.pave.model.FindingKind;
 import org.p32h.interop.epa.pave.model.VendorExchange;
@@ -45,9 +46,15 @@ class CodeListConformanceSeamTest {
     @TempDir
     Path directory;
 
+    /**
+     * A response whose coverage information carries these sub-extensions beside the parts CRD 2.0.1
+     * requires of every answer, so that the only findings are the ones about the code list.
+     */
     private static String response(String... subExtensions) {
         return "{\"cards\":[],\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\","
-                + "\"id\":\"service-request-1\",\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[" + String.join(",", subExtensions) + "]}]}}]}";
+                + "\"id\":\"service-request-1\",\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[" + String.join(",", subExtensions)
+                + ",{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}},{\"url\":\"covered\",\"valueCode\":\"covered\"},"
+                + "{\"url\":\"date\",\"valueDate\":\"2026-01-15\"},{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}]}]}}]}";
     }
 
     private static String paNeeded(String value) {
@@ -59,10 +66,17 @@ class CodeListConformanceSeamTest {
                 + "{\"url\":\"value\",\"valueString\":\"" + name + "\"}]}";
     }
 
-    private List<Finding> check(ProcedureCodeService list, String body, String lineOfBusiness, LocalDate dateOfService, String code) {
+    private List<Finding> checkOn(String profile, ProcedureCodeService list, String body, String lineOfBusiness, LocalDate dateOfService,
+                                  String code) {
         VendorExchange exchange = TestExchanges.crd(200, body);
         List<SentOrder> orders = new ArrayList<>(List.of(new SentOrder("ServiceRequest/service-request-1", code)));
-        return new CrdConformanceChecker(list).check(mapper.read(exchange, orders), exchange, lineOfBusiness, dateOfService);
+        return new CrdConformanceChecker(list, EpaProperties.of(Map.of("mode", profile)))
+                .check(mapper.read(exchange, orders), exchange, lineOfBusiness, dateOfService);
+    }
+
+    /** On the live profile, where a comparison is a statement about a real service. A list loaded from a file is compared there. */
+    private List<Finding> check(ProcedureCodeService list, String body, String lineOfBusiness, LocalDate dateOfService, String code) {
+        return checkOn("live", list, body, lineOfBusiness, dateOfService, code);
     }
 
     private List<Finding> check(String body, String lineOfBusiness, LocalDate dateOfService, String code) {
@@ -192,13 +206,65 @@ class CodeListConformanceSeamTest {
     }
 
     @Test
-    void theBundledPlaceholderAgreesWithTheVendorAndFlagOfItsOwnSleepStudyRow() {
+    void aListLoadedFromAFileIsComparedTheSameWayOnBothProfiles() {
+        // The list in this test is a file somebody configured, so it is not the placeholder. Where the requests go changes nothing.
+        ProcedureCodeService list = TestCodeLists.csv(directory, LIST);
+        assertThat(list.selfCheck().placeholder()).isFalse();
+        for (String code : new String[] {"95810", "95811", "E0601", "G0399", "A7030", "E0470", "99999"}) {
+            for (String line : new String[] {"Medicare", "Commercial", null}) {
+                String body = response(paNeeded("no-auth"), vendor("Evolent"));
+                assertThat(checkOn("mock", list, body, line, LocalDate.of(2026, 3, 20), code)).as(code + " for " + line)
+                        .isEqualTo(checkOn("live", list, body, line, LocalDate.of(2026, 3, 20), code));
+            }
+        }
+    }
+
+    // ---- the bundled placeholder, which is what is loaded when codelist.file is blank ----
+
+    @Test
+    void onMockTheBundledPlaceholderAgreesWithTheVendorAndFlagOfItsOwnSleepStudyRow() {
         ProcedureCodeService bundled = new ProcedureCodeService(CodelistProperties.defaults());
-        assertThat(check(bundled, response(paNeeded("auth-needed"), vendor("eviCore")), "Medicare", LocalDate.of(2026, 3, 20), "95810")).isEmpty();
-        assertThat(kinds(check(bundled, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810")))
-                .containsExactly(FindingKind.CODE_LIST_DISAGREES_ON_AUTH);
+        assertThat(checkOn("mock", bundled, response(paNeeded("auth-needed"), vendor("eviCore")), "Medicare", LocalDate.of(2026, 3, 20), "95810"))
+                .isEmpty();
         // The scenario for delegated routing names Evolent, and the placeholder routes brain MRI there.
-        assertThat(check(bundled, response(paNeeded("auth-needed"), vendor("Evolent")), "Medicare", LocalDate.of(2026, 3, 20), "70553")).isEmpty();
+        assertThat(checkOn("mock", bundled, response(paNeeded("auth-needed"), vendor("Evolent")), "Medicare", LocalDate.of(2026, 3, 20), "70553"))
+                .isEmpty();
+    }
+
+    @Test
+    void onMockADisagreementWithTheBundledPlaceholderSaysThatThePlaceholderIsWhatItRestsOn() {
+        ProcedureCodeService bundled = new ProcedureCodeService(CodelistProperties.defaults());
+        Finding onAuth = only(checkOn("mock", bundled, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "95810"),
+                FindingKind.CODE_LIST_DISAGREES_ON_AUTH);
+        assertThat(onAuth.detail()).isEqualTo("One of them is wrong, and this tool cannot tell which. The code list here is the synthetic "
+                + "placeholder that ships with the tool and not a P32H list.");
+        Finding onVendor = only(checkOn("mock", bundled, response(paNeeded("auth-needed"), vendor("Carelon")), "Medicare",
+                LocalDate.of(2026, 3, 20), "70553"), FindingKind.CODE_LIST_DISAGREES_ON_VENDOR);
+        assertThat(onVendor.codeListSays()).isEqualTo("The code list routes this code to Evolent (rows for Medicare).");
+        assertThat(onVendor.detail()).endsWith("The code list here is the synthetic placeholder that ships with the tool and not a P32H list.");
+        Finding missing = only(checkOn("mock", bundled, response(paNeeded("no-auth")), "Medicare", LocalDate.of(2026, 3, 20), "99999"),
+                FindingKind.CODE_LIST_NOT_COMPARED);
+        assertThat(missing.detail()).isEqualTo("The code list has no row for 99999 on 2026-03-20. The code list here is the synthetic "
+                + "placeholder that ships with the tool and not a P32H list.");
+    }
+
+    @Test
+    void onLiveTheBundledPlaceholderIsNeverComparedWhateverTheServiceAnswers() {
+        ProcedureCodeService bundled = new ProcedureCodeService(CodelistProperties.defaults());
+        String[][] cases = {
+                // What the placeholder happens to say too, what it contradicts on the flag, what it contradicts on the vendor, and a code it lacks.
+                {"95810", response(paNeeded("auth-needed"), vendor("eviCore"))},
+                {"95810", response(paNeeded("no-auth"))},
+                {"70553", response(paNeeded("auth-needed"), vendor("Carelon"))},
+                {"99999", response(paNeeded("no-auth"))}};
+        for (String[] one : cases) {
+            Finding finding = only(checkOn("live", bundled, one[1], "Medicare", LocalDate.of(2026, 3, 20), one[0]), FindingKind.CODE_LIST_NOT_COMPARED);
+            assertThat(finding.title()).as(one[0]).isEqualTo("The code list was not compared with the service: no P32H code list is loaded");
+            assertThat(finding.detail()).isEqualTo("No P32H code list is loaded. The tool is using the synthetic placeholder list that ships "
+                    + "with it, which says nothing about real codes, so nothing was compared with the service's answer. Set codelist.file "
+                    + "to the P32H export and restart the tool.");
+            assertThat(finding.subject()).isNull();
+        }
     }
 
     private static List<FindingKind> kinds(List<Finding> findings) {

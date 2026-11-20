@@ -16,10 +16,26 @@ class SecretsTest {
     }
 
     @Test
+    void namesTheGuardrailAuditFoundInTheClearAreSecretNow() {
+        // m1 of the member data audit: each of these was shown in the clear and not warned about at upload.
+        for (String name : new String[] {"passcode", "pin", "otp", "sas", "sig", "hmac", "connectionString", "connection_string", "dsn",
+                "xsrf", "csrf", "X-XSRF-TOKEN", "accessCode", "access_code", "pfx", "signingKey", "clientAssertion", "client_assertion",
+                "privateKeyPem", "passwd", "sessionToken", "Ocp-Apim-Subscription-Key", "sharedAccessSignature", "userPin"}) {
+            assertThat(Secrets.looksSecret(name)).as(name).isTrue();
+        }
+        // Names the specification and a vendor collection use for ordinary values stay readable.
+        for (String name : new String[] {"baseUrl", "crdServiceId", "memberIdSystem", "subscriptionTopic", "callbackUrl", "tokenUrl",
+                "clientId", "scope", "pasUrl", "connection", "string", "access", "code", "procedureCode", "pinned", "signal", "design",
+                "sasUrl", "lineOfBusiness", "payerId", "npi"}) {
+            assertThat(Secrets.looksSecret(name)).as(name).isFalse();
+        }
+    }
+
+    @Test
     void namesThatLocateOrDescribeACredentialAreNotSecret() {
         for (String name : new String[] {"tokenUrl", "token_url", "clientId", "client_id", "baseUrl", "keyId", "tokenType",
                 "secretName", "monkeyUrl", "keyword", "tokenizer", "scopes", "crdServiceId", "host", "authUrl",
-                "authType", "auth_method", "tokenAudience", "author", "crdOrderSignServiceId"}) {
+                "authType", "auth_method", "tokenAudience", "author", "crdOrderSignServiceId", "sigFormat", "targetFormat", "tokenFormat"}) {
             assertThat(Secrets.looksSecret(name)).as(name).isFalse();
         }
     }

@@ -16,4 +16,10 @@ public record RunOrigin(String suiteRunId, String caseId, String replayOfRunId) 
     public static RunOrigin of(CaseSpec spec) {
         return spec == null ? MANUAL : new RunOrigin(spec.suiteRunId(), spec.caseId(), spec.replayOfRunId());
     }
+
+    /** Prints the ids this tool minted. A case id is a cell of a suite file. */
+    @Override
+    public String toString() {
+        return "RunOrigin[" + suiteRunId + ", " + replayOfRunId + "]";
+    }
 }

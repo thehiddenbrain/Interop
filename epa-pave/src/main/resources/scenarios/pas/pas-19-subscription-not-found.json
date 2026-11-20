@@ -3,7 +3,7 @@
   "number": 19,
   "label": "A subscription the service does not know",
   "description": "A read, an update and a delete of a subscription id the service does not know. This is a finding about the id, not about the environment.",
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "basis": "Synthetic. The topic is the one PAS 2.0.1 defines. The subscription and notification shapes are those of the subscriptions backport as balloted for 1.2.0, because the 1.1.0 release PAS 2.0.1 depends on could not be read here. Every other value is a placeholder of this project. It has not been observed from the live service.",
   "assumption": "How the live service answers for an unknown subscription id is not known. This file models an HTTP 404 carrying a FHIR OperationOutcome whose issue code is not-found.",
   "steps": {
     "subscription-read": {

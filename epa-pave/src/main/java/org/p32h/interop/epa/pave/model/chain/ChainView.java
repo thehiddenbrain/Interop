@@ -22,6 +22,14 @@ import org.p32h.interop.epa.pave.model.Protocol;
  * @param otherRuns     runs in the chain that belong to no stage, such as a subscription read
  * @param elapsedMillis the time every call in the chain took, added up
  * @param notes         what a reader should know about the chain as a whole
+ * @param caseResult    when the chain was run as a case, the result of the case as a whole, from
+ *                      the case line the ledger holds for its last step. A chain that expected an
+ *                      answer from a step it never reached has failed although every step it made
+ *                      passed. Null when the chain was not run as a case
+ * @param caseExpected  what that case declared for the chain as a whole
+ * @param caseLine      one plain sentence saying what the case result means. Null with no case result
+ * @param replayNote    for a chain with a step after CRD, that such a step cannot be replayed by
+ *                      itself and how to run the journey again. Null otherwise
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ChainView(
@@ -43,7 +51,11 @@ public record ChainView(
         List<ChainRun> otherRuns,
         int runCount,
         long elapsedMillis,
-        List<String> notes) {
+        List<String> notes,
+        org.p32h.interop.epa.pave.model.TestResult caseResult,
+        String caseExpected,
+        String caseLine,
+        String replayNote) {
 
     public ChainView {
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
@@ -58,6 +70,13 @@ public record ChainView(
                 .map(stage -> new ChainStage(stage.protocol(), stage.name(), stage.state(), stage.stateLine(), stage.latest(), List.of()))
                 .toList();
         return new ChainView(chainId, headline, nextAction, nextHeadline, nextStage, ended, startedAt, lastRunAt, environment,
-                environmentKind, profile, target, member, procedureCodes, brief, List.of(), runCount, elapsedMillis, notes);
+                environmentKind, profile, target, member, procedureCodes, brief, List.of(), runCount, elapsedMillis, notes, caseResult,
+                caseExpected, caseLine, replayNote);
+    }
+
+    /** Prints the chain id and the count. The member is named here as the ledger allows, which is still a member. */
+    @Override
+    public String toString() {
+        return "ChainView[" + chainId + ", " + runCount + " runs]";
     }
 }

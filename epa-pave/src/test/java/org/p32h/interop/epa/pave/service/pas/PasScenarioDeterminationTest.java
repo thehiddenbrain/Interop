@@ -17,6 +17,7 @@ import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.Expectations;
 import org.p32h.interop.epa.pave.model.OnyxFailureType;
 import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VendorExchange;
@@ -93,6 +94,7 @@ class PasScenarioDeterminationTest {
         table.put("P32H-PAS-TIMEOUT", PasOutcome.TIMEOUT);
         table.put("P32H-PAS-ERR500", PasOutcome.SERVICE_ERROR);
         table.put("P32H-PAS-UNKNOWN-CODE", PasOutcome.UNRECOGNISED_CODE);
+        table.put("P32H-PAS-NOPROV", PasOutcome.PROVIDER_NOT_FOUND);
         table.forEach((sentinel, outcome) -> assertThat(submitted(sentinel).outcome()).as(sentinel).isEqualTo(outcome));
         // Every scenario a member can select is in the table.
         assertThat(scenarios.list(MockOnyxPasClient.SCENARIOS).stream().filter(s -> s.sentinelMemberId() != null)).hasSize(table.size());
@@ -116,7 +118,7 @@ class PasScenarioDeterminationTest {
                 inquiries++;
             }
         }
-        assertThat(submissions).isEqualTo(15);
+        assertThat(submissions).isEqualTo(16);
         assertThat(inquiries).isEqualTo(9);
     }
 
@@ -148,7 +150,7 @@ class PasScenarioDeterminationTest {
             }
         }
         assertThat(claimed).contains("APPROVED", "PENDED", "DENIED", "PARTIALLY_APPROVED", "ATTACHMENT_REQUIRED", "NO_DECISION",
-                "UNRECOGNISED_CODE", "MEMBER_NOT_FOUND", "REJECTED", "SERVICE_ERROR", "TIMEOUT", "UNREACHABLE");
+                "UNRECOGNISED_CODE", "MEMBER_NOT_FOUND", "PROVIDER_NOT_FOUND", "REJECTED", "SERVICE_ERROR", "TIMEOUT", "UNREACHABLE");
     }
 
     @Test
@@ -256,39 +258,65 @@ class PasScenarioDeterminationTest {
         assertThat(inquired.outcome()).isEqualTo(PasOutcome.APPROVED);
         // The two answers are about the same claim, so the same ClaimResponse.
         assertThat(inquired.claimResponseId()).isEqualTo(submitted.claimResponseId()).isEqualTo("claimresponse-claim-test-1");
-        assertThat(only(inquired).requestIdentifier().value()).isEqualTo("claim-test-1");
+        // As in the PAS 2.0.1 examples: the claim's identifier is echoed in ClaimResponse.identifier, and the request is a reference.
+        assertThat(only(inquired).identifiers()).extracting(Shown::value)
+                .containsExactly("https://example.org/p32h-placeholder/patient-event-trace-number|claim-test-1");
+        assertThat(only(inquired).request().value()).isEqualTo("Claim/claim-1");
+        assertThat(only(inquired).requestIdentifier().hasValue()).isFalse();
+        // The authorization number is the number part of the item's review action, where PAS 2.0.1 puts it.
         assertThat(inquired.authorizationRef()).isEqualTo("PA-PLACEHOLDER-0001");
+        assertThat(only(inquired).preAuthRef().hasValue()).isFalse();
+        assertThat(inquired.decisions().get(0).authorizationNumbers()).containsExactly("PA-PLACEHOLDER-0001");
         assertThat(submitted.authorizationRef()).isNull();
     }
 
     @Test
-    void anAttachmentThatIsRequiredAndOneThatWasAcceptedAreToldApartByTheStatusOfTheRequestForIt() {
+    void anAttachmentThatIsRequiredIsAnActiveRequestAndOneThatWasAcceptedIsALaterDecision() {
         PasReading required = submitted("P32H-PAS-ATTACH-REQ");
         PasReading accepted = submitted("P32H-PAS-ATTACH-OK");
         assertThat(required.outcome()).isEqualTo(PasOutcome.ATTACHMENT_REQUIRED);
+        // PAS 2.0.1 PASCommunicationRequest: status fixed to active, a PWK (X12 755) category.
         assertThat(only(required).attachments()).singleElement().satisfies(attachment -> {
             assertThat(attachment.carried()).isTrue();
             assertThat(attachment.status().value()).isEqualTo("active");
             assertThat(attachment.open()).isTrue();
+            assertThat(attachment.category().value()).contains("https://codesystem.x12.org/005010/755");
             assertThat(attachment.wanted().get(0).value()).isEqualTo("Send the report of the attended sleep study.");
         });
+        // A closed request is a status PAS 2.0.1 does not allow, so acceptance is shown by the decision that follows.
         assertThat(accepted.outcome()).isEqualTo(PasOutcome.APPROVED);
-        assertThat(only(accepted).attachments()).singleElement().satisfies(attachment -> {
-            assertThat(attachment.status().value()).isEqualTo("completed");
-            assertThat(attachment.open()).isFalse();
-        });
+        assertThat(only(accepted).attachments()).isEmpty();
         // The review action of the first is still pended: the request for documentation is read from structure, not from the code.
         assertThat(required.decisions().get(0).outcome()).isEqualTo(PasOutcome.PENDED);
     }
 
     @Test
-    void theThreePlacementsOfAReviewActionAreAllFoundInTheBundledScenarios() {
-        assertThat(only(submitted("P32H-PAS-APPROVED")).items().get(0).adjudications().get(0).reviewActions().get(0).foundAt())
+    void everyBundledReviewActionSitsOnTheItemsAdjudicationWherePas201PlacesIt() {
+        // PAS 2.0.1 ReviewAction context: ClaimResponse.item.adjudication, not the ClaimResponse and not the item.
+        int seen = 0;
+        for (Scenario scenario : scenarios.list(MockOnyxPasClient.SCENARIOS)) {
+            List<PasReading> readings = new java.util.ArrayList<>();
+            if (scenario.main() != null) {
+                readings.add(read(submit(scenario.id(), null, "95810"), "95810"));
+            }
+            if (scenario.step(MockOnyxPasClient.STEP_INQUIRE) != null) {
+                readings.add(read(inquire(scenario.id(), null, "95810"), "95810"));
+            }
+            for (PasReading reading : readings) {
+                for (ClaimResponseView response : reading.detail().claimResponses()) {
+                    assertThat(response.reviewActions()).as(scenario.id()).isEmpty();
+                    response.items().forEach(item -> {
+                        assertThat(item.reviewActions()).as(scenario.id()).isEmpty();
+                        item.adjudications().forEach(a -> a.reviewActions().forEach(action -> assertThat(action.placement()).isNull()));
+                    });
+                    seen += response.items().stream().mapToInt(i -> i.adjudications().stream().mapToInt(a -> a.reviewActions().size()).sum()).sum();
+                }
+            }
+        }
+        assertThat(seen).isGreaterThan(10);
+        assertThat(only(submitted("P32H-PAS-PENDED")).items().get(0).adjudications().get(0).reviewActions().get(0).foundAt())
                 .isEqualTo("entry[0].resource.item[0].adjudication[0].extension[0]");
-        assertThat(only(submitted("P32H-PAS-PENDED")).reviewActions().get(0).foundAt()).isEqualTo("entry[0].resource.extension[0]");
-        assertThat(only(submitted("P32H-PAS-UNKNOWN-CODE")).items().get(0).reviewActions().get(0).foundAt())
-                .isEqualTo("entry[0].resource.item[0].extension[0]");
-        assertThat(submitted("P32H-PAS-PENDED").decisions().get(0).source()).isEqualTo(DecisionSource.RESPONSE);
+        assertThat(submitted("P32H-PAS-PENDED").decisions().get(0).source()).isEqualTo(DecisionSource.ITEM);
     }
 
     @Test

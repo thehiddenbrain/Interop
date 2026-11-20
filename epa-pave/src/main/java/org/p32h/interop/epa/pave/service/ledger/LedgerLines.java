@@ -13,9 +13,11 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * The lines of a ledger file: how one is written and how a file's bytes are read back.
  *
- * <p>A file holds two kinds of line. A run line is a {@link RunRecord} exactly as its annotations
+ * <p>A file holds three kinds of line. A run line is a {@link RunRecord} exactly as its annotations
  * write it. A note line names a run and carries the note and the tester reference as they stand
- * after an amendment, because a run's own line is never rewritten.
+ * after an amendment, because a run's own line is never rewritten. A case line names the last run
+ * of a chain case and carries the result of the case as a whole, which is known only once that
+ * run's line has been written.
  *
  * <p>Lines are written and read with the plain mapper, not the application's. The application's
  * mapper carries web configuration that an operator can change, and a setting such as indented
@@ -49,7 +51,7 @@ final class LedgerLines {
     /**
      * What one file holds.
      *
-     * @param lines      the run lines and the note lines, in the order they were written
+     * @param lines      the run lines, the note lines and the case lines, in the order they were written
      * @param unreadable how many lines could not be read as either
      * @param byteCount  the size of the file when it was read
      */
@@ -68,9 +70,18 @@ final class LedgerLines {
         return TYPE_NOTE.equals(line.recordType());
     }
 
+    static boolean isCase(RunRecord line) {
+        return RunRecord.TYPE_CASE.equals(line.recordType());
+    }
+
     /** The bytes of one run line, ending in a newline. */
     static byte[] runLine(RunRecord record) {
         return oneLine(MAPPER.writeValueAsString(record));
+    }
+
+    /** The bytes of one case line, ending in a newline. It is a record of its own type and is written as one. */
+    static byte[] caseLine(RunRecord line) {
+        return oneLine(MAPPER.writeValueAsString(line));
     }
 
     /** The bytes of one note line, ending in a newline. */
@@ -117,7 +128,7 @@ final class LedgerLines {
         return new Content(List.copyOf(lines), unreadable, bytes.length);
     }
 
-    /** One line as a run or a note, or null when it is neither. */
+    /** One line as a run, a note or a case line, or null when it is none of them. */
     private static RunRecord read(String text) {
         try {
             RunRecord line = MAPPER.readValue(text, RunRecord.class);
@@ -129,7 +140,7 @@ final class LedgerLines {
             }
             // A note that names no run can be applied to nothing. A record type this version does
             // not know is counted too: leaving it out without a word would hide that something is there.
-            return isNote(line) && Texts.present(line.runId()) ? line : null;
+            return (isNote(line) || isCase(line)) && Texts.present(line.runId()) ? line : null;
         } catch (RuntimeException e) {
             // Not JSON, not an object, or a run line without what makes it a run. The record's own
             // constructor refuses the last of these.

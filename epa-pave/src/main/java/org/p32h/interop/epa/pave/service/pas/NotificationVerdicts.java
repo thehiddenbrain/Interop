@@ -166,9 +166,10 @@ public final class NotificationVerdicts {
 
         return switch (outcome) {
             case NOTIFICATION_RECEIVED, STATUS_RECEIVED -> aboutARequest(reading, claimId, carry);
-            case HANDSHAKE_RECEIVED -> new NextStepView(NextAction.FLOW_ENDS, "Nothing to do. The subscription is answering.",
+            // Neither decides a request, so neither is the end of a case's journey. There is only nothing to do.
+            case HANDSHAKE_RECEIVED -> new NextStepView(NextAction.NOTHING_FURTHER, "Nothing to do. The subscription is answering.",
                     "A handshake reports on the subscription itself, not on a request.", carry);
-            case HEARTBEAT_RECEIVED -> new NextStepView(NextAction.FLOW_ENDS, "Nothing to do. The subscription is still there.",
+            case HEARTBEAT_RECEIVED -> new NextStepView(NextAction.NOTHING_FURTHER, "Nothing to do. The subscription is still there.",
                     "A heartbeat means there was no event to report.", carry);
             case UNRECOGNISED_TYPE -> new NextStepView(NextAction.REVIEW, "Next: read the notification below. This tool cannot say what "
                     + "should happen next.", "The notification does not state a type this tool knows.", carry);

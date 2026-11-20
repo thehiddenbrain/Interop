@@ -97,6 +97,171 @@ class LedgerLineSafetyTest {
     }
 
     @Test
+    void aCodeThatReadsLikeAnIdentifierOrADateIsNotKeptAndItsStatementSurvivesACopyAndARead() {
+        RunRecord record = minimal().coverageCodes(List.of("doc-needed=" + BIRTH, "doc-purpose=SUBZZ9988776", "info-needed=S123456789",
+                "95810: info-needed=01/31/1970", "covered=19700101", "pa-needed=31.01.1970", "covered=covered")).build();
+        String statement = "(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", ";
+        assertThat(record.coverageCodes()).containsExactly("doc-needed=" + statement + "10 characters)",
+                "doc-purpose=" + statement + "12 characters)", "info-needed=" + statement + "10 characters)",
+                "95810: info-needed=" + statement + "10 characters)", "covered=" + statement + "8 characters)",
+                "pa-needed=" + statement + "10 characters)", "covered=covered");
+        assertHoldsNoMemberData(line(record));
+        assertThat(record.toBuilder().build()).isEqualTo(record);
+        assertThat(JsonSafe.mapper().readValue(line(record), RunRecord.class)).isEqualTo(record);
+    }
+
+    @Test
+    void noCodeOfTheVocabulariesTheThreeProtocolsRecordReadsLikeAnIdentifier() throws java.io.IOException {
+        // Every code the tool knows, and every code its scenario files answer with.
+        java.util.Set<String> codes = new java.util.TreeSet<>();
+        for (String element : org.p32h.interop.epa.pave.service.crd.CrdCodes.EXPECTATION_ELEMENTS) {
+            codes.addAll(org.p32h.interop.epa.pave.service.crd.CrdCodes.codes(element));
+        }
+        for (String set : List.of(org.p32h.interop.epa.pave.service.dtr.DtrCodes.ITEM_TYPE,
+                org.p32h.interop.epa.pave.service.dtr.DtrCodes.QUESTIONNAIRE_STATUS,
+                org.p32h.interop.epa.pave.service.dtr.DtrCodes.RESPONSE_STATUS, org.p32h.interop.epa.pave.service.dtr.DtrCodes.OPERATOR,
+                org.p32h.interop.epa.pave.service.dtr.DtrCodes.ENABLE_BEHAVIOR,
+                org.p32h.interop.epa.pave.service.dtr.DtrCodes.QUESTIONNAIRE_KIND)) {
+            codes.addAll(org.p32h.interop.epa.pave.service.dtr.DtrCodes.codes(set));
+        }
+        for (String element : List.of(org.p32h.interop.epa.pave.service.pas.PasCodes.REVIEW_ACTION,
+                org.p32h.interop.epa.pave.service.pas.PasCodes.REVIEW_REASON, org.p32h.interop.epa.pave.service.pas.PasCodes.CLAIM_OUTCOME,
+                org.p32h.interop.epa.pave.service.pas.PasCodes.ERROR_CODE, org.p32h.interop.epa.pave.service.pas.PasCodes.SUBSCRIPTION_STATUS,
+                org.p32h.interop.epa.pave.service.pas.PasCodes.CHANNEL_TYPE, org.p32h.interop.epa.pave.service.pas.PasCodes.PAYLOAD_CONTENT,
+                org.p32h.interop.epa.pave.service.pas.PasCodes.NOTIFICATION_TYPE)) {
+            codes.addAll(org.p32h.interop.epa.pave.service.pas.PasCodes.codes(element));
+        }
+        int known = codes.size();
+        org.springframework.core.io.Resource[] files = new org.springframework.core.io.support.PathMatchingResourcePatternResolver()
+                .getResources("classpath*:scenarios/**/*.json");
+        assertThat(files).hasSizeGreaterThan(40);
+        for (org.springframework.core.io.Resource file : files) {
+            try (java.io.InputStream in = file.getInputStream()) {
+                collectCodes(JsonSafe.parse(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)).node(), codes);
+            }
+        }
+        assertThat(known).as("codes of the value sets").isGreaterThan(40);
+        assertThat(codes.size()).as("with the scenario files' codes").isGreaterThan(known);
+        for (String code : codes) {
+            String kept = minimal().coverageCodes(List.of("95810: review-action=" + code)).build().coverageCodes().get(0);
+            assertThat(kept).as(code).doesNotContain(RunRecord.READS_LIKE_AN_IDENTIFIER);
+        }
+    }
+
+    @Test
+    void aDateWithAMonthNameAndTheRunsOwnMemberIdHoweverPunctuatedAreNotKeptAsCodesOrPaths() {
+        // Found by the verifier (V-1, V-2).
+        RunRecord record = minimal().memberId("S12345678 01").coverageCodes(List.of("covered=Jul-23-1961", "pa-needed=23Jul1961",
+                "doc-needed=23-July-61", "doc-purpose=S12345678-01", "info-needed=s1234.5678.01", "covered=covered", "pa-needed=no-auth"))
+                .correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, "https://payer.example.invalid/Questionnaire/S12345678-01",
+                        RunRecord.CORR_CLAIM_ID, "claim-S12345678_01"))
+                .build();
+        assertThat(record.coverageCodes()).containsExactly("covered=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 11 characters)",
+                "pa-needed=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 9 characters)",
+                "doc-needed=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 10 characters)",
+                "doc-purpose=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 12 characters)",
+                "info-needed=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 13 characters)", "covered=covered", "pa-needed=no-auth");
+        assertThat(record.correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, "(not recorded, 56 characters)")
+                .containsEntry(RunRecord.CORR_CLAIM_ID, "(not recorded, 18 characters)");
+        // The statements settle: a copy and a read give the same record.
+        assertThat(record.toBuilder().build()).isEqualTo(record);
+        // A path or a urn that spells a name and a date of birth, with no member ID to compare with.
+        for (String canonical : List.of("https://payer.example.invalid/Questionnaire/Zzlastname.Zzfirstname.1961-07-23",
+                "urn:zz:Zzlastname-Zzfirstname-19610723-77-Zzaddress-Lane", "https://payer.example.invalid/Questionnaire/q1|23Jul1961",
+                "https://payer.example.invalid/Questionnaire/q1 https://payer.example.invalid/S123456789/Questionnaire/q2")) {
+            assertThat(minimal().correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, canonical)).build().correlation())
+                    .as(canonical).containsEntry(RunRecord.CORR_QUESTIONNAIRE, "(not recorded, " + canonical.length() + " characters)");
+        }
+        // The host is the service's address: an IP address with digits in it is not a date.
+        String host = "http://10.10.10.10:8080/fhir/Questionnaire/home-o2|1.0.0";
+        assertThat(minimal().correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, host)).build().correlation())
+                .containsEntry(RunRecord.CORR_QUESTIONNAIRE, host);
+    }
+
+    @Test
+    void everyQuestionnaireAddressTheScenarioFilesUseIsKept() throws java.io.IOException {
+        // The stricter questionnaire rule (V-1) must not cost a tester a real canonical.
+        java.util.Set<String> canonicals = new java.util.TreeSet<>();
+        for (org.springframework.core.io.Resource file : new org.springframework.core.io.support.PathMatchingResourcePatternResolver()
+                .getResources("classpath*:scenarios/**/*.json")) {
+            try (java.io.InputStream in = file.getInputStream()) {
+                collectCanonicals(JsonSafe.parse(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)).node(), canonicals);
+            }
+        }
+        assertThat(canonicals).hasSizeGreaterThan(5);
+        for (String canonical : canonicals) {
+            assertThat(minimal().correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, canonical)).build().correlation())
+                    .as(canonical).containsEntry(RunRecord.CORR_QUESTIONNAIRE, canonical);
+        }
+    }
+
+    private static void collectCanonicals(tools.jackson.databind.JsonNode node, java.util.Set<String> into) {
+        if (node == null) {
+            return;
+        }
+        if (node.isString()) {
+            String text = node.asString();
+            if (text.matches("(?:https?|urn):\\S*Questionnaire/[^\\s$]+") && !text.contains("QuestionnaireResponse")) {
+                into.add(text);
+            }
+        } else if (node.isObject()) {
+            JsonSafe.properties(node).forEach(property -> collectCanonicals(property.getValue(), into));
+        } else if (node.isArray()) {
+            JsonSafe.elements(node).forEach(element -> collectCanonicals(element, into));
+        }
+    }
+
+    private static void collectCodes(tools.jackson.databind.JsonNode node, java.util.Set<String> into) {
+        if (node == null) {
+            return;
+        }
+        if (node.isObject()) {
+            for (Map.Entry<String, tools.jackson.databind.JsonNode> property : JsonSafe.properties(node)) {
+                if ((property.getKey().equals("code") || property.getKey().equals("valueCode")) && property.getValue().isString()) {
+                    into.add(property.getValue().asString());
+                }
+                collectCodes(property.getValue(), into);
+            }
+        } else if (node.isArray()) {
+            JsonSafe.elements(node).forEach(element -> collectCodes(element, into));
+        }
+    }
+
+    @Test
+    void aLineOfBusinessThatReadsLikeAPersonOrAnIdentifierIsNotKept() {
+        // Found by the member data audit (M3): a name and a date of birth under the API's lob field reached the line.
+        String person = "Zzlastname, Zzfirstname " + BIRTH;
+        RunRecord record = minimal().lineOfBusiness(person).build();
+        assertThat(record.lineOfBusiness()).isEqualTo("(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", " + person.length() + " characters)");
+        assertThat(minimal().lineOfBusiness("S123456789").build().lineOfBusiness()).startsWith("(" + RunRecord.READS_LIKE_AN_IDENTIFIER);
+        // The ledger's own statement for a line it does not know is left as it is.
+        String unknown = "(" + RunRecord.LINE_NOT_KNOWN + ", 22 characters)";
+        assertThat(minimal().lineOfBusiness(unknown).build().lineOfBusiness()).isEqualTo(unknown);
+        assertThat(JsonSafe.mapper().readValue(line(record), RunRecord.class)).isEqualTo(record);
+    }
+
+    @Test
+    void aNoteATesterReferenceAndAnExpectationAreKeptUpToTheirLimitsAndNotBeyond() {
+        // Found by the member data audit (M5). Every way in refuses a longer one; this is the last line of defence.
+        String note = "n".repeat(RunRecord.LONGEST_NOTE);
+        String testerRef = "t".repeat(RunRecord.LONGEST_TESTER_REF);
+        String expected = "NO_AUTH_REQUIRED;" + "x".repeat(RunRecord.LONGEST_EXPECTED - 17);
+        RunRecord atTheLimit = minimal().note(note).testerRef(testerRef).expected(expected).build();
+        assertThat(atTheLimit.note()).isEqualTo(note);
+        assertThat(atTheLimit.testerRef()).isEqualTo(testerRef);
+        assertThat(atTheLimit.expected()).isEqualTo(expected);
+
+        String pasted = "{\"resourceType\":\"Patient\",\"name\":[{\"family\":\"" + SURNAME + "\"}],\"birthDate\":\"" + BIRTH + "\"}";
+        RunRecord over = minimal().note(note + pasted).testerRef(testerRef + SURNAME).expected(expected + SURNAME).build();
+        assertThat(over.note()).isEqualTo("(note not recorded, " + (note + pasted).length() + " characters)");
+        assertThat(over.testerRef()).isEqualTo("(tester reference not recorded, " + (testerRef + SURNAME).length() + " characters)");
+        assertThat(over.expected()).isEqualTo("(expectation not recorded, " + (expected + SURNAME).length() + " characters)");
+        assertHoldsNoMemberData(line(over));
+        assertThat(over.toBuilder().build()).isEqualTo(over);
+        assertThat(JsonSafe.mapper().readValue(line(over), RunRecord.class)).isEqualTo(over);
+    }
+
+    @Test
     void theSameChecksApplyToALineThatIsReadAndToACopy() {
         // Whoever constructs the record: the builder, a copy, or the JSON reader.
         RunRecord built = minimal().coverageCodes(List.of("covered=covered")).build();

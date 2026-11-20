@@ -458,6 +458,52 @@ class RunReplayTest {
         assertThat(runner.asked).isEmpty();
     }
 
+    @Test
+    void aRunWhoseClaimIdOrQuestionnaireWasSentAndNotKeptIsNotReplayableAndIsNotSent() {
+        // Found by the verifier (V-6): a value the record refused was dropped from the case, which
+        // then sent a different request and compared the two answers.
+        RunReplay replay = replay();
+        recorded(draft("run-1", clock).protocol(org.p32h.interop.epa.pave.model.Protocol.PAS)
+                .operation(org.p32h.interop.epa.pave.model.EpaOperation.PAS_INQUIRE)
+                .correlation(Map.of(RunRecord.CORR_CLAIM_ID, "claim id with words")));
+        recorded(draft("run-2", clock).protocol(org.p32h.interop.epa.pave.model.Protocol.DTR)
+                .operation(org.p32h.interop.epa.pave.model.EpaOperation.DTR_QUESTIONNAIRE_PACKAGE)
+                .correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, "https://example.org/Questionnaire/q1?patient=x")));
+        recorded(draft("run-3", clock).protocol(org.p32h.interop.epa.pave.model.Protocol.DTR)
+                .operation(org.p32h.interop.epa.pave.model.EpaOperation.DTR_QUESTIONNAIRE_PACKAGE)
+                .correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, "https://example.org/Questionnaire/q1 (not a url, 12 characters)")));
+
+        ReplayReport report = replay.replay(null, null, List.of("run-1", "run-2", "run-3"));
+
+        assertThat(report.results()).extracting(ReplayEntry::status).containsOnly(ReplayStatus.NOT_REPLAYABLE);
+        assertThat(report.results().get(0).reason()).startsWith("This run sent a claim id, and its line holds a statement");
+        assertThat(report.results().get(1).reason()).startsWith("This run sent the questionnaire addresses it asked for");
+        assertThat(report.results().get(2).reason()).startsWith("This run sent the questionnaire addresses it asked for");
+        assertThat(runner.asked).isEmpty();
+
+        // On a line where the value is what came back, a refused one is only not compared, and the run is sent.
+        RunReplay again = replay();
+        recorded(draft("run-4", clock).correlation(Map.of(RunRecord.CORR_QUESTIONNAIRE, "https://example.org/Questionnaire/q1?patient=x")));
+        runner.answer = spec -> new CaseOutcome(spec, CaseStatus.INVALID, "stand-in", List.of());
+        assertThat(only(again.replay(null, null, List.of("run-4"))).status()).isEqualTo(ReplayStatus.INVALID);
+        assertThat(runner.asked).hasSize(1);
+    }
+
+    @Test
+    void anAuthorizationNumberWrittenInSeveralGroupsIsStillAnIdentifierAndIsTokenisedNotDropped() {
+        // Found by the verifier (V-6): two gaps of spaces made it "(not recorded, 12 characters)".
+        JsonlRunLedger live = ledger(home, clock);
+        RunRecord written = live.record(draft("run-1", clock).correlation(Map.of(RunRecord.CORR_AUTHORIZATION_REF, "AUTH ZZ 0002")).build()).record();
+        assertThat(written.correlation().get(RunRecord.CORR_AUTHORIZATION_REF)).matches("[0-9a-f]{64}");
+        assertThat(live.find("run-1").orElseThrow().correlation().get(RunRecord.CORR_AUTHORIZATION_REF))
+                .isEqualTo(written.correlation().get(RunRecord.CORR_AUTHORIZATION_REF));
+        // A tab or a line break is not a gap in a number, and five groups is a sentence.
+        assertThat(draft("run-2", clock).correlation(Map.of(RunRecord.CORR_AUTHORIZATION_REF, "AUTH\tZZ")).build().correlation())
+                .containsEntry(RunRecord.CORR_AUTHORIZATION_REF, "(not recorded, 7 characters)");
+        assertThat(draft("run-3", clock).correlation(Map.of(RunRecord.CORR_AUTHORIZATION_REF, "a b c d e")).build().correlation())
+                .containsEntry(RunRecord.CORR_AUTHORIZATION_REF, "(not recorded, 9 characters)");
+    }
+
     // ---- what the runner answers when it does not run the case ----
 
     private ReplayEntry answered(CaseStatus status, String reason, RunRecord.Builder original) {

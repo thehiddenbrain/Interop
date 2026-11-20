@@ -443,8 +443,10 @@ class HttpMemberLookupClientTest {
         FakeGateway guarded = new FakeGateway().failing(new ProdWriteBlockedException(EpaOperation.MEMBER_LOOKUP,
                 new EnvironmentRef("Member Production", EnvironmentKind.PROD), "Writes are blocked.", "Unlock writes."));
         MemberLookupResult blocked = client(Map.of(), Map.of(), guarded, new ExchangeExecutor()).lookup(FORMS);
-        assertThat(blocked.status()).isEqualTo(LookupStatus.DISABLED);
-        assertThat(blocked.message()).contains("was not sent").contains("\"Member Production\"").contains("type the member details by hand");
+        // Refused, not switched off: the refusal is repeated, and what to do about it.
+        assertThat(blocked.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(blocked.message()).isEqualTo("Member lookup was refused by the production guardrail and not sent: Writes are blocked.");
+        assertThat(blocked.error().action()).isEqualTo("Unlock writes. Until then, type the member details by hand.");
         server.verify();
     }
 

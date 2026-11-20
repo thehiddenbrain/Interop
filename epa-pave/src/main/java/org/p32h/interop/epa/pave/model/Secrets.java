@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Decides which variables are secrets and how a secret is shown.
@@ -21,7 +23,14 @@ public final class Secrets {
 
     private static final Set<String> SECRET_WORDS = Set.of("secret", "password", "passwd", "pwd", "pass", "pw", "passphrase",
             "token", "key", "apikey", "credential", "credentials", "creds", "private", "auth", "authorization", "authentication",
-            "bearer", "cookie", "signature", "jwt", "assertion", "session", "sessionid");
+            "bearer", "cookie", "signature", "jwt", "assertion", "session", "sessionid", "passcode", "pin", "otp", "sas", "sig",
+            "hmac", "dsn", "xsrf", "csrf", "pfx", "accesscode", "connectionstring");
+
+    /**
+     * Credentials whose usual name is two words, such as connectionString or access_code. The
+     * words of the name are joined and looked for whole, so neither word alone is made a secret.
+     */
+    private static final List<String> TWO_WORD_SECRETS = List.of("connectionstring", "accesscode", "sharedaccesssignature");
 
     /**
      * Words long enough to be recognised inside a longer one, so a name written with no separator,
@@ -41,7 +50,10 @@ public final class Secrets {
      */
     private static final Set<String> DESCRIPTOR_WORDS = Set.of("url", "uri", "endpoint", "host", "path", "id", "type",
             "name", "scope", "scopes", "ttl", "expiry", "enabled", "prefix", "algorithm", "alg", "method", "mode",
-            "grant", "realm", "audience", "issuer");
+            "grant", "realm", "audience", "issuer", "format");
+
+    /** A mask as {@link #mask} writes it, with the name it stands for. */
+    private static final Pattern MASK = Pattern.compile("\\[secret ([^\\[\\]]+)]");
 
     private Secrets() {
     }
@@ -66,7 +78,8 @@ public final class Secrets {
                 return false;
             }
         }
-        return words.stream().anyMatch(Secrets::secretWord);
+        String joined = String.join("", words);
+        return words.stream().anyMatch(Secrets::secretWord) || TWO_WORD_SECRETS.stream().anyMatch(joined::contains);
     }
 
     /**
@@ -105,23 +118,61 @@ public final class Secrets {
         if (value == null || Texts.blank(headerName)) {
             return REDACTED;
         }
-        String name = headerName.strip().toLowerCase(Locale.ROOT);
+        String scheme = knownScheme(headerName, value.strip());
+        return scheme == null ? REDACTED : scheme + " " + REDACTED;
+    }
+
+    /**
+     * The part of a credential header's value that {@link #redactCredential} hides: everything
+     * after a well known scheme word, or the whole value when there is none. It is what a response
+     * is searched for when the header went out with a request, so what is hidden on the way out and
+     * what is looked for on the way back are worked out from one rule. Null when there is no value.
+     */
+    public static String credential(String headerName, String value) {
+        if (value == null) {
+            return null;
+        }
         String text = value.strip();
+        String scheme = Texts.blank(headerName) ? null : knownScheme(headerName, text);
+        return scheme == null ? text : text.substring(scheme.length()).strip();
+    }
+
+    /** The well known scheme that a value of Authorization or Proxy-Authorization starts with, in its usual spelling, or null. */
+    private static String knownScheme(String headerName, String text) {
+        String name = headerName.strip().toLowerCase(Locale.ROOT);
         int space = text.indexOf(' ');
         if (space > 0 && (name.equals("authorization") || name.equals("proxy-authorization"))) {
             String first = text.substring(0, space);
             for (String scheme : AUTH_SCHEMES) {
                 if (scheme.equalsIgnoreCase(first)) {
-                    return scheme + " " + REDACTED;
+                    return scheme;
                 }
             }
         }
-        return REDACTED;
+        return null;
     }
 
     /** The text shown wherever the value of the named secret would otherwise appear. */
     public static String mask(String variableName) {
         return "[secret " + variableName + "]";
+    }
+
+    /**
+     * The names of the secrets whose masks stand in a text as it is shown, each once, in the order
+     * they first appear. A name that itself holds a square bracket is not found this way.
+     */
+    public static List<String> maskedNames(String shown) {
+        List<String> names = new ArrayList<>();
+        if (shown == null) {
+            return names;
+        }
+        Matcher masks = MASK.matcher(shown);
+        while (masks.find()) {
+            if (!names.contains(masks.group(1))) {
+                names.add(masks.group(1));
+            }
+        }
+        return names;
     }
 
     private static List<String> words(String name) {

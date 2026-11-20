@@ -419,7 +419,7 @@ public final class DtrResponseMapper {
         }
         List<QuestionRef> unanswered = evaluated.requiredUnanswered();
         return new FormStateView(evaluated.questions().size(), evaluated.shownQuestions().size(), evaluated.answered().size(), status,
-                statusCompleted && unanswered.isEmpty(), evaluated.asked(), answers, unanswered, changes, notes);
+                statusCompleted && unanswered.isEmpty(), evaluated.asked(), answers, unanswered, evaluated.undetermined(), changes, notes);
     }
 
     /**
@@ -494,6 +494,10 @@ public final class DtrResponseMapper {
         Shown date = node.shown("date");
         Shown publisher = node.shown("publisher");
         Shown description = node.shown("description");
+        // A part of the narrative this mapper was never told about stays among the fields that were returned and not interpreted.
+        Shown narrative = node.child("text").shown("div");
+        Shown narrativeStatus = node.child("text").shown("status");
+        List<Shown> subjectType = each(node.children("subjectType"));
         List<Shown> profiles = each(node.child("meta").children("profile"));
         List<Shown> derivedFrom = each(node.children("derivedFrom"));
         List<ExtensionView> extensions = extensions(node);
@@ -508,9 +512,9 @@ public final class DtrResponseMapper {
         List<ItemState> questions = form.questions();
         String subject = Texts.firstPresent(title.orNull(), url.orNull(), "Questionnaire " + position);
         return new QuestionnaireView(position, foundAt, subject, id, url, version, QuestionnaireJson.canonical(raw), name, title, status,
-                date, publisher, description, profiles, derivedFrom, kind.kind(), kind.basis(), questions.size(),
+                date, publisher, description, narrative, narrativeStatus, subjectType, profiles, derivedFrom, kind.kind(), kind.basis(), questions.size(),
                 (int) questions.stream().filter(state -> state.item().required()).count(), items, extensions, contained,
-                QuestionnaireJson.problems(raw), answersBasis, arrivedWith, JsonSafe.compact(raw));
+                QuestionnaireJson.problems(raw), DtrNotApplied.describe(raw), answersBasis, arrivedWith, JsonSafe.compact(raw));
     }
 
     private List<ItemView> items(TrackedJson.Node parent, String prefix, Form form, Map<String, List<JsonNode>> prepopulated) {

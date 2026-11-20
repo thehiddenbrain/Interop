@@ -33,4 +33,10 @@ public record PasItemView(String foundAt, Shown itemSequence, String procedureCo
     public PasItemView attributedTo(String code, String name) {
         return new PasItemView(foundAt, itemSequence, code, name, reviewActions, adjudications, extensions, noteNumbers);
     }
+
+    /** Prints where it was found. Everything else comes from a response. */
+    @Override
+    public String toString() {
+        return "PasItemView[" + foundAt + "]";
+    }
 }

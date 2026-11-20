@@ -23,15 +23,29 @@ import java.util.List;
  *                    is the one on its record. A chain that expected an answer from a step it
  *                    never reached has failed, and this is where that is stated: no single
  *                    record could say it
+ * @param faultReference the reference logged when this tool failed while running the case, so a
+ *                    tester can tell a failure of the tool from a case that cannot be run and
+ *                    quote it. Null otherwise. Whether a request left before the failure is not
+ *                    known, and the reason says so
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<RunRecord> runs, List<String> notRecorded,
-                          List<String> notes, TestResult overall) {
+                          List<String> notes, TestResult overall, String faultReference) {
 
     public CaseOutcome {
         runs = runs == null ? List.of() : List.copyOf(runs);
         notRecorded = notRecorded == null ? List.of() : List.copyOf(notRecorded);
         notes = notes == null ? List.of() : List.copyOf(notes);
+    }
+
+    public CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<RunRecord> runs, List<String> notRecorded,
+                       List<String> notes, TestResult overall) {
+        this(spec, status, reason, runs, notRecorded, notes, overall, null);
+    }
+
+    /** True when this tool failed while running the case, which is not the same as a case that cannot be run. */
+    public boolean toolFailed() {
+        return faultReference != null;
     }
 
     /** An outcome whose test result is the one on its last record. */
@@ -65,5 +79,11 @@ public record CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<
     /** The record that states the result of the case: the last step that ran. Null when nothing ran. */
     public RunRecord finalRun() {
         return runs.isEmpty() ? null : runs.get(runs.size() - 1);
+    }
+
+    /** Prints how the case ended. The case holds a member ID and its reason can quote what was typed. */
+    @Override
+    public String toString() {
+        return "CaseOutcome[" + status + ", " + overall + "]";
     }
 }

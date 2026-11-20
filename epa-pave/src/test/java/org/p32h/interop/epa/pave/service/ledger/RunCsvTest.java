@@ -44,6 +44,7 @@ class RunCsvTest {
                 .correlation(Map.of(RunRecord.CORR_CLAIM_ID, "claim-1", RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER-0001",
                         RunRecord.CORR_QUESTIONNAIRE, "https://example.org/Questionnaire/q1 https://example.org/Questionnaire/q2"))
                 .findings(List.of("SLOW_RESPONSE", "CODE_LIST_NOT_COMPARED")).unrecordedInputs(List.of(RunRecord.INPUT_RUN_VALUES)).slow(true)
+                .caseExpected("crd: AUTH_REQUIRED; pas: PENDED").caseResult(TestResult.FAIL)
                 .build();
     }
 
@@ -175,6 +176,9 @@ class RunCsvTest {
         expected.put("findings", "SLOW_RESPONSE; CODE_LIST_NOT_COMPARED");
         expected.put("unrecordedInputs", "run-values");
         expected.put("slow", "true");
+        // The result of a chain case as a whole, which its case line gives the last step when the line is read.
+        expected.put("caseExpected", "crd: AUTH_REQUIRED; pas: PENDED");
+        expected.put("caseResult", "fail");
         assertThat(cells).containsExactlyEntriesOf(expected);
         // Nothing in the record was left without an expectation above.
         assertThat(expected.keySet()).containsExactlyElementsOf(RunCsv.header());
@@ -247,7 +251,7 @@ class RunCsvTest {
         // collection, an environment name from an upload, a member ID from the member.
         Map<String, String> cells = onlyRow(minimal("run-1").note("=1+1").testerRef("@QA").expected("+NO_AUTH_REQUIRED")
                 .targetSource("- submit (error case)").environment("=Sandbox", EnvironmentKind.SANDBOX).memberId("-A1234").caseId("@case")
-                .lineOfBusiness("+Medicare").correlation(Map.of(RunRecord.CORR_CLAIM_ID, "=claim")).build());
+                .lineOfBusiness("+Medicare").correlation(Map.of(RunRecord.CORR_CLAIM_ID, "-claim")).build());
 
         assertThat(cells.get("note")).isEqualTo("'=1+1");
         assertThat(cells.get("testerRef")).isEqualTo("'@QA");
@@ -257,7 +261,8 @@ class RunCsvTest {
         assertThat(cells.get("memberId")).isEqualTo("'-A1234");
         assertThat(cells.get("caseId")).isEqualTo("'@case");
         assertThat(cells.get("lineOfBusiness")).isEqualTo("'+Medicare");
-        assertThat(cells.get("correlation.claimId")).isEqualTo("'=claim");
+        // A claim id is one identifier token, so of the four signs only a leading hyphen can reach it.
+        assertThat(cells.get("correlation.claimId")).isEqualTo("'-claim");
         // No cell of the file starts a formula.
         for (List<String> row : read(RunCsv.text(List.of(everyFieldSet(), minimal("run-2").note("=2+2").build())))) {
             assertThat(row).noneMatch(cell -> cell.startsWith("=") || cell.startsWith("+") || cell.startsWith("-") || cell.startsWith("@"));

@@ -73,9 +73,21 @@ public final class PasResponseMapper {
     private record Action(ReviewActionView view, List<CodedValue> codes) {
     }
 
-    /** One response item as read, before it is tied to a requested item. */
-    private record ItemRead(PasItemView view, Integer sequence, List<Action> actions) {
+    /**
+     * One response item as read, before it is tied to a requested item.
+     *
+     * @param authorizedFrom the start of the item's itemPreAuthPeriod, or null
+     * @param authorizedTo   the end of it, or null
+     */
+    private record ItemRead(PasItemView view, Integer sequence, List<String> traceNumbers, List<Action> actions, String authorizedFrom,
+                            String authorizedTo) {
     }
+
+    /** Where PAS 2.0.1 does not place a review action, said beside one found there. */
+    static final String ON_THE_RESPONSE = "This review action sat on the ClaimResponse itself. PAS 2.0.1 places a review action on "
+            + "ClaimResponse.item.adjudication only; it is read here all the same.";
+    static final String ON_THE_ITEM = "This review action sat on the item itself. PAS 2.0.1 places a review action on the item's "
+            + "adjudication only; it is read here all the same.";
 
     /** One error as read: the requested item it names, when it names one, and its codes. */
     private record ErrorRead(Integer itemSequence, List<String> codes) {
@@ -94,6 +106,17 @@ public final class PasResponseMapper {
      * @param sentClaim the claim the request carried, with its items in the order sent
      */
     public PasReading read(VendorExchange exchange, SentClaim sentClaim) {
+        return read(exchange, sentClaim, false);
+    }
+
+    /**
+     * @param sentClaim the claim the request carried, with its items in the order sent
+     * @param inquiry   true for the answer to an inquiry, which PAS 2.0.1 makes a bundle of zero to
+     *                  many ClaimResponses, so that an empty one means that nothing matched
+     */
+    public PasReading read(VendorExchange received, SentClaim sentClaim, boolean inquiry) {
+        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        VendorExchange exchange = ReturnedSecrets.masked(received);
         SentClaim sent = sentClaim == null ? SentClaim.unknown() : sentClaim;
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.
@@ -112,7 +135,8 @@ public final class PasResponseMapper {
                 note = "The response has no body.";
             } else {
                 kind = PasResponseKind.NOT_JSON;
-                note = ("The body could not be read as JSON. It is shown exactly as received under the fields that were returned "
+                note = ("The body could not be read as JSON. It is shown as received, but for any place that repeats a secret the request "
+                        + "carried, under the fields that were returned "
                         + "but not interpreted, and in the wire view. " + Texts.orElse(exchange.parseError(), "")).strip();
             }
         } else {
@@ -123,7 +147,9 @@ public final class PasResponseMapper {
                 kind = PasResponseKind.BUNDLE;
                 carried = readBundle(root, sent, Set.of());
                 if (carried.claimResponses().isEmpty() && carried.issues().isEmpty()) {
-                    note = "The bundle carries no ClaimResponse, so it holds no decision.";
+                    note = inquiry ? "The bundle carries no ClaimResponse. PAS 2.0.1 answers an inquiry with one ClaimResponse for each "
+                            + "prior authorization that matches, so none means that none matched."
+                            : "The bundle carries no ClaimResponse, so it holds no decision.";
                 }
             } else if ("ClaimResponse".equals(type)) {
                 kind = PasResponseKind.CLAIM_RESPONSE;
@@ -145,14 +171,20 @@ public final class PasResponseMapper {
 
         PasDetail detail = new PasDetail(kind, note, carried.bundleType(), carried.bundleId(), carried.bundleTimestamp(),
                 carried.claimResponses(), carried.otherResources(), carried.issues(), null, null, List.of(), true);
+        boolean emptyInquiryAnswer = inquiry && kind == PasResponseKind.BUNDLE && carried.claimResponses().isEmpty()
+                && carried.issues().isEmpty();
         PasOutcome outcome = PasOutcomeRules.overall(exchange, OnyxPasConventions.authorizationNotFound(exchange),
-                carried.claimResponses().stream().map(ClaimResponseView::decision).toList());
+                carried.claimResponses().stream().map(ClaimResponseView::decision).toList(), emptyInquiryAnswer);
         return new PasReading(detail, outcome, sent, additional);
     }
 
     /**
      * Reads the resources of a bundle: every ClaimResponse into its view, every OperationOutcome
      * issue by issue, and every other resource as itself, listed with all it holds.
+     *
+     * <p>A bundle carried as an entry, such as the PAS response bundle a full-resource notification
+     * of the 2.2.0 ballot carries, is read the same way, and what it holds is listed with the rest.
+     * Its own type, id and timestamp are listed as the fields of that entry.
      *
      * <p>Items are tied to the requested items only when the bundle holds exactly one
      * ClaimResponse. With several, which of them answers the request that was sent cannot be told
@@ -191,6 +223,23 @@ public final class PasResponseMapper {
         for (int i = 0; i < entries.size(); i++) {
             TrackedJson.Node entry = entries.get(i);
             TrackedJson.Node resource = entry.child("resource");
+            if (used.contains(i) || !resource.isObject() || !"Bundle".equals(JsonSafe.text(resource.raw(), "resourceType"))) {
+                continue;
+            }
+            used.add(i);
+            Carried inner = readBundle(resource, SentClaim.unknown(), Set.of());
+            claimResponses.addAll(inner.claimResponses());
+            others.addAll(inner.otherResources());
+            issues.addAll(inner.issues());
+            List<AdditionalField> fields = new ArrayList<>();
+            listed(fields, resource.path() + ".type", inner.bundleType());
+            listed(fields, resource.path() + ".timestamp", inner.bundleTimestamp());
+            fields.addAll(entry.remainder());
+            others.add(new BundleResourceView(resource.path(), Shown.of("Bundle"), inner.bundleId(), entry.shown("fullUrl"), fields));
+        }
+        for (int i = 0; i < entries.size(); i++) {
+            TrackedJson.Node entry = entries.get(i);
+            TrackedJson.Node resource = entry.child("resource");
             if (used.contains(i) || !resource.isObject()) {
                 continue;
             }
@@ -205,6 +254,13 @@ public final class PasResponseMapper {
             }
         }
         return new Carried(type, id, timestamp, claimResponses, others, issues);
+    }
+
+    /** Adds a value that was read into a Shown to a list of fields, unless it was absent. */
+    private static void listed(List<AdditionalField> fields, String path, Shown value) {
+        if (value.presence() != Presence.ABSENT) {
+            fields.add(new AdditionalField(path, value.presence(), value.orNull()));
+        }
     }
 
     /**
@@ -238,7 +294,7 @@ public final class PasResponseMapper {
 
         List<Action> responseActions = new ArrayList<>();
         List<ExtensionView> extensions = new ArrayList<>();
-        extensions(resource, responseActions, extensions);
+        extensions(resource, responseActions, extensions, ON_THE_RESPONSE);
 
         List<ItemRead> items = new ArrayList<>();
         for (TrackedJson.Node item : resource.children("item")) {
@@ -281,14 +337,54 @@ public final class PasResponseMapper {
                 resource.shown("created"), FhirViews.reference(resource.child("insurer")), FhirViews.reference(resource.child("requestor")),
                 outcome, resource.shown("disposition"), resource.shown("preAuthRef"), periodStart, periodEnd, requestShown,
                 requestIdentifier, identifiers, responseActions.stream().map(Action::view).toList(), decision, decisions, itemViews,
-                errors, attachments, notes, extensions);
+                errors, attachments, notes, extensions, subsetted(resource.raw()), addItemReviewActions(resource));
+    }
+
+    /**
+     * Where review actions sit on ClaimResponse.addItem.adjudication, read without consuming, so the
+     * added items are still listed as returned. An added item is the payer's own and answers none
+     * of the requested items by its sequence, so its review action is not taken as a decision.
+     */
+    private static List<String> addItemReviewActions(TrackedJson.Node resource) {
+        List<String> out = new ArrayList<>();
+        List<JsonNode> added = JsonSafe.elements(resource.raw(), "addItem");
+        for (int i = 0; i < added.size(); i++) {
+            List<JsonNode> adjudications = JsonSafe.elements(added.get(i), "adjudication");
+            for (int j = 0; j < adjudications.size(); j++) {
+                List<JsonNode> extensions = JsonSafe.elements(adjudications.get(j), "extension");
+                for (int k = 0; k < extensions.size(); k++) {
+                    if (OnyxPasConventions.reviewAction(JsonSafe.presentText(extensions.get(k), "url"))) {
+                        out.add(resource.path() + ".addItem[" + i + "].adjudication[" + j + "].extension[" + k + "]");
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * True when the resource declares the security tag SUBSETTED. PAS 2.0.1 requires it of a
+     * ClaimResponse that leaves out items of a revised request. Read without consuming, so the
+     * meta element is still listed with everything else it holds.
+     */
+    static boolean subsetted(JsonNode resource) {
+        for (JsonNode tag : JsonSafe.elements(JsonSafe.child(resource, "meta"), "security")) {
+            if ("SUBSETTED".equals(JsonSafe.presentText(tag, "code"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * The decision for each thing that was asked about. What ties a decision to a requested item,
      * and nothing else is taken as evidence:
      * <ol>
-     *   <li>a response item whose sequence is the sequence of the requested item</li>
+     *   <li>a response item that echoes the item trace number the requested item was sent with,
+     *       which PAS 2.0.1 lets a ClaimResponse item carry and which names the item whatever its
+     *       sequence</li>
+     *   <li>a response item that echoes no trace number of a requested item, and whose sequence is
+     *       the sequence of the requested item</li>
      *   <li>a response item with no sequence, when exactly one item was requested and exactly one
      *       came back, so there is nothing else it could be about</li>
      *   <li>a review action stated for the response as a whole, which is the decision for every
@@ -307,12 +403,15 @@ public final class PasResponseMapper {
         PasItemView[] views = new PasItemView[items.size()];
         if (!sent.items().isEmpty()) {
             boolean[] tied = new boolean[items.size()];
-            for (SentClaim.Item requested : sent.items()) {
+            int[] answers = new int[items.size()];
+            for (int i = 0; i < items.size(); i++) {
+                answers[i] = requestedItemAnswered(items.get(i), sent.items(), items.size());
+            }
+            for (int r = 0; r < sent.items().size(); r++) {
+                SentClaim.Item requested = sent.items().get(r);
                 List<ItemRead> mine = new ArrayList<>();
                 for (int i = 0; i < items.size(); i++) {
-                    boolean bySequence = requested.sequence() != null && requested.sequence().equals(items.get(i).sequence());
-                    boolean onlyOne = items.get(i).sequence() == null && sent.items().size() == 1 && items.size() == 1;
-                    if (bySequence || onlyOne) {
+                    if (answers[i] == r) {
                         mine.add(items.get(i));
                         tied[i] = true;
                         views[i] = items.get(i).view().attributedTo(requested.code(), requested.label());
@@ -343,9 +442,39 @@ public final class PasResponseMapper {
         return out;
     }
 
+    /**
+     * The position of the requested item a response item answers, or -1 for none: the one whose
+     * trace number it echoes, else the one with its sequence, else the only one when exactly one
+     * item was requested and one came back with no sequence.
+     */
+    private static int requestedItemAnswered(ItemRead item, List<SentClaim.Item> requested, int responseItems) {
+        for (int r = 0; r < requested.size(); r++) {
+            String trace = requested.get(r).traceNumber();
+            if (Texts.present(trace) && item.traceNumbers().contains(trace.strip())) {
+                return r;
+            }
+        }
+        for (int r = 0; r < requested.size(); r++) {
+            if (requested.get(r).sequence() != null && requested.get(r).sequence().equals(item.sequence())) {
+                return r;
+            }
+        }
+        return item.sequence() == null && requested.size() == 1 && responseItems == 1 ? 0 : -1;
+    }
+
     private static PasDecision decision(String subject, String procedureCode, Integer sequence, List<ItemRead> mine,
                                         List<Action> responseActions, List<String> errorCodes) {
         List<Action> own = mine.stream().flatMap(item -> item.actions().stream()).toList();
+        // The authorization number and period PAS 2.0.1 gives each item: the number part of its
+        // review action, and its itemPreAuthPeriod extension.
+        List<String> numbers = own.stream().map(action -> action.view().number()).filter(Shown::hasValue).map(Shown::value).distinct()
+                .toList();
+        if (numbers.isEmpty() && own.isEmpty()) {
+            numbers = responseActions.stream().map(action -> action.view().number()).filter(Shown::hasValue).map(Shown::value).distinct()
+                    .toList();
+        }
+        String from = mine.stream().map(ItemRead::authorizedFrom).filter(Texts::present).findFirst().orElse(null);
+        String to = mine.stream().map(ItemRead::authorizedTo).filter(Texts::present).findFirst().orElse(null);
         List<Action> applies;
         DecisionSource source;
         if (states(own)) {
@@ -364,7 +493,7 @@ public final class PasResponseMapper {
         List<String> reasons = source == DecisionSource.NONE ? List.of()
                 : applies.stream().flatMap(action -> action.view().reasonCodes().stream()).distinct().toList();
         return new PasDecision(subject, procedureCode, sequence, mine.isEmpty() ? null : mine.get(0).view().foundAt(), codes, source,
-                PasOutcomeRules.forItem(codes), reasons, errorCodes);
+                PasOutcomeRules.forItem(codes), reasons, errorCodes, numbers, from, to);
     }
 
     /** True when at least one of the review actions carries a code. */
@@ -397,7 +526,7 @@ public final class PasResponseMapper {
         List<Action> actions = new ArrayList<>();
         List<Action> onItem = new ArrayList<>();
         List<ExtensionView> extensions = new ArrayList<>();
-        extensions(item, onItem, extensions);
+        extensions(item, onItem, extensions, ON_THE_ITEM);
         actions.addAll(onItem);
 
         List<AdjudicationView> adjudications = new ArrayList<>();
@@ -407,7 +536,7 @@ public final class PasResponseMapper {
             }
             List<Action> onAdjudication = new ArrayList<>();
             List<ExtensionView> adjudicationExtensions = new ArrayList<>();
-            extensions(adjudication, onAdjudication, adjudicationExtensions);
+            extensions(adjudication, onAdjudication, adjudicationExtensions, null);
             actions.addAll(onAdjudication);
             adjudications.add(new AdjudicationView(adjudication.path(), FhirViews.concept(adjudication.child("category")),
                     FhirViews.concept(adjudication.child("reason")), money(adjudication.child("amount")), adjudication.shown("value"),
@@ -420,25 +549,38 @@ public final class PasResponseMapper {
         Integer sequence = JsonSafe.integer(item.raw(), "itemSequence");
         PasItemView view = new PasItemView(item.path(), item.shown("itemSequence"), null, null, onItem.stream().map(Action::view).toList(),
                 adjudications, extensions, noteNumbers);
-        return new ItemRead(view, sequence, actions);
+        // Read without consuming: the extension is listed with the item's others as it came.
+        String from = null;
+        String to = null;
+        for (JsonNode extension : JsonSafe.elements(item.raw(), "extension")) {
+            if (OnyxPasConventions.pasExtension(JsonSafe.presentText(extension, "url"), OnyxPasConventions.ITEM_PRE_AUTH_PERIOD)) {
+                from = JsonSafe.presentText(JsonSafe.child(extension, "valuePeriod"), "start");
+                to = JsonSafe.presentText(JsonSafe.child(extension, "valuePeriod"), "end");
+            }
+        }
+        return new ItemRead(view, sequence, SentClaim.traceNumbers(item.raw()), actions, from, to);
     }
 
-    /** Sorts the extensions of an element into the review actions among them and everything else. */
-    private void extensions(TrackedJson.Node element, List<Action> actions, List<ExtensionView> others) {
+    /**
+     * Sorts the extensions of an element into the review actions among them and everything else.
+     *
+     * @param placement null where PAS 2.0.1 places a review action, else the sentence a review action found here carries
+     */
+    private void extensions(TrackedJson.Node element, List<Action> actions, List<ExtensionView> others, String placement) {
         for (TrackedJson.Node extension : element.children("extension")) {
             if (!extension.isObject()) {
                 continue;
             }
             String url = extension.presentText("url");
             if (OnyxPasConventions.reviewAction(url)) {
-                actions.add(reviewAction(extension));
+                actions.add(reviewAction(extension, placement));
             } else {
                 others.add(extension(extension, Texts.orElse(url, "(no url)")));
             }
         }
     }
 
-    private Action reviewAction(TrackedJson.Node extension) {
+    private Action reviewAction(TrackedJson.Node extension, String placement) {
         // Sent, and deciding nothing, until a code is found in it.
         CodedValue code = new CodedValue(Presence.EMPTY, null, null, true);
         List<CodedValue> codes = new ArrayList<>();
@@ -482,7 +624,8 @@ public final class PasResponseMapper {
             // this tool reads a decision from. The value is still shown, so it is not lost.
             returned = FhirViews.extensionValueShown(extension);
         }
-        return new Action(new ReviewActionView(extension.path(), code, returned, number, reason, reasonCodes, secondOpinion, other), codes);
+        return new Action(new ReviewActionView(extension.path(), code, returned, number, reason, reasonCodes, secondOpinion, other, placement),
+                codes);
     }
 
     private PasErrorView error(TrackedJson.Node error) {

@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.service.config;
 
 import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.RunOrigin;
 import java.util.Map;
 
 /**
@@ -23,13 +24,17 @@ import java.util.Map;
  *                  check. The browser sends the epoch its environment strip was drawn from, and a
  *                  suite pins the one it started under, so a run can never go to an environment
  *                  other than the one its screen showed
+ * @param origin    the suite case or the replay the call is made for, or null for a call a tester
+ *                  made on a screen. It changes nothing about whether the call may go: a suite and
+ *                  a replay carry no unlock. It lets a refusal say so, instead of telling the
+ *                  tester to unlock, which would not help
  *
  * <p>This is built by a controller or a service from validated inputs. It is never itself a
  * handler argument or a request body, so that nothing a browser posts can become an intent
  * directly.
  */
 public record CallIntent(EpaOperation operation, RequestRef request, Map<String, String> runValues,
-                         Map<String, String> urlValues, ProdUnlock unlock, String method, Long expectedEpoch) {
+                         Map<String, String> urlValues, ProdUnlock unlock, String method, Long expectedEpoch, RunOrigin origin) {
 
     public CallIntent {
         if (operation == null) {
@@ -39,40 +44,50 @@ public record CallIntent(EpaOperation operation, RequestRef request, Map<String,
         urlValues = urlValues == null ? Map.of() : Map.copyOf(urlValues);
     }
 
+    public CallIntent(EpaOperation operation, RequestRef request, Map<String, String> runValues, Map<String, String> urlValues,
+                      ProdUnlock unlock, String method, Long expectedEpoch) {
+        this(operation, request, runValues, urlValues, unlock, method, expectedEpoch, null);
+    }
+
     public static CallIntent of(EpaOperation operation) {
-        return new CallIntent(operation, null, Map.of(), Map.of(), null, null, null);
+        return new CallIntent(operation, null, Map.of(), Map.of(), null, null, null, null);
     }
 
     public CallIntent withRequest(RequestRef newRequest) {
-        return new CallIntent(operation, newRequest, runValues, urlValues, unlock, method, expectedEpoch);
+        return new CallIntent(operation, newRequest, runValues, urlValues, unlock, method, expectedEpoch, origin);
     }
 
     public CallIntent withRunValues(Map<String, String> newRunValues) {
-        return new CallIntent(operation, request, newRunValues, urlValues, unlock, method, expectedEpoch);
+        return new CallIntent(operation, request, newRunValues, urlValues, unlock, method, expectedEpoch, origin);
     }
 
     public CallIntent withUrlValues(Map<String, String> newUrlValues) {
-        return new CallIntent(operation, request, runValues, newUrlValues, unlock, method, expectedEpoch);
+        return new CallIntent(operation, request, runValues, newUrlValues, unlock, method, expectedEpoch, origin);
     }
 
     /** Adds one value for a single-brace token, keeping any already set. */
     public CallIntent withUrlValue(String name, String value) {
         java.util.Map<String, String> merged = new java.util.LinkedHashMap<>(urlValues);
         merged.put(name, value);
-        return new CallIntent(operation, request, runValues, merged, unlock, method, expectedEpoch);
+        return new CallIntent(operation, request, runValues, merged, unlock, method, expectedEpoch, origin);
     }
 
     public CallIntent withUnlock(ProdUnlock newUnlock) {
-        return new CallIntent(operation, request, runValues, urlValues, newUnlock, method, expectedEpoch);
+        return new CallIntent(operation, request, runValues, urlValues, newUnlock, method, expectedEpoch, origin);
     }
 
     public CallIntent withMethod(String newMethod) {
-        return new CallIntent(operation, request, runValues, urlValues, unlock, newMethod, expectedEpoch);
+        return new CallIntent(operation, request, runValues, urlValues, unlock, newMethod, expectedEpoch, origin);
     }
 
     /** The epoch the caller's view of the configuration was drawn from. Null means it is not checked. */
     public CallIntent withExpectedEpoch(Long newExpectedEpoch) {
-        return new CallIntent(operation, request, runValues, urlValues, unlock, method, newExpectedEpoch);
+        return new CallIntent(operation, request, runValues, urlValues, unlock, method, newExpectedEpoch, origin);
+    }
+
+    /** The suite case or replay this call is made for. A refusal is worded from it; nothing else is decided by it. */
+    public CallIntent withOrigin(RunOrigin newOrigin) {
+        return new CallIntent(operation, request, runValues, urlValues, unlock, method, expectedEpoch, newOrigin);
     }
 
     /** Prints the names of the values and never the values, which can hold a member ID or a typed secret. */

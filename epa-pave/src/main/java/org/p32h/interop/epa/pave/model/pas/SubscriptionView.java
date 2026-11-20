@@ -44,4 +44,10 @@ public record SubscriptionView(String foundAt, Shown fullUrl, Shown id, List<Sho
     public String label() {
         return id.hasValue() ? id.value() : foundAt;
     }
+
+    /** Prints where it was found. Everything else comes from a response. */
+    @Override
+    public String toString() {
+        return "SubscriptionView[" + foundAt + "]";
+    }
 }

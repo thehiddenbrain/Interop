@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-DTR-MALFORMED",
+  "description": "Sentinel for DTR scenario 6, a package that returns but is malformed. A Medicare member with active coverage, so a tester who looks the sentinel up before the run is shown a member and not a finding about test data.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-DTR-MALFORMED",
+    "firstName": "Finley",
+    "lastName": "Placeholder-DtrMalformed",
+    "dateOfBirth": "1946-07-22",
+    "gender": "male",
+    "lineOfBusiness": "Medicare",
+    "planName": "Synthetic Medicare Plan A",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-DTR-MALFORMED",
+    "address": {
+      "line1": "24 Placeholder Avenue",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

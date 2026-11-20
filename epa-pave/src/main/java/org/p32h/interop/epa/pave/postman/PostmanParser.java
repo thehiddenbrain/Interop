@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import tools.jackson.core.JacksonException;
@@ -128,13 +129,16 @@ public final class PostmanParser {
         List<PostmanVariable> variables = variables(JsonSafe.child(root, "variable"), true, notes);
 
         Walk walk = new Walk();
-        Inherited fromCollection = new Inherited(scripts(root, "the collection"), auth(root, "the collection").auth());
+        AuthSetting collectionAuth = auth(root, "the collection");
+        walk.helper(collectionAuth);
+        Inherited fromCollection = new Inherited(scripts(root, "the collection"), collectionAuth.auth());
         walk(JsonSafe.child(root, "item"), List.of(), fromCollection, walk);
         if (walk.skipped > 0) {
             notes.add(walk.skipped + (walk.skipped == 1 ? " entry is" : " entries are") + " neither a folder nor a request and "
                     + (walk.skipped == 1 ? "is" : "are") + " not listed.");
         }
-        return new PostmanCollection(JsonSafe.presentText(info, "_postman_id"), name, schema, variables, withIds(walk.requests), notes);
+        return new PostmanCollection(JsonSafe.presentText(info, "_postman_id"), name, schema, variables, withIds(walk.requests), notes,
+                walk.helpers);
     }
 
     /** What a request inherits from the collection and from the folders above it. */
@@ -143,7 +147,15 @@ public final class PostmanParser {
 
     private static final class Walk {
         private final List<PostmanRequest.Builder> requests = new ArrayList<>();
+        /** Every helper the file sets, whether or not a request inherits it: each one sits in the file as uploaded. */
+        private final List<PostmanAuth> helpers = new ArrayList<>();
         private int skipped;
+
+        private void helper(AuthSetting setting) {
+            if (setting.auth() != null) {
+                helpers.add(setting.auth());
+            }
+        }
     }
 
     /**
@@ -162,18 +174,19 @@ public final class PostmanParser {
                 List<PostmanScript> scripts = new ArrayList<>(inherited.scripts());
                 scripts.addAll(scripts(item, from));
                 AuthSetting own = auth(item, from);
+                walk.helper(own);
                 List<String> inner = new ArrayList<>(path);
                 inner.add(folder);
                 walk(JsonSafe.child(item, "item"), inner, new Inherited(scripts, own.stated() ? own.auth() : inherited.auth()), walk);
             } else if (!JsonSafe.nullOrMissing(JsonSafe.child(item, "request"))) {
-                walk.requests.add(request(item, path, inherited));
+                walk.requests.add(request(item, path, inherited, walk));
             } else {
                 walk.skipped++;
             }
         }
     }
 
-    private static PostmanRequest.Builder request(JsonNode item, List<String> path, Inherited inherited) {
+    private static PostmanRequest.Builder request(JsonNode item, List<String> path, Inherited inherited, Walk walk) {
         List<String> notes = new ArrayList<>();
         JsonNode request = JsonSafe.child(item, "request");
         List<PostmanRequest.PathVariable> pathVariables = new ArrayList<>();
@@ -184,6 +197,7 @@ public final class PostmanParser {
         String body = null;
         String bodyLanguage = null;
         AuthSetting ownAuth = new AuthSetting(false, null);
+        List<String> formCredentials = List.of();
         if (!JsonSafe.isObject(request)) {
             // The schema allows a request written as a bare url, which Postman sends as a GET.
             method = "GET";
@@ -197,6 +211,12 @@ public final class PostmanParser {
             url = url(JsonSafe.child(request, "url"), pathVariables, notes);
             headers = headers(JsonSafe.child(request, "header"));
             ownAuth = auth(request, "this request");
+            if (ownAuth.auth() != null) {
+                List<String> named = new ArrayList<>(path);
+                named.add(Texts.orElse(JsonSafe.presentText(item, "name"), "(unnamed request)"));
+                walk.helper(new AuthSetting(true, new PostmanAuth(ownAuth.auth().type(), "the request \"" + String.join(" / ", named) + "\"",
+                        ownAuth.auth().variables(), ownAuth.auth().literals())));
+            }
 
             JsonNode bodyNode = JsonSafe.child(request, "body");
             if (JsonSafe.isObject(bodyNode)) {
@@ -215,6 +235,7 @@ public final class PostmanParser {
                     }
                 } else if (bodyMode != null && !"none".equals(bodyMode)) {
                     notes.add("The body is in Postman's " + bodyMode + " mode. This tool loads raw bodies only, so this one is not loaded.");
+                    formCredentials = formFields(JsonSafe.child(bodyNode, bodyMode));
                 }
             }
         }
@@ -252,7 +273,25 @@ public final class PostmanParser {
                 .auth(auth)
                 .examples(examples)
                 .description(description(JsonSafe.isObject(request) ? JsonSafe.child(request, "description") : null))
-                .notes(notes);
+                .notes(notes)
+                .formCredentials(formCredentials);
+    }
+
+    /**
+     * The names of the fields of a urlencoded or formdata body that hold a credential typed into
+     * the file: a field named like a credential whose value is written out with no placeholder. A
+     * field switched off still sits in the file, so it counts. Only the names are kept.
+     */
+    private static List<String> formFields(JsonNode fields) {
+        Set<String> found = new LinkedHashSet<>();
+        for (JsonNode field : JsonSafe.elements(fields)) {
+            String key = JsonSafe.presentText(field, "key");
+            String value = JsonSafe.text(field, "value");
+            if (key != null && value != null && !value.isBlank() && !value.contains("{{") && Secrets.looksSecret(key)) {
+                found.add(key);
+            }
+        }
+        return List.copyOf(found);
     }
 
     /**
@@ -463,7 +502,38 @@ public final class PostmanParser {
         }
         Set<String> names = new LinkedHashSet<>();
         collectPlaceholders(auth, names);
-        return new AuthSetting(true, new PostmanAuth(type.toLowerCase(Locale.ROOT), from, List.copyOf(names)));
+        String helper = type.toLowerCase(Locale.ROOT);
+        return new AuthSetting(true, new PostmanAuth(helper, from, List.copyOf(names), literalFields(helper, JsonSafe.child(auth, type))));
+    }
+
+    /**
+     * The fields of a helper that hold a credential typed into the file: a field named like a
+     * credential, or for an API key helper its value, whose value is written out with no
+     * placeholder. Postman writes the fields as a list of key and value, or in older exports as
+     * an object. Only the names are kept.
+     */
+    private static List<String> literalFields(String helper, JsonNode fields) {
+        Set<String> found = new LinkedHashSet<>();
+        if (JsonSafe.isArray(fields)) {
+            for (JsonNode field : JsonSafe.elements(fields)) {
+                literalField(helper, JsonSafe.presentText(field, "key"), JsonSafe.child(field, "value"), found);
+            }
+        } else if (JsonSafe.isObject(fields)) {
+            JsonSafe.properties(fields).forEach(entry -> literalField(helper, entry.getKey(), entry.getValue(), found));
+        }
+        return List.copyOf(found);
+    }
+
+    private static void literalField(String helper, String key, JsonNode value, Set<String> found) {
+        String text = JsonSafe.text(value);
+        if (key == null || text == null || text.isBlank() || text.contains("{{")) {
+            return;
+        }
+        // An API key helper names the header in its field "key" and holds the credential in "value".
+        boolean credential = "apikey".equals(helper) ? "value".equalsIgnoreCase(key) : Secrets.looksSecret(key);
+        if (credential) {
+            found.add(key);
+        }
     }
 
     /** Collects the placeholder names under a node. The values themselves are not kept: one of them may be a credential. */

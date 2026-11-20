@@ -1,0 +1,57 @@
+{
+  "hook": "order-select",
+  "hookInstance": "0b6f3a1e-7c42-4f0d-8a55-9d2e4c1b7a60",
+  "context": {
+    "userId": "PractitionerRole/role-22",
+    "patientId": "pat-8842",
+    "selections": ["ServiceRequest/sr-2"],
+    "draftOrders": {
+      "resourceType": "Bundle",
+      "type": "collection",
+      "entry": [
+        {
+          "resource": {
+            "resourceType": "ServiceRequest",
+            "id": "sr-1",
+            "status": "draft",
+            "intent": "order",
+            "code": {
+              "coding": [
+                {
+                  "system": "http://www.ama-assn.org/go/cpt",
+                  "code": "95810",
+                  "display": "Sleep study, attended"
+                }
+              ]
+            },
+            "quantityQuantity": {"value": 1.0},
+            "subject": {"reference": "Patient/pat-8842"},
+            "occurrenceDateTime": "2026-03-20",
+            "requester": {"reference": "PractitionerRole/role-22"},
+            "insurance": [{"reference": "Coverage/cov-3310"}]
+          }
+        },
+        {
+          "resource": {
+            "resourceType": "ServiceRequest",
+            "id": "sr-2",
+            "status": "draft",
+            "intent": "order",
+            "code": {
+              "coding": [
+                {
+                  "system": "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+                  "code": "E0601"
+                }
+              ]
+            },
+            "subject": {"reference": "Patient/pat-8842"},
+            "occurrenceDateTime": "2026-03-20",
+            "requester": {"reference": "PractitionerRole/role-22"},
+            "insurance": [{"reference": "Coverage/cov-3310"}]
+          }
+        }
+      ]
+    }
+  }
+}

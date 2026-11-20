@@ -239,6 +239,150 @@ class LedgerPhiTest {
         assertThat(line).contains("pa-needed=(not a code, ").contains("(vendor not on the known list, ").contains("(not recorded, ");
     }
 
+    /** A service that answers every hook with one coverage information extension holding these sub-extensions. */
+    private static OnyxCrdClient answering(String subExtensions) {
+        String extension = "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information";
+        String body = "{\"cards\":[],\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\","
+                + "\"id\":\"service-request-1\",\"extension\":[{\"url\":\"" + extension + "\",\"extension\":[" + subExtensions + "]}]}}]}";
+        VendorExchange exchange = TestExchanges.crd(200, body);
+        return new OnyxCrdClient() {
+            @Override
+            public VendorExchange hook(PreparedCall call, ResolvedText requestBody, MockSelection selection) {
+                return exchange;
+            }
+
+            @Override
+            public VendorExchange discover(PreparedCall call) {
+                return exchange;
+            }
+        };
+    }
+
+    @Test
+    void aQuestionnaireAddressWithAQueryOrWordsInPlaceOfOneIsNotKeptAndAPlainCanonicalIs() {
+        // Found by the member data audit (M1): an address with a query, and words, went through as they came.
+        String withQuery = "https://payer.example.invalid/Questionnaire/sleep?patient=" + MEMBER_ID + "&dob=" + BIRTH;
+        String words = "https://payer.example.invalid/Questionnaire/q1 " + SURNAME + " " + GIVEN + " " + BIRTH;
+        List<String> refused = List.of(withQuery, words, "https://payer.example.invalid/Questionnaire/q1#" + SURNAME,
+                "https://" + SURNAME + "@payer.example.invalid/Questionnaire/q1", "https://payer.example.invalid/Questionnaire/" + MEMBER_ID,
+                "https://payer.example.invalid/Questionnaire/" + SURNAME + "%20" + BIRTH);
+        for (int i = 0; i < refused.size(); i++) {
+            String canonical = refused.get(i);
+            Path folder = home.resolve("q" + i);
+            JsonlRunLedger ledger = recordingIds(folder, CLOCK);
+            service(answering("{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"questionnaire\",\"valueCanonical\":\""
+                    + canonical + "\"}"), ledger).run(request(MEMBER_ID).build(), RunOrigin.manual(), null);
+
+            String line = lines(dayFile(folder, TODAY)).get(0);
+            assertThat(line).as(canonical).doesNotContain(SURNAME).doesNotContain(BIRTH).doesNotContain("Questionnaire/sleep")
+                    .contains("\"questionnaire\":\"(not recorded, " + canonical.length() + " characters)\"");
+            // With member IDs recorded the ID is on the line once, in its own field, and nowhere else.
+            assertThat(line.split(MEMBER_ID, -1)).as(canonical).hasSize(2);
+            assertFlat(line);
+        }
+
+        String plain = "https://example.org/p32h-placeholder/Questionnaire/sleep-study|1.2.0";
+        JsonlRunLedger ledger = ledger(home.resolve("plain"), CLOCK);
+        service(answering("{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"questionnaire\",\"valueCanonical\":\"" + plain + "\"},"
+                + "{\"url\":\"questionnaire\",\"valueCanonical\":\"urn:oid:2.16.840.1.113883.4.642\"}"), ledger)
+                .run(request(MEMBER_ID).build(), RunOrigin.manual(), null);
+        assertThat(lines(dayFile(home.resolve("plain"), TODAY)).get(0))
+                .contains("\"questionnaire\":\"" + plain + " urn:oid:2.16.840.1.113883.4.642\"");
+    }
+
+    @Test
+    void aValueInThePlaceOfACodeThatReadsLikeAnIdentifierOrADateIsNotKeptAndCodesOfTheVocabulariesAre() {
+        // Found by the member data audit (M2): one unbroken token was kept as a code, whatever it was.
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        RunEnvelope<CrdDetail> result = service(answering("{\"url\":\"covered\",\"valueCode\":\"covered\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},"
+                + "{\"url\":\"doc-needed\",\"valueCode\":\"" + BIRTH + "\"},"
+                + "{\"url\":\"doc-purpose\",\"valueCode\":\"SUBZZ9988776\"},"
+                + "{\"url\":\"info-needed\",\"valueCode\":\"" + MEMBER_ID + "\"},"
+                + "{\"url\":\"info-needed\",\"valueCode\":\"01/31/1970\"}"), ledger).run(request(MEMBER_ID).build(), RunOrigin.manual(), null);
+
+        // The screen still shows what came back.
+        assertThat(result.detail().coverageInformation().get(0).docNeeded().code()).isEqualTo(BIRTH);
+        String line = onlyLine();
+        assertThat(line).doesNotContain(BIRTH).doesNotContain("SUBZZ9988776").doesNotContain(MEMBER_ID).doesNotContain("01/31/1970");
+        assertThat(JsonSafe.parse(line).node().get("coverageCodes").toString()).isEqualTo("[\"covered=covered\",\"pa-needed=auth-needed\","
+                + "\"doc-needed=(not recorded: reads like an identifier or a date, 10 characters)\","
+                + "\"doc-purpose=(not recorded: reads like an identifier or a date, 12 characters)\","
+                + "\"info-needed=(not recorded: reads like an identifier or a date, 10 characters)\","
+                + "\"info-needed=(not recorded: reads like an identifier or a date, 10 characters)\"]");
+        assertFlat(line);
+    }
+
+    @Test
+    void theMemberIdOfTheRunIsNotKeptAnywhereAResponseCanReachEvenInTheShapeOfACode() {
+        // A member ID with no long run of digits still reads as a code. The record knows the ID of its own run.
+        String memberId = "P32H-ZZ-MEMBER";
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        service(answering("{\"url\":\"covered\",\"valueCode\":\"" + memberId.toLowerCase(java.util.Locale.ROOT) + "\"},"
+                + "{\"url\":\"questionnaire\",\"valueCanonical\":\"https://example.org/Questionnaire/" + memberId + "\"}"), ledger)
+                .run(request(memberId).build(), RunOrigin.manual(), null);
+
+        String line = onlyLine();
+        assertThat(line.toUpperCase(java.util.Locale.ROOT)).doesNotContain(memberId);
+        assertThat(line).contains("covered=(not recorded: reads like an identifier or a date, 14 characters)")
+                .contains("\"questionnaire\":\"(not recorded, ");
+    }
+
+    @Test
+    void aQuestionnaireAddressWhosePathHoldsTheMemberIdWrittenWithPunctuationOrADateIsNotKept() {
+        // Found by the verifier (V-1): the shape check let a path or a urn through that held the
+        // member ID with separators, or a name and a date of birth. Member IDs are tokenised here.
+        List<String> refused = List.of("https://payer.example.invalid/Questionnaire/S-123456789",
+                "https://payer.example.invalid/Questionnaire/S12345-6789",
+                "https://payer.example.invalid/Questionnaire/" + SURNAME + "." + GIVEN + "." + BIRTH,
+                "https://payer.example.invalid/Questionnaire/q1|" + BIRTH,
+                "urn:zz:" + SURNAME + "-" + GIVEN + "-19700131-1-Placeholder-Street",
+                "https://payer.example.invalid/Questionnaire/q1 https://payer.example.invalid/Questionnaire/Jan-31-1970");
+        for (int i = 0; i < refused.size(); i++) {
+            String canonical = refused.get(i);
+            Path folder = home.resolve("p" + i);
+            JsonlRunLedger ledger = ledger(folder, CLOCK);
+            service(answering("{\"url\":\"covered\",\"valueCode\":\"covered\"},{\"url\":\"questionnaire\",\"valueCanonical\":\""
+                    + canonical + "\"}"), ledger).run(request(MEMBER_ID).build(), RunOrigin.manual(), null);
+
+            String line = lines(dayFile(folder, TODAY)).get(0);
+            assertThat(line).as(canonical).doesNotContain(SURNAME).doesNotContain(BIRTH).doesNotContain("19700131")
+                    .doesNotContain("S-123456789").doesNotContain("S12345-6789").doesNotContain("Jan-31")
+                    .contains("\"questionnaire\":\"(not recorded, " + canonical.length() + " characters)\"");
+            assertThat(JsonSafe.parse(line).node().has("memberId")).isFalse();
+        }
+
+        // What the scenario files and real payers use is kept: words in the path, a version, an
+        // OID whose arcs hold long runs of digits, and a urn:uuid.
+        String kept = "https://example.org/p32h-placeholder/Questionnaire/genetic-testing-criteria|2.1.0 "
+                + "urn:oid:2.16.840.1.113883.4.642 urn:uuid:00000000-0000-4000-8000-0000000000a1 "
+                + "http://127.0.0.1:18061/fhir/Questionnaire/home-o2-r4|3.0";
+        JsonlRunLedger ledger = ledger(home.resolve("kept"), CLOCK);
+        service(answering("{\"url\":\"covered\",\"valueCode\":\"covered\"}," + java.util.Arrays.stream(kept.split(" "))
+                .map(q -> "{\"url\":\"questionnaire\",\"valueCanonical\":\"" + q + "\"}").collect(java.util.stream.Collectors.joining(","))), ledger)
+                .run(request(MEMBER_ID).build(), RunOrigin.manual(), null);
+        assertThat(lines(dayFile(home.resolve("kept"), TODAY)).get(0)).contains("\"questionnaire\":\"" + kept + "\"");
+    }
+
+    @Test
+    void theMemberIdWrittenWithPunctuationOrADateWrittenWithAMonthNameIsNotKeptAsACode() {
+        // Found by the verifier (V-2): only the plain no-space ID and numeric dates were caught.
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        service(answering("{\"url\":\"covered\",\"valueCode\":\"S-123-456-789\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"Jan-31-1970\"},"
+                + "{\"url\":\"doc-needed\",\"valueCode\":\"31Jan1970\"},"
+                + "{\"url\":\"doc-purpose\",\"valueCode\":\"31-January-70\"},"
+                + "{\"url\":\"info-needed\",\"valueCode\":\"S1234.5678.9\"}"), ledger).run(request(MEMBER_ID).build(), RunOrigin.manual(), null);
+
+        String line = onlyLine();
+        assertThat(line).doesNotContain("S-123-456-789").doesNotContain("Jan-31-1970").doesNotContain("31Jan1970")
+                .doesNotContain("31-January-70").doesNotContain("S1234.5678.9");
+        String statement = "(not recorded: reads like an identifier or a date, ";
+        assertThat(JsonSafe.parse(line).node().get("coverageCodes").toString()).isEqualTo("[\"covered=" + statement + "13 characters)\","
+                + "\"pa-needed=" + statement + "11 characters)\",\"doc-needed=" + statement + "9 characters)\","
+                + "\"doc-purpose=" + statement + "13 characters)\",\"info-needed=" + statement + "12 characters)\"]");
+    }
+
     @Test
     @ExtendWith(OutputCaptureExtension.class)
     void nothingTheLedgerLogsHoldsMemberDataWhetherTheWriteWorksOrFails(CapturedOutput output) throws IOException {

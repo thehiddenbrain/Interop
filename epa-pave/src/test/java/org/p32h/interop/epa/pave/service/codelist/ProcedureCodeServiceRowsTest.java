@@ -80,12 +80,44 @@ class ProcedureCodeServiceRowsTest {
     }
 
     @Test
+    void aListThatWritesPriorAuthAndNoPriorAuthHasBothOfItsAnswersRead() {
+        // With only one of the pair read, such a list had every "no" row read and no "yes" row, and
+        // the picker showed half of what it says.
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,Prior Auth\nA1,Prior Auth\nA2,No Prior Auth\n"
+                + "A3,Prior Authorization\nA4,No Prior Authorization\nA5,Requires PA\nA6,No PA Required\nA7,Auth\nA8,No Auth\n");
+        for (String code : new String[] {"A1", "A3", "A5", "A7"}) {
+            assertThat(only(service, code).authRequired()).as(code).isEqualTo(AuthRequirement.REQUIRED);
+        }
+        for (String code : new String[] {"A2", "A4", "A6", "A8"}) {
+            assertThat(only(service, code).authRequired()).as(code).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        }
+        // The cell is still kept beside what was read from it.
+        assertThat(only(service, "A1").authRequiredSource()).isEqualTo("Prior Auth");
+        assertThat(service.selfCheck().statingAuthRequirement()).isEqualTo(8);
+        assertThat(service.selfCheck().warnings()).isEmpty();
+    }
+
+    @Test
+    void aFlagWithANoBreakSpaceInsideItIsReadAndTheCellIsServedAsWritten() {
+        // It reads "Not Required" on screen. The space in it is the kind a spreadsheet writes, and so is the one after "Yes".
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA Required\nA1,Not\u00A0Required\nA2,Prior\u202FAuth\u2007Required\n"
+                + "A3,Yes\u00A0\n");
+        assertThat(only(service, "A1").authRequired()).isEqualTo(AuthRequirement.NOT_REQUIRED);
+        // Nothing inside the cell is touched: what is served is what the list holds.
+        assertThat(only(service, "A1").authRequiredSource()).isEqualTo("Not\u00A0Required");
+        assertThat(only(service, "A2").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(only(service, "A3").authRequired()).isEqualTo(AuthRequirement.REQUIRED);
+        assertThat(service.selfCheck().statingAuthRequirement()).isEqualTo(3);
+        assertThat(service.selfCheck().warnings()).isEmpty();
+    }
+
+    @Test
     void textThatIsNotAYesOrANoStaysUnknownWithItsSourceAndIsListedForSomeoneToDecide() {
         ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA Required\n"
-                + "A1,See policy\nA2,See policy\nA3,X\nA4,2\nA5,Yes*\nA6,No PA Required\nA7,-\nA8,Not\u00A0Required\nA9,See policy\nB1,Yes\nB2,No\n");
+                + "A1,See policy\nA2,See policy\nA3,X\nA4,2\nA5,Yes*\nA6,Requires Authorization\nA7,-\nA8,Not\u200BRequired\nA9,See policy\nB1,Yes\nB2,No\n");
 
-        Map<String, String> unread = Map.of("A1", "See policy", "A3", "X", "A4", "2", "A5", "Yes*", "A6", "No PA Required", "A7", "-",
-                "A8", "Not\u00A0Required");
+        Map<String, String> unread = Map.of("A1", "See policy", "A3", "X", "A4", "2", "A5", "Yes*", "A6", "Requires Authorization", "A7", "-",
+                "A8", "Not\u200BRequired");
         unread.forEach((code, cell) -> {
             ProcedureCode row = only(service, code);
             // Never a guess: not "probably yes" for Yes*, and not "no" for a dash.
@@ -94,11 +126,12 @@ class ProcedureCodeServiceRowsTest {
         });
         assertThat(service.selfCheck().statingAuthRequirement()).isEqualTo(2);
         // Each distinct value once, with its rows, the most frequent first. The cell that looks
-        // like "Not Required" shows the no-break space that keeps it from being read as one.
+        // like "NotRequired" shows the zero width space inside it, which is not a space and keeps
+        // it from being read.
         assertThat(service.selfCheck().warnings()).containsExactly("The prior authorization column holds text this tool does not read as a "
-                + "yes or a no: \"See policy\" (3 rows), \"X\" (1 row), \"2\" (1 row), \"Yes*\" (1 row), \"No PA Required\" (1 row), \"-\" (1 row) "
-                + "and \"Not<U+00A0>Required\" (1 row). Those rows are served as not stated, never as not required. Decide what each "
-                + "value means, then correct the export or have the spelling added.");
+                + "yes or a no: \"See policy\" (3 rows), \"X\" (1 row), \"2\" (1 row), \"Yes*\" (1 row), \"Requires Authorization\" (1 row), "
+                + "\"-\" (1 row) and \"Not<U+200B>Required\" (1 row). Those rows are served as not stated, never as not required. Decide "
+                + "what each value means, then correct the export or have the spelling added.");
     }
 
     @Test
@@ -218,7 +251,7 @@ class ProcedureCodeServiceRowsTest {
     void aDateThatCanBeReadIsServedInIsoFormAndOneThatCannotIsServedAsWritten() {
         ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA,Effective Date,End Date\n"
                 + "A1,Y,1/5/2026,12/31/2026\nA2,Y,2026-01-05,20261231\nA3,Y,01/05/2026,\nA4,Y,,\n"
-                + "A5,Y,13/45/2026,TBD\nA6,Y,1/5/26,TBD\nA7,Y,2026-01-05 00:00:00,12/31/9999\n");
+                + "A5,Y,13/45/2026,TBD\nA6,Y,1/5/26,TBD\nA7,Y,2026-01-05 25:00:00,12/31/9999\n");
 
         assertThat(only(service, "A1").effectiveDate()).isEqualTo("2026-01-05");
         assertThat(only(service, "A1").endDate()).isEqualTo("2026-12-31");
@@ -231,15 +264,59 @@ class ProcedureCodeServiceRowsTest {
         assertThat(only(service, "A5").effectiveDate()).isEqualTo("13/45/2026");
         assertThat(only(service, "A5").endDate()).isEqualTo("TBD");
         assertThat(only(service, "A6").effectiveDate()).isEqualTo("1/5/26");
-        assertThat(only(service, "A7").effectiveDate()).isEqualTo("2026-01-05 00:00:00");
+        // A date with something after it that is not a time of day is not half read.
+        assertThat(only(service, "A7").effectiveDate()).isEqualTo("2026-01-05 25:00:00");
         assertThat(only(service, "A7").endDate()).isEqualTo("9999-12-31");
 
         assertThat(service.selfCheck().warnings()).containsExactly(
                 "3 cells in the effective date column could not be read as a date and are served as written: \"13/45/2026\" (1 row), "
-                        + "\"1/5/26\" (1 row) and \"2026-01-05 00:00:00\" (1 row). Such a row is not left out for any date of service. "
-                        + "Dates are read when written as 2026-01-31, 1/31/2026 or 20260131.",
+                        + "\"1/5/26\" (1 row) and \"2026-01-05 25:00:00\" (1 row). Such a row is not left out for any date of service. "
+                        + "Dates are read when written as 2026-01-31, 1/31/2026 or 20260131, with or without a time of day after the date.",
                 "2 cells in the end date column could not be read as a date and are served as written: \"TBD\" (2 rows). Such a row is "
-                        + "not left out for any date of service. Dates are read when written as 2026-01-31, 1/31/2026 or 20260131.");
+                        + "not left out for any date of service. Dates are read when written as 2026-01-31, 1/31/2026 or 20260131, with "
+                        + "or without a time of day after the date.");
+    }
+
+    @Test
+    void aDateWrittenWithATimeOfDayAsADatabaseOrASpreadsheetExportsItIsReadAndDecidesWhichRowApplies() {
+        // Every date in this file has a time after it. Read only without one, none of these rows
+        // would have a date at all, and each would apply on every date of service.
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA,Effective Date,End Date\n"
+                + "G0399,Y,1/1/2025 0:00,12/31/2025 23:59:59\n"
+                + "G0399,N,2026-01-01 00:00:00.000,\n"
+                + "E0601,N,1/1/2026 12:00:00 AM,12/31/2026 11:59:59 PM\n");
+
+        assertThat(service.rowsFor("G0399", null, null)).extracting(ProcedureCode::effectiveDate, ProcedureCode::endDate).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("2025-01-01", "2025-12-31"), org.assertj.core.groups.Tuple.tuple("2026-01-01", null));
+        // The last day of the old row and the first day of the new one.
+        assertThat(service.rowsFor("G0399", null, java.time.LocalDate.of(2025, 12, 31))).singleElement()
+                .satisfies(row -> assertThat(row.authRequired()).isEqualTo(AuthRequirement.REQUIRED));
+        assertThat(service.rowsFor("G0399", null, java.time.LocalDate.of(2026, 1, 1))).singleElement()
+                .satisfies(row -> assertThat(row.authRequired()).isEqualTo(AuthRequirement.NOT_REQUIRED));
+        assertThat(only(service, "E0601").effectiveDate()).isEqualTo("2026-01-01");
+        assertThat(only(service, "E0601").endDate()).isEqualTo("2026-12-31");
+        assertThat(service.rowsFor("E0601", null, java.time.LocalDate.of(2027, 1, 1))).isEmpty();
+        // A time with no zone leaves no doubt about the day, so there is nothing to say.
+        assertThat(service.selfCheck().warnings()).isEmpty();
+    }
+
+    @Test
+    void aDateWrittenWithATimeZoneIsReadAsWrittenAndTheSelfCheckSaysTheZoneWasNotApplied() {
+        // Midnight in one zone is the evening before in another. The date as written is what is
+        // read, and that is said, because for an end date it can be a day off.
+        ProcedureCodeService service = TestCodeLists.csv(directory, "Code,PA,Effective Date,End Date\n"
+                + "A1,Y,2026-01-01T00:00:00Z,2027-01-01T04:59:59Z\nA2,Y,2026-01-01T00:00:00Z,2026-12-31 23:59:59 -05:00\n"
+                + "A3,Y,2026-01-01 00:00:00,2026-12-31\n");
+        assertThat(only(service, "A1").effectiveDate()).isEqualTo("2026-01-01");
+        assertThat(only(service, "A1").endDate()).isEqualTo("2027-01-01");
+        assertThat(only(service, "A2").endDate()).isEqualTo("2026-12-31");
+        assertThat(service.selfCheck().warnings()).containsExactly(
+                "2 cells in the effective date column are written with a time zone: \"2026-01-01T00:00:00Z\" (2 rows). The date was "
+                        + "read as it is written. The time and the zone were not applied, so a date written for another zone than the "
+                        + "one the list is kept in may be a day off.",
+                "2 cells in the end date column are written with a time zone: \"2027-01-01T04:59:59Z\" (1 row) and "
+                        + "\"2026-12-31 23:59:59 -05:00\" (1 row). The date was read as it is written. The time and the zone were not "
+                        + "applied, so a date written for another zone than the one the list is kept in may be a day off.");
     }
 
     @Test

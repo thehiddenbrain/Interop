@@ -2,8 +2,8 @@
   "id": "pas-12-notification-unmatched",
   "number": 12,
   "label": "A notification matching nothing",
-  "description": "An event notification for a subscription and a ClaimResponse that no run of this tool created. It is recorded and shown as unmatched, never dropped.",
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "description": "An event notification for a subscription and a ClaimResponse that no run of this tool created. It is recorded and shown as unmatched, never dropped. The topic is the one PAS 2.0.1 defines.",
+  "basis": "Synthetic. The topic is the one PAS 2.0.1 defines. The subscription and notification shapes are those of the subscriptions backport as balloted for 1.2.0, because the 1.1.0 release PAS 2.0.1 depends on could not be read here. Every other value is a placeholder of this project. It has not been observed from the live service.",
   "steps": {
     "notify": {
       "httpStatus": 200,
@@ -40,7 +40,7 @@
                 },
                 {
                   "name": "topic",
-                  "valueCanonical": "https://example.org/p32h-placeholder/SubscriptionTopic/prior-authorization-status"
+                  "valueCanonical": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic"
                 },
                 {
                   "name": "status",

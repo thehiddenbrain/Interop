@@ -19,4 +19,10 @@ public record PackageBundleView(String foundAt, Shown type, Shown id, int entryC
     public PackageBundleView {
         fullUrls = fullUrls == null ? List.of() : List.copyOf(fullUrls);
     }
+
+    /** Prints where the bundle sits. Its urls come from a response. */
+    @Override
+    public String toString() {
+        return "PackageBundleView[" + foundAt + "]";
+    }
 }

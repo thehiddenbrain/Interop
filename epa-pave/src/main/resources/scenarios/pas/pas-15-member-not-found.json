@@ -2,7 +2,7 @@
   "id": "pas-15-member-not-found",
   "number": 15,
   "label": "Member not found",
-  "description": "The payer does not recognise the member. This is a finding about the test data, not about the environment.",
+  "description": "The payer does not recognise the member, in the error shape of the PAS 2.0.1 error example: outcome error and an X12 reject reason, no item. This is a finding about the test data, not about the environment. The CRD sentinel P32H-NOMEM selects it too. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-NOMEM",
   "behavior": "respond",
   "httpStatus": 200,
@@ -16,7 +16,7 @@
       "error-code": "75"
     }
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "basis": "Synthetic, in the shape of the PAS 2.0.1 ErrorResponseExample (input/fsh/Examples.fsh of the guide's 2.0.1 source): a ClaimResponse with outcome error, an X12 901 reject reason in error.code with the PAS error extensions, the claim identifier echoed in ClaimResponse.identifier, the request named by reference, and no item. The reject reason's meaning was not checked against X12. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
   "assumption": "How the live service signals an unknown member on a submission is not known. This file models an HTTP 200 ClaimResponse whose outcome is error and whose error carries the X12 reject reason code 75.",
   "response": {
     "resourceType": "Bundle",
@@ -29,6 +29,12 @@
         "resource": {
           "resourceType": "ClaimResponse",
           "id": "claimresponse-{{claimId}}",
+          "identifier": [
+            {
+              "system": "https://example.org/p32h-placeholder/patient-event-trace-number",
+              "value": "{{claimId}}"
+            }
+          ],
           "status": "active",
           "type": {
             "coding": [
@@ -50,9 +56,7 @@
             "reference": "PractitionerRole/practitioner-role-1"
           },
           "request": {
-            "identifier": {
-              "value": "{{claimId}}"
-            }
+            "reference": "Claim/claim-1"
           },
           "outcome": "error",
           "disposition": "The member could not be identified.",

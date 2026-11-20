@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.io.ByteArrayOutputStream;
 import org.p32h.interop.epa.pave.model.OnyxFailureType;
+import org.p32h.interop.epa.pave.model.Reached;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.VendorExchange;
@@ -25,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLPeerUnverifiedException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -51,7 +54,8 @@ public class ExchangeExecutor {
     private record Raw(int status, HttpHeaders headers, byte[] body, boolean interrupted) {
     }
 
-    private record Failure(OnyxFailureType type, String detail) {
+    /** @param reached whether the request can have reached the service before the call failed */
+    private record Failure(OnyxFailureType type, String detail, Reached reached) {
     }
 
     private final ObjectProvider<OperationGateway> gateway;
@@ -121,7 +125,7 @@ public class ExchangeExecutor {
             // Only the send is inside this try. A defect in describing the response must surface as
             // a defect, not as "the service could not be reached".
             Failure failure = classify(e);
-            return Exchanges.failed(wireRequest, elapsedSince(started), failure.type(), failure.detail());
+            return Exchanges.failed(wireRequest, elapsedSince(started), failure.type(), failure.detail(), failure.reached());
         }
         long elapsed = elapsedSince(started);
         List<WireHeader> responseHeaders = new ArrayList<>();
@@ -143,30 +147,48 @@ public class ExchangeExecutor {
         return classify(error).type();
     }
 
+    /**
+     * What kind of failure an exception is, and whether the request can have reached the service.
+     *
+     * <p>"Did not reach it" is said only for a failure that happens before any of the request is
+     * written: the name did not resolve, there is no route, the connection was refused or timed
+     * out while opening, or the TLS handshake failed. Everything else, a failure this method does
+     * not recognise included, leaves it open. The two errors do not cost the same: calling a
+     * request that did arrive "not reached" invites a second prior authorization request, and
+     * calling one that did not arrive "may have been reached" costs one status check.
+     */
     private static Failure classify(Throwable error) {
         for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
             // The connect timeout is a subtype of the request timeout, so it is tested first: a
             // connection that never opened means the service was not reached at all.
             if (t instanceof HttpConnectTimeoutException) {
-                return new Failure(OnyxFailureType.UNAVAILABLE, "The connection attempt timed out before the service was reached.");
+                return new Failure(OnyxFailureType.UNAVAILABLE, "The connection attempt timed out before the service was reached.",
+                        Reached.NO);
             }
             if (t instanceof HttpTimeoutException || t instanceof SocketTimeoutException) {
-                return new Failure(OnyxFailureType.TIMEOUT, "No response arrived inside the read timeout.");
+                return new Failure(OnyxFailureType.TIMEOUT, "No response arrived inside the read timeout.", Reached.CANNOT_SAY);
             }
             if (t instanceof ConnectException) {
-                return new Failure(OnyxFailureType.UNAVAILABLE, "The connection was refused or could not be opened.");
+                return new Failure(OnyxFailureType.UNAVAILABLE, "The connection was refused or could not be opened.", Reached.NO);
             }
             if (t instanceof UnknownHostException || t instanceof UnresolvedAddressException) {
-                return new Failure(OnyxFailureType.UNAVAILABLE, "The host name could not be resolved.");
+                return new Failure(OnyxFailureType.UNAVAILABLE, "The host name could not be resolved.", Reached.NO);
             }
             if (t instanceof NoRouteToHostException) {
-                return new Failure(OnyxFailureType.UNAVAILABLE, "There is no network route to the host.");
+                return new Failure(OnyxFailureType.UNAVAILABLE, "There is no network route to the host.", Reached.NO);
             }
-            if (t instanceof SSLException) {
+            // The handshake comes before the request, so when it fails nothing of the request was sent.
+            if (t instanceof SSLHandshakeException || t instanceof SSLPeerUnverifiedException) {
                 return new Failure(OnyxFailureType.UNAVAILABLE,
-                        "The TLS handshake failed. On a network with an inspection proxy, check the trust store.");
+                        "The TLS handshake failed. On a network with an inspection proxy, check the trust store.", Reached.NO);
+            }
+            // Any other TLS failure can come after the handshake, with the request already on its way.
+            if (t instanceof SSLException) {
+                return new Failure(OnyxFailureType.UNAVAILABLE, "The secure connection failed after it was opened ("
+                        + t.getClass().getSimpleName() + ").", Reached.CANNOT_SAY);
             }
         }
-        return new Failure(OnyxFailureType.UNAVAILABLE, "The request could not be completed (" + error.getClass().getSimpleName() + ").");
+        return new Failure(OnyxFailureType.UNAVAILABLE, "The request could not be completed (" + error.getClass().getSimpleName() + ").",
+                Reached.CANNOT_SAY);
     }
 }

@@ -3,15 +3,18 @@ package org.p32h.interop.epa.pave.service.ledger;
 import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
+import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.IsoDates;
 import org.p32h.interop.epa.pave.model.LedgerHealth;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.ledger.DayFiles.DayFile;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -108,7 +111,12 @@ public class JsonlRunLedger implements RunLedger {
     private record Appended(String failure, Integer runsToday) {
     }
 
-    public JsonlRunLedger(TrackingProperties tracking, ConfigStoreProperties configStore, EpaProperties epa, Clock clock) {
+    /**
+     * @param codeList what tells a line of business the tool knows from any other text: a line the
+     *                 code list names, directly or through {@code codelist.line-of-business-aliases}
+     */
+    public JsonlRunLedger(TrackingProperties tracking, ConfigStoreProperties configStore, EpaProperties epa, Clock clock,
+                          ProcedureCodeDirectory codeList) {
         this.clock = clock;
         this.enabled = tracking.enabled();
         this.directory = path("tracking.directory", tracking.directory());
@@ -116,7 +124,9 @@ public class JsonlRunLedger implements RunLedger {
         Path store = path("config-store.directory", configStore.directory());
         this.saltFile = configuredSalt != null ? configuredSalt
                 : (store == null ? Path.of("") : store).resolve(LedgerTokens.DEFAULT_FILE_NAME).toAbsolutePath().normalize();
-        this.policy = new TrackingPolicy(tracking.recordMemberId(), tracking.recordNpi(), this::tokens);
+        Objects.requireNonNull(codeList, "codeList");
+        this.policy = new TrackingPolicy(tracking.recordMemberId(), epa.mock(), tracking.recordNpi(), this::tokens,
+                line -> lineAsListed(codeList, line));
 
         // Checked whether or not tracking is on. It costs nothing, and a salt beside the lines it
         // protects would let anyone who copies the folder test member IDs against them.
@@ -131,7 +141,8 @@ public class JsonlRunLedger implements RunLedger {
             throw new IllegalStateException("tracking.directory is blank, so there is nowhere to keep the run history. " + STARTUP_ADVICE);
         }
         try {
-            Files.createDirectories(directory);
+            // A folder made here is for its owner only, where the file system has owners. See OwnerOnly.
+            Files.createDirectories(directory, OwnerOnly.directory());
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("The run history directory " + directory + " could not be created ("
                     + e.getClass().getSimpleName() + "). " + STARTUP_ADVICE);
@@ -172,6 +183,28 @@ public class JsonlRunLedger implements RunLedger {
                 // Counted as unreadable by the read itself, and found again by the first write.
             }
         }
+    }
+
+    /**
+     * The spelling to write for a line of business the code list knows, or null when it does not
+     * know it. A line the list names directly is written as the list writes it, so medicare,
+     * MEDI-CARE and Medicare are one line in the file and in a filter. A line known only through
+     * an alias has no single name in the list (an alias can map to several) and is written as the
+     * configuration spells it, stripped.
+     */
+    static String lineAsListed(ProcedureCodeDirectory codeList, String line) {
+        if (!codeList.statesLine(line)) {
+            return null;
+        }
+        String wanted = comparedForm(line);
+        List<String> listed = codeList.selfCheck().linesOfBusiness().keySet().stream()
+                .filter(name -> comparedForm(name).equals(wanted)).distinct().toList();
+        return listed.size() == 1 ? listed.get(0) : line.strip();
+    }
+
+    /** A line of business compared as the code list compares one: case, white space, underscores, dots and dashes left out. */
+    private static String comparedForm(String line) {
+        return line == null ? "" : line.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_.\\-\\p{Pd}\\p{Cf}]", "");
     }
 
     private static Path path(String property, String value) {
@@ -229,7 +262,8 @@ public class JsonlRunLedger implements RunLedger {
      */
     void proveWritable() throws IOException {
         Path probe = directory.resolve(".write-check-" + UUID.randomUUID() + ".tmp");
-        try (FileChannel channel = FileChannel.open(probe, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+        try (FileChannel channel = FileChannel.open(probe, java.util.EnumSet.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                OwnerOnly.file())) {
             writeFully(channel, "PAVE startup write check. Safe to delete.\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             channel.force(true);
         } finally {
@@ -283,6 +317,9 @@ public class JsonlRunLedger implements RunLedger {
         // caller. A run the builder made always passes, and a line of another kind, such as a note
         // read back from a file, would otherwise be copied into a run line or fail half way through.
         Objects.requireNonNull(draft, "draft");
+        if (LedgerLines.isCase(draft)) {
+            return recordCase(draft);
+        }
         if (!LedgerLines.isRun(draft)) {
             throw new IllegalArgumentException("Only a run can be recorded, and this record is not one.");
         }
@@ -307,6 +344,19 @@ public class JsonlRunLedger implements RunLedger {
         return new LedgerReceipt(appended.failure() == null, record, appended.failure(), appended.runsToday());
     }
 
+    /**
+     * Appends the case line of a chain case. It holds the run id of the case's last step, the
+     * chain, the suite and the case, what the case declared and its result: nothing the tracking
+     * policy governs, so it is written as it is. It is not a run and is not counted as one.
+     */
+    private LedgerReceipt recordCase(RunRecord line) {
+        if (!enabled) {
+            return new LedgerReceipt(false, line, "The result of this case was NOT recorded: " + SWITCHED_OFF + ".", null);
+        }
+        Appended appended = append(() -> LedgerLines.caseLine(line), false, "The result of this case");
+        return new LedgerReceipt(appended.failure() == null, line, appended.failure(), appended.runsToday());
+    }
+
     /** Appends one line to today's file. Never throws. */
     private Appended append(Supplier<byte[]> line, boolean run, String what) {
         synchronized (lock) {
@@ -324,8 +374,9 @@ public class JsonlRunLedger implements RunLedger {
                     System.arraycopy(bytes, 0, separated, 1, bytes.length);
                     bytes = separated;
                 }
-                try (FileChannel channel = FileChannel.open(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
-                        StandardOpenOption.APPEND)) {
+                // A day's file is created for its owner only, where the file system has owners. See OwnerOnly.
+                try (FileChannel channel = FileChannel.open(file, java.util.EnumSet.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE,
+                        StandardOpenOption.APPEND), OwnerOnly.file())) {
                     writeFully(channel, bytes);
                     channel.force(true);
                 }
@@ -500,6 +551,7 @@ public class JsonlRunLedger implements RunLedger {
         LocalDate newestFileWithRuns = query.to() == null ? null : query.to().plusDays(1);
         List<RunRecord> matching = new ArrayList<>();
         Map<String, RunRecord> latestNotes = new HashMap<>();
+        Map<String, RunRecord> latestCases = new HashMap<>();
         for (DayFile file : dayFiles()) {
             if (oldestFile != null && file.day().isBefore(oldestFile)) {
                 break;
@@ -513,10 +565,14 @@ public class JsonlRunLedger implements RunLedger {
                     latestNotes.putIfAbsent(line.runId(), line);
                     continue;
                 }
+                if (LedgerLines.isCase(line)) {
+                    latestCases.putIfAbsent(line.runId(), line);
+                    continue;
+                }
                 if (!mayHoldRuns) {
                     continue;
                 }
-                RunRecord run = withNote(line, latestNotes.get(line.runId()));
+                RunRecord run = withNote(line, latestNotes.get(line.runId())).withCase(latestCases.get(line.runId()));
                 if (accepts(query, run, file.day())) {
                     matching.add(run);
                     if (limit > 0 && matching.size() == limit) {
@@ -544,7 +600,9 @@ public class JsonlRunLedger implements RunLedger {
         if (query.operation() != null && query.operation() != run.operation()) {
             return false;
         }
-        if (query.result() != null && query.result() != run.result()) {
+        // The last step of a chain case holds two results: its own and the case's. A filter for
+        // either finds it, so a chain that failed as a whole is among the failed runs.
+        if (query.result() != null && query.result() != run.result() && query.result() != run.caseResult()) {
             return false;
         }
         if (query.outcome() != null && !query.outcome().strip().equalsIgnoreCase(run.outcome())) {
@@ -583,6 +641,7 @@ public class JsonlRunLedger implements RunLedger {
         }
         String wanted = runId.strip();
         RunRecord latestNote = null;
+        RunRecord latestCase = null;
         for (DayFile file : dayFiles()) {
             List<RunRecord> lines = linesOf(file);
             for (int i = lines.size() - 1; i >= 0; i--) {
@@ -590,8 +649,12 @@ public class JsonlRunLedger implements RunLedger {
                 if (!wanted.equals(line.runId())) {
                     continue;
                 }
+                if (LedgerLines.isCase(line)) {
+                    latestCase = latestCase == null ? line : latestCase;
+                    continue;
+                }
                 if (!LedgerLines.isNote(line)) {
-                    return Optional.of(withNote(line, latestNote));
+                    return Optional.of(withNote(line, latestNote).withCase(latestCase));
                 }
                 if (latestNote == null) {
                     latestNote = line;
@@ -606,6 +669,13 @@ public class JsonlRunLedger implements RunLedger {
         RunRecord known = find(runId).orElseThrow(() -> RunIds.notFound(runId));
         if (note == null && testerRef == null) {
             throw ValidationException.of("note", "Give a note, a tester reference or both. Nothing was changed.");
+        }
+        // The endpoint checks the same limits first. Checked here too, so no caller can append more
+        // than a run line may hold: a note line is not a record and the record's own check never sees it.
+        Map<String, String> tooLong = RunInputs.textForTheLedger(note, testerRef, null);
+        if (!tooLong.isEmpty()) {
+            throw new ValidationException("The note was not added. Nothing was changed.",
+                    tooLong.entrySet().stream().map(e -> new FieldError(e.getKey(), e.getValue())).toList());
         }
         if (!enabled) {
             return new LedgerReceipt(false, known, "The note was NOT recorded: " + SWITCHED_OFF + ".", null);

@@ -63,6 +63,8 @@ class CodeListWiringTest {
     @Test
     void thePickerAnswersInTheStartedApplication() throws Exception {
         JsonNode answer = json("/api/procedure-codes?q=95810&lob=Medicare");
+        // A fresh checkout has no export configured, so the picker's codes are the placeholder's, and the answer says so.
+        assertThat(answer.get("placeholder").booleanValue()).isTrue();
         assertThat(answer.get("query").stringValue()).isEqualTo("95810");
         assertThat(answer.get("lineOfBusiness").stringValue()).isEqualTo("Medicare");
         assertThat(answer.get("narrowed").booleanValue()).isTrue();

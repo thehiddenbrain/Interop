@@ -96,17 +96,30 @@ public class SubscriptionService {
         boolean sendsBody = sendsBody(operation);
         boolean ownBody = sendsBody && RunSupport.ownBody(request);
 
+        // What the request itself says the run is about: the subscription it names and the run it
+        // follows from. Settled before the gateway is asked, so that a run the guardrail refuses
+        // names them on its ledger line exactly as a run that was sent does.
+        String carriedRunId = first(request, NextStepView.CARRY_RUN_ID);
+        Map<String, String> known = new LinkedHashMap<>();
+        if (id != null) {
+            known.put(RunRecord.CORR_SUBSCRIPTION_ID, id);
+        }
+        if (carriedRunId != null) {
+            known.put(RunRecord.CORR_RUN_ID, carriedRunId);
+        }
+
         PreparedCall call;
         try {
             call = gateway.prepare(intent(operation, request, id, unlock));
         } catch (ProdWriteBlockedException refusal) {
-            return support.blocked(operation, refusal, request, origin);
+            return support.blocked(operation, refusal, request, origin, known);
         }
 
         ResolvedText body = null;
         List<String> requestNotes = new ArrayList<>();
         String callbackUrl = null;
         String callbackProblem = null;
+        List<String> leftOut = List.of();
         if (ownBody) {
             body = call.resolve(request.rawBody());
             JsonSafe.Parsed parsed = JsonSafe.parse(body.value());
@@ -125,6 +138,7 @@ public class SubscriptionService {
             requestNotes.addAll(built.notes());
             callbackUrl = built.callbackUrl();
             callbackProblem = built.callbackProblem();
+            leftOut = built.leftOut();
         }
 
         MockSelection selection = new MockSelection(request.scenarioId(), null, null,
@@ -139,21 +153,13 @@ public class SubscriptionService {
         // From here on the call has been made, so whatever happens next the run is recorded. A later
         // step is linked to a create by its run id, so the id is settled now.
         String runId = RunStamps.newRunId();
-        String carriedRunId = first(request, NextStepView.CARRY_RUN_ID);
-        Map<String, String> known = new LinkedHashMap<>();
-        if (id != null) {
-            known.put(RunRecord.CORR_SUBSCRIPTION_ID, id);
-        }
-        if (carriedRunId != null) {
-            known.put(RunRecord.CORR_RUN_ID, carriedRunId);
-        }
         RunRecord.Builder draft = support.fill(support.draft(operation, call, exchange, origin), request).runId(runId).correlation(known);
         String followsRunId = operation == EpaOperation.SUBSCRIPTION_CREATE ? runId : carriedRunId;
         Interpreted read;
         try {
             // Only the reading and wording of the response is inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one run.
-            read = interpret(request, operation, call, exchange, id, known, followsRunId, sendsBody, ownBody, callbackProblem);
+            read = interpret(request, operation, call, exchange, id, known, followsRunId, sendsBody, ownBody, callbackProblem, leftOut);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -198,7 +204,8 @@ public class SubscriptionService {
     }
 
     private Interpreted interpret(SubscriptionRequest request, EpaOperation operation, PreparedCall call, VendorExchange exchange, String askedId,
-                                  Map<String, String> known, String followsRunId, boolean sendsBody, boolean ownBody, String callbackProblem) {
+                                  Map<String, String> known, String followsRunId, boolean sendsBody, boolean ownBody, String callbackProblem,
+                                  List<String> leftOut) {
         SubscriptionReading reading = mapper.read(exchange, operation, askedId);
         SubscriptionOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
@@ -219,8 +226,18 @@ public class SubscriptionService {
         }
 
         List<Finding> findings = new ArrayList<>();
+        if (!leftOut.isEmpty()) {
+            // Said first, so that a refusal by the service is not read as a fault of the service.
+            findings.add(new Finding(FindingKind.REQUEST_INCOMPLETE, "The subscription is not filtered by the requesting organization",
+                    "PAS 2.0.1 says the subscription SHALL be filtered by the requesting provider organization, through the topic's filter "
+                            + OnyxPasConventions.ORG_IDENTIFIER_FILTER + ". Nobody supplied that organization's identifier: set the variable "
+                            + SubscriptionRequestBuilder.VAR_ORG_IDENTIFIER + ", and " + SubscriptionRequestBuilder.VAR_ORG_IDENTIFIER_SYSTEM
+                            + " for its system. A refusal by the service may be about this and not a fault of the service.",
+                    String.join("; ", leftOut), null, null));
+        }
         if (sendsBody && callbackProblem != null) {
-            findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING, "The subscription names no url to call back",
+            // Its own kind: this is about what was sent, and no element is missing from the response.
+            findings.add(new Finding(FindingKind.NO_CALLBACK_URL, "The subscription names no url to call back",
                     "The service has nowhere to send a notification, so none can arrive at this tool for this subscription. "
                             + callbackProblem + " Until then, follow a request with an inquiry: that path needs no callback.",
                     "channel.endpoint", null, null));
