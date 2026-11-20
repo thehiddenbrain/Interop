@@ -2,7 +2,7 @@
   "id": "dtr-12-timeout",
   "number": 12,
   "label": "No response inside the read timeout",
-  "description": "The service accepts the request and does not answer inside the read timeout. The mock reports the timeout after this file's delay and does not wait for the full configured timeout. The guide has nothing to say of a call that is not answered. The CRD sentinel member ID P32H-TIMEOUT selects it too, so a case means the same thing in CRD and in DTR.",
+  "description": "The service accepts the request and does not answer inside the read timeout. The mock reports the timeout after this file's delay and does not wait for the full configured timeout. It models DTR 2.0.1 as far as a call that is not answered can: the guide has nothing to say of one. The CRD sentinel member ID P32H-TIMEOUT selects it too, so a case means the same thing in CRD and in DTR.",
   "sentinelMemberId": "P32H-DTR-TIMEOUT",
   "crdSentinelMemberIds": [
     "P32H-TIMEOUT"
