@@ -5,8 +5,8 @@ Where the build is, what is done, what remains. Updated at every commit.
 ## Current position
 
 **Read this first.** The revision that holds this file is later than `7dade28`, which the rest of
-this section describes. Merged since, and built together through the shared wrapper with 2603 tests
-(2601 passed, 2 skipped as explained below, none failed):
+this section describes. Merged since, and built together through the shared wrapper with 2648 tests
+(2646 passed, 2 skipped as explained below, none failed):
 
 - the pass that joined the five tabs into one tool. It walked the journey CRD to DTR to PAS on the
   real tabs with `P32H-DOC-DTR` and saw the answers completed on the DTR tab inside the outgoing PAS
@@ -17,14 +17,18 @@ this section describes. Merged since, and built together through the shared wrap
   action across the tabs, the colour key checked entry by entry, several values the server returns
   that no screen reads, and a run on the live profile against a service that sends a secret back;
 - the README, brought up to the tool as built, screens included. The list below of README sentences
-  that are untrue is out of date. The README quotes some sentences of the screen that the server
-  work still in progress rewords, and those quotes have not been checked again.
+  that are untrue is out of date. The README quotes some sentences of the screen that the two server
+  tasks then reworded, and those quotes have not been checked again;
+- the two server tasks of what the reviews of the screens asked of the server (D-200). The request
+  comparison now masks a credential a pasted request carries, a raw send masks what a service sends
+  back, and one test searches the whole answer of ten endpoints for a secret sent back. Neither task
+  was attacked by an independent verifier, and their decisions are not in `DECISIONS.md` yet. One gap
+  its author reports: an access token or a secret variable of the environment that a service puts
+  into a notification is not masked when the notification is shown.
 
-**Still not done at this revision:** the two server tasks named below (what the reviews of the
-screens asked of the server) are not merged, so a credential in a pasted request is still shown as
-typed by the request comparison, and a secret a service sends back on a raw send is still masked by
-the page and not by the server. No audit of section 27 has run on this revision, nor the walkthrough
-by a business tester, nor a build from a fresh clone.
+**Still not done at this revision:** the screens do not yet read the words and values those two
+server tasks added, and still keep their own copies of some of them. No audit of section 27 has run
+on this revision, nor the walkthrough by a business tester, nor a build from a fresh clone.
 
 This describes revision `7dade28` on branch `epa-pave`, which is on the remote. It holds the line
 of the fix wave (`33893aa`), the two tasks that closed what the fix wave left between its parts
