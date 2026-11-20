@@ -30,7 +30,9 @@ The decisions of the fix wave are D-140 to D-175, those of the leftover tasks an
 D-201, those of the join, the server work for the screens and the second audits D-202 to D-228, those
 of the last server task, the last screens pass, the last audits and the checks of the fixes D-229 to
 D-252, those of the four closing tasks D-253 to D-259, and those of the last check, the last fixes and
-how the checking ended D-260 to D-268.
+how the checking ended D-260 to D-268. D-269 records what the operator replied to the four questions of
+D-227 after the pull request was opened; the commit that records it changes this file, `DECISIONS.md`
+and the README only, and no code.
 
 ### Open at the revision handed over, the worst first
 
@@ -46,8 +48,9 @@ has looked.
    build. After the merges nobody opened a browser: the two proofs were run by the integrator through
    the API on mock, and the screens were last looked at by the four fixers, each on its own branch.
 2. **Nothing has been observed against the vendor's service.** Every live check used a stand-in on a
-   loopback port. Which version of the guides the vendor's sandbox follows is not known (the tool is held
-   to 2.0.1); four questions put to the operator have no answer (D-227). The lookups have never met the
+   loopback port. The operator says the vendor's sandbox follows 2.0.1, the version the tool is held
+   to; that has not been observed. Of the four questions put to the operator (D-227), two are answered
+   and two stand as they were (D-269). The lookups have never met the
    real member API or provider directory, and the token request's HTTP Basic is an assumption (D-233).
 3. **The guardrail, what it still lets through or cannot see.** A production environment refused at
    upload is not stored, so a sandbox at its address is not refused until the production environment is
@@ -162,8 +165,9 @@ has looked.
   file cannot hold the result of a build of the commit it is part of (D-267).
 - **`run.cmd` has never been run**: there is no Windows machine here, and no agent ran on Windows.
 - **Nothing has been observed against the vendor's service.** Every live check any agent reported used
-  a stand-in on a loopback port. Which version of the guides the vendor's sandbox follows is not known;
-  the tool is held to 2.0.1 (D-136). Four questions put to the operator have no answer (D-227, D-252).
+  a stand-in on a loopback port. The operator says the vendor's sandbox follows 2.0.1, the version the
+  tool is held to (D-136, D-269); that has not been observed. Of the four questions put to the operator
+  (D-227), two are answered and two stand as they were (D-269).
 - **"Prove it before handover."** Part 1, the walkthrough by a business tester, ran on `9e285a1`. It was
   automated (browser scripts driven by an agent reading only the screen), on mock with one CRD run on
   live against a stand-in, and is not a sign-off. Its three majors were fixed, the check of those fixes
@@ -453,7 +457,8 @@ Java older than 21, and an `{{env:PAVE_...}}` reference at send time on the jar.
   Two notifications at the same moment are not tested.
 - Postman: no real vendor export was available; every collection the tests use is hand-written.
   Concurrency in the store is reasoned about, not tested.
-- The request comparison: no real vendor request was available (D-227). A placeholder whose value
+- The request comparison: no real vendor request was available (D-227). The operator has since said
+  that one with no real member data can be shared; none has arrived (D-269). A placeholder whose value
   exists only in a collection's variables is reported as having no value. Codes in NutritionOrder,
   VisionPrescription, CommunicationRequest and Appointment are not read.
 - The wire view carries member data. It and every masking that follows its rule miss a secret sent back
@@ -869,7 +874,7 @@ run, above, audited them again.
 | V4-08 minor | A sentinel in a pasted body matched only case-sensitively | Fixed, verified; a foreign sentinel in a pasted body was found by the second run (F-RAW) and fixed; a sentinel NPI in a pasted body selects since a closing task | D-153, D-220, D-255 |
 | V4-09 minor | A sentinel's refusal named the scenario field | Fixed | D-154 |
 | V4-10 minor | Scenario 8 described a request it did not check | Fixed by description | D-154 |
-| V4-11 minor | The NPI check is Luhn only | Not changed: a question for the operator, not answered | D-153, D-227 |
+| V4-11 minor | The NPI check is Luhn only | Not changed: the operator was asked and does not know, so it stays as it is | D-153, D-227, D-269 |
 
 Its verification: VF-01 (a damaged scenario set reported on a suite row as "not valid", and a chain
 losing its CRD run) fixed: the row is `NOT_CONFIGURED` with a sentence of its own, seen on the jar for
@@ -1298,7 +1303,8 @@ Every build goes through one shared wrapper that lets two run at a time.
 it; compare a pasted CRD request with the tool's own, each difference explained; hold the tool to
 version 2.0.1 of the guides. All three are on the line, the first two with their screens on the
 protocol tabs. The CRD and DTR 2.0.1 packages were supplied by the operator as files. Four questions
-put to the operator have no answer (D-227). Late in the build the operator asked how much longer the
+put to the operator had no answer during the build (D-227); after the pull request was opened the
+operator answered two and does not know the answer to the other two (D-269). Late in the build the operator asked how much longer the
 work would take, and was told what remained and that the build prompt allows a finding to be resolved
 or recorded; no instruction followed, and the full sequence was carried on (D-252).
 

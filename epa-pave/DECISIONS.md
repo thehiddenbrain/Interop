@@ -14,7 +14,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-005 | The Spring Boot 4.0.7 BOM manages JUnit Jupiter 6.0.3, and the stack table says JUnit 5 | The pin in the stack table does not match what resolves |
 | D-008, D-130 | `hl7.org` and `build.fhir.org` are blocked from the build environment. Parts of the guides were found readable from other sources late in the build | CRD, PAS and DTR were written from the build prompt and from memory, and so were their mock scenarios. What an independent comparison with the guides then found, and what was done about it, is under D-130 |
 | D-053 | The root package and the Gradle group are `org.p32h.interop.epa...`, not `com.thehiddenbrain.interop.epa...` | Changed on the operator's instruction during the build. It overrides the identity table in section 2 |
-| D-136, D-140 | The operator named 2.0.1 as the version of the Da Vinci guides to hold the tool to | All three protocols were compared with 2.0.1 by auditors who wrote none of the code and brought in line under four rules (D-140); what is still open is in `PROGRESS.md`. Which version the vendor sandbox follows is still not known |
+| D-136, D-140 | The operator named 2.0.1 as the version of the Da Vinci guides to hold the tool to | All three protocols were compared with 2.0.1 by auditors who wrote none of the code and brought in line under four rules (D-140); what is still open is in `PROGRESS.md`. The operator says the vendor sandbox follows 2.0.1 as well; that has not been observed (D-269) |
 | D-143 | The production guardrail judges where a request goes, not only which environment is active | The guardrail audit got writes through to production four ways before this; how it was closed, and what it still cannot see (D-145) |
 | D-141 | A value nobody supplied is never invented, and a request says what it left out | A service that refuses such a request is not at fault, and the result says so |
 | D-190, D-206 to D-208 | The frontend is merged and joined into one tool, and the screens read the server's words | The two proofs before handover were seen on the real tabs on mock by browser scripts (D-208); an automated walkthrough by an agent playing a business tester ran on `9e285a1` and is not a sign-off; no person has used the tool |
@@ -23,7 +23,8 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-210 to D-218, D-245 | The second audits of member data, the guardrail and fixtures found blockers, and their fixes are merged | Each fix was checked by an agent that did not write it (D-245): most closed, and several open one step away, among them a production address the client cannot read. Four tasks fixed them afterwards (D-253 to D-256), checked by nobody but their authors when D-259 was written; what they left is D-257. What is still open is first in `PROGRESS.md` |
 | D-253 to D-259 | The four tasks that closed what the checks of the V2, V3 and V4 fixes and V6 found are merged | Checked by the last independent check (D-260); what they left is D-257 |
 | D-260 to D-268 | The last check found blockers and majors in four parts; four last fixes followed and are merged | **The last fixes are checked by nobody but their authors, and no check follows them** (D-268). What they left was not applied (D-266). What is open is first in `PROGRESS.md` |
-| D-227, D-252 | Four questions put to the operator have no answer | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request |
+| D-227, D-252 | Four questions were put to the operator during the build and had no answer then | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request. The operator's replies, after the pull request was opened: D-269 |
+| D-269 | The operator replied to the four questions of D-227 after the pull request was opened: two answered, two not | The sandbox follows 2.0.1 on the operator's word, not observed; a vendor sample request can be shared and has not arrived; the operator does not know about the NPI's first digit and did not understand the question about the bind, so both stay as they are |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -883,6 +884,8 @@ open item under D-130 and has three consequences.
   before that.
 (Done: the 2.0.1 comparison of all three protocols reported and was acted on. The rules are D-140
 to D-142 and what each protocol now does is D-155 to D-166.)
+(Later: asked which version the vendor's sandbox follows, the operator answered 2.0.1 as well. It is
+the operator's statement, not an observation of the sandbox: D-269.)
 
 **D-137. The build prompt's CRD tables and CRD 2.0.1 disagree, and 2.0.1 decides.**
 The build prompt names "Da Vinci CRD v2.2.1" in three places and gives the value sets of the
@@ -1067,6 +1070,7 @@ guide that every test had passed, because the mock scenarios were written from t
 as the code. CRD and PAS were written the same way. An independent comparison of each protocol
 with what can be read was started as soon as this was known, by auditors who wrote none of the
 code. Which version of each guide the vendor sandbox follows is still not known (section 26).
+(Later: the operator says the sandbox follows 2.0.1; not observed against it: D-269.)
 
 **D-131. A chain is a case like any other, and it stops where a tool has to stop.**
 Section 28.1 makes the chain the real test case, so a suite row can run one. (As first written this
@@ -1146,7 +1150,8 @@ it holds is cut at 131072 bytes.)
   requires of a client. An answer posted again unchanged keeps the origin it had.
 - A next-question request is sent as the bare QuestionnaireResponse unless the request asks for
   it to be wrapped, because the two versions of the guide differ and nobody knows which the
-  sandbox follows. Both shapes are read.
+  sandbox follows. Both shapes are read. (Later: the operator says 2.0.1; not observed against the
+  sandbox: D-269.)
 - The url an adaptive questionnaire gives for its next question is never used as an address. It
   is compared with the configured one and the tester is told whether they agree. The gateway is
   the only source of where a call goes.
@@ -1562,7 +1567,8 @@ From the fixture audit (V4-02, V4-03, V4-05, V4-08) and its verification.
   with) is the operator's, and nothing was changed.
 (Changed by D-220 and D-221: a sentinel is chosen by one rule for a typed identifier and one found
 in a pasted body alike, and the duplicate check covers `crdSentinelMemberIds`. The question V4-11
-raised still has no answer, D-227.)
+raised still has no answer, D-227. Later: the operator was asked and does not know, so the check stays
+as it is, D-269.)
 
 **D-154. A sentinel means the same case in every protocol.**
 From V4-04, V4-06, V4-09, V4-10 and the chain review's F10. Before, the CRD sentinels for member not
@@ -2768,7 +2774,7 @@ their first independent readers. The fixes for
 the audits have been checked by nobody but their authors. The entries below record what was
 decided, in this order: the server work for the screens, the two passes over the screens and the
 README, the second audits and their fixes, what was decided not to do, the work decided and not
-done, the questions the operator has not answered, and what was decided while joining. "The fix",
+done, the questions the operator had not answered (replied to later: D-269), and what was decided while joining. "The fix",
 "the pass" or "the audit" means the agent that did that work. What is still open is in
 `PROGRESS.md`.
 
@@ -3485,7 +3491,7 @@ say what became of each.
 (What became of each: the server, D-229; the screens, D-230; the README and the draft, D-232; what
 the first two left each other, D-231.)
 
-### Questions the operator has not answered
+### Questions the operator had not answered during the build (replied to later: D-269)
 
 **D-227. Four questions put to the operator during the build, with no answer yet, and what the tool does until one comes.**
 1. **Which version of the Da Vinci guides the vendor's sandbox follows.** The tool is held to 2.0.1 on
@@ -3502,7 +3508,8 @@ the first two left each other, D-231.)
 4. **Whether a sample request from the UM vendor, with no real member data, can be shared** for the
    request comparison (D-119). The comparison has met no real vendor request; its vendor-shaped test
    request is hand-written, so how the vendor's own request differs from the tool's is not known.
-(Still unanswered at the revision of D-252, which records one more exchange with the operator.)
+(Still unanswered at the revision of D-252, which records one more exchange with the operator.
+Answered after the pull request was opened: D-269.)
 
 ### Joining the parts
 
@@ -4216,7 +4223,8 @@ task (`left3-server` at `c15250c`), the last screens pass (`screens-fix` at `e99
 5. One more exchange with the operator, beside the questions of D-227: the operator asked how much
    longer the work would take, and was told what remained and that the build prompt allows a finding to
    be resolved or recorded. No instruction followed, and the full sequence was carried on. The four
-   questions of D-227 still have no answer.
+   questions of D-227 still have no answer. (The operator replied after the pull request was opened:
+   D-269.)
 6. The build machine restarted three times while this tool was built (at about 00:17, 03:02 and 06:00
    UTC), each time without warning and cutting off every agent then at work. Nothing committed was lost.
    Since then every agent commits a checkpoint after each group of changes.
@@ -4794,4 +4802,33 @@ round before had broken something (D-260 names NF3, NEW-1 and N-SUB-LOCKOUT). A 
 somewhere, and the operator was waiting. The operator was told that what is open goes first in the pull
 request description and that the last fixes are marked as checked by their authors only. What is open at
 the revision handed over is listed, the worst first, at the top of `PROGRESS.md`, and is not hidden. The
-four questions put to the operator that are still unanswered stay as D-227 records them.
+four questions put to the operator that were still unanswered then stay as D-227 records them; the
+operator's later replies are D-269.
+
+### After the pull request was opened
+
+**D-269. The operator's replies to the four questions of D-227, and what follows from each.**
+Given after the pull request was opened and its gates had run. Two are answers and two are not. They
+change no code: the commit that records them changes this file, `PROGRESS.md` and the README.
+1. **The vendor's sandbox follows version 2.0.1 of the guides.** This is the operator's statement, not
+   an observation: nothing has been run against the sandbox. It is the version the tool is already held
+   to (D-136), so nothing changes. The documents no longer say the version is not known; they say who
+   says so, and that it has not been observed.
+2. **Whether an NPI whose first digit is not 1 or 2 should be refused: the operator does not know.**
+   Nothing changes. The check stays the Luhn check with the 80840 prefix (D-153), which accepts a number
+   no issued NPI begins with. Reason for leaving it: a test tool that refuses such a number cannot be used
+   to see how the service answers one, and a wrong refusal here would be a guess about the operator's
+   provider data. It stays a question for whoever looks after that data.
+3. **Whether the bind to this machine or the request guard should be relaxed: the operator did not
+   understand the question as put**, and nothing changes. In plain words: the tool listens on
+   `127.0.0.1` only, and refuses a request addressed to a name other than `localhost`, a loopback address,
+   the bound address or a listed name, the notification receiver apart (D-115, D-116, D-148). The
+   consequences stand: each tester runs a copy of their own, and no vendor service can
+   call the notification receiver, so a pended request is followed with an inquiry. Relaxing it is a
+   setting (`server.address`, `app.allowed-hosts`, `onyx.subscription.callback-url`), not a code change,
+   and because the tool has no sign-in and its wire view carries member data, it is a decision for
+   whoever is responsible for the network the tool runs on.
+4. **A sample request from the UM vendor with no real member data can be shared.** None has arrived
+   yet. When one does it is to be checked for member data before it is used, run through the request
+   comparison (D-119), and what the comparison makes of it recorded. Until then the comparison has met no
+   real vendor request, and that limit stands.

@@ -15,8 +15,9 @@ configuration is needed.
 ## Before you rely on it
 
 - **Nothing here has been run against the vendor's service.** Every result anyone has seen came
-  from the mock profile or from a stand-in server on this machine. Which version of the guides the
-  vendor's sandbox follows is not known; PAVE is held to version 2.0.1 of CRD, DTR and PAS.
+  from the mock profile or from a stand-in server on this machine. The operator says the vendor's
+  sandbox follows version 2.0.1 of the guides, the version PAVE is held to for CRD, DTR and PAS;
+  nobody has yet seen that sandbox answer.
 - **The mock answers from files** written for this tool, from the same reading of the guides as the
   code that reads them. A pass on mock says nothing about the live service.
 - **The wire view carries member data** on the live profile, and so do the lookup results. See
@@ -231,8 +232,9 @@ pass.
   not the launch itself, and you type each answer yourself: no patient record pre-populates
   anything, and no CQL is run. Every DTR result says so. Do not report a DTR run here as a test of
   the SMART launch.
-- **PAVE is held to version 2.0.1 of CRD, DTR and PAS**, on the operator's word (D-136); which
-  version the vendor's sandbox follows is not known. The request shapes and the reading of
+- **PAVE is held to version 2.0.1 of CRD, DTR and PAS**, on the operator's word (D-136), and the
+  operator says the vendor's sandbox follows 2.0.1 as well (D-269); that has not been observed
+  against the sandbox. The request shapes and the reading of
   responses were first written without the guides (D-008, D-130), then compared with 2.0.1 by
   auditors who wrote none of the code, and brought in line (D-140 to D-166; what each comparison
   found and what was done is in `PROGRESS.md`). What that means on screen:
@@ -1909,7 +1911,7 @@ Each of these is unknown. PAVE uses an obvious placeholder for it rather than a 
 | How the token request authenticates the client: HTTP Basic, the credentials in the form body, or a private-key JWT | OAuth2 client credentials with the client authenticated by HTTP Basic (`Authorization: Basic`), decided in code and not by the vendor | `onyx.auth.*` for the values. For credentials in the form body or a signed JWT assertion, `requestToken` in `src/main/java/org/p32h/interop/epa/pave/client/support/OnyxTokenService.java` is the one method to change |
 | The PAS attachment mechanism in use | `fhir` | `onyx.pas.attachment-mode`. `x12-275` names the attachment and sends nothing else |
 | Whether the receiver is reachable from Onyx | Assumed not | `server.address`, `app.allowed-hosts`, `onyx.subscription.callback-url` |
-| Which version of each guide the sandbox follows (D-130, D-136) | 2.0.1 on the operator's word; codes of the 2.2.0 ballot are read and named; DTR reads both published shapes of next-question | `wrapInParameter` on a next-question request chooses the wrapped form; the variable `dtrCoverageExtension` the ballot form of coverage |
+| Which version of each guide the sandbox follows (D-130, D-136, D-269) | 2.0.1, which the operator says the sandbox follows; this has not been observed against it. Codes of the 2.2.0 ballot are read and named; DTR reads both published shapes of next-question | `wrapInParameter` on a next-question request chooses the wrapped form; the variable `dtrCoverageExtension` the ballot form of coverage |
 | How Onyx signals an unknown member or provider, inactive coverage and the delegated vendor (D-033) | A rule kept in the client layer, stated in each mock scenario | `src/main/java/org/p32h/interop/epa/pave/client/crd/OnyxCrdConventions.java`, `.../client/pas/OnyxPasConventions.java`, `.../client/dtr/OnyxDtrConventions.java` |
 | Values the guides require that only the payer's or the provider's set-up knows: the payer, the member ID system, the medical record number, the X12 service and request types, the requesting organization (D-141) | Nothing: the request goes without them and names each one left out | The variables under [Variables that fill a request](#variables-that-fill-a-request), in the vendor's environment |
 | What a subscription must name (filter, channel, payload, end) | The topic PAS 2.0.1 defines; a filter only from what was supplied (D-160) | The `subscription...` variables and `pasRequestingOrgIdentifier`, or values typed for the run |
@@ -2128,8 +2130,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   ordering provider as a Practitioner or an Organization, never both, and never
   `Organization.active`.
 - **CRD**: a pasted request for another hook is answered comparable, with a note.
-- **DTR**: which version of the guide the sandbox follows decides the shape of next-question and
-  is not known. Only the invariants dtrx-1 and dtrb-1 are evaluated. An answer's author carries no
+- **DTR**: which version of the guide the sandbox follows decides the shape of next-question. The
+  operator says it is 2.0.1 (D-269); that has not been observed against the sandbox. Only the
+  invariants dtrx-1 and dtrb-1 are evaluated. An answer's author carries no
   role. A failure of the tool in the response step answers 500 and writes no ledger line.
 - **PAS**: a resubmission reuses the claim id. Mock X12 reason and category codes are placeholders.
 - **The notification receiver** has never been called by a real payer, holds at most 200
