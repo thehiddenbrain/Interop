@@ -2967,3 +2967,322 @@ From `TASK_DOCS2`, on the line with the join and before the server tasks for the
   non-ASCII character and names the generating tool, which the house style and the rule against
   naming a tool as an author both forbid. Which wins is the integrator's to decide before it is
   posted; nothing is posted yet.
+
+### The second audits, and their fixes
+
+The second run of the member data (V2), guardrail (V3) and fixture (V4) audits ran on revision
+`0658a7c`, each in a worktree of its own, each by an agent that wrote none of the tool. The
+integrator decided what to do with each finding before the work (`TASK_AUDITFIX_V2`, `_V3`,
+`_V4`), and one agent fixed each audit's findings. **No fix below has been checked by an agent
+that did not write it.** Where an entry says a test fails without the fix, the fix's author ran it
+against the code with the fix taken out; where it does not, nobody did.
+
+**D-210. The tool reads an address as the client that sends it does, and an address it cannot read is never "not production".**
+From the guardrail audit's B1 (blocker). A port written with leading zeros
+(`http://127.0.0.1:0018742/...`) was read by the tool as no destination at all, an unreadable
+destination counted as not production, and the HTTP client connected to port 18742: a PAS
+submission, a subscription delete and a raw transaction reached a production environment's exact
+path from an environment uploaded as a sandbox, with no unlock. The same spelling worked from
+`application.yml` and from a collection url written out in full, and the other way round a
+production environment written that way was never remembered. Three rules, which hold together:
+1. **One reading of an address.** The destination of a url (scheme, host, port, base path) is what
+   `java.net.URI` reads from the url's normal form, the same object the executor hands the JDK
+   client (`UrlNormal.destination` and `UrlNormal.sendable` share one parse). A host of digits and
+   dots is compared as the JDK resolves it, so `0177.0.0.1` is `177.0.0.1`; a host with letters
+   such as `0x7f.1` keeps the older reading, because the client refuses it anyway. This replaces
+   D-144's "every form the C library accepts" for such hosts.
+2. **An unreadable destination is never "not production".** A url the client would refuse (no host
+   it can read, a port above 65535) is "not readable". It is still compared with production
+   addresses by the tool's lenient reading, which errs towards a match, and the executor never
+   sends it. A write whose destination is unreadable is refused with 403, on both profiles, after
+   the check for another production environment's address (that refusal says more), naming the
+   variable and its layer, the request, or the `application.yml` setting the address came from,
+   never a secret.
+3. **Reported before anything is sent.** An address with a scheme and a host and no readable
+   destination is reported on the environment at upload, on activation and wherever environments are
+   listed (`addressWarnings`, D-212).
+`AddressSpellingGuardrailTest` covers the audit's spellings at the gateway, on mock and on live;
+`DestinationOnTheWireTest` sends each spelling through the real JDK client to a loopback listener
+and fails if bytes arrive where the tool named another place. On the built jar, on live, against
+stand-ins playing production, the audit's requests were refused and the stand-ins received
+nothing. Not proven: IPv6, because this machine has no IPv6 loopback and that test returned early;
+and the fix's tests were not run against the code before it (the B1 tests use the new methods and
+would not compile there). The only evidence that B1 was open before is the audit's.
+
+**D-211. No request leaves with an encoded separator in its path.**
+From the guardrail audit's M-ENC (major) and m3 (minor). A value typed for one run holding `..%2F`
+was one segment to the tool and two to a server that decodes before it resolves dot segments, so a
+CRD hook or an inquiry could be delivered as a submission to a locked production. Decided: no
+request leaves with an encoded slash, backslash or semicolon (`%2F`, `%5C`, `%3B`, any letter case,
+however many times encoded, up to 8 decodings), or a dot segment that appears only once an escape is
+decoded, in its path, whatever the environment and whatever the method, because the tool cannot
+know how a server in front of a service reads it. It is refused with 422 before any other
+judgement, naming the variable and its layer, the url part or the request that supplied it, never
+the value. The query is not read: a FHIR search carries encoded characters there legitimately. A
+singly escaped `%2e%2e` is already decoded by the normal form and judged as the dot segment it is.
+An environment whose base address holds one is reported at upload and nothing at all is sent to
+it. Consequence: an id or a single-brace url part that holds `/`, `\` or `;` is now refused, where
+it used to be sent percent-encoded inside one segment (D-184); four existing tests that expected
+`a/b` to go out as `a%2Fb` now expect the refusal. Covered by `EncodedSeparatorGuardrailTest`; a
+search with `%2F` in its query arrived at a sandbox stand-in unchanged in
+`SecondGuardrailAuditOverTheServerTest`, and was not tried by hand. How a real nginx or Tomcat in
+front of a service decodes was tested neither by the audit nor by the fix.
+
+**D-212. What the Config answers warn about an address.**
+From the guardrail audit's m4 (minor), B1 and M-ENC. Three warnings, in the upload answer's
+`warnings`, in `EnvironmentView.addressWarnings` wherever environments are listed and in
+`Activated.addressWarnings` after a switch (both new, never null):
+- an address the tool cannot read the way the HTTP client reads it: a write to it is refused;
+- an address whose path holds an encoded separator: nothing is sent to it;
+- an environment on the same scheme, host and port as a production environment (stored or remembered)
+  under another base path, naming that production environment. D-143's rule 1 stands: the base path
+  is part of the destination, so the environment is accepted and treated as its kind, and writes
+  go to it without an unlock. The warning says that if the server routes that path to production,
+  the environment must be uploaded as `prod`. It is worked out whenever an environment is
+  described, so a production environment uploaded later also warns on the sandbox.
+No screen shows `addressWarnings` at the revision of D-228 (D-226); the upload answer carries the
+same sentences.
+
+**D-213. The configuration store keeps uploads as they are, and can therefore hold member data. The upload warns; nothing is stripped.**
+From the member data audit's F5 (minor). **This qualifies the rule of section 15 that no member data
+is persisted, and the operator should read it first.** An environment or a collection is kept on
+disk exactly as uploaded, values included, because it is what the tool sends from. A variable such
+as `memberId`, `patientLastName` or `patientBirthDate`, a sample body or a saved example response can
+therefore hold a real member's identifier, name or date of birth, in `config-store/` (whose files
+are for their owner only where the file system allows, D-147). Decided: the store keeps uploads
+whole, and at upload the answer warns, naming the variables or the first request and the count,
+never a value, when a variable's name reads as member data (a member, patient, subscriber,
+beneficiary, insured or enrollee identifier or name; a first, last, given or family name; a birth
+date or `dob`; names holding system, url, type, path, key, label, header and the like are excluded,
+`MemberDataNames`), or when a collection request carries a saved example response, which can hold
+the data of whoever it was saved for. The warning says the file is kept on disk as uploaded, gives
+its path, and says that an environment or a collection holding real member data must not be
+uploaded, with placeholders such as `S123456789` in its place. Judged by name alone: a value is
+never inspected, so member data under a name the list does not know is kept without a warning. The
+sample collection carries saved examples, so its upload now warns; one assertion of the sample
+files' test was changed for that (D-228). Covered by `MemberDataUploadTest`, not run against the
+code before the fix.
+
+**D-214. Lock, from any browser, locks every session, and now a test fails if it stops.**
+From the guardrail audit's T1 (major), F-SCREEN (major) and m2 (minor). D-144's rule stands: a Lock
+from any browser ends every session's unlock, and does not move the configuration epoch (D-143,
+rule 9). No test failed when the Lock action stopped locking other sessions.
+`SecondGuardrailAuditOverTheServerTest` now drives it over the running server on live: session A
+unlocks and sends a submission, held at a token stand-in so that it is prepared and not yet sent;
+session B, which never unlocked, presses Lock; A's write in flight is refused at the send, A's next
+write is refused with 403, and production received nothing. With the lock call taken out of the
+controller the test failed. The refusal at the send arrives as a 409 worded by the shared error
+handler as "The configuration changed while this request was being prepared. Nothing was sent.",
+not with the gateway's own sentence that writes were locked again (D-144); showing the refusal's
+own sentence is decided and not done (D-226). The page: after another browser's Lock, the Config
+tab of a session that was unlocked goes on saying writes are unlocked until it is reloaded, while
+the banner beside it says locked (F-SCREEN), and the unlock panel does not say that Lock ends every
+session's unlock (m2). The server refuses the write, so nothing reaches production; the screen says
+something false. Both are the screens' to fix, decided and not done (D-226).
+
+**D-215. A received notification is masked with everything the tool could have sent to the service.**
+From the guardrail audit's GAP1 and the member data audit's F0 (blocker). A secret a service repeated
+inside a notification (a secret variable of the active environment, the access token, an API key) was
+held and shown in clear by `GET /api/pas/notifications`; only the credentials of the address to
+call back were masked (D-202). Decided: a notification is masked before anything holds or reads it,
+by the rule of the wire view (D-162), with every value the tool could have sent to that service:
+every secret piece the resolver produces for each variable of the active environment and of
+`application.yml` (typed secrets, names that read as credentials, operating system references), the
+client secret of `onyx.auth`, the credentials of the address to call back (raw and decoded), and the
+access token the token service holds (cached and last issued). `OperationGateway.secretsGivenToServices()`
+gives them, as `SentSecrets` and never as a list of plain strings a caller could log; the token
+reaches it through the interface `HeldAccessToken`, which the token service implements. The note on
+the payload says how many places were masked and that what is shown is therefore not exactly what
+was received. `SecretsSentBackOverTheServerTest` delivers a notification that repeats each of the
+four kinds; none appears in the answer or in the list. With the receiver given no secrets, it
+failed. On the jar the four appeared 0 times in the list, the ledger and the log. The limits of the
+wire view's search apply (D-162): a secret shorter than six characters, or re-encoded, is not found.
+
+**D-216. The guardrail's smaller decisions.**
+- A raw send of a request mapped to an operation is refused on locked production "because a request
+  sent as written is judged by its method whatever it is mapped to", naming the operation; a request
+  truly mapped to nothing keeps the old reason (m1).
+- The log line that names the host and the exception types of a failure the tool cannot name
+  (D-205) is not written for a member or provider lookup, so a lookup logs only its outcome and HTTP
+  status, as section 15 requires (F6 of the member data audit). `FailedCallLogTest` asserts that a
+  failed lookup leaves no such line and no identifier, and that the line of another client holds
+  the host and neither the path nor the query.
+- The embedded server is given a working folder, `pave-server-*`, under the temporary directory, and
+  it is removed when the tool stops, so a start and a stop leave nothing of the tool's outside the
+  folder it was started in (F7 of the member data audit). No folder was added beside `config-store`
+  and `run-history`. A process killed outright leaves that one folder behind.
+- `ConfigStoreGateway` gains an optional setter for the held token, so its constructors did not change;
+  `UrlNormal.Destination` gains a component `readable`, and the old constructor means readable.
+
+**D-217. A note, a tester reference or an expectation may not hold this run's member data.**
+From the member data audit's F1 (major). The three free-text fields were written to the ledger and
+the export exactly as typed, so on live with the default tracking a note beside a tokenised member
+field could hold the member ID, the name and the date of birth in clear. Decided, at three depths:
+1. **At the way in, the tool refuses and quotes nothing.** Every run form (CRD, DTR on its three
+   paths, PAS, subscriptions, a raw send) is refused with a 422 on `note`, `testerRef` or
+   `expected`, before anything is sent, when the text holds what the same request carries: the
+   member ID (compared by letters and digits only, any case, inside a longer word, for six or more
+   such characters), the first or last name as a whole word in any case (two or more characters),
+   the date of birth in the usual written forms (ISO, compact, US, day first, dotted or spaced, two-
+   or four-digit years), the subscriber ID as the member ID is compared, or an address line (five
+   or more characters). The sentence names the kind of value, never the value ("The note holds this
+   run's member ID and the member's last name. The ledger keeps it as written and may not hold
+   member data, so leave them out. Nothing was sent."). `service/run/MemberInText` holds the rules.
+   A suite row is checked at preview for its own member ID only, since a row carries no name; the
+   rest is checked when the case runs, against the looked-up member.
+2. **A note added later** (`POST /api/runs/{id}/note`) is checked against the line: the member ID when
+   the line holds it, and otherwise by turning into a token each candidate that ends in the line's
+   last four characters (as typed, upper and lower case, without spaces, without punctuation) and
+   comparing it with the member token. The ID is never recovered.
+3. **The record is the last line.** `RunRecord` writes a note, tester reference, expectation or case
+   expectation that holds the run's member ID as its length (D-219). On reading, the ledger applies
+   the same rule by comparing tokens to lines and note lines older versions wrote, so they are shown
+   and exported without the ID; the file is append-only and is not rewritten.
+Limits, recorded and not closed: a name, a date of birth or an address the request does not carry (of
+somebody else, or of this member under another spelling) cannot be recognised by any rule that would
+not also refuse an honest note, and is written as typed. The record's last check catches only the
+member ID. Older lines that hold a name or a date are shown and exported as written. Short values
+are not looked for, and a name is matched as a whole word, so a member whose name is also a common
+word makes the run refuse a note holding that word; the 422 names the field, and the note can be
+reworded. The sentence for the README: the note, the tester reference and the expectation are free
+text kept in the ledger as typed; the tool refuses one that holds the member ID, name, date of
+birth, subscriber ID or address the same request carries, and cannot recognise member data the
+request does not carry, so member data must not be typed into them. On the jar, live, default
+tracking: each of the audit's ways in gave 422 on its field, and a refused note on the CRD tab was
+marked and its sentence shown (1366 by 768 only). The run forms carry no hint before the refusal
+(D-226).
+
+**D-218. What the ledger keeps of a procedure code, and of an identifier a service supplies.**
+From the member data audit's F3 and F2 (major). Before, the run's own member ID typed where a
+procedure code goes was written in clear in the procedure codes and as the subject of every
+coverage code, while the record's own documentation said it could not be; and a claim id,
+ClaimResponse id or subscription id taken from an answer or a notification was kept whenever it
+looked like one token, so a service that put a member ID, or a surname followed by a date of birth,
+into one of them got it into the ledger.
+- Every procedure code, and every part of the subject before a coverage code or before `(no answer)`,
+  is held to the identifier-or-date rule codes are held to (D-151) and to the member ID check. A UUID
+  inside a resource place is set aside first. What fails is written as `(not a code, N characters)`,
+  and that statement is accepted as a subject, so a line read back is unchanged.
+- A claim id, ClaimResponse id, subscription id or run id in the correlation is kept only as one
+  token that, with any UUID inside set aside (an OID kept whole), does not read like an identifier
+  or a date and does not hold the run's member ID. Ids the tool mints (`claim-<uuid>`,
+  `run-<uuid>`) and the mock's ids are kept. Otherwise `(not recorded, N characters)` is written.
+  A claim id a tester typed that holds a run of six digits or a date is now written as its length,
+  and an inquiry naming it is then not replayable, as for any refused claim id (D-152).
+- A notification that names an id the ledger does not keep is not looked up by it, and never told
+  that no run created its subscription: it says so in its correlation notes and its own headline and
+  next step (`Unmatched.NOT_KEPT`), under the existing outcome and finding
+  `UNCHECKED_NOTIFICATION`. Matching still works for every id that is kept.
+- Known gap, unchanged (D-151): a one-word surname is kept. On the jar the notification's subscription
+  id `sub-Zzlastname` was written as it came, and so would a code such as `covered=Zzlastname`. A
+  single word cannot be told from an id or a code by its shape, and a notification line names no
+  member to compare with.
+Tests that failed with the fix removed: `LedgerMemberTextTest`, `LedgerPhiTest`,
+`NotificationIdsNotKeptTest`. `RunRecord` gained `keepsIdentifier` and `withoutMemberText`; no
+component was renamed or removed, and the eight lines the audit's live run wrote read through the
+new code with none unreadable. One test of replay was changed because a 64-hex claim id holding a
+run of ten digits is no longer kept; it now asserts the statement and that replay never passes it
+on.
+
+**D-219. What a ledger line says in the place of a value that was not kept, and what replay does with it.**
+A line never holds a value the record refused, and never drops it in silence: it holds a statement
+that something was there, with its length and nothing of it. The statements are
+`(note not recorded, N characters)`, `(tester reference not recorded, N characters)`,
+`(expectation not recorded, N characters)`, `(not a code, N characters)` for a procedure code or the
+subject of a coverage code, and `(not recorded, N characters)` for a correlation value or a
+questionnaire address. They were written before for length and shape (D-151); since D-217 and D-218
+they are also written for text that holds the member ID and for identifiers a service supplied.
+Replay treats each as missing input where a case needs it: a procedure code statement and an
+expectation statement make the run `NOT_REPLAYABLE` with a sentence of its own ("A procedure code of
+this run was not recorded, because what was sent did not have the shape of a code or held the member
+ID. ..." and "The expectation of this run was not recorded, ... so a run again could not be checked
+against it."); a tester reference statement is not carried into the new run. A statement is never
+sent as if it were a value.
+
+**D-220. One rule chooses a mock scenario, for a typed identifier and one found in a pasted body alike.**
+From the fixture audit's F-RAW (major). The cross-protocol sentinels of D-154 were honoured by DTR in
+a pasted body and skipped by CRD and PAS, whose result then said no sentinel matched: pasted into
+PAS, a CRD failure sentinel got the default "approved". Decided and built: one rule, in
+`ScenarioRepository.select`, for the three protocols: an explicit choice; the form's member ID (the
+files' own sentinels, then their `crdSentinelMemberIds`, then, in CRD only, the DTR files'
+sentinels); the form's NPI; the whole text values of a pasted body, by the same three steps; the
+default. The result says which step chose (`ScenarioSelection.by`, `inBody`, `via`), and callers act
+on that, never on the wording of the note: the PAS inquiry refusal used to read the note. The note
+says "found in the request body" when it was. The hand-written alias pass in the DTR mock, the
+pre-pass in the CRD mock and the Java map of the PAS mock are gone. A test checks, for each
+protocol, that a pasted identifier picks the same scenario by the same rule as the typed one.
+
+**D-221. The sentinels of another protocol are data in the scenario files, and claimed like a file's own.**
+From the fixture audit's F-PAS-SHADOW, F-DUP-CRDSENT (major) and F-PAS-CRDMAP-HIDDEN (minor). The CRD
+sentinels a PAS scenario answers for the same case were a map in Java, which the start-up check and
+the scenario list did not know: a PAS file could claim such a sentinel and never be chosen, and the
+list said `crdSentinelMemberIds: []` for files whose description named one. Two DTR files could claim
+the same CRD sentinel and the second never answered.
+- `pas-09`, `15`, `16`, `17` and `21` carry `crdSentinelMemberIds` (`P32H-BAD400`, `P32H-NOMEM`,
+  `P32H-TIMEOUT`, `P32H-ERR500`, `P32H-NOPROV`), exactly as DTR files do, and the list shows them.
+- The CRD scenario that answers every DTR sentinel is marked in its file (`answersDtrSentinels: true`,
+  today `crd-04`), not by an id in Java. Only a CRD file may carry it, only one may, and a CRD file
+  may not list `crdSentinelMemberIds`.
+- The duplicate check at start puts the CRD sentinels into the same map per protocol as the files' own,
+  within a file and across files, and refuses naming both files ("... is already claimed by ... One
+  sentinel selects one scenario."). The entries must be `P32H-` sentinels.
+Scenarios are data: a QA author can change the mapping without compiling.
+
+**D-222. On mock, what CRD names for a DTR sentinel follows that sentinel.**
+From the fixture audit's F-CHAIN-DTR (blocker). CRD answered every DTR sentinel with scenario 4, which
+names one questionnaire, and six DTR scenarios do not hold it: taken from CRD into DTR the way the tool
+hands it on, `P32H-DTR-ADAPT` and five others ended as "package incomplete", telling the tester the
+service left a questionnaire out when only the two synthetic data sets disagreed. Now, for a DTR
+sentinel, the CRD mock names the questionnaire or questionnaires the package of that DTR scenario
+holds, read from the DTR file's own response and written nowhere a second time, in the questionnaire
+sub-extension and the card's app context. A DTR package that holds no questionnaire (the error,
+empty and no-bundle cases) keeps scenario 4's own questionnaire, and the note says so. Nothing is
+invented for a case with no DTR scenario. `crd-04`'s description says what a tester needs to know.
+`DtrSentinelJourneyTest` drives every DTR sentinel from CRD into DTR through the real endpoints with
+the carry CRD hands on, and the same as suite rows of the protocol chain, asserting each DTR file's
+stated outcome; with the change switched off it failed with exactly the six rows the audit reported.
+Seen in the browser at 1366 by 768 and 1920 by 1080: CRD with `P32H-DTR-ADAPT`, "Continue in DTR",
+and the package loaded with one questionnaire. A chain suite was not driven by hand on the jar.
+
+**D-223. A code list says of itself that it is synthetic, and the tool believes the file, not its path.**
+From the fixture audit's F-SAMPLE-LIST (major). D-169 marked only the bundled list as the placeholder,
+so the sample list the README tells a newcomer to try was compared with a live service as if it were
+P32H's, and a finding said "One of them is wrong" about invented rows. Now a list in which any row's
+notes hold the marker "Not from a P32H export." (any letter case; one constant,
+`CodeListLoader.SYNTHETIC_MARKER`) is synthetic and treated exactly as the bundled placeholder: the
+self-check gives `placeholder: true` with a warning, the picker says so, on live nothing is compared
+(`CODE_LIST_NOT_COMPARED`), and on mock every finding says the list is the placeholder. A list with no
+such row is taken as real, as before. One test requires the marker on every row of the bundled list
+and of every list under `samples/codelist`. On the jar, on live with the sample list against a
+stand-in that disagreed, no disagreement was reported. Still untrue at the revision of D-228: two
+sentences of `CrdConformanceChecker` and the label of a code list finding on screen call any such list
+"the synthetic placeholder that ships with the tool" or "the bundled placeholder", which is not true
+of the sample or of a tester's own marked list; and the README presents the sample's self-check
+without the warning. Each is decided and not done (D-226).
+
+**D-224. The fixtures' smaller decisions.**
+- **Test NPIs.** `1987654328` passes the NPI check and is outside the placeholder set, so it could be
+  a real provider's; whether it is issued could not be checked, as there is no access to the national
+  register here. It was in a test resource and in four test classes (three made it with
+  `Npi.withCheckDigit`, which the audit's scan did not see) and is replaced by `1000000087`.
+  `NoNpiOutsideThePlaceholderSetTest` scans `src/main`, `src/test` and `samples` and fails on any
+  ten-digit number starting with 1 or 2 that passes the check and is not `1234567893`, `99999999xx`
+  or `10000000xx`, and on any `withCheckDigit` whose result lies outside that set.
+- **The sample that matches nothing by design** (`pas-12`). Its next step told the tester to create a
+  subscription and deliver it again, which gives the same answer once a subscription exists. Now,
+  when the sample names a subscription of its own and the ledger holds one this tool created, the
+  next step says it names a subscription this tool did not create, on purpose, that this is a
+  finding in itself, and which sample to deliver to see a match: the first scenario whose
+  notification uses the subscription token and is not about a submission (today `pas-10`). With no
+  subscription, the remedy of D-203 stays.
+- **What is said about scenario files without stopping the start.** A tester's own directory may hold
+  work in progress, so none of these refuses: the lowest-numbered file of each protocol is named as
+  the default on its own entry of the scenario list; an `expect` block whose HTTP status differs from
+  the one its file or step answers with is noted; a file in a protocol directory that does not end in
+  `.json`, or a subfolder, is named in the list's `notes` and, on mock, in one warning at start, by
+  name only. `ScenarioSummary` and `ScenarioList` each gained `notes`. The fix could not make the
+  three controllers pass the list's notes (they were not its files); the integrator did it while
+  merging (D-228).
+- **Known limit.** An `expect` block whose outcome contradicts what its file produces, with the same
+  HTTP status, is not detected at start: it would mean running each protocol's response mapper at
+  load time. The scenario list still advertises such an outcome.
