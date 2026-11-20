@@ -9,7 +9,7 @@
 // It is never read as markdown or as markup.
 
 import {el, append, code, facts, table, heading, externalLink} from './dom.js';
-import {shown, presenceMark, hasValue} from './shown.js';
+import {shown, presenceMark, hasValue, noValueMark} from './shown.js';
 import {outcome} from './marks.js';
 import {additionalFieldsTable, issuesTable, listState as presenceOfList, listValue} from './result.js';
 
@@ -184,15 +184,6 @@ function repeatedOf(name, values, options, noValue) {
     }
     const cell = (value, index) => (noValue.has(name + '[' + index + ']') ? noValueMark() : shown(value, options));
     return values.length === 1 ? cell(values[0], 0) : el('ul', {class: 'plain-list'}, values.map((value, index) => el('li', null, cell(value, index))));
-}
-
-/**
- * A sub-extension sent with no value[x] at all: there, and saying nothing. It is not "empty",
- * which is a value of "", and not "not returned", which it was. It wears the outline of empty,
- * the nearest of the three marks, with words of its own.
- */
-function noValueMark() {
-    return el('span', {class: 'presence presence--empty', title: 'The sub-extension was sent with no value[x] in it.'}, 'sent with no value');
 }
 
 /** One element of the extension that is a plain value and not a code. */

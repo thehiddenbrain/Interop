@@ -51,4 +51,22 @@ class CrdOtherResourceTest {
                 .isEqualTo(CrdResponseKind.CDS_HOOKS);
         assertThat(List.of(CrdOutcome.values())).contains(CrdOutcome.MALFORMED_RESPONSE);
     }
+
+    @Test
+    void theHeadlineSaysWhatCameAndNeverThatAReadableBodyCouldNotBeRead() {
+        var patient = TestExchanges.crd(200, PATIENT);
+        assertThat(CrdVerdicts.verdict(mapper.read(patient), patient).headline())
+                .isEqualTo("The service answered with a FHIR Patient resource, not a CDS Hooks response (HTTP 200).");
+        var array = TestExchanges.crd(200, "[{\"cards\":[]}]");
+        assertThat(CrdVerdicts.verdict(mapper.read(array), array).headline())
+                .isEqualTo("The service answered with JSON that is not a CDS Hooks response (HTTP 200).");
+        // A resourceType that is not shaped like a resource type is not put into the headline.
+        var odd = TestExchanges.crd(200, "{\"resourceType\":\"see the attachment\"}");
+        assertThat(CrdVerdicts.verdict(mapper.read(odd), odd).headline())
+                .isEqualTo("The service answered with JSON that is not a CDS Hooks response (HTTP 200).");
+        // A body that is not JSON still could not be read, and says so.
+        var garbled = TestExchanges.crd(200, "{\"cards\": [");
+        assertThat(CrdVerdicts.verdict(mapper.read(garbled), garbled).headline())
+                .isEqualTo("The service answered with a body that could not be read (HTTP 200).");
+    }
 }

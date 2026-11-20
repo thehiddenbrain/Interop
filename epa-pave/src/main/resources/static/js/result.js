@@ -16,7 +16,7 @@
 // result are two facts and are drawn as two different things: a strip in a tone, and a stamp.
 
 import {el, append, button, code, facts, table, heading, copyButton, count, millis, token} from './dom.js';
-import {shown, shownList, presenceMark} from './shown.js';
+import {shown, shownList, presenceMark, noValueMark} from './shown.js';
 import {toneClass, stamp, slowFlag, mockMark, localMark, answeredByNobody} from './marks.js';
 import {runLink} from './history-common.js';
 // lookup.js imports this file as well. The cycle is harmless: idForms is only called while a
@@ -382,7 +382,8 @@ function determinationRow(row) {
             row.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a code this tool knows')] : null));
     } else {
         // Nothing was returned for this element, and that is said across both columns: never a blank cell.
-        cells.push(el('td', {colSpan: 2}, presenceMark(row.presence || 'ABSENT')));
+        // An element sent with no value at all is said to be that, as the coverage table says it.
+        cells.push(el('td', {colSpan: 2}, row.sentWithNoValue === true ? noValueMark() : presenceMark(row.presence || 'ABSENT')));
     }
     cells.push(el('td', null, row.system ? code(row.system) : el('span', {class: 'quiet small'}, 'not stated')));
     return el('tr', {class: row.recognised === false ? 'determination--unrecognised' : null}, cells);

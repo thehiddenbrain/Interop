@@ -56,6 +56,15 @@ export function shown(value, options) {
     return el('span', {class: 'vendor-inline'}, text);
 }
 
+/**
+ * A sub-extension sent with no value[x] at all: there, and saying nothing. It is not "empty",
+ * which is a value of "", and not "not returned", which it was. It wears the outline of empty,
+ * the nearest of the three marks, with words of its own. The server says which element it is.
+ */
+export function noValueMark() {
+    return el('span', {class: 'presence presence--empty', title: 'The sub-extension was sent with no value[x] in it.'}, 'sent with no value');
+}
+
 /** True when a Shown holds a value. */
 export function hasValue(value) {
     return Boolean(value) && value.presence === 'VALUE';
