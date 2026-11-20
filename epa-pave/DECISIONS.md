@@ -17,7 +17,10 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-136, D-140 | The operator named 2.0.1 as the version of the Da Vinci guides to hold the tool to | All three protocols were compared with 2.0.1 by auditors who wrote none of the code and brought in line under four rules (D-140); what is still open is in `PROGRESS.md`. Which version the vendor sandbox follows is still not known |
 | D-143 | The production guardrail judges where a request goes, not only which environment is active | The guardrail audit got writes through to production four ways before this; how it was closed, and what it still cannot see (D-145) |
 | D-141 | A value nobody supplied is never invented, and a request says what it left out | A service that refuses such a request is not at fault, and the result says so |
-| D-190, D-200 | The frontend is merged, built in parts that were each reviewed alone; what the screens still need from the server, and the pass that joins the tabs, are decided and not done | Nobody has used the five tabs together yet; `PROGRESS.md` lists what is open first |
+| D-190, D-206 to D-208 | The frontend is merged and joined into one tool, and the screens read the server's words | The two proofs before handover were seen on the real tabs on mock by browser scripts (D-208); no business tester has used the tool |
+| D-213 | The configuration store keeps uploads exactly as uploaded, and can therefore hold member data an uploaded environment or collection contains | It qualifies section 15's rule that no member data is persisted. The upload warns by the names of variables and saved examples; nothing is stripped |
+| D-210 to D-218 | The second audits of member data, the guardrail and fixtures found blockers, and their fixes are merged | No fix has been checked by an agent that did not write it. What is still open is first in `PROGRESS.md` |
+| D-227 | Four questions put to the operator have no answer | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request |
 
 ## Build and environment
 
@@ -3277,8 +3280,8 @@ without the warning. Each is decided and not done (D-226).
   subscription, the remedy of D-203 stays.
 - **What is said about scenario files without stopping the start.** A tester's own directory may hold
   work in progress, so none of these refuses: the lowest-numbered file of each protocol is named as
-  the default on its own entry of the scenario list; an `expect` block whose HTTP status differs from
-  the one its file or step answers with is noted; a file in a protocol directory that does not end in
+  the default, on its own entry of the scenario list and among the list's notes; an `expect` block
+  whose HTTP status differs from the one its file or step answers with is noted; a file in a protocol directory that does not end in
   `.json`, or a subfolder, is named in the list's `notes` and, on mock, in one warning at start, by
   name only. `ScenarioSummary` and `ScenarioList` each gained `notes`. The fix could not make the
   three controllers pass the list's notes (they were not its files); the integrator did it while
@@ -3286,3 +3289,137 @@ without the warning. Each is decided and not done (D-226).
 - **Known limit.** An `expect` block whose outcome contradicts what its file produces, with the same
   HTTP status, is not detected at start: it would mean running each protocol's response mapper at
   load time. The scenario list still advertises such an outcome.
+
+### Decided not to do, and known limits
+
+**D-225. Decided otherwise after the second audits and the passes over the screens, and the limits the fixes report.**
+Decided by the integrator, each with its reason:
+- Lock from any browser locks every session, and a lock does not move the epoch (D-144, D-143 rule 9).
+  The audit's F-SCREEN and m2 are the page's, not the server's (D-214).
+- An environment on a production environment's server under another base path is warned about, not
+  refused: the base path is part of the destination (D-143, rule 1; D-212).
+- The configuration store keeps uploads whole and strips nothing: it is what the tool sends from.
+  It warns (D-213).
+- A name, a date of birth or an address the request does not carry is not looked for in free text:
+  no rule could tell it from an honest note (D-217).
+- History stays worded in UTC days; the server's `zone` is not offered on screen (D-207).
+- The Config buttons that only open a view keep their names (D-207).
+- The tester's own pasted box on the comparison keeps what was typed, a credential included: it is the
+  tester's input, and every other text on that screen is masked (D-207).
+- A replay never joins a chain (D-208).
+- The effective configuration does not count a placeholder in a collection body (D-205), and a 404
+  for a removed environment does not name it (D-205).
+Known limits the fixes report, not closed:
+- A one-word surname written where a code or an id belongs is kept (D-151, D-218).
+- Short values are not looked for in free text, and older ledger lines that hold a name or a date are
+  shown and exported as written (D-217).
+- An `expect` outcome that contradicts its scenario file is not detected (D-224).
+- IPv6 destinations were not proven against a listener, and how a real nginx or Tomcat in front of a
+  service decodes an encoded separator was tested by nobody (D-210, D-211).
+- A replay that reaches the gateway against production on live was exercised neither by the audit
+  nor by the fix (the replays the audit tried were refused earlier, for want of a recorded member);
+  `ProductionRefusalOverTheServerTest` covers it over the server (D-205).
+- A process killed outright leaves the embedded server's working folder behind (D-216).
+- Member data in an upload is judged by the variable's name only (D-213).
+- Windows was not run by any of the three fixes.
+Left by the protocol task for the screens with no decision, because no task line asked: comparing by
+a collection request's name, the tool-side hook instance written as a sentence (always one
+difference), how an inquiry's answer differs from the last one seen, `ResponseItemView.answers` as
+codes, and a quantity's unit constraint.
+
+### Work decided and not done at the revision of D-228
+
+**D-226. Three pieces of work started from this revision, decided and not done on it.**
+They began from the revision of D-228 at the moment these records were written; a later entry will
+say what became of each.
+1. **The server** (`TASK_LEFT3_SERVER`):
+   - A write refused at the send because production writes were locked again shows the refusal's own
+     sentence and action; the shared error handler falls back to its fixed words only when the
+     refusal carries none (D-214).
+   - On mock, a played timeout is said once: that the scenario played it, that nothing was sent and no
+     environment failed, and what a tester would see and do had a real service timed out ("the payer
+     might have received the submission: ask for its status before sending it again"). Live is
+     unchanged (D-205).
+   - The raw resolve note says that a url with a part still missing is refused, as the raw preview
+     and send refuse it (D-207).
+   - A lookup field whose value holds masked text gains `masked: true`, present only then, and a note
+     that it is not offered for the case (D-207).
+   - An empty element of an issue is consumed by the designed view, not shown again among the fields
+     returned but not interpreted.
+   - The comparison's caveat is left out of `notes` (D-202).
+   - A replay never joins a chain: `ChainServiceTest` and every comment brought into line, and the
+     code that served only that state removed (D-208).
+   - The two sentences of `CrdConformanceChecker` made true of any list that says it is synthetic
+     (D-223).
+   - Then, if there is time, the other server lines of the three fix reports, small and certain.
+2. **The screens** (`TASK_SCREENS_FIX`):
+   - Whenever what the server says about writes differs from what the page last drew, every place is
+     redrawn at once and the tester is told once that writes were locked again, perhaps from another
+     browser; proven with two browser contexts (F-SCREEN, D-214).
+   - The unlock panel says that locking, from this or any browser, ends every session's unlock (m2).
+   - Every field for a note, a tester reference or an expectation (CRD, DTR, PAS, a raw send, a suite,
+     the note editor of a run) carries one hint, in the same words on every tab, that the ledger keeps
+     the text as written and that member data must not be typed into it; each refusal marks its field
+     and shows the server's sentence (D-217).
+   - `addressWarnings` and the upload's member data warnings shown where the tester decides (D-212,
+     D-213).
+   - The scenario lists show each scenario's `notes` and the list's, and the CRD sentinels that select
+     a PAS scenario; the label of a code list finding takes its words from the server (D-223, D-224).
+   - A lookup field marked `masked` is shown with its mask and note and never put into the case.
+   - What the second pass did not reach: answers dropped in an adaptive questionnaire, an absent
+     "applies to", an unmatched notification and the statement of an id the ledger does not keep,
+     the secret echo at 1920 by 1080; then one sweep at 1366 by 768 of production (locked, unlocked,
+     floor), UAT, live with an empty store, tracking off, a ledger that cannot write, a suite, and a
+     replay of one run and of a date range.
+3. **The README and the pull request draft** (`TASK_DOCS3`): the README gone through again against
+   this revision, every sentence that quotes the screen or the API checked, and every statement about
+   the guardrail, the ledger, member data, the mock scenarios, the samples and the code list checked
+   against the fixes (the sentences of D-213 and D-217 among them); the section of limitations
+   rewritten from what is true now. The draft brought up to this revision, with the second run of V2,
+   V3 and V4 in its part on the verification agents and a place for the check of each fix by an agent
+   that did not write it. The draft's list of decision entries stops at D-201; entries after it are
+   to be added.
+
+### Questions the operator has not answered
+
+**D-227. Four questions put to the operator during the build, with no answer yet, and what the tool does until one comes.**
+1. **Which version of the Da Vinci guides the vendor's sandbox follows.** The tool is held to 2.0.1 on
+   the operator's word (D-136) and reads later-version content as such (D-140). If the sandbox follows
+   another version, findings of `OTHER_VERSION_CONTENT` will be many and every request will still be
+   built to 2.0.1.
+2. **Whether an NPI whose first digit is not 1 or 2 should be refused.** The check is the Luhn check
+   with the 80840 prefix only (`model/Npi`, D-153), so it accepts numbers no issued NPI begins with.
+   Nothing was changed. The scan of D-224 looks only at numbers starting with 1 or 2.
+3. **Whether the bind to this machine's loopback address, or the request guard, should be relaxed.**
+   The tool listens on `127.0.0.1` (D-115) and refuses requests addressed to other names or coming from
+   other sites (D-116, D-148). As things stand no vendor service can call the notification receiver,
+   and `GET /api/mode` says so (`bindNote`, D-205). A pended request is followed with an inquiry.
+4. **Whether a sample request from the UM vendor, with no real member data, can be shared** for the
+   request comparison (D-119). The comparison has met no real vendor request; its vendor-shaped test
+   request is hand-written, so how the vendor's own request differs from the tool's is not known.
+
+### Joining the parts
+
+**D-228. Decisions made while joining the server work for the screens, the passes over them, the README and the audit fixes.**
+This revision is branch `epa-pave` at `5763c41`, which is pushed: the line of D-201 (`7dade28`), the
+pass that joined the tabs (`fe-join` at `4d795d8`), the README (`docs-2` at `81637c2`), the two
+server tasks for the screens (`screens-platform` at `3b1ddf4`, `screens-protocol` at `ce345e4`), the
+second pass over the screens (`fe-join-2` at `d15db15`), and the three audit fixes (`audit-fix-v4`
+at `fd61e6e`, `audit-fix-v3` at `1557e5c`, `audit-fix-v2` at `d542405`).
+1. Nothing conflicted in any of these merges. `NotificationReceiver` was changed by three fixes in
+   three separate places (the correlation by the ledger fix, the masking by the guardrail fix, the
+   next step of the sample that matches nothing by the fixture fix) and merged cleanly.
+2. Accepted by merging, each needed for the build to stay green and reported by its author: one count
+   in `PasControllerTest` (scenarios answering an inquiry, 9 to 11, D-204); one assertion of
+   `PlaceholderOnTheLiveProfileTest` (a finding always carries its group, D-205); one assertion of
+   `SamplePostmanFilesTest` (the upload of the sample collection now warns that it carries saved
+   examples, D-213).
+3. The integrator's own change: the three controllers that serve the scenario lists pass the
+   repository's notes on, which the fixture fix asked of files it did not own (D-224). With the
+   bundled set each list's notes hold one sentence, naming the protocol's default file.
+4. The line was built through the shared build wrapper as it grew: 2603 tests with the join, 2648 with
+   the two server tasks, 2667 with the second pass over the screens and the fixture fix, and on the
+   merged line 2707 tests, 2705 passed, 2 skipped, none failed. The two skipped tests need a folder
+   that cannot be written, which a build running as root cannot make.
+5. The build machine restarted three times while this tool was built, each time cutting off every
+   agent then at work. Nothing committed was lost; each piece of work was taken over in its worktree.
