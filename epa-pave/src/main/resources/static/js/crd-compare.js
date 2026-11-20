@@ -152,6 +152,8 @@ export function createComparison(spec) {
         }
         clear(said);
         clear(bench.problem);
+        // A refusal left by an earlier send is about that send, not about this comparison.
+        bench.clearRefusal();
         clearFieldErrors(bench.form);
         let request = spec.buildRequest();
         let about;

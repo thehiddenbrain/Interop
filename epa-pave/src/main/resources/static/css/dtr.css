@@ -544,15 +544,6 @@
     color: var(--ink-strong);
 }
 
-.dtr-unavailable {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-1);
-    padding-left: var(--gap-2);
-    border-left: 4px solid var(--ink-strong);
-    font-size: var(--text-small);
-}
-
 .dtr-step-problem:empty {
     display: none;
 }

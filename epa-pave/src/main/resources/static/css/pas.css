@@ -423,9 +423,3 @@
     color: var(--ink-strong);
 }
 
-/* A call with nowhere to go on the live profile: said with the button, in ink, since nothing about it is a production guardrail. */
-.pas-unavailable p {
-    padding: 4px 0 4px var(--gap-3);
-    border-left: 4px solid var(--ink-strong);
-    color: var(--ink-strong);
-}

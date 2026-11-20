@@ -30,7 +30,9 @@ function mount(panel, application) {
     bench = createWorkbench(app, panel, {
         formLabel: 'The case and the CRD request',
         readoutLabel: 'The readout: the request, discovery and the result',
-        onSubmit: send
+        onSubmit: send,
+        // The hook chosen is what a run sends; discovery is the step a tester may take after it.
+        operations: () => [controls.hookSelect && controls.hookSelect.checked ? 'CRD_ORDER_SELECT' : 'CRD_ORDER_SIGN', 'CRD_DISCOVERY']
     });
 
     controls.hookSign = el('input', {type: 'radio', name: 'crd-hook', id: 'crd-hook-sign', value: 'order-sign', checked: true});
@@ -74,6 +76,9 @@ function mount(panel, application) {
     bench.useRunValues({operation});
     bench.form.addEventListener('input', drawExpectedText);
     bench.form.addEventListener('change', drawExpectedText);
+    for (const hook of [controls.hookSign, controls.hookSelect]) {
+        hook.addEventListener('change', () => bench.checkReadiness());
+    }
 
     slots.preview = bench.slot('preview');
     slots.discovery = bench.slot('discovery');
@@ -495,7 +500,7 @@ async function discover() {
                     : el('span', {class: 'presence presence--none'}, 'none declared')
             ])),
         found.error ? errorPanel(found.error) : null,
-        additionalFieldsSection(found.additionalFields || []),
+        additionalFieldsSection(found.additionalFields || [], null, found.wire),
         el('section', {class: 'result__section'}, wireView(found.wire))));
     slots.discovery.scrollIntoView({block: 'start'});
     bench.say('Discovery answered with ' + services.length + (services.length === 1 ? ' service.' : ' services.'));

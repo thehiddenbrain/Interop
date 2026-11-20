@@ -28,7 +28,12 @@ const RESPONSE_KINDS = {
  * vocabulary.outcomes: a map from outcome code to {label, tone}, as the scenarios endpoint served
  * it, used to word the outcome of each coverage information extension.
  */
+// The wire of the result being drawn, so the rest of a resource an action carried is drawn masked
+// wherever the wire view masked a secret the service sent back.
+let shownWire = null;
+
 export function crdDetail(envelope, vocabulary) {
+    shownWire = envelope.wire || null;
     const detail = envelope.detail;
     const node = el('div', {class: 'detail'});
 
@@ -235,7 +240,7 @@ function actionBlock(action) {
         ], 'facts--ruled'),
         el('p', {class: 'sub-heading'}, 'The rest of the resource (' + rest.length + ')'),
         rest.length === 0 ? el('p', {class: 'quiet'}, 'Nothing further was returned with this action.')
-            : additionalFieldsTable(rest));
+            : additionalFieldsTable(rest, shownWire));
 }
 
 /* ---------- how the request was built ---------- */

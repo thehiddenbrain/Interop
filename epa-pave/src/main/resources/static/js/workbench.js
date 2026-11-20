@@ -44,6 +44,10 @@ import {sourceWords} from './config-parts.js';
  * stand, the form is not offered: in its place the tab says what is missing, in the server's
  * words, with a way to the Config tab, and the form comes back as soon as the configuration
  * changes so that it can be sent. Left out, the form is always offered, as before.
+ *
+ * spec.readinessWays, optional: a function returning nodes the statement offers beside the way to
+ * the Config tab, for a part of the tab that needs no service (the PAS tab's notification
+ * receiver). A tab that changes which operations it sends calls bench.checkReadiness() after.
  */
 export function createWorkbench(app, panel, spec) {
     let busy = false;
@@ -188,6 +192,7 @@ export function createWorkbench(app, panel, spec) {
                 el('ul', {class: 'readiness__later'}, later.map(row => el('li', null, el('strong', null, row.label || row.operation), ': ', row.unavailable)))
             ] : null,
             el('p', {class: 'readiness__way'}, button('Open the Config tab', () => app.navigate('config'), {class: 'button--primary'})),
+            typeof spec.readinessWays === 'function' ? spec.readinessWays() : null,
             el('p', {class: 'quiet'}, 'Upload or choose what is missing there. The form comes back here on its own as soon as the configuration lets this tab send, '
                 + 'with no reload.'));
         if (!was) {
@@ -280,6 +285,19 @@ export function createWorkbench(app, panel, spec) {
             status.textContent = text;
         },
 
+        /**
+         * Takes away a refusal left on screen by an earlier call. A tab calls it before something it
+         * does outside bench.call (a comparison), so an old refusal is not read as the new answer's.
+         */
+        clearRefusal() {
+            clear(refusal);
+        },
+
+        /** Settles again whether the form is offered, after the tab changed which operations it sends. */
+        checkReadiness() {
+            drawReadiness();
+        },
+
         /** Shows an error the tab met outside a call made through this workbench. */
         refuse(error) {
             fill(refusal, errorPanel(error));
@@ -363,7 +381,12 @@ export function createWorkbench(app, panel, spec) {
          *
          * options.detail(envelope) returns the protocol's own part; options.detailTitle is its heading.
          * options.nextStepControl(nextStep, envelope), optional, returns {label, run} for a next step
-         * the tab itself can take, or null; the shared control is used whenever it returns null.
+         * the tab itself can take, {node} for a control the tab keeps current itself (it is put in the
+         * next-step row as it is), or null; the shared control is used whenever it returns null.
+         *
+         * The keyboard goes to the verdict of the new result, on every tab, so a keyboard or screen
+         * reader user carries on from where the answer starts rather than from the top of the page.
+         * A tab that puts it somewhere more useful afterwards (the next question) moves it again.
          */
         showResult(envelope, options) {
             const settings = options || {};
@@ -377,6 +400,11 @@ export function createWorkbench(app, panel, spec) {
                 nextStepControl: (step, shownEnvelope) => (own ? own(step, shownEnvelope) : null) || shared(step, shownEnvelope)}));
             drawBeforeSending();
             readout.scrollTop = 0;
+            const verdict = result.querySelector('.verdict__headline');
+            if (verdict) {
+                verdict.tabIndex = -1;
+                verdict.focus({preventScroll: true});
+            }
             // The line announced is short: a headline worded into a paragraph is read in the strip, and
             // here the server's short label of the outcome stands for it.
             const headline = String(envelope.verdict.headline || '');
@@ -492,6 +520,9 @@ export function createWorkbench(app, panel, spec) {
     return bench;
 }
 
+// The tab each protocol's results are drawn on.
+const TAB_OF_PROTOCOL = {CRD: 'crd', DTR: 'dtr', PAS: 'pas', SUBSCRIPTION: 'pas'};
+
 /**
  * The button a result offers when its next step is something this tool can do from here.
  *
@@ -500,14 +531,18 @@ export function createWorkbench(app, panel, spec) {
  */
 export function nextStepControl(app, forCase) {
     return (step, envelope) => {
+        // A result never offers to carry itself into the tab it is on: that would send the same
+        // request again under the tab's own name, the resubmission a next step may warn against.
+        // The tab offers its own control for that step, or none.
+        const here = TAB_OF_PROTOCOL[envelope.protocol] || null;
         const goTo = tabId => () => {
             app.carryTo(tabId, {carry: step.carry || {}, fromRunId: envelope.runId, fromProtocol: envelope.protocol, chainId: envelope.chainId, forCase});
             app.navigate(tabId);
         };
-        if (step.action === 'START_DTR') {
+        if (step.action === 'START_DTR' && here !== 'dtr') {
             return {label: 'Continue in DTR', run: goTo('dtr')};
         }
-        if (step.action === 'START_PAS') {
+        if (step.action === 'START_PAS' && here !== 'pas') {
             return {label: 'Continue in PAS', run: goTo('pas')};
         }
         if (step.action === 'OPEN_CONFIG' || step.action === 'UNLOCK_OR_SWITCH') {

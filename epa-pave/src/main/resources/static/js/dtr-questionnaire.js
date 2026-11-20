@@ -22,7 +22,7 @@
 // says it is as of that step, and a hand-over to PAS is withdrawn, because PAS would receive the
 // response as last completed, without them.
 
-import {el, fill, button, code} from './dom.js';
+import {el, fill, clear, button, code} from './dom.js';
 import {toneMark} from './marks.js';
 import {itemList, responseByLinkId} from './dtr-items.js';
 import {changesBlock, notApplied, kindWord} from './dtr-detail.js';
@@ -77,6 +77,7 @@ export function createSession(packageEnvelope, hooks) {
         loopBody,
         responseBody,
         sync,
+        resultControl,
         refreshExpectation,
         problemSlot: () => session.node.querySelector('.dtr-step-problem'),
         entry: () => entries[session.active]
@@ -303,29 +304,34 @@ export function createSession(packageEnvelope, hooks) {
             ' first, or put the answers back as they were.'];
     }
 
+    // The control in the result's own next-step row, which this session keeps current: the
+    // hand-over to PAS, or, while it would carry answers older than the ones on screen, the reason
+    // it is withdrawn. The result view places it through the workbench's nextStepControl hook.
+    const resultSlot = el('div', {class: 'dtr-result-control'});
+
     /**
-     * The result's own next-step row offers the same hand-over. It is drawn by the shared result
-     * view, which takes no say from this tab, so the button is hidden here, with the reason beside
-     * it, for as long as the hand-over would carry answers older than the ones on screen.
+     * The tab's own control for the next step of a DTR result: the hand-over to PAS, kept current
+     * as answers change. Null for any other step, which the shared control covers.
      */
+    function resultControl(step) {
+        if (!step || step.action !== 'START_PAS') {
+            return null;
+        }
+        withdrawFromResult();
+        return {node: resultSlot};
+    }
+
     function withdrawFromResult() {
-        const result = session.node.closest('.result');
-        const row = result ? result.querySelector('.nextstep') : null;
-        if (!row) {
+        const latest = session.latest;
+        if (!latest || !latest.nextStep || latest.nextStep.action !== 'START_PAS') {
+            clear(resultSlot);
             return;
         }
-        const offered = row.querySelector('.nextstep__row > button');
         const pending = withheld();
-        const said = row.querySelector('.dtr-withdrawn');
-        if (said) {
-            said.remove();
-        }
-        if (offered) {
-            offered.hidden = pending.length > 0;
-        }
-        if (pending.length > 0) {
-            row.append(el('p', {class: 'dtr-withdrawn'}, withheldWords(pending), ' The questions are below.'));
-        }
+        const control = pending.length === 0 && latest.envelope && hooks.nextControl ? hooks.nextControl(latest.nextStep, latest.envelope) : null;
+        fill(resultSlot,
+            control ? button(control.label, control.run, {class: 'button--primary'}) : null,
+            pending.length > 0 ? el('p', {class: 'dtr-withdrawn'}, withheldWords(pending), ' The questions are below.') : null);
     }
 
     function packageList() {

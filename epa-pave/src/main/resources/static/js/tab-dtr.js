@@ -14,6 +14,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, table, copyButton} from './dom.js';
 import {textField, textArea, selectField, setOptions} from './forms.js';
 import {createWorkbench, requestPreviewPanel, nextStepControl} from './workbench.js';
+import {sameCase} from './handover.js';
 import {dtrDetail} from './dtr-detail.js';
 import {createSession, hasQuestionnaires} from './dtr-questionnaire.js';
 
@@ -27,9 +28,6 @@ let vocabulary = {outcomes: new Map(), elements: [], scenarios: null};
 let session = null;
 // The operation the latest request was for, so values for one run are looked up for that one.
 let lastOperation = 'dtr-questionnaire-package';
-// What /api/config/effective says stops the package from being fetched as things stand, or null.
-// It is the server's sentence, read when the tab is drawn and whenever the configuration changes.
-let unavailable = null;
 // The expectation the latest step went with, and its run, once it has been cleared from the field.
 let lastExpectation = null;
 
@@ -41,7 +39,10 @@ function mount(panel, application) {
     bench = createWorkbench(app, panel, {
         formLabel: 'The case and the DTR package request',
         readoutLabel: 'The readout: the request, the questionnaires and the result',
-        onSubmit: fetchPackage
+        onSubmit: fetchPackage,
+        // Before anything is configured on live the workbench says what stops the package from being
+        // fetched, in the server's words, in place of a form that cannot send.
+        operations: ['DTR_QUESTIONNAIRE_PACKAGE', 'DTR_NEXT_QUESTION']
     });
 
     controls.carried = el('div', {class: 'dtr-carried', aria: {live: 'polite'}});
@@ -63,7 +64,6 @@ function mount(panel, application) {
     controls.preview = button('Show the request', showPackagePreview);
     controls.restart = el('p', {class: 'small dtr-restart', hidden: true},
         'Fetching the package again starts the questionnaires over: the answers typed on the right are dropped.');
-    controls.unavailable = el('div', {class: 'dtr-unavailable', hidden: true});
     // The summary of a refused package form goes here; a refused loop or response step has its own,
     // beside the button that sent it, in the questionnaire.
     controls.problemHome = el('div', {class: 'dtr-problem-home'}, bench.problem);
@@ -79,7 +79,6 @@ function mount(panel, application) {
         controls.expected.node,
         el('details', {class: 'fold'}, el('summary', null, 'Assert standard codes as well'), controls.assertions),
         controls.expectedText,
-        controls.unavailable,
         controls.problemHome,
         controls.restart,
         el('div', {class: 'button-row'}, controls.send, controls.preview));
@@ -94,7 +93,6 @@ function mount(panel, application) {
     addAssertionRow();
     drawEmptyState();
     loadVocabulary();
-    loadAvailability();
 }
 
 function onShow() {
@@ -163,37 +161,7 @@ function drawScenarioSelector(list) {
     }
 }
 
-/* ---------- whether the package can be fetched as things stand ---------- */
-
-/**
- * The effective configuration says, per operation, why it cannot be sent as things stand. Before
- * anything is configured on live that is the package fetch, and the tab says so on arrival, in the
- * server's words, with the way to the Config tab, instead of offering a form that cannot send.
- */
-async function loadAvailability() {
-    const answer = await api.get('/api/config/effective');
-    const rows = answer.kind === 'ok' && answer.body && Array.isArray(answer.body.operations) ? answer.body.operations : [];
-    const row = rows.find(operation => operation.operation === 'DTR_QUESTIONNAIRE_PACKAGE');
-    unavailable = row && (row.unavailable || row.blocked) ? (row.unavailable || row.blocked) : null;
-    drawUnavailable();
-    if (!bench.hasResult()) {
-        drawEmptyState();
-    }
-}
-
-function drawUnavailable() {
-    controls.unavailable.hidden = !unavailable;
-    fill(controls.unavailable, unavailable ? [
-        el('p', null, el('strong', null, 'The package cannot be fetched as things stand. '), unavailable),
-        el('p', null, button('Open the Config tab', () => app.navigate('config')))
-    ] : null);
-}
-
 /* ---------- what CRD handed on ---------- */
-
-function sameCase(one, other) {
-    return Boolean(one && other) && one.memberId === other.memberId && one.npi === other.npi && JSON.stringify(one.codes) === JSON.stringify(other.codes);
-}
 
 /** The hand-over, when there is one and it still belongs to the case on screen. Values carried for one member never go out with another. */
 function usableHandover() {
@@ -420,7 +388,6 @@ async function fetchPackage() {
     controls.restart.hidden = !session;
     clearExpectation(envelope);
     show(envelope);
-    focusOn(slots.preview.parentNode.querySelector('.result .verdict__headline'));
 }
 
 function hooks() {
@@ -479,7 +446,10 @@ function sayAgain(slot, label) {
 function show(envelope) {
     bench.showResult(envelope, {
         detailTitle: session ? 'The questionnaire, and what this step returned' : 'DTR response detail',
-        detail: shownEnvelope => [session ? session.node : null, dtrDetail(shownEnvelope)]
+        detail: shownEnvelope => [session ? session.node : null, dtrDetail(shownEnvelope)],
+        // While questionnaires are being answered, the hand-over to PAS is the session's: it is
+        // withdrawn while the answers on screen differ from the ones last completed.
+        nextStepControl: step => (session ? session.resultControl(step) : null)
     });
     if (session) {
         // The result's own next-step button is drawn afresh, so whether it is offered is settled again.
@@ -519,13 +489,6 @@ async function showLoopPreview(entry) {
 
 function drawEmptyState() {
     const own = bench.ownRequestActive();
-    if (unavailable) {
-        bench.showEmpty(el('div', {class: 'empty-state'},
-            el('p', {class: 'empty-state__lead'}, 'No questionnaire package can be fetched until DTR is configured.'),
-            el('p', null, unavailable),
-            el('p', null, button('Open the Config tab', () => app.navigate('config')))));
-        return;
-    }
     const parts = [
         el('p', {class: 'empty-state__lead'}, 'No questionnaire package has been fetched from this tab yet.'),
         // Said once, where it is seen first. Once a package is here, it is said where its questions start.
@@ -562,7 +525,6 @@ function onConfigChange() {
     clear(slots.preview);
     bench.markStale();
     loadVocabulary();
-    loadAvailability();
 }
 
 export default {id: 'dtr', label: 'DTR', mount, onShow, onConfigChange};

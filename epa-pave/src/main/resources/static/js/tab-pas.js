@@ -60,7 +60,12 @@ function mount(target, application) {
     bench = createWorkbench(app, panel, {
         formLabel: 'The case and the PAS request',
         readoutLabel: 'The readout: the request, notifications and the result',
-        onSubmit: () => primaryAction()
+        onSubmit: () => primaryAction(),
+        // What the call chosen sends. The notification receiver sends nothing, so it is always offered,
+        // and the statement that withholds the form says so, with the way to it.
+        operations: () => ({submit: ['PAS_SUBMIT', 'PAS_INQUIRE'], inquire: ['PAS_INQUIRE'], subscriptions: ['SUBSCRIPTION_CREATE']}[mode] || []),
+        readinessWays: () => el('p', null, 'The notification receiver needs no service: ',
+            button('Choose Notifications', () => showMode('notifications'), {class: 'button--text'}), '.')
     });
 
     buildModeChoice();
@@ -70,11 +75,10 @@ function mount(target, application) {
     buildCommon();
 
     controls.writes = el('div', {class: 'pas-writes', aria: {live: 'polite'}});
-    controls.unavailable = el('div', {class: 'pas-unavailable', aria: {live: 'polite'}});
     controls.expectation = createExpectation();
     controls.buttons = el('div', {class: 'button-row pas-buttons'});
     controls.modeSaid = el('p', {class: 'small', role: 'status'});
-    bench.actions.append(controls.unavailable, controls.writes, controls.expectation.node, bench.problem, controls.modeSaid, controls.buttons);
+    bench.actions.append(controls.writes, controls.expectation.node, bench.problem, controls.modeSaid, controls.buttons);
 
     controls.sectionSlot = el('div', {class: 'pas-section'});
     bench.own.append(controls.sectionSlot, controls.common);
@@ -200,6 +204,7 @@ function showMode(id) {
     if (!bench.hasResult()) {
         drawEmptyState();
     }
+    bench.checkReadiness();
 }
 
 /** The button a press of Enter would mean, if the form were ever submitted: the primary action of the call on screen. */
@@ -604,56 +609,12 @@ async function loadConfiguration() {
 
 /* ---------- writes on production ---------- */
 
-/**
- * Whether a write would be refused, from /api/mode as the frame last read it. The tab offers no
- * unlock of its own: the Config tab is the one place where writes are unlocked.
- */
-// The operation the primary button of each call sends, as /api/config/effective names it.
-const PRIMARY_OPERATION = {submit: 'PAS_SUBMIT', inquire: 'PAS_INQUIRE', subscriptions: 'SUBSCRIPTION_CREATE'};
-
-/**
- * On the live profile, what the server says stands in the way of the call on screen: no request
- * mapped and no url set. Null when nothing does, and always null on the mock profile, where a
- * scenario answers whatever is configured.
- */
-function cannotSend() {
-    if (app.isMock()) {
-        return null;
-    }
-    const operation = vocabulary.operations.find(item => item.operation === PRIMARY_OPERATION[mode]);
-    return operation && operation.unavailable ? operation : null;
-}
-
+// Whether a write would be refused, from /api/mode as the frame last read it. The tab offers no
+// unlock of its own: the Config tab is the one place where writes are unlocked. Whether the call
+// on screen can reach a service at all is the workbench's to say: with nowhere to send to, it
+// withholds the form and says what is missing, in the server's words (spec.operations).
 function drawWrites() {
-    // With nowhere to send to, that is what stands in the way, and the readout says it in full together with any refusal of
-    // writes. The box with the button stays one short line, so the form above it keeps its room on a laptop screen.
-    if (cannotSend()) {
-        clear(controls.writes);
-    } else {
-        drawWriteBox();
-    }
-    drawSendState();
-}
-
-/**
- * A call that cannot reach a service is still sent when pressed, because the refusal is recorded
- * and is itself something a tester may want. So its button stays, demoted from the primary one,
- * and the reason is said beside it in the server's words.
- */
-function drawSendState() {
-    const primary = {submit: controls.submit, inquire: controls.inquire, subscriptions: controls.create}[mode];
-    const blocked = cannotSend();
-    for (const each of [controls.submit, controls.inquire, controls.create]) {
-        const demote = Boolean(blocked) && each === primary;
-        each.classList.toggle('button--primary', !demote);
-        each.classList.toggle('button--quiet', demote);
-    }
-    clear(controls.unavailable);
-    if (blocked) {
-        fill(controls.unavailable, el('p', null, el('strong', null, 'Nothing can reach a service yet. '),
-            'The readout on the right says why. Sending now records the refusal in the ledger. ',
-            button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'})));
-    }
+    drawWriteBox();
 }
 
 function drawWriteBox() {
@@ -703,10 +664,23 @@ function showRun(envelope) {
         resubmitting = null;
         drawResubmit();
     }
-    bench.showResult(envelope, {detailTitle: envelope.protocol === 'SUBSCRIPTION' ? 'Subscription detail' : 'PAS response detail',
-        detail: detailFor(vocabulary)});
     const step = envelope.nextStep || {};
     const carry = step.carry || {};
+    const hasClaim = carry.claimId && carry.claimId.length > 0;
+    bench.showResult(envelope, {detailTitle: envelope.protocol === 'SUBSCRIPTION' ? 'Subscription detail' : 'PAS response detail',
+        detail: detailFor(vocabulary),
+        // Asking for the status and sending a submission again are this tab's own steps. The shared
+        // control never offers to carry a PAS result into the PAS tab.
+        nextStepControl: shownStep => {
+            if (shownStep.action === 'CHECK_STATUS' && hasClaim) {
+                return {label: 'Send inquiry', run: () => inquireFrom({claimId: first(carry.claimId), runId: first(carry.runId) || envelope.runId,
+                    codes: carry.procedureCodes || [], carry: pick(carry, ['claimId', 'runId', 'procedureCodes']), why: ['the result of run ', runLink(envelope.runId)]})};
+            }
+            if (shownStep.action === 'START_PAS' && envelope.protocol === 'PAS') {
+                return {label: 'Add the documentation and send again', run: () => resubmit(envelope, shownStep)};
+            }
+            return null;
+        }});
     if (envelope.operation === 'PAS_SUBMIT' && carry.claimId && carry.claimId.length > 0) {
         following = {claimId: first(carry.claimId), runId: first(carry.runId) || envelope.runId, codes: carry.procedureCodes || [],
             carry: pick(carry, ['claimId', 'runId', 'procedureCodes']), why: ['the submission ', runLink(envelope.runId)]};
@@ -716,17 +690,7 @@ function showRun(envelope) {
     if (envelope.protocol === 'SUBSCRIPTION' && envelope.operation === 'SUBSCRIPTION_CREATE' && envelope.detail && envelope.detail.subscriptionId) {
         controls.subscriptionId.set(envelope.detail.subscriptionId);
     }
-    // The shared next step offers a button for the steps every tab knows. Asking for the status is this tab's own.
     const row = readoutResult().querySelector('.nextstep__row');
-    const hasClaim = carry.claimId && carry.claimId.length > 0;
-    if (step.action === 'CHECK_STATUS' && row && !row.querySelector('button') && hasClaim) {
-        row.append(button('Send inquiry', () => inquireFrom({claimId: first(carry.claimId), runId: first(carry.runId) || envelope.runId,
-            codes: carry.procedureCodes || [], carry: pick(carry, ['claimId', 'runId', 'procedureCodes']), why: ['the result of run ', runLink(envelope.runId)]}),
-        {class: 'button--primary'}));
-    }
-    if (step.action === 'START_PAS' && envelope.protocol === 'PAS' && row) {
-        offerResubmission(row, envelope, step);
-    }
     // After a fault the server's step is to check the environment, and whether to ask for the status first it says in words.
     // No inquiry is sent from here on the browser's own account; the Inquire call is filled from this submission, and the way to it is offered.
     if (step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT' && hasClaim && row) {
@@ -737,26 +701,12 @@ function showRun(envelope) {
                 controls.inquiryClaimId.input.focus();
             }, {class: 'button--text'})));
     }
-    showRunNotes(envelope);
     drawFollowing();
-    focusResult();
 }
 
 /** The part of the readout that holds the result. */
 function readoutResult() {
     return bench.form.closest('.workbench').querySelector('.readout__result');
-}
-
-/**
- * Puts the keyboard on the verdict of the result that just arrived, so a keyboard or screen
- * reader user lands where the answer starts instead of on the page itself.
- */
-function focusResult() {
-    const headline = readoutResult().querySelector('.verdict__headline');
-    if (headline) {
-        headline.setAttribute('tabindex', '-1');
-        headline.focus({preventScroll: true});
-    }
 }
 
 /**
@@ -774,59 +724,38 @@ async function call(send, options) {
 }
 
 /**
- * The tester reference and the note typed with the run, as the ledger kept them, beside the run
- * id: an analyst comparing this screen with a ledger row looks for them there.
- */
-function showRunNotes(envelope) {
-    const record = envelope.ledger && envelope.ledger.recorded ? envelope.ledger.record : null;
-    const runFacts = readoutResult().querySelector('.runfacts');
-    if (!record || !runFacts) {
-        return;
-    }
-    const none = el('span', {class: 'presence presence--none'}, 'none given');
-    runFacts.append(el('dt', null, 'Tester reference'), el('dd', null, record.testerRef ? code(record.testerRef) : none),
-        el('dt', null, 'Note'), el('dd', null, record.note ? el('span', {class: 'vendor-inline'}, record.note) : none.cloneNode(true)));
-}
-
-/**
  * The payer asked for documentation. The shared button would carry this result back into the
  * same tab under the name of the tab, and the next send would repeat the submission without a
  * word about it. Here it says what it does: it opens the attachment fields of the submission,
  * with the claim identifier of that request in its field, and the form says plainly that the
  * next send reuses it, beside the server's own next step.
  */
-function offerResubmission(row, envelope, step) {
-    const shared = row.querySelector('button');
-    if (shared) {
-        shared.remove();
-    }
+function resubmit(envelope, step) {
     const claimId = first((step.carry || {}).claimId);
-    row.append(button('Add the documentation and send again', () => {
-        if (mode !== 'submit') {
-            showMode('submit');
+    if (mode !== 'submit') {
+        showMode('submit');
+    }
+    resubmitting = {claimId, runId: envelope.runId, headline: step.headline};
+    if (claimId) {
+        controls.claimId.set(claimId);
+    }
+    drawResubmit();
+    const field = controls.attachments.firstField();
+    // The sentence about the claim identifier and the first attachment field are read together, so the sentence goes to the top of the pane.
+    const pane = controls.resubmit.closest('.case-pane__scroll');
+    if (pane && pane.scrollHeight > pane.clientHeight) {
+        pane.scrollTop += controls.resubmit.getBoundingClientRect().top - pane.getBoundingClientRect().top - 8;
+        // The field takes the keyboard, so it must be seen whole even when that pushes the top of the sentence out of view.
+        const below = field ? field.closest('[data-field]').getBoundingClientRect().bottom - pane.getBoundingClientRect().bottom + 8 : 0;
+        if (below > 0) {
+            pane.scrollTop += below;
         }
-        resubmitting = {claimId, runId: envelope.runId, headline: step.headline};
-        if (claimId) {
-            controls.claimId.set(claimId);
-        }
-        drawResubmit();
-        const field = controls.attachments.firstField();
-        // The sentence about the claim identifier and the first attachment field are read together, so the sentence goes to the top of the pane.
-        const pane = controls.resubmit.closest('.case-pane__scroll');
-        if (pane && pane.scrollHeight > pane.clientHeight) {
-            pane.scrollTop += controls.resubmit.getBoundingClientRect().top - pane.getBoundingClientRect().top - 8;
-            // The field takes the keyboard, so it must be seen whole even when that pushes the top of the sentence out of view.
-            const below = field ? field.closest('[data-field]').getBoundingClientRect().bottom - pane.getBoundingClientRect().bottom + 8 : 0;
-            if (below > 0) {
-                pane.scrollTop += below;
-            }
-        } else {
-            bringIntoPane(controls.resubmit);
-        }
-        if (field) {
-            field.focus({preventScroll: true});
-        }
-    }, {class: 'button--primary'}));
+    } else {
+        bringIntoPane(controls.resubmit);
+    }
+    if (field) {
+        field.focus({preventScroll: true});
+    }
 }
 
 function drawResubmit() {
@@ -896,14 +825,7 @@ function drawEmptyState() {
     if (!bench) {
         return;
     }
-    const blocked = cannotSend();
-    // On the live profile with nothing configured for this call, what is missing is the first thing to read, not how to fill the form.
-    const parts = blocked
-        ? [el('p', {class: 'empty-state__lead'}, blocked.label + ' cannot reach a service yet.'),
-            el('p', null, blocked.unavailable, ' ', blocked.blocked || ''),
-            el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--primary'})),
-            el('p', {class: 'sub-heading'}, 'Once it is configured')]
-        : [el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.')];
+    const parts = [el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.')];
     const own = bench.ownRequestActive();
     if (mode === 'submit') {
         parts.push(el('p', null, own
@@ -923,10 +845,10 @@ function drawEmptyState() {
     const notes = vocabulary.operations.filter(item => (mode === 'submit' && item.operation === 'PAS_SUBMIT')
         || (mode === 'inquire' && item.operation === 'PAS_INQUIRE')
         || (mode === 'subscriptions' && item.protocol === 'SUBSCRIPTION' && item.operation !== 'SUBSCRIPTION_NOTIFICATION'));
-    if (notes.length > 0 && !blocked) {
+    if (notes.length > 0) {
         parts.push(el('div', null, el('p', {class: 'sub-heading'}, 'Where these calls go'),
             el('ul', {class: 'note-list'}, notes.map(item => el('li', null, el('strong', null, item.label + '. '), item.unavailable || item.note || 'Configured.'))),
-            app.isMock() || blocked ? null : el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
+            app.isMock() ? null : el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
     }
     const list = vocabulary.byUse.get(useOf(mode));
     if (mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0) {

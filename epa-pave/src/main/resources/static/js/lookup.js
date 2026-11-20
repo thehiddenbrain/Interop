@@ -256,7 +256,7 @@ export function createLookup(spec) {
                     ? el('p', {class: 'quiet'}, 'No ' + spec.subject + ' record was read from this answer, so there are no fields to list.')
                     : [el('p', {class: 'quiet'}, 'Every field this tool looks for, with what the answer held for it and where in the answer it was read from.'),
                         fieldsTable(fields)]),
-            additionalFieldsSection(answer.additionalFields || []),
+            additionalFieldsSection(answer.additionalFields || [], null, answer.wire),
             el('section', {class: 'result__section'}, wireView(answer.wire)));
         setPanel(section);
     }
