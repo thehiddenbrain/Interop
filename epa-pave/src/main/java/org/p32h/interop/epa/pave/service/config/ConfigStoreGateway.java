@@ -152,15 +152,74 @@ public class ConfigStoreGateway implements OperationGateway {
                         plan.url().template(), plan.reasons(), plan.filled() == null ? List.of() : plan.filled().missingTokens());
             }
         }
-        Function<String, Resolution> resolve = plan.resolver();
+        if (plan.originByRunValue()) {
+            List<String> carriers = secretCarriers(plan);
+            if (!carriers.isEmpty()) {
+                throw secretElsewhere(plan, carriers);
+            }
+        }
+        Function<String, Resolution> resolve = plan.originByRunValue() ? text -> {
+            Resolution resolved = plan.resolver().apply(text);
+            if (holdsSecret(resolved)) {
+                throw secretElsewhere(plan, List.of("its body"));
+            }
+            return resolved;
+        } : plan.resolver();
         long epoch = snapshot.epoch();
         // A write the unlock let through belongs to that unlock as well as to the configuration.
         // Once the unlock is no longer held the call answers an epoch that is never current, so the
         // sending layer refuses it, and a relock does not have to move the epoch everyone else is pinned to.
         ProdUnlock authorisedBy = plan.write() && holds(intent.unlock(), snapshot) ? intent.unlock() : null;
-        LongSupplier belongsTo = authorisedBy == null ? () -> epoch : () -> stillHeld(authorisedBy, epoch) ? epoch : Long.MIN_VALUE;
+        LongSupplier belongsTo = authorisedBy == null ? () -> epoch : () -> {
+            if (stillHeld(authorisedBy, epoch)) {
+                return epoch;
+            }
+            // What changed is the lock, not the configuration, and the sending layer is told so in
+            // those words. A change of configuration that also dropped the unlock is said as such.
+            if (store.epoch() == epoch) {
+                throw new ConfigurationChangedException("Production writes were locked again before this write was sent, so it was not "
+                        + "sent. Unlock them on the Config tab by typing the environment name, then send it again.");
+            }
+            return Long.MIN_VALUE;
+        };
         return new IssuedCall(intent.operation(), plan.method(), plan.url(), plan.resolvedHeaders(), plan.environment(),
                 plan.target().requestName(), plan.target().scripted(), belongsTo, template -> shownAsWritten(resolve.apply(template).text(), template));
+    }
+
+    /**
+     * What of the call carries a secret of the configuration, in words: a header whose value holds a
+     * secret or is a credential by its own name, or the url. Empty when nothing does.
+     */
+    private static List<String> secretCarriers(CallPlan plan) {
+        List<String> carriers = new ArrayList<>();
+        for (CallPlan.Header header : plan.headers()) {
+            String name = header.header().name();
+            boolean credential = Secrets.credentialHeader(name) && Texts.present(header.header().value());
+            if (credential || holdsSecret(header.how())) {
+                carriers.add("its header " + ConfigStore.oneLine(name));
+            }
+        }
+        if (holdsSecret(plan.urlVariables())) {
+            carriers.add("its url");
+        }
+        return carriers;
+    }
+
+    private static boolean holdsSecret(Resolution resolution) {
+        return resolution != null && resolution.pieces().stream().anyMatch(piece -> piece.kind() == Resolution.Kind.SECRET);
+    }
+
+    /** The refusal of a call that a value typed for the run points away from the configuration while it carries a secret. */
+    private static BadInputException secretElsewhere(CallPlan plan, List<String> carriers) {
+        // The scheme, host and port as shown, with any secret in them masked. Never the path or the query.
+        UrlNormal.Destination destination = UrlNormal.destination(plan.url().display() == null ? plan.url().template() : plan.url().display());
+        String where = destination == null ? "an address this tool cannot read"
+                : new UrlNormal.Destination(destination.scheme(), destination.host(), destination.port(), "").shown();
+        return new BadInputException(plan.intent().operation().label() + " was not sent: a value typed for this run points it at " + where
+                + ", which is not the address the configuration names, and it carries a secret of the configuration in "
+                + String.join(" and in ", carriers) + ". A secret is sent only to the address it was configured for.",
+                "Nothing was sent. Send it without the value typed for this run that changes the address, or upload an environment "
+                        + "whose values point there, with its own credentials, and activate it.");
     }
 
     /** The resolved text with its template as written, any credential typed into it masked. */
@@ -216,16 +275,33 @@ public class ConfigStoreGateway implements OperationGateway {
         return store.epoch();
     }
 
+    /**
+     * Every url the configuration in force names for an operation of these protocols by itself: the
+     * one each operation uses when no request is chosen, and the url of every collection request
+     * mapped to such an operation, since a tester may choose any of them with no value typed for
+     * the run.
+     */
     @Override
     public List<String> configuredUrls(Set<Protocol> protocols) {
         ConfigSnapshot snapshot = store.snapshot();
-        List<String> urls = new ArrayList<>();
+        Set<String> urls = new LinkedHashSet<>();
+        List<CallIntent> intents = new ArrayList<>();
         for (EpaOperation operation : EpaOperation.values()) {
-            if (!operation.outbound() || !protocols.contains(operation.protocol())) {
-                continue;
+            if (operation.outbound() && protocols.contains(operation.protocol())) {
+                intents.add(CallIntent.of(operation));
             }
+        }
+        for (StoredCollection collection : snapshot.collections()) {
+            for (StoredCollection.Mapped request : collection.requests()) {
+                EpaOperation operation = request.effective();
+                if (operation.outbound() && protocols.contains(operation.protocol())) {
+                    intents.add(CallIntent.of(operation).withRequest(new RequestRef(collection.id(), request.request().id())));
+                }
+            }
+        }
+        for (CallIntent intent : intents) {
             try {
-                CallPlan plan = plan(snapshot, CallIntent.of(operation));
+                CallPlan plan = plan(snapshot, intent);
                 if (plan.filled() != null && Texts.present(plan.filled().shown())) {
                     urls.add(plan.filled().shown());
                 }
@@ -233,7 +309,7 @@ public class ConfigStoreGateway implements OperationGateway {
                 // A request that cannot be planned names no url. Nothing about it is logged.
             }
         }
-        return urls;
+        return new ArrayList<>(urls);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -384,6 +460,7 @@ public class ConfigStoreGateway implements OperationGateway {
         ResolvedUrl url = null;
         boolean climbed = false;
         RunStart runStart = null;
+        boolean originByRunValue = false;
 
         if (target.configured()) {
             // A credential typed into the url is marked as a secret before anything is resolved,
@@ -423,6 +500,8 @@ public class ConfigStoreGateway implements OperationGateway {
                 }
                 filled = skeleton.fill(intent.urlValues());
                 runStart = runStart(snapshot, intent, target, typed, bound);
+                originByRunValue = runStart != null && !authorityWritten(runStart.before())
+                        && !sameOrigin(filled.send(), sentWithoutRunValues(snapshot, intent, target, typed, bound));
                 // Judged and sent in one normal form, so that what is judged is what a server acts on.
                 climbed = UrlNormal.of(filled.probe()).climbed();
                 filled = normalised(filled);
@@ -480,7 +559,7 @@ public class ConfigStoreGateway implements OperationGateway {
         boolean write = operation.write() || because != null;
         Refusal refusal = write ? guard(snapshot, intent, target, because, filled, new Origin(urlVariables, climbed, runStart)) : null;
         return new CallPlan(snapshot, intent, target, method, url, filled, tokens, missingPlaceholders, urlVariables, reasons, headers, write,
-                because, refusal, callResolver);
+                because, refusal, callResolver, originByRunValue);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -876,17 +955,20 @@ public class ConfigStoreGateway implements OperationGateway {
     private RunStart runStart(ConfigSnapshot snapshot, CallIntent intent, Target target, LiteralCredentials.Marked typed,
                               Map<String, String> bound) {
         Map<String, String> marks = new LinkedHashMap<>();
-        // A blank value is not a value: the resolver passes over it to the next layer, so it marks nothing.
+        Map<String, String> encoded = new LinkedHashMap<>();
+        bound.forEach((name, value) -> encoded.put(name, UrlForms.encode(value)));
+        List<VariableLayer> configuration = layers(snapshot, Map.of(), target.collection(), encoded);
+        // A blank value is not a value: the resolver passes over it to the next layer, so it marks
+        // nothing. A value that repeats what the configuration in force holds for that name changes
+        // nothing either, so a screen that fills its fields from the environment moves no write.
         intent.runValues().forEach((name, value) -> {
-            if (Texts.present(value)) {
+            if (Texts.present(value) && !value.equals(resolver.resolve("{{" + name + "}}", configuration).send())) {
                 marks.put(name, String.valueOf(RUN_MARK));
             }
         });
         if (marks.isEmpty()) {
             return null;
         }
-        Map<String, String> encoded = new LinkedHashMap<>();
-        bound.forEach((name, value) -> encoded.put(name, UrlForms.encode(value)));
         Resolution marked = resolver.resolve(typed.template(), typed.before(layers(snapshot, marks, target.collection(), encoded)));
         UrlForms.Skeleton skeleton = UrlForms.skeleton(marked);
         if (target.source() == Source.DERIVED) {
@@ -903,6 +985,48 @@ public class ConfigStoreGateway implements OperationGateway {
         String name = marked.pieces().stream().filter(piece -> piece.send() != null && piece.send().indexOf(RUN_MARK) >= 0)
                 .map(Resolution.Piece::name).filter(java.util.Objects::nonNull).findFirst().orElse("a value typed for this run");
         return new RunStart(name, send.substring(0, at));
+    }
+
+    /** The url as it would be sent with no value typed for this run, in its normal form, or null when it is not complete without them. */
+    private String sentWithoutRunValues(ConfigSnapshot snapshot, CallIntent intent, Target target, LiteralCredentials.Marked typed,
+                                        Map<String, String> bound) {
+        Map<String, String> encoded = new LinkedHashMap<>();
+        bound.forEach((name, value) -> encoded.put(name, UrlForms.encode(value)));
+        Resolution resolved = resolver.resolve(typed.template(), typed.before(layers(snapshot, Map.of(), target.collection(), encoded)));
+        UrlForms.Skeleton skeleton = UrlForms.skeleton(resolved);
+        if (target.source() == Source.DERIVED) {
+            skeleton = skeleton.upTo(DISCOVERY_MARKER);
+            if (skeleton == null) {
+                return null;
+            }
+        }
+        return UrlNormal.text(skeleton.fill(intent.urlValues()).send());
+    }
+
+    /**
+     * True when both urls go to the same scheme, host and port, written alike. A value typed for this
+     * run chose the scheme, host or port when it starts before the configuration has written all
+     * three and the url it gives is not the same in this way as the url the configuration gives by itself.
+     */
+    private static boolean sameOrigin(String sent, String withoutRunValues) {
+        UrlNormal.Destination moved = UrlNormal.destination(sent);
+        UrlNormal.Destination own = UrlNormal.destination(withoutRunValues);
+        return moved != null && own != null && java.util.Objects.equals(moved.scheme(), own.scheme()) && moved.host().equals(own.host())
+                && moved.port() == own.port();
+    }
+
+    /** True when the text holds a scheme, a host and the character that ends the authority. */
+    private static boolean authorityWritten(String before) {
+        int scheme = before.indexOf("://");
+        if (scheme <= 0) {
+            return false;
+        }
+        for (int at = scheme + 3; at < before.length(); at++) {
+            if ("/?#".indexOf(before.charAt(at)) >= 0) {
+                return at > scheme + 3;
+            }
+        }
+        return false;
     }
 
     /** A url in the one normal form in which it is judged, shown and sent. */
@@ -940,7 +1064,8 @@ public class ConfigStoreGateway implements OperationGateway {
         // A write to the active production environment's own address is judged below, as every
         // write to the active production environment is.
         if (!owners.isEmpty() && !activeOwns) {
-            String belongs = "the address it would go to belongs to the production environment " + quotedAll(owners);
+            String belongs = "the address it would go to belongs to the production environment" + (owners.size() > 1 ? "s " : " ")
+                    + quotedAll(owners);
             if (!store.allowProdWrites()) {
                 return new Refusal(what + " is blocked: " + belongs + ", and an owner has locked this installation against production "
                         + "writes." + why, "An owner has locked this installation against production writes (config-store.allow-prod-writes "
@@ -1025,11 +1150,19 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "session never carry that unlock." + why, "Nothing was sent. To send this write to production, send it on its own "
                     + "from the PAS tab of the browser session where writes are unlocked.");
         }
-        String stale = intent.unlock() == null ? "" : " An earlier unlock no longer applies, because the configuration has changed "
-                + "or writes were locked again since.";
+        if (intent.unlock() != null) {
+            return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment and production writes are "
+                    + "locked for this session. An earlier unlock no longer applies, because the configuration has changed or writes were "
+                    + "locked again since." + why, "To send it, unlock production writes on the Config tab by typing the environment name. "
+                    + "To test without production, switch to a sandbox or uat environment.");
+        }
+        // Nobody holds an unlock, so writes are locked for every session. Without an origin the
+        // caller can be a screen, a replay or a suite, so the step named is the one that helps each.
         return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment and production writes are "
-                + "locked for this session." + stale + why, "To send it, unlock production writes on the Config tab by typing the "
-                + "environment name. To test without production, switch to a sandbox or uat environment.");
+                + "locked for this session." + why, "To send it from a screen, unlock production writes on the Config tab by typing the "
+                + "environment name, then send it again. A replay or a suite never carries the unlock, so unlocking does not let its "
+                + "writes to production through: send such a write on its own from the PAS tab. To test without production, switch to "
+                + "a sandbox or uat environment.");
     }
 
     /** True when some session holds an unlock for the active production environment in the snapshot's epoch. */

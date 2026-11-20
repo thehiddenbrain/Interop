@@ -38,8 +38,10 @@ class ProductionGuardrailTest {
     private static final String PRODUCTION = "Onyx Production";
     private static final String PRODUCTION_FHIR = "https://api.onyx.example.invalid/fhir";
     private static final String LOCKED = "\"Onyx Production\" is a production environment and production writes are locked for this session.";
-    private static final String HOW_TO_UNLOCK = "To send it, unlock production writes on the Config tab by typing the environment name. "
-            + "To test without production, switch to a sandbox or uat environment.";
+    private static final String HOW_TO_UNLOCK = "To send it from a screen, unlock production writes on the Config tab by typing the "
+            + "environment name, then send it again. A replay or a suite never carries the unlock, so unlocking does not let its writes to "
+            + "production through: send such a write on its own from the PAS tab. To test without production, switch to a sandbox or uat "
+            + "environment.";
 
     @TempDir
     Path directory;
@@ -811,7 +813,10 @@ class ProductionGuardrailTest {
             blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT).withUnlock(first));
             blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT).withUnlock(second));
             assertThat(fixture.gateway.writeAccess(first).writesAllowed()).as(profile).isFalse();
-            assertThat(prepared.epoch()).as(profile).isNotEqualTo(fixture.gateway.epoch());
+            // The sending layer refuses the call prepared while unlocked, and says why.
+            assertThatThrownBy(() -> org.p32h.interop.epa.pave.client.support.Exchanges.requireSendable(prepared, null, fixture.gateway))
+                    .as(profile).isInstanceOf(org.p32h.interop.epa.pave.service.error.ConfigurationChangedException.class)
+                    .hasMessageStartingWith("Production writes were locked again before this write was sent");
             // What is stored did not change, and the environment is still the active one.
             assertThat(fixture.gateway.activeEnvironment().name()).isEqualTo(PRODUCTION);
             fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT).withUnlock(fixture.gateway.unlock(PRODUCTION)));

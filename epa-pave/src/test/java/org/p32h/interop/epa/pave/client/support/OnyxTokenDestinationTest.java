@@ -71,6 +71,21 @@ class OnyxTokenDestinationTest {
     }
 
     @Test
+    void everyCollectionRequestMappedToAnOnyxOperationIsAnAddressTheConfigurationNames() {
+        ConfigFixture fixture = ConfigFixture.on(directory).live().build();
+        fixture.activeEnvironmentOf("Onyx Sandbox", EnvironmentKind.SANDBOX, "baseUrl", BASE);
+        fixture.collectionOf("Two gateways", ConfigFixture.items(
+                ConfigFixture.item("inquiry Happy Path", "POST", "{{baseUrl}}/Claim/$inquire"),
+                ConfigFixture.item("inquiry on the second gateway", "POST", "https://gw2.example.invalid:8443/gw2/Claim/$inquire")));
+
+        // The second request is chosen with no value typed for the run, so its address is configuration.
+        assertThat(OnyxHosts.admits(fixture.gateway, "https://gw2.example.invalid:8443/gw2/Claim/$inquire")).isTrue();
+        assertThat(OnyxHosts.admits(fixture.gateway, BASE + "/Claim/$inquire")).isTrue();
+        assertThat(OnyxHosts.admits(fixture.gateway, "https://gw2.example.invalid/gw2/Claim/$inquire")).isFalse();
+        assertThat(OnyxHosts.admits(fixture.gateway, ELSEWHERE)).isFalse();
+    }
+
+    @Test
     void anAddressWhosePathStillWaitsForAnIdentifierStillNamesTheHostTheTokenMayGoTo() {
         // The only Onyx request of the collection has a placeholder no layer fills until a run gives it.
         ConfigFixture fixture = ConfigFixture.on(directory).live().build();

@@ -515,6 +515,71 @@ class DestinationGuardrailTest {
     }
 
     @Test
+    void aValueTypedForTheRunThatRepeatsTheEnvironmentsOwnValueMovesNothing() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = threeEnvironments(on(profile).allowProdWrites());
+            fixture.store.activate("vendor-live");
+            ProdUnlock unlock = fixture.gateway.unlock("vendor-live");
+            assertThat(fixture.gateway.prepare(submit().withUnlock(unlock).withRunValues(Map.of("baseUrl", LIVE))).url().value())
+                    .as(profile).isEqualTo(LIVE + "/Claim/$submit");
+            // Another value is still refused.
+            assertThat(blocked(fixture, submit().withUnlock(unlock).withRunValues(Map.of("baseUrl", LIVE + "/other"))).getMessage())
+                    .as(profile).contains("the value typed for this run for baseUrl would change where it goes");
+        }
+    }
+
+    @Test
+    void aCallAValueTypedForTheRunPointsElsewhereCarriesNoSecretOfTheConfiguration() {
+        String elsewhere = "http://127.0.0.1:18479/a";
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = on(profile).build();
+            fixture.store.uploadEnvironment("s.json", ("{\"name\": \"pave-sandbox\", \"values\": [{\"key\": \"baseUrl\", \"value\": \""
+                    + SANDBOX + "\"}, {\"key\": \"apiKey\", \"value\": \"ZZENVAPIKEY-1\", \"type\": \"secret\"}, {\"key\": "
+                    + "\"subscriptionKey\", \"value\": \"ZZSUBKEY-2\"}]}").getBytes(StandardCharsets.UTF_8), EnvironmentKind.SANDBOX, false);
+            fixture.store.activate("pave-sandbox");
+            StoredCollection keyed = fixture.collectionOf("Keyed", items(
+                    item("subscription-get keyed", "GET", "{{baseUrl}}/Subscription/{{subscriptionId}}")
+                            .header("x-api-key", "{{apiKey}}").header("Ocp-Apim-Subscription-Key", "{{subscriptionKey}}"),
+                    item("inquiry keyed url", "POST", "{{baseUrl}}/Claim/$inquire?code={{apiKey}}"),
+                    item("inquiry Happy Path", "POST", "{{baseUrl}}/Claim/$inquire")));
+            CallIntent get = CallIntent.of(EpaOperation.SUBSCRIPTION_GET).withRequest(ref(keyed, "subscription-get keyed"))
+                    .withUrlValue("id", "SUB-1");
+
+            // At its own address it goes with its headers, and a value that fills the id moves nothing.
+            assertThat(fixture.gateway.prepare(get).url().value()).as(profile).isEqualTo(SANDBOX + "/Subscription/SUB-1");
+            assertThat(fixture.gateway.prepare(get.withRunValues(Map.of("subscriptionId", "SUB-2"))).headers()).as(profile).hasSize(2);
+            // Pointed elsewhere, it is not sent, and the refusal names the places and never the values.
+            assertThatThrownBy(() -> fixture.gateway.prepare(get.withRunValues(Map.of("baseUrl", elsewhere)))).as(profile)
+                    .isInstanceOf(org.p32h.interop.epa.pave.service.error.BadInputException.class)
+                    .hasMessage("Subscription get was not sent: a value typed for this run points it at http://127.0.0.1:18479, which is "
+                            + "not the address the configuration names, and it carries a secret of the configuration in its header "
+                            + "x-api-key and in its header Ocp-Apim-Subscription-Key. A secret is sent only to the address it was configured "
+                            + "for.");
+            CallIntent inquiry = CallIntent.of(EpaOperation.PAS_INQUIRE).withRunValues(Map.of("baseUrl", elsewhere));
+            assertThatThrownBy(() -> fixture.gateway.prepare(inquiry.withRequest(ref(keyed, "inquiry keyed url")))).as(profile)
+                    .hasMessageContaining("carries a secret of the configuration in its url");
+            // A body that holds a secret is refused when it is resolved for sending.
+            PreparedCall plain = fixture.gateway.prepare(inquiry.withRequest(ref(keyed, "inquiry Happy Path")));
+            assertThat(plain.url().value()).as(profile).isEqualTo(elsewhere + "/Claim/$inquire");
+            assertThat(plain.resolve("{\"resourceType\": \"Bundle\"}").value()).as(profile).isEqualTo("{\"resourceType\": \"Bundle\"}");
+            assertThatThrownBy(() -> plain.resolve("{\"key\": \"{{apiKey}}\"}")).as(profile)
+                    .hasMessageContaining("carries a secret of the configuration in its body");
+        }
+    }
+
+    @Test
+    void anAddressOfTwoProductionEnvironmentsNamesBoth() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = threeEnvironments(on(profile).allowProdWrites());
+            fixture.environmentOf("vendor-live-two-copy", EnvironmentKind.PROD, "baseUrl", LIVE_TWO);
+            fixture.store.activate("pave-sandbox");
+            StoredCollection literal = fixture.collectionOf("Literal", items(item("submit literal", "POST", LIVE_TWO + "/Claim/$submit")));
+            assertThat(blocked(fixture, submit().withRequest(ref(literal, "submit literal"))).getMessage()).as(profile)
+                    .contains("belongs to the production environments \"vendor-live-two\" and \"vendor-live-two-copy\", and the active");
+        }
+    }
+
+    @Test
     void anUnlockMintedForOneEnvironmentIsNotHonouredForAnotherEvenInTheSameEpoch() {
         SwappingStore store = new SwappingStore(directory.resolve("swap"));
         ConfigStoreGateway gateway = new ConfigStoreGateway(store, OnyxProperties.of(Map.of()), LookupProperties.of(Map.of()),
@@ -555,10 +620,12 @@ class DestinationGuardrailTest {
             // What a suite or a screen is pinned to has not moved, and a read prepared before is still current.
             assertThat(fixture.gateway.epoch()).as(profile).isEqualTo(pinned);
             assertThat(read.epoch()).as(profile).isEqualTo(pinned);
-            // The write rested on the unlock, so the sending layer refuses it.
-            assertThat(write.epoch()).as(profile).isNotEqualTo(fixture.gateway.epoch());
+            // The write rested on the unlock, so the sending layer refuses it, and says that writes were locked, not that the
+            // configuration changed.
             assertThatThrownBy(() -> org.p32h.interop.epa.pave.client.support.Exchanges.requireSendable(write, null, fixture.gateway))
-                    .isInstanceOf(org.p32h.interop.epa.pave.service.error.ConfigurationChangedException.class);
+                    .as(profile).isInstanceOf(org.p32h.interop.epa.pave.service.error.ConfigurationChangedException.class)
+                    .hasMessage("Production writes were locked again before this write was sent, so it was not sent. Unlock them on the "
+                            + "Config tab by typing the environment name, then send it again.");
             // And the unlock itself is gone.
             blocked(fixture, submit().withUnlock(unlock));
         }
@@ -591,9 +658,20 @@ class DestinationGuardrailTest {
                             + "every other browser session never carry that unlock.");
             assertThat(unnamed.action()).as(profile).doesNotContain("unlock production writes on the Config tab");
 
-            // Nothing unlocked anywhere: the plain statement is true, and unlocking is the way.
+            // Nothing unlocked anywhere: the plain statement is true. With no origin given, the step names what helps a screen
+            // and what helps a replay or a suite.
             fixture.gateway.relock();
-            assertThat(blocked(fixture, submit()).getMessage()).as(profile).contains("production writes are locked for this session");
+            ProdWriteBlockedException plain = blocked(fixture, submit());
+            assertThat(plain.getMessage()).as(profile).contains("production writes are locked for this session");
+            assertThat(plain.action()).as(profile).contains("A replay or a suite never carries the unlock, so unlocking does not let its "
+                    + "writes to production through: send such a write on its own from the PAS tab.");
+            // A write prepared under an unlock in a configuration that has since changed is refused for that reason.
+            ProdUnlock again = fixture.gateway.unlock("vendor-live");
+            PreparedCall prepared = fixture.gateway.prepare(submit().withUnlock(again));
+            fixture.store.activate("pave-sandbox");
+            assertThatThrownBy(() -> org.p32h.interop.epa.pave.client.support.Exchanges.requireSendable(prepared, null, fixture.gateway))
+                    .as(profile).isInstanceOf(org.p32h.interop.epa.pave.service.error.ConfigurationChangedException.class)
+                    .hasMessage("The configuration changed while this request was being prepared.");
         }
     }
 }
