@@ -66,16 +66,32 @@ class PaveApplicationTest {
         assertThat(epa.mode()).isEqualTo("mock");
     }
 
+    /** The value application.yml itself gives a property, whatever a system property says. */
+    private String fromApplicationYml(String name) {
+        for (org.springframework.core.env.PropertySource<?> source : ((org.springframework.core.env.ConfigurableEnvironment) environment)
+                .getPropertySources()) {
+            if (source instanceof OriginTrackedMapPropertySource && source.getName().contains("application.yml")
+                    && source.containsProperty(name)) {
+                return String.valueOf(source.getProperty(name));
+            }
+        }
+        return null;
+    }
+
     @Test
     void everyPropertyBindsFromApplicationYml() {
         assertThat(epa.name()).isEqualTo("PAVE");
         assertThat(epa.target()).isEqualTo("onyx");
         assertThat(environment.getProperty("server.port")).isEqualTo("8057");
         assertThat(environment.getProperty("server.servlet.session.cookie.name")).isEqualTo("PAVESESSION");
-        assertThat(configStore.directory()).isEqualTo("./config-store");
+        // The two folders are given to every test by config/TestFolders, so that a build writes
+        // nothing into the project directory. What application.yml itself says is read from it.
+        assertThat(fromApplicationYml("config-store.directory")).isEqualTo("./config-store");
+        assertThat(configStore.directory()).isEqualTo(System.getProperty("config-store.directory"));
         assertThat(configStore.allowProdWrites()).isFalse();
         assertThat(tracking.enabled()).isTrue();
-        assertThat(tracking.directory()).isEqualTo("./run-history");
+        assertThat(fromApplicationYml("tracking.directory")).isEqualTo("./run-history");
+        assertThat(tracking.directory()).isEqualTo(System.getProperty("tracking.directory"));
         assertThat(tracking.recordNpi()).isTrue();
         assertThat(codelist.format()).isEqualTo("auto");
         assertThat(codelist.columns().code()).isNotEmpty();
