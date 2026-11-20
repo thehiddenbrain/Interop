@@ -416,7 +416,7 @@ and answered every endpoint of section 18 as the specification and the README sa
 | Finding | Grade | What it found | What was done | Fails without the fix | State | Entry |
 | --- | --- | --- | --- | --- | --- | --- |
 | F-01 | minor | A request body that repeats a key is accepted and the last value wins | Every JSON request body refuses a repeated key with a 422 naming its place; a body of the tester's own is passed on as written | `ApiExceptionHandlerTest`, `CrdControllerTest`, `PaveApplicationTest` | Fixed, not yet verified by another agent | D-237 |
-| F-02 | minor | The README's list of statuses leaves out 400, 405, 406, 413 and 415 | Nothing yet | | Not fixed: the last README pass is started (D-250), open | D-250 |
+| F-02 | minor | The README's list of statuses leaves out 400, 405, 406, 413 and 415 | The list names them | | Fixed by the last README pass | D-250 |
 
 **House style audit (V5)**, on `9e285a1`, the style task only. Answer: no file and no commit message
 breaks the character and word rules; the gate that enforces them could be removed without a red
@@ -928,18 +928,22 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
   the whole answer of ten endpoints and of a delivered notification for it.
 - **What an answer shows.** Not returned, null and empty said in words in every designed view, with
   presences the server sends for lists, periods, a card's source and an issue's expression and location
-  (D-236). Every value of a repeated key listed among the returned fields, and a finding on CRD (D-237).
-  A resource of another kind sent to a CRD hook is not "no determination" (D-238). A notification read
+  (D-236). Every value of a repeated key listed among the returned fields everywhere, and a finding on
+  CRD, DTR, PAS and subscriptions (D-237, D-256).
+  A resource of another kind sent to a CRD hook is not "no determination", and its headline says what
+  came (D-238, D-256). A notification read
   whole (D-239). Who answered each run (`answeredBy`: the service, a scenario, nobody, or not sent) on
   the result, the ledger line, the export and the chain, and "not measured" for a time nobody measured
-  (D-240). Every error carries a heading from the server (D-231), shown under the page's own heading
-  "What went wrong", which is being removed (D-249). On mock a played timeout said once and headed as
-  played (D-229, D-231).
+  (D-240). Every error carries a heading from the server (D-231), which heads the error panel (D-256).
+  On mock every played fault is headed as played (D-229, D-231, D-254); the next step of a played 500
+  or unreachable service is not (D-257).
 - **Configuration.** Postman environments and collections uploaded and stored as uploaded, the
   operation mapping (changed and removed from the Config tab), which request a run uses stated by the
   server, variable resolution with labels for each source, the production guardrail judged by
-  destination and reading an address as the HTTP client does, no encoded separator (`%2F`, `%5C`, `%3B`,
-  an encoded dot segment) in a path (other escapes are open, above under the guardrail), warnings
+  destination and reading an address as the HTTP client does, a production address the client cannot
+  read refused at upload and remembered as its whole host, no encoded separator (`%2F`, `%5C`, `%3B`,
+  an encoded dot segment) and no escape above 0x7F in a path (`%00`, `%20` and `%2e` are open, above
+  under the guardrail), a url that is not valid as filled refused naming the value's source, warnings
   at upload and wherever environments are listed about addresses, credentials and member data, Lock
   from any browser ending every session's unlock and worded so by the server. The token request uses
   HTTP Basic (D-233).
@@ -951,17 +955,19 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
   described as that, and the picker, which refuses a code twice and says when a typed entry lacks the
   shape of a code.
 - **The ledger.** JSON Lines, the tracking policy, free text refused when it holds this run's member
-  data (and, for a request sent as written, an identifier its body states), procedure codes and
-  identifiers a service supplies held to the identifier-or-date rule, notes checked against the member
-  token, `answeredBy` on every line, health with the files it cannot read, the CSV export with filters,
+  data in its usual spellings (and, for any body of the tester's own, an identifier that body states),
+  procedure codes held to the identifier-or-date rule unless the code list holds them, identifiers a
+  service supplies kept as a token unless nobody's data and matched by token, notes checked against the
+  member token, `answeredBy` on every line, health with the files it cannot read, the CSV export with filters,
   replay that returns what the new run found and says what it is, the runs that follow a run, case
   lines, an optional time zone (not offered on screen). The salt beside it is a secret (D-234).
 - **Suites and the chain.** Suites from CSV or JSON with a truthful preview, labelled counts and
   comparison with an earlier run; the chain as a suite case and the chain view; manual chains linked;
   every DTR sentinel reaches its DTR scenario from CRD; a replay never joins a chain.
-- **Mock scenarios.** One rule chooses a scenario for a typed or a pasted member ID; the sentinels of
-  another protocol are data in the files; the scenario lists carry notes about the default and about
-  files not read, shown on screen.
+- **Mock scenarios.** One rule chooses a scenario for a typed or a pasted member ID or NPI; the sentinels
+  of another protocol are data in the files; the scenario lists carry notes about the default, files not
+  read, mapping entries that name no CRD sentinel and a folder from before the mappings, shown on screen;
+  the labels name what a file plays.
 - **The request comparison** of a pasted CRD request with the tool's own (`POST /api/crd/compare`),
   masking a pasted credential, with its caveat on every answer.
 - **The HTTP edge**: bound to this machine, the request guard, no-store, the body limit, the server's
@@ -969,7 +975,8 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
 - **The style gate**: one class that `houseStyleCheck` and `HouseStyleTest` both run, reading every file
   git lists and every file name (D-244).
 - **README, `run.sh`, `run.cmd` and samples** (a Postman environment and collection, a code list, a
-  suite). The README describes `5763c41` (D-232), not the changes merged since.
+  suite). The README was checked on the running tool on `e1d37dc` (D-250), and brought to `428eff5` from
+  the source and the reports of the four closing tasks (D-259).
 - **The screens**, joined into one tool by two passes and finished by three more, each pass by one agent
   who drove them in a real browser with scripts, mostly on mock; walked through once by an agent
   playing a business tester; never used by a person. "Seen" below means seen by a pass, an audit or a
@@ -984,8 +991,8 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
     the check). The note and tester reference of every form carry the hint that the ledger keeps them
     as typed, and a refusal marks its field (seen at 1366 on CRD, DTR, PAS, the raw send, a suite and
     History). Text left in the code box refuses the send (seen at 1366 on all three tabs). The error
-    panel shows the server's heading under the page's own "What went wrong", which is being removed
-    (D-249) (a played timeout seen at 1366 on all three tabs).
+    panel is headed by the server's heading (seen at both sizes by the screens task). Buttons name what
+    they do: "Dismiss this notice", "Close what the member lookup returned" (seen at 1366).
   - *CRD tab and the comparison.* Every scenario through the real form; the comparison with the caveat,
     the masked note and the server's source labels, a pasted token nowhere on the page but in the
     tester's own box (seen); fill without typing over a lookup, marked "from the pasted request" (seen);
@@ -1005,33 +1012,36 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
     groups; a replay with its verdict; a refused PAS replay; the `testerRef` filter; "Load this case
     into the form"; a dotted mark and "not measured" for a step nobody answered and "Followed by" on a
     run view (seen at 1366).
-  - *History tab, not yet.* The list of chains does not draw the dotted mark. [open at this revision: being fixed]
+  - *History tab, since the closing tasks.* The list of chains draws the dotted mark; the replay panel
+    shows the new run's supporting lines; a value kept as a token says so (seen at 1366 by the screens
+    task and at both sizes by the ledger task).
   - *Config tab.* The default rule, the source labels, a raw send with a field per url part and its 422
     at the field (seen); the address warnings under each environment and after a switch, and the upload
     warnings about member data (seen at 1366); the server's sentence on what Lock does (seen); the raw
     send's refused note (seen at 1366).
-  - *Config tab, not yet seen.* The renamed buttons were not seen in a browser. [open at this revision: being fixed]
-- The build: green on `e1d37dc` through the shared wrapper, 2767 tests, 2765 passed, 2 skipped, as the
-  integrator ran it once (its log, `final/build-c2.log` in the build's scratch directory, prints no total;
-  its lines name 2765 tests passed and 2 skipped). Nobody else has built this revision.
+  - *Config tab, since the closing tasks.* The renamed buttons and the unlock button were seen at 1366 by
+    the screens task, not at 1920. The guardrail task's new sentences were read through the API only.
+- The build: green on `428eff5` through the shared wrapper, 2826 tests, 2824 passed, 2 skipped, as the
+  integrator ran it (its log, `final/build-c3.log` in the build's scratch directory). Nobody else has
+  built this revision.
 
 | Step | State |
 | --- | --- |
 | Spine 0: build files, wrapper, empty application, config skeleton | done |
 | Spine 1: shared contracts | done, reviewed by six seats, frozen |
 | Wave A: A1 config layer, A2 ledger, A3 code list, A4 lookups | done and merged |
-| Spine 2: integrate Wave A. V2 PHI audit | done. V2 ran twice; the fixes of the second run were checked on `9e5306d` by an agent that did not write them: five closed, two open one step away, and new findings; being fixed (D-246) [open at this revision: being fixed]
+| Spine 2: integrate Wave A. V2 PHI audit | done. V2 ran twice; the fixes of the second run were checked on `9e5306d` by an agent that did not write them: five closed, two open one step away, and new findings; those were fixed by a closing task (D-253), checked by nobody but its author |
 | Spine 3: CRD reference vertical | done. Held to CRD 2.0.1 since the fix wave |
 | Wave B: B1 PAS and subscriptions, B2 DTR | done and merged. Held to PAS 2.0.1 and DTR 2.0.1 since the fix wave |
-| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | done. V3 ran twice; the fixes of the second run were checked on `9e5306d`: eight closed, the blocker open in its second direction; being fixed (D-247) [open at this revision: being fixed]
+| Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | done. V3 ran twice; the fixes of the second run were checked on `9e5306d`: eight closed, the blocker open in its second direction; that and the check's new findings were fixed by a closing task (D-254), whose independent check had not reported |
 | Fix wave: every audit and review finding | merged at `33893aa` |
 | Leftovers between the parts of the fix wave | merged at `7dade28`, each verified alone |
 | Server work the reviews of the screens asked for | merged (`screens-protocol` at `ce345e4`, `screens-platform` at `3b1ddf4`), each begun by an agent a restart cut off and finished by a second; the second audits were its first independent readers; the platform half has no mutation evidence |
 | The last server task, the last screens pass, the six lines between them | merged (`left3-server` at `c15250c`, `screens-fix` at `e995e6b`, `seam-4` at `c8a7b9f`); no verifier of their own; the checks of the second audits' fixes saw several of their changes hold (D-245) |
-| Wave C: C1 frontend | merged and joined into one tool by two passes (`fe-join` at `4d795d8`, `fe-join-2` at `d15db15`), then the screens pass and the fixes for V7 and the walkthrough (`final-render` at `23edf9f`, `final-uat` at `a6446cd`), not yet checked by another agent. What those two left each other is started and not merged (D-249) [open at this revision: being fixed]
-| Wave C: C2 docs and scripts | merged (`docs-3` at `c735dee`); the README describes `5763c41`. The last pass over the README and the draft is started and not merged (D-250). `run.cmd` never run |
-| Wave C: C3 verification V1 to V7 | every audit has run at least once: V2, V3 and V4 twice, the second time on `0658a7c`, with each fix checked on `9e5306d`; V1, V5, V7 and the walkthrough on `9e285a1`; V6 on `9e5306d`. The fixes for V5 (`final-gate` at `e85facf`), V7 and the walkthrough are merged and not yet checked by another agent. Four tasks fixing what the checks and V6 found are started and not merged (D-246 to D-249) [open at this revision: being fixed]
-| Spine 5: clean build twice, fresh-clone build, push, pull request | not run as a step. The branch is pushed at every integration (at `e1d37dc` now); V1 and V6 built earlier revisions from a fresh clone through the wrapper; the integrator's clean builds with plain `./gradlew`, its fresh-clone build, the start and the pull request have not been done |
+| Wave C: C1 frontend | merged and joined into one tool by two passes (`fe-join` at `4d795d8`, `fe-join-2` at `d15db15`), then the screens pass, the fixes for V7 and the walkthrough (`final-render` at `23edf9f`, `final-uat` at `a6446cd`) and what those two left each other (`close-screens` at `84d52ec`, D-256); the independent check of these had not reported |
+| Wave C: C2 docs and scripts | merged (`docs-3` at `c735dee`, `docs-4` at `38569de`); the README checked on the running tool on `e1d37dc` and brought to `428eff5` by these records. `run.cmd` never run |
+| Wave C: C3 verification V1 to V7 | every audit has run at least once: V2, V3 and V4 twice, the second time on `0658a7c`, with each fix checked on `9e5306d`; V1, V5, V7 and the walkthrough on `9e285a1`; V6 on `9e5306d`. The fixes for V5, V7 and the walkthrough, and the four closing tasks (D-253 to D-256), are merged. An independent check of the last fixes was running: the style gate's part reported (D-258), the other five had not (their outcome goes in the place left under the gates, above) |
+| Spine 5: clean build twice, fresh-clone build, push, pull request | not run as a step. The branch is pushed at every integration (at `428eff5` now); V1 and V6 built earlier revisions from a fresh clone through the wrapper; the integrator's clean builds with plain `./gradlew`, its fresh-clone build, the start and the pull request have not been done |
 
 ### How the build got here
 
@@ -1145,9 +1155,10 @@ guide's route after "attachment required" is not built; DTR runs no `$expand`, n
 the token request's way of authenticating is an assumption (D-233). It is never described as having
 nothing stubbed. The frontend is on the line with all five tabs joined into one tool, none of them a
 stub, and a business tester's walkthrough on mock found every case it ran readable from the screen,
-three gaps since fixed. Level 1 is still not claimed: the fixes for V5, V7 and the walkthrough have
-been checked by nobody but their authors; the checks of the second audits' fixes found the guardrail
-blocker open in one direction (a production address the client cannot read) and member data reaching
-the ledger by two neighbouring routes, and the four tasks fixing them are not merged; the integrator's
-last gate has not run; and nothing has been observed against the vendor's service. The level delivered
+three gaps since fixed. Level 1 is still not claimed: the checks of the second audits' fixes found the
+guardrail blocker open in one direction (a production address the client cannot read) and member data
+reaching the ledger by two neighbouring routes, and the four tasks that fixed them are merged and have
+been checked by nobody but their authors; of the independent check of the last fixes only the style
+gate's part had reported, and it left three findings partly open and six new minor ones; the
+integrator's last gate has not run; and nothing has been observed against the vendor's service. The level delivered
 is stated at the top of the handover once those gates have run.
