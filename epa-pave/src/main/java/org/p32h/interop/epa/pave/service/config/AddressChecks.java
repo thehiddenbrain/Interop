@@ -32,6 +32,12 @@ final class AddressChecks {
                     + "client does not accept. A request that can change something is refused when it would go there. Write the "
                     + "address as scheme://host:port/path and upload the environment again.");
         }
+        for (String name : ProductionDestinations.encodedSeparators(environment.content(), urlForming)) {
+            warnings.add("The variable \"" + ConfigStore.oneLine(name) + "\" holds an address whose path has an encoded slash, "
+                    + "backslash, semicolon or dot segment in it, such as %2F. A server in front of the service can decode it before "
+                    + "it reads the path, so no request is sent to that address. Write the path without it and upload the environment "
+                    + "again.");
+        }
         if (environment.kind() != EnvironmentKind.PROD) {
             Set<String> sharing = new LinkedHashSet<>();
             for (ProductionDestinations.Found found : ProductionDestinations.of(environment.content(), urlForming)) {

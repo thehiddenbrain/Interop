@@ -464,10 +464,16 @@ class ConfigStoreGatewayTest {
     // ------------------------------------------------------------------------------------------
 
     @Test
-    void aValueInThePathFormStaysOneSegmentWhateverItHolds() {
+    void aValueInThePathFormStaysOneSegmentOrIsRefusedWhenItHoldsASeparator() {
         ConfigFixture fixture = ConfigFixture.on(directory).lookup("member.url", "https://lookup.example.invalid/api/members/{id}/coverage").build();
 
         for (String value : AWKWARD) {
+            if (value.contains("/")) {
+                // An encoded slash leaves in no path: a server in front of the service may decode it.
+                assertThatThrownBy(() -> fixture.gateway.prepare(CallIntent.of(EpaOperation.MEMBER_LOOKUP).withUrlValue("id", value)))
+                        .as(value).isInstanceOf(BadInputException.class).hasMessageContaining("which came from the url part {id}");
+                continue;
+            }
             PreparedCall call = fixture.gateway.prepare(CallIntent.of(EpaOperation.MEMBER_LOOKUP).withUrlValue("id", value));
 
             URI uri = URI.create(call.url().value());
@@ -507,13 +513,16 @@ class ConfigStoreGatewayTest {
         fixture.activate(PostmanFiles.SANDBOX_ENVIRONMENT, EnvironmentKind.SANDBOX);
         fixture.collection(PostmanFiles.NESTED_COLLECTION);
 
-        PreparedCall call = fixture.gateway.prepare(CallIntent.of(EpaOperation.SUBSCRIPTION_DELETE).withUrlValue("id", "sub 9/x"));
+        PreparedCall call = fixture.gateway.prepare(CallIntent.of(EpaOperation.SUBSCRIPTION_DELETE).withUrlValue("id", "sub 9+x"));
 
         assertThat(call.requestName()).isEqualTo("subscription by path variable");
         assertThat(call.method()).isEqualTo("DELETE");
         assertThat(call.url().template()).isEqualTo("{{baseUrl}}/Subscription/:id");
         // The collection saved "saved-subscription-7" for :id. That is a sample, and is never what is sent.
-        assertThat(call.url().value()).isEqualTo(SANDBOX_FHIR + "/Subscription/sub%209%2Fx");
+        assertThat(call.url().value()).isEqualTo(SANDBOX_FHIR + "/Subscription/sub%209%2Bx");
+        // An id that holds a slash is not sent at all: encoded, it is a separator to a server that decodes first.
+        assertThatThrownBy(() -> fixture.gateway.prepare(CallIntent.of(EpaOperation.SUBSCRIPTION_DELETE).withUrlValue("id", "sub 9/x")))
+                .isInstanceOf(BadInputException.class);
 
         PreparedCall withoutId = fixture.gateway.prepare(CallIntent.of(EpaOperation.SUBSCRIPTION_DELETE));
         assertThat(withoutId.url().resolved()).isFalse();
@@ -613,18 +622,18 @@ class ConfigStoreGatewayTest {
 
         for (EpaOperation operation : List.of(EpaOperation.SUBSCRIPTION_GET, EpaOperation.SUBSCRIPTION_UPDATE, EpaOperation.SUBSCRIPTION_DELETE)) {
             // The environment holds "sample-subscription-1", and a value was typed for the run as well. Neither is where this call goes.
-            PreparedCall call = fixture.gateway.prepare(CallIntent.of(operation).withUrlValue("id", "sub 42/a")
+            PreparedCall call = fixture.gateway.prepare(CallIntent.of(operation).withUrlValue("id", "sub 42+a")
                     .withRunValues(Map.of("subscriptionId", "typed-subscription")));
 
             assertThat(call.url().template()).as(operation.name()).isEqualTo("{{baseUrl}}/Subscription/{{subscriptionId}}");
             // Percent-encoded, as any value that fills a place in a url is.
-            assertThat(call.url().value()).as(operation.name()).isEqualTo(SANDBOX_FHIR + "/Subscription/sub%2042%2Fa");
+            assertThat(call.url().value()).as(operation.name()).isEqualTo(SANDBOX_FHIR + "/Subscription/sub%2042%2Ba");
             assertThat(call.url().display()).as(operation.name()).isEqualTo(call.url().value());
             assertThat(call.url().value()).doesNotContain("sample-subscription-1").doesNotContain("typed-subscription");
             VariableUse bound = call.url().variables().stream().filter(use -> use.name().equals("subscriptionId")).findFirst().orElseThrow();
             assertThat(bound.source()).isEqualTo(VariableSource.RUN_VALUE);
             // Text that belongs to the call carries the id as it was given.
-            assertThat(call.resolve("{\"id\": \"{{subscriptionId}}\"}").value()).isEqualTo("{\"id\": \"sub 42/a\"}");
+            assertThat(call.resolve("{\"id\": \"{{subscriptionId}}\"}").value()).isEqualTo("{\"id\": \"sub 42+a\"}");
         }
         // With no id named, the url is resolved as written.
         assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.SUBSCRIPTION_GET)).url().value())

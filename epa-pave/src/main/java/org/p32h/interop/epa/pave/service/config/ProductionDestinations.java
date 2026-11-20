@@ -106,6 +106,23 @@ final class ProductionDestinations {
      * anything is sent.
      */
     static List<String> unreadable(PostmanEnvironment environment, Set<String> urlForming) {
+        return namesWhere(environment, urlForming, value -> {
+            UrlNormal.Destination destination = UrlNormal.destination(value);
+            return destination == null || !destination.readable();
+        });
+    }
+
+    /**
+     * The names of the variables considered by {@link #of} whose address, resolved against the
+     * environment alone, holds an encoded slash, backslash, semicolon or dot segment in its path.
+     * No request is sent to such an address.
+     */
+    static List<String> encodedSeparators(PostmanEnvironment environment, Set<String> urlForming) {
+        return namesWhere(environment, urlForming, value -> UrlNormal.encodedSeparator(value) != null);
+    }
+
+    private static List<String> namesWhere(PostmanEnvironment environment, Set<String> urlForming,
+                                           java.util.function.Predicate<String> holds) {
         List<String> names = new ArrayList<>();
         if (environment == null) {
             return names;
@@ -118,11 +135,7 @@ final class ProductionDestinations {
             }
             Resolution resolved = WITHIN.resolve(variable.value(), layers);
             String value = resolved.send();
-            if (value == null || !hasSchemeAndHost(value.strip())) {
-                continue;
-            }
-            UrlNormal.Destination destination = UrlNormal.destination(value);
-            if (destination == null || !destination.readable()) {
+            if (value != null && hasSchemeAndHost(value.strip()) && holds.test(value)) {
                 names.add(variable.key());
             }
         }

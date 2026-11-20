@@ -415,6 +415,88 @@ public final class UrlNormal {
         return result | last;
     }
 
+    /** How many rounds of decoding are looked through for an encoded separator: a value encoded more often than this is refused whole. */
+    private static final int DECODING_ROUNDS = 8;
+
+    /**
+     * What in the path of a url a server in front of a service could read as a separator once it
+     * decodes it, or null when there is nothing of that kind: an encoded slash ({@code %2F}), an
+     * encoded backslash ({@code %5C}), an encoded semicolon ({@code %3B}), or a segment that is a
+     * dot segment once decoded ({@code %2E%2E}). Letter case does not matter, and the path is
+     * decoded again and again, so {@code %252F} counts. Only the path is read: the query and the
+     * fragment keep whatever escapes they carry, as a FHIR search needs.
+     *
+     * @return the escape as found, in upper case, such as {@code %2F}, or the words "an encoded dot segment"
+     */
+    public static String encodedSeparator(String url) {
+        if (url == null) {
+            return null;
+        }
+        String text = url.strip();
+        int scheme = text.indexOf("://");
+        int pathStart = 0;
+        if (scheme > 0) {
+            pathStart = scheme + 3;
+            while (pathStart < text.length() && "/?#".indexOf(text.charAt(pathStart)) < 0) {
+                pathStart++;
+            }
+        }
+        int pathEnd = pathStart;
+        while (pathEnd < text.length() && text.charAt(pathEnd) != '?' && text.charAt(pathEnd) != '#') {
+            pathEnd++;
+        }
+        String path = text.substring(pathStart, pathEnd);
+        for (int round = 0; round <= DECODING_ROUNDS && path.indexOf('%') >= 0; round++) {
+            String upper = path.toUpperCase(Locale.ROOT);
+            for (String escape : List.of("%2F", "%5C", "%3B")) {
+                if (upper.contains(escape)) {
+                    return escape;
+                }
+            }
+            String decoded = decodedOnce(path);
+            // A dot segment that was written as one is left to the normal form. One that only
+            // appears once an escape is decoded is hidden from it.
+            if (dotSegments(decoded) > dotSegments(path)) {
+                return "an encoded dot segment";
+            }
+            if (decoded.equals(path)) {
+                return null;
+            }
+            if (round == DECODING_ROUNDS) {
+                return "an escape encoded more than " + DECODING_ROUNDS + " times";
+            }
+            path = decoded;
+        }
+        return null;
+    }
+
+    /** How many segments of a path are {@code .} or {@code ..}, a segment ending at a slash, a backslash or a semicolon. */
+    private static int dotSegments(String path) {
+        int count = 0;
+        for (String segment : path.split("[/\\\\;]", -1)) {
+            if (segment.equals(".") || segment.equals("..")) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Every percent-escape of the text decoded once, byte for byte. */
+    private static String decodedOnce(String text) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            int value = c == '%' ? hex(text, i + 1) : -1;
+            if (value >= 0) {
+                out.append((char) value);
+                i += 2;
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
     /** The url with every percent-escape decoded where it decodes to one byte of printable ASCII. For looking for a word only. */
     public static String decodedForReading(String url) {
         if (url == null) {

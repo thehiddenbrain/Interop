@@ -137,6 +137,13 @@ public class ConfigStoreGateway implements OperationGateway {
             throw ConfigurationChangedException.sinceTheScreenWasDrawn();
         }
         CallPlan plan = plan(snapshot, intent);
+        // Whatever the environment and the method: a server in front of a service may decode an
+        // encoded separator before it reads the path, and this tool cannot know whether it does.
+        // Asked first, so that the refusal names the value that hid something.
+        String encoded = encodedIn(plan);
+        if (encoded != null) {
+            throw encodedSeparator(plan, encoded);
+        }
         if (plan.refusal() != null) {
             throw new ProdWriteBlockedException(intent.operation(), plan.environment(), plan.refusal().reason(), plan.refusal().action(),
                     plan.url(), plan.method(), plan.target().requestName());
@@ -221,6 +228,59 @@ public class ConfigStoreGateway implements OperationGateway {
                 + String.join(" and in ", carriers) + ". A secret is sent only to the address it was configured for.",
                 "Nothing was sent. Send it without the value typed for this run that changes the address, or upload an environment "
                         + "whose values point there, with its own credentials, and activate it.");
+    }
+
+    /** The refusal of a call whose path holds an encoded separator. It names what supplied it, never the value. */
+    private static BadInputException encodedSeparator(CallPlan plan, String encoded) {
+        String what = encoded.startsWith("%") ? "an encoded separator (" + encoded + ")" : encoded;
+        return new BadInputException(plan.intent().operation().label() + " was not sent: the path of its url holds " + what + ", which "
+                + "came from " + encodedFrom(plan) + ". A server in front of the service can decode it before it reads the path, and "
+                + "then the request addresses something other than what this tool judged it to be.",
+                "Nothing was sent. Remove the encoded slash, backslash, semicolon or dot segment from that value. A value that needs "
+                        + "such a character belongs in the query, after the question mark, where it is sent as it is.");
+    }
+
+    /**
+     * The encoded separator in the path of a complete url as it would be sent, or null when there
+     * is none. The url is in its normal form, which has already decoded an escaped dot segment and
+     * judged it as the dot segment it is, so what is left is what a server could still decode.
+     */
+    private static String encodedIn(CallPlan plan) {
+        return plan.filled() == null || !plan.filled().complete() ? null : UrlNormal.encodedSeparator(plan.filled().send());
+    }
+
+    /** What put the encoded separator into the path, in words: a variable with its layer, a url part, or the url as written. */
+    private static String encodedFrom(CallPlan plan) {
+        List<String> found = new ArrayList<>();
+        Resolution resolution = plan.urlVariables();
+        if (resolution != null) {
+            Map<String, VariableSource> sources = sources(resolution);
+            for (Resolution.Piece piece : resolution.pieces()) {
+                if (piece.name() != null && piece.send() != null && UrlNormal.encodedSeparator("/" + withoutQuery(piece.send())) != null) {
+                    VariableSource source = sources.get(piece.name());
+                    String named = "the variable \"" + ConfigStore.oneLine(piece.name()) + "\""
+                            + (source == null ? "" : " (" + source.label().toLowerCase(Locale.ROOT) + ")");
+                    if (!found.contains(named)) {
+                        found.add(named);
+                    }
+                }
+            }
+        }
+        new TreeMap<>(plan.intent().urlValues()).forEach((name, value) -> {
+            if (Texts.present(value) && UrlNormal.encodedSeparator("/" + UrlForms.encode(value)) != null) {
+                found.add("the url part {" + name + "}");
+            }
+        });
+        if (!found.isEmpty()) {
+            return String.join(" and ", found);
+        }
+        return plan.target().described() == null ? "the url as it is written" : plan.target().described();
+    }
+
+    /** The text before a question mark or a hash. A value can carry a query of its own, which is not judged. */
+    private static String withoutQuery(String text) {
+        int end = firstOf(text, "?#");
+        return end < 0 ? text : text.substring(0, end);
     }
 
     /** The resolved text with its template as written, any credential typed into it masked. */
