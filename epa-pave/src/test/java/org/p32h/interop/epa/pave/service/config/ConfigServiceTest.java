@@ -589,6 +589,39 @@ class ConfigServiceTest {
     }
 
     @Test
+    void aHeaderThatStillNeedsAValueMakesTheOperationUnavailableOnLiveAndIsNotCalledRunnableOnMock() {
+        String items = ConfigFixture.items(ConfigFixture.item("order-sign Happy Path", "POST", "{{baseUrl}}/cds-services/order-sign-crd")
+                .header("Authorization", "Bearer {{client_secret}}").header("X-Trace", "{{traceId}}"));
+        ConfigFixture mock = ConfigFixture.mock(directory.resolve("mock"));
+        mock.collectionOf("Headers", items);
+        mock.activeEnvironmentOf("Review Prod", EnvironmentKind.PROD, "baseUrl", "https://crd.example.invalid");
+        ConfigFixture live = ConfigFixture.live(directory.resolve("live"));
+        live.collectionOf("Headers", items);
+        live.activeEnvironmentOf("Review Prod", EnvironmentKind.PROD, "baseUrl", "https://crd.example.invalid");
+
+        // The url is complete, so only the headers can say the run would be refused.
+        OperationRow liveSign = row(live.service.effective(null), EpaOperation.CRD_ORDER_SIGN);
+        assertThat(liveSign.target().resolved()).isTrue();
+        assertThat(liveSign.unavailable()).isEqualTo("The header Authorization still needs a value for {{client_secret}}, the header X-Trace "
+                + "still needs a value for {{traceId}}, and the active environment is \"Review Prod\". Give each of {{client_secret}}, {{traceId}} "
+                + "a value in an environment on the Config tab, or type them among the values for this run.");
+        // On mock a header with no value is refused too, so the row never says it still runs.
+        OperationRow mockSign = row(mock.service.effective(null), EpaOperation.CRD_ORDER_SIGN);
+        assertThat(mockSign.unavailable()).isNull();
+        assertThat(mockSign.note()).isEqualTo("The header Authorization still needs a value for {{client_secret}}, the header X-Trace "
+                + "still needs a value for {{traceId}}, and the active environment is \"Review Prod\". On the mock profile nothing is sent, "
+                + "but a header with no value is refused before a scenario answers, so a run is refused here too. Give each of "
+                + "{{client_secret}}, {{traceId}} a value in an environment on the Config tab, or type them among the values for this run.");
+        // The preview of the request says the same.
+        assertThat(live.service.resolve(EpaOperation.CRD_ORDER_SIGN, null, Map.of(), Map.of(), null).unavailable())
+                .isEqualTo(liveSign.unavailable());
+        assertThat(mock.service.resolve(EpaOperation.CRD_ORDER_SIGN, null, Map.of(), Map.of(), null).notes()).contains(mockSign.note());
+        // A value for one run supplies a header as it supplies the url.
+        assertThat(live.service.resolve(EpaOperation.CRD_ORDER_SIGN, null, Map.of("client_secret", "placeholder-value", "traceId", "t-1"),
+                Map.of(), null).unavailable()).isNull();
+    }
+
+    @Test
     void aTargetThatStillNeedsAValueSaysWhichAndATokenIsNotCountedAsMissing() {
         ConfigFixture mock = ConfigFixture.on(directory.resolve("mock")).lookup("member.url", "https://lookup.example.invalid/members/{id}").build();
         mock.collection(PostmanFiles.VENDOR_COLLECTION);
@@ -606,7 +639,8 @@ class ConfigServiceTest {
                 + "profile nothing is sent, so this still runs.");
         assertThat(mockInquire.unavailable()).isNull();
         OperationRow liveInquire = row(live.service.effective(null), EpaOperation.PAS_INQUIRE);
-        assertThat(liveInquire.unavailable()).isEqualTo("The url still needs a value for {{baseUrl}}, and no environment is active.");
+        assertThat(liveInquire.unavailable()).isEqualTo("The url still needs a value for {{baseUrl}}, and no environment is active. Give {{baseUrl}} "
+                + "a value in an environment on the Config tab, or type it among the values for this run.");
         assertThat(liveInquire.note()).isNull();
         // The service id comes from the collection's own variable, so only the base is missing.
         TargetView orderSign = row(live.service.effective(null), EpaOperation.CRD_ORDER_SIGN).target();
@@ -830,17 +864,28 @@ class ConfigServiceTest {
                 .startsWith("Subscription delete with the request \"subscription by path variable\" is blocked: no environment is active");
         assertThat(mock.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, null, Map.of("id", "sub 1"), null).blocked()).isNull();
 
-        // A url that still needs a value: said on both profiles, as a reason on live and as a note on mock.
+        // A url that still needs a value: said on both profiles, as a reason on live and as a note on mock. The header X-Trace
+        // has no value either, and a run is refused for that on mock too, so the note does not say the run is still answered.
         Resolved mockToken = mock.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, null, null, null);
         assertThat(mockToken.urlTokens()).containsExactly(new TokenRow("id", false, "saved-subscription-7"));
         assertThat(mockToken.url().unresolved()).containsExactly("id");
         assertThat(mockToken.urlShown()).isEqualTo("https://collection.example.invalid/fhir/Subscription/:id");
         assertThat(mockToken.unavailable()).isNull();
-        assertThat(mockToken.notes()).containsExactly("The url still needs a value for id, and no environment is active. On the mock profile "
-                + "nothing is sent, so the run is still answered from a scenario.");
+        assertThat(mockToken.notes()).containsExactly("The url still needs a value for id, the header X-Trace still needs a value for "
+                + "{{traceId}}, and no environment is active. On the mock profile nothing is sent, but a header with no value is refused "
+                + "before a scenario answers, so a run is refused here too. Give {{traceId}} a value in an environment on the Config tab, "
+                + "or type it among the values for this run.");
         Resolved liveToken = live.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, null, null, null);
-        assertThat(liveToken.unavailable()).isEqualTo("The url still needs a value for id, and no environment is active.");
+        assertThat(liveToken.unavailable()).isEqualTo("The url still needs a value for id, the header X-Trace still needs a value for "
+                + "{{traceId}}, and no environment is active. Give {{traceId}} a value in an environment on the Config tab, or type it among "
+                + "the values for this run.");
         assertThat(liveToken.notes()).isEmpty();
+        // With the header given a value for the run, the url alone is short, and on mock the scenario still answers.
+        assertThat(mock.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, Map.of("traceId", "t-1"), null, null).notes())
+                .containsExactly("The url still needs a value for id, and no environment is active. On the mock profile nothing is sent, "
+                        + "so the run is still answered from a scenario.");
+        assertThat(live.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, Map.of("traceId", "t-1"), null, null).unavailable())
+                .isEqualTo("The url still needs a value for id, and no environment is active.");
     }
 
     @Test
