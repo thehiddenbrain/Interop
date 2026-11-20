@@ -119,11 +119,11 @@ function formPart(form) {
 
 /**
  * What changed since the previous step, as the server compared the two. A dropped answer comes
- * with the values it had, as the server read them from the response before the step.
+ * with the values that were sent for it, as the server read them from the request of this step.
  */
 export function changesBlock(changes) {
     const before = ref => Array.isArray(ref.values) && ref.values.length > 0
-        ? el('div', {class: 'small'}, 'The response before this step held: ', ref.values.map((value, index) => [index > 0 ? '; ' : null, el('strong', null, value)]))
+        ? el('div', {class: 'small'}, 'The answer sent: ', ref.values.map((value, index) => [index > 0 ? '; ' : null, el('strong', null, value)]))
         : null;
     return el('div', {class: 'dtr-changes'},
         el('p', null, changes.summary),
