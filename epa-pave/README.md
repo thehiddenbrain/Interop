@@ -102,8 +102,8 @@ It runs about 2,770 tests and takes a few minutes. Correct output ends with:
 > Task :check
 > Task :build
 
-BUILD SUCCESSFUL in 3m 13s
-11 actionable tasks: 9 executed, 2 from cache
+BUILD SUCCESSFUL in 3m 39s
+12 actionable tasks: 9 executed, 3 from cache
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.0/userguide/configuration_cache_enabling.html
 ```
 
@@ -1999,7 +1999,8 @@ branch that is not in it.
   with `_JAVA_OPTIONS` set to `-XX:+UnlockDiagnosticVMOptions
   -XX:DisableIntrinsic=_base64_encodeBlock,_base64_decodeBlock`. `./gradlew` itself was not run
   for this revision: its Gradle part was run through that wrapper (`bootJar`, then `clean build`).
-  The build in step 3 is that run of `clean build`: BUILD_COUNTS. No fresh clone was built for
+  The build in step 3 is that run of `clean build`: 2,767 tests, 2 skipped, 0 failed (it took `compileJava` and `compileTestJava`
+  from the build cache). No fresh clone was built for
   this revision; the build audit (V1) built one of `9e285a1` from the remote.
 - **`run.sh`** was started from another directory with the jar present, as
   `./run.sh mock --server.port=8191` (port 8057 was not used on that machine), and printed the
