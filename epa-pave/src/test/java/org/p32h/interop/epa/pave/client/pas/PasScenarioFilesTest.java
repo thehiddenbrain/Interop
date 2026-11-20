@@ -316,7 +316,8 @@ class PasScenarioFilesTest {
             VendorExchange exchange = pas.submit(TestPreparedCalls.unconfigured(EpaOperation.PAS_SUBMIT),
                     ResolvedText.plain(request("claim-test-1", "95810")), MockSelection.of(null, crd.toLowerCase(java.util.Locale.ROOT), "1234567893"));
             assertThat(exchange.scenarioId()).as(crd).isEqualTo(scenario);
-            assertThat(exchange.scenarioNote()).as(crd).startsWith("selected by the sentinel member ID " + crd + ", which means the same case in CRD as ");
+            assertThat(exchange.scenarioNote()).as(crd).startsWith("selected by the CRD sentinel member ID " + crd
+                    + ", which this scenario answers for the same case");
         });
         // The sentinel NPI the specification ties to an unknown provider selects that case here as it does in CRD and DTR.
         VendorExchange byNpi = pas.submit(TestPreparedCalls.unconfigured(EpaOperation.PAS_SUBMIT),

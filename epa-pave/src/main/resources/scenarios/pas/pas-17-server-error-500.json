@@ -4,6 +4,9 @@
   "label": "The service fails with HTTP 500",
   "description": "The service fails while handling the submission and answers HTTP 500 with an OperationOutcome, which PAS 2.0.1 allows in place of a bundle. The CRD sentinel P32H-ERR500 selects it too. An inquiry with the same member, which its next step asks for first, finds the submission: the service received it and pended it.",
   "sentinelMemberId": "P32H-PAS-ERR500",
+  "crdSentinelMemberIds": [
+    "P32H-ERR500"
+  ],
   "behavior": "respond",
   "httpStatus": 500,
   "delayMillis": 150,

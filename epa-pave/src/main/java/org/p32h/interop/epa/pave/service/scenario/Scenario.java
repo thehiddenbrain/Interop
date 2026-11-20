@@ -1,6 +1,5 @@
 package org.p32h.interop.epa.pave.service.scenario;
 
-import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.ScenarioSummary;
 import java.util.List;
 import java.util.Map;
@@ -29,11 +28,16 @@ import tools.jackson.databind.JsonNode;
  *                         them: {@code sentinelMemberId} first, then {@code sentinelMemberIds}.
  *                         One file may answer a sentinel of another protocol as well as its own
  * @param sentinelNpis     every NPI that selects this scenario, in the same order
+ * @param crdSentinelMemberIds the CRD sentinel member IDs a DTR or PAS file answers for the same
+ *                         case, from its {@code crdSentinelMemberIds}. Kept apart from its own
+ *                         sentinels so that the result can say which of the two selected it
+ * @param answersDtrSentinels whether this CRD file answers every DTR sentinel member ID that is
+ *                         no CRD file's own, from its {@code answersDtrSentinels}
  */
 public record Scenario(String id, int number, String label, String description, String sentinelMemberId,
                        String sentinelNpi, ScenarioStep main, Map<String, ScenarioStep> steps, ScenarioExpect expect,
                        String basis, String assumption, JsonNode raw, String source, List<String> sentinelMemberIds,
-                       List<String> sentinelNpis) {
+                       List<String> sentinelNpis, List<String> crdSentinelMemberIds, boolean answersDtrSentinels) {
 
     public Scenario {
         steps = steps == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(steps));
@@ -44,6 +48,15 @@ public record Scenario(String id, int number, String label, String description, 
                 ? (sentinelNpi == null ? List.of() : List.of(sentinelNpi)) : List.copyOf(sentinelNpis);
         sentinelMemberId = sentinelMemberIds.isEmpty() ? null : sentinelMemberIds.get(0);
         sentinelNpi = sentinelNpis.isEmpty() ? null : sentinelNpis.get(0);
+        crdSentinelMemberIds = crdSentinelMemberIds == null ? List.of() : List.copyOf(crdSentinelMemberIds);
+    }
+
+    /** A scenario with sentinels of its own only, as every file was before a file could answer another protocol's. */
+    public Scenario(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
+                    ScenarioStep main, Map<String, ScenarioStep> steps, ScenarioExpect expect, String basis, String assumption,
+                    JsonNode raw, String source, List<String> sentinelMemberIds, List<String> sentinelNpis) {
+        this(id, number, label, description, sentinelMemberId, sentinelNpi, main, steps, expect, basis, assumption, raw, source,
+                sentinelMemberIds, sentinelNpis, null, false);
     }
 
     /** A scenario with at most one sentinel of each kind, as every file was before a file could name several. */
@@ -55,13 +68,11 @@ public record Scenario(String id, int number, String label, String description, 
     }
 
     public ScenarioSummary summary() {
-        // Every sentinel is listed, so a tester can find each ID that reaches the scenario. The CRD
-        // aliases a DTR file names are read from the file itself, where the DTR mock reads them.
-        List<String> crd = JsonSafe.elements(raw, "crdSentinelMemberIds").stream().map(JsonSafe::presentText)
-                .filter(java.util.Objects::nonNull).toList();
+        // Every sentinel is listed, so a tester can find each ID that reaches the scenario, the CRD
+        // ones a DTR or PAS file answers for the same case included.
         return new ScenarioSummary(id, number, label, description, sentinelMemberId, sentinelNpi,
                 main == null ? null : main.behavior(), main == null ? null : main.httpStatus(),
-                expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crd);
+                expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crdSentinelMemberIds);
     }
 
     /**

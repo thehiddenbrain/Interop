@@ -56,20 +56,25 @@ public class ScenarioRepository {
     /** Every protocol directory the mock clients read. Each must exist and hold at least one scenario. */
     public static final List<String> PROTOCOLS = List.of("crd", "dtr", "pas", "raw");
 
+    /** The protocol whose sentinels a CRD file can answer for, and the one whose sentinels DTR and PAS files can. */
+    static final String CRD = "crd";
+    static final String DTR = "dtr";
+
     /** This tool's own sentinel member IDs, compared in their no-space upper-case form. */
     static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]+(?:-[A-Z0-9]+)*");
 
     /**
      * Every top-level key a scenario file may hold. The protocols read their own sections from
      * {@link Scenario#raw()}: {@code nextQuestion} is the DTR adaptive rule, {@code paths} and
-     * {@code responses} are the DTR claims the scenario tests drive, and {@code crdSentinelMemberIds}
-     * names the CRD sentinels a DTR scenario answers for, which the DTR mock keeps apart from the
-     * scenario's own sentinel so that it can say which of the two selected it. A key outside this
+     * {@code responses} are the DTR claims the scenario tests drive. {@code crdSentinelMemberIds}
+     * names the CRD sentinels a DTR or PAS scenario answers for the same case, kept apart from the
+     * scenario's own sentinels so that the result can say which of the two selected it, and
+     * {@code answersDtrSentinels} marks the CRD scenario that answers every DTR sentinel. A key outside this
      * list is refused, because a misspelt one would otherwise be dropped and its scenario would
      * quietly lose what the key held.
      */
     static final Set<String> KNOWN_KEYS = Set.of("id", "number", "label", "description", "basis", "assumption", "sentinelMemberId",
-            "sentinelMemberIds", "sentinelNpi", "sentinelNpis", "crdSentinelMemberIds", "behavior", "httpStatus", "delayMillis",
+            "sentinelMemberIds", "sentinelNpi", "sentinelNpis", "crdSentinelMemberIds", "answersDtrSentinels", "behavior", "httpStatus", "delayMillis",
             "response", "responseText", "expect", "steps", "nextQuestion", "paths", "responses");
 
     /** The scenarios found for a protocol, and the files that could not be used. */
@@ -144,6 +149,7 @@ public class ScenarioRepository {
         // Two files claiming one sentinel would leave the choice to the order of their numbers.
         Map<String, String> memberSentinels = new LinkedHashMap<>();
         Map<String, String> npiSentinels = new LinkedHashMap<>();
+        // A CRD sentinel a file answers for the same case is claimed like its own: either way it selects that file.
         for (Scenario scenario : unique) {
             for (String sentinel : scenario.sentinelMemberIds()) {
                 String key = memberKey(sentinel);
@@ -151,6 +157,14 @@ public class ScenarioRepository {
                 if (earlier != null) {
                     problems.add(scenario.source() + ": the sentinel member ID " + key + " is already claimed by " + earlier
                             + ". One sentinel selects one scenario.");
+                }
+            }
+            for (String sentinel : scenario.crdSentinelMemberIds()) {
+                String key = memberKey(sentinel);
+                String earlier = memberSentinels.putIfAbsent(key, scenario.source());
+                if (earlier != null) {
+                    problems.add(scenario.source() + ": the CRD sentinel member ID " + key + " in its crdSentinelMemberIds is already "
+                            + "claimed by " + earlier + ". One sentinel selects one scenario.");
                 }
             }
             for (String sentinel : scenario.sentinelNpis()) {
@@ -161,7 +175,35 @@ public class ScenarioRepository {
                 }
             }
         }
+        problems.addAll(protocolRules(protocolDirectory, unique));
         return new Loaded(List.copyOf(unique), List.copyOf(problems));
+    }
+
+    /**
+     * What only some protocols may say: a CRD file answers no CRD sentinel of another file, only
+     * a CRD file answers DTR sentinels, and only one does, or the order of the files would decide.
+     */
+    private static List<String> protocolRules(String protocolDirectory, List<Scenario> scenarios) {
+        List<String> problems = new ArrayList<>();
+        String answering = null;
+        for (Scenario scenario : scenarios) {
+            if (CRD.equals(protocolDirectory) && !scenario.crdSentinelMemberIds().isEmpty()) {
+                problems.add(scenario.source() + ": a CRD scenario cannot list crdSentinelMemberIds. Give a CRD sentinel as the file's own "
+                        + "sentinelMemberId.");
+            }
+            if (scenario.answersDtrSentinels()) {
+                if (!CRD.equals(protocolDirectory)) {
+                    problems.add(scenario.source() + ": only a CRD scenario can answer DTR sentinels, so answersDtrSentinels belongs in a "
+                            + "CRD file.");
+                } else if (answering != null) {
+                    problems.add(scenario.source() + ": answersDtrSentinels is already true in " + answering + ". One CRD scenario answers "
+                            + "every DTR sentinel.");
+                } else {
+                    answering = scenario.source();
+                }
+            }
+        }
+        return problems;
     }
 
     /**
@@ -197,26 +239,33 @@ public class ScenarioRepository {
     }
 
     /**
-     * As {@link #select(String, MockSelection)}, and when neither an explicit choice nor the form's
-     * member ID or NPI selects a scenario, a sentinel member ID that appears in the request body
-     * does. That serves a tester who loaded a sample body and typed the sentinel into the JSON.
+     * The one rule every mock chooses its scenario by, for a member ID typed on the form and for
+     * one found in a pasted request body alike.
+     *
+     * <p>In order: a scenario chosen explicitly; then the form's member ID; then the form's NPI;
+     * then, when nothing on the form selected a scenario, every text value of the request body;
+     * then the first scenario in the list, which the result calls the default. A member ID is
+     * looked for, in order, among the files' own sentinels, among the CRD sentinels a DTR or PAS
+     * file answers for the same case ({@code crdSentinelMemberIds}), and in CRD among the
+     * sentinels of the DTR files, which the CRD file marked {@code answersDtrSentinels} answers
+     * so that a journey with one of them reaches DTR. A sentinel in a body is compared whole, as
+     * the form's member ID is: no spaces, any letter case. A body that is not JSON holds no values,
+     * and a sentinel inside a longer value is not one.
+     *
+     * @throws ValidationException when an explicitly chosen scenario id does not exist
      */
     public ScenarioSelection select(String protocolDirectory, MockSelection selection, String requestBody) {
         List<Scenario> scenarios = usable(protocolDirectory);
         if (selection != null && Texts.present(selection.scenarioId())) {
             String wanted = selection.scenarioId().strip();
             return scenarios.stream().filter(s -> s.id().equals(wanted)).findFirst()
-                    .map(s -> new ScenarioSelection(s, "chosen in the scenario selector"))
+                    .map(s -> new ScenarioSelection(s, "chosen in the scenario selector", ScenarioSelection.By.CHOSEN, false, null))
                     .orElseThrow(() -> ValidationException.of("scenarioId", "There is no scenario with id \"" + wanted + "\"."));
         }
         if (selection != null && Texts.present(selection.memberId())) {
-            String memberId = memberKey(selection.memberId());
-            for (Scenario scenario : scenarios) {
-                for (String sentinel : scenario.sentinelMemberIds()) {
-                    if (memberKey(sentinel).equals(memberId)) {
-                        return new ScenarioSelection(scenario, "selected by the sentinel member ID " + sentinel);
-                    }
-                }
+            ScenarioSelection byMember = byMemberId(protocolDirectory, scenarios, Set.of(memberKey(selection.memberId())), false);
+            if (byMember != null) {
+                return byMember;
             }
         }
         if (selection != null && Texts.present(selection.npi())) {
@@ -224,28 +273,61 @@ public class ScenarioRepository {
             for (Scenario scenario : scenarios) {
                 for (String sentinel : scenario.sentinelNpis()) {
                     if (sentinel.strip().equals(npi)) {
-                        return new ScenarioSelection(scenario, "selected by the sentinel NPI " + sentinel);
+                        return new ScenarioSelection(scenario, "selected by the sentinel NPI " + sentinel, ScenarioSelection.By.SENTINEL_NPI,
+                                false, null);
                     }
                 }
             }
         }
         if (Texts.present(requestBody)) {
-            // Each text value of the body is compared whole, as the form's member ID is: no spaces, any letter case.
-            // A body that is not JSON holds no values, and a sentinel inside a longer value is not one.
             Set<String> values = new HashSet<>();
             JsonSafe.Parsed parsed = JsonSafe.parse(requestBody);
             if (parsed.ok()) {
                 collectTexts(parsed.node(), values);
             }
-            for (Scenario scenario : scenarios) {
-                for (String sentinel : scenario.sentinelMemberIds()) {
-                    if (values.contains(memberKey(sentinel))) {
-                        return new ScenarioSelection(scenario, "selected by the sentinel member ID " + sentinel + " found in the request body");
-                    }
+            ScenarioSelection byBody = values.isEmpty() ? null : byMemberId(protocolDirectory, scenarios, values, true);
+            if (byBody != null) {
+                return byBody;
+            }
+        }
+        return new ScenarioSelection(scenarios.get(0), "the default, because no scenario was chosen and no sentinel matched",
+                ScenarioSelection.By.DEFAULT, false, null);
+    }
+
+    /** The scenario one of these member IDs selects by the member ID part of {@link #select}, or null. */
+    private ScenarioSelection byMemberId(String protocolDirectory, List<Scenario> scenarios, Set<String> keys, boolean inBody) {
+        String where = inBody ? " found in the request body" : "";
+        for (Scenario scenario : scenarios) {
+            for (String sentinel : scenario.sentinelMemberIds()) {
+                if (keys.contains(memberKey(sentinel))) {
+                    return new ScenarioSelection(scenario, "selected by the sentinel member ID " + sentinel + where,
+                            ScenarioSelection.By.SENTINEL, inBody, null);
                 }
             }
         }
-        return new ScenarioSelection(scenarios.get(0), "the default, because no scenario was chosen and no sentinel matched");
+        for (Scenario scenario : scenarios) {
+            for (String sentinel : scenario.crdSentinelMemberIds()) {
+                if (keys.contains(memberKey(sentinel))) {
+                    return new ScenarioSelection(scenario, "selected by the CRD sentinel member ID " + sentinel + where
+                            + ", which this scenario answers for the same case", ScenarioSelection.By.CRD_SENTINEL, inBody, null);
+                }
+            }
+        }
+        Scenario answering = scenarios.stream().filter(Scenario::answersDtrSentinels).findFirst().orElse(null);
+        if (answering == null) {
+            return null;
+        }
+        // Read only when a CRD file answers DTR sentinels, so the DTR files are what decides, and a DTR scenario added later is answered too.
+        for (Scenario dtr : usable(DTR)) {
+            for (String sentinel : dtr.sentinelMemberIds()) {
+                if (keys.contains(memberKey(sentinel))) {
+                    return new ScenarioSelection(answering, "selected because " + sentinel + (inBody ? ", found in the request body," : "")
+                            + " is the sentinel member ID of DTR scenario " + dtr.id() + ", and CRD answers documentation required for "
+                            + "every DTR sentinel so that the journey reaches DTR", ScenarioSelection.By.DTR_SENTINEL, inBody, dtr);
+                }
+            }
+        }
+        return null;
     }
 
     private static void collectTexts(JsonNode node, Set<String> out) {
@@ -319,7 +401,18 @@ public class ScenarioRepository {
         }
         List<String> memberSentinels = sentinels(root, "sentinelMemberId", "sentinelMemberIds", "sentinel member ID");
         List<String> npiSentinels = sentinels(root, "sentinelNpi", "sentinelNpis", "sentinel NPI");
-        for (String sentinel : memberSentinels) {
+        List<String> crdSentinels = sentinels(root, null, "crdSentinelMemberIds", "CRD sentinel member ID");
+        for (String sentinel : crdSentinels) {
+            if (memberSentinels.stream().anyMatch(own -> memberKey(own).equals(memberKey(sentinel)))) {
+                throw new IllegalArgumentException("it names one sentinel member ID both as its own and among its crdSentinelMemberIds.");
+            }
+        }
+        JsonNode dtrFlag = JsonSafe.child(root, "answersDtrSentinels");
+        if (!JsonSafe.nullOrMissing(dtrFlag) && !dtrFlag.isBoolean()) {
+            throw new IllegalArgumentException("its answersDtrSentinels is not true or false.");
+        }
+        boolean answersDtrSentinels = dtrFlag.isBoolean() && dtrFlag.booleanValue();
+        for (String sentinel : java.util.stream.Stream.concat(memberSentinels.stream(), crdSentinels.stream()).toList()) {
             if (!SENTINEL.matcher(memberKey(sentinel)).matches()) {
                 // The value is not quoted: something that is not a sentinel could be a real member ID.
                 throw new IllegalArgumentException("one of its sentinel member IDs is not a P32H- sentinel. A scenario is selected only by "
@@ -362,7 +455,7 @@ public class ScenarioRepository {
         return new Scenario(id, number, label, JsonSafe.presentText(root, "description"),
                 memberSentinels.isEmpty() ? null : memberSentinels.get(0), npiSentinels.isEmpty() ? null : npiSentinels.get(0), main, steps,
                 parseExpect(JsonSafe.child(root, "expect")), JsonSafe.presentText(root, "basis"),
-                JsonSafe.presentText(root, "assumption"), root, source, memberSentinels, npiSentinels);
+                JsonSafe.presentText(root, "assumption"), root, source, memberSentinels, npiSentinels, crdSentinels, answersDtrSentinels);
     }
 
     /**
@@ -398,8 +491,8 @@ public class ScenarioRepository {
      */
     private static List<String> sentinels(JsonNode root, String singleKey, String listKey, String what) {
         List<String> out = new ArrayList<>();
-        JsonNode single = JsonSafe.child(root, singleKey);
-        if (!JsonSafe.nullOrMissing(single)) {
+        JsonNode single = singleKey == null ? null : JsonSafe.child(root, singleKey);
+        if (singleKey != null && !JsonSafe.nullOrMissing(single)) {
             if (!single.isString()) {
                 throw new IllegalArgumentException("its " + singleKey + " is not text.");
             }
@@ -423,7 +516,7 @@ public class ScenarioRepository {
         }
         Set<String> seen = new HashSet<>();
         for (String value : out) {
-            String key = singleKey.equals("sentinelMemberId") ? memberKey(value) : value;
+            String key = "sentinelNpi".equals(singleKey) ? value : memberKey(value);
             if (!seen.add(key)) {
                 throw new IllegalArgumentException("it names one " + what + " twice.");
             }
