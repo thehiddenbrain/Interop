@@ -1089,4 +1089,16 @@ class SubscriptionServiceTest {
         assertThat(client.calls.get()).isZero();
         assertThat(ledger.records()).isEmpty();
     }
+
+    @Test
+    void aKeyTheViewReadsRepeatedInOneObjectRaisesAFindingWithEveryValueAsOnCrd() {
+        String body = "{\"resourceType\":\"Subscription\",\"id\":\"" + ID + "\",\"status\":\"requested\",\"status\":\"active\"}";
+        RunEnvelope<SubscriptionDetail> result = service(stub(TestExchanges.of(GET, 200, body, true)), "live", WITH_RECEIVER)
+                .run(GET, about(ID).build(), RunOrigin.manual(), null);
+        assertThat(result.findings()).filteredOn(f -> f.title().equals("status is sent 2 times in one object")).singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
+                    assertThat(finding.detail()).contains("first \"requested\", then \"active\"").doesNotContain("wrong");
+                });
+    }
 }

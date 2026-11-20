@@ -317,7 +317,8 @@ public class CrdService {
         // The services are read through the mask, as a run's response is, so a secret the service repeats is not shown here.
         VendorExchange exchange = client.discover(call).withReturnedSecretsMasked();
         List<CrdDiscovery.Service> services = new ArrayList<>();
-        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
+        // Every value of a key the body repeats is listed, as on a run, so an earlier value is not on the wire view alone.
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         if (exchange.json() != null) {
             TrackedJson tracked = TrackedJson.of(exchange.json());
             for (TrackedJson.Node service : tracked.root().children("services")) {

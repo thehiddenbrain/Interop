@@ -21,6 +21,7 @@ import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
+import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
@@ -248,6 +249,8 @@ public class SubscriptionService {
             unrecognised(findings, view, "subscription status", PasCodes.SUBSCRIPTION_STATUS, view.status());
             unrecognised(findings, view, "notification content", PasCodes.PAYLOAD_CONTENT, view.payloadContent());
         }
+        // A key the body repeats is said with every value, as on CRD; the values are already among the returned fields.
+        findings.addAll(TrackedJson.repeatedKeyFindings(exchange, reading.additionalFields()));
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
 

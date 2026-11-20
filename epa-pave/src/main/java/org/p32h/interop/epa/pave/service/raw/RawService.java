@@ -279,7 +279,7 @@ public class RawService {
         Timing timing = support.timing(exchange);
 
         // Nothing is read into a designed view, so every field the response carried is listed.
-        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         List<IssueView> issues = List.of();
         String kind;
         if (exchange.httpStatus() == null) {

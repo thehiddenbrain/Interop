@@ -575,8 +575,12 @@ class MemberResponseMappingTest {
     void aNoteAboutTheBodyComesBeforeTheFieldsOfTheBody() {
         MemberLookupResult result = found("{\"memberId\":\"S123456789\",\"dob\":\"1970-01-31\",\"dob\":\"1971-02-01\",\"extra\":1}");
         assertThat(result.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.NOTE);
-        assertThat(result.additionalFields().get(0).value()).contains("repeats a key");
-        assertThat(result.additionalFields().get(1)).isEqualTo(new AdditionalField("extra", Presence.VALUE, "1"));
+        assertThat(result.additionalFields().get(0).value()).contains("repeats a key").doesNotContain("Only the last value");
+        // Every value of the repeated key, in the order sent, then the fields of the body.
+        assertThat(result.additionalFields().subList(1, 4)).containsExactly(
+                new AdditionalField("dob (value 1 of 2)", Presence.VALUE, "\"1970-01-31\""),
+                new AdditionalField("dob (value 2 of 2)", Presence.VALUE, "\"1971-02-01\""),
+                new AdditionalField("extra", Presence.VALUE, "1"));
     }
 
     // ---------------------------------------------------------------------------------------

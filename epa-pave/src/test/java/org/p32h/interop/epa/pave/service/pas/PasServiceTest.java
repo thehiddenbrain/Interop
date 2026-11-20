@@ -1386,4 +1386,18 @@ class PasServiceTest {
         assertThat(unknown.findings()).extracting(Finding::kind).contains(FindingKind.REQUEST_INCOMPLETE);
         assertThat(unknown.findings().get(0).detail()).contains("PASClaimInquiry item");
     }
+
+    @Test
+    void aKeyTheViewReadsRepeatedInOneObjectRaisesAFindingWithEveryValueAsOnCrd() {
+        String body = PasJson.bundle(PasJson.claimResponse(PasJson.items(PasJson.decided(1, "A1"))))
+                .replace("\"type\":\"collection\"", "\"type\":\"collection\",\"type\":\"batch\"");
+        RunEnvelope<PasDetail> result = service(stub(PasJson.response(200, body)), "live", Map.of(), Map.of())
+                .runSubmit(submission("S123456789").build(), RunOrigin.manual(), null);
+        assertThat(result.findings()).filteredOn(f -> f.title().equals("type is sent 2 times in one object")).singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
+                    assertThat(finding.detail()).contains("first \"collection\", then \"batch\"").doesNotContain("wrong");
+                });
+        assertThat(result.additionalFields()).extracting(f -> f.path()).contains("type (value 1 of 2)", "type (value 2 of 2)");
+    }
 }

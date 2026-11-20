@@ -2216,4 +2216,17 @@ class DtrServiceTest {
         // The reference is an address and can hold an identifier: it is shown on the result and never written to the line.
         assertThat(JsonSafe.mapper().writeValueAsString(ledger.only())).doesNotContain("draft-1");
     }
+
+    @Test
+    void aKeyTheViewReadsRepeatedInOneObjectRaisesAFindingWithEveryValueAsOnCrd() {
+        String body = "{\"resourceType\":\"Bundle\",\"type\":\"collection\",\"type\":\"searchset\",\"entry\":[]}";
+        RunEnvelope<DtrDetail> result = service(stub(TestExchanges.of(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 200, body, true)), "live", Map.of())
+                .runPackage(DtrFixtures.packageRequest("S123456789").build(), RunOrigin.manual(), null);
+        assertThat(result.findings()).filteredOn(f -> f.title().equals("type is sent 2 times in one object")).singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
+                    assertThat(finding.detail()).contains("first \"collection\", then \"searchset\"").doesNotContain("wrong");
+                });
+        assertThat(ledger.only().findings()).contains("GUIDE_RULE_BROKEN");
+    }
 }
