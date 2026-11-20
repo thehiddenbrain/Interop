@@ -189,7 +189,7 @@ public final class TrackedJson {
                     key.path() + " is sent " + key.values().size() + " times in one object",
                     "The body carries " + key.path() + " " + key.values().size() + " times inside one object: " + String.join(", ", said)
                             + ". JSON (RFC 8259) says the names in an object should be unique, and FHIR JSON allows a property once. "
-                            + "This tool reads the last value, as JSON readers do, and shows it above as the answer. Which value the "
+                            + "This tool reads the last value, as JSON readers do, and that is the value shown above. Which value the "
                             + "service meant cannot be told from the body. Every value is listed among the fields returned but not "
                             + "interpreted.",
                     null, null, null));

@@ -54,6 +54,18 @@ class CrdNoValueTest {
     }
 
     @Test
+    void theLedgerLineTellsNotReturnedNullEmptyAndNoValueApart() {
+        String covered = "{\"url\":\"covered\",\"valueCode\":\"covered\"}";
+        assertThat(mapper.read(TestExchanges.crd(200, body(covered))).ledgerCodes()).containsExactly("covered=covered");
+        assertThat(mapper.read(TestExchanges.crd(200, body(covered + ",{\"url\":\"pa-needed\",\"valueCode\":null}"))).ledgerCodes())
+                .containsExactly("covered=covered", "pa-needed=(null)");
+        assertThat(mapper.read(TestExchanges.crd(200, body(covered + ",{\"url\":\"pa-needed\",\"valueCode\":\"\"}"))).ledgerCodes())
+                .containsExactly("covered=covered", "pa-needed=(empty)");
+        assertThat(mapper.read(TestExchanges.crd(200, body(covered + ",{\"url\":\"pa-needed\"}"))).ledgerCodes())
+                .containsExactly("covered=covered", "pa-needed=(no value)");
+    }
+
+    @Test
     void theFindingSaysWhichOfTheTwoItWas() {
         assertThat(about(findings("{\"url\":\"covered\"}"), "covered")).contains("it carries no value[x] at all");
         assertThat(about(findings("{\"url\":\"covered\",\"valueCode\":\"\"}"), "covered")).contains("its value is empty")
