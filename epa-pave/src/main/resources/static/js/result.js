@@ -639,29 +639,29 @@ function bodyBlock(body, label, copyLabel) {
 
 /* ---------- 10. the error panel ---------- */
 
-// How each kind of error is announced. The server words what happened and what to do; this says
-// which kind of thing it is, because the tester's next move differs: fix the form, fix the
-// configuration, fix the test data, or report the environment. A kind this page does not know
-// is shown under its own name.
-const ERROR_KINDS = {
-    VALIDATION: {label: 'A problem with what was submitted', form: 'plain'},
-    CONFIGURATION: {label: 'About the configuration of this tool, not about the request', form: 'plain'},
-    BLOCKED: {label: 'Refused by the production guardrail', form: 'blocked'},
-    VENDOR_REJECTED: {label: 'The service rejected the request', form: 'fault'},
-    VENDOR_ERROR: {label: 'A fault in the environment: the service failed', form: 'fault'},
-    TIMEOUT: {label: 'A fault in the environment: no answer in time', form: 'fault'},
-    UNREACHABLE: {label: 'A fault in the environment: the service could not be reached', form: 'fault'},
-    MALFORMED_RESPONSE: {label: 'A fault in the environment: the answer could not be read', form: 'fault'},
-    NOT_FOUND: {label: 'Not found in this tool', form: 'plain'},
-    INTERNAL: {label: 'A failure of this tool, not of the service', form: 'fault'}
+// How the panel is drawn for each kind of error: a style, not words. The heading that says which
+// kind of thing it is, and the title and action under it, are the server's (error.heading), so
+// that the heading can say what happened on either profile, such as a timeout a mock scenario
+// played where no environment failed. An error with no heading is shown under its kind's name.
+const ERROR_FORMS = {
+    VALIDATION: 'plain',
+    CONFIGURATION: 'plain',
+    BLOCKED: 'blocked',
+    VENDOR_REJECTED: 'fault',
+    VENDOR_ERROR: 'fault',
+    TIMEOUT: 'fault',
+    UNREACHABLE: 'fault',
+    MALFORMED_RESPONSE: 'fault',
+    NOT_FOUND: 'plain',
+    INTERNAL: 'fault'
 };
 
 /** The error panel, for the error of a run and for an error answered in place of a result. */
 export function errorPanel(error) {
-    const known = error.kind && Object.prototype.hasOwnProperty.call(ERROR_KINDS, error.kind) ? ERROR_KINDS[error.kind] : null;
-    const panel = el('div', {class: 'error-panel error-panel--' + (known ? known.form : 'plain') + ' error-panel--' + token(error.kind || 'none')});
+    const form = error.kind && Object.prototype.hasOwnProperty.call(ERROR_FORMS, error.kind) ? ERROR_FORMS[error.kind] : 'plain';
+    const panel = el('div', {class: 'error-panel error-panel--' + form + ' error-panel--' + token(error.kind || 'none')});
     if (error.kind) {
-        panel.append(el('p', {class: 'error-panel__kind'}, known ? known.label : ['Error kind ', code(error.kind)],
+        panel.append(el('p', {class: 'error-panel__kind'}, error.heading ? error.heading : ['Error kind ', code(error.kind)],
             typeof error.httpStatus === 'number' ? [', HTTP ', el('strong', null, String(error.httpStatus))] : null));
     }
     panel.append(el('p', {class: 'error-panel__title'}, error.title));

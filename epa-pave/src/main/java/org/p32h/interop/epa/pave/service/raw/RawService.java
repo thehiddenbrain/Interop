@@ -41,6 +41,8 @@ import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
+import org.p32h.interop.epa.pave.service.run.MemberInText;
+import org.p32h.interop.epa.pave.service.run.MembersInBody;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
@@ -84,12 +86,15 @@ public class RawService {
         try {
             call = prepare(intent(request, unlock, origin));
         } catch (ProdWriteBlockedException refusal) {
+            // A refused write is recorded with its note too, and only the body as typed is known here.
+            refuseMemberText(request, request.rawBody());
             return support.blocked(EpaOperation.UNMAPPED, refusal, request, origin);
         }
         // On live the gateway refuses such a url itself. On mock nothing is sent, but a run of a
         // url that was never complete would record an answer to a request nobody could send.
         refuseIfIncomplete(call);
         Body body = body(request, call);
+        refuseMemberText(request, body.text() == null ? null : body.text().value());
 
         // An unresolved placeholder in the body, supplied or saved, is refused here on both
         // profiles, before anything is sent or recorded.
@@ -145,6 +150,7 @@ public class RawService {
         // gateway cannot prepare a url that is not complete, for a preview or for a send.
         refuseIfIncomplete(call);
         Body chosen = body(request, call);
+        refuseMemberText(request, chosen.text() == null ? null : chosen.text().value());
         String body = null;
         List<String> notes = new ArrayList<>();
         notes.add(bodySentence(chosen.source()));
@@ -158,6 +164,20 @@ public class RawService {
             }
         }
         return RequestPreview.of(EpaOperation.UNMAPPED, call, body, notes, null).withBodySource(chosen.source());
+    }
+
+    /**
+     * Refuses a note, tester reference or expectation that holds a member identifier the body
+     * about to be sent states. A request sent as written names no member on its form, so the body
+     * is the only place this run's member can be read from; the other runs make the same check
+     * against their form in {@link RunInputs#common}.
+     */
+    private static void refuseMemberText(RawRunRequest request, String body) {
+        Map<String, String> problems = MemberInText.problemsInBody(request.note(), request.testerRef(), request.expected(),
+                MembersInBody.read(body), "Nothing was sent.");
+        if (!problems.isEmpty()) {
+            throw new ValidationException(problems.entrySet().stream().map(e -> new FieldError(e.getKey(), e.getValue())).toList());
+        }
     }
 
     /** The body that goes with a request, and which of the three it is. */

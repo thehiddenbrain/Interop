@@ -524,7 +524,7 @@ class ConfigControllerTest {
                 .andExpect(jsonPath("$.writesAllowed").value(true))
                 .andExpect(jsonPath("$.floorAllows").value(true))
                 .andExpect(jsonPath("$.reason").value("Production writes are unlocked for this session on \"Onyx Production\". Any change to the "
-                        + "configuration locks them again."));
+                        + "configuration locks them again. Locking them again, from this or any other browser, ends the unlock of every session."));
 
         // The unlock is in the session, where the other controllers read it, and the gateway honours it.
         MockHttpServletRequest sameBrowser = new MockHttpServletRequest();

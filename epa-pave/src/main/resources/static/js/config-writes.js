@@ -126,9 +126,6 @@ export function createWritesPanel(context) {
                 'The unlock is held for this browser session alone, and other browsers still read as locked. '
                     + 'It ends with any change to the configuration, made from any browser: a switch of environment, an upload of an '
                     + 'environment or a collection. A restart of the tool ends it too.'),
-                el('p', null, el('strong', null, 'Locking ends the unlock of every session. '),
-                    'The button below, pressed in this browser or in any other, locks writes for every browser session at once, '
-                    + 'and each one that wants to write again has to unlock again.'),
                 whatIsAWrite(),
                 el('div', {class: 'button-row'},
                     lockButton()),

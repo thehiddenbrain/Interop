@@ -12,9 +12,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.p32h.interop.epa.pave.model.CodeListSelfCheck;
+import org.p32h.interop.epa.pave.model.ErrorView;
 import org.p32h.interop.epa.pave.model.FindingKindOption;
 import org.p32h.interop.epa.pave.model.Finding;
 import org.p32h.interop.epa.pave.model.IssueView;
+import org.p32h.interop.epa.pave.model.LookupField;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.ScenarioList;
 import org.p32h.interop.epa.pave.model.ScenarioSummary;
@@ -28,6 +30,7 @@ import org.p32h.interop.epa.pave.model.dtr.QuestionnaireView;
 import org.p32h.interop.epa.pave.model.pas.PasDecision;
 import org.p32h.interop.epa.pave.model.pas.PasDetail;
 import org.p32h.interop.epa.pave.service.config.ConfigViews;
+import org.p32h.interop.epa.pave.service.config.WriteAccess;
 import org.p32h.interop.epa.pave.service.raw.RawRunRequest;
 
 /**
@@ -88,7 +91,12 @@ class StaticServerWordsTest {
             new Read("workbench.js", "scenario.notes", ScenarioSummary.class, "notes"),
             new Read("workbench.js", "list.notes", ScenarioList.class, "notes"),
             new Read("app.js", "answer.body.source", CodeListSelfCheck.class, "source"),
-            new Read("app.js", "answer.body.placeholder", CodeListSelfCheck.class, "placeholder"));
+            new Read("app.js", "answer.body.placeholder", CodeListSelfCheck.class, "placeholder"),
+            new Read("config-writes.js", "access.reason", WriteAccess.class, "reason"),
+            new Read("result.js", "error.heading", ErrorView.class, "heading"),
+            new Read("lookup.js", "field.masked", LookupField.class, "masked"),
+            new Read("lookup.js", "field.note", LookupField.class, "note"),
+            new Read("case-context.js", "field.masked", LookupField.class, "masked"));
 
     /** A copy the page kept of the server's words, which the server now serves: the script and the pattern that finds it. */
     private record Copy(String script, String pattern, String why) {
@@ -100,6 +108,7 @@ class StaticServerWordsTest {
             new Copy("*", "\\bSTARTS_CLOSED\\b", "a comparison group says whether it starts open (GroupCount.startsOpen)"),
             new Copy("crd-compare.js", "\\bconst\\s+SOURCES\\b", "a value of the case says where it came from (CaseValue.sourceLabel)"),
             new Copy("crd-compare.js", "notes\\[0]", "the comparison's caveat is RequestComparison.caveat"),
+            new Copy("crd-compare.js", "note\\s*!==\\s*caveat", "the server keeps the caveat out of the notes (RequestComparison.caveat)"),
             new Copy("pas-detail.js", "\\bconst\\s+SOURCES\\b", "a decision says where it was stated (PasDecision.sourceLabel)"),
             new Copy("pas-detail.js", "no attachment was sent", "how attachments travel is PasDetail.attachmentNote"),
             new Copy("pas-notifications.js", "No service can call this receiver back", "whether the receiver can be reached is ModeView.bindNote"),
@@ -109,7 +118,11 @@ class StaticServerWordsTest {
             new Copy("*", "'Complete the response'|'Send answers and get the next question'",
                     "the DTR step buttons are named by the labels of SUBMIT_RESPONSE and ANSWER_NEXT_QUESTION"),
             new Copy("*", "the bundled placeholder, not a P32H list",
-                    "a list that says it is synthetic can be the sample or a tester's own: the label says placeholder and the self-check's source"));
+                    "a list that says it is synthetic can be the sample or a tester's own: the label says placeholder and the self-check's source"),
+            new Copy("config-writes.js", "Locking ends the unlock|locks writes for every browser session at once",
+                    "what a lock does to every session's unlock is said by the server, in WriteAccess.reason"),
+            new Copy("*", "\\bERROR_KINDS\\b|A fault in the environment:",
+                    "an error's heading is ErrorView.heading, which says a timeout a mock scenario played is not a fault in the environment"));
 
     @Test
     void everyFieldAScriptReadsInPlaceOfItsOwnWordsIsOnTheRecordTheServerSends() throws IOException {

@@ -344,10 +344,9 @@ export function createComparison(spec) {
  */
 export function drawComparison(answer, about, actions) {
     // The server's sentence about what a comparison cannot show comes with every answer,
-    // comparable or not. It is set apart so that it is always in view, and said once: the notes
-    // may repeat it.
+    // comparable or not, apart from the notes. It is set apart so that it is always in view.
     const caveat = answer.caveat || null;
-    const otherNotes = (answer.notes || []).filter(note => note !== caveat);
+    const otherNotes = answer.notes || [];
 
     // Out of date, the comparison says so at its head, in the summary line when it is folded, and
     // with the documents, which stay pinned in view while the list is read.

@@ -409,7 +409,8 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         if (holds(unlock, snapshot)) {
             return new WriteAccess(true, true, true, "Production writes are unlocked for this session on \"" + active.name()
-                    + "\". Any change to the configuration locks them again.");
+                    + "\". Any change to the configuration locks them again. Locking them again, from this or any other browser, ends "
+                    + "the unlock of every session.");
         }
         return new WriteAccess(true, false, true, "\"" + active.name() + "\" is production and writes are locked for this session. "
                 + "Unlock them by typing the environment name.");
