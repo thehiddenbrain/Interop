@@ -128,6 +128,18 @@ class SubscriptionServiceTest {
         return service().run(operation, request, RunOrigin.manual(), null);
     }
 
+    @Test
+    void whereARunCameFromReachesTheGatewaySoARefusalCanBeWordedForAReplayOrASuite() {
+        RunOrigin suite = new RunOrigin("suite-00000000-0000-4000-8000-000000000009", "case-1", null);
+        service().run(EpaOperation.SUBSCRIPTION_CREATE, request().build(), suite, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(suite);
+        RunOrigin replay = new RunOrigin(null, null, "run-00000000-0000-4000-8000-000000000008");
+        service().run(EpaOperation.SUBSCRIPTION_GET, about("sub-1").build(), replay, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(replay);
+        service().preview(EpaOperation.SUBSCRIPTION_CREATE, request().build(), null);
+        assertThat(gateway.lastIntent().origin()).isNull();
+    }
+
     /** A client that counts its calls and answers every one of them with a subscription. */
     private static final class CountingClient implements SubscriptionClient {
         private final AtomicInteger calls = new AtomicInteger();

@@ -457,6 +457,34 @@ class CrdServiceTest {
         assertThat(gateway.lastIntent().unlock()).isNull();
     }
 
+    @Test
+    void whereARunCameFromReachesTheGatewaySoARefusalCanBeWordedForAReplayOrASuite() {
+        RunOrigin suite = new RunOrigin("suite-00000000-0000-4000-8000-000000000009", "case-1", null);
+        service().run(request("P32H-NO-AUTH").build(), suite, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(suite);
+        RunOrigin replay = new RunOrigin(null, null, "run-00000000-0000-4000-8000-000000000008");
+        service().run(request("P32H-NO-AUTH").build(), replay, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(replay);
+        // A preview is no run, and says nothing about where one came from.
+        service().preview(request("P32H-NO-AUTH").build(), null);
+        assertThat(gateway.lastIntent().origin()).isNull();
+    }
+
+    @Test
+    void aNextStepToDtrOrPasHandsOnThisRunSoTheLaterLineIsLinkedToIt() {
+        // Suites VS-11: a manual chain's later line names the CRD run it followed, as a suite chain row's does.
+        RunEnvelope<CrdDetail> toDtr = run("P32H-DOC-DTR");
+        assertThat(toDtr.nextStep().action()).isEqualTo(NextAction.START_DTR);
+        assertThat(toDtr.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(toDtr.runId());
+        assertThat(ledger.last().runId()).isEqualTo(toDtr.runId());
+        RunEnvelope<CrdDetail> toPas = run("P32H-PA-REQ");
+        assertThat(toPas.nextStep().action()).isEqualTo(NextAction.START_PAS);
+        assertThat(toPas.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(toPas.runId());
+        // A step that starts nothing hands on no run.
+        assertThat(run("P32H-NO-AUTH").nextStep().carry()).doesNotContainKey(NextStepView.CARRY_RUN_ID);
+        assertThat(run("P32H-EMPTY").nextStep().carry()).doesNotContainKey(NextStepView.CARRY_RUN_ID);
+    }
+
     // ---- not found, faults ----
 
     @Test

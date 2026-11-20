@@ -8,6 +8,13 @@ public enum FindingKind {
     CODE_OUTSIDE_VALUE_SET,
     /** An element the implementation guide expects is missing, so the response says less than it should. */
     REQUIRED_ELEMENT_MISSING,
+    /**
+     * The response breaks a rule of the guide that is neither a missing element nor a code outside
+     * a value set: an invariant, an element where the guide does not let it sit, or an element sent
+     * more often than the guide allows. Filed under one of the other two, such a rule reads as
+     * something it is not, and a tester repeats that reading to the vendor.
+     */
+    GUIDE_RULE_BROKEN,
     /** The procedure code list and the service disagree on whether prior authorization is required. */
     CODE_LIST_DISAGREES_ON_AUTH,
     /** The procedure code list and the service disagree on the delegated vendor. */

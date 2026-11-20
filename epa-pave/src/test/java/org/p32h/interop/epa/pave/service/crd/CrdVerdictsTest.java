@@ -342,17 +342,18 @@ class CrdVerdictsTest {
     }
 
     @Test
-    void aNamedQuestionnaireResponseIsShownAndTheReasonSaysItIsNotYetHandedOnToDtr() {
-        // V-01: NextStepView has no carry key for a QuestionnaireResponse reference, so it is shown and said not to be carried.
+    void aNamedQuestionnaireResponseIsHandedOnToDtrAsAReferenceAndNeverAsACompletedResponse() {
+        // V-01: the reference CRD 2.0.1 names in the response sub-extension goes to DTR under its own key.
         VendorExchange exchange = TestExchanges.crd(200, one("{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},"
                 + "{\"url\":\"doc-needed\",\"valueCode\":\"both\"},{\"url\":\"doc-purpose\",\"valueCode\":\"withpa\"},"
                 + "{\"url\":\"response\",\"valueReference\":{\"reference\":\"QuestionnaireResponse/qr-1\"}},"
                 + "{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}"));
         NextStepView next = CrdVerdicts.nextStep(mapper.read(exchange), exchange);
         assertThat(next.action()).isEqualTo(NextAction.START_DTR);
-        assertThat(next.reason()).endsWith("A partly completed questionnaire response is named for DTR to start from. This tool does not "
-                + "yet hand that response on to DTR: it is shown on the result.");
-        assertThat(next.carry().values()).noneSatisfy(values -> assertThat(values).contains("QuestionnaireResponse/qr-1"));
+        assertThat(next.reason()).endsWith("A partly completed questionnaire response is named for DTR to start from.");
+        assertThat(next.reason()).doesNotContain("does not yet hand");
+        assertThat(next.carry()).containsEntry(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF, List.of("QuestionnaireResponse/qr-1"));
+        // A reference is not a completed response, which PAS would submit.
         assertThat(next.carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
     }
 

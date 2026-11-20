@@ -44,13 +44,18 @@ class DtrHandoffTest {
         given.put(NextStepView.CARRY_DTR_LINK_URL, List.of("https://example.org/p32h-placeholder/dtr/launch"));
         given.put(NextStepView.CARRY_DTR_APP_CONTEXT, List.of("questionnaire=" + ONE));
         given.put(NextStepView.CARRY_DOC_PURPOSE, List.of("withpa"));
+        given.put(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF, List.of("QuestionnaireResponse/qr-draft-1"));
         given.put(NextStepView.CARRY_PROCEDURE_CODES, List.of("00000"));
         given.put("somethingElse", List.of("not a key this tool defines"));
         Map<String, List<String>> carry = new NextStepView(org.p32h.interop.epa.pave.model.NextAction.REVIEW, "Next: read.", "Because.",
                 DtrHandoff.afterPackage(RUN, List.of("95810"), List.of(ONE), given).carry(null)).carry();
         assertThat(carry).containsOnlyKeys(NextStepView.CARRY_COVERAGE_ASSERTION_ID, NextStepView.CARRY_ORDER, NextStepView.CARRY_DELEGATED_VENDOR,
                 NextStepView.CARRY_DTR_LINK_URL, NextStepView.CARRY_DTR_APP_CONTEXT, NextStepView.CARRY_DOC_PURPOSE, NextStepView.CARRY_PROCEDURE_CODES,
-                NextStepView.CARRY_QUESTIONNAIRE, NextStepView.CARRY_RUN_ID);
+                NextStepView.CARRY_QUESTIONNAIRE, NextStepView.CARRY_RUN_ID, NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF);
+        // The reference CRD named for DTR to start from is handed on unchanged, past the package and every step after it.
+        assertThat(carry.get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF)).containsExactly("QuestionnaireResponse/qr-draft-1");
+        Map<String, List<String>> afterAStep = DtrHandoff.afterAnswering(RUN, List.of("95810"), ONE, carry).carry(null);
+        assertThat(afterAStep.get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF)).containsExactly("QuestionnaireResponse/qr-draft-1");
         assertThat(carry.get(NextStepView.CARRY_DELEGATED_VENDOR)).containsExactly("eviCore");
         // What CRD said the documentation is for reaches the step that builds the response, which reads it as the intended use.
         assertThat(carry.get(NextStepView.CARRY_DOC_PURPOSE)).containsExactly("withpa");

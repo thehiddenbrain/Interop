@@ -36,6 +36,26 @@ class PasFindingsTest {
     }
 
     @Test
+    void aReviewActionOnTheResponseOrOnTheItemItselfBreaksTheContextPas201GivesItAndIsAFindingOfThatKind() {
+        // PAS 2.0.1 ClaimResponse.fsh, Extension ReviewAction: context Claim.item, Examples.item, ClaimResponse.item.adjudication.
+        List<Finding> onItem = findings(bundle(claimResponse("\"outcome\":\"complete\"",
+                items("{\"itemSequence\":1,\"extension\":[" + PasJson.action("A1") + "]}"))), "95810");
+        assertThat(onItem).singleElement().satisfies(f -> {
+            assertThat(f.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
+            assertThat(f.title()).isEqualTo("A review action sits where PAS 2.0.1 does not place one");
+            assertThat(f.detail()).startsWith(PasResponseMapper.ON_THE_ITEM).contains("for Claim.item and ClaimResponse.item.adjudication");
+            assertThat(f.subject()).isEqualTo("entry[0].resource.item[0].extension[0]");
+        });
+        List<Finding> onResponse = findings(bundle(claimResponse("\"outcome\":\"complete\"", "\"extension\":[" + PasJson.action("A1") + "]")),
+                "95810");
+        assertThat(onResponse).extracting(Finding::kind).contains(FindingKind.GUIDE_RULE_BROKEN);
+        assertThat(onResponse).filteredOn(f -> f.kind() == FindingKind.GUIDE_RULE_BROKEN).singleElement()
+                .satisfies(f -> assertThat(f.detail()).startsWith(PasResponseMapper.ON_THE_RESPONSE));
+        // In the place the guide gives it, nothing is said.
+        assertThat(findings(bundle(claimResponse("\"outcome\":\"complete\"", items(decided(1, "A1")))), "95810")).isEmpty();
+    }
+
+    @Test
     void anErrorResponseInTheGuidesOwnShapeRaisesNothingAboutMissingDecisions() {
         // The shape of ErrorResponseExample: outcome error, errors coded in X12 901, no item.
         String error = bundle(claimResponse("\"status\":\"active\"", "\"use\":\"preauthorization\"", "\"outcome\":\"error\"",

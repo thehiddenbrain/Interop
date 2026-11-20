@@ -14,9 +14,10 @@ import java.util.List;
 /**
  * The rules of the CRD 2.0.1 coverage information extension other than its value sets, applied to
  * one extension as read: the cardinalities of its sub-extensions, its invariants crd-ci-q1, q3 and
- * q5, and the places it may sit. Each finding names the rule and the version. A broken rule is
- * filed as {@link FindingKind#REQUIRED_ELEMENT_MISSING}, whose title then names the rule: the
- * shared finding kinds have none for a broken invariant or a misplaced extension.
+ * q5, and the places it may sit. Each finding names the rule and the version. A part that is
+ * required and absent, or present with no value, is {@link FindingKind#REQUIRED_ELEMENT_MISSING}.
+ * A broken invariant, an extension where it may not sit and a part sent more often than allowed
+ * are {@link FindingKind#GUIDE_RULE_BROKEN}: nothing is missing in them.
  *
  * <p>Two invariants of 2.0.1 are not applied, and {@link #SCOPE} says so on every result:
  * <ul>
@@ -80,7 +81,7 @@ final class CrdGuideRules {
         for (SubExtensionView other : view.otherSubExtensions()) {
             if (other.url().endsWith(CrdResponseMapper.REPEATED)) {
                 String name = other.url().substring(0, other.url().length() - CrdResponseMapper.REPEATED.length());
-                findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
+                findings.add(new Finding(FindingKind.GUIDE_RULE_BROKEN,
                         V + " allows " + name + " once, and it was sent more than once",
                         at + " carries " + name + " more than once. " + V + " ext-coverage-information allows it at most once. The "
                                 + "first was read as the answer, and each further one is listed with the sub-extensions as repeated.",
@@ -119,7 +120,7 @@ final class CrdGuideRules {
         boolean formNamed = view.questionnaires().stream().anyMatch(q -> q.presence() != Presence.ABSENT)
                 || view.responses().stream().anyMatch(r -> r.presence() != Presence.ABSENT);
         if (formNamed && (view.docNeeded().code() == null || view.docNeeded().is(CrdCodes.NO_DOC))) {
-            findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
+            findings.add(new Finding(FindingKind.GUIDE_RULE_BROKEN,
                     V + " crd-ci-q1: a questionnaire or a response is named without doc-needed",
                     at + " names a questionnaire or a response, and doc-needed is "
                             + (view.docNeeded().code() == null ? "not stated" : "no-doc") + ". " + V + " rule crd-ci-q1 allows a "
@@ -130,7 +131,7 @@ final class CrdGuideRules {
         boolean anyConditional = view.covered().is("conditional") || view.paNeeded().is("conditional")
                 || view.docNeeded().is("conditional");
         if (infoAsked && !anyConditional) {
-            findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
+            findings.add(new Finding(FindingKind.GUIDE_RULE_BROKEN,
                     V + " crd-ci-q3: info-needed is sent and nothing is conditional",
                     at + " asks for information (info-needed), and none of covered, pa-needed and doc-needed is conditional. " + V
                             + " rule crd-ci-q3 requires at least one of them to be conditional when information is asked for.",
@@ -140,7 +141,7 @@ final class CrdGuideRules {
         boolean satisfied = view.paNeeded().is("satisfied");
         boolean identifier = view.satisfiedPaId().presence() != Presence.ABSENT;
         if (satisfied != identifier) {
-            findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
+            findings.add(new Finding(FindingKind.GUIDE_RULE_BROKEN,
                     satisfied ? V + " crd-ci-q5: pa-needed is satisfied and satisfied-pa-id is missing"
                             : V + " crd-ci-q5: satisfied-pa-id is sent and pa-needed is not satisfied",
                     at + (satisfied ? " says prior authorization requirements are already met and gives no satisfied-pa-id."
@@ -150,9 +151,8 @@ final class CrdGuideRules {
         }
 
         if (view.onACard()) {
-            // Filed with the other broken rules of the extension. No finding kind names a rule
-            // about where an element sits, and a value set has nothing to do with it.
-            findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
+            // Nothing is missing and no value set is involved: the rule broken is where the extension may sit.
+            findings.add(new Finding(FindingKind.GUIDE_RULE_BROKEN,
                     "Coverage information sits on a card, which " + V + " does not allow",
                     at + " is on a CDS Hooks card. " + V + " defines ext-coverage-information for these resources only: "
                             + "QuestionnaireResponse, Encounter, NutritionOrder, CommunicationRequest, DeviceRequest, ServiceRequest and "

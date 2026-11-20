@@ -17,6 +17,7 @@ import org.p32h.interop.epa.pave.model.IsoDates;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
 import org.p32h.interop.epa.pave.model.MemberIdForms;
+import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Protocol;
@@ -35,6 +36,7 @@ import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
+import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.config.CallIntent;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
@@ -105,7 +107,7 @@ public class CrdService {
 
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, origin));
         } catch (ProdWriteBlockedException refusal) {
             return support.blocked(operation, refusal, request, origin);
         }
@@ -134,8 +136,10 @@ public class CrdService {
 
         VendorExchange exchange = client.hook(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), RunSupport.npi(request)));
 
-        // From here on the call has been made, so whatever happens next the run is recorded.
-        RunRecord.Builder draft = support.fill(support.draft(operation, call, exchange, origin), request).hook(hook);
+        // From here on the call has been made, so whatever happens next the run is recorded. The id is
+        // settled now because the next step hands it on, so that the step after this one is linked to it.
+        String runId = RunStamps.newRunId();
+        RunRecord.Builder draft = support.fill(support.draft(operation, call, exchange, origin), request).runId(runId).hook(hook);
         if (ownBody) {
             // The codes that went out are the ones in the tester's body, not the ones left on the form.
             draft.procedureCodes(orders.stream().map(SentOrder::code).filter(Texts::present).distinct().toList());
@@ -144,7 +148,7 @@ public class CrdService {
         try {
             // Only the reading and wording of the response is inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one run.
-            read = interpret(request, call, exchange, orders, incomplete);
+            read = interpret(request, call, exchange, orders, incomplete, runId);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -189,7 +193,7 @@ public class CrdService {
     }
 
     private Interpreted interpret(CrdRunRequest request, PreparedCall call, VendorExchange exchange, List<SentOrder> orders,
-                                  List<CaseResources.Required> incomplete) {
+                                  List<CaseResources.Required> incomplete, String runId) {
         CrdReading reading = mapper.read(exchange, orders);
         CrdOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
@@ -203,7 +207,7 @@ public class CrdService {
         VerdictView verdict = CrdVerdicts.verdict(reading, exchange);
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = CrdVerdicts.nextStep(reading, exchange);
+        NextStepView nextStep = followedFrom(CrdVerdicts.nextStep(reading, exchange), runId);
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
         ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;
@@ -219,6 +223,20 @@ public class CrdService {
         return new Interpreted(reading, findings, verdict, expectation, nextStep, error, timing, correlation);
     }
 
+    /**
+     * The next step with this run's id handed on when the step it offers is DTR or PAS, so that the
+     * run made from it is linked to this one in the ledger, as a step of a suite chain is. Any
+     * other next step starts nothing that could be linked.
+     */
+    static NextStepView followedFrom(NextStepView next, String runId) {
+        if (Texts.blank(runId) || (next.action() != NextAction.START_PAS && next.action() != NextAction.START_DTR)) {
+            return next;
+        }
+        Map<String, List<String>> carry = new LinkedHashMap<>(next.carry());
+        carry.put(NextStepView.CARRY_RUN_ID, List.of(runId));
+        return new NextStepView(next.action(), next.headline(), next.reason(), carry);
+    }
+
     /** What the request would be, without sending it. Nothing is recorded. */
     public RequestPreview preview(CrdRunRequest request, ProdUnlock unlock) {
         validate(request);
@@ -227,7 +245,7 @@ public class CrdService {
         MemberIdForms shown = memberId.typed().isEmpty() ? null : memberId;
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
             return RequestPreview.blocked(operation, refusal, shown);
         }
@@ -296,9 +314,10 @@ public class CrdService {
                 exchange.request() == null || exchange.request().sent() ? null : exchange.request().note());
     }
 
-    private static CallIntent intent(EpaOperation operation, CrdRunRequest request, ProdUnlock unlock) {
+    /** @param origin where the run came from, so the gateway can word a refusal for a replay or a suite. Null for a preview */
+    private static CallIntent intent(EpaOperation operation, CrdRunRequest request, ProdUnlock unlock, RunOrigin origin) {
         return CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()).withUnlock(unlock)
-                .withExpectedEpoch(request.configEpoch());
+                .withExpectedEpoch(request.configEpoch()).withOrigin(origin);
     }
 
     private void validate(CrdRunRequest request) {

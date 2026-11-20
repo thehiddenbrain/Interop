@@ -146,6 +146,18 @@ class DtrServiceTest {
         return expected;
     }
 
+    @Test
+    void whereARunCameFromReachesTheGatewaySoARefusalCanBeWordedForAReplayOrASuite() {
+        RunOrigin suite = new RunOrigin("suite-00000000-0000-4000-8000-000000000009", "case-1", null);
+        RunEnvelope<DtrDetail> fetched = service().runPackage(DtrFixtures.packageRequest("P32H-DTR-ADAPT").build(), suite, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(suite);
+        RunOrigin replay = new RunOrigin(null, null, "run-00000000-0000-4000-8000-000000000008");
+        service().runNextQuestion(following(fetched, "P32H-DTR-ADAPT").build(), replay, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(replay);
+        service().previewPackage(DtrFixtures.packageRequest("P32H-DTR-ADAPT").build(), null);
+        assertThat(gateway.lastIntent().origin()).isNull();
+    }
+
     private RunEnvelope<DtrDetail> next(RunEnvelope<DtrDetail> previous, DtrAnswerInput... answers) {
         return service().runNextQuestion(following(previous, "P32H-DTR-ADAPT", answers).build(), RunOrigin.manual(), null);
     }

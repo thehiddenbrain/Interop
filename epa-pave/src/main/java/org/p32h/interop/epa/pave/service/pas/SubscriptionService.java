@@ -110,7 +110,7 @@ public class SubscriptionService {
 
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, id, unlock));
+            call = gateway.prepare(intent(operation, request, id, unlock, origin));
         } catch (ProdWriteBlockedException refusal) {
             return support.blocked(operation, refusal, request, origin, known);
         }
@@ -274,7 +274,7 @@ public class SubscriptionService {
         String id = Texts.trimToNull(request.subscriptionId());
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, id, unlock));
+            call = gateway.prepare(intent(operation, request, id, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
             return RequestPreview.blocked(operation, refusal, null);
         }
@@ -291,9 +291,10 @@ public class SubscriptionService {
         return operation == EpaOperation.SUBSCRIPTION_CREATE || operation == EpaOperation.SUBSCRIPTION_UPDATE;
     }
 
-    private static CallIntent intent(EpaOperation operation, SubscriptionRequest request, String id, ProdUnlock unlock) {
+    /** @param origin where the run came from, so the gateway can word a refusal for a replay or a suite. Null for a preview */
+    private static CallIntent intent(EpaOperation operation, SubscriptionRequest request, String id, ProdUnlock unlock, RunOrigin origin) {
         CallIntent intent = CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()).withUnlock(unlock)
-                .withExpectedEpoch(request.configEpoch());
+                .withExpectedEpoch(request.configEpoch()).withOrigin(origin);
         // The id reaches the url through the gateway, which encodes it as one path segment. With
         // no id a get lists, and a create addresses the collection.
         return id == null ? intent : intent.withUrlValue(ID_TOKEN, id);

@@ -125,7 +125,7 @@ public class DtrService {
 
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, origin));
         } catch (ProdWriteBlockedException refusal) {
             return support.blocked(operation, refusal, request, origin);
         }
@@ -140,6 +140,10 @@ public class DtrService {
             if (!request.questionnaires().isEmpty() || Texts.present(request.coverageAssertionId())) {
                 requestNotes.add("The questionnaires and the coverage assertion id on the form were not added to the body you supplied. "
                         + "Only what the body itself holds was sent.");
+            }
+            String draftNote = DtrRequestBuilder.namedDraftNote(request.carry());
+            if (draftNote != null) {
+                requestNotes.add(draftNote);
             }
         } else {
             sent = builder.buildPackage(request, call::resolve);
@@ -182,7 +186,7 @@ public class DtrService {
         MemberIdForms shown = shownMemberId(request);
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
             return RequestPreview.blocked(operation, refusal, shown);
         }
@@ -209,7 +213,7 @@ public class DtrService {
 
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, origin));
         } catch (ProdWriteBlockedException refusal) {
             return support.blocked(operation, refusal, request, origin);
         }
@@ -269,7 +273,7 @@ public class DtrService {
         EpaOperation operation = EpaOperation.DTR_NEXT_QUESTION;
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
             return RequestPreview.blocked(operation, refusal, null);
         }
@@ -454,9 +458,10 @@ public class DtrService {
                 .withHttpStatus(exchange.httpStatus()).withIssues(reading.detail().issues());
     }
 
-    private static CallIntent intent(EpaOperation operation, RunRequest request, ProdUnlock unlock) {
+    /** @param origin where the run came from, so the gateway can word a refusal for a replay or a suite. Null for a preview */
+    private static CallIntent intent(EpaOperation operation, RunRequest request, ProdUnlock unlock, RunOrigin origin) {
         return CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()).withUnlock(unlock)
-                .withExpectedEpoch(request.configEpoch());
+                .withExpectedEpoch(request.configEpoch()).withOrigin(origin);
     }
 
     private static MockSelection selection(RunRequest request) {

@@ -230,11 +230,33 @@ public final class DtrRequestBuilder {
                     + (carriedAssertions.size() > 1 ? " CRD handed on " + carriedAssertions.size()
                     + " of them. The first was sent, because the operation takes one." : ""));
         }
+        String draftNote = namedDraftNote(carry);
+        if (draftNote != null) {
+            notes.add(draftNote);
+        }
         if (!carried(carry, NextStepView.CARRY_DTR_LINK_URL).isEmpty() || !carried(carry, NextStepView.CARRY_DTR_APP_CONTEXT).isEmpty()) {
             notes.add("CRD handed on a SMART link for DTR. This tool does not launch it and does not read its appContext: it hosts no "
                     + "SMART launch. The questionnaire is asked for through the questionnaire package operation.");
         }
         return new Package(JsonSafe.pretty(root), notes, canonicals, codes.stream().map(code -> code.code().strip()).toList(), sentCodes);
+    }
+
+    /**
+     * The one note that says CRD named a partly completed QuestionnaireResponse for DTR to start
+     * from, quoting the reference, and that this tool does not fetch it. Null when CRD named none.
+     * The DTR 2.0.1 questionnaire package operation has no input for such a response (its inputs are
+     * coverage, order, referenced, questionnaire, context and changedsince), so what the package
+     * returns is what the tool works from.
+     */
+    public static String namedDraftNote(Map<String, List<String>> carry) {
+        List<String> named = carried(carry, NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF);
+        if (named.isEmpty()) {
+            return null;
+        }
+        String it = named.size() == 1 ? "it" : "them";
+        return "CRD named " + (named.size() == 1 ? "a partly completed questionnaire response" : "partly completed questionnaire responses")
+                + " for DTR to start from: " + String.join(", ", named) + ". This tool does not fetch " + it + ": the DTR 2.0.1 "
+                + "questionnaire package operation has no input for " + it + ", and what the package returns is what this tool works from.";
     }
 
     /**

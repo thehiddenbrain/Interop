@@ -43,11 +43,13 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
      * The keys a DTR step passes on unchanged. They are the ones CRD writes and a DTR step has
      * nothing to add to. A key that is not one of the CARRY constants is never passed on. What CRD
      * said the documentation is for is among them, because the step that builds a response reads
-     * it as the intended use, and that step comes after the package fetch and the loop.
+     * it as the intended use, and that step comes after the package fetch and the loop. So is the
+     * reference to a partly completed response CRD named for DTR to start from: no step of this
+     * tool fetches it, and it stays visible on every step's result until the journey leaves DTR.
      */
     private static final List<String> PASSED_ON = List.of(NextStepView.CARRY_COVERAGE_ASSERTION_ID, NextStepView.CARRY_ORDER,
             NextStepView.CARRY_DELEGATED_VENDOR, NextStepView.CARRY_DTR_LINK_URL, NextStepView.CARRY_DTR_APP_CONTEXT,
-            NextStepView.CARRY_DOC_PURPOSE);
+            NextStepView.CARRY_DOC_PURPOSE, NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF);
 
     public DtrHandoff {
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);

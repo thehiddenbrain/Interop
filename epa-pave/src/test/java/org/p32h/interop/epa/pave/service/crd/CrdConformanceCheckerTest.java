@@ -113,7 +113,7 @@ class CrdConformanceCheckerTest {
                 + code("doc-purpose", "withfax") + "," + code("info-needed", "mood"))), "95810");
         // Three codes outside their value sets, and crd-ci-q3, since info-needed is sent and nothing is conditional.
         assertThat(kinds(findings)).containsExactly(FindingKind.CODE_OUTSIDE_VALUE_SET, FindingKind.CODE_OUTSIDE_VALUE_SET,
-                FindingKind.CODE_OUTSIDE_VALUE_SET, FindingKind.REQUIRED_ELEMENT_MISSING);
+                FindingKind.CODE_OUTSIDE_VALUE_SET, FindingKind.GUIDE_RULE_BROKEN);
         assertThat(findings.get(0).title()).isEqualTo("covered=maybe is not in the CRD 2.0.1 value set");
         assertThat(findings.get(0).detail()).isEqualTo("The CRD 2.0.1 value set for covered is: covered, not-covered, conditional. Codes are "
                 + "compared exactly, letter case included. No version of the guide this tool can read (CRD 2.0.1 and CRD 2.2.0 ballot) "
@@ -611,7 +611,7 @@ class CrdConformanceCheckerTest {
         List<Finding> q1 = checkResponse(200, response(action(1, code("pa-needed", "auth-needed")
                 + ",{\"url\":\"questionnaire\",\"valueCanonical\":\"https://example.org/p32h-placeholder/Questionnaire/q\"}")), "95810");
         assertThat(q1).singleElement().satisfies(f -> {
-            assertThat(f.kind()).isEqualTo(FindingKind.REQUIRED_ELEMENT_MISSING);
+            assertThat(f.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
             assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q1: a questionnaire or a response is named without doc-needed");
         });
         // crd-ci-q1 again: a response beside doc-needed=no-doc.
@@ -620,15 +620,25 @@ class CrdConformanceCheckerTest {
                 .extracting(Finding::title).contains("CRD 2.0.1 crd-ci-q1: a questionnaire or a response is named without doc-needed");
         // crd-ci-q3: info-needed with nothing conditional.
         assertThat(checkResponse(200, response(action(1, code("pa-needed", "auth-needed") + "," + code("info-needed", "timeframe"))), "95810"))
-                .singleElement().satisfies(f -> assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q3: info-needed is sent and nothing is conditional"));
+                .singleElement().satisfies(f -> {
+                    assertThat(f.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
+                    assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q3: info-needed is sent and nothing is conditional");
+                });
         // crd-ci-q5, both ways.
         assertThat(checkResponse(200, response(bareAction(1, code("covered", "covered") + "," + code("pa-needed", "satisfied")
                 + ",{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}},{\"url\":\"date\",\"valueDate\":"
                 + "\"2026-01-15\"},{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}")), "95810"))
-                .singleElement().satisfies(f -> assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q5: pa-needed is satisfied and satisfied-pa-id is missing"));
+                .singleElement().satisfies(f -> {
+                    // The identifier is absent, and still the rule broken is the invariant: it ties two parts together.
+                    assertThat(f.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
+                    assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q5: pa-needed is satisfied and satisfied-pa-id is missing");
+                });
         assertThat(checkResponse(200, response(action(1, code("pa-needed", "auth-needed")
                 + ",{\"url\":\"satisfied-pa-id\",\"valueString\":\"PA-PLACEHOLDER-0002\"}")), "95810"))
-                .singleElement().satisfies(f -> assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q5: satisfied-pa-id is sent and pa-needed is not satisfied"));
+                .singleElement().satisfies(f -> {
+                    assertThat(f.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
+                    assertThat(f.title()).isEqualTo("CRD 2.0.1 crd-ci-q5: satisfied-pa-id is sent and pa-needed is not satisfied");
+                });
     }
 
     @Test
@@ -649,6 +659,7 @@ class CrdConformanceCheckerTest {
         List<Finding> findings = checkResponse(200, response(action(1, code("pa-needed", "auth-needed") + "," + code("pa-needed", "no-auth"))),
                 "95810");
         assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
             assertThat(f.title()).isEqualTo("CRD 2.0.1 allows pa-needed once, and it was sent more than once");
             assertThat(f.detail()).contains("The first was read as the answer");
         });
@@ -672,6 +683,7 @@ class CrdConformanceCheckerTest {
                 + "," + code("pa-needed", "no-auth") + ",{\"url\":\"coverage\",\"valueReference\":{\"reference\":\"Coverage/coverage-1\"}},"
                 + "{\"url\":\"date\",\"valueDate\":\"2026-01-15\"},{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}]}]}]}";
         assertThat(checkResponse(200, body, "95810")).singleElement().satisfies(f -> {
+            assertThat(f.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
             assertThat(f.title()).isEqualTo("Coverage information sits on a card, which CRD 2.0.1 does not allow");
             assertThat(f.detail()).contains("QuestionnaireResponse, Encounter, NutritionOrder, CommunicationRequest, DeviceRequest, "
                     + "ServiceRequest and MedicationRequest").contains("The answer was still read");
