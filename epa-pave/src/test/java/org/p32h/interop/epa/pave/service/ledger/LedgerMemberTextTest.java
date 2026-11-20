@@ -178,6 +178,33 @@ class LedgerMemberTextTest {
     }
 
     @Test
+    void aNoteAddedLaterWithTheMemberIdInFullwidthOrAsItsDigitsAloneIsRefusedOnATokenLine() {
+        // Found by the independent check of the member data fixes (N3).
+        JsonlRunLedger tokenised = ledger(home, CLOCK);
+        tokenised.record(draft("run-1", CLOCK).build());
+        for (String note : List.of("member S\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16\uFF17\uFF18\uFF19", "member 123456789",
+                "member 123 456 789")) {
+            ValidationException refused = Assertions.catchThrowableOfType(ValidationException.class,
+                    () -> tokenised.addNote("run-1", note, null));
+            assertThat(refused).as(note).isNotNull();
+            assertThat(refused.fieldErrors()).singleElement().satisfies(error -> assertThat(error.field()).isEqualTo("note"));
+        }
+        assertThat(tokenised.addNote("run-1", "member 223456789 is another one", null).recorded()).isTrue();
+        assertThat(lines(dayFile(home, TODAY))).hasSize(2).noneMatch(written -> written.contains("member 123")
+                || written.contains("\uFF11\uFF12\uFF13"));
+    }
+
+    @Test
+    void theRecordDoesNotKeepFreeTextHoldingTheMemberIdInFullwidthOrAsItsDigitsAndAUuidsDigitsAreNotTheIds() {
+        // Found by the independent check of the member data fixes (N3): the record is the last line.
+        RunRecord record = draft("run-1", CLOCK).note("about S\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16\uFF17\uFF18\uFF19")
+                .testerRef("QA 123-456-789").correlation(Map.of(RunRecord.CORR_CLAIM_ID, "claim-" + UUID)).build();
+        assertThat(record.note()).isEqualTo("(note not recorded, 16 characters)");
+        assertThat(record.testerRef()).isEqualTo("(tester reference not recorded, 14 characters)");
+        assertThat(record.correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, "claim-" + UUID);
+    }
+
+    @Test
     void aNoteAnOlderVersionAppendedWithTheMemberIdIsReplacedWhenTheLineIsReadAndExported() throws java.io.IOException {
         JsonlRunLedger ledger = ledger(home, CLOCK);
         ledger.record(draft("run-1", CLOCK).build());

@@ -142,9 +142,23 @@ public final class RunInputs {
         Map<String, String> text = textForTheLedger(request.note(), request.testerRef(), request.expected());
         text.forEach((field, problem) -> errors.add(new FieldError(field, problem)));
         // Text over its limit is reported by its length and not read again, so a problem is never said twice.
-        MemberInText.problems(text.containsKey("note") ? null : request.note(), text.containsKey("testerRef") ? null : request.testerRef(),
-                        text.containsKey("expected") ? null : request.expected(), request.member(), "Nothing was sent.")
-                .forEach((field, problem) -> errors.add(new FieldError(field, problem)));
+        String note = text.containsKey("note") ? null : request.note();
+        String testerRef = text.containsKey("testerRef") ? null : request.testerRef();
+        String expected = text.containsKey("expected") ? null : request.expected();
+        Map<String, String> member = MemberInText.problems(note, testerRef, expected, request.member(), "Nothing was sent.");
+        member.forEach((field, problem) -> errors.add(new FieldError(field, problem)));
+        if (Texts.present(request.rawBody())) {
+            // A body of the tester's own goes out in place of the one built from the form, and the
+            // screen sends no member with it, so the body is where this run's member is read from,
+            // as for a request sent as written. A field already refused for the form's member is
+            // not refused twice.
+            MemberInText.problemsInBody(note, testerRef, expected, MembersInBody.readWithPatientIds(request.rawBody()), "Nothing was sent.")
+                    .forEach((field, problem) -> {
+                        if (!member.containsKey(field)) {
+                            errors.add(new FieldError(field, problem));
+                        }
+                    });
+        }
         String chainId = Texts.trimToNull(request.chainId());
         if (chainId != null && !RunRequest.NEW_CHAIN.equals(chainId) && !RunStamps.isChainId(chainId)) {
             errors.add(new FieldError("chainId", "The chain id must be blank, \"" + RunRequest.NEW_CHAIN + "\" to start a chain, or an "

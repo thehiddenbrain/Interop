@@ -351,14 +351,42 @@ public record RunRecord(
     /**
      * True when a value holds this run's member ID, however it is punctuated. A service that
      * writes S-123456789 or S12345-6789 where a code or a path belongs has written the ID, so both
-     * sides are compared with everything but letters and digits removed.
+     * sides are compared with everything but letters and digits removed, after a fullwidth or
+     * otherwise styled character has been turned into the plain one. The ID's run of digits, when
+     * it has six or more, is looked for alone as well, outside any UUID, since it is often written
+     * without the letters in front of it.
      */
     private static boolean holdsMember(String value, String sought) {
-        return sought != null && value != null && alphanumerics(value).contains(sought);
+        if (sought == null || value == null) {
+            return false;
+        }
+        String squeezed = alphanumerics(value);
+        if (squeezed.contains(sought)) {
+            return true;
+        }
+        // A UUID is hex in fixed groups and is nobody's data, so its digits are not read as the ID's.
+        squeezed = alphanumerics(UUID_SHAPE.matcher(value).replaceAll(" "));
+        String digits = digitRun(sought);
+        return digits != null && squeezed.contains(digits);
     }
 
+    /** The longest run of six digits or more in an identifier, when that is not the whole of it, or null. */
+    private static String digitRun(String id) {
+        String longest = null;
+        java.util.regex.Matcher run = DIGITS.matcher(id);
+        while (run.find()) {
+            if (longest == null || run.group().length() > longest.length()) {
+                longest = run.group();
+            }
+        }
+        return longest == null || longest.equals(id) ? null : longest;
+    }
+
+    private static final java.util.regex.Pattern DIGITS = java.util.regex.Pattern.compile("\\d{6,}");
+
     private static String alphanumerics(String value) {
-        return value == null ? "" : value.replaceAll("[^A-Za-z0-9]", "").toLowerCase(java.util.Locale.ROOT);
+        return value == null ? "" : java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFKC).replaceAll("[^A-Za-z0-9]", "")
+                .toLowerCase(java.util.Locale.ROOT);
     }
 
     /**

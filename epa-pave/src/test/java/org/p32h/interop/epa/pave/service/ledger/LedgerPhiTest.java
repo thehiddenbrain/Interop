@@ -447,6 +447,29 @@ class LedgerPhiTest {
     }
 
     @Test
+    void aBodyOfTheTestersOwnSentWithNoMemberHasItsNoteCheckedAgainstThePatientTheBodyNamesAndNothingIsWritten() {
+        // Found by the independent check of the member data fixes (N1): the screen sends no member
+        // with a body of the tester's own, so this note was checked against nothing.
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        CrdService service = service(mock, ledger);
+        String body = "{\"hook\":\"order-sign\",\"hookInstance\":\"x\",\"context\":{\"patientId\":\"" + MEMBER_ID + "\"}}";
+
+        org.p32h.interop.epa.pave.service.error.ValidationException refused = org.assertj.core.api.Assertions.catchThrowableOfType(
+                org.p32h.interop.epa.pave.service.error.ValidationException.class,
+                () -> service.run(CrdRunRequest.builder().rawBody(body).note("own body for " + MEMBER_ID).build(), RunOrigin.manual(), null));
+
+        assertThat(refused).isNotNull();
+        assertThat(refused.fieldErrors()).singleElement().satisfies(error -> {
+            assertThat(error.field()).isEqualTo("note");
+            assertThat(error.message()).contains("a member ID the request body carries").doesNotContain(MEMBER_ID);
+        });
+        assertThat(Files.exists(dayFile(home, TODAY))).isFalse();
+
+        service.run(CrdRunRequest.builder().rawBody(body).note("own body, ticket 4471").build(), RunOrigin.manual(), null);
+        assertThat(onlyLine()).contains("\"note\":\"own body, ticket 4471\"").doesNotContain(MEMBER_ID);
+    }
+
+    @Test
     void theRunsOwnMemberIdTypedAsAProcedureCodeIsNotOnTheLineInTheCodesOrAsTheSubjectOfACoverageCode() {
         // Found by the second member data audit (F3).
         JsonlRunLedger ledger = ledger(home, CLOCK);

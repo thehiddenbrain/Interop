@@ -402,4 +402,17 @@ class SuiteCasesTest {
         assertThat(rows.get(3).problems()).isEmpty();
         assertThat(String.join(" ", rows.get(0).problems())).doesNotContain("1234567801");
     }
+
+    @Test
+    void aRowWhoseNoteHoldsItsMemberIdInAnotherFormIsRefused() {
+        // Found by the independent check of the member data fixes (N3): fullwidth digits and the digits alone.
+        SuiteDefinition definition = csv("caseId,protocol,memberId,note,testerRef,expected\n"
+                + "TC-1,crd,S1234567801,called about \uFF33\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16\uFF17\uFF18\uFF10\uFF11,,\n"
+                + "TC-2,crd,S1234567801,member 1234567801,,\n"
+                + "TC-3,crd,S1234567801,ticket 4471,,\n");
+        List<SuiteRow> rows = definition.rows();
+        assertThat(rows.get(0).problems()).singleElement().asString().startsWith("The note holds this run's member ID.");
+        assertThat(rows.get(1).problems()).singleElement().asString().startsWith("The note holds this run's member ID.");
+        assertThat(rows.get(2).problems()).isEmpty();
+    }
 }
