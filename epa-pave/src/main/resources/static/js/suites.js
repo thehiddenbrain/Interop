@@ -31,7 +31,7 @@ const TEMPLATE = [
 const COUNT_FILTERS = [
     ['passed', 'Passed', row => row.status === 'COMPLETED' && row.result === 'pass'],
     ['failed', 'Failed', row => row.status === 'COMPLETED' && row.result === 'fail'],
-    ['unverified', 'Unverified', row => row.status === 'COMPLETED' && row.result !== 'pass' && row.result !== 'fail'],
+    ['unverified', 'Unverified', row => row.status === 'COMPLETED' && row.result === 'unverified'],
     ['blocked', 'Blocked', row => row.status === 'BLOCKED'],
     ['invalid', 'Not valid', row => row.status === 'INVALID'],
     ['notConfigured', 'Not configured', row => row.status === 'NOT_CONFIGURED'],
@@ -384,7 +384,7 @@ export function createSuites(app, context) {
             {class: 'num', node: String(row.row)},
             code(row.caseId),
             row.what || none('not stated'),
-            row.expected ? code(row.expected) : none('none declared'),
+            row.expected ? expectedWords(row.expected) : none('none declared'),
             sent ? outcome(row.outcomeLabel || row.outcome, row.tone) : none('no outcome'),
             row.result ? stamp(row.result) : none('not compared'),
             {class: 'num', node: typeof row.elapsedMillis === 'number'
@@ -409,6 +409,17 @@ export function createSuites(app, context) {
             runIdsOf(row)
         ]);
         return tableRow({cells, class: row.changed === true ? 'suite-row suite-row--changed' : 'suite-row'});
+    }
+
+    /**
+     * What a row declared, in the server's words when the declaration is exactly one outcome code
+     * that every protocol words alike, with the code beneath. A row carries no protocol, so a code
+     * two protocols word differently, or a declaration with more in it, is shown as written.
+     */
+    function expectedWords(expected) {
+        const vocabulary = context.vocabulary ? context.vocabulary() : null;
+        const option = vocabulary ? vocabulary.outcomeChoices(null).find(choice => choice.code === expected) : null;
+        return option && option.label ? [el('span', {class: 'history-expected'}, option.label), el('div', {class: 'small'}, code(expected))] : code(expected);
     }
 
     /**

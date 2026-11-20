@@ -6,12 +6,12 @@
 // dates and identifiers of runs, never member data.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, count, millis, when} from './dom.js';
+import {el, fill, clear, button, code, count, millis} from './dom.js';
 import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {stamp, slowFlag, resultWord} from './marks.js';
 import {errorPanel} from './result.js';
-import {runLink, chainLink, none, memberShort, outcomeOf, whatRan, whereRan} from './history-common.js';
-import {replayReport} from './history-replay.js';
+import {runLink, chainLink, suiteRunsLink, none, memberShort, outcomeOf, expectedOf, whatRan, whereRan, whenFiled, utcDayNote} from './history-common.js';
+import {replayReport, summaryText} from './history-replay.js';
 
 // Every filter of GET /api/runs, by the name the endpoint gives it, with the words for it on screen.
 const FILTERS = [
@@ -28,8 +28,8 @@ export function createRunsList(app, context) {
     let asked = 0;
 
     const fields = {
-        from: textField({label: 'From', field: 'from', placeholder: 'YYYY-MM-DD'}),
-        to: textField({label: 'To', field: 'to', placeholder: 'YYYY-MM-DD'}),
+        from: textField({label: 'From, a UTC day', field: 'from', placeholder: 'YYYY-MM-DD'}),
+        to: textField({label: 'To, a UTC day', field: 'to', placeholder: 'YYYY-MM-DD'}),
         protocol: selectField({label: 'Protocol', field: 'protocol', options: [{value: '', label: 'Any protocol'}]}),
         operation: selectField({label: 'Operation', field: 'operation', options: [{value: '', label: 'Any operation'}]}),
         outcome: selectField({label: 'Outcome', field: 'outcome', options: [{value: '', label: 'Any outcome'}]}),
@@ -40,15 +40,19 @@ export function createRunsList(app, context) {
         limit: selectField({label: 'How many', field: 'limit', options: LIMITS})
     };
     const problem = el('div', {class: 'form-problem-slot'});
+    // The ledger's days are UTC days and the times on screen are the viewer's own: said beside the dates, every time the list is drawn.
+    const utcNote = el('p', {class: 'small history-utc-note'});
     const form = el('form', {class: 'history-filters', noValidate: true, attrs: {'aria-label': 'Which runs to list'}},
         el('div', {class: 'history-filters__grid'}, Object.values(fields).map(field => field.node),
             el('div', {class: 'button-row history-filters__buttons'},
                 el('button', {type: 'submit', class: 'button button--primary'}, 'List runs'),
                 button('Clear the filters', () => { setFields(new URLSearchParams()); apply(); }))),
-        problem);
-    const status = el('div', {class: 'history-status', role: 'status', aria: {live: 'polite'}});
+        utcNote, problem);
+    // Not a live region: it holds the filter buttons and is redrawn with every list. The count is announced in a sentence.
+    const status = el('div', {class: 'history-status'});
     const actions = el('div', {class: 'history-actions'});
-    const replayBox = el('div', {class: 'history-replay-slot', aria: {live: 'polite'}});
+    // Not a live region either: a report of a date range can run to hundreds of rows. Its counts are announced instead.
+    const replayBox = el('div', {class: 'history-replay-slot'});
     const list = el('div', {class: 'history-list', aria: {busy: 'false'}});
 
     form.addEventListener('submit', event => {
@@ -122,8 +126,9 @@ export function createRunsList(app, context) {
         context.go('runs' + (query.toString() ? '?' + query.toString() : ''));
     }
 
-    async function load(query) {
+    async function load(query, focusAfter) {
         lastQuery = query;
+        utcNote.textContent = utcDayNote();
         setFields(query);
         drawChoices();
         clearFieldErrors(form);
@@ -149,15 +154,22 @@ export function createRunsList(app, context) {
             fill(problem, formProblem(answer.body, markFieldErrors([form], answer.body.fieldErrors)));
             clear(list);
             clear(actions);
+            context.announce('The ledger was not asked: a filter cannot be read.');
             return;
         }
         if (answer.kind !== 'ok') {
             fill(status, answer.body.title);
             fill(list, errorPanel(answer.body));
             clear(actions);
+            context.announce(answer.body.title);
             return;
         }
         drawStatus(answer.body, query);
+        context.announce(status.querySelector('.history-status__count').textContent);
+        if (focusAfter || !document.activeElement || document.activeElement === document.body) {
+            // The control that had the focus was redrawn or taken away, so the focus goes to the count, where the new list starts.
+            status.querySelector('.history-status__count').focus({preventScroll: true});
+        }
         if (answer.body.count > 0) {
             drawActions(query);
         } else {
@@ -174,26 +186,30 @@ export function createRunsList(app, context) {
             : [el('strong', null, count(body.count)), body.count === 1 ? ' run matches' : ' runs match',
                 active.length > 0 ? ' these filters, and every one is shown.' : ', and every one is shown.'];
         fill(status,
-            el('p', {class: 'history-status__count'}, matched),
+            el('p', {class: 'history-status__count', tabIndex: -1}, matched),
             active.length === 0 ? el('p', {class: 'small quiet'}, 'No filter is on: this is the whole ledger, newest first.')
                 : el('div', {class: 'filters', role: 'group', aria: {label: 'Filters on'}},
                     el('span', {class: 'small quiet'}, 'Filters on:'),
-                    active.map(([name, label]) => button([label, ' ', filterValue(name, query.get(name))], () => {
+                    active.map(([name, label]) => button([label, ' ', filterValue(name, query.get(name)), el('span', {class: 'filter__remove'}, 'Remove')], () => {
                         const without = new URLSearchParams(query);
                         without.delete(name);
                         context.go('runs' + (without.toString() ? '?' + without.toString() : ''));
                     }, {class: 'button--quiet button--small filter', aria: {label: 'Remove the filter ' + label + ' ' + query.get(name)}, title: 'Remove this filter'}))));
     }
 
+    /** A filter's value as its control shows it: the words of a choice in a select, the value itself for a date or an id. */
     function filterValue(name, value) {
-        const vocabulary = context.vocabulary();
-        if (name === 'operation' && vocabulary && vocabulary.operation(value)) {
-            return el('strong', null, vocabulary.operation(value).label);
+        const field = fields[name];
+        if (field && field.select) {
+            const option = Array.from(field.select.options).find(candidate => candidate.value === value);
+            if (option && option.textContent !== value) {
+                return el('strong', null, option.textContent);
+            }
         }
         if (name === 'result') {
             return el('strong', null, resultWord(value));
         }
-        return code(value);
+        return name === 'from' || name === 'to' ? el('strong', null, value) : code(value);
     }
 
     /** The export and the replay of a date range. Both take the dates only, and say so. */
@@ -206,7 +222,8 @@ export function createRunsList(app, context) {
         }
         const otherFilters = FILTERS.some(([name]) => name !== 'from' && name !== 'to' && query.get(name));
         const range = dates.get('from') || dates.get('to')
-            ? [dates.get('from') ? ['from ', dates.get('from')] : 'from the first run', ' ', dates.get('to') ? ['to ', dates.get('to')] : 'to the latest']
+            ? [dates.get('from') ? ['from ', dates.get('from')] : 'from the first run', ' ', dates.get('to') ? ['to ', dates.get('to')] : 'to the latest',
+                ', counted in UTC days']
             : 'of every day in the ledger';
         fill(actions,
             el('div', {class: 'history-actions__item'},
@@ -216,44 +233,101 @@ export function createRunsList(app, context) {
                     + 'A spreadsheet opens it as it is.',
                     otherFilters ? el('strong', null, ' The export takes the dates only: it holds every run in those dates, whatever the other filters above.') : null)),
             el('div', {class: 'history-actions__item'},
-                dates.toString() ? button('Replay the runs in these dates', () => confirmReplay(dates), {class: 'button--quiet'}) : null,
+                dates.toString() ? replayOpener(dates) : null,
                 el('p', {class: 'small'}, dates.toString()
-                    ? ['Sends every run ', range, ' again against the configuration in force now, and says which answers are the same and what changed.',
+                    ? ['Sends every run ', range, ', again against the configuration in force now, and says which answers are the same and what changed.',
                         otherFilters ? el('strong', null, ' A replay takes the dates only, like the export.') : null]
                     : 'Give a From or a To date above to replay the runs of those days and see what changed since.')));
     }
 
-    function confirmReplay(dates) {
+    function replayOpener(dates) {
+        const opener = button('Replay the runs in these dates', () => confirmReplay(dates, opener), {class: 'button--quiet'});
+        return opener;
+    }
+
+    /**
+     * Says what a replay of these dates would send before anything is sent: how many runs the
+     * ledger holds in those days whatever the other filters, how many of them are writes, and
+     * where they go. The counts are read from the ledger with the dates alone, because the replay
+     * takes the dates alone. Which operations write is the server's own flag on each operation.
+     */
+    async function confirmReplay(dates, opener) {
+        fill(replayBox, el('p', {class: 'readout__status'}, 'Counting the runs in these dates.'));
+        const counted = new URLSearchParams(dates);
+        counted.set('limit', '0');
+        const answer = await api.get('/api/runs?' + counted.toString());
+        if (answer.kind !== 'ok') {
+            fill(replayBox, errorPanel(answer.body));
+            return;
+        }
+        const inDates = answer.body.runs || [];
+        const replays = inDates.filter(run => run.replayOfRunId).length;
+        const originals = inDates.filter(run => !run.replayOfRunId);
+        const vocabulary = context.vocabulary();
+        const writesByOperation = new Map();
+        for (const run of originals) {
+            const operation = vocabulary ? vocabulary.operation(run.operation) : null;
+            if (operation && operation.write === true) {
+                writesByOperation.set(operation.label, (writesByOperation.get(operation.label) || 0) + 1);
+            }
+        }
+        const writes = Array.from(writesByOperation.values()).reduce((sum, value) => sum + value, 0);
         const mode = app.mode() || {};
         const environment = mode.environment || {};
+        const access = mode.writeAccess || {};
+        const mock = mode.mode === 'mock';
+        const plural = (number, one, many) => count(number) + ' ' + (number === 1 ? one : many);
         const send = button('Send these runs again', () => runReplay(dates, send), {class: 'button--primary'});
+        const cancel = button('Cancel', () => { clear(replayBox); opener.focus(); });
         fill(replayBox, el('div', {class: 'history-confirm', role: 'group', aria: {label: 'Replay these dates'}},
-            el('p', null, el('strong', null, 'This sends real requests.'), ' Every run in these dates that can be sent again goes to ',
-                environment.active ? [environment.name, ' (', environment.kind, ')'] : 'no environment', ' on the ', mode.mode || 'current',
-                ' profile, one after another, and the answer comes back when the last one is done. A run that cannot be sent again is reported with the reason and not sent. '
-                + 'Replays of earlier replays are left out. Writes to production are refused by the guardrail.'),
-            el('div', {class: 'button-row'}, send, button('Cancel', () => clear(replayBox)))));
+            el('p', null, el('strong', null, 'The ledger holds ' + plural(inDates.length, 'run', 'runs') + ' in these UTC days'),
+                FILTERS.some(([name]) => name !== 'from' && name !== 'to' && lastQuery.get(name))
+                    ? ', whatever the other filters above, which a replay does not take' : null, '. ',
+                replays > 0 ? plural(replays, 'is a replay', 'are replays') + ' of an earlier run and ' + (replays === 1 ? 'is' : 'are') + ' left out. ' : null,
+                el('strong', null, 'Up to ' + plural(originals.length, 'run is', 'runs are') + ' sent again'),
+                ', one after another; a run that cannot be sent again is reported with the reason and not sent.'),
+            el('p', null, writes === 0 ? 'None of them is a write.'
+                : [el('strong', null, plural(writes, 'of them is a write', 'of them are writes')), ' (',
+                    Array.from(writesByOperation.entries()).map(([label, number], index) => [index > 0 ? ', ' : null, count(number) + ' x ' + label]), '). ',
+                    mock ? null : access.writesAllowed === true
+                        ? ['Each write is sent again as a new request to ', environment.active ? [environment.name, ' (', environment.kind, ')'] : 'the service the configuration names',
+                            ', where it is acted on like the first one. ']
+                        : ['Writes are not sent: ', access.reason || 'the guardrail refuses them', ' Each is reported as blocked. ']]),
+            el('p', null, mock
+                ? 'This is the mock profile: the scenario files answer again, and nothing leaves this machine. Each run sent again is recorded as a new run.'
+                : ['This is the ', mode.mode || 'current', ' profile: the requests go to ',
+                    environment.active ? [environment.name, ' (', environment.kind, ')'] : 'the service the configuration in force names',
+                    ', against the configuration in force now. Each run sent again is recorded as a new run.']),
+            el('div', {class: 'button-row'}, send, cancel)));
         send.focus();
     }
 
     async function runReplay(dates, control) {
         control.disabled = true;
         control.setAttribute('aria-busy', 'true');
-        const status = el('p', {class: 'readout__status', role: 'status'}, 'Sending the runs again. This takes as long as the runs themselves took.');
+        const status = el('p', {class: 'readout__status'}, 'Sending the runs again. This takes as long as the runs themselves took.');
         fill(replayBox, status);
+        context.announce('Sending the runs again.');
         const body = {};
         dates.forEach((value, name) => { body[name] = value; });
         const answer = await api.postJson('/api/runs/replay', body);
         if (answer.kind === 'ok') {
-            fill(replayBox, replayReport(answer.body, context.vocabulary(), {title: 'What the replay of these dates found'}));
+            const report = replayReport(answer.body, context.vocabulary(), {title: 'What the replay of these dates found'});
+            fill(replayBox, report);
+            // The button that had the focus is gone with the confirmation, so the focus goes to the report it led to.
+            report.querySelector('h3').focus();
+            context.announce('Replay done: ' + summaryText(answer.body));
             context.health.refresh();
             return;
         }
         if (answer.kind === 'form') {
             fill(replayBox, formProblem(answer.body, markFieldErrors([form], answer.body.fieldErrors)));
-            return;
+        } else {
+            fill(replayBox, errorPanel(answer.body));
         }
-        fill(replayBox, errorPanel(answer.body));
+        context.announce('Nothing was replayed: ' + answer.body.title);
+        replayBox.setAttribute('tabindex', '-1');
+        replayBox.focus();
         if (answer.kind === 'conflict') {
             app.refreshMode();
         }
@@ -280,11 +354,11 @@ export function createRunsList(app, context) {
                 el('thead', null, el('tr', null, head.map(item => typeof item === 'string'
                     ? el('th', {scope: 'col'}, item) : el('th', {scope: 'col', class: item.cls}, item.text)))),
                 el('tbody', null, runs.map(run => el('tr', {class: run.result === 'fail' ? 'history-row history-row--fail' : 'history-row'},
-                    el('td', null, runLink(run.runId, when(run.timestamp))),
+                    el('td', {class: 'history-when-cell'}, runLink(run.runId, whenFiled(run.timestamp))),
                     el('td', null, whatRan(vocabulary, run), run.replayOfRunId ? el('div', {class: 'small'}, el('span', {class: 'flag'}, 'replay')) : null),
                     el('td', {class: 'small'}, whereRan(run), el('div', {class: 'quiet'}, run.profile, ' profile')),
                     el('td', null, outcomeOf(vocabulary, run)),
-                    el('td', null, run.expected ? code(run.expected) : none('nothing declared')),
+                    el('td', null, run.expected ? expectedOf(vocabulary, run) : none('nothing declared')),
                     el('td', null, stamp(run.result)),
                     el('td', {class: 'num'}, millis(run.elapsedMillis), run.slow ? el('div', null, slowFlag()) : null),
                     el('td', null, memberShort(run)),
@@ -298,7 +372,8 @@ export function createRunsList(app, context) {
             parts.push(el('div', null, el('span', {class: 'small quiet'}, 'chain '), chainLink(run.chainId, code(run.chainId.slice(0, 14), 'literal--id'))));
         }
         if (run.suiteRunId) {
-            parts.push(el('div', null, el('span', {class: 'small quiet'}, 'suite, case '), run.caseId ? code(run.caseId) : none('no case id')));
+            parts.push(el('div', null, suiteRunsLink(run.suiteRunId, 'suite run'), el('span', {class: 'small quiet'}, ', case '),
+                run.caseId ? code(run.caseId) : none('no case id')));
         }
         return parts.length > 0 ? parts : el('span', {class: 'quiet small'}, 'a single run');
     }
@@ -306,8 +381,8 @@ export function createRunsList(app, context) {
     return {
         node,
         /** Shows the list for the filters in the address. */
-        show(query) {
-            load(query || new URLSearchParams());
+        show(query, focusAfter) {
+            load(query || new URLSearchParams(), focusAfter);
         },
         /** The filters of the list on screen, for the address. */
         query: () => lastQuery,

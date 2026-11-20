@@ -6,7 +6,7 @@
 // Only same, changed and not-comparable say anything about the service. The other statuses say
 // that nothing was compared, and they are drawn as that, never as a failure.
 
-import {el, code, count, when, table, heading, millis} from './dom.js';
+import {el, code, count, when, table, millis} from './dom.js';
 import {stamp} from './marks.js';
 import {runLink, outcomeOf, whatRan, none, whereRan} from './history-common.js';
 
@@ -23,14 +23,29 @@ export function statusWords(status) {
     return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** The statuses the report counts, in order, leaving out those it counts none of. */
+function countedStatuses(summary) {
+    return ORDER.filter(name => summary[name] > 0).concat(Object.keys(summary).filter(name => !ORDER.includes(name) && summary[name] > 0));
+}
+
+/** The counts of a report in one short sentence, for a screen reader: "32 same, 7 not replayable." */
+export function summaryText(report) {
+    const summary = report.summary || {};
+    const statuses = countedStatuses(summary);
+    return statuses.length === 0 ? 'no run was selected.'
+        : statuses.map(name => count(summary[name]) + ' ' + statusWords(name).toLowerCase()).join(', ') + '.';
+}
+
 /** The whole report: notes about the replay as a whole, the counts, and one entry per run. */
 export function replayReport(report, vocabulary, options) {
     const settings = options || {};
     const summary = report.summary || {};
-    const statuses = ORDER.filter(name => summary[name] > 0).concat(Object.keys(summary).filter(name => !ORDER.includes(name) && summary[name] > 0));
+    const statuses = countedStatuses(summary);
     const results = report.results || [];
     const node = el('section', {class: 'history-replay', aria: {label: 'What the replay found'}},
-        heading(3, settings.title || 'What the replay found', results.length),
+        // The heading takes the focus when the control that asked for the report is gone.
+        el('h3', {class: 'section-heading', tabIndex: -1}, settings.title || 'What the replay found', ' ',
+            el('span', {class: 'section-heading__count'}, '(' + results.length + ')')),
         el('p', {class: 'small quiet'}, 'Started ', when(report.startedAt),
             report.from || report.to ? [', for the runs ', report.from ? ['from ', report.from] : null, report.to ? [' to ', report.to] : null] : null,
             '. A run sent again goes to the configuration in force when the replay started.'),

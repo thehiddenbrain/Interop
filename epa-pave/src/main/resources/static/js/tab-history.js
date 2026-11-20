@@ -17,7 +17,7 @@ import {loadVocabulary} from './history-vocabulary.js';
 import {createHealth} from './history-health.js';
 import {createRunsList} from './history-runs.js';
 import {createRunView} from './history-run.js';
-import {chainLink} from './history-common.js';
+import {utcDayNote} from './history-common.js';
 
 const VIEWS = [
     {id: 'runs', label: 'Runs'},
@@ -54,8 +54,21 @@ const context = {
     ready: () => vocabularyRead,
     health: null,
     listQuery: () => (runs ? runs.query() : null),
-    go: path => app.navigate('history/' + path)
+    go
 };
+
+/**
+ * Changes the view inside this tab, with an entry in the browser's history so the back button
+ * returns. It does not go through app.navigate, which sends the focus to the top of the working
+ * area: a keyboard user who chose "List runs" or a filter keeps their place.
+ */
+function go(path) {
+    const address = '#history/' + path;
+    if (window.location.hash !== address) {
+        window.history.pushState(null, '', address);
+    }
+    onShow(path);
+}
 
 function mount(panel, application) {
     app = application;
@@ -110,32 +123,40 @@ function showView(view, argument, query) {
         nodes.chains.show(argument);
     } else if (argument) {
         openRunId = argument;
-        place(runView.node);
-        runView.open(argument);
+        const replaced = place(runView.node);
+        runView.open(argument, replaced || focusLost());
     } else {
         openRunId = null;
-        place(runs.node);
-        runs.show(query !== null && query !== undefined ? new URLSearchParams(query) : runs.query());
+        const replaced = place(runs.node);
+        runs.show(query !== null && query !== undefined ? new URLSearchParams(query) : runs.query(), replaced);
     }
 }
 
 /**
  * Puts the nodes of a view on screen. Nodes already there in that order are left in place: taking
  * one out and putting it back would drop the keyboard focus inside it to the top of the page.
+ * Answers true when the view was replaced, so the view drawn can take the focus the old one had.
  */
 function place(...wanted) {
     const children = Array.from(nodes.view.children);
     if (children.length === wanted.length && children.every((child, index) => child === wanted[index])) {
-        return;
+        return false;
     }
     fill(nodes.view, ...wanted);
+    return true;
+}
+
+/** True when the focus is nowhere in particular, as after the node that held it was redrawn. */
+function focusLost() {
+    return !document.activeElement || document.activeElement === document.body;
 }
 
 /* ---------- chains ---------- */
 
 function chainsView() {
-    const from = textField({label: 'From', field: 'from', placeholder: 'YYYY-MM-DD'});
-    const to = textField({label: 'To', field: 'to', placeholder: 'YYYY-MM-DD'});
+    const from = textField({label: 'From, a UTC day', field: 'from', placeholder: 'YYYY-MM-DD'});
+    const to = textField({label: 'To, a UTC day', field: 'to', placeholder: 'YYYY-MM-DD'});
+    const utcNote = el('p', {class: 'small history-utc-note'});
     const problem = el('div');
     const list = el('div', {class: 'chain-list'});
     const detail = el('div', {class: 'readout', role: 'region', tabIndex: 0, aria: {label: 'The chain on screen'}});
@@ -145,6 +166,7 @@ function chainsView() {
                 el('h2', {class: 'case-legend'}, 'Chains'),
                 el('p', {class: 'quiet small'}, 'One row for each case followed through CRD, DTR and PAS, most recent first. Leave the dates empty for the latest.'),
                 el('div', {class: 'field-grid'}, from.node, to.node),
+                utcNote,
                 problem,
                 el('div', {class: 'button-row'}, el('button', {type: 'submit', class: 'button button--quiet'}, 'List chains'))),
             list));
@@ -154,6 +176,7 @@ function chainsView() {
     });
 
     async function load() {
+        utcNote.textContent = utcDayNote();
         clearFieldErrors(form);
         clear(problem);
         const query = new URLSearchParams();

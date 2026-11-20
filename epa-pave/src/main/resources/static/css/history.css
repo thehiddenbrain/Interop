@@ -120,18 +120,93 @@
     min-width: 1180px;
 }
 
-.history-table th:nth-child(1) { width: 11%; }
-.history-table th:nth-child(2) { width: 11%; }
+.history-table th:nth-child(1) { width: 13%; }
+.history-table th:nth-child(2) { width: 10%; }
 .history-table th:nth-child(3) { width: 9%; }
 .history-table th:nth-child(4) { width: 17%; }
 .history-table th:nth-child(5) { width: 11%; }
 .history-table th:nth-child(8) { width: 11%; }
 .history-table th:nth-child(9) { width: 6%; }
 
-/* A failed test result is marked at the row's edge as well as in its stamp, so a list of failures can be scanned. */
+/*
+ * A failed test result is marked at the row's edge as well as in its stamp, so a list of failures
+ * can be scanned. Every first cell carries the same left padding, so the mark sits in it and the
+ * dates of failed and other rows line up.
+ */
+.history-row > td:first-child {
+    padding-left: 10px;
+}
+
 .history-row--fail > td:first-child {
     box-shadow: inset 4px 0 0 var(--magenta);
-    padding-left: 10px;
+}
+
+/* A date and its time are read as one value, so they are never broken across lines. */
+.history-when-cell time, .history-run__when time {
+    white-space: nowrap;
+}
+
+.history-when__day {
+    display: block;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+}
+
+/*
+ * Codes such as DOCUMENTATION_REQUIRED break only at their joints (dom.js puts a break chance after
+ * each underscore), never inside a word, in the tables of this tab.
+ */
+.history-table .literal, .suite-results .literal, .history-replay__table .literal {
+    overflow-wrap: normal;
+}
+
+.history-expected {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+/* The dates of the ledger are UTC days: said once, beside the date fields. */
+.history-utc-note {
+    max-width: 110ch;
+    color: var(--ink-soft);
+}
+
+/* A filter chip says in words what choosing it does. */
+.filter__remove {
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid var(--line);
+    font-size: var(--text-small);
+}
+
+.history-status__count:focus {
+    outline-offset: 2px;
+}
+
+/* A line replay refuses as it stands: the reason takes the place of the button. */
+.history-run__refused {
+    max-width: 110ch;
+    padding-left: var(--gap-3);
+    border-left: 1px solid var(--line);
+}
+
+/* The state of the ledger on Chains and Suite runs, shown only when it is in trouble. */
+.history-health-brief:empty {
+    display: none;
+}
+
+.history-health-brief {
+    padding-top: var(--gap-3);
+}
+
+/* Why Run suite cannot be chosen now, beside the greyed button. */
+.suites__why {
+    align-self: center;
+}
+
+/* The not-recorded statement of a suite run stands beside its headline with the same weight. */
+.suite-head__unrecorded .ledger__state {
+    font: 700 var(--text-large)/1.3 var(--font-display);
 }
 
 /* ---------- one run ---------- */
