@@ -116,6 +116,7 @@ public class CrdService {
         List<String> requestNotes = new ArrayList<>();
         List<SentOrder> orders;
         List<CaseResources.Required> incomplete = List.of();
+        boolean unreadableOnMock = false;
         if (ownBody) {
             body = call.resolve(request.rawBody());
             orders = SentOrder.fromBody(body.value());
@@ -125,6 +126,7 @@ public class CrdService {
             if (body.resolved() && !parsed.ok()) {
                 requestNotes.add("The body you supplied is not valid JSON once its placeholders are filled in. It was sent exactly "
                         + "as written. " + parsed.error());
+                unreadableOnMock = epa.mock();
             }
         } else {
             CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), call::resolve);
@@ -149,6 +151,9 @@ public class CrdService {
             // Only the reading and wording of the response is inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one run.
             read = interpret(request, call, exchange, orders, incomplete, runId);
+            if (unreadableOnMock) {
+                read = read.withNextStep(UNREADABLE_BODY_ON_MOCK);
+            }
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -190,7 +195,22 @@ public class CrdService {
     /** Everything worked out from one response, before anything is written. */
     private record Interpreted(CrdReading reading, List<Finding> findings, VerdictView verdict, ExpectationView expectation,
                                NextStepView nextStep, ErrorView error, Timing timing, Map<String, String> correlation) {
+
+        Interpreted withNextStep(NextStepView next) {
+            return new Interpreted(reading, findings, verdict, expectation, next, error, timing, correlation);
+        }
     }
+
+    /**
+     * The next step of a run on the mock profile whose own body is not JSON. The scenario answered
+     * all the same, chosen by a sentinel in the text or by default, so its answer says nothing about
+     * that body, and a next step built from it would offer DTR or PAS on an answer no service gave.
+     * Nothing is handed on. On live the service's own answer to the body decides the next step.
+     */
+    static final NextStepView UNREADABLE_BODY_ON_MOCK = new NextStepView(NextAction.REVIEW,
+            "Next: correct the body and send it again. Nothing is handed on from this answer.",
+            "On the mock profile a scenario answered, although the body you supplied is not valid JSON. That answer says nothing about "
+                    + "the body, so no next step is offered from it. A service would read the body as it stands.", Map.of());
 
     private Interpreted interpret(CrdRunRequest request, PreparedCall call, VendorExchange exchange, List<SentOrder> orders,
                                   List<CaseResources.Required> incomplete, String runId) {

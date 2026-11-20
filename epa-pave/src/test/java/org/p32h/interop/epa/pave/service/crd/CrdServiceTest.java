@@ -833,6 +833,29 @@ class CrdServiceTest {
     }
 
     @Test
+    void onMockABodyThatIsNotJsonOffersNoNextStepFromTheScenarioThatAnsweredItAndOnLiveTheAnswerDecides() {
+        // Case CASE-06: the sentinel in the text chose a scenario that requires prior authorization. That answer says nothing
+        // about a body no service could read, so PAS is not offered from it and nothing is handed on.
+        String unreadable = "{\"hook\":\"order-sign\", not json P32H-PA-REQ";
+        RunEnvelope<CrdDetail> onMock = service().run(CrdRunRequest.builder().rawBody(unreadable).build(), RunOrigin.manual(), null);
+        assertThat(onMock.verdict().outcomeCode()).isEqualTo("AUTH_REQUIRED");
+        assertThat(onMock.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(onMock.nextStep().headline()).isEqualTo("Next: correct the body and send it again. Nothing is handed on from this answer.");
+        assertThat(onMock.nextStep().reason()).isEqualTo("On the mock profile a scenario answered, although the body you supplied is not "
+                + "valid JSON. That answer says nothing about the body, so no next step is offered from it. A service would read the body "
+                + "as it stands.");
+        assertThat(onMock.nextStep().carry()).isEmpty();
+        assertThat(ledger.last().nextAction()).isEqualTo(NextAction.REVIEW.name());
+        // A body that is JSON keeps the next step its answer gives.
+        assertThat(service().run(CrdRunRequest.builder().rawBody("{\"hook\":\"order-sign\",\"context\":{\"patientId\":\"P32H-PA-REQ\"}}")
+                .build(), RunOrigin.manual(), null).nextStep().action()).isEqualTo(NextAction.START_PAS);
+        // On live the service itself answered the body, so its answer decides the next step.
+        RunEnvelope<CrdDetail> onLive = service(mockClient, "live", Map.of()).run(CrdRunRequest.builder().rawBody(unreadable).build(),
+                RunOrigin.manual(), null);
+        assertThat(onLive.nextStep().action()).isEqualTo(NextAction.START_PAS);
+    }
+
+    @Test
     void aBodyWhosePlaceholdersOnlyResolveIntoJsonIsAccepted() {
         // Unquoted, as a vendor sample writes a number. It is not JSON until the value is filled in.
         String body = "{\"hook\":\"order-sign\",\"context\":{\"encounterNumber\":{{encounterNumber}}}}";
