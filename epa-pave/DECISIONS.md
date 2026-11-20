@@ -1012,7 +1012,8 @@ with what can be read was started as soon as this was known, by auditors who wro
 code. Which version of each guide the vendor sandbox follows is still not known (section 26).
 
 **D-131. A chain is a case like any other, and it stops where a tool has to stop.**
-Section 28.1 makes the chain the real test case, so a suite row and a replay can run one.
+Section 28.1 makes the chain the real test case, so a suite row can run one. (As first written this
+entry said a replay could too. It cannot: see D-138.)
 - It starts with CRD under a new chain id and then follows the next step each result states. It
   never decides the route from outcome codes of its own.
 - CRD says go to PAS: the submission is sent with what CRD handed on. CRD says go to DTR: the
@@ -1094,3 +1095,19 @@ order does not: the response names `ServiceRequest/service-request-1`, as the gu
 do, and the PAS bundle this tool builds holds no ServiceRequest. Open at this entry. It is closed
 together with whatever the comparison of the PAS request with the guide finds, since both change
 the same builder.
+
+## Corrections found by the independent audits
+
+**D-138. A replay does not rebuild a chain. D-131 said it could.**
+Found by the review of the chain as a case. A replay sends one recorded run again. A step of a
+chain that followed another step is marked on its ledger line as not replayable alone, because
+the line does not hold what the earlier step handed on, so replaying a journey sends only its
+CRD call again. The way to run a whole journey again is a suite row of kind chain. D-131 is
+corrected above, and the screen says this wherever a tester meets such a line.
+
+**D-139. "Send a request from the collection as it is" does not send the body saved in the collection. D-097 overstated it.**
+Found by the newcomer who followed the README. `POST /api/raw` sends the method, the address and
+the headers of a collection request with its variables resolved, and a body only when the caller
+supplies one. The sample body a vendor saved with the request is not sent, so a POST such as a
+submission goes out with no body. Not fixed at this entry. Until it is, the README says exactly
+what is sent.

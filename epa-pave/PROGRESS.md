@@ -136,6 +136,33 @@ whatever the review of the chain as a case finds, since both change the same fil
 - A failure inside the tool during a case is shown as "Not sent: this case cannot be run from a
   suite", when neither half is known.
 
+**The guardrail audit (V3) has reported, and the production guardrail can be got round.** Four
+blockers, five majors, two minors. Not fixed in this revision; it is the first part of the fix
+task for the configuration layer. Through every route section 27 names, the gate held: switching
+environments, restarting, the floor, mislabelled environments, two sessions, other origins,
+suites, replays. The holes are elsewhere, and they have one cause: the guardrail asks which
+environment is active and never asks where the request is going.
+
+- With a sandbox active, a submission or a subscription change is sent to an address the tool
+  itself holds as production when a value typed for one run, a setting in `application.yml` or
+  a second uploaded environment supplies that address. The floor does not stop it.
+- An unlock given for one production environment lets a write through to another.
+- A read can be pointed at any host for one run, and the vendor's access token goes with it.
+- A replay refused on an unlocked production environment is told that writes are "locked for
+  this session", which is false at that moment.
+
+**The fixture audit (V4) has reported:** every synthetic NPI passes the tool's own check, every
+sentinel selects its scenario, and all 240 scenario runs gave what their files claim. One
+blocker, which a branch already fixes (the placeholder code list compared with a live service
+without saying what it is). Majors: a damaged scenario set is never refused at start-up, the
+lookups do not know the DTR and PAS sentinels, and sentinels do not mean the same thing across
+protocols. Being fixed on branches.
+
+**The review of the chain as a case has reported:** six places where a chain row tells a tester
+something false, among them "Nothing was sent" for a chain whose CRD call went out, and a failed
+chain result that exists only in memory and not in the ledger. Being fixed with the suite
+findings above.
+
 **The comparison with version 2.0.1 of the guides has reported, and the tool does not conform.**
 CRD: 3 blockers, 14 majors, 9 minors. PAS: 9 blockers, 11 majors, 6 minors. DTR: 8 majors, 6
 minors. Not fixed in this revision. In short:
@@ -176,7 +203,6 @@ during the build; their substance is recorded in `DECISIONS.md` when each fix is
   answer with a code 2.0.1 does not have. Not fixed in this revision.
 - The order a DTR response refers to is not in the PAS bundle, so that one reference does not
   resolve there (D-135).
-- Comparing a pasted CRD request with the tool's own is not in this revision.
 - The procedure code list in use by default is a synthetic placeholder. Until the follow-up lands,
   a conformance finding that says the code list and the service disagree does not say that the
   list it compared with is the placeholder. On mock both sides are synthetic. On live this would
@@ -210,7 +236,11 @@ during the build; their substance is recorded in `DECISIONS.md` when each fix is
 - The section 27 verification agents other than V2 have not run. The independent review of the
   integrator's own code is running for the first wave only; the chain as a case and the wiring
   of the second wave have not been reviewed by anyone but their author.
-- README, `run.sh`, `run.cmd` and the sample files do not exist yet.
+- README, `run.sh`, `run.cmd` and the sample files are written and were followed to the letter
+  by an agent that had never seen the project, in a fresh clone; they are on a branch and not in
+  this revision. `run.cmd` has never been run: there is no Windows machine here.
+- Comparing a pasted CRD request with the tool's own is built and independently verified on a
+  branch (`POST /api/crd/compare`), and is not in this revision. Its screen is not built.
 - Nothing has been run against Onyx. Every test runs against the mock or a fake.
 - The build runs 1831 tests, 2 of them skipped because the build ran as root, for which a
   read-only folder is not read-only. The same refusals are covered by tests that did run.
